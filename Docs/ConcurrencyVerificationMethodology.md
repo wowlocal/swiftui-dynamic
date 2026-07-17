@@ -305,8 +305,10 @@ Every closing gate writes a machine-readable receipt before temporary logs are
 removed. It includes:
 
 - repository commit and dirty/worktree fingerprints at both start and finish,
-  with any mid-run source drift forcing RED, plus parity/acceptance/capability
-  manifest digests and the inventory/status pin result;
+  computed from built-in raw Git bytes with external diff drivers and text
+  conversion disabled, with any mid-run source drift forcing RED, plus
+  parity/acceptance/capability manifest digests and the inventory/status pin
+  result;
 - selected/completed parity case IDs and repetition counts;
 - build/test Swift driver plus native-oracle compiler path/version, SDK
   path/version, targets, and flags;

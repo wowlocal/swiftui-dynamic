@@ -2961,6 +2961,19 @@ struct ConcurrencyMethodologyTests {
         #expect(duplicate.standardError.contains("expected one summary marker"))
     }
 
+    @Test func gateFingerprintIgnoresUserDiffDrivers() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+
+        #expect(script.contains(
+            "git --no-pager diff --no-ext-diff --no-textconv --binary HEAD"),
+            Comment(rawValue:
+                "the source fingerprint must use built-in Git bytes instead "
+                    + "of a user-configured external diff or text conversion"))
+    }
+
     @Test func gateReceiptContractIsSourceBoundAndActionable() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(

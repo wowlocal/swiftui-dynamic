@@ -8181,7 +8181,7 @@ Focused GREEN covers exact all-scope/all-branch summaries, backticked names,
 labeled and unlabeled associated values, type spellings, raw expressions,
 eight detached readers, session and escaped-callback provenance, pure
 foreign-syntax fallback, and enum materialization. Twenty-nine directly
-affected unit/runtime tests, all forty-one methodology checks, and twenty
+affected unit/runtime tests, all forty-two methodology checks, and twenty
 same-source parity repetitions pass. Remaining member families, call-site and
 compiler-preflight metadata, mutable-symbol/evaluator migration, worker-safe
 heap classification, physical workers, cooperative-versus-parallel
