@@ -9396,6 +9396,7 @@
       "returnType" : "T"
     },
     {
+      "adapterIntrinsic" : "unsupportedUnsafeContinuation",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@_alwaysEmitIntoClient",
@@ -9487,7 +9488,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 126,
+    "adapterRoutedDeclarationCount" : 127,
     "declarationCount" : 171,
     "declarationsByDomain" : {
       "selected-nominal-member" : 9,

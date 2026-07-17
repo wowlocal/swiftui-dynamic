@@ -78,13 +78,9 @@ is released; the waiting task stays suspended and explicit host teardown
 remains separate. A resumed checked token may remain escaped after owner
 completion without retaining the task-local owner graph, runtime, session, or
 interpreter, and its later release is inert. The active-interface generator
-routes `withUnsafeContinuation` to a shared named fail-closed diagnostic before
-body invocation or ownership allocation; only the corresponding
-`withUnsafeThrowingContinuation` boundary remains open.
-The remaining Task API work is a
-bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
-architecture built on scheduler/session ownership, not broader
-name-dispatched Task API surface.
+routes both unsafe continuation entry points to one shared named fail-closed
+intrinsic before body invocation or ownership allocation. The demand-scoped M6
+cycle is closed; the active cycle is now M8 SwiftUI lifecycle ownership.
 
 The stable target separates five concerns:
 
@@ -1398,12 +1394,12 @@ warning through a diagnostic sink that does not retain the session, leaves the
 waiting task parked, and never enters source `catch`; infrastructure abort
 invalidates the token before host cleanup. After successful resume and owner
 completion, an escaped token retains neither the task-local owner graph nor the
-runtime/session/interpreter; its later release is inert. The generated
-`withUnsafeContinuation` entry point now fails closed through the shared
-`unsupportedUnsafeContinuation` intrinsic before invoking its body or creating
-ownership. `withUnsafeThrowingContinuation` remains open for the same explicit
-boundary; unsafe continuation ownership is not silently approximated by the
-checked registry.
+runtime/session/interpreter; its later release is inert. Both generated unsafe
+entry points now fail closed through the shared
+`unsupportedUnsafeContinuation` intrinsic before invoking their bodies or
+creating ownership. The diagnostic preserves the selected source function
+name; unsafe continuation ownership is not silently approximated by the checked
+registry.
 
 ### 6.18 Async sequences and streams
 
@@ -2088,7 +2084,8 @@ Each milestone is independently gated through
   identity/storage and serial hops, reentrancy/isolated dispatch, and the
   per-feature fail-closed boundary are covered; the milestone is provisional
   while its broad M4/M7 dependencies remain partial;
-- the M6 demand slice is active and partial. Finite success, typed source
+- the M6 demand slice is closed while the broad milestone remains partial.
+  Finite success, typed source
   failure, and cooperative user-iterator cancellation for protocol `for await`
   over interpreted witnesses are covered together with early `break` and
   `continue`/`return` plus per-iteration and function-level `defer` cleanup;
@@ -2133,13 +2130,13 @@ Each milestone is independently gated through
   successful-process warning while leaving the owner suspended; host teardown
   is explicit and occurs after observation. Resumed-token lifetime is covered:
   a retained escaped token does not own the completed task graph or runtime and
-  is inert on release. The nonthrowing unsafe entry point is generated into a
-  shared named fail-closed diagnostic before source-body invocation and runtime
-  ownership; only the throwing unsafe entry point remains open;
+  is inert on release. Both unsafe entry points are generated into one shared
+  named fail-closed intrinsic before source-body invocation and runtime
+  ownership;
   complete custom-executor scheduling is not required for those slices;
-- M8 view-owned async lifecycle has only covered prerequisites left
-  (M2 driver release, M5 logical executor identity, M7 preflight) and follows
-  the M6 slice; and
+- M8 view-owned async lifecycle is the active cycle. Its covered prerequisites
+  are M2 driver release, M5 logical executor identity, and M7 native preflight;
+  and
 - M9 remains deferred until the ownership/isolation/lifecycle prerequisites are
   complete.
 
@@ -2422,6 +2419,11 @@ executionPlan activates the M8 `swiftui-lifecycle-demand-cycle`: `.task` is
 the highest-demand unserved construct on the board (30 corpus projects, 4
 FoodTruck call sites) and directly serves the FoodTruck R4 mission. Update
 `milestone-acceptance.json`'s executionPlan accordingly in the closing commit.
+
+Closure receipt (2026-07-17): both native-positive unsafe entry points now
+share the generated fail-closed intrinsic and have separate focused ownership
+proof. The execution plan therefore activates M8; M6 remains partial only for
+explicit demand-deferred divergences outside this bounded cycle.
 
 Deliverables:
 

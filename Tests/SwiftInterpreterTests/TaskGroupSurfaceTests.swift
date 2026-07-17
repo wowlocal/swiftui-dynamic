@@ -73,6 +73,7 @@ struct TaskGroupSurfaceTests {
             "withCheckedContinuation": .withCheckedContinuation,
             "withCheckedThrowingContinuation": .withCheckedThrowingContinuation,
             "withUnsafeContinuation": .unsupportedUnsafeContinuation,
+            "withUnsafeThrowingContinuation": .unsupportedUnsafeContinuation,
             "withDiscardingTaskGroup": .withDiscardingTaskGroup,
             "withTaskCancellationHandler": .withTaskCancellationHandler,
             "withTaskExecutorPreference": .withTaskExecutorPreference,

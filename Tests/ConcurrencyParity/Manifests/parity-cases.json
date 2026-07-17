@@ -2140,6 +2140,23 @@
     "notes": "The body resumes immediately in program order, so exact native output value:33 makes no scheduler-order, physical-thread, or parallelism claim. This native-positive case is intentionally an interpreter-diagnostic boundary rather than behavioral parity: the uncited unsafe family is outside the demand depth cap and must fail closed before invoking its body or allocating continuation ownership."
   },
   {
+    "id": "unsafe-throwing-continuation-fail-closed",
+    "fixture": "Fixtures/unsafe-throwing-continuation-fail-closed.swift",
+    "mode": "runtime",
+    "assertion": "interpreter-diagnostic",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await unsafeThrowingContinuationFailClosedProbe()",
+    "interpreterProjection": "string",
+    "interpreterDiagnosticContains": [
+      "withUnsafeThrowingContinuation",
+      "unsafe continuation ownership is unsupported",
+      "use a checked continuation"
+    ],
+    "nativeFact": "Swift accepts withUnsafeThrowingContinuation with explicit MainActor isolation; its synchronous body resumes once with an exact value and the awaiting call returns that value.",
+    "notes": "The body resumes immediately in program order, so exact native output value:44 makes no scheduler-order, physical-thread, or parallelism claim. This native-positive case is intentionally an interpreter-diagnostic boundary rather than behavioral parity: the uncited unsafe family is outside the demand depth cap and must fail closed before invoking its body or allocating continuation ownership."
+  },
+  {
     "id": "checked-continuation-value-resume",
     "fixture": "Fixtures/checked-continuation-value-resume.swift",
     "mode": "runtime",

@@ -135,6 +135,7 @@ enum GeneratedConcurrencySurface {
         "withThrowingTaskGroup": .withThrowingTaskGroup,
         "withUnsafeContinuation": .unsupportedUnsafeContinuation,
         "withUnsafeCurrentTask": .withCurrentTaskCapability,
+        "withUnsafeThrowingContinuation": .unsupportedUnsafeContinuation,
     ]
 
     static let knownTopLevelFunctions: Set<String> = [

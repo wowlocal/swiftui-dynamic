@@ -347,23 +347,23 @@ struct ConcurrencyMethodologyTests {
         #expect(requirementRefs.contains(
             matrix.externalCapabilityAccounting.ownerRequirementRef))
         #expect(matrix.executionPlan.currentTail.id
-            == "async-sequence-continuation-demand-slice")
+            == "swiftui-lifecycle-demand-cycle")
         #expect(matrix.executionPlan.currentTail.state == "active")
-        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M6"])
+        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M8"])
         #expect(Set(matrix.executionPlan.currentTail.requirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.currentTail.requirementRefs == [
-            "M6/protocol-iteration-streams-and-continuations",
+            "M8/view-owned-async-lifecycle",
         ])
         #expect(matrix.executionPlan.nextMajorCycle.id
-            == "swiftui-lifecycle-demand-cycle")
+            == "physical-parallelism-cycle")
         #expect(matrix.executionPlan.nextMajorCycle.state
-            == "queued-behind-async-sequence-continuation-demand-slice")
-        #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M8")
+            == "queued-behind-swiftui-lifecycle-demand-cycle")
+        #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M9")
         #expect(Set(matrix.executionPlan.nextMajorCycle.entryRequirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.nextMajorCycle.entryRequirementRefs
-            == ["M8/view-owned-async-lifecycle"])
+            == ["M9/parallel-runtime-and-sanitizers"])
         let requirementStatuses = Dictionary(uniqueKeysWithValues:
             matrix.milestones.flatMap { milestone in
                 milestone.requirements.map {
@@ -1613,7 +1613,8 @@ struct ConcurrencyMethodologyTests {
         let unsafeThrowing = try #require(rows.first {
             $0.name == "withUnsafeThrowingContinuation"
         })
-        #expect(unsafeThrowing.adapterIntrinsic == nil)
+        #expect(unsafeThrowing.adapterIntrinsic
+            == "unsupportedUnsafeContinuation")
         #expect(unsafeThrowing.declaration.contains("@unsafe public func"))
         #expect(unsafeThrowing.declaration.contains(
             "_Concurrency.UnsafeContinuation<T, any Swift.Error>"))
@@ -1745,22 +1746,32 @@ struct ConcurrencyMethodologyTests {
         #expect(unsafeClaim.notes.contains("before invoking the body"))
         #expect(unsafeClaim.notes.contains("section 14 depth cap"))
 
-        let deferredClaims = claims.filter { $0.id == unsafeThrowing.id }
-        #expect(deferredClaims.count == 1)
-        #expect(deferredClaims.allSatisfy {
-            $0.implementationStatus == .deferred
-                && $0.verificationStatus == .none
-                && $0.requirementRef
-                    == "M6/protocol-iteration-streams-and-continuations"
-                && $0.evidenceCaseIDs.isEmpty
-                && $0.testNames == [
-                    "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
-                ]
-                && $0.gapEvidenceIDs
-                    == ["async-sequence-continuation-runtime"]
-                && $0.notes.contains("M5")
-                && $0.notes.contains("resume executor")
+        let unsafeThrowingClaim = try #require(claims.first {
+            $0.id == unsafeThrowing.id
         })
+        #expect(unsafeThrowingClaim.implementationStatus
+            == .diagnosedUnsupported)
+        #expect(unsafeThrowingClaim.verificationStatus == .focusedOnly)
+        #expect(unsafeThrowingClaim.requirementRef
+            == "M6/protocol-iteration-streams-and-continuations")
+        #expect(unsafeThrowingClaim.evidenceCaseIDs == [
+            "unsafe-throwing-continuation-fail-closed",
+        ])
+        #expect(unsafeThrowingClaim.testNames == [
+            "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
+            "UnsafeContinuationDiagnosticsTests/unsafeThrowingContinuationFailsClosedBeforeOwnership",
+        ])
+        #expect(unsafeThrowingClaim.gapEvidenceIDs == [
+            "async-sequence-continuation-runtime",
+        ])
+        #expect(unsafeThrowingClaim.notes.contains(
+            "unsupportedUnsafeContinuation intrinsic"))
+        #expect(unsafeThrowingClaim.notes.contains(
+            "explicit MainActor isolation"))
+        #expect(unsafeThrowingClaim.notes.contains("fails closed"))
+        #expect(unsafeThrowingClaim.notes.contains(
+            "before invoking the body"))
+        #expect(unsafeThrowingClaim.notes.contains("section 14 depth cap"))
     }
 
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {

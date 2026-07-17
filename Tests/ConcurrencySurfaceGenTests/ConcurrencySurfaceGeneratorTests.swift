@@ -21,6 +21,8 @@ struct ConcurrencySurfaceGeneratorTests {
             "withCheckedThrowingContinuation":
                 "withCheckedThrowingContinuation",
             "withUnsafeContinuation": "unsupportedUnsafeContinuation",
+            "withUnsafeThrowingContinuation":
+                "unsupportedUnsafeContinuation",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
             "withTaskExecutorPreference": "withTaskExecutorPreference",
@@ -388,7 +390,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 171)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 126)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 127)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 49,
             "task-static-member": 25,
@@ -458,6 +460,11 @@ struct ConcurrencySurfaceGeneratorTests {
                 && $0.adapterIntrinsic == "unsupportedUnsafeContinuation"
         })
         #expect(capabilities.declarations.contains {
+            $0.domain == "top-level-function"
+                && $0.name == "withUnsafeThrowingContinuation"
+                && $0.adapterIntrinsic == "unsupportedUnsafeContinuation"
+        })
+        #expect(capabilities.declarations.contains {
             $0.domain == "task-static-member" && $0.name == "sleep"
                 && $0.adapterIntrinsic == "sleep"
         })
@@ -523,6 +530,7 @@ struct ConcurrencySurfaceGeneratorTests {
             "withTaskPriorityEscalationHandler",
             "withThrowingDiscardingTaskGroup",
             "withThrowingTaskGroup", "withUnsafeContinuation",
+            "withUnsafeThrowingContinuation",
             "withUnsafeCurrentTask",
         ])
         #expect(inventory.knownTopLevelFunctions.contains("withUnsafeCurrentTask"))
@@ -761,6 +769,10 @@ struct ConcurrencySurfaceGeneratorTests {
         isolation: isolated (any Actor)? = #isolation,
         _ body: (UnsafeContinuation<T, Never>) -> Void
     ) async -> sending T { fatalError() }
+    @unsafe public func withUnsafeThrowingContinuation<T>(
+        isolation: isolated (any Actor)? = #isolation,
+        _ body: (UnsafeContinuation<T, any Error>) -> Void
+    ) async throws -> sending T { fatalError() }
     public func extractIsolation<each Arg, Result>(
         _ fn: @escaping @isolated(any)
             (repeat each Arg) async throws -> Result
