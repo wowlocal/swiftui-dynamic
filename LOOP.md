@@ -2347,3 +2347,22 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   interpreted evaluation in window context re-touching the postfix
   chain). Next: instrument the toolbar gateway's deferred path in the
   live sweep. Gate still blocked by main-red.
+- 2026-07-17 R4 BOARD FULLY GREEN — platform snapshot ordering (worktree
+  iteration 52): the live-only diagnostic's root cause, caught by a
+  stack trace on ChainedImplicitCall construction: interpreter build
+  configurations SNAPSHOT Interpreter.interpretsAsPlatform at INIT, and
+  the demo applied its --platform flag in applicationDidFinishLaunching
+  — too late for interpreters created during scene construction, whose
+  configs froze the iOS default. The live window then evaluated
+  #if os(iOS) blocks as ACTIVE (building the absorbed
+  navigationBarTitleDisplayMode chain) while the static read macOS at
+  fire time — exactly the live-only signature. Fix: DemoApp.init()
+  applies the platform/network flags before any scene work. The fix
+  lifted live fidelity EVERYWHERE (panels had been rendering iOS-branch
+  variants: orders 422k -> 617k repaint, saleshistory 199k -> 343k).
+  The donut-editor rename mutation now lands with a committed-value
+  verdict (the typed name survives the re-render through interpreted
+  state; the 604px repaint is the field's own glyphs — the title lives
+  in the titlebar). R4 BOARD: ALL NINE navigations + ALL THREE
+  mutations land, zero diagnostics. Debug traces removed. R2/R3/pins
+  green. Gate still blocked by main-red.

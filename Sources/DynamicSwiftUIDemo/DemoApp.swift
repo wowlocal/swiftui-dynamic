@@ -7,6 +7,16 @@ import SwiftUIBridge
 struct DemoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    init() {
+        // Interpreter build configurations SNAPSHOT the platform at
+        // interpreter init — the flags must be applied before ANY scene
+        // construction can create one (didFinishLaunching is too late for
+        // instances created during scene setup; the frozen iOS default
+        // made #if os(iOS) blocks active in the live window only).
+        DemoApp.applyPlatformFlag()
+        DemoApp.applyNetworkFlag()
+    }
+
     /// `swift run DynamicSwiftUIDemo --project External/oss/IceCubesApp`
     /// renders a whole checked-out project live instead of the editor demo.
     static var projectDirectory: String? {

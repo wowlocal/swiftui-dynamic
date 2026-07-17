@@ -106,15 +106,21 @@ enum SweepDriver {
             // preview with the new name.
             if landed, step.name == "donuteditor" {
                 if let field = firstTextField(in: window) {
-                    field.stringValue = field.stringValue + " X"
+                    let expected = field.stringValue + " X"
+                    field.stringValue = expected
                     let sent = field.sendAction(field.action, to: field.target)
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     let mutated = capture(
                         "sweep-\(index + 1)-\(step.name)-mutated", window: window,
                         outDirectory: outDirectory)
                     let mutatedChanged = changedPixels(previous, mutated)
-                    let mutatedLanded = mutatedChanged > 2000
-                    print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) sent=\(sent) landed=\(mutatedLanded)")
+                    // The rename's only in-capture surface is the field's
+                    // own glyphs (the title lives in the titlebar) — verify
+                    // the COMMITTED value survived the re-render plus a
+                    // visible repaint.
+                    let committed = firstTextField(in: window)?.stringValue == expected
+                    let mutatedLanded = committed && mutatedChanged > 300
+                    print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) sent=\(sent) committed=\(committed) landed=\(mutatedLanded)")
                     for entry in RenderDiagnostics.errors.dropFirst(reportedDiagnostics).prefix(4) {
                         print("SWEEP-DIAG \(step.name)-mutate \(entry.view): \(entry.error.message.prefix(110))")
                     }

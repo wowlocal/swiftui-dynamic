@@ -249,8 +249,11 @@ public final class ViewRegistry: HostRegistry {
                     }
                     if case .instance = root { wrapsView = true }
                     if wrapsView {
+                        var rootType = "?"
+                        if case .host(let base) = root { rootType = String(describing: type(of: base)) }
+                        if case .instance(let instance) = root { rootType = instance.symbol.name }
                         RenderDiagnostics.record(
-                            RuntimeError(message: "[platform=\(Interpreter.interpretsAsPlatform)] unbridged view modifier chain '.\(members.reversed().joined(separator: "."))' absorbed a rendered view; renders EMPTY"),
+                            RuntimeError(message: "[platform=\(Interpreter.interpretsAsPlatform) root=\(rootType)] unbridged view modifier chain '.\(members.reversed().joined(separator: "."))' absorbed a rendered view; renders EMPTY"),
                             in: "anyView")
                     }
                 }
