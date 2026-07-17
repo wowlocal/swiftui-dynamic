@@ -2584,6 +2584,11 @@ After implementation report:
 Verification:
 - Every iteration runs the new native differential case and relevant test
   filter.
+- Prefer `Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER` for that
+  inner loop: it performs one build and then runs focused parity, the targeted
+  suite, and methodology concurrently against the prebuilt bundle. Do not try
+  to parallelize several `swift test --skip-build` commands; SwiftPM still
+  serializes them on its shared build-directory planning lock.
 - Every milestone runs AsyncExecutionTests, HostSignatureTests, all concurrency
   parity tests, full swift test, and Scripts/gate.sh when available.
 - Run fresh-process cleanup checks for task/continuation/static-state leaks.
