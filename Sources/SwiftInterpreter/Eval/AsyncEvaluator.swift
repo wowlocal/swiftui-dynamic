@@ -925,7 +925,7 @@ extension Interpreter {
                         parameters: initializerMetadata(for: chosen).parameters,
                         body: body.statements,
                         captured: env,
-                        callableMetadataIndex: currentCallableMetadataIndex)
+                        programMetadata: currentProgramMetadata)
                     closure.debugName = "extInit:\(function.name)"
                     _ = try await callWithArgumentsSuspending(
                         closure, args: arguments, node: Syntax(node))

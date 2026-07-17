@@ -452,7 +452,7 @@ extension Interpreter {
             parameters: parameters,
             body: body.statements,
             captured: initEnv,
-            callableMetadataIndex: currentCallableMetadataIndex
+            programMetadata: currentProgramMetadata
         )
         // Initializers have their declaration's lexical scope just like
         // methods; otherwise a nested name can resolve in the caller's type.
@@ -497,7 +497,7 @@ extension Interpreter {
             parameters: initializerMetadata(for: chosen).parameters,
             body: body.statements,
             captured: initEnv,
-            callableMetadataIndex: currentCallableMetadataIndex)
+            programMetadata: currentProgramMetadata)
         closure.lexicalOwner = declLexicalOwners[chosen.id] ?? instance.symbol
         closure.debugName = "asyncInit:\(instance.symbol.name)"
 
@@ -669,7 +669,7 @@ extension Interpreter {
                 let closure = ClosureValue(
                     parameters: [], body: body.statements,
                     captured: selfEnvironment(.instance(instance)),
-                    callableMetadataIndex: currentCallableMetadataIndex)
+                    programMetadata: currentProgramMetadata)
                 closure.lexicalOwner = symbol
                 closure.lexicalExecutor = symbol.deinitializerExecutor
                 closure.executorPreference = symbol.deinitializerExecutor

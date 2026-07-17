@@ -2925,6 +2925,7 @@
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableDeclarationIndex",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableCallableMetadataIndex",
         "ParsedProgramConcurrencyTests/parsedProgramIndexesAccessorAndSubscriptMetadata",
+        "ParsedProgramConcurrencyTests/parsedProgramMetadataIsOneSendableRuntimeCapability",
         "ParsedProgramConcurrencyTests/oneParsedProgramBacksIndependentAsyncSessions",
         "ParsedProgramConcurrencyTests/sessionsBindBuildResolvedDeclarationPlans",
         "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError",
@@ -2937,12 +2938,13 @@
         "InterpreterSessionOwnershipTests/sessionKeepsItsHeapAndRuntimeAliveWithoutRetainingFacade",
         "AsyncExecutionTests/drainPolicyDoesNotWaitForAnotherSessionTasks",
         "RuntimeEntryOwnershipTests/hostCallbackAndSpawnedTaskShareOneOwnedEntry",
-        "RuntimeEntryOwnershipTests/separateCallbacksUseDistinctEntriesAgainstTheSameHeap"
+        "RuntimeEntryOwnershipTests/separateCallbacksUseDistinctEntriesAgainstTheSameHeap",
+        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Seven M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, a target-neutral all-branch ParsedDeclarationIndex, and an all-branch ParsedCallableMetadataIndex reusable across detached readers. The callable index records function/initializer call and isolation facts plus readable getter/setter bodies, getter effects, custom setter names, subscript parameters/call shapes/results, and explicit nonisolation once; runtime symbol construction no longer uses mutable facade callable caches or rescans accessor/subscript syntax. Each session resolves one build-specific declaration plan and its RuntimeEntry retains the index; escaped closures preserve it across fresh callback entries. Each Interpreter owns a distinct MainActor-confined RuntimeHeap and every runAsync entry executes through a single-use InterpreterSession. Focused evidence covers detached readers, session/callback propagation, observer exclusion, distinct target plans, ownership/lifetime, twenty unchanged extract-isolation observations, and twenty causal async-throwing actor-subscript observations. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Nominal/property-storage, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Eight M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral declaration plus all-branch callable indexes. Function/initializer/accessor/subscript facts are indexed once; runtime symbol construction no longer uses mutable facade callable caches or rescans accessor syntax. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability, so future metadata families do not add parallel ownership fields. Focused evidence covers detached readers, distinct target plans, session binding, callback provenance after a different facade fallback, ownership/lifetime, real SwiftUI task entry, twenty unchanged extract-isolation observations, and twenty causal async-throwing actor-subscript observations. The SwiftUI cancellation test causally waits for both source started and runtime waiting instead of racing those transitions. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Nominal/property-storage, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

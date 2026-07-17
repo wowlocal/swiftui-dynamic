@@ -435,7 +435,7 @@ public final class Interpreter {
     /// facade. Canonical async work resolves metadata from its RuntimeEntry;
     /// this fallback keeps post-run rendering/instantiation APIs source-
     /// compatible without rebuilding mutable syntax caches.
-    var compatibilityCallableMetadataIndex: ParsedCallableMetadataIndex?
+    var compatibilityProgramMetadata: ParsedProgramMetadata?
 
     /// Per-view-IDENTITY state cells: compiled SwiftUI keeps @State/
     /// @StateObject storage alive across re-renders of the same position;
@@ -668,9 +668,13 @@ public final class Interpreter {
         defineGlobalBuiltins()
     }
 
+    var currentProgramMetadata: ParsedProgramMetadata? {
+        evaluationTaskContext.runtimeEntry?.programMetadata
+            ?? compatibilityProgramMetadata
+    }
+
     var currentCallableMetadataIndex: ParsedCallableMetadataIndex? {
-        evaluationTaskContext.runtimeEntry?.callableMetadataIndex
-            ?? compatibilityCallableMetadataIndex
+        currentProgramMetadata?.callableMetadataIndex
     }
 
     func functionMetadata(

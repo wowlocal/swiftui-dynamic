@@ -268,6 +268,42 @@ struct ParsedProgramConcurrencyTests {
         #expect(syncAccessor.setter?.parameterName == "replacement")
     }
 
+    @Test func parsedProgramMetadataIsOneSendableRuntimeCapability()
+    async throws {
+        let program = try ParsedProgram(source: """
+        struct Marker {}
+        func makeValue() -> Int { 42 }
+        makeValue()
+        """)
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.metadata)
+        #expect(program.metadata.declarationIndex.summary
+            == program.declarationIndex.summary)
+        #expect(program.metadata.callableMetadataIndex.summary
+            == program.callableMetadataIndex.summary)
+
+        let readers = (0..<8).map { _ in
+            Task.detached {
+                (
+                    program.metadata.declarationIndex.summary
+                        .possiblePrimaryDeclarationCount,
+                    program.metadata.callableMetadataIndex.summary.functionCount
+                )
+            }
+        }
+        var observations: [(Int, Int)] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations.allSatisfy { $0 == (2, 1) })
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata?.callableMetadataIndex
+            .summary == program.callableMetadataIndex.summary)
+        #expect(try await interpreter.runAsync(session: session).intValue == 42)
+    }
+
     @Test func sourceEntryStillReturnsLocatedRuntimeParseError() throws {
         do {
             _ = try Interpreter().run(source: "let value = \"")

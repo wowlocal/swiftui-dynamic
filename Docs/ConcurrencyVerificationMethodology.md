@@ -184,9 +184,19 @@ declarations. The compile-time RED was the absent accessor/subscript metadata
 API. GREEN proves getter effects, setter names, subscript parameters/results,
 observer exclusion, and detached-reader Sendability; 181 affected tests pass.
 The causal `actor-subscript-async-exits` fixture remained exact in twenty
-native/interpreter repetitions with no physical-thread claim. Extending
-immutable nominal/property-storage, call-site, and compiler metadata, moving
-mutable symbols and evaluation fully behind the session, worker-safe heap
+native/interpreter repetitions with no physical-thread claim. Its eighth
+prerequisite introduces one immutable `ParsedProgramMetadata` propagation
+capability so future indexes do not add parallel fields to every session,
+entry, and closure. The compile-time RED was the absent program/entry metadata
+API. GREEN covers detached readers, session binding, an escaped callback after
+a different program becomes the facade fallback, callback-created tasks, and
+real SwiftUI task entry. The SwiftUI cancellation check exposed a test race:
+the source `started` event precedes registration of its sleep suspension. The
+test now waits causally for both that event and runtime `.waiting`, with a
+record dump on failure. The existing `extract-isolation-nonisolated` result is
+unchanged in twenty native/interpreter repetitions. Extending immutable
+nominal/property-storage, call-site, and compiler metadata, moving mutable
+symbols and evaluation fully behind the session, worker-safe heap
 classification, physical workers, cooperative-versus-parallel differential
 evidence, and TSan remain open.
 

@@ -85,7 +85,7 @@ extension Interpreter {
         lazyTopLevelGlobals: Bool = false,
         completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
     ) -> InterpreterSession {
-        compatibilityCallableMetadataIndex = program.callableMetadataIndex
+        compatibilityProgramMetadata = program.metadata
         return InterpreterSession(
             program: program,
             heap: runtimeHeap,
@@ -394,7 +394,7 @@ extension Interpreter {
         _ program: ParsedProgram,
         lazyTopLevelGlobals: Bool
     ) throws -> RuntimeValue {
-        compatibilityCallableMetadataIndex = program.callableMetadataIndex
+        compatibilityProgramMetadata = program.metadata
         let file = program.syntax
         let executionPlan = program.declarationIndex.resolve(
             conditionHolds: ifConfigConditionHolds)

@@ -130,12 +130,14 @@ public final class ClosureValue {
     /// which a nonisolated factory happened to run. APIs whose parameters
     /// inherit actor context use it independently from task lineage/locals.
     public var lexicalExecutor: RuntimeExecutorKind?
-    /// Immutable source metadata capability retained by escaped callbacks.
-    /// A fresh host/runtime entry can therefore recover declaration call and
-    /// isolation facts without consulting whichever program the facade ran
+    /// Immutable source-program capability retained by escaped callbacks. A
+    /// fresh host/runtime entry can therefore recover every indexed
+    /// declaration fact without consulting whichever program the facade ran
     /// most recently.
-    public internal(set) var callableMetadataIndex:
-        ParsedCallableMetadataIndex?
+    public internal(set) var programMetadata: ParsedProgramMetadata?
+    public var callableMetadataIndex: ParsedCallableMetadataIndex? {
+        programMetadata?.callableMetadataIndex
+    }
 
     public init(
         parameters: [Parameter],
@@ -144,7 +146,7 @@ public final class ClosureValue {
         isBuilder: Bool = false,
         returnType: TypeSyntax? = nil,
         returnTypeName: String? = nil,
-        callableMetadataIndex: ParsedCallableMetadataIndex? = nil
+        programMetadata: ParsedProgramMetadata? = nil
     ) {
         self.parameters = parameters
         self.body = body
@@ -153,7 +155,7 @@ public final class ClosureValue {
         self.returnType = returnType
         self.returnTypeName = returnTypeName ?? returnType?.trimmedDescription
         self.builderReturnsArray = self.returnTypeName?.hasPrefix("[") == true
-        self.callableMetadataIndex = callableMetadataIndex
+        self.programMetadata = programMetadata
     }
 }
 

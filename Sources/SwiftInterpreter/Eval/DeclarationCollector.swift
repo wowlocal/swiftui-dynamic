@@ -1223,7 +1223,7 @@ extension Interpreter {
             isBuilder: metadata.isBuilder,
             returnType: metadata.returnType,
             returnTypeName: metadata.returnTypeName,
-            callableMetadataIndex: currentCallableMetadataIndex
+            programMetadata: currentProgramMetadata
         )
         closure.functionDeclID = node.id
         let lexicalOwner = declLexicalOwners[node.id]

@@ -9,6 +9,7 @@ struct RuntimeEntryOwnershipTests {
         var observedKinds: [RuntimeEntry.Kind] = []
         var observedHeapMatches: [Bool] = []
         var observedMetadata: [ParsedCallableMetadataIndex.Summary?] = []
+        var observedDeclarationCounts: [Int?] = []
         weak var observedEntry: RuntimeEntry?
         interpreter.globals.define(
             "captureRuntimeEntry",
@@ -23,6 +24,9 @@ struct RuntimeEntryOwnershipTests {
                     observedKinds.append(entry.kind)
                     observedHeapMatches.append(entry.heap === interpreter.runtimeHeap)
                     observedMetadata.append(entry.callableMetadataIndex?.summary)
+                    observedDeclarationCounts.append(entry.programMetadata?
+                        .declarationIndex.summary
+                        .possiblePrimaryDeclarationCount)
                     return .void
                 })))
         let value = try interpreter.run(source: """
@@ -57,6 +61,7 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedKinds == [.hostCallback, .hostCallback])
         #expect(observedHeapMatches == [true, true])
         #expect(observedMetadata.map { $0?.functionCount } == [1, 1])
+        #expect(observedDeclarationCounts == [1, 1])
         #expect(observedEntry == nil,
             "the runtime entry must release after its final task record")
     }

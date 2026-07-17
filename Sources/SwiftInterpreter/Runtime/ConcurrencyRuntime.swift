@@ -715,7 +715,7 @@ final class CooperativeConcurrencyRuntime {
     func createEntry(
         kind: RuntimeEntry.Kind,
         heap: RuntimeHeap? = nil,
-        callableMetadataIndex: ParsedCallableMetadataIndex? = nil,
+        programMetadata: ParsedProgramMetadata? = nil,
         interpreter: Interpreter? = nil
     ) -> RuntimeEntry {
         let id = RuntimeSessionID(rawValue: nextSessionID)
@@ -724,7 +724,7 @@ final class CooperativeConcurrencyRuntime {
             id: id,
             kind: kind,
             heap: heap,
-            callableMetadataIndex: callableMetadataIndex,
+            programMetadata: programMetadata,
             interpreter: interpreter)
     }
 

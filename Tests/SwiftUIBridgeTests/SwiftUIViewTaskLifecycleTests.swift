@@ -281,22 +281,36 @@ struct SwiftUIViewTaskLifecycleTests {
         window.orderFrontRegardless()
 
         var events: [String] = []
+        func hasWaitingSwiftUITask() -> Bool {
+            interpreter.concurrencyRuntime.records.values.contains {
+                $0.kind == .swiftUITask
+                    && $0.entry.kind == .swiftUITask
+                    && $0.entry.heap === interpreter.runtimeHeap
+                    && $0.entry.interpreter === interpreter
+                    && $0.entry.programMetadata != nil
+                    && $0.state == .waiting
+                    && $0.executorPreference == .mainActor
+                    && $0.evaluationContext?.currentExecutor == .mainActor
+            }
+        }
         await waitUntil {
             events = interpreter.globals.lookup("swiftUIViewTaskCancellationEvents")?
                 .arrayValue?.compactMap(\.stringValue) ?? []
-            return !events.isEmpty
+            return !events.isEmpty && hasWaitingSwiftUITask()
         }
 
         #expect(events == ["started"])
-        #expect(interpreter.concurrencyRuntime.records.values.contains {
-            $0.kind == .swiftUITask
-                && $0.entry.kind == .swiftUITask
-                && $0.entry.heap === interpreter.runtimeHeap
-                && $0.entry.interpreter === interpreter
-                && $0.state == .waiting
-                && $0.executorPreference == .mainActor
-                && $0.evaluationContext?.currentExecutor == .mainActor
-        })
+        let runtimeSnapshot = interpreter.concurrencyRuntime.records.values
+            .map {
+                "\($0.kind.rawValue):\($0.state.rawValue):"
+                    + "entry=\($0.entry.kind):"
+                    + "metadata=\($0.entry.programMetadata != nil):"
+                    + "executor=\(String(describing: $0.executorPreference))"
+            }
+            .sorted()
+            .joined(separator: ",")
+        #expect(hasWaitingSwiftUITask(),
+            Comment(rawValue: "records=[\(runtimeSnapshot)]"))
 
         hostingView.rootView = AnyView(EmptyView())
         await waitUntil {

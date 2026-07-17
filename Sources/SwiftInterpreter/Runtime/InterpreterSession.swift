@@ -45,7 +45,7 @@ public final class InterpreterSession {
         runtimeEntry = concurrencyRuntime.createEntry(
             kind: .program,
             heap: heap,
-            callableMetadataIndex: program.callableMetadataIndex,
+            programMetadata: program.metadata,
             interpreter: owner)
         id = runtimeEntry.id
     }

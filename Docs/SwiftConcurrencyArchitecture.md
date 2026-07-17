@@ -163,12 +163,24 @@ than readable accessors. Swift 6 parity for controlled async-throwing actor
 subscript success and source-error exits remains exact. Nominal/property
 storage metadata, call-site resolution, and compiler fingerprints remain open.
 
+The eighth prerequisite consolidates propagation behind one
+`ParsedProgramMetadata` capability. It owns the declaration and callable
+indexes today and is the sole syntax-derived metadata edge carried by program
+sessions, runtime entries, source closures, synchronous host callbacks, and
+SwiftUI tasks. Future nominal, call-site, isolation, or compiler indexes extend
+this value without adding another parallel field to every ownership object.
+Eight detached readers, session-entry assertions, a callback invoked after the
+facade prepares a different program, and real SwiftUI lifecycle coverage prove
+that the originating snapshot is retained. This is an ownership refactor; the
+native `extractIsolation` observation remains unchanged.
+
 The stable target separates five concerns:
 
 ```text
 Immutable ParsedProgram
-          │
-          ▼
+          └── ParsedProgramMetadata
+                    │
+                    ▼
 InterpreterSession ─────────────── HostGatewayRuntime
           │                               │
           ├── RuntimeHeap                 │
@@ -550,8 +562,10 @@ SwiftSyntax values may require an internal immutable wrapper rather than direct
 task-specific state.
 
 Current implementation stage (2026-07-17): `ParsedProgram` owns the folded
-syntax, source-location index, a public immutable `ParsedDeclarationIndex`, and
-a public immutable `ParsedCallableMetadataIndex`. The declaration index
+syntax, source-location index, and one public immutable
+`ParsedProgramMetadata` capability. That value owns the public
+`ParsedDeclarationIndex` and `ParsedCallableMetadataIndex`; compatibility
+accessors on `ParsedProgram` expose the same values. The declaration index
 classifies all possible top-level primary declarations, aliases, and
 extensions across nested conditional regions. A session resolves exactly one
 ordered build-specific plan; the collector no longer rescans the source or
@@ -592,7 +606,7 @@ single-use state, complete runtime draining, and heap/runtime lifetime after
 facade release. The session also binds the one build-resolved declaration plan
 used by runtime-symbol materialization and top-level execution. Its root task
 and evaluation context retain the same explicit `RuntimeEntry`, including the
-program's immutable callable metadata index. Host callbacks
+program's immutable `ParsedProgramMetadata` capability. Host callbacks
 and SwiftUI tasks create distinct entry capabilities through that same runtime
 mechanism, and all source tasks inherit the object rather than only copying its
 numeric ID. The session intentionally remains MainActor-confined and holds a
@@ -2674,17 +2688,21 @@ SwiftUI tasks, and every source task they create now retain an explicit
 `RuntimeEntry`; focused ownership tests prove callback parent/child identity,
 distinct callback IDs over one heap, and final release. A causal same-source
 probe establishes cooperative overlap against the confined heap in twenty
-native/interpreter repetitions. `ParsedProgram` additionally owns an immutable
-all-branch `ParsedCallableMetadataIndex`; the runtime no longer stores mutable
+native/interpreter repetitions. `ParsedProgram` additionally owns one immutable
+`ParsedProgramMetadata` capability containing its declaration and all-branch
+callable indexes; the runtime no longer stores mutable
 function/initializer metadata caches on the facade. Sessions and escaped
-callbacks retain the originating index through `RuntimeEntry`, and eight
+callbacks retain the originating capability through `RuntimeEntry`, and eight
 detached readers exercise one snapshot under Swift 6 strict concurrency.
 Existing `extractIsolation` parity characterizes the no-semantic-change result
 for plain explicitly nonisolated async declarations. The same index now owns
 readable getter/setter metadata and subscript parameter/result/isolation facts;
 computed/local/global accessors and subscript materialization consume it rather
 than rescanning syntax. Controlled async-throwing actor-subscript native parity
-remains exact. These slices separate immutable program input, mutable storage,
+remains exact. A real SwiftUI cancellation lifecycle test proves the same
+capability reaches `.swiftUITask`; its wait now causally requires both the
+source `started` event and the runtime `.waiting` state instead of racing those
+two transitions. These slices separate immutable program input, mutable storage,
 and execution identity without changing scheduling. Nominal/property-storage,
 call-site, and compiler metadata indexing remains incomplete, and mutable
 symbol materialization plus evaluator state must move fully behind the session;

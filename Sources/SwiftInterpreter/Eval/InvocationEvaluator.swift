@@ -180,7 +180,7 @@ extension Interpreter {
                         parameters: parameters,
                         body: body.statements,
                         captured: env,
-                        callableMetadataIndex: currentCallableMetadataIndex)
+                        programMetadata: currentProgramMetadata)
                     closure.debugName = "extInit:\(function.name)"
                     _ = try callWithArguments(closure, args: args, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void
@@ -246,7 +246,7 @@ extension Interpreter {
                     parameters: parameters,
                     body: body.statements,
                     captured: env,
-                    callableMetadataIndex: currentCallableMetadataIndex)
+                    programMetadata: currentProgramMetadata)
                 closure.debugName = "enumInit:\(symbol.name)"
                 _ = try callWithArguments(closure, args: args, node: Syntax(node))
                 let assigned = env.lookup("self") ?? .void
@@ -689,7 +689,7 @@ extension Interpreter {
         let value = ClosureValue(
             parameters: parameters, body: closure.statements,
             captured: captured,
-            callableMetadataIndex: currentCallableMetadataIndex)
+            programMetadata: currentProgramMetadata)
         value.lexicalExecutor = currentLexicalExecutor
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
@@ -1057,7 +1057,7 @@ extension Interpreter {
                         isBuilder: true,
                         returnType: parameter.builderReturnType ?? c.returnType,
                         returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName,
-                        callableMetadataIndex: c.callableMetadataIndex
+                        programMetadata: c.programMetadata
                     ))
                 }
                 env.define(
