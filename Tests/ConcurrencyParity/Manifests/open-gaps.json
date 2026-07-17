@@ -25,6 +25,6 @@
     "requirementRef": "M8/view-owned-async-lifecycle",
     "kind": "coverage-gap",
     "expectedObservation": "Generated .task/.task(id:)/.refreshable exposure uses a reusable lifecycle primitive with view identity, cancellation, and teardown evidence.",
-    "currentObservation": "Synchronous host callbacks enter runtime-owned tasks, but view-owned async lifecycle identity and cancellation remain open."
+    "currentObservation": "BridgeGen emits .task, .task(id:), and .refreshable through one async-action tag. A reusable adapter gives each real SwiftUI-owned invocation a fresh parentless .swiftUITask session, logical MainActor execution, cooperative disappearance/id-replacement cancellation, and complete runtime cleanup. Same-source NSHostingView fixtures are green for task-group runtime entry, removal cancellation, and id replacement. Repeated same-id rendering, .refreshable trigger/completion lifetime, and teardown stress remain open."
   }
 ]

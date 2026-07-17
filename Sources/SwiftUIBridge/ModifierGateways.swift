@@ -395,10 +395,6 @@ extension ViewRegistry {
             }
         }
         register("toolbarRole") { view, _, _ in view }
-        register("task") { view, args, ctx in
-            guard let closure = args.firstUnlabeledClosure else { return view }
-            return AnyView(view.task { _ = try? ctx.callClosure(closure, arguments: []) })
-        }
         register("onReceive") { view, args, ctx in
             guard case .host(let any)? = args.positional(0), let box = any as? TimerPublisherBox else {
                 throw RuntimeError(message: ".onReceive supports Timer publishers (Timer.publish(...).autoconnect())")

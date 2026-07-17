@@ -325,6 +325,7 @@ public enum RuntimeCancellationSource: Hashable, Sendable {
     case unsafeCurrentTask
     case sessionPolicy
     case hostTask
+    case swiftUILifecycle
     case inherited
     case structuredParent
     case structuredScopeExit

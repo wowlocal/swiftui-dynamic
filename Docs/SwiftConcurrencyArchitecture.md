@@ -81,6 +81,13 @@ interpreter, and its later release is inert. The active-interface generator
 routes both unsafe continuation entry points to one shared named fail-closed
 intrinsic before body invocation or ownership allocation. The demand-scoped M6
 cycle is closed; the active cycle is now M8 SwiftUI lifecycle ownership.
+The first M8 gap-closure slice is now implemented: BridgeGen emits the active
+SDK `.task`, `.task(id:)`, and `.refreshable` surface, while one reusable
+adapter lets real SwiftUI own appearance/identity and enters each invocation
+through a fresh canonical `.swiftUITask` session. Same-source hosted probes
+cover async entry, logical MainActor identity, disappearance cancellation, id
+replacement, and complete per-task cleanup. Repeated same-id rendering,
+refresh completion lifetime, and teardown stress remain open.
 
 The stable target separates five concerns:
 
@@ -2135,7 +2142,12 @@ Each milestone is independently gated through
   ownership;
   complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle is the active cycle. Its covered prerequisites
-  are M2 driver release, M5 logical executor identity, and M7 native preflight;
+  are M2 driver release, M5 logical executor identity, and M7 native preflight.
+  Its first gap-closure slice generates the async modifier surface and covers
+  `.task` runtime entry, disappearance cancellation, `.task(id:)` replacement,
+  logical MainActor execution, and cleanup through actual `NSHostingView`
+  lifecycle. Repeated same-id rendering, `.refreshable` completion lifetime,
+  and teardown stress remain in the active cycle;
   and
 - M9 remains deferred until the ownership/isolation/lifecycle prerequisites are
   complete.
@@ -2471,6 +2483,16 @@ Proof:
 - compiled SwiftUI twin probes where headless execution is stable;
 - lifecycle-specific tests where pixels are irrelevant;
 - no task/session retention after view teardown.
+
+Current implemented slice (2026-07-17): BridgeGen maps the SDK's three
+`() async -> Void` modifier declarations to one generated async-action tag;
+there is no handwritten `.task` name branch. The tag invokes a documented
+SwiftUI-magic adapter that creates a fresh parentless `.swiftUITask` session
+and maps native lifecycle cancellation into cooperative source cancellation.
+Strict same-source `NSHostingView` fixtures cover task-group entry, removal,
+and id replacement in twenty stable native runs and matching interpreter runs.
+The aggregate milestone remains partial for repeated same-id rendering,
+`.refreshable` trigger/completion lifetime, and retained-session stress.
 
 ### Milestone 9: optional physical parallelism
 
