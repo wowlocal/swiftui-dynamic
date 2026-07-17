@@ -1070,10 +1070,8 @@ extension Interpreter {
                 canonical = target
                 hops += 1
             }
-            let symbol = hostExtensionSymbols[canonical]
-                ?? StructSymbol(name: canonical, conformsToView: false)
+            let symbol = mutableHostExtensionSymbol(named: canonical)
             try collectStructMembers(node.memberBlock, into: symbol)
-            hostExtensionSymbols[canonical] = symbol
         }
     }
 
@@ -1100,7 +1098,11 @@ extension Interpreter {
     }
 
     func makeFunctionClosure(_ node: FunctionDeclSyntax, body: CodeBlockSyntax, captured: Environment) -> ClosureValue {
-        let metadata = functionMetadata(for: node)
+        let programState = programStateOwningDeclaration(node.id)
+        let programPlan = programState?.programPlan ?? currentProgramPlan
+        let programMetadata = programPlan?.metadata ?? currentProgramMetadata
+        let metadata = programMetadata?.callableMetadataIndex.metadata(for: node)
+            ?? ParsedFunctionMetadata(node)
         let closure = ClosureValue(
             parameters: metadata.parameters,
             body: body.statements,
@@ -1108,12 +1110,13 @@ extension Interpreter {
             isBuilder: metadata.isBuilder,
             returnType: metadata.returnType,
             returnTypeName: metadata.returnTypeName,
-            programMetadata: currentProgramMetadata,
-            programPlan: currentProgramPlan
+            programMetadata: programMetadata,
+            programPlan: programPlan
         )
-        closure.programState = currentProgramState
+        closure.programState = programState
         closure.functionDeclID = node.id
-        let lexicalOwner = declLexicalOwners[node.id]
+        let lexicalOwner = programState?.declarationLexicalOwners[node.id]
+            ?? declLexicalOwners[node.id]
         closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
         closure.debugName = metadata.name
@@ -1150,15 +1153,21 @@ extension Interpreter {
         debugName: String,
         fallbackLexicalOwner: AnyObject? = nil
     ) -> ClosureValue {
-        let metadata = initializerMetadata(for: node)
+        let programState = programStateOwningDeclaration(node.id)
+        let programPlan = programState?.programPlan ?? currentProgramPlan
+        let programMetadata = programPlan?.metadata ?? currentProgramMetadata
+        let metadata = programMetadata?.callableMetadataIndex.metadata(for: node)
+            ?? ParsedInitializerMetadata(node)
         let closure = ClosureValue(
             parameters: metadata.parameters,
             body: body.statements,
             captured: captured,
-            programMetadata: currentProgramMetadata,
-            programPlan: currentProgramPlan)
-        closure.programState = currentProgramState
-        let lexicalOwner = declLexicalOwners[node.id] ?? fallbackLexicalOwner
+            programMetadata: programMetadata,
+            programPlan: programPlan)
+        closure.programState = programState
+        let lexicalOwner = programState?.declarationLexicalOwners[node.id]
+            ?? declLexicalOwners[node.id]
+            ?? fallbackLexicalOwner
         let actorInitializer =
             (lexicalOwner as? StructSymbol)?.isActor == true
         closure.functionDeclID = node.id

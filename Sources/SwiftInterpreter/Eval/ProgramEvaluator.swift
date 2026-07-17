@@ -91,7 +91,9 @@ extension Interpreter {
         let programState = RuntimeProgramState(
             programPlan: programPlan,
             assumesCompiledImports: lazyTopLevelGlobals,
-            hostRegistry: registry)
+            hostRegistry: registry,
+            hostExtensionParent: compatibilityProgramState?
+                .hostExtensionLineageAnchor)
         compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
         compatibilityProgramState = programState
@@ -407,7 +409,9 @@ extension Interpreter {
         let programState = RuntimeProgramState(
             programPlan: programPlan,
             assumesCompiledImports: lazyTopLevelGlobals,
-            hostRegistry: registry)
+            hostRegistry: registry,
+            hostExtensionParent: compatibilityProgramState?
+                .hostExtensionLineageAnchor)
         compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
         compatibilityProgramState = programState

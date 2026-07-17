@@ -806,6 +806,9 @@ extension Interpreter {
         name: String,
         _ operation: (Environment) throws -> T
     ) throws -> T {
+        let programState = programStateOwningDeclaration(declarationID)
+        evaluationTaskContext.enterProgramState(programState)
+        defer { evaluationTaskContext.leaveProgramState(programState) }
         let previousExecutor = evaluationTaskContext.currentExecutor
         if let calleeExecutor {
             evaluationTaskContext.currentExecutor = calleeExecutor
@@ -862,6 +865,9 @@ extension Interpreter {
         name: String,
         _ operation: (Environment) async throws -> T
     ) async throws -> T {
+        let programState = programStateOwningDeclaration(declarationID)
+        evaluationTaskContext.enterProgramState(programState)
+        defer { evaluationTaskContext.leaveProgramState(programState) }
         let previousExecutor = evaluationTaskContext.currentExecutor
         if let calleeExecutor {
             evaluationTaskContext.currentExecutor = calleeExecutor

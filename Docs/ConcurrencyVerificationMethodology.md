@@ -646,6 +646,16 @@ include both minimal provenance tests, the exact actor replay seed, the full
 64-seed actor board, and the parallel trap/SwiftUI/task-group/cancellation
 regression board.
 
+The full gate must also exercise compatibility host-extension reuse. A host
+value created by program B has no interpreted nominal symbol, so program A's
+extension is a separate provenance path from a retained closure. The minimal
+RED declares an extension plus an overloaded helper in A and calls the member
+from B. Closing evidence requires exact overload output, a one-way overlay
+test proving B cannot mutate A's synthetic symbol, weak release of empty
+intermediate program states, the pre-existing `hostTypeExtensions` regression,
+and origin/newer HostRegistry selection through both direct closure calls and
+runtime callback entries.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

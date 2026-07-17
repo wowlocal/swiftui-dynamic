@@ -233,6 +233,9 @@ struct RuntimeEntryOwnershipTests {
         weak let retainedOriginRegistry = originRegistry
         let interpreter = Interpreter(registry: originRegistry)
         let value = try interpreter.run(source: """
+            func directOriginRegistryIdentity() -> String {
+                registryIdentity()
+            }
             func makeCallback() -> () -> String {
                 { registryIdentity() }
             }
@@ -246,6 +249,8 @@ struct RuntimeEntryOwnershipTests {
         #expect(retainedOriginRegistry != nil)
         #expect(try interpreter.run(source: "registryIdentity()").stringValue
             == "newer")
+        #expect(try interpreter.run(
+            source: "directOriginRegistryIdentity()").stringValue == "origin")
 
         let callbackValue = try interpreter.callHostCallback(
             closure, arguments: [])

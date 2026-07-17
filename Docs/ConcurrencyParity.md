@@ -8818,3 +8818,17 @@ analogue for interpreter session reuse. The focused two-worker regression
 board also preserves source-trap containment, SwiftUI task lifecycle, async
 initializers, bounded task groups, and cancellation stress. No physical
 parallelism, worker-thread placement, or total ready-task order is claimed.
+
+The first full gate found one additional deterministic compatibility RED:
+`ModelStateTests.hostTypeExtensions` produced `nil` when a fresh host value in
+program B called an extension authored in program A. Host payloads do not
+carry interpreted nominal symbols, so the ordinary closure frame could not
+seed lookup. `RuntimeProgramState` now keeps a one-way, newest-wins lineage of
+only host-extension-contributing states. Empty expression-only states are not
+retained. A newer extension uses a copied symbol overlay, preserving older
+closures while making both old and new members visible to the newer run.
+Declaration IDs recover the exact origin state for method and accessor bodies,
+and lexical frames now select the originating host registry for direct calls
+as well as callback-created entries. Dedicated tests cover the original
+`390.0` case, overload provenance, overlay immutability, empty-state release,
+and direct/callback registry identity.

@@ -147,6 +147,63 @@ struct InterpreterSessionOwnershipTests {
         #expect(interpreter.evaluationTaskContext.programStateFrames.isEmpty)
     }
 
+    @Test func newerRunResolvesRetainedHostExtensionFromItsOriginState()
+    throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+        extension String {
+            func retainedSelection() -> String {
+                selected(self)
+            }
+        }
+
+        func selected(_ value: String) -> String { "string" }
+        func selected(_ value: Int) -> String { "int" }
+        0
+        """)
+
+        let value = try interpreter.run(source: """
+        "origin".retainedSelection()
+        """)
+
+        #expect(value.stringValue == "string")
+        #expect(interpreter.evaluationTaskContext.programStateFrames.isEmpty)
+    }
+
+    @Test func newerHostExtensionUsesOneWayProgramStateOverlay() throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+        extension String {
+            func originMember() -> String { "origin" }
+        }
+        0
+        """)
+        let originState = try #require(interpreter.compatibilityProgramState)
+        let originSymbol = try #require(
+            originState.hostExtensionSymbols["String"])
+
+        let value = try interpreter.run(source: """
+        extension String {
+            func newerMember() -> String { "newer" }
+        }
+        "x".originMember() + ":" + "x".newerMember()
+        """)
+
+        #expect(value.stringValue == "origin:newer")
+        #expect(originSymbol.methods["newerMember"] == nil)
+    }
+
+    @Test func expressionOnlyRunsDoNotRetainEmptyProgramStateLineage() throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: "0")
+        weak var releasedState = interpreter.compatibilityProgramState
+
+        _ = try interpreter.run(source: "1")
+
+        #expect(releasedState == nil)
+        #expect(interpreter.compatibilityProgramState?.hostExtensionParent == nil)
+    }
+
     @Test func sessionsHaveUniqueRuntimeIdentityAndAreSingleUse() async throws {
         let interpreter = Interpreter()
         let program = try ParsedProgram(source: "42")

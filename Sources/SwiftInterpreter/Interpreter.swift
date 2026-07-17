@@ -234,8 +234,9 @@ public final class Interpreter {
     private var compatibilityRegistry: HostRegistry?
     public var registry: HostRegistry? {
         get {
-            if let programState =
-                evaluationTaskContext.runtimeEntry?.programState {
+            if let programState = evaluationTaskContext
+                .programStateFrames.last
+                ?? evaluationTaskContext.runtimeEntry?.programState {
                 return programState.hostRegistry
             }
             return compatibilityRegistry
@@ -265,8 +266,22 @@ public final class Interpreter {
     /// Interpreted `extension View { … }` / `extension String { … }` members,
     /// keyed by the extended host type's name.
     var hostExtensionSymbols: [String: StructSymbol] {
-        _read { yield activeProgramState.hostExtensionSymbols }
+        _read {
+            let symbols = activeProgramState.visibleHostExtensionSymbols
+            yield symbols
+        }
         _modify { yield &activeProgramState.hostExtensionSymbols }
+    }
+
+    func mutableHostExtensionSymbol(named name: String) -> StructSymbol {
+        if let symbol = activeProgramState.hostExtensionSymbols[name] {
+            return symbol
+        }
+        let symbol = activeProgramState.visibleHostExtensionSymbols[name]?
+            .copyForExtensionOverlay()
+            ?? StructSymbol(name: name, conformsToView: false)
+        activeProgramState.hostExtensionSymbols[name] = symbol
+        return symbol
     }
     var assumesCompiledImports: Bool {
         activeProgramState.assumesCompiledImports
@@ -606,8 +621,19 @@ public final class Interpreter {
     /// Declaration → the symbol whose body/extension lexically holds it
     /// (StructSymbol or EnumSymbol), stamped at collection.
     var declLexicalOwners: [SyntaxIdentifier: AnyObject] {
-        _read { yield activeProgramState.declarationLexicalOwners }
+        _read {
+            let owners = activeProgramState.visibleDeclarationLexicalOwners
+            yield owners
+        }
         _modify { yield &activeProgramState.declarationLexicalOwners }
+    }
+
+    func programStateOwningDeclaration(
+        _ declarationID: SyntaxIdentifier?
+    ) -> RuntimeProgramState? {
+        guard let declarationID else { return currentProgramState }
+        return currentProgramState?.stateOwningDeclaration(declarationID)
+            ?? currentProgramState
     }
     /// The RUNNING function's declaring scopes, innermost last. Plain
     /// closures push nothing — they inherit their enclosing frame.

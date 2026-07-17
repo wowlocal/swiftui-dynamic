@@ -670,6 +670,20 @@ lifecycle, async-initializer, task-group, and cancellation stress checks. The
 heap and evaluator remain MainActor-confined; no physical-worker, Sendable
 heap, or scheduler-order claim follows.
 
+The first full-gate attempt then exposed the corresponding host-value case:
+`ModelStateTests.hostTypeExtensions` returned `nil` when a second compatibility
+run called a `View` extension declared by the first. A host payload has no
+interpreted nominal symbol from which to recover provenance. Each new program
+state now retains a one-way lineage only to older states that actually
+contribute host extensions; expression-only states are skipped and released.
+Lookup presents a newest-wins overlay, while collection copy-on-writes the
+synthetic `StructSymbol`, so a later extension cannot mutate the symbol seen by
+an older closure. Method/accessor formation recovers the state owning its
+declaration ID, and direct retained closures also select their lexical host
+registry. Focused tests prove inherited lookup, one-way overlay isolation,
+release of empty intermediate states, and both direct-call and runtime-entry
+registry provenance.
+
 The stable target separates five concerns:
 
 ```text
