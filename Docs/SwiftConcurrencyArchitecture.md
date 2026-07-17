@@ -1227,13 +1227,29 @@ parallel execution, every heap access must be classified as:
 - copied across the boundary;
 - rejected as non-`Sendable`.
 
-Current implementation stage (2026-07-17): `RuntimeHeap` is the explicit
+Current implementation stage (2026-07-18): `RuntimeHeap` is the explicit
 MainActor-confined owner of the global environment, synthesized environment
 models, and SwiftUI state cells. The legacy `Interpreter.globals` surface
 forwards to that same root. The explicit `runAsync` session binds this heap,
-but declaration/evaluator migration, callback-session unification, runtime
-registry isolation, and worker-safe access policy remain separate M9 work; no
-heap object is currently handed to a physical worker.
+but declaration/evaluator migration, callback-session unification, and runtime
+registry isolation remain separate M9 work; no heap object is currently handed
+to a physical worker.
+
+Worker-admission stage (2026-07-18): a `RuntimeEntry` can now project a
+structurally `Sendable` `RuntimeWorkerCapability`. The projection retains only
+entry identity plus immutable `ResolvedProgramPlan`/`ParsedProgramMetadata`
+and recursively copies the admitted `RuntimeValue` subset into an immutable
+snapshot. It has no heap, program-state, interpreter, environment, box,
+instance, closure, symbol, or opaque-host reference. Every current
+`RuntimeHeap` stored root is inventoried as MainActor-confined and excluded;
+the test inventory is compared with the heap's actual stored-property labels
+so a future root requires an explicit policy update. Every `RuntimeValue` case
+is handled by one exhaustive transfer switch: scalar and container graphs are
+copied, actor instances are actor-confined, ordinary interpreted references
+are MainActor-confined, and opaque host values are rejected as non-Sendable.
+Nested rejection reports the exact value path and returns no partial
+capability. This is a fail-closed data boundary for future pure worker kernels,
+not permission to run the evaluator or touch the heap on a physical worker.
 
 ### 6.4 `EvaluationTaskContext`
 
@@ -3341,7 +3357,8 @@ These slices separate immutable program input, mutable storage, and execution
 identity without changing scheduling. Remaining member families, call-site, and
 compiler metadata indexing remains incomplete, and mutable
 symbol materialization plus evaluator state must move fully behind the session;
-worker-safe heap classification, physical worker scheduling,
+worker scheduling must consume the checked copied-value capability rather than
+the confined entry/heap; physical worker scheduling,
 cooperative-versus-parallel parity, and TSan evidence remain open.
 
 ## 15. Verification gates

@@ -679,6 +679,29 @@ module-boundary, and methodology tests must remain green. This prerequisite
 does not satisfy physical-worker, worker-safe heap, parallel-mode, or TSan
 requirements.
 
+Its thirty-first prerequisite establishes the fail-closed boundary that a
+future physical scheduler must consume. The exact native question is whether
+a detached task may read mutable MainActor state directly. Under Swift 6
+complete strict concurrency the positive probe copies `[2, 3, 5]` before
+detaching and must print exact `2,3,5,10|10`; the paired negative fixture reads
+the actor property inside `Task.detached` and must fail compilation with a
+MainActor isolation diagnostic. No worker start order is asserted.
+
+The runtime RED must be a compile failure caused by the absence of a worker
+capability and value-snapshot type. The closing implementation may retain only
+checked-Sendable immutable entry metadata and recursively copied values. It
+must exhaustively reject opaque host values, ordinary instances, actor
+instances, closures, host functions, nominal/enum symbols, and enum values at
+the exact nested path. It must add no `@unchecked Sendable` conformance.
+`RuntimeHeap` stored roots are compared against a named classification
+inventory; adding an unclassified root makes the test RED. A deliberately
+retained confined edge and an incomplete manifest must both be rejected by the
+executable admission predicate. The inverse snapshot-to-runtime conversion
+runs only on MainActor. The unchanged `task-owned-evaluator-context` board is
+the semantic characterization: this architectural slice does not claim that
+source evaluation has moved to physical workers. Physical scheduling,
+cooperative-versus-parallel parity, and TSan remain separate closing work.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
