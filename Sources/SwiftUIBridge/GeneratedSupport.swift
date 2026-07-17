@@ -309,7 +309,9 @@ enum GeneratedDispatch {
         guard params.count == args.arguments.count else { return nil }
         var values: [Any] = []
         for (param, argument) in zip(params, args.arguments) {
-            let isClosureParam = param.tag == .builder || param.tag == .action
+            let isClosureParam = param.tag == .builder
+                || param.tag == .action
+                || param.tag == .asyncAction
             let labelOK = argument.label == param.label
                 || (argument.isTrailing && argument.label == nil && isClosureParam)
             guard labelOK, let coerced = try? coerce(param.tag, argument.value, ctx) else { return nil }

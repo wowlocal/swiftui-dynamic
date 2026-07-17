@@ -21,10 +21,10 @@
     "currentObservation": "All 171 declarations in the current active-SDK denominator are reviewed, and immutable target-aware project manifests now bind original source membership, target/compiler identity, native preflight, runtime conditional compilation, and resource roots. The inventory scope itself remains explicitly incomplete, while known-divergent and deferred declarations still require this owned gap until their narrower M4, M5, M6, or M9 semantics are implemented or the denominator is declared complete."
   },
   {
-    "id": "view-owned-async-lifecycle-runtime",
-    "requirementRef": "M8/view-owned-async-lifecycle",
+    "id": "physical-parallel-runtime-and-sanitizers",
+    "requirementRef": "M9/parallel-runtime-and-sanitizers",
     "kind": "coverage-gap",
-    "expectedObservation": "Generated .task/.task(id:)/.refreshable exposure uses a reusable lifecycle primitive with view identity, cancellation, and teardown evidence.",
-    "currentObservation": "BridgeGen emits .task, .task(id:), and .refreshable through one async-action tag. A reusable adapter gives each real SwiftUI-owned invocation a fresh parentless .swiftUITask session, logical MainActor execution, cooperative disappearance/id-replacement cancellation, and complete runtime cleanup. Same-source NSHostingView fixtures are green for task-group runtime entry, removal cancellation, and id replacement. Repeated same-id rendering, .refreshable trigger/completion lifetime, and teardown stress remain open."
+    "expectedObservation": "An opt-in parallel runtime executes eligible detached/background source work on physical workers while preserving cooperative-mode semantics, executor isolation, deterministic ownership cleanup, and a green Thread Sanitizer stress board.",
+    "currentObservation": "The evaluator, Environment, Box, Instance, and runtime registries remain package-wide MainActor hosted. Logical source executors and cooperative interleaving are covered, but there is no parallel execution mode, cooperative-versus-parallel differential board, or Thread Sanitizer receipt; the public testing-only ExecutorJob hook remains preflight-only/deferred."
   }
 ]

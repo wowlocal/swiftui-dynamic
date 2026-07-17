@@ -2180,8 +2180,10 @@
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred"
       ],
-      "gapEvidenceIDs": [],
-      "notes": "Real Swift 6 preflight proves _swift_createJobForTestingOnly is source-callable and returns ExecutorJob, so it is not hidden as compiler ABI. Creating and scheduling executor jobs belongs to the intentionally deferred M9 parallel executor runtime."
+      "gapEvidenceIDs": [
+        "physical-parallel-runtime-and-sanitizers"
+      ],
+      "notes": "Real Swift 6 preflight proves _swift_createJobForTestingOnly is source-callable and returns ExecutorJob, so it is not hidden as compiler ABI. M9 is now active, but this hook remains deferred until the parallel executor runtime owns job creation, scheduling, and cleanup."
     },
     {
       "id": "swift-concurrency-api-v1:4e24728354412bd22e0c5685fea624ea5ea6aad2b4989b68180c674a4fa9aa35",
@@ -2889,8 +2891,8 @@
     },
     {
       "id": "swiftui-view-owned-async-lifecycle",
-      "implementationStatus": "known-divergence",
-      "verificationStatus": "none",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
       "requirementRef": "M8/view-owned-async-lifecycle",
       "evidenceCaseIDs": [],
       "testNames": [
@@ -2898,22 +2900,27 @@
         "SwiftUIViewTaskLifecycleTests/nativeSwiftUILifecycleGuaranteesRemainStable",
         "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIStartsAsyncTaskBodyInCanonicalAsyncContext",
         "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears",
-        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges"
+        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges",
+        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIPreservesTaskWhenIDDoesNotChange",
+        "SwiftUIViewTaskLifecycleTests/interpretedRefreshActionWaitsForAsyncBodyCompletion",
+        "SwiftUIViewTaskLifecycleTests/repeatedSwiftUITeardownReleasesEveryRuntimeSession"
       ],
-      "gapEvidenceIDs": [
-        "view-owned-async-lifecycle-runtime"
-      ],
-      "notes": "BridgeGen emits the active-SDK .task, .task(id:), and .refreshable async-closure modifier surface. One reusable adapter lets real SwiftUI own appearance and identity while creating a canonical parentless .swiftUITask runtime session for each invocation. Same-source NSHostingView fixtures have strict native parity for async task-group entry, disappearance cancellation, id replacement, logical MainActor identity, and complete task/group/scope/continuation/host-operation/scheduler cleanup. Repeated same-id rendering, .refreshable trigger/completion lifetime, and teardown stress remain open, so the aggregate capability is still a known divergence rather than a full runtime-support claim."
+      "gapEvidenceIDs": [],
+      "notes": "BridgeGen emits the active-SDK .task, .task(id:), and .refreshable async-closure modifier surface. One reusable adapter lets real SwiftUI own appearance and identity while creating a canonical parentless .swiftUITask runtime session for each invocation. Six same-source NSHostingView fixtures have strict native parity for async task-group entry, disappearance cancellation, id replacement, causal same-id task preservation, RefreshAction completion only after the async body finishes, logical MainActor identity, and 32 causally sequenced teardown cycles. Every interpreted cycle uses distinct task/session IDs, drains all runtime registries, and weakly releases the task record, handle, driver, evaluation context, and task-local storage; final host removal releases the interpreter and runtime. The demand-scoped capability is runtime-supported with native parity."
     },
     {
       "id": "physical-parallel-execution",
-      "implementationStatus": "deferred",
+      "implementationStatus": "known-divergence",
       "verificationStatus": "none",
       "requirementRef": "M9/parallel-runtime-and-sanitizers",
       "evidenceCaseIDs": [],
-      "testNames": [],
-      "gapEvidenceIDs": [],
-      "notes": "Physical worker execution and Thread Sanitizer evidence are intentionally deferred until ownership and isolation stabilize."
+      "testNames": [
+        "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred"
+      ],
+      "gapEvidenceIDs": [
+        "physical-parallel-runtime-and-sanitizers"
+      ],
+      "notes": "M8 closed the final lifecycle prerequisite, so the physical-parallelism cycle is active. The interpreter still has no opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence; logical executors remain cooperatively hosted on MainActor until ownership and synchronization are implemented."
     }
   ]
 }

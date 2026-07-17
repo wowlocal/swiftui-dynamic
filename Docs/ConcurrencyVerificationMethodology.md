@@ -138,9 +138,10 @@ owned partial-surface gaps. A provisional milestone may therefore close its
 own scoped requirements without claiming those broader dependencies complete.
 The demand-scoped M6 protocol/stream/continuation cycle is closed; its broader
 unsafe-ownership, negative-capacity, and upstream-adapter divergences remain
-explicitly demand-deferred. M8 view-owned async lifecycle is the active demand
-cycle, with covered M2 driver-release, M5 logical-executor, and M7 native-
-preflight prerequisites.
+explicitly demand-deferred. The M8 view-owned async lifecycle cycle is covered
+with repeated teardown and weak session-release evidence; M8 remains
+provisional only because broad M5/M7 are partial. Its requirement-level
+prerequisites are covered, so M9 physical parallelism is now the active cycle.
 
 ## Process and liveness isolation
 
