@@ -2097,5 +2097,17 @@
     "interpreterTrapContains": ["attempt to await AsyncThrowingStream.Iterator.next() concurrently"],
     "nativeFact": "AsyncThrowingStream permits only one pending next call per stream: starting next on a value-copied iterator while another copy is parked traps instead of creating a second consumer.",
     "notes": "Task.immediate runs the first copied iterator's synchronous prefix until its real next suspension before returning the handle. The parent then starts next on a second value copy while the first is causally pending. The expected trap is process-isolated; no waiter order or physical-executor behavior is asserted."
+  },
+  {
+    "id": "async-throwing-stream-scope-termination",
+    "fixture": "Fixtures/async-throwing-stream-scope-termination.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamScopeTerminationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "When an unfinished AsyncThrowingStream and its builder continuation lose their last references at nested-function exit, storage deinitialization synchronously invokes onTermination(.cancelled) before the caller continues.",
+    "notes": "The nested function discards the only sequence value and does not let its builder continuation escape. The caller reads callback-owned state immediately, so lifetime ordering is exact without scheduler, executor, or thread claims. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced cancelled in twenty bounded native runs. The interpreter RED was its explicit AsyncThrowingStream implicit-termination unsupported diagnostic. Removing that temporary flavor guard lets the shared storage-deinit path synchronously pass the throwing `.cancelled` value, preserve callback failures for the next safe point, and close the record. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 165b1dc6bc0549403e963d0309882cc678f0ef9ff759b898171790b9d9641cc1; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
   }
 ]

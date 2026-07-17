@@ -1432,8 +1432,11 @@ the supplied value as `.dropped`. Unlike `AsyncStream`, a throwing stream owns
 one pending-`next()` capability in shared storage: after one copied iterator
 has suspended, a second copied iterator call is a runtime trap. The capability
 is storage-wide rather than attached to a source carrier, and its fatal error
-metadata survives gateway source-location attachment. Throwing-stream lifetime
-edges remain open. Source checked continuations are not yet claimed.
+metadata survives gateway source-location attachment. Final release of an
+unfinished throwing-stream sequence/iterator also synchronously delivers the
+flavor-correct `.cancelled` callback before storage destruction closes its
+record. Escaped throwing producer-handle lifetime remains open. Source checked
+continuations are not yet claimed.
 
 ### 6.19 Host gateway runtime
 
@@ -2026,8 +2029,9 @@ Each milestone is independently gated through
   At capacity zero both policies return the supplied value as `.dropped` and
   retain nothing. Copied throwing-stream iterators also share the storage's
   single pending-`next()` capability, and a causally overlapping call has
-  process-isolated native/interpreter runtime-trap parity. Its lifetime
-  semantics plus
+  process-isolated native/interpreter runtime-trap parity. Final-owner
+  scope-exit cancellation also has exact parity; escaped producer-continuation
+  lifetime plus
   checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
@@ -2268,8 +2272,9 @@ element as `.dropped`, keep no value, and read terminal `nil`. A copied-iterator
 probe additionally proves that one throwing stream permits only one pending
 `next()` across copies: after `Task.immediate` causally reaches the first
 suspension, a second call traps in both isolated native and interpreted
-processes. Throwing-stream lifetime edges plus
-checked-continuation ownership
+processes. Final-owner scope exit also synchronously delivers `.cancelled`
+before its caller continues. Escaped throwing producer-continuation lifetime
+plus checked-continuation ownership
 remain active rather than being inferred from those slices.
 
 Deliverables:

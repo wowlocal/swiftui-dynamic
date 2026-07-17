@@ -163,14 +163,6 @@ final class RuntimeAsyncStreamStorage {
             // before releasing the runtime record, synchronously with ARC.
             onTermination = nil
             let taskID = callbackOwner?.evaluationTaskContext.runtimeTaskID
-            if flavor.isThrowing {
-                runtime?.recordNonthrowingCallbackFailure(
-                    RuntimeError(message:
-                        "AsyncThrowingStream implicit termination is not yet supported"),
-                    taskID: taskID)
-                runtime?.closeAsyncStream(id)
-                return
-            }
             do {
                 _ = try callbackOwner?.callRuntimeAsyncStreamTermination(
                     handler, value: cancelledTerminationValue)
