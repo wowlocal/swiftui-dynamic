@@ -58,6 +58,11 @@ struct SwiftUIViewTaskLifecycleTests {
             "Tests/NativeProbes/SwiftUI/view-task-id-replacement.swift")
     }
 
+    private var sameIDFixture: URL {
+        repositoryRoot.appendingPathComponent(
+            "Tests/NativeProbes/SwiftUI/view-task-same-id-stability.swift")
+    }
+
     private func run(
         _ executable: URL,
         _ arguments: [String]
@@ -123,6 +128,7 @@ struct SwiftUIViewTaskLifecycleTests {
                 fixture.path,
                 cancellationFixture.path,
                 idFixture.path,
+                sameIDFixture.path,
                 nativeMain.path,
                 "-o", binary.path,
             ])
@@ -134,7 +140,8 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(
             observation.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                 == "entry=started,value:21|disappearance=started,cancelled|"
-                    + "id=cancel:1,cancel:2,start:1,start:2")
+                    + "id=cancel:1,cancel:2,start:1,start:2|"
+                    + "same-id=finish:first,render:first,render:same,start:first")
     }
 
     @Test
@@ -296,6 +303,70 @@ struct SwiftUIViewTaskLifecycleTests {
         }
 
         #expect(events().sorted() == ["cancel:1", "cancel:2", "start:1", "start:2"])
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(lifecycleDiagnostics().isEmpty)
+    }
+
+    @Test
+    func interpretedSwiftUIPreservesTaskWhenIDDoesNotChange() async throws {
+        let source = try String(contentsOf: sameIDFixture, encoding: .utf8)
+        let interpreter = Interpreter(registry: ViewRegistry())
+        try interpreter.run(source: source)
+
+        let symbol = try #require(interpreter.rootViewSymbol())
+        func render(generation: String) throws -> AnyView {
+            guard case .instance(let instance) = try interpreter.instantiateForBridge(
+                symbol,
+                arguments: CallArguments(arguments: [
+                    .init(label: "id", value: .native(7)),
+                    .init(label: "generation", value: .native(generation)),
+                ])) else {
+                throw RuntimeError(message:
+                    "view-task same-id probe did not instantiate")
+            }
+            return AnyView(try ViewRegistry.anyView(
+                interpreter.evaluateBody(of: instance)))
+        }
+        func events() -> [String] {
+            interpreter.globals.lookup("swiftUIViewTaskSameIDEvents")?
+                .arrayValue?.compactMap(\.stringValue) ?? []
+        }
+
+        let hostingView = NSHostingView(rootView: try render(generation: "first"))
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false)
+        window.contentView = hostingView
+        window.orderFrontRegardless()
+        defer { window.close() }
+
+        await waitUntil {
+            events().contains("render:first") && events().contains("start:first")
+        }
+        hostingView.rootView = try render(generation: "same")
+        await waitUntil {
+            events().contains("render:same")
+        }
+
+        interpreter.globals.box(for: "swiftUIViewTaskSameIDRelease")?.value
+            = .native(true)
+        await waitUntil {
+            events().contains { $0.hasPrefix("finish:") }
+        }
+        hostingView.rootView = AnyView(EmptyView())
+        await waitUntil {
+            interpreter.concurrencyRuntime.activeRecordCount == 0
+        }
+
+        #expect(events().sorted()
+            == ["finish:first", "render:first", "render:same", "start:first"])
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)

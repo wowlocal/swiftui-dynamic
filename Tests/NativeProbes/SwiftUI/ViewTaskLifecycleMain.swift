@@ -65,6 +65,23 @@ struct ViewTaskLifecycleMain {
             .joined(separator: ",")
         idWindow.close()
 
-        print("entry=\(entry)|disappearance=\(disappearance)|id=\(replacement)")
+        let (sameIDHost, sameIDWindow) = host(
+            AnyView(SwiftUIViewTaskSameIDProbe(
+                id: 7, generation: "first")))
+        pump {
+            swiftUIViewTaskSameIDEvents.contains("render:first")
+                && swiftUIViewTaskSameIDEvents.contains("start:first")
+        }
+        sameIDHost.rootView = AnyView(SwiftUIViewTaskSameIDProbe(
+            id: 7, generation: "same"))
+        pump { swiftUIViewTaskSameIDEvents.contains("render:same") }
+        swiftUIViewTaskSameIDRelease = true
+        pump { swiftUIViewTaskSameIDEvents.contains("finish:first") }
+        let sameID = swiftUIViewTaskSameIDEvents.sorted()
+            .joined(separator: ",")
+        sameIDWindow.close()
+
+        print("entry=\(entry)|disappearance=\(disappearance)"
+            + "|id=\(replacement)|same-id=\(sameID)")
     }
 }

@@ -1198,8 +1198,8 @@
       "title": "SwiftUI lifecycle",
       "status": "partial",
       "dependsOn": ["M2", "M5", "M7"],
-      "ledgerEvidence": "Synchronous callbacks use runtime-owned host tasks. BridgeGen emits `.task`, `.task(id:)`, and `.refreshable`; one reusable adapter gives actual SwiftUI-owned invocations fresh `.swiftUITask` sessions. Same-source hosting probes cover async entry, MainActor identity, disappearance cancellation, id replacement, and cleanup.",
-      "ledgerRemainingWork": "Characterize repeated same-id rendering and `.refreshable` completion lifetime, then add teardown stress and retained-session release evidence.",
+      "ledgerEvidence": "Synchronous callbacks use runtime-owned host tasks. BridgeGen emits `.task`, `.task(id:)`, and `.refreshable`; one reusable adapter gives actual SwiftUI-owned invocations fresh `.swiftUITask` sessions. Same-source hosting probes cover async entry, MainActor identity, disappearance cancellation, id replacement, same-id preservation, and cleanup.",
+      "ledgerRemainingWork": "Characterize `.refreshable` trigger/completion lifetime, then add teardown stress and retained-session release evidence.",
       "requirements": [
         {
           "id": "host-callback-runtime-entry",
@@ -1230,7 +1230,8 @@
             "SwiftUIViewTaskLifecycleTests/nativeSwiftUILifecycleGuaranteesRemainStable",
             "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIStartsAsyncTaskBodyInCanonicalAsyncContext",
             "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears",
-            "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges"
+            "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges",
+            "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIPreservesTaskWhenIDDoesNotChange"
           ],
           "gapEvidenceIDs": ["view-owned-async-lifecycle-runtime"],
           "evidenceByCoverage": {
@@ -1239,13 +1240,15 @@
               "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges"
             ],
             "cleanup": [
-              "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIStartsAsyncTaskBodyInCanonicalAsyncContext",
-              "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears",
-              "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges"
+            "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIStartsAsyncTaskBodyInCanonicalAsyncContext",
+            "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears",
+            "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges",
+            "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIPreservesTaskWhenIDDoesNotChange"
             ],
             "lifetime": [
-              "test:SwiftUIViewTaskLifecycleTests/nativeSwiftUILifecycleGuaranteesRemainStable",
-              "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges"
+            "test:SwiftUIViewTaskLifecycleTests/nativeSwiftUILifecycleGuaranteesRemainStable",
+            "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges",
+            "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUIPreservesTaskWhenIDDoesNotChange"
             ],
             "isolation": [
               "test:SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears"
@@ -1254,7 +1257,7 @@
               "test:SwiftUIViewTaskLifecycleTests/asyncLifecycleModifierSurfaceComesFromBridgeGen"
             ]
           },
-          "notes": "Gap-closure slice: before the production change, the real interpreted SwiftUI task appended only started and then failed because withTaskGroup had no canonical async runtime task; the strict native fixture returned started,value:21. BridgeGen now recognizes the three active-SDK async-closure modifier declarations and emits .task, .task(id:), and .refreshable instead of relying on the removed handwritten task gateway. Real SwiftUI retains ownership of appearance, structural identity, id replacement, and disappearance. One interface-inexpressible adapter creates a fresh parentless .swiftUITask runtime session, executes the interpreted closure through the suspending evaluator on the logical MainActor, maps native lifecycle cancellation into ordinary cooperative source cancellation, and releases the task record after completion. Three same-source NSHostingView fixtures produced stable native/interpreted observations for runtime entry, disappearance cancellation, and id replacement; the combined native output was identical in twenty strict Swift 6 runs with SHA-256 661a004328001dd4a340fbbaf7adb441b653659adde6c0d08953aba3a5a0381e. Focused assertions drain tasks, groups, scopes, continuations, host operations, and scheduled handles. The aggregate row remains open for repeated same-id rendering, .refreshable trigger/completion lifetime, and teardown stress. Measured demand (2026-07-16): .task appears in 30 of 669 corpus projects and four times in FoodTruck."
+          "notes": "Gap-closure slice: before the production change, the real interpreted SwiftUI task appended only started and then failed because withTaskGroup had no canonical async runtime task; the strict native fixture returned started,value:21. BridgeGen now recognizes the three active-SDK async-closure modifier declarations and emits .task, .task(id:), and .refreshable instead of relying on the removed handwritten task gateway. Real SwiftUI retains ownership of appearance, structural identity, id replacement, and disappearance. One interface-inexpressible adapter creates a fresh parentless .swiftUITask runtime session, executes the interpreted closure through the suspending evaluator on the logical MainActor, maps native lifecycle cancellation into ordinary cooperative source cancellation, and releases the task record after completion. Four same-source NSHostingView fixtures produced stable native/interpreted observations for runtime entry, disappearance cancellation, id replacement, and causal same-id task preservation; the combined native output was identical in twenty strict Swift 6 runs with SHA-256 40c3e91ca37f70606edb393ee1d57f05b4318148eff5a9ce6bdc62c54e45faff. The same-id step was an already-GREEN characterization and required no production change. Focused assertions drain tasks, groups, scopes, continuations, host operations, and scheduled handles. The aggregate row remains open for .refreshable trigger/completion lifetime and teardown stress. Measured demand (2026-07-16): .task appears in 30 of 669 corpus projects and four times in FoodTruck."
         }
       ]
     },
