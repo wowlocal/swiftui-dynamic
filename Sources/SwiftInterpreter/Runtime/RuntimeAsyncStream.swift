@@ -290,11 +290,6 @@ final class RuntimeAsyncStreamStorage {
 
     func cancel(in context: EvalContext) throws {
         guard !terminal else { return }
-        if flavor.isThrowing, onTermination != nil {
-            onTermination = nil
-            throw RuntimeError(message:
-                "AsyncThrowingStream cancellation callback is not yet supported")
-        }
         let handler = onTermination
         onTermination = nil
         var handlerFailure: Error?

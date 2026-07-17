@@ -2035,5 +2035,17 @@
     "interpreterProjection": "string",
     "nativeFact": "AsyncThrowingStream finish(throwing:) synchronously invokes one onTermination(.finished(error)) callback containing the supplied source error before returning, preserves a prior buffered value, rethrows that same error after the value, and terminates later yields.",
     "notes": "The callback renders the associated termination error only to prove that it contains the stopped case, avoiding module-qualified description differences. Every producer operation is synchronous; sequential iterator reads make value-before-error ordering deterministic without task-order or physical-executor claims. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output 5:caught:finished-error,after-finish:terminated with canonical native-observation SHA-256 f1ab4a6a9520f687349a779caf3d418c77cd925a5b9011cf4d98167001453935. The captured interpreter RED was its explicit fail-closed diagnostic for a failure termination callback. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup. Cancellation callbacks and implicit lifetime termination remain fail-closed or open."
+  },
+  {
+    "id": "async-throwing-stream-cancelled-consumer",
+    "fixture": "Fixtures/async-throwing-stream-cancelled-consumer.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamCancelledConsumerProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling a task parked in empty AsyncThrowingStream.Iterator.next() synchronously invokes onTermination(.cancelled) before next returns nil; the task may return normally while remaining marked cancelled.",
+    "notes": "The MainActor child marks entry immediately before awaiting next. Run-to-suspension prevents the parent from observing that marker until the iterator can park, so cancel occurs at the controlled edge without unrelated task-order or physical-executor claims. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned true:true:cancelled:cancelled in twenty bounded runs. The interpreter RED timed out because its explicit throwing-stream cancellation guard discarded the callback and left the parked waiter unresolved. The shared cancellation path now delivers the flavor-specific .cancelled value before resuming next with nil. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 8248bec5de22875ebe62a306cd31b2da279ff76a8ae4e49dbe34dbb67c77ea93; focused runtime evidence observes one suspension and complete ownership cleanup."
   }
 ]

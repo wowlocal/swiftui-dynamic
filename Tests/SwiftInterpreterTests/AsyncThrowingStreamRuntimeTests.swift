@@ -103,4 +103,30 @@ struct AsyncThrowingStreamRuntimeTests {
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
     }
+
+    @Test func cancelledConsumerResumesNilAfterSynchronousTerminationCallback()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/async-throwing-stream-cancelled-consumer.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait asyncThrowingStreamCancelledConsumerProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "true:true:cancelled:cancelled")
+        #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 1)
+        #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount >= 1)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
 }

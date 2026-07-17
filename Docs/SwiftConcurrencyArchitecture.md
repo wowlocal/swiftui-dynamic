@@ -1420,8 +1420,11 @@ delivers `.finished(nil)` to one registered callback, preserves a buffered
 value, produces stable terminal nil, and rejects later yield. Failure finish
 has companion evidence: `.finished(error)` carries the original source
 value synchronously before return, iteration drains the prior value then
-rethrows that error, and later yield is terminated. Cancellation callbacks,
-bounded buffering, iterator-copy, and throwing-stream lifetime edges remain
+rethrows that error, and later yield is terminated. Cancelling a task parked in
+throwing-stream `next()` now synchronously delivers `.cancelled` before
+resuming that call with terminal `nil`; the task may return normally while its
+cancellation bit remains set. Bounded buffering, iterator-copy, and
+throwing-stream lifetime edges remain
 fail-closed or open. Source checked continuations are not yet claimed.
 
 ### 6.19 Host gateway runtime
@@ -2006,8 +2009,9 @@ Each milestone is independently gated through
   `AsyncThrowingStream` suspended-consumer/value/source-error/cleanup slice;
   normal finish, `.finished(nil)` callback timing, buffered retention, stable
   nil, and rejected post-finish yield are also covered. Failure finish adds the
-  associated source error callback and later exact rethrow. Its remaining
-  cancellation callbacks, buffering, iterator-copy, and lifetime semantics plus
+  associated source error callback and later exact rethrow. A cancelled parked
+  consumer also receives `.cancelled` synchronously before terminal `nil`.
+  Its remaining buffering, iterator-copy, and lifetime semantics plus
   checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
@@ -2237,8 +2241,10 @@ runtime record and cleanup kernel. Normal throwing finish,
 `.finished(nil)` callback timing, buffered retention, stable nil, and rejected
 post-terminal yield are covered separately. Failure finish also synchronously
 delivers `.finished(error)` with the original source value before that value is
-re-thrown after the prior element drains. Cancellation callbacks, bounded
-buffering, iterator-copy, and lifetime edges plus checked-continuation ownership
+re-thrown after the prior element drains. Cancelling a parked throwing-stream
+consumer synchronously delivers `.cancelled` before terminal `nil`, matching
+the nonthrowing storage edge. Bounded buffering, iterator-copy, and lifetime
+edges plus checked-continuation ownership
 remain active rather than being inferred from those slices.
 
 Deliverables:
