@@ -1,4 +1,5 @@
 import AppKit
+import Charts
 import SwiftUI
 import Testing
 @testable import SwiftInterpreter
@@ -200,5 +201,114 @@ import Testing
             }
         }
         #expect(inked > 3, "custom Y-axis labels did not paint (inked=\(inked))")
+    }
+}
+
+extension InterpretedChartTests {
+    // The salesHistory live class: `.foregroundStyle(by: .value(...))` /
+    // `.symbol(by:)` (categorical series) and `.lineStyle(StrokeStyle)`
+    // had no mark-member arms — every mark logged "shape not bridged" and
+    // painted the default style. The by: forms route through the shared
+    // plottable carrier now; series colors, symbols, and the legend are
+    // the framework's own.
+    @MainActor
+    @Test func seriesColoredMarksMatchNative() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    LineMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 5.0))
+                        .foregroundStyle(by: .value(String("City"), String("A")))
+                        .symbol(by: .value(String("City"), String("A")))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                    LineMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 9.0))
+                        .foregroundStyle(by: .value(String("City"), String("A")))
+                        .symbol(by: .value(String("City"), String("A")))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                    LineMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 2.0))
+                        .foregroundStyle(by: .value(String("City"), String("B")))
+                        .symbol(by: .value(String("City"), String("B")))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                    LineMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 4.0))
+                        .foregroundStyle(by: .value(String("City"), String("B")))
+                        .symbol(by: .value(String("City"), String("B")))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                }
+                .background(Color.white)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interp = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                LineMark(x: .value("X", 1.0), y: .value("Y", 5.0))
+                    .foregroundStyle(by: .value("City", "A"))
+                    .symbol(by: .value("City", "A"))
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                LineMark(x: .value("X", 2.0), y: .value("Y", 9.0))
+                    .foregroundStyle(by: .value("City", "A"))
+                    .symbol(by: .value("City", "A"))
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                LineMark(x: .value("X", 1.0), y: .value("Y", 2.0))
+                    .foregroundStyle(by: .value("City", "B"))
+                    .symbol(by: .value("City", "B"))
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                LineMark(x: .value("X", 2.0), y: .value("Y", 4.0))
+                    .foregroundStyle(by: .value("City", "B"))
+                    .symbol(by: .value("City", "B"))
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+            }
+            .background(Color.white)
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<300 {
+            for y in 0..<200 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.greenComponent - b.greenComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        print("PROBE series-colored-marks mismatched:", mismatched)
+        #expect(mismatched == 0)
+    }
+
+    @MainActor
+    static func chartBitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+            fatalError("no rep")
+        }
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        return rep
     }
 }

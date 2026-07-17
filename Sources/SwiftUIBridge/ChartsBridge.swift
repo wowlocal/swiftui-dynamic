@@ -378,6 +378,16 @@ func chartContentMember(_ name: String, on value: Any) -> RuntimeValue? {
     switch name {
     case "foregroundStyle":
         return .hostFunction(HostFunction(name: name) { args, _ in
+            // `.foregroundStyle(by: .value("Series", name))` — the
+            // categorical form drives per-series colors and the legend.
+            if let spec = plottable(args.labeled("by")) {
+                if let string = spec.string {
+                    return .native(AnyChartContent(mark.foregroundStyle(by: .value(spec.label, string))))
+                }
+                if let double = spec.double {
+                    return .native(AnyChartContent(mark.foregroundStyle(by: .value(spec.label, double))))
+                }
+            }
             guard let first = args.positional(0),
                   let style = try? Coerce.shapeStyle(first) else {
                 // Unbridged style shapes (`.indigo.shadow(.drop(…))`) keep
@@ -388,6 +398,22 @@ func chartContentMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .native(mark)
             }
             return .native(AnyChartContent(mark.foregroundStyle(style)))
+        })
+    case "symbol":
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            // `.symbol(by: .value("Series", name))` — categorical point
+            // symbols; unbridged shapes keep the default symbol.
+            if let spec = plottable(args.labeled("by")), let string = spec.string {
+                return .native(AnyChartContent(mark.symbol(by: .value(spec.label, string))))
+            }
+            return .native(mark)
+        })
+    case "lineStyle":
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            if case .host(let any)? = args.positional(0), let stroke = any as? StrokeStyle {
+                return .native(AnyChartContent(mark.lineStyle(stroke)))
+            }
+            return .native(mark)
         })
     case "opacity":
         return .hostFunction(HostFunction(name: name) { args, _ in

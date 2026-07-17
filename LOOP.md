@@ -2109,3 +2109,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   Pins: GradientStopsAndAsyncImageProbeTests (stops gradient AE=0,
   AsyncImage placeholder AE=0). Gate still blocked by main-red
   (lane-concurrency parallel-worker regression).
+- 2026-07-17 SALES HISTORY RENDERS LIVE — categorical mark styling
+  (worktree iteration 40): the 43-diagnostic class was the CATEGORICAL
+  series forms — `.foregroundStyle(by: .value("Location", name))`,
+  `.symbol(by: .value(...))`, and `.lineStyle(StrokeStyle(lineWidth:))`
+  had no mark-member arms; every mark fell to the default style. The by:
+  forms route through the existing shared plottable carrier
+  (PlottableSpec) and lineStyle takes the host StrokeStyle — series
+  colors, per-series point symbols, and the legend are the framework's
+  own. Live capture shows the full panel: three per-city series in
+  distinct colors with circle/square/triangle symbols, legend, cardinal
+  smoothing, timeframe picker. R4 board 8/9 GREEN (saleshistory 193k
+  repainted, 0 diagnostics); only topfive remains (8x AxisValueLabel
+  format — next). R2 spot-check: orders AE=0 fresh-vs-fresh (stale-PNG
+  font-AA drift is inter-session; the r2 script is immune).
+  Pin: InterpretedChartTests.seriesColoredMarksMatchNative (AE=0 vs
+  native). Gate still blocked by main-red; steward has made the
+  worker-isolation fix lane-concurrency's drop-everything priority.
