@@ -1692,3 +1692,15 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   + a twin dump extension, the way the orders stream was aligned on
   07-11. Upstream checked-continuation completion still gates the
   merge queue (fourteen commits).
+- 2026-07-17 sales-stream suspects narrowed (worktree iteration 19):
+  pow is BIT-EXACT against libm (pinned: PowBitExactTests), dates and
+  the weekend multiplier are frozen-deterministic, and the summary
+  union machinery is proven. The 1-2 count week drift therefore lives
+  in the per-city seeded sequence of historicalDailyOrders — the
+  14-donut shuffled(using:) order or the per-day Double.random draw
+  sequence over city seeds (a longer stream than the pinned orders
+  case). STAKED with the method: RNG_TRACE both sides + a twin dump of
+  the per-city day-one sales vector, then align draw-by-draw as on
+  07-11. Upstream: the checked-continuation series continues
+  (throwing-MainActor characterization landed); the alias-test
+  completion still gates the fifteen-commit merge queue.
