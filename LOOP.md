@@ -1584,3 +1584,14 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   ffedc48 and fails after merge 6909753 brought the concurrency
   lane's AsyncThrowingStream/actor series — flagged in claims. The
   six-commit queue still awaits one clean gate.
+- 2026-07-17 upstream regression BISECTED (worktree iteration 12):
+  sessionScriptToleranceIntervalsAndAppending fails from commit
+  25ad8db "Correct AsyncStream producer ownership" (weak storage on
+  producer handles — RuntimeAsyncStream.swift, 22 source lines);
+  passes at its parent. git-bisect-run verified, standalone repro
+  posted in claims for the concurrency lane. The lane queue (six
+  commits: frozen clock, Charts gateway, axis DSL + stdlib sweep,
+  FlowLayout semantics, socialfeed pills, gate stdin fix) remains
+  ready for one clean gate; the FoodTruck board stands at four AE=0
+  screens, socialfeed 0.393%, truck 1.998%, orders 0.777%, donuts
+  1.041%, card-orders 2.385%.
