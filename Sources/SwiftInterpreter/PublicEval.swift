@@ -28,7 +28,8 @@ extension Interpreter {
         _ name: String, on symbol: StructSymbol, arguments: [RuntimeValue]
     ) throws -> RuntimeValue? {
         guard let overloads = symbol.staticMethods[name],
-              let method = overloads.first, let body = method.body else { return nil }
+              let method = overloads.first,
+              let body = functionMetadata(for: method).body else { return nil }
         let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol)))
         return try callWithArguments(
             closure,

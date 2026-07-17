@@ -1170,7 +1170,7 @@ extension Interpreter {
 
     func defineFunction(_ node: FunctionDeclSyntax, in env: Environment) throws {
         let metadata = functionMetadata(for: node)
-        guard let body = node.body else {
+        guard let body = metadata.body else {
             // Bodyless declarations are extern/C bridges (@_silgen_name
             // Carbon privates): inert absorbers, like the C-interop family.
             let name = metadata.name

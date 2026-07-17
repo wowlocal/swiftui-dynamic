@@ -10,6 +10,7 @@ struct RuntimeEntryOwnershipTests {
         var observedHeapMatches: [Bool] = []
         var observedMetadata: [ParsedCallableMetadataIndex.Summary?] = []
         var observedTypeMemberFunctionCounts: [Int?] = []
+        var observedBodylessFunctionCounts: [Int?] = []
         var observedInitializerCounts: [Int?] = []
         var observedFailableInitializerCounts: [Int?] = []
         var observedDeclarationCounts: [Int?] = []
@@ -36,6 +37,9 @@ struct RuntimeEntryOwnershipTests {
                     observedTypeMemberFunctionCounts.append(
                         entry.callableMetadataIndex?.summary
                             .typeMemberFunctionCount)
+                    observedBodylessFunctionCounts.append(
+                        entry.callableMetadataIndex?.summary
+                            .bodylessFunctionCount)
                     observedInitializerCounts.append(
                         entry.callableMetadataIndex?.summary.initializerCount)
                     observedFailableInitializerCounts.append(
@@ -66,6 +70,7 @@ struct RuntimeEntryOwnershipTests {
             init?(originValue: Int) { return nil }
         }
         enum OriginState { case ready }
+        protocol OriginAPI { func requiredValue() }
         extension OriginMarker {}
         typealias OriginAlias = OriginMarker
         func makeCallback() -> () -> Void {
@@ -115,11 +120,12 @@ struct RuntimeEntryOwnershipTests {
         #expect(Set(observedIDs).count == 1)
         #expect(observedKinds == [.hostCallback, .hostCallback])
         #expect(observedHeapMatches == [true, true])
-        #expect(observedMetadata.map { $0?.functionCount } == [2, 2])
+        #expect(observedMetadata.map { $0?.functionCount } == [3, 3])
         #expect(observedTypeMemberFunctionCounts == [1, 1])
+        #expect(observedBodylessFunctionCounts == [1, 1])
         #expect(observedInitializerCounts == [1, 1])
         #expect(observedFailableInitializerCounts == [1, 1])
-        #expect(observedDeclarationCounts == [3, 3])
+        #expect(observedDeclarationCounts == [4, 4])
         #expect(observedNominalCounts == [1, 1])
         #expect(observedPropertyBindingCounts == [1, 1])
         #expect(observedEnumCaseCounts == [1, 1])

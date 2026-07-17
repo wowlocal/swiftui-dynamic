@@ -142,6 +142,10 @@ struct ParsedProgramConcurrencyTests {
         @MainActor
         func mainActorValue(_ input: Int = 1) async -> Int { input }
 
+        protocol BodylessAPI {
+            func requiredValue()
+        }
+
         struct Worker {
             init(seed: Int) {}
 
@@ -168,7 +172,7 @@ struct ParsedProgramConcurrencyTests {
         await mainActorValue(42)
         """)
         let expected = ParsedCallableMetadataIndex.Summary(
-            functionCount: 4,
+            functionCount: 5,
             initializerCount: 1,
             asyncFunctionCount: 3,
             throwingFunctionCount: 1,
@@ -177,6 +181,7 @@ struct ParsedProgramConcurrencyTests {
             concurrentFunctionCount: 1,
             typeMemberFunctionCount: 0,
             modifiedFunctionCount: 1,
+            bodylessFunctionCount: 1,
             readableAccessorCount: 2,
             subscriptCount: 1,
             asyncGetterCount: 1,
@@ -206,6 +211,10 @@ struct ParsedProgramConcurrencyTests {
         let program = try ParsedProgram(source: """
         func globalValue() {}
 
+        protocol BodylessAPI {
+            func requiredValue()
+        }
+
         class Owner {
             static func typeValue(label: String) {}
             class func inheritedTypeValue() {}
@@ -223,6 +232,20 @@ struct ParsedProgramConcurrencyTests {
             .typeMemberFunctionCount == 3)
         #expect(program.callableMetadataIndex.summary
             .modifiedFunctionCount == 3)
+        #expect(program.callableMetadataIndex.summary
+            .bodylessFunctionCount == 1)
+
+        let protocols: [ProtocolDeclSyntax] =
+            program.syntax.statements.compactMap {
+                $0.item.as(DeclSyntax.self)?.as(ProtocolDeclSyntax.self)
+            }
+        let bodylessProtocol = try #require(protocols.first)
+        let requirement = try #require(
+            bodylessProtocol.memberBlock.members.first?.decl
+                .as(FunctionDeclSyntax.self))
+        let requirementMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: requirement))
+        #expect(requirementMetadata.body == nil)
 
         let owners: [ClassDeclSyntax] =
             program.syntax.statements.compactMap {
@@ -239,6 +262,7 @@ struct ParsedProgramConcurrencyTests {
         let typeMetadata = try #require(
             program.callableMetadataIndex.metadata(for: typeFunction))
         #expect(typeMetadata.name == "typeValue")
+        #expect(typeMetadata.body?.statements.count == 0)
         #expect(typeMetadata.modifierNames == ["static"])
         #expect(typeMetadata.isTypeMember)
 
@@ -272,6 +296,7 @@ struct ParsedProgramConcurrencyTests {
         let metadata = Interpreter().functionMetadata(for: declaration)
 
         #expect(metadata.name == "build")
+        #expect(metadata.body?.statements.count == 0)
         #expect(metadata.modifierNames == ["static"])
         #expect(metadata.isTypeMember)
     }

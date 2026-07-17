@@ -15,6 +15,7 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
         public let concurrentFunctionCount: Int
         public let typeMemberFunctionCount: Int
         public let modifiedFunctionCount: Int
+        public let bodylessFunctionCount: Int
         public let failableInitializerCount: Int
         public let explicitlyNonisolatedInitializerCount: Int
         public let modifiedInitializerCount: Int
@@ -35,6 +36,7 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
             concurrentFunctionCount: Int,
             typeMemberFunctionCount: Int = 0,
             modifiedFunctionCount: Int = 0,
+            bodylessFunctionCount: Int = 0,
             failableInitializerCount: Int = 0,
             explicitlyNonisolatedInitializerCount: Int = 0,
             modifiedInitializerCount: Int = 0,
@@ -55,6 +57,7 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
             self.concurrentFunctionCount = concurrentFunctionCount
             self.typeMemberFunctionCount = typeMemberFunctionCount
             self.modifiedFunctionCount = modifiedFunctionCount
+            self.bodylessFunctionCount = bodylessFunctionCount
             self.failableInitializerCount = failableInitializerCount
             self.explicitlyNonisolatedInitializerCount =
                 explicitlyNonisolatedInitializerCount
@@ -99,6 +102,7 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
             modifiedFunctionCount: functionValues.count {
                 !$0.modifierNames.isEmpty
             },
+            bodylessFunctionCount: functionValues.count { $0.body == nil },
             failableInitializerCount: initializerValues.count(
                 where: \.isFailable),
             explicitlyNonisolatedInitializerCount: initializerValues.count(
@@ -166,6 +170,7 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
     let name: String
     let parameters: [ClosureValue.Parameter]
     let shape: ParsedCallableShape
+    let body: CodeBlockSyntax?
     let returnType: TypeSyntax?
     let returnTypeName: String?
     let isBuilder: Bool
@@ -190,6 +195,7 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
         name = declaration.name.text
         self.parameters = parsedClosureParameters(parameters)
         shape = parsedCallableShape(parameters)
+        body = declaration.body
         self.returnType = returnType
         self.returnTypeName = returnTypeName
         isBuilder = returnTypeName?.contains("some View") == true

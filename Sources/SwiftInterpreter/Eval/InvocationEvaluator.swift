@@ -40,7 +40,7 @@ extension Interpreter {
               env.box(for: reference.baseName.text, before: globals) == nil,
               globalFunctionOverloads[reference.baseName.text]?.contains(where: {
                 $0.id == functionID
-                    && $0.signature.effectSpecifiers?.asyncSpecifier != nil
+                    && functionMetadata(for: $0).isAsync
               }) == true else {
             return .unknown
         }
@@ -109,7 +109,7 @@ extension Interpreter {
             // — instances invoke through callAsFunction.
             if let overloads = instance.symbol.methods["callAsFunction"],
                let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: instanceMethodEnvironment(instance))
                 return try callWithArguments(closure, args: args, node: Syntax(node))
@@ -469,7 +469,9 @@ extension Interpreter {
                 return
             }
             if let function = node.as(FunctionDeclSyntax.self) {
-                guard let body = function.body else { return }
+                guard let body = functionMetadata(for: function).body else {
+                    return
+                }
                 let metadata = functionMetadata(for: function)
                 var functionBound = bound
                 functionBound.insert(metadata.name)

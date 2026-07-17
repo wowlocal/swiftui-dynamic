@@ -167,7 +167,7 @@
     "interpreterEntry": "await callablePlacementMetadataProbe()",
     "interpreterProjection": "string",
     "nativeFact": "Static and instance methods of a MainActor-isolated nominal inherit that actor while remaining callable through the type and an instance respectively.",
-    "notes": "Exact output is type:same:foodtruck|instance:same in all repetitions and remains unchanged after an awaited actor hop. FoodTruck cites static callables in City, StoreMessagesManager, and TaskSeconds; no class-func, physical-thread, scheduler-order, or unrelated-overload claim is made."
+    "notes": "Exact output is type:same:foodtruck|instance:same in all repetitions and remains unchanged after an awaited actor hop and the immutable function-body migration. FoodTruck cites 133 functions including async account/StoreKit bodies, local layout helpers, mutating model operations, modifiers, and static callables; no bodyless invocation, class-func, physical-thread, scheduler-order, or unrelated-overload claim is made."
   },
   {
     "id": "initializer-declaration-metadata",

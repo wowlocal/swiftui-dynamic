@@ -305,6 +305,31 @@ repetitions after the pre-fix interpreter reported `isolated:none`. Async and
 custom-global-actor initializer expansion, scheduler order, and physical
 workers are not claimed.
 
+The seventeenth prerequisite completes the currently modeled function-
+declaration facts in that callable index. Each function entry now owns its
+optional body as well as its already indexed name, parameters, shape, return
+and builder facts, generics, attributes, modifiers, effects, isolation, and
+placement. A bodyless count keeps protocol requirements and imported/extern
+absorbers observable without asking runtime materialization to inspect syntax.
+All synchronous and suspending global, instance, static, enum, extension,
+operator, pattern-matching, and public-evaluation dispatch paths now obtain
+function bodies, required/defaulted parameters, labels, and `mutating` from
+the immutable entry. Call-site identity/resolution and the separate host-
+signature compiler parser remain distinct metadata boundaries.
+
+FoodTruck supplies 133 function declarations, including the async account and
+StoreKit bodies, layout methods and nested local helpers, mutating model
+operations, static reducers/operators, and ViewModifier bodies. The compile-
+time RED was the missing `ParsedFunctionMetadata.body` and
+`bodylessFunctionCount`. This is an architectural migration, not an invented
+runtime mismatch: the existing MainActor static/instance body fixture remained
+exact against Apple Swift 6.3.3 in twenty bounded repetitions, producing
+`type:same:foodtruck|instance:same` after an awaited actor hop. At four workers
+each five-observation native shard reported SHA-256
+`fbf74f9374e93a219a2c349cca34944ca2bac412063869be06806b33df31c0fd`.
+No bodyless-requirement invocation, new isolation behavior, scheduler order,
+physical thread, or physical parallelism is inferred.
+
 The stable target separates five concerns:
 
 ```text

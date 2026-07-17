@@ -1047,7 +1047,7 @@ extension Interpreter {
     }
 
     func methodIsMutating(_ declaration: FunctionDeclSyntax) -> Bool {
-        declaration.modifiers.contains { $0.name.text == "mutating" }
+        functionMetadata(for: declaration).modifierNames.contains("mutating")
     }
 
     /// A type annotation turns a bare `.member` (or `.member(payload)`) into
@@ -1307,7 +1307,7 @@ extension Interpreter {
                 }
                 if let overloads = symbol.staticMethods[call.name],
                    let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
                     return try callWithArguments(closure, args: call.arguments, node: nil)
@@ -1333,7 +1333,7 @@ extension Interpreter {
                let overloads = hostSymbol.staticMethods[call.name],
                let method = chooseFunction(from: overloads, for: call.arguments)
                    ?? extensionFallback(overloads, member: call.name, typeName: typeName),
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))
                 return try callWithArguments(closure, args: call.arguments, node: nil)
@@ -1416,7 +1416,7 @@ extension Interpreter {
                let overloads = hostSymbol.staticMethods[call.name],
                let method = chooseFunction(from: overloads, for: call.arguments)
                    ?? extensionFallback(overloads, member: call.name, typeName: typeName),
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))
                 return try callWithArguments(closure, args: call.arguments, node: nil)

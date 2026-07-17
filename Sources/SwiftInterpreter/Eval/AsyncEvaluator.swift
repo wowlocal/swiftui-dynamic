@@ -701,7 +701,7 @@ extension Interpreter {
         guard !mutating.isEmpty,
               let method = chooseFunction(from: mutating, for: arguments)
                 ?? mutating.first,
-              let body = method.body,
+              let body = functionMetadata(for: method).body,
               case .instance(let working) = current.copiedForValueSemantics()
         else { return nil }
 
@@ -763,7 +763,7 @@ extension Interpreter {
                         base: baseValue, member: name, arguments: args))
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body,
                         captured: instanceMethodEnvironment(instance))
@@ -776,7 +776,7 @@ extension Interpreter {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
                     return try await invokeSuspending(
@@ -790,7 +790,7 @@ extension Interpreter {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body,
                         captured: selfEnvironment(.enumType(symbol)))
@@ -818,7 +818,7 @@ extension Interpreter {
                     let own = (instance.symbol.methods[name] ?? [])
                         .filter { !activeFunctionBodies.contains($0.id) }
                     if let method = chooseFunction(from: own, for: args),
-                       let body = method.body {
+                       let body = functionMetadata(for: method).body {
                         let closure = makeFunctionClosure(
                             method, body: body,
                             captured: instanceMethodEnvironment(instance))
@@ -841,7 +841,7 @@ extension Interpreter {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = function.body {
+                   let body = functionMetadata(for: function).body {
                     let closure = makeFunctionClosure(function, body: body, captured: globals)
                     return try await invokeSuspending(
                         .closure(closure), with: args, node: call)
@@ -856,7 +856,7 @@ extension Interpreter {
                     ? overloads.filter { !activeFunctionBodies.contains($0.id) }
                     : overloads
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = function.body {
+                   let body = functionMetadata(for: function).body {
                     let methodEnvironment = methodIsMutating(function)
                         ? selfEnvironment(.instance(instance))
                         : instanceMethodEnvironment(instance)
@@ -900,7 +900,7 @@ extension Interpreter {
             where instance.symbol.methods["callAsFunction"] != nil:
             if let overloads = instance.symbol.methods["callAsFunction"],
                let method = chooseFunction(from: overloads, for: arguments) ?? overloads.first,
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body,
                     captured: instanceMethodEnvironment(instance))

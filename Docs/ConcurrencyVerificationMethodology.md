@@ -342,6 +342,28 @@ call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
 heap classification, physical workers, mode-differential evidence, and TSan
 remain open.
 
+Its seventeenth prerequisite completes the indexed function-declaration body
+boundary. The architecture workflow captured a compile-time RED for missing
+`ParsedFunctionMetadata.body` and `bodylessFunctionCount`; immutable entries
+now distinguish executable bodies from bodyless requirements and extern
+absorbers. Every synchronous/suspending global, member, static, enum,
+extension, operator, pattern, and public-evaluation path consumes body,
+parameter/default/label, and `mutating` facts from that index with pure
+foreign-syntax fallback. Detached readers, session/runtime-entry provenance,
+and representative dispatch regressions cover ownership. FoodTruck supplies
+133 declaration bodies spanning async account/StoreKit work, layouts and local
+helpers, mutating model operations, static reducers/operators, and modifiers.
+The semantic workflow is an already-GREEN characterization: Apple Swift 6.3.3
+and the interpreter still produce `type:same:foodtruck|instance:same` in all
+twenty bounded `callable-placement-metadata` repetitions after an awaited actor
+hop. Nineteen focused dispatch/ownership tests, forty-two methodology checks,
+and those twenty parity repetitions completed in thirteen seconds. No
+bodyless invocation, new isolation rule, scheduler order, physical
+thread, or physical parallelism is claimed. Remaining member families,
+call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
+heap classification, physical workers, mode-differential evidence, and TSan
+remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
