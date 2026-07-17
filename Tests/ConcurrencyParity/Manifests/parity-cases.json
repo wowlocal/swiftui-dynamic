@@ -1915,5 +1915,17 @@
     "interpreterProjection": "string",
     "nativeFact": "AsyncStream.Continuation.finish() marks the stream terminal, synchronously invokes onTermination(.finished) before returning, preserves already-buffered values, and makes repeated finish calls inert. A yield after finish returns .terminated and cannot create another element.",
     "notes": "The callback writes finished and source code appends after-finish only after finish() returns, making their order observable without scheduler assumptions. Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native/interpreter runs produced exact output 3:true:true:finished,after-finish:terminated with canonical native-observation SHA-256 e5c5b4559a7c0e21a670c4febbf08d3bff2709e4d9580c49d0b93b5b69404f2b. Two terminal next() calls prove stable nil, and the post-terminal yield result is rendered directly as terminated. This was characterization of the existing general stream mechanism; no production change was required."
+  },
+  {
+    "id": "async-stream-multiple-consumers",
+    "fixture": "Fixtures/async-stream-multiple-consumers.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamMultipleConsumersProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Two independent AsyncStream iterators may wait concurrently on the same empty storage. A single continuation.finish() resumes every parked consumer with nil, and both tasks complete normally.",
+    "notes": "Each MainActor child increments enteredCount immediately before awaiting next(). The parent cannot observe count 2 until both children have yielded the executor inside next(), then calls finish. Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native/interpreter runs produced exact output true:true:2 with canonical native-observation SHA-256 4b4ba4ee7f6ceb999b5122aea7f8ca85d6e4269f859552649e79676f384f2090. The result is commutative and makes no claim about which consumer resumes first. Focused evidence requires at least two runtime-owned stream suspensions and complete cleanup. This was characterization of the existing general stream mechanism; no production change was required."
   }
 ]
