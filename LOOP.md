@@ -1659,3 +1659,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   R4 residue burn-down (donuts 1.04%, truck 1.40% annotation icons)
   and the interactive `--project` launch; the gate still awaits the
   upstream checked-continuation completion.
+- 2026-07-17 **THE APP RUNS** (worktree iteration 17): `swift run
+  DynamicSwiftUIDemo --project Examples/
+  FoodTruckBuildingASwiftUIMultiplatformApp --platform macOS` launches
+  a LIVE interactive window — the interpreted Food Truck renders its
+  full sidebar (Truck/Orders/Social Feed/Sales History, Donuts,
+  Cities), the New Orders card (hero + 2×2 tiles + Order#1201 12), and
+  the Forecast chart (gradient curve, night band, hour + °F axes)
+  inside a real NSWindow, correctly adapted to the system DARK
+  appearance (hierarchical styles resolving against the live window —
+  incidental proof the style pipeline is real, not baked). Evidence:
+  Docs/evidence-foodtruck-live-window-2026-07-17.png, captured by a
+  new env-gated harness hook (DYNAMIC_DEMO_SELF_CAPTURE writes the
+  live window's contentView bitmap after settle and keeps running) —
+  this session lacks screen-recording access, so the app self-reports.
+  The RUN-THE-APP north star is standing: R0–R3 green ladder + a
+  usable interactive window. Remaining: R4 pixel residue, click-driven
+  interaction sweeps, and the upstream checked-continuation completion
+  that still gates the eleven-commit merge.
