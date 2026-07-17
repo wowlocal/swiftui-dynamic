@@ -446,6 +446,28 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .hostFunction(HostFunction(name: name) { args, _ in
                 .native(ImplicitMemberCall(name: name, arguments: args))
             })
+        case ("Alignment", _):
+            // `let alignment: Alignment = .center` — annotation-resolved
+            // statics produce REAL host values so member chains
+            // (`alignment.horizontal.percent`, the FlowLayout math) run
+            // instead of absorbing into marker arithmetic.
+            return (try? Coerce.alignment(.implicitMember(name))).map { .native($0) }
+        case ("HorizontalAlignment", _):
+            switch name {
+            case "leading": return .native(HorizontalAlignment.leading)
+            case "center": return .native(HorizontalAlignment.center)
+            case "trailing": return .native(HorizontalAlignment.trailing)
+            default: return nil
+            }
+        case ("VerticalAlignment", _):
+            switch name {
+            case "top": return .native(VerticalAlignment.top)
+            case "center": return .native(VerticalAlignment.center)
+            case "bottom": return .native(VerticalAlignment.bottom)
+            case "firstTextBaseline": return .native(VerticalAlignment.firstTextBaseline)
+            case "lastTextBaseline": return .native(VerticalAlignment.lastTextBaseline)
+            default: return nil
+            }
         case ("Double", "zero"), ("CGFloat", "zero"), ("TimeInterval", "zero"):
             return .native(0.0)
         case ("Int", "zero"):
@@ -1105,6 +1127,9 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is WindowSceneStub: return "UIWindowScene"
     case is ScreenStub: return "UIScreen"
     case is Color: return "Color"
+    case is Alignment: return "Alignment"
+    case is HorizontalAlignment: return "HorizontalAlignment"
+    case is VerticalAlignment: return "VerticalAlignment"
     case is CalendarBox: return "Calendar"
     case is ProcessInfoBox: return "ProcessInfo"
     case is UIImageBox: return "UIImage"

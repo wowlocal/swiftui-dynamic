@@ -1856,3 +1856,25 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   uncommitted continuation work sits on parity-cases.json and the two
   continuation test files; watcher armed, merging the gated commit
   the moment their next commit clears the overlap.
+- 2026-07-17 THE QUEUE MERGED + pill rows center (worktree iterations
+  26 close + 28): main 2adea17 = gated lane 69b1b7e (gate GREEN 1273s,
+  all boards) — the multi-day merge queue is CLOSED; the overlap
+  watcher fired the moment Codex committed and the merge went through
+  clean. Iteration 28's class was the truck strip: FlowLayout pill
+  rows placed LEADING because `alignment.horizontal.percent` absorbed
+  end-to-end — `.center` under an `: Alignment` annotation never
+  became a host value. Fixes, seam by seam: the Alignment family
+  joins the host statics (GeometryBridge, via Coerce.alignment),
+  Alignment gains horizontal/vertical accessors (hostObjectMember),
+  the family maps in bridgeHostTypeName so app extensions dispatch on
+  host values, areEqual gains a GENERIC opened-existential arm for
+  Equatable-only hosts, and matchRuntimePattern adopts the subject's
+  host type for marker patterns (the infix == path's adoption, now
+  shared) so `case .leading:` matches real values. Truck plunges
+  0.986% -> 0.113% (pill rows center across the card flows). Pins:
+  alignmentPercentMatchesNativeSwitch (all three alignments through
+  the app's exact extension switch),
+  continuousCornersMatchNativeSquircles (iteration 27). 133-test core
+  smoke + R3 all green; Mythic pre-existing failure unchanged. Next:
+  gate + close for the corners/alignment pair; remaining truck 0.113%
+  = three header icons.

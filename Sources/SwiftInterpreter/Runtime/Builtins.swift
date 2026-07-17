@@ -553,6 +553,17 @@ public enum Builtins {
         }
     }
 
+    /// Opens an `any Equatable` host so genuinely equal SDK values (the
+    /// Equatable-but-not-Hashable family) compare natively. nil when the
+    /// left side isn't Equatable or the right side is a different type.
+    private static func equatableHostsEqual(_ lhs: Any, _ rhs: Any) -> Bool? {
+        guard let left = lhs as? any Equatable else { return nil }
+        func compare<T: Equatable>(_ typed: T) -> Bool? {
+            (rhs as? T).map { typed == $0 }
+        }
+        return compare(left)
+    }
+
     static func areEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
         // Optional equality lifts a concrete peer into `.some` and compares
         // one wrapper at a time. This is what makes `T??.some(.none)` differ
@@ -712,6 +723,10 @@ public enum Builtins {
             }
             if let l = la as? UUID, let r = ra as? UUID { return l == r }
             if let l = la as? AnyHashable, let r = ra as? AnyHashable { return l == r }
+            // Equatable-only hosts (SwiftUI's HorizontalAlignment family)
+            // compare through the opened existential — `case .leading:`
+            // patterns must match real host values, not fall to default.
+            if let opened = equatableHostsEqual(la, ra) { return opened }
             if let l = la as? Date, let r = ra as? Date { return l == r }
             if let l = la as? CGSize, let r = ra as? CGSize { return l == r }
             if let l = la as? CGPoint, let r = ra as? CGPoint { return l == r }
