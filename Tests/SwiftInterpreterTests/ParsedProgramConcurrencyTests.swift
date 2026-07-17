@@ -276,6 +276,108 @@ struct ParsedProgramConcurrencyTests {
         #expect(metadata.isTypeMember)
     }
 
+    @Test func initializerMetadataOwnsDeclarationFacts() throws {
+        let program = try ParsedProgram(source: """
+        @MainActor
+        class Owner {
+            @available(*, deprecated)
+            @MainActor
+            required init(label: String) {}
+
+            convenience init?(value: Int) {
+                self.init(label: String(value))
+            }
+
+            nonisolated init(worker: Bool) {}
+
+            #if os(iOS)
+            init(platform: Int) async throws {}
+            #else
+            private init(platform: String) {}
+            #endif
+        }
+
+        struct Decoded {
+            init(from decoder: Decoder) {}
+        }
+        """)
+
+        #expect(program.callableMetadataIndex.summary.initializerCount == 6)
+        #expect(program.callableMetadataIndex.summary
+            .failableInitializerCount == 1)
+        #expect(program.callableMetadataIndex.summary
+            .explicitlyNonisolatedInitializerCount == 1)
+        #expect(program.callableMetadataIndex.summary
+            .modifiedInitializerCount == 4)
+        #expect(program.callableMetadataIndex.summary
+            .attributedInitializerCount == 1)
+
+        let owners: [ClassDeclSyntax] =
+            program.syntax.statements.compactMap {
+                $0.item.as(DeclSyntax.self)?.as(ClassDeclSyntax.self)
+            }
+        let owner = try #require(owners.first)
+        let initializers = owner.memberBlock.members.compactMap {
+            $0.decl.as(InitializerDeclSyntax.self)
+        }
+        let mainActor = try #require(initializers.first)
+        let mainActorMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: mainActor))
+        #expect(mainActorMetadata.body?.statements.count == 0)
+        #expect(mainActorMetadata.attributeNames == ["available", "MainActor"])
+        #expect(mainActorMetadata.modifierNames == ["required"])
+        #expect(mainActorMetadata.isMainActor)
+        #expect(!mainActorMetadata.isFailable)
+
+        let failable = try #require(initializers.dropFirst().first)
+        let failableMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: failable))
+        #expect(failableMetadata.modifierNames == ["convenience"])
+        #expect(failableMetadata.isFailable)
+
+        let nonisolated = try #require(initializers.dropFirst(2).first)
+        let nonisolatedMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: nonisolated))
+        #expect(nonisolatedMetadata.modifierNames == ["nonisolated"])
+        #expect(nonisolatedMetadata.isAnyNonisolated)
+        #expect(nonisolatedMetadata.isExplicitlyNonisolated)
+
+        let decodedTypes: [StructDeclSyntax] =
+            program.syntax.statements.compactMap {
+                $0.item.as(DeclSyntax.self)?.as(StructDeclSyntax.self)
+            }
+        let decoded = try #require(decodedTypes.first)
+        let decodedInitializer = try #require(
+            decoded.memberBlock.members.first?.decl
+                .as(InitializerDeclSyntax.self))
+        let decodedMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: decodedInitializer))
+        #expect(decodedMetadata.isCodable)
+    }
+
+    @Test func initializerMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        struct Foreign {
+            @available(*, deprecated)
+            nonisolated init?(value: Int) {}
+        }
+        """)
+        let nominal = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        let declaration = try #require(
+            nominal.memberBlock.members.first?.decl
+                .as(InitializerDeclSyntax.self))
+        let metadata = Interpreter().initializerMetadata(for: declaration)
+
+        #expect(metadata.body?.statements.count == 0)
+        #expect(metadata.attributeNames == ["available"])
+        #expect(metadata.modifierNames == ["nonisolated"])
+        #expect(metadata.isFailable)
+        #expect(metadata.isExplicitlyNonisolated)
+        #expect(!metadata.isCodable)
+    }
+
     @Test nonisolated func parsedProgramIndexesAccessorAndSubscriptMetadata()
     throws {
         let program = try ParsedProgram(source: """
@@ -1011,6 +1113,7 @@ struct ParsedProgramConcurrencyTests {
         struct Marker {
             final class Lifetime { deinit {} }
             static func typeValue() -> Int { 42 }
+            init?() { return nil }
         }
         enum Phase { case ready }
         extension Phase {}
@@ -1046,6 +1149,10 @@ struct ParsedProgramConcurrencyTests {
                     program.metadata.callableMetadataIndex.summary.functionCount,
                     program.metadata.callableMetadataIndex.summary
                         .typeMemberFunctionCount,
+                    program.metadata.callableMetadataIndex.summary
+                        .initializerCount,
+                    program.metadata.callableMetadataIndex.summary
+                        .failableInitializerCount,
                     program.metadata.nominalMetadataIndex.summary.structureCount,
                     program.metadata.propertyMetadataIndex.summary.bindingCount,
                     program.metadata.enumCaseMetadataIndex.summary.caseElementCount,
@@ -1061,7 +1168,7 @@ struct ParsedProgramConcurrencyTests {
             observations.append(await reader.value)
         }
         #expect(observations.allSatisfy {
-            $0 == [3, 2, 1, 1, 0, 1, 1, 1, 1]
+            $0 == [3, 2, 1, 1, 1, 1, 0, 1, 1, 1, 1]
         })
 
         let interpreter = Interpreter()

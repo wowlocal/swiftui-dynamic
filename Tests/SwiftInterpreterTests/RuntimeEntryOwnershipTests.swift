@@ -10,6 +10,8 @@ struct RuntimeEntryOwnershipTests {
         var observedHeapMatches: [Bool] = []
         var observedMetadata: [ParsedCallableMetadataIndex.Summary?] = []
         var observedTypeMemberFunctionCounts: [Int?] = []
+        var observedInitializerCounts: [Int?] = []
+        var observedFailableInitializerCounts: [Int?] = []
         var observedDeclarationCounts: [Int?] = []
         var observedNominalCounts: [Int?] = []
         var observedPropertyBindingCounts: [Int?] = []
@@ -34,6 +36,11 @@ struct RuntimeEntryOwnershipTests {
                     observedTypeMemberFunctionCounts.append(
                         entry.callableMetadataIndex?.summary
                             .typeMemberFunctionCount)
+                    observedInitializerCounts.append(
+                        entry.callableMetadataIndex?.summary.initializerCount)
+                    observedFailableInitializerCounts.append(
+                        entry.callableMetadataIndex?.summary
+                            .failableInitializerCount)
                     observedDeclarationCounts.append(entry.programMetadata?
                         .declarationIndex.summary
                         .possiblePrimaryDeclarationCount)
@@ -56,6 +63,7 @@ struct RuntimeEntryOwnershipTests {
             let value = 1
             final class Lifetime { deinit {} }
             static func origin() {}
+            init?(originValue: Int) { return nil }
         }
         enum OriginState { case ready }
         extension OriginMarker {}
@@ -76,11 +84,13 @@ struct RuntimeEntryOwnershipTests {
             let value = 1
             final class Lifetime { deinit {} }
             static func newerTypeValue() {}
+            init(newerValue: Int) {}
         }
         struct NewestMarker {
             let value = 2
             final class Lifetime { deinit {} }
             static func newestTypeValue() {}
+            init(newestValue: Int) {}
         }
         enum NewerState { case first; case second }
         extension NewerMarker {}
@@ -107,6 +117,8 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedHeapMatches == [true, true])
         #expect(observedMetadata.map { $0?.functionCount } == [2, 2])
         #expect(observedTypeMemberFunctionCounts == [1, 1])
+        #expect(observedInitializerCounts == [1, 1])
+        #expect(observedFailableInitializerCounts == [1, 1])
         #expect(observedDeclarationCounts == [3, 3])
         #expect(observedNominalCounts == [1, 1])
         #expect(observedPropertyBindingCounts == [1, 1])

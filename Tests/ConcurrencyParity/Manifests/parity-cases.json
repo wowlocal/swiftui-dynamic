@@ -170,6 +170,18 @@
     "notes": "Exact output is type:same:foodtruck|instance:same in all repetitions and remains unchanged after an awaited actor hop. FoodTruck cites static callables in City, StoreMessagesManager, and TaskSeconds; no class-func, physical-thread, scheduler-order, or unrelated-overload claim is made."
   },
   {
+    "id": "initializer-declaration-metadata",
+    "fixture": "Fixtures/initializer-declaration-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await initializerDeclarationMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An ordinary initializer of a MainActor-isolated class inherits MainActor, an explicit nonisolated initializer has nil lexical isolation, and failable initializer success or failure survives an awaited actor hop.",
+    "notes": "Exact output is isolated:same:foodtruck|nonisolated:none:store|accepted|rejected in all repetitions. FoodTruck cites ordinary actor initializers, nonisolated initializers on MainActor classes, and init?; no async-initializer, custom-global-actor, physical-thread, or scheduler-order claim is made."
+  },
+  {
     "id": "actor-isolated-deinitializer",
     "fixture": "Fixtures/actor-isolated-deinitializer.swift",
     "mode": "runtime",

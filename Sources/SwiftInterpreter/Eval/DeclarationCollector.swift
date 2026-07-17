@@ -1225,6 +1225,60 @@ extension Interpreter {
         return closure
     }
 
+    /// Build every source initializer body from the same immutable metadata
+    /// and declaration-isolation rules. Actor initializers are lexically
+    /// nonisolated during initialization; ordinary class/struct/enum
+    /// initializers inherit a nominal global actor unless the declaration is
+    /// explicitly nonisolated.
+    func makeInitializerClosure(
+        _ node: InitializerDeclSyntax,
+        body: CodeBlockSyntax,
+        captured: Environment,
+        debugName: String,
+        fallbackLexicalOwner: AnyObject? = nil
+    ) -> ClosureValue {
+        let metadata = initializerMetadata(for: node)
+        let closure = ClosureValue(
+            parameters: metadata.parameters,
+            body: body.statements,
+            captured: captured,
+            programMetadata: currentProgramMetadata)
+        let lexicalOwner = declLexicalOwners[node.id] ?? fallbackLexicalOwner
+        let actorInitializer =
+            (lexicalOwner as? StructSymbol)?.isActor == true
+        closure.functionDeclID = node.id
+        closure.lexicalOwner = lexicalOwner
+        closure.debugName = debugName
+        closure.isExplicitlyNonisolated = metadata.isExplicitlyNonisolated
+        closure.executorPreference = initializerExecutorPreference(
+            metadata, lexicalOwner: lexicalOwner)
+        if !metadata.isAnyNonisolated,
+           (!actorInitializer || metadata.isMainActor) {
+            closure.globalActorAttributeCandidates =
+                metadata.attributeNames + lexicalAttributeNames(of: lexicalOwner)
+        }
+        return closure
+    }
+
+    private func initializerExecutorPreference(
+        _ metadata: ParsedInitializerMetadata,
+        lexicalOwner: AnyObject?
+    ) -> RuntimeExecutorKind? {
+        if metadata.isAnyNonisolated {
+            return nil
+        }
+        if metadata.isMainActor {
+            return .mainActor
+        }
+        if let owner = lexicalOwner as? StructSymbol, owner.isActor {
+            return nil
+        }
+        if lexicalAttributeNames(of: lexicalOwner).contains("MainActor") {
+            return .mainActor
+        }
+        return nil
+    }
+
     /// Runtime executor metadata for the function forms established by the
     /// current parity board. `@concurrent` always selects the cooperative
     /// default executor. A `nonisolated` declaration suppresses its lexical

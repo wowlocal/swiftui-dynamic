@@ -15,6 +15,10 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
         public let concurrentFunctionCount: Int
         public let typeMemberFunctionCount: Int
         public let modifiedFunctionCount: Int
+        public let failableInitializerCount: Int
+        public let explicitlyNonisolatedInitializerCount: Int
+        public let modifiedInitializerCount: Int
+        public let attributedInitializerCount: Int
         public let readableAccessorCount: Int
         public let subscriptCount: Int
         public let asyncGetterCount: Int
@@ -31,6 +35,10 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
             concurrentFunctionCount: Int,
             typeMemberFunctionCount: Int = 0,
             modifiedFunctionCount: Int = 0,
+            failableInitializerCount: Int = 0,
+            explicitlyNonisolatedInitializerCount: Int = 0,
+            modifiedInitializerCount: Int = 0,
+            attributedInitializerCount: Int = 0,
             readableAccessorCount: Int = 0,
             subscriptCount: Int = 0,
             asyncGetterCount: Int = 0,
@@ -47,6 +55,11 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
             self.concurrentFunctionCount = concurrentFunctionCount
             self.typeMemberFunctionCount = typeMemberFunctionCount
             self.modifiedFunctionCount = modifiedFunctionCount
+            self.failableInitializerCount = failableInitializerCount
+            self.explicitlyNonisolatedInitializerCount =
+                explicitlyNonisolatedInitializerCount
+            self.modifiedInitializerCount = modifiedInitializerCount
+            self.attributedInitializerCount = attributedInitializerCount
             self.readableAccessorCount = readableAccessorCount
             self.subscriptCount = subscriptCount
             self.asyncGetterCount = asyncGetterCount
@@ -70,6 +83,7 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
         accessors = collector.accessors
         subscripts = collector.subscripts
         let functionValues = Array(functions.values)
+        let initializerValues = Array(initializers.values)
         let accessorValues = Array(accessors.values)
         summary = Summary(
             functionCount: functions.count,
@@ -84,6 +98,16 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
                 where: \.isTypeMember),
             modifiedFunctionCount: functionValues.count {
                 !$0.modifierNames.isEmpty
+            },
+            failableInitializerCount: initializerValues.count(
+                where: \.isFailable),
+            explicitlyNonisolatedInitializerCount: initializerValues.count(
+                where: \.isExplicitlyNonisolated),
+            modifiedInitializerCount: initializerValues.count {
+                !$0.modifierNames.isEmpty
+            },
+            attributedInitializerCount: initializerValues.count {
+                !$0.attributeNames.isEmpty
             },
             readableAccessorCount: accessors.count,
             subscriptCount: subscripts.count,
@@ -194,15 +218,42 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
 nonisolated struct ParsedInitializerMetadata: Sendable {
     let parameters: [ClosureValue.Parameter]
     let shape: ParsedCallableShape
+    let body: CodeBlockSyntax?
+    let attributeNames: [String]
+    let modifierNames: [String]
     let isAsync: Bool
     let isThrowing: Bool
+    let isFailable: Bool
+    let isAnyNonisolated: Bool
+    let isExplicitlyNonisolated: Bool
+    let isMainActor: Bool
+    let isCodable: Bool
 
     init(_ declaration: InitializerDeclSyntax) {
         let parameters = declaration.signature.parameterClause.parameters
+        let attributeNames = parsedAttributeNames(declaration.attributes)
+        let modifierNames = declaration.modifiers.map { $0.name.text }
         self.parameters = parsedClosureParameters(parameters)
         shape = parsedCallableShape(parameters)
+        body = declaration.body
+        self.attributeNames = attributeNames
+        self.modifierNames = modifierNames
         isAsync = declaration.signature.effectSpecifiers?.asyncSpecifier != nil
         isThrowing = declaration.signature.effectSpecifiers?.throwsClause != nil
+        isFailable = declaration.optionalMark != nil
+        isAnyNonisolated = modifierNames.contains("nonisolated")
+        isExplicitlyNonisolated = declaration.modifiers.contains {
+            $0.trimmedDescription == "nonisolated"
+        }
+        isMainActor = attributeNames.contains("MainActor")
+        if parameters.count == 1, let only = parameters.first {
+            let label = only.firstName.text
+            let type = only.type.trimmedDescription
+            isCodable = (label == "from" && type.contains("Decoder"))
+                || (label == "coder" && type.contains("Coder"))
+        } else {
+            isCodable = false
+        }
     }
 }
 

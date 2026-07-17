@@ -19,7 +19,7 @@ extension Interpreter {
     /// Whether the type declares `init(from: Decoder)` — the bridge's decode
     /// routes SCALARS through it (synthesized-Codable types stay structural).
     public func declaresCodableInit(_ symbol: StructSymbol) -> Bool {
-        symbol.initializers.contains(where: Self.isCodableInit)
+        symbol.initializers.contains(where: isCodableInitializer)
     }
 
     /// Call a STATIC method on an interpreted type (the bridge's

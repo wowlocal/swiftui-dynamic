@@ -912,21 +912,22 @@ extension Interpreter {
         case .hostFunction(let function):
             if let extensionSymbol = hostExtensionSymbols[function.name] {
                 let available = extensionSymbol.initializers.filter {
-                    !activeInitializers.contains($0.id) && !Interpreter.isCodableInit($0)
+                    !activeInitializers.contains($0.id)
+                        && !isCodableInitializer($0)
                 }
                 if let chosen = available.first(where: {
                     extensionInitFits($0, args: arguments)
-                }), let body = chosen.body {
+                }), let body = initializerMetadata(for: chosen).body {
                     let inserted = activeInitializers.insert(chosen.id).inserted
                     defer { if inserted { activeInitializers.remove(chosen.id) } }
                     let env = Environment(parent: globals)
                     env.define("self", .void)
-                    let closure = ClosureValue(
-                        parameters: initializerMetadata(for: chosen).parameters,
-                        body: body.statements,
+                    let closure = makeInitializerClosure(
+                        chosen,
+                        body: body,
                         captured: env,
-                        programMetadata: currentProgramMetadata)
-                    closure.debugName = "extInit:\(function.name)"
+                        debugName: "extInit:\(function.name)",
+                        fallbackLexicalOwner: extensionSymbol)
                     _ = try await callWithArgumentsSuspending(
                         closure, args: arguments, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void

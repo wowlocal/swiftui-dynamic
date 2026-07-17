@@ -661,17 +661,25 @@ private enum ConcurrencyParityHarness {
             "parityCurrentIsolationMatches",
             .hostFunction(HostFunction(
                 name: "parityCurrentIsolationMatches"
-            ) { arguments, context in
-                if case .host(let payload)? = arguments.positional(0),
-                   let expected = payload as? RuntimeActorIsolationValue {
+            ) { arguments, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                guard let actual = isolation.unwrappedOptionalOrSelf else {
+                    return .native("none")
+                }
+                if case .host(let expectedPayload)? = arguments.positional(0),
+                   let expected = expectedPayload
+                    as? RuntimeActorIsolationValue,
+                   case .host(let actualPayload) = actual,
+                   let actual = actualPayload as? RuntimeActorIsolationValue {
                     return .native(
-                        expected.executor == context.sourceExecutor
+                        expected.executor == actual.executor
                             ? "same" : "other")
                 }
                 guard case .instance(let expected)? = arguments.positional(0),
+                      case .instance(let actual) = actual,
                       let expectedID = expected.actorID,
-                      let actualID = context.sourceExecutor.actorID else {
-                    return .native("none")
+                      let actualID = actual.actorID else {
+                    return .native("other")
                 }
                 return .native(actualID == expectedID ? "same" : "other")
             }))

@@ -99,8 +99,8 @@ with the detailed design in
   separate immutable parsed-program metadata, session-owned mutable state, and
   runtime-entry identity. Declaration, callable/accessor/subscript, nominal,
   property-storage, enum-case, extension, type-alias, and deinitializer
-  headers plus callable names/modifiers/type-member placement are now
-  immutable Sendable indexes;
+  headers plus function placement and initializer declaration/isolation facts
+  are now immutable Sendable indexes;
   remaining member-family/call-site/compiler metadata, session migration, heap-edge
   classification, workers, mode-differential parity, and TSan are still open.
 - **Covered demand cycles:** M5 actor identity/mailboxes and storage

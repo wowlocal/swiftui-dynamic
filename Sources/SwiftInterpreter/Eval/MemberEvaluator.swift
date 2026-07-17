@@ -1598,7 +1598,7 @@ extension Interpreter {
                                     message: "no matching superclass initializer "
                                         + "'\(parent.name).init'")
                             }
-                            if initializer.signature.effectSpecifiers?.asyncSpecifier != nil {
+                            if self.initializerMetadata(for: initializer).isAsync {
                                 throw RuntimeError(
                                     message: "async superclass initializers require "
                                         + "suspension-aware dispatch")

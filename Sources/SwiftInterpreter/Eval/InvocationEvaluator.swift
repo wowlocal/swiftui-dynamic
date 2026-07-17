@@ -162,26 +162,27 @@ extension Interpreter {
             // body runs with a writable `self` like enum inits.
             if let extensionSymbol = hostExtensionSymbols[function.name] {
                 let available = extensionSymbol.initializers.filter {
-                    !activeInitializers.contains($0.id) && !Interpreter.isCodableInit($0)
+                    !activeInitializers.contains($0.id)
+                        && !isCodableInitializer($0)
                 }
                 // POSITIVE type match required: every argument's runtime
                 // type must satisfy the parameter annotation (`is`
                 // semantics). Merely label-shaped fits chain-walked the
                 // merge's MANY one-arg Text inits 152 deep in
                 // apple-browsers before reaching the registry.
-                if let chosen = available.first(where: { extensionInitFits($0, args: args) }),
-                   let body = chosen.body {
+                if let chosen = available.first(where: {
+                    extensionInitFits($0, args: args)
+                }), let body = initializerMetadata(for: chosen).body {
                     let inserted = activeInitializers.insert(chosen.id).inserted
                     defer { if inserted { activeInitializers.remove(chosen.id) } }
                     let env = Environment(parent: globals)
                     env.define("self", .void)
-                    let parameters = initializerMetadata(for: chosen).parameters
-                    let closure = ClosureValue(
-                        parameters: parameters,
-                        body: body.statements,
+                    let closure = makeInitializerClosure(
+                        chosen,
+                        body: body,
                         captured: env,
-                        programMetadata: currentProgramMetadata)
-                    closure.debugName = "extInit:\(function.name)"
+                        debugName: "extInit:\(function.name)",
+                        fallbackLexicalOwner: extensionSymbol)
                     _ = try callWithArguments(closure, args: args, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void
                     if case .void = assigned {
@@ -210,7 +211,8 @@ extension Interpreter {
             // Codable inits (init(from: Decoder)) are decoder-only — a
             // positional value tries RAW-VALUE matching instead.
             let constructible = symbol.initializers.filter {
-                !Interpreter.isCodableInit($0) && !activeInitializers.contains($0.id)
+                !isCodableInitializer($0)
+                    && !activeInitializers.contains($0.id)
             }
             if constructible.isEmpty, args.arguments.count == 1,
                let raw = args.positional(0) {
@@ -234,24 +236,24 @@ extension Interpreter {
             }
             if !constructible.isEmpty {
                 let chosen = chooseInitializer(from: constructible, for: args)
-                guard let body = chosen.body else {
+                let metadata = initializerMetadata(for: chosen)
+                guard let body = metadata.body else {
                     throw error(node, "init of '\(symbol.name)' has no body")
                 }
                 let bracketed = activeInitializers.insert(chosen.id).inserted
                 defer { if bracketed { activeInitializers.remove(chosen.id) } }
                 let env = Environment(parent: globals)
                 env.define("self", .void)
-                let parameters = initializerMetadata(for: chosen).parameters
-                let closure = ClosureValue(
-                    parameters: parameters,
-                    body: body.statements,
+                let closure = makeInitializerClosure(
+                    chosen,
+                    body: body,
                     captured: env,
-                    programMetadata: currentProgramMetadata)
-                closure.debugName = "enumInit:\(symbol.name)"
+                    debugName: "enumInit:\(symbol.name)",
+                    fallbackLexicalOwner: symbol)
                 _ = try callWithArguments(closure, args: args, node: Syntax(node))
                 let assigned = env.lookup("self") ?? .void
                 let initialized = try resolveAnnotated(assigned, typeName: symbol.name)
-                return chosen.optionalMark != nil
+                return metadata.isFailable
                     ? initialized.liftedToOptional(wrappedTypeName: symbol.name)
                     : initialized
             }

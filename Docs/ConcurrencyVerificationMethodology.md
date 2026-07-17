@@ -317,6 +317,31 @@ unrelated overload is inferred. Remaining member families, call-site/compiler
 metadata, mutable-symbol/evaluator migration, worker-safe heap classification,
 physical workers, mode-differential evidence, and TSan remain open.
 
+Its sixteenth prerequisite extends initializer entries in the all-branch
+callable index with immutable bodies, attribute and modifier names,
+failable/Codable classification, and explicit nonisolated/MainActor facts.
+The architecture workflow captured a compile-time RED for absent summary and
+entry fields. The semantic workflow is a gap closure: the first preliminary
+run incorrectly passed because the interpreter-side helper compared its
+dynamic executor rather than native Swift's lexical `#isolation`; correcting
+that generic oracle before production exposed the repeatable native
+`isolated:same` versus interpreted `isolated:none` mismatch. One shared
+initializer-closure builder now supplies metadata and declaration isolation to
+struct/class/actor, enum, extension, superclass, synchronous, and suspending
+paths; selection, synthesized arguments, optional projection, and bridge
+Codable discovery use the same index. FoodTruck cites nonisolated initializers
+on its MainActor StoreKit controller classes, the ordinary `StoreActor`
+initializer, and `Subscription.init?`. Apple Swift 6.3.3 and the interpreter
+both produce
+`isolated:same:foodtruck|nonisolated:none:store|accepted|rejected` in twenty
+bounded repetitions after the fix, including exact preservation across an
+awaited actor hop. Existing actor and async-initializer parity remains green.
+No new async/custom-global-actor initializer, scheduler-order, physical-thread,
+or physical-parallelism claim is inferred. Remaining member families,
+call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
+heap classification, physical workers, mode-differential evidence, and TSan
+remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

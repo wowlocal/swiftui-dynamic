@@ -287,6 +287,24 @@ produce `type:same:foodtruck|instance:same` in twenty repetitions. The index
 records `class` placement as a syntax fact, but class-method dispatch,
 scheduler order, and physical workers are not claimed.
 
+The sixteenth prerequisite extends the same callable index with immutable
+initializer bodies, attribute and modifier names, failable/Codable
+classification, and explicit nonisolated/MainActor facts. One shared
+initializer-closure builder now serves struct/class/actor, enum, extension,
+superclass, synchronous, and suspending execution; overload selection,
+synthesized arguments, optional projection, and bridge Codable discovery also
+consume the index. Ordinary initializers of MainActor-isolated non-actor
+nominals inherit MainActor, explicit `nonisolated init` suppresses that
+inheritance, and actor initializers retain Swift's lexically nonisolated
+initialization rule. FoodTruck bounds the slice with the nonisolated
+initializers of `StoreProductController` and `StoreSubscriptionController`,
+the ordinary `StoreActor` initializer, and `Subscription.init?`. Apple Swift
+6.3.3 and the interpreter produce
+`isolated:same:foodtruck|nonisolated:none:store|accepted|rejected` in twenty
+repetitions after the pre-fix interpreter reported `isolated:none`. Async and
+custom-global-actor initializer expansion, scheduler order, and physical
+workers are not claimed.
+
 The stable target separates five concerns:
 
 ```text
@@ -2885,6 +2903,11 @@ discovery now consume indexed function names, modifier names, and
 static/class-versus-instance placement. The `callable-placement-metadata`
 fixture remains exact in twenty native/interpreter repetitions for the
 demand-cited static and instance MainActor routes.
+Initializer selection and execution now consume indexed bodies, attributes,
+modifiers, failable/Codable classification, and isolation facts through one
+shared closure builder. The `initializer-declaration-metadata` fixture has
+exact twenty-run parity for inherited MainActor isolation, explicit
+nonisolation, failable outcomes, and preservation across an actor hop.
 These slices separate immutable program input, mutable storage, and execution
 identity without changing scheduling. Remaining member families, call-site, and
 compiler metadata indexing remains incomplete, and mutable
