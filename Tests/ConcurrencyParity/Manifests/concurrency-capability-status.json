@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "64708f3cb2371213ee77d7fb76a7171d89dfd258b9fd0e6850a39cc14b7ebc18",
+  "inventorySHA256": "2f86a0e28504cefdcfd9c7e9559339a084d113c2f6c0915ce26bbcefddd4cc1b",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -2514,17 +2514,21 @@
     },
     {
       "id": "swift-concurrency-api-v1:4a06fa1c6a62c68b34e00e0b05359c361239a7bd4697477916bbba908ed12453",
-      "implementationStatus": "deferred",
+      "implementationStatus": "known-divergence",
       "verificationStatus": "none",
       "requirementRef": "M6/protocol-iteration-streams-and-continuations",
-      "evidenceCaseIDs": [],
+      "evidenceCaseIDs": [
+        "checked-continuation-value-resume"
+      ],
       "testNames": [
-        "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership"
+        "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
+        "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
+        "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry"
       ],
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withCheckedContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor; M6 depends on the M5 identity/storage slice for executor-owned resume (2026-07-16 demand re-plan)."
+      "notes": "The public withCheckedContinuation declaration now routes its explicit isolation: nil, resume(returning:) value subset through a runtime-owned continuation record. A detached source producer resumes one parked owner task, the owner returns the exact value on its required resume executor, and both normal completion and infrastructure cancellation remove continuation/task/session ownership. Same-source native/interpreter parity covers the delayed value result, while omitted or non-nil isolation, MainActor-specific evidence, resume() for Void, resume(with:), double-resume and abandonment policy remain open; the complete declaration therefore stays a known divergence with verification none."
     },
     {
       "id": "swift-concurrency-api-v1:ace6ad5d810bcf9eda3b3214d498b783a36385621bc9361241fba14afb9f1e39",
@@ -2798,15 +2802,21 @@
     },
     {
       "id": "async-sequence-stream-and-continuation-runtime",
-      "implementationStatus": "deferred",
+      "implementationStatus": "known-divergence",
       "verificationStatus": "none",
       "requirementRef": "M6/protocol-iteration-streams-and-continuations",
-      "evidenceCaseIDs": [],
-      "testNames": [],
+      "evidenceCaseIDs": [
+        "checked-continuation-value-resume"
+      ],
+      "testNames": [
+        "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
+        "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
+        "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry"
+      ],
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "Protocol iteration, streams, and continuation ownership wait for executor-owned resume from the M5 identity/storage slice; the 2026-07-16 demand slice then covers protocol for-await iteration, AsyncStream/AsyncThrowingStream, and checked continuations resuming on cooperative-default and MainActor executors."
+      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. The first checked-continuation slice adds runtime-owned delayed resume(returning:) value delivery for explicit isolation: nil, required-executor restoration, bounded registry ownership, and infrastructure-abort cleanup. Throwing and unsafe continuations, broader isolation forms, MainActor-specific evidence, double resume, abandonment, and remaining continuation lifetime edges keep this family a known divergence."
     },
     {
       "id": "swiftui-view-owned-async-lifecycle",

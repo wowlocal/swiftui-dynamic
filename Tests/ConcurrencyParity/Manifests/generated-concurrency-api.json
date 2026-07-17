@@ -8514,6 +8514,7 @@
       "returnType" : "(any _Concurrency.Actor)?"
     },
     {
+      "adapterIntrinsic" : "withCheckedContinuation",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@backDeployed(before: macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0)",
@@ -9484,7 +9485,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 123,
+    "adapterRoutedDeclarationCount" : 124,
     "declarationCount" : 171,
     "declarationsByDomain" : {
       "selected-nominal-member" : 9,
