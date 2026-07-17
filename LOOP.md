@@ -2003,3 +2003,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   repro, AE 2111), donut-cell/donut-foreach (AE 0 controls). Unit
   pins: gridCellCaptionGapMatchesNative (grid+Identifiable),
   letBindingInBuilderAddsNoPhantomChild, donutCellChromeMatchesNative.
+- 2026-07-17 DONUTS AE=0 — GridItem alignment (worktree iteration 34):
+  the origin-dump probe found it in one cycle — all cell x positions
+  matched but interp cell 1's thumbnail frame sat at global y 91.825
+  vs 88.5 (+3.3254px = half of its 6.65px height shortfall vs the
+  row): the GridItem CONSTRUCTOR dropped `alignment:`, so the app's
+  `.top` never reached SwiftUI and shorter cells CENTERED in their
+  row. One-line shared-constructor fix (Coerce.alignment). donut-mimic
+  0 -> the whole board: DONUTS 0.437% -> 0.000%, all four diag rows 0.
+  FIVE app screens pixel-perfect (donut-view, card-donuts,
+  card-orders, truck, donuts) + detail-donuts 0.000 through the R3
+  mutation. Pin gridItemAlignmentTopPinsUnequalCells (height-unequal
+  cells — equal heights masked the bug in every earlier probe). Board:
+  orders 0.039, socialfeed 0.166, content (artifact). Gate next.
