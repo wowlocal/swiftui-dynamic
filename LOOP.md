@@ -22,19 +22,29 @@ widen). R2 residue (socialfeed 16.9%, content twin-side sidebar, Charts
 forecast) stays on the queue but only blocks when a scenario's screen needs
 it. North star: R3 scenarios green, then R4.
 
-**Worktree protocol (Codex owns the MAIN tree for concurrency work —
-never build, test, or edit in the main checkout):**
-- The loop lane lives in `.claude/worktrees/lane-foodtruck-run`, branch
-  `worktree-lane-foodtruck-run`.
-- Iteration START: `git merge main` inside the worktree (absorb Codex's
-  committed progress; their UNCOMMITTED main-tree files are theirs alone).
+**Worktree protocol v2 (steering 2026-07-17 — EVERY agent works in its own
+worktree; the main checkout is the steward's integration tree only):**
+- Lanes: this loop in `.claude/worktrees/lane-foodtruck-run` (branch
+  `worktree-lane-foodtruck-run`); the concurrency agent (Codex) in
+  `.claude/worktrees/lane-concurrency` (branch `worktree-lane-concurrency`).
+  Nobody builds, tests, or edits in the main checkout anymore — the 28-commit
+  queue blocked ~8h on main-tree dirty files on 2026-07-17 is the incident
+  this fixes. The steward uses main for serialized merges, steering commits,
+  and gate verification only.
+- Iteration START: `git merge main` inside your worktree.
 - All work, builds, captures, and `Scripts/gate.sh` run INSIDE the worktree.
-- Iteration CLOSE: commit on the lane branch (never `.claude/*.local.md`),
-  then merge the lane branch into main: `git -C <main-checkout> merge
-  --no-ff worktree-lane-foodtruck-run`. Git refuses if the merge would
-  touch one of Codex's dirty files — in that case leave the branch
-  unmerged, note it in `.claude/claims.md`, and continue; NEVER stash,
-  checkout, or commit Codex's in-flight files to force a merge through.
+- Iteration CLOSE: commit on the lane branch (never `.claude/*.local.md`).
+- MERGES INTO MAIN SERIALIZE THROUGH THE STEWARD. When your lane tip has a
+  green closing gate, append `<UTC time> <lane> MERGE-READY <tip sha>
+  <one-line gate summary>` to `.claude/claims.md` and keep iterating —
+  MERGE-READY is not a stop. The steward merges MERGE-READY lanes into main
+  `--no-ff`, oldest first, one at a time, and answers with a MERGE-DONE line.
+  Liveness fallback: if no steward MERGE-DONE within ~2 hours of your
+  MERGE-READY, take the lock yourself — append `<time> <lane> MERGE-LOCK`,
+  confirm no other lane holds a MERGE-LOCK younger than ~2h without a
+  MERGE-UNLOCK, re-verify the gate is green on the exact tip being merged,
+  merge, then append `MERGE-UNLOCK <merge sha>`. Never merge a red or
+  ungated tip; never force past another lane's fresh lock.
 - The auto-push daemon publishes main after each merged iteration.
 
 ## PRIMARY TARGET: Food Truck — pixel-perfect, fully functional (user directive 2026-07-11)
@@ -308,6 +318,16 @@ Each iteration does exactly this:
      the lightweight boards, and skipping only VERIFIED-UNCHANGED states.
      LiveCheck follows that group so its large deep-render working set never
      overlaps the corpus sweep and gets killed by memory pressure.
+   - THE COVENANT BINDS MAIN ITSELF (steering 2026-07-17): main must be
+     green at every commit it receives — no half-landed series, no commit
+     that knowingly leaves a board or the suite red on main (the
+     checked-continuation alias window of 2026-07-17, red on main
+     ~03:30–08:50 and auto-pushed to origin throughout, is the precedent
+     this rule prevents). Multi-commit work stages on a lane branch and
+     reaches main only through a gate-green, steward-serialized merge
+     (worktree protocol v2 above). If main turns red anyway, restoring it —
+     revert first when the fix is not immediate — outranks every queue in
+     every lane.
    - OPENING sweep: just run `ProjectCheck --all` — it SELF-CACHES
      (fingerprints Sources/ + Package.swift into `.claude/last-verify.txt`;
      unchanged sources return the recorded verdict in <1s; `--force`

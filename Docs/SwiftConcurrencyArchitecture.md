@@ -2179,6 +2179,20 @@ view lifecycle, `@MainActor` model mutation, StoreActor-shaped global actors,
 and `for await` over host-bridged async sequences — outranks completeness of
 rarely used API families.
 
+**Within-slice depth cap (steering 2026-07-17).** Demand admits a construct
+into the active cycle; it also bounds how deep the cycle drills. Inside an
+admitted construct, a spelling, buffering policy, or edge family receives the
+full characterize+support treatment only with a demand citation: a named
+corpus project, a FoodTruck source location, or a LiveCheck/TestCheck failure
+class that exercises it. The uncited remainder fails closed with a named
+diagnostic and a single fail-closed parity case — never silent absorption,
+and never a speculative exhaustive sweep (buffering-policy matrices,
+deprecated aliases, multi-consumer topologies) run ahead of a citation.
+Existing coverage is never deleted (the ratchet holds); the cap governs new
+work only. A slice's definition of done is "cited portion covered, remainder
+fail-closed with a citation path back in" — not exhaustion of the construct's
+interface surface.
+
 ### Milestone 0: native parity infrastructure
 
 Deliverables:
@@ -2383,6 +2397,17 @@ task suspended and uses explicit infrastructure cancellation only after the
 warning observation. Escaped-token lifetime remains active rather than being
 inferred from the covered resume paths or stream behavior.
 
+Closure directive (steering 2026-07-17): the demand-cited portion of this
+slice is covered. The in-flight escaped-token lifetime diagnostic completes
+the active tail. Unsafe-continuation variants fall under the section 14
+within-slice depth cap — with no demand citation on record they land as
+fail-closed diagnostics with one parity case each, not as characterize+support
+series. With those terminal items resolved the cycle closes, and the
+executionPlan activates the M8 `swiftui-lifecycle-demand-cycle`: `.task` is
+the highest-demand unserved construct on the board (30 corpus projects, 4
+FoodTruck call sites) and directly serves the FoodTruck R4 mission. Update
+`milestone-acceptance.json`'s executionPlan accordingly in the closing commit.
+
 Deliverables:
 
 - async protocol iteration;
@@ -2466,7 +2491,15 @@ Proof:
 - add a focused ownership/state/cleanup regression where applicable;
 - run the relevant test filter;
 - inspect the diff for app/probe-specific behavior;
-- update the acceptance matrix and parity ledger.
+- update the acceptance matrix and parity ledger;
+- the full repository gate is NOT part of this per-change loop (measured
+  2026-07-17: ≈21 minutes wall — tests 460s, corpus+parity 189s, LiveCheck
+  630s); per-change verification is the focused runner
+  (`Scripts/run-concurrency-iteration.sh`), and the full gate belongs to the
+  milestone and merge tiers below;
+- focused runners terminate their entire child process tree on exit or
+  interruption (orphaned probe processes were observed 2026-07-17; only the
+  full gate killed its tree).
 
 ### Per milestone
 
@@ -2481,6 +2514,22 @@ Proof:
 - non-vacuous milestone stress/race requirements;
 - retained machine-readable verification receipt;
 - documentation/status audit.
+
+### Per merge into main
+
+Main is the integration branch and is itself under the no-regression
+covenant: every commit that lands on it leaves every board green — no
+half-landed series (the 2026-07-17 checked-continuation alias window, red on
+main for ~5 hours and auto-pushed to origin throughout, is the incident this
+tier prevents). Work stages on the lane branch
+(`.claude/worktrees/lane-concurrency`, branch `worktree-lane-concurrency`)
+and reaches main only through a gate-green merge serialized by the steward:
+run the full gate on the lane tip, append a `MERGE-READY <sha> <gate
+summary>` line to `.claude/claims.md`, and keep working — LOOP.md's worktree
+protocol v2 defines the steward handshake and the ~2-hour MERGE-LOCK
+liveness fallback. Direct commits to main are not part of any lane's loop.
+If main turns red anyway, restoring it — revert first when the fix is not
+immediate — outranks every lane queue.
 
 Tests and thresholds are never weakened merely to preserve a previous claim.
 If native Swift disproves an existing expectation, the expectation is changed
@@ -2605,14 +2654,26 @@ the agent to read, not something that must be copied into the GOAL field.
 Реализуй стабильный фундамент Swift Concurrency для интерпретатора строго по
 Docs/SwiftConcurrencyArchitecture.md.
 
+Рабочее место — worktree .claude/worktrees/lane-concurrency (ветка
+worktree-lane-concurrency); main-checkout — интеграционное дерево steward'а,
+в нём ничего не редактируй, не собирай и не тестируй. В начале цикла —
+`git merge main` внутри worktree; каждый зелёный шаг коммить на ветку lane.
+Прямые коммиты в main запрещены: когда серия готова, прогони полный gate на
+верхушке lane и добавь строку `MERGE-READY <sha> <итог gate>` в
+.claude/claims.md — мержит steward (worktree protocol v2 в LOOP.md, там же
+~2-часовой MERGE-LOCK fallback). Main всегда зелёный.
+
 Перед началом полностью прочитай документ и
 Docs/ConcurrencyVerificationMethodology.md. Выбери следующий открытый
 requirement из executionPlan.currentTail в
 Tests/ConcurrencyParity/Manifests/milestone-acceptance.json — в порядке его
 requirementRefs, при выполненных dependency; когда активный цикл закрыт,
 переходи к entryRequirementRefs из nextMajorCycle. Порядок работ задаёт
-demand-ordered scheduling из раздела 14, а не порядок перечисления
-swiftinterface. Не бери demand-deferred остаток M4 (executor-preference,
+demand-ordered scheduling из раздела 14, включая within-slice depth cap:
+внутри допущенного construct'а полный цикл characterize+support получает
+только spelling с demand-цитатой (corpus-проект, место в FoodTruck, класс
+LiveCheck/TestCheck); остальное закрывается fail-closed с именованной
+диагностикой. Не бери demand-deferred остаток M4 (executor-preference,
 repeated-wait, arbitrary-actor executors) без цитируемого отказа реального
 приложения (corpus/FoodTruck/LiveCheck/TestCheck). Двигайся небольшими
 проверяемыми изменениями.
@@ -2628,10 +2689,13 @@ repeated-wait, arbitrary-actor executors) без цитируемого отка
 7. Реализуй минимальный общий механизм без fixture-specific special cases, если
    gap closure требует production change.
 8. Доведи проверки до GREEN, обнови acceptance matrix и
-   Docs/ConcurrencyParity.md, запусти targeted tests и gate milestone.
+   Docs/ConcurrencyParity.md; на каждом шаге — только focused-проверки
+   (Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER). Полный gate —
+   только на границе milestone/slice и перед MERGE-READY, не после каждого
+   шага (раздел 15).
 
-Не добавляй silent no-op support, не ослабляй тесты и не затрагивай пользовательские
-изменения в worktree. Не переходи к более поздним API, пока не выполнены архитектурные
+Не добавляй silent no-op support, не ослабляй тесты и не затрагивай чужие
+worktree. Не переходи к более поздним API, пока не выполнены архитектурные
 предпосылки.
 
 Продолжай автономно до Definition of done из этого документа или до настоящего
@@ -2646,7 +2710,11 @@ Docs/SwiftConcurrencyArchitecture.md, approaching real Swift 6 semantics through
 native differential verification at every step.
 
 Workspace:
-  /Users/mike/src/tries/2026-07-08-swiftui-dynamic
+  .claude/worktrees/lane-concurrency inside
+  /Users/mike/src/tries/2026-07-08-swiftui-dynamic (branch
+  worktree-lane-concurrency). The main checkout is the steward's integration
+  tree: never build, test, or edit there. Merge main into the lane at cycle
+  start; commit every green step on the lane branch.
 
 Authority and scope:
 - Modify the interpreter, its host contracts, SwiftUI bridge integration,
@@ -2654,6 +2722,11 @@ Authority and scope:
   architecture document.
 - Preserve all pre-existing user changes in the worktree.
 - Never use destructive git commands.
+- Never commit directly to main: series stage on the lane branch and reach
+  main only through the steward-serialized, gate-green merge protocol in
+  LOOP.md (MERGE-READY / MERGE-LOCK lines in .claude/claims.md). Main is
+  itself under the no-regression covenant — green at every commit it
+  receives.
 - Never alter sample application sources to make the interpreter pass.
 - Make only small, reviewable semantic steps.
 
@@ -2778,8 +2851,10 @@ Verification:
   methodology suite. Do not try to parallelize several
   `swift test --skip-build` commands; SwiftPM still serializes them on its
   shared build-directory planning lock.
-- Every milestone runs AsyncExecutionTests, HostSignatureTests, all concurrency
-  parity tests, full swift test, and Scripts/gate.sh when available.
+- Every milestone/slice boundary and every MERGE-READY handoff runs
+  AsyncExecutionTests, HostSignatureTests, all concurrency parity tests, full
+  swift test, and Scripts/gate.sh when available. The full repository gate
+  (≈21 minutes, measured 2026-07-17) is never the per-change inner loop.
 - Run fresh-process cleanup checks for task/continuation/static-state leaks.
 - Inspect git diff before staging; include only changes belonging to this GOAL.
 - Commit only a green, minimal semantic step, and name the native parity case
