@@ -388,6 +388,30 @@ Remaining member families, call-site semantic resolution, compiler metadata,
 mutable-symbol/evaluator migration, worker-safe heap classification, physical
 workers, mode-differential evidence, and TSan remain open.
 
+Its nineteenth prerequisite introduces the immutable all-branch member plan.
+The architecture workflow captured a compile-time RED for the absent
+`ParsedMemberMetadataIndex`, composite parsed-program edge, and runtime member
+resolver. The index classifies direct members and preserves nested ordered
+conditional clauses; a session resolves one active sequence with its build
+identity before struct/class/actor/enum/extension symbol materialization. The
+first same-source probe exposed an unrelated enum `String(describing:)`
+formatting difference, so the oracle was corrected before production to use a
+String raw value. The unchanged interpreter was then GREEN, and Apple Swift
+6.3.3 plus the post-migration interpreter both produced
+`foodtruck:7:type:extension:regular:nested` in all twenty bounded
+`conditional-member-metadata` repetitions. Four native shards each reported
+SHA-256
+`8c1f91f180b8517d68ab0a40b3f0cc2ab73a32db163c2d296b1bc25d9561a937`.
+The final prebuilt focused gate completed sixteen tests in ten suites, all
+forty-two methodology checks, and all twenty parity repetitions in one second.
+FoodTruck supplies five conditional member regions across `StoreSupportView`,
+`DonutGalleryGrid`, `OrdersView`, and `DetailedMapView`. Positive-watchOS
+selection, new member semantics, compiler-only signature parsing, scheduler
+order, physical thread, and physical parallelism are not inferred. Remaining
+member semantics, call-site/compiler metadata, mutable-symbol/evaluator
+migration, worker-safe heap classification, physical workers,
+mode-differential evidence, and TSan remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

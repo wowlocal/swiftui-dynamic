@@ -383,6 +383,114 @@ struct ParsedProgramConcurrencyTests {
             == "operation")
     }
 
+    @Test func parsedProgramOwnsSendableMemberMetadataIndex()
+    async throws {
+        let program = try ParsedProgram(source: """
+        struct Owner {
+            let value: Int
+            init(value: Int) { self.value = value }
+            func read() -> Int { value }
+            subscript(index: Int) -> Int { value + index }
+            typealias Value = Int
+            #if os(iOS)
+            static let platform = "ios"
+            struct Nested {}
+            #elseif os(macOS)
+            static let platform = "mac"
+            class Nested {}
+            #else
+            static let platform = "other"
+            actor Nested {}
+            #endif
+        }
+        enum Phase {
+            #if os(iOS)
+            case ready
+            #else
+            case waiting
+            #endif
+        }
+        final class Lifetime { deinit {} }
+        protocol API { func required() }
+        """)
+        let expected = ParsedMemberMetadataIndex.Summary(
+            memberBlockCount: 7,
+            possibleMemberDeclarationCount: 15,
+            conditionalRegionCount: 2,
+            conditionalClauseCount: 5,
+            variableCount: 4,
+            functionCount: 2,
+            initializerCount: 1,
+            deinitializerCount: 1,
+            subscriptCount: 1,
+            typeAliasCount: 1,
+            enumCaseDeclarationCount: 2,
+            nestedNominalCount: 3,
+            otherDeclarationCount: 0)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.memberMetadataIndex)
+        #expect(program.memberMetadataIndex.summary == expected)
+        #expect(program.metadata.memberMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.memberMetadataIndex.summary }
+        }
+        var observations: [ParsedMemberMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let owner = try #require(
+            program.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        let metadata = try #require(
+            program.memberMetadataIndex.metadata(for: owner.memberBlock))
+        let ios = Interpreter(buildConfiguration: .init(
+            platformName: "iOS", activeCompilationConditions: []))
+        let mac = Interpreter(buildConfiguration: .init(
+            platformName: "macOS", activeCompilationConditions: []))
+        let iosKinds = metadata.resolve(conditionHolds: {
+            ios.ifConfigConditionHolds($0)
+        }).map(\.kind)
+        let macKinds = metadata.resolve(conditionHolds: {
+            mac.ifConfigConditionHolds($0)
+        }).map(\.kind)
+        let expectedIOSKinds: [ParsedMemberDeclaration.Kind] = [
+            .variable, .initializer, .function, .subscriptDeclaration,
+            .typeAlias, .variable, .structure,
+        ]
+        let expectedMacKinds: [ParsedMemberDeclaration.Kind] = [
+            .variable, .initializer, .function, .subscriptDeclaration,
+            .typeAlias, .variable, .classType,
+        ]
+        #expect(iosKinds == expectedIOSKinds)
+        #expect(macKinds == expectedMacKinds)
+    }
+
+    @Test func memberMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        struct Foreign {
+            #if os(iOS)
+            static let value = 1
+            #else
+            static func value() -> Int { 2 }
+            #endif
+        }
+        """)
+        let nominal = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        let interpreter = Interpreter(buildConfiguration: .init(
+            platformName: "macOS", activeCompilationConditions: []))
+        let declarations = interpreter.memberDeclarations(
+            in: nominal.memberBlock)
+
+        let expectedKinds: [ParsedMemberDeclaration.Kind] = [.function]
+        #expect(declarations.map(\.kind) == expectedKinds)
+    }
+
     @Test func initializerMetadataOwnsDeclarationFacts() throws {
         let program = try ParsedProgram(source: """
         @MainActor
@@ -1237,6 +1345,8 @@ struct ParsedProgramConcurrencyTests {
             == program.callableMetadataIndex.summary)
         #expect(program.metadata.callSiteMetadataIndex.summary
             == program.callSiteMetadataIndex.summary)
+        #expect(program.metadata.memberMetadataIndex.summary
+            == program.memberMetadataIndex.summary)
         #expect(program.metadata.nominalMetadataIndex.summary
             == program.nominalMetadataIndex.summary)
         #expect(program.metadata.propertyMetadataIndex.summary
@@ -1257,6 +1367,8 @@ struct ParsedProgramConcurrencyTests {
                         .possiblePrimaryDeclarationCount,
                     program.metadata.callableMetadataIndex.summary.functionCount,
                     program.metadata.callSiteMetadataIndex.summary.callCount,
+                    program.metadata.memberMetadataIndex.summary
+                        .memberBlockCount,
                     program.metadata.callableMetadataIndex.summary
                         .typeMemberFunctionCount,
                     program.metadata.callableMetadataIndex.summary
@@ -1278,7 +1390,7 @@ struct ParsedProgramConcurrencyTests {
             observations.append(await reader.value)
         }
         #expect(observations.allSatisfy {
-            $0 == [3, 2, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+            $0 == [3, 2, 1, 4, 1, 1, 1, 1, 0, 1, 1, 1, 1]
         })
 
         let interpreter = Interpreter()
@@ -1286,6 +1398,8 @@ struct ParsedProgramConcurrencyTests {
         #expect(session.runtimeEntry.programMetadata === program.metadata)
         #expect(session.runtimeEntry.programMetadata?.callableMetadataIndex
             .summary == program.callableMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.memberMetadataIndex
+            .summary == program.memberMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.nominalMetadataIndex
             .summary == program.nominalMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.propertyMetadataIndex

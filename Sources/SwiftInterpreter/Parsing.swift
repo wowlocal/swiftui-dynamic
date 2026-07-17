@@ -7,7 +7,7 @@ import SwiftParserDiagnostics
 ///
 /// Parsing, operator folding, and target-neutral metadata discovery happen
 /// once. The resulting SwiftSyntax tree, source-location index, declaration
-/// plan, callable and call-site argument metadata, nominal headers, property-
+/// plan, callable/call-site metadata, member plans, nominal headers, property-
 /// storage headers, and enum-case, extension, type-alias, and deinitializer
 /// headers are immutable and `Sendable`, so independent sessions may share
 /// them without sharing evaluator or runtime-symbol state.
@@ -31,6 +31,9 @@ public nonisolated struct ParsedProgram: Sendable {
     }
     public var callSiteMetadataIndex: ParsedCallSiteMetadataIndex {
         metadata.callSiteMetadataIndex
+    }
+    public var memberMetadataIndex: ParsedMemberMetadataIndex {
+        metadata.memberMetadataIndex
     }
     public var nominalMetadataIndex: ParsedNominalMetadataIndex {
         metadata.nominalMetadataIndex

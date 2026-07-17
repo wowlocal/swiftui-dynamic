@@ -362,6 +362,36 @@ No qualified or converted function-value provenance, overload-resolution
 guarantee, new executor behavior, scheduler order, physical thread, or physical
 parallelism is inferred.
 
+The nineteenth prerequisite introduces an immutable, all-branch
+`ParsedMemberMetadataIndex`. It classifies direct variable, function,
+initializer, deinitializer, subscript, type-alias, enum-case, nested-nominal,
+and other declarations for every nominal and extension member block. Nested
+conditional regions retain their ordered conditions and clauses; each runtime
+session resolves one active declaration sequence with its build configuration
+before creating mutable symbols. Struct, class, actor, enum, and extension
+materialization now consume that plan instead of independently walking
+`MemberBlockSyntax`, recasting every declaration, and recursively selecting
+`#if` clauses. Protocol requirements remain inert, active-branch selection and
+symbol values remain session-owned, and the separate HostSignature/compiler-
+preflight parsers are not folded into this runtime index.
+
+FoodTruck bounds the slice with five conditional member regions: stored
+properties in `StoreSupportView`, `DonutGalleryGrid`, and `OrdersView`, plus
+the conditional type alias and platform-specific methods in `DetailedMapView`.
+The compile-time RED named the missing `ParsedMemberMetadataIndex`, composite
+capability edge, and runtime member resolver. The same-source semantic probe
+was already GREEN after its oracle was narrowed away from the unrelated
+`String(describing:)` enum-formatting divergence. Apple Swift 6.3.3 and the
+interpreter select the non-watchOS stored property, method, nested type,
+extension method, and enum case and produce
+`foodtruck:7:type:extension:regular:nested` in twenty bounded repetitions. Four
+native shards each reported SHA-256
+`8c1f91f180b8517d68ab0a40b3f0cc2ab73a32db163c2d296b1bc25d9561a937`.
+The final prebuilt focused gate completed sixteen tests in ten suites, all
+forty-two methodology checks, and all twenty parity repetitions in one second.
+No positive-watchOS selection, new member semantics, scheduler order, physical
+thread, or physical parallelism is inferred.
+
 The stable target separates five concerns:
 
 ```text
@@ -758,7 +788,8 @@ Current implementation stage (2026-07-17): `ParsedProgram` owns the folded
 syntax, source-location index, and one public immutable
 `ParsedProgramMetadata` capability. That value owns the public
 `ParsedDeclarationIndex`, `ParsedCallableMetadataIndex`,
-`ParsedCallSiteMetadataIndex`, `ParsedNominalMetadataIndex`,
+`ParsedCallSiteMetadataIndex`, `ParsedMemberMetadataIndex`,
+`ParsedNominalMetadataIndex`,
 `ParsedPropertyMetadataIndex`, `ParsedEnumCaseMetadataIndex`,
 `ParsedExtensionMetadataIndex`, and `ParsedTypeAliasMetadataIndex`;
 compatibility accessors on `ParsedProgram`
@@ -777,7 +808,10 @@ expressions, first/additional trailing-closure structure, and bare unqualified
 reference spelling across runtime source regions while excluding compiler-only
 conditional predicates. Synchronous and suspending argument collection consume
 it; value evaluation, overload resolution, and call-target identity remain
-session-owned. The nominal index records struct/class/actor/enum/
+session-owned. The member index classifies every direct nominal/extension
+declaration and nested conditional clause once; sessions resolve the active
+member sequence before mutable struct/enum/extension materialization. The
+nominal index records struct/class/actor/enum/
 protocol kind, name, inherited type spellings, attributes, and generic header
 constraints across top-level, nested, local, and conditional declarations;
 nominal symbol construction consumes it. The property index records every
@@ -799,8 +833,9 @@ spellings, generic parameters and requirements, attributes, modifiers, and
 nominal-target classification across every lexical and conditional region.
 Top-level, member, and local alias binding consumes those headers while the
 session owns active-branch selection and mutable symbol lookup. Remaining
-member families, call-site semantic resolution beyond these source facts, and
-the compiler-preflight fingerprint remain target work.
+member semantics and compiler-only signature parsing, call-site semantic
+resolution beyond these source facts, and the compiler-preflight fingerprint
+remain target work.
 
 ### 6.2 `InterpreterSession`
 

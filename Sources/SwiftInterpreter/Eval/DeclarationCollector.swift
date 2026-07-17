@@ -535,22 +535,15 @@ extension Interpreter {
         return symbol
     }
 
-    private func collectStructMembers(_ block: MemberBlockSyntax, into symbol: StructSymbol) throws {
-        try collectMemberItems(block.members, into: symbol)
-    }
-
-    private func collectMemberItems(_ members: MemberBlockItemListSyntax, into symbol: StructSymbol) throws {
-        for member in members {
-            if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
-                if let clause = activeIfConfigClause(ifConfig),
-                   case .decls(let nested)? = clause.elements {
-                    try collectMemberItems(nested, into: symbol)
-                }
-                continue
-            }
-            if let varDecl = member.decl.as(VariableDeclSyntax.self) {
+    private func collectStructMembers(
+        _ block: MemberBlockSyntax,
+        into symbol: StructSymbol
+    ) throws {
+        for member in memberDeclarations(in: block) {
+            switch member {
+            case .variable(let varDecl):
                 try collectProperties(varDecl, into: symbol)
-            } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
+            case .function(let funcDecl):
                 declLexicalOwners[funcDecl.id] = symbol
                 let metadata = functionMetadata(for: funcDecl)
                 if metadata.isTypeMember {
@@ -559,10 +552,10 @@ extension Interpreter {
                 } else {
                     symbol.methods[metadata.name, default: []].append(funcDecl)
                 }
-            } else if let initDecl = member.decl.as(InitializerDeclSyntax.self) {
+            case .initializer(let initDecl):
                 declLexicalOwners[initDecl.id] = symbol
                 symbol.initializers.append(initDecl)
-            } else if let deinitDecl = member.decl.as(DeinitializerDeclSyntax.self) {
+            case .deinitializer(let deinitDecl):
                 let metadata = deinitializerMetadata(for: deinitDecl)
                 if metadata.requiresIsolationResolution {
                     pendingDeinitializerIsolationChecks.append((
@@ -571,7 +564,7 @@ extension Interpreter {
                         metadata: metadata))
                 }
                 symbol.deinitBody = metadata.body
-            } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
+            case .typeAlias(let alias):
                 // Member typealiases resolve like nested types (bare name
                 // when unclaimed); generic arguments drop.
                 let metadata = typeAliasMetadata(for: alias)
@@ -593,9 +586,11 @@ extension Interpreter {
                    let enumSymbol = enumSymbols[target] {
                     enumSymbols[metadata.name] = enumSymbol
                 }
-            } else if let subscriptDecl = member.decl.as(SubscriptDeclSyntax.self),
-                      let accessorBlock = subscriptDecl.accessorBlock,
-                      let accessors = parseAccessors(of: accessorBlock) {
+            case .subscriptDeclaration(let subscriptDecl):
+                guard let accessorBlock = subscriptDecl.accessorBlock,
+                      let accessors = parseAccessors(of: accessorBlock) else {
+                    continue
+                }
                 declLexicalOwners[subscriptDecl.id] = symbol
                 let metadata = subscriptMetadata(for: subscriptDecl)
                 symbol.subscripts.append(.init(
@@ -607,7 +602,7 @@ extension Interpreter {
                     declarationID: subscriptDecl.id,
                     isAsync: accessors.isGetterAsync,
                     isThrowing: accessors.isGetterThrowing))
-            } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
+            case .enumeration(let nestedEnum):
                 if Self.tracedIdentifier == nestedEnum.name.text {
                     Swift.print("   ⌗ nestedEnum \(symbol.name).\(nestedEnum.name.text) bareTaken=\(enumSymbols[nestedEnum.name.text] != nil)")
                 }
@@ -627,17 +622,19 @@ extension Interpreter {
                 if globals.lookup(nested.name) == nil {
                     globals.define(nested.name, .enumType(nested))
                 }
-            } else if let nestedStruct = member.decl.as(StructDeclSyntax.self) {
+            case .structure(let nestedStruct):
                 let nestedSymbol = try makeStructSymbol(nestedStruct)
                 registerNestedType(nestedSymbol, in: symbol)
-            } else if let nestedClass = member.decl.as(ClassDeclSyntax.self) {
+            case .classType(let nestedClass):
                 // Nested classes (UserPreferences.Storage) register like
                 // nested structs — reference-typed.
                 let nestedSymbol = try makeClassLikeSymbol(nestedClass)
                 registerNestedType(nestedSymbol, in: symbol)
-            } else if let nestedActor = member.decl.as(ActorDeclSyntax.self) {
+            case .actor(let nestedActor):
                 let nestedSymbol = try makeClassLikeSymbol(nestedActor)
                 registerNestedType(nestedSymbol, in: symbol)
+            case .enumCase, .protocolType, .other:
+                continue
             }
         }
     }
@@ -907,8 +904,8 @@ extension Interpreter {
         let rawIsString = symbol.conformances.contains("String")
 
         var nextIntRaw = 0
-        for decl in flattenedMemberDecls(node.memberBlock.members) {
-            if let caseDecl = decl.as(EnumCaseDeclSyntax.self) {
+        for member in memberDeclarations(in: node.memberBlock) {
+            if case .enumCase(let caseDecl) = member {
                 for element in caseDecl.elements {
                     let caseMetadata = enumCaseMetadata(for: element)
                     let caseName = caseMetadata.name
@@ -930,36 +927,21 @@ extension Interpreter {
                         associatedTypeNames: associatedTypeNames))
                 }
             } else {
-                try collectEnumMember(decl, into: symbol)
+                try collectEnumMember(member, into: symbol)
             }
         }
         return symbol
     }
 
-    /// Member declarations with `#if` blocks expanded to their active clause
-    /// (design-token enums split statics across canImport(UIKit)/AppKit).
-    private func flattenedMemberDecls(_ members: MemberBlockItemListSyntax) -> [DeclSyntax] {
-        var result: [DeclSyntax] = []
-        for member in members {
-            if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
-                if let clause = activeIfConfigClause(ifConfig),
-                   case .decls(let nested)? = clause.elements {
-                    result.append(contentsOf: flattenedMemberDecls(nested))
-                }
-                continue
-            }
-            result.append(member.decl)
-        }
-        return result
-    }
-
-    private func collectEnumMember(_ decl: DeclSyntax, into symbol: EnumSymbol) throws {
-        if let initDecl = decl.as(InitializerDeclSyntax.self) {
+    private func collectEnumMember(
+        _ member: ParsedMemberDeclaration,
+        into symbol: EnumSymbol
+    ) throws {
+        switch member {
+        case .initializer(let initDecl):
             declLexicalOwners[initDecl.id] = symbol
             symbol.initializers.append(initDecl)
-            return
-        }
-        if let varDecl = decl.as(VariableDeclSyntax.self) {
+        case .variable(let varDecl):
             let declarationMetadata = propertyMetadata(for: varDecl)
             let hasBuilderAttribute = declarationMetadata.hasBuilderAttribute
             let isStaticDecl = declarationMetadata.isStatic
@@ -1050,7 +1032,7 @@ extension Interpreter {
                     }
                 }
             }
-        } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
+        case .function(let funcDecl):
             declLexicalOwners[funcDecl.id] = symbol
             let metadata = functionMetadata(for: funcDecl)
             if metadata.isTypeMember {
@@ -1059,7 +1041,7 @@ extension Interpreter {
             } else {
                 symbol.methods[metadata.name, default: []].append(funcDecl)
             }
-        } else if let nestedEnum = decl.as(EnumDeclSyntax.self) {
+        case .enumeration(let nestedEnum):
             // Enums are namespaces as often as value types
             // (`TestCase.Cases.allCases`) — nested types register under the
             // dotted name and the bare name when unclaimed, mirroring the
@@ -1072,7 +1054,7 @@ extension Interpreter {
             if globals.lookup(nested.name) == nil {
                 globals.define(nested.name, .enumType(nested))
             }
-        } else if let nestedStruct = decl.as(StructDeclSyntax.self) {
+        case .structure(let nestedStruct):
             let nestedSymbol = try makeStructSymbol(nestedStruct)
             symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
             structSymbols.append(nestedSymbol)
@@ -1080,7 +1062,7 @@ extension Interpreter {
             if globals.lookup(nestedSymbol.name) == nil {
                 globals.define(nestedSymbol.name, .type(nestedSymbol))
             }
-        } else if let nestedClass = decl.as(ClassDeclSyntax.self) {
+        case .classType(let nestedClass):
             let nestedSymbol = try makeClassLikeSymbol(nestedClass)
             symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
             structSymbols.append(nestedSymbol)
@@ -1088,6 +1070,9 @@ extension Interpreter {
             if globals.lookup(nestedSymbol.name) == nil {
                 globals.define(nestedSymbol.name, .type(nestedSymbol))
             }
+        case .actor, .deinitializer, .subscriptDeclaration, .typeAlias,
+             .enumCase, .protocolType, .other:
+            return
         }
     }
 
@@ -1145,8 +1130,8 @@ extension Interpreter {
                     symbol.conformances.append(name)
                 }
             }
-            for decl in flattenedMemberDecls(node.memberBlock.members) {
-                try collectEnumMember(decl, into: symbol)
+            for member in memberDeclarations(in: node.memberBlock) {
+                try collectEnumMember(member, into: symbol)
             }
         default:
             // Extensions of host types (`extension View { func … }`) collect

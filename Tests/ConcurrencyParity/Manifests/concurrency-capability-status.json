@@ -2926,6 +2926,7 @@
         "deinitializer-metadata",
         "callable-placement-metadata",
         "initializer-declaration-metadata",
+        "conditional-member-metadata",
         "with-task-executor-preference-nil"
       ],
       "testNames": [
@@ -2937,6 +2938,8 @@
         "ParsedProgramConcurrencyTests/callablePlacementHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableCallSiteMetadataIndex",
         "ParsedProgramConcurrencyTests/callSiteMetadataHasPureForeignSyntaxFallback",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableMemberMetadataIndex",
+        "ParsedProgramConcurrencyTests/memberMetadataHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/initializerMetadataOwnsDeclarationFacts",
         "ParsedProgramConcurrencyTests/initializerMetadataHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableNominalMetadataIndex",
@@ -2991,7 +2994,7 @@
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Eighteen M9 prerequisites are green. Runtime call entries now own ordinary labels/expressions, first and additional trailing closures in source order, and bare unqualified direct-reference spelling while compiler-only #if predicates are excluded. Both argument collectors and bounded async-operation provenance consume this immutable index with pure foreign-syntax fallback. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. FoodTruck cites 41 additional-trailing-closure spellings and three direct Button(action:) references. The semantic characterization was already GREEN: twenty exact explicit-nil task-executor-preference task-state/error projections remain green. Qualified/converted/member/closure provenance, full overload resolution, new executor behavior, scheduler order, and physical threads are not claimed. Earlier function/initializer and metadata parity remains green. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site semantic resolution, compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Nineteen M9 prerequisites are green. ParsedProgram now owns an immutable all-branch member plan that classifies direct nominal/extension declarations and nested conditional clauses. Sessions resolve one active sequence with their build identity before struct/class/actor/enum/extension symbol materialization; detached readers, RuntimeEntry callbacks, and foreign syntax retain the composite-capability boundary. FoodTruck bounds the slice with five conditional member regions across StoreSupportView, DonutGalleryGrid, OrdersView, and DetailedMapView. The first same-source probe exposed an unrelated String(describing:) enum-formatting divergence, so the oracle was narrowed before production. Native Swift 6.3.3 and the interpreter then produced foodtruck:7:type:extension:regular:nested in twenty bounded repetitions before and after migration, with native SHA-256 8c1f91f180b8517d68ab0a40b3f0cc2ab73a32db163c2d296b1bc25d9561a937 per shard. Positive-watchOS selection, new member semantics, compiler-only signature parsing, scheduler order, physical threads, and physical parallelism are not claimed. Earlier call-site, function/initializer, and metadata parity remains green. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member semantics, call-site semantic resolution, compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

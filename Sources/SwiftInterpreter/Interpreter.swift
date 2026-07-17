@@ -685,6 +685,25 @@ public final class Interpreter {
         currentProgramMetadata?.callSiteMetadataIndex
     }
 
+    var currentMemberMetadataIndex: ParsedMemberMetadataIndex? {
+        currentProgramMetadata?.memberMetadataIndex
+    }
+
+    func memberMetadata(
+        for block: MemberBlockSyntax
+    ) -> ParsedMemberBlockMetadata {
+        currentMemberMetadataIndex?.metadata(for: block)
+            ?? ParsedMemberBlockMetadata(block)
+    }
+
+    func memberDeclarations(
+        in block: MemberBlockSyntax
+    ) -> [ParsedMemberDeclaration] {
+        memberMetadata(for: block).resolve(conditionHolds: {
+            ifConfigConditionHolds($0)
+        })
+    }
+
     var currentNominalMetadataIndex: ParsedNominalMetadataIndex? {
         currentProgramMetadata?.nominalMetadataIndex
     }

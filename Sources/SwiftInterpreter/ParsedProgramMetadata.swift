@@ -7,6 +7,7 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
     public let declarationIndex: ParsedDeclarationIndex
     public let callableMetadataIndex: ParsedCallableMetadataIndex
     public let callSiteMetadataIndex: ParsedCallSiteMetadataIndex
+    public let memberMetadataIndex: ParsedMemberMetadataIndex
     public let nominalMetadataIndex: ParsedNominalMetadataIndex
     public let propertyMetadataIndex: ParsedPropertyMetadataIndex
     public let enumCaseMetadataIndex: ParsedEnumCaseMetadataIndex
@@ -19,6 +20,7 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
             statements: file.statements)
         callableMetadataIndex = ParsedCallableMetadataIndex(file: file)
         callSiteMetadataIndex = ParsedCallSiteMetadataIndex(file: file)
+        memberMetadataIndex = ParsedMemberMetadataIndex(file: file)
         nominalMetadataIndex = ParsedNominalMetadataIndex(file: file)
         propertyMetadataIndex = ParsedPropertyMetadataIndex(file: file)
         enumCaseMetadataIndex = ParsedEnumCaseMetadataIndex(file: file)

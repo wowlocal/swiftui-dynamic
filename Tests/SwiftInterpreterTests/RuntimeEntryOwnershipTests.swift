@@ -10,6 +10,7 @@ struct RuntimeEntryOwnershipTests {
         var observedHeapMatches: [Bool] = []
         var observedMetadata: [ParsedCallableMetadataIndex.Summary?] = []
         var observedCallSiteCounts: [Int?] = []
+        var observedMemberBlockCounts: [Int?] = []
         var observedTypeMemberFunctionCounts: [Int?] = []
         var observedBodylessFunctionCounts: [Int?] = []
         var observedInitializerCounts: [Int?] = []
@@ -37,6 +38,8 @@ struct RuntimeEntryOwnershipTests {
                     observedMetadata.append(entry.callableMetadataIndex?.summary)
                     observedCallSiteCounts.append(entry.programMetadata?
                         .callSiteMetadataIndex.summary.callCount)
+                    observedMemberBlockCounts.append(entry.programMetadata?
+                        .memberMetadataIndex.summary.memberBlockCount)
                     observedTypeMemberFunctionCounts.append(
                         entry.callableMetadataIndex?.summary
                             .typeMemberFunctionCount)
@@ -125,6 +128,7 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedHeapMatches == [true, true])
         #expect(observedMetadata.map { $0?.functionCount } == [3, 3])
         #expect(observedCallSiteCounts == [4, 4])
+        #expect(observedMemberBlockCounts == [5, 5])
         #expect(observedTypeMemberFunctionCounts == [1, 1])
         #expect(observedBodylessFunctionCounts == [1, 1])
         #expect(observedInitializerCounts == [1, 1])
