@@ -14,6 +14,7 @@ private enum ParityAssertionKind: String, Decodable {
     case allowedSet = "allowed-set"
     case partialOrder = "partial-order"
     case predicate
+    case runtimeTrap = "runtime-trap"
     case diagnostic
     case interpreterDiagnostic = "interpreter-diagnostic"
     case stress
@@ -32,6 +33,8 @@ private struct ConcurrencyParityCase: Decodable {
     let requiredEvents: [String]?
     let precedes: [[String]]?
     let predicate: String?
+    let nativeTrapContains: [String]?
+    let interpreterTrapContains: [String]?
     let diagnosticContains: [String]?
     let diagnosticLine: Int?
     let interpreterDiagnosticContains: [String]?
@@ -374,6 +377,15 @@ private enum ConcurrencyParityHarness {
         for repetition in 0..<repetitionCount {
             let execution = run(
                 binary, [], timeout: parityCase.timeoutSeconds)
+            if parityCase.assertion == .runtimeTrap {
+                try validateRuntimeTrap(
+                    execution,
+                    requiredFragments: parityCase.nativeTrapContains,
+                    operation: "run native trap \(parityCase.id) repetition "
+                        + "\(repetition + 1)/\(repetitionCount)")
+                outputs.append("runtime-trap")
+                continue
+            }
             let successfulExecution = try successful(
                 execution,
                 operation: "run \(parityCase.id) repetition "
@@ -450,6 +462,17 @@ private enum ConcurrencyParityHarness {
                 ],
                 timeout: parityCase.timeoutSeconds,
                 environment: environment)
+            if parityCase.assertion == .runtimeTrap {
+                try validateRuntimeTrap(
+                    execution,
+                    requiredFragments: parityCase.interpreterTrapContains,
+                    operation: "run interpreted trap \(parityCase.id) repetition "
+                        + "\(repetition + 1)/\(repetitionCount)")
+                observations.append(.init(
+                    kind: .runtimeError,
+                    text: "runtime-trap"))
+                continue
+            }
             _ = try successful(
                 execution,
                 operation: "run interpreted parity child \(parityCase.id) "
@@ -1106,6 +1129,8 @@ private enum ConcurrencyParityHarness {
                     ? nil
                     : "stress output '\(output)' differs from native terminal '\(expected)'"
             }
+        case .runtimeTrap:
+            return ["runtime traps require process-isolated observations"]
         case .diagnostic:
             return ["diagnostics are validated from compiler status/stderr"]
         case .interpreterDiagnostic:
@@ -1120,6 +1145,20 @@ private enum ConcurrencyParityHarness {
         native: [String],
         interpreted: [InterpretedParityObservation]
     ) -> [String] {
+        if parityCase.assertion == .runtimeTrap {
+            var problems: [String] = []
+            if native.isEmpty
+                || native.contains(where: { $0 != "runtime-trap" }) {
+                problems.append("native runtime trap was not stable")
+            }
+            if interpreted.isEmpty
+                || interpreted.contains(where: {
+                    $0.kind != .runtimeError || $0.text != "runtime-trap"
+                }) {
+                problems.append("interpreter runtime trap was not stable")
+            }
+            return problems
+        }
         guard parityCase.assertion == .interpreterDiagnostic else {
             var problems = interpreted.compactMap { observation in
                 observation.kind == .value ? nil
@@ -1214,6 +1253,35 @@ private enum ConcurrencyParityHarness {
                 "\(operation) failed (\(result.status)):\n\(diagnostics)")
         }
         return result
+    }
+
+    private static func validateRuntimeTrap(
+        _ result: ParityProcessResult,
+        requiredFragments: [String]?,
+        operation: String
+    ) throws {
+        let diagnostics = [result.standardError, result.standardOutput]
+            .map(\.trimmed).filter { !$0.isEmpty }.joined(separator: "\n")
+        if result.timedOut {
+            throw RuntimeError(message:
+                "\(operation) timed out"
+                    + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
+        }
+        guard result.status != 0 else {
+            throw RuntimeError(message:
+                "\(operation) unexpectedly completed"
+                    + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
+        }
+        guard let requiredFragments, !requiredFragments.isEmpty else {
+            throw RuntimeError(message:
+                "\(operation) has no required trap diagnostic fragments")
+        }
+        for fragment in requiredFragments where
+            !diagnostics.contains(fragment) {
+            throw RuntimeError(message:
+                "\(operation) did not contain '\(fragment)'"
+                    + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
+        }
     }
 
     static func emitShardReceipt(
@@ -1770,6 +1838,22 @@ struct ConcurrencyParityTests {
             native: ["deinit"],
             interpreted: [.init(kind: .runtimeError, text: message)])
         #expect(typedDiagnostic.isEmpty)
+
+        let trapCase = try #require(
+            ConcurrencyParityHarness.loadCases().first {
+                $0.id == "async-throwing-stream-copied-iterators"
+            })
+        let matchingTrap = ConcurrencyParityHarness.observationViolations(
+            for: trapCase,
+            native: ["runtime-trap"],
+            interpreted: [.init(
+                kind: .runtimeError, text: "runtime-trap")])
+        #expect(matchingTrap.isEmpty)
+        let disguisedTrap = ConcurrencyParityHarness.observationViolations(
+            for: trapCase,
+            native: ["runtime-trap"],
+            interpreted: [.init(kind: .value, text: "runtime-trap")])
+        #expect(!disguisedTrap.isEmpty)
     }
 
     @Test func nativeObservationDigestIsOrderIndependentAndContentSensitive() throws {

@@ -343,7 +343,7 @@ extension Interpreter {
                 do {
                     return try modifier.apply(target, args, self)
                 } catch let e as RuntimeError where e.line == 0 {
-                    throw error(call, e.message)
+                    throw error(call, locating: e)
                 }
             }
         }
@@ -653,7 +653,7 @@ extension Interpreter {
                 do {
                     return try measure.invoke(args, self)
                 } catch let e as RuntimeError where e.line == 0 {
-                    throw error(call, e.message)
+                    throw error(call, locating: e)
                 }
             }
         }

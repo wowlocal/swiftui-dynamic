@@ -59,6 +59,39 @@ struct AsyncThrowingStreamRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func copiedIteratorsRejectOverlappingNextAndCleanUp()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/async-throwing-stream-copied-iterators.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait asyncThrowingStreamCopiedIteratorsProbe()\n"
+        let interpreter = Interpreter()
+
+        do {
+            _ = try await interpreter.runAsync(source: source)
+            Issue.record("overlapping throwing-stream next calls were accepted")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message
+                == "attempt to await "
+                    + "AsyncThrowingStream.Iterator.next() concurrently")
+        }
+
+        #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 1)
+        #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount >= 1)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func bufferingOldestRejectsNewestValuesWithExactResults()
         async throws
     {

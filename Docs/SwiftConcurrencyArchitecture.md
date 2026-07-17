@@ -1428,7 +1428,11 @@ remaining capacity after insertion, evicts and returns the oldest element once
 full, and retains only the newest values. Its `.bufferingOldest` counterpart
 reports the same capacity, preserves the first values, and returns each newly
 rejected element. At capacity zero both policies retain no element and return
-the supplied value as `.dropped`. Iterator-copy and throwing-stream lifetime
+the supplied value as `.dropped`. Unlike `AsyncStream`, a throwing stream owns
+one pending-`next()` capability in shared storage: after one copied iterator
+has suspended, a second copied iterator call is a runtime trap. The capability
+is storage-wide rather than attached to a source carrier, and its fatal error
+metadata survives gateway source-location attachment. Throwing-stream lifetime
 edges remain open. Source checked continuations are not yet claimed.
 
 ### 6.19 Host gateway runtime
@@ -1785,6 +1789,8 @@ Assertion kinds:
 - `partial-order`: named events satisfy precedence constraints;
 - `predicate`: both outputs satisfy the same invariant checker;
 - `diagnostic`: compiler failure category and source position;
+- `runtime-trap`: each isolated process exits nonzero and contains its
+  authored diagnostic fragment; timeout is a failure, never a trap;
 - `stress`: no deadlock, crash, leak threshold, or invariant failure.
 
 ### 12.3 Native compilation
@@ -2018,7 +2024,10 @@ Each milestone is independently gated through
   Positive-capacity `.bufferingNewest` result/eviction/retention and
   `.bufferingOldest` result/rejection/retention semantics are covered as well.
   At capacity zero both policies return the supplied value as `.dropped` and
-  retain nothing. Its iterator-copy and lifetime semantics plus
+  retain nothing. Copied throwing-stream iterators also share the storage's
+  single pending-`next()` capability, and a causally overlapping call has
+  process-isolated native/interpreter runtime-trap parity. Its lifetime
+  semantics plus
   checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
@@ -2085,7 +2094,8 @@ Deliverables:
 - reusable native/interpreter runner;
 - compiler fingerprinting;
 - bounded process execution;
-- exact, allowed-set, partial-order, predicate, and diagnostic assertions;
+- exact, allowed-set, partial-order, predicate, diagnostic, and process-isolated
+  runtime-trap assertions;
 - initial `Docs/ConcurrencyParity.md` ledger;
 - existing async tests classified by whether they have a native baseline.
 
@@ -2254,8 +2264,11 @@ the nonthrowing storage edge. Positive-capacity `.bufferingNewest` also reports
 the same capacity, eviction, and retention semantics through the shared kernel;
 positive-capacity `.bufferingOldest` preserves the first values and returns
 each later rejected element. At capacity zero both policies return the supplied
-element as `.dropped`, keep no value, and read terminal `nil`. Iterator-copy
-and lifetime edges plus
+element as `.dropped`, keep no value, and read terminal `nil`. A copied-iterator
+probe additionally proves that one throwing stream permits only one pending
+`next()` across copies: after `Task.immediate` causally reaches the first
+suspension, a second call traps in both isolated native and interpreted
+processes. Throwing-stream lifetime edges plus
 checked-continuation ownership
 remain active rather than being inferred from those slices.
 

@@ -192,7 +192,7 @@ extension Interpreter {
                 return try function.invoke(args, self)
             } catch let e as RuntimeError where e.line == 0 {
                 // Gateways throw unlocated errors; pin them to the call site.
-                throw error(node, e.message)
+                throw error(node, locating: e)
             }
         case .enumType(let symbol):
             // `Icon(rawValue: 3)` — the raw-value initializer.

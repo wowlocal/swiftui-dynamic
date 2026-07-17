@@ -134,6 +134,7 @@ final class RuntimeAsyncStreamStorage {
     private var onTermination: ClosureValue?
     private var terminal = false
     private var terminalFailure: RuntimeValue?
+    private var hasPendingThrowingNext = false
     private var closed = false
 
     fileprivate init(
@@ -337,6 +338,22 @@ final class RuntimeAsyncStreamStorage {
         runtime.closeAsyncStream(id)
         closed = true
     }
+
+    fileprivate func beginThrowingNext() throws {
+        guard !hasPendingThrowingNext else {
+            throw RuntimeError(
+                message: "attempt to await "
+                    + "AsyncThrowingStream.Iterator.next() concurrently",
+                fatal: true)
+        }
+        hasPendingThrowingNext = true
+    }
+
+    fileprivate func endThrowingNext() {
+        precondition(hasPendingThrowingNext,
+            "throwing stream next capability must be active")
+        hasPendingThrowingNext = false
+    }
 }
 
 final class RuntimeAsyncStreamSequence: RuntimeConcurrencyHostValue {
@@ -372,6 +389,30 @@ final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue,
 
     func copiedHostValue() -> Any {
         RuntimeAsyncStreamIterator(storage: storage)
+    }
+
+    func beginNext() throws {
+        if storage.flavor.isThrowing {
+            try storage.beginThrowingNext()
+            return
+        }
+        guard !isAwaitingNext else {
+            throw RuntimeError(
+                message: "attempt to await "
+                    + "AsyncStream.Iterator.next() concurrently",
+                fatal: true)
+        }
+        isAwaitingNext = true
+    }
+
+    func endNext() {
+        if storage.flavor.isThrowing {
+            storage.endThrowingNext()
+        } else {
+            precondition(isAwaitingNext,
+                "stream iterator next capability must be active")
+            isAwaitingNext = false
+        }
     }
 }
 
@@ -499,14 +540,8 @@ extension Interpreter {
                         throw RuntimeError(message:
                             "\(streamName) iterator was released while awaiting next()")
                     }
-                    guard !iterator.isAwaitingNext else {
-                        throw RuntimeError(
-                            message: "attempt to await "
-                                + "\(streamName).Iterator.next() concurrently",
-                            fatal: true)
-                    }
-                    iterator.isAwaitingNext = true
-                    defer { iterator.isAwaitingNext = false }
+                    try iterator.beginNext()
+                    defer { iterator.endNext() }
                     let value = try await self.nextRuntimeAsyncStreamValue(
                         from: iterator.storage)
                     return .optional(
