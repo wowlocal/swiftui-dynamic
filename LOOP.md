@@ -1625,3 +1625,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   them, and the checked-continuation registration path SIGTRAPs — the
   half-landed c7e1f14/6d2f294 series). Two convergence attempts hit
   their protective traps; theirs to complete. Lane queue: nine commits.
+- 2026-07-17 R3 spec enforcement lands and CATCHES REAL GAPS (worktree
+  iteration 15): foodtruck-r3.sh now enforces the spec — per-capture
+  FLOORS (ratcheted from the current board + headroom) and the
+  CHANGED-GUARD with disagreement semantics (one side re-renders the
+  mutation, the other does not; both-zero = agreement, e.g. donut-view
+  shows art, not the renamed label). First enforced board: 8/10
+  scenarios green within floors; the guard EXPOSED two interp-side
+  function no-ops — orders-after-preparing (twinΔ 0.092, interpΔ 0)
+  and orders-after-steps (twinΔ 2.367, interpΔ 0):
+  `model.orderBinding(for:).wrappedValue.markAsPreparing()/.markAsComplete()`
+  mutations do not re-render, while the direct model-method route
+  (markOrderAsCompleted) does — the Binding wrappedValue
+  mutating-method write-back class, STAKED as the next iteration's
+  work. The board script exits nonzero on the gaps, as the spec
+  demands. Upstream checked-continuation half-landing still blocks the
+  gate (their new Void-resume commit landed; the test-update commit
+  has not).
