@@ -483,6 +483,9 @@ extension Interpreter: EvalContext {
         case .cancelled:
             throw CancellationError()
         case .failure(let value, _):
+            if let runtimeFailure = value.hostPayload as? RuntimeError {
+                throw runtimeFailure
+            }
             throw RuntimeError(
                 message: handle.failureDescription ?? value.stringified)
         }

@@ -1535,6 +1535,9 @@ final class CooperativeConcurrencyRuntime {
             record.outcome = .failure(
                 thrown.value,
                 failureType: HostRuntimeTypeSystem.typeName(of: thrown.value))
+        } else if let runtimeError = error as? RuntimeError {
+            record.outcome = .failure(
+                .native(runtimeError), failureType: "RuntimeError")
         } else {
             record.outcome = .failure(
                 .native(String(describing: error)),

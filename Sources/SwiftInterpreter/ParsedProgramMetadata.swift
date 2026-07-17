@@ -3,7 +3,7 @@ import SwiftSyntax
 /// One immutable capability for every syntax-derived index owned by a parsed
 /// program. Runtime entries and escaped closures propagate this value instead
 /// of growing a separate ownership edge for each new metadata family.
-public nonisolated struct ParsedProgramMetadata: Sendable {
+public nonisolated final class ParsedProgramMetadata: Sendable {
     public let declarationIndex: ParsedDeclarationIndex
     public let callableMetadataIndex: ParsedCallableMetadataIndex
     public let nominalMetadataIndex: ParsedNominalMetadataIndex

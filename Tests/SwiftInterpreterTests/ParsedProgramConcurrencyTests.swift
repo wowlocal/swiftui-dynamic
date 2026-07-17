@@ -835,6 +835,7 @@ struct ParsedProgramConcurrencyTests {
         """)
         func requireSendable<T: Sendable>(_: T) {}
         requireSendable(program.metadata)
+        #expect(program.metadata === program.metadata)
         #expect(program.metadata.declarationIndex.summary
             == program.declarationIndex.summary)
         #expect(program.metadata.callableMetadataIndex.summary
@@ -872,6 +873,7 @@ struct ParsedProgramConcurrencyTests {
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata === program.metadata)
         #expect(session.runtimeEntry.programMetadata?.callableMetadataIndex
             .summary == program.callableMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.nominalMetadataIndex
