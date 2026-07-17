@@ -160,12 +160,25 @@ extension ViewRegistry {
             return AnyView(view.overlay(alignment: alignment) { content })
         }
 
-        register("shadow") { view, args, _ in
+        modifiers["shadow"] = HostModifier(name: "shadow") { value, args, _ in
+            // `.indigo.shadow(.drop(…))` is ShapeStyle.shadow, NOT the view
+            // modifier — a ShadowStyle marker argument only compiles against
+            // the style overload, so a style-like receiver keeps its
+            // styleness for the downstream foregroundStyle funnel (the
+            // FoodTruck forecast pillars).
+            if case .host(let any)? = args.positional(0),
+               let call = any as? ImplicitMemberCall,
+               call.name == "drop" || call.name == "inner",
+               let base = try? Coerce.shapeStyle(value) {
+                let style = try Coerce.shadowStyle(args.positional(0))
+                return .native(AnyShapeStyle(base.shadow(style)))
+            }
+            let view = try Self.anyView(value)
             let radius = try Coerce.cgFloat(args.labeled("radius") ?? .native(4))
             let color = try args.labeled("color").map(Coerce.color) ?? Color.black.opacity(0.33)
             let x = try args.labeled("x").map(Coerce.cgFloat) ?? 0
             let y = try args.labeled("y").map(Coerce.cgFloat) ?? 0
-            return AnyView(view.shadow(color: color, radius: radius, x: x, y: y))
+            return .native(AnyView(view.shadow(color: color, radius: radius, x: x, y: y)))
         }
 
         register("cornerRadius") { view, args, _ in

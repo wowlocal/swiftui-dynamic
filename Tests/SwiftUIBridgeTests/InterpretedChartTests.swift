@@ -94,6 +94,42 @@ import Testing
     }
 
 
+    // FoodTruck truck-row pillar class: the `.indigo.shadow(.drop(…))`
+    // ShapeStyle CHAIN must coerce through the funnel — before the shadow
+    // arm existed, the mark fell to the default accent style with a
+    // "mark foregroundStyle shape not bridged" diagnostic.
+    @MainActor
+    @Test func shadowStyleChainCoercesOnChartMarks() throws {
+        RenderDiagnostics.reset()
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Chart {
+                        RectangleMark(
+                            x: .value(String("X"), 1.0),
+                            yStart: .value(String("Y"), 0.0),
+                            yEnd: .value(String("Y"), 5.0),
+                            width: .fixed(6)
+                        )
+                        .foregroundStyle(.indigo.shadow(.drop(color: .white.opacity(0.25), radius: 0, x: 1)))
+                    }
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success = rendered else {
+            Issue.record("shadow-chain chart failed to render")
+            return
+        }
+        let styleDrops = RenderDiagnostics.errors.filter {
+            $0.error.message.contains("mark foregroundStyle shape not bridged")
+        }
+        #expect(styleDrops.isEmpty)
+    }
+
     // Custom axis DSL: DateBins-driven X marks and an interpreted per-value
     // Y label closure (AxisValue.as + formatted) run through REAL AxisMarks.
     @MainActor

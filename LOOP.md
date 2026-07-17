@@ -1780,3 +1780,27 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   round-trip, seeded spellings bypass). Upstream alias test STILL red
   on lane tip (runtime emits 13 intrinsics, test wants the checked-
   continuation pair) — merge queue still waits on Codex.
+- 2026-07-17 forecast pillars paint their real style (worktree iteration
+  24): gate i23 attributed — the suite's single failure IS the upstream
+  alias test (runtime now emits the checked-continuation pair; Codex's
+  test update still pending), concurrency parity shards recovered to
+  green, and the corpus '677/680' headline is a shard double-assignment
+  artifact (unique accounting: 678 pass / 2 fail — Planet + Mythic,
+  both pre-existing; Planet reproduced at 03d8452, well before the
+  dispatch changes). Iteration class: TruckWeatherCard's
+  `.indigo.shadow(.drop(color:radius:x:))` — the marker chain was
+  eagerly consumed by the handwritten VIEW shadow gateway (defaults
+  radius 4, drop marker silently absorbed) before any style funnel saw
+  it. Fixes: shared-coercion tier gains Coerce.shadowStyle
+  (drop/inner factories with the SDK's per-factory default colors) and
+  a `.shadow` chain case in Coerce.shapeStyle (+ zero-arg marker-call
+  normalization); the shadow gateway becomes a typed HostModifier —
+  a ShadowStyle marker argument routes to ShapeStyle.shadow on the
+  raw receiver (native overload resolution: the view shadow requires
+  radius:), everything else keeps the view path. Truck ratchets
+  1.330% -> 1.257%, detail-truck floor follows, the last chart ⚠ on
+  the truck row is gone. Pin: shadowStyleChainCoercesOnChartMarks.
+  Next truck class staked: x-axis label elision (twin 3-hourly, interp
+  6-hourly — DateBins thresholds correct, label width/collision
+  suspected). Merge queue: still waiting on the upstream alias-test
+  update; corpus floor accounting artifact worth a harness look.
