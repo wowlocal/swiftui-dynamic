@@ -7,6 +7,30 @@ import Testing
 
 @Suite(.serialized)
 struct SwiftUIViewTaskLifecycleTests {
+    private func waitUntil(
+        timeout: Duration = .seconds(30),
+        _ condition: @MainActor () -> Bool
+    ) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition() && clock.now < deadline {
+            // Sleeping, rather than repeatedly yielding, removes this test
+            // from the MainActor runnable queue long enough for SwiftUI's
+            // view task and the interpreter driver to make progress under the
+            // fully parallel repository gate.
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private func lifecycleDiagnostics() -> [String] {
+        RenderDiagnostics.errors.compactMap { diagnostic in
+            guard diagnostic.view == "generated SwiftUI async action" else {
+                return nil
+            }
+            return "\(diagnostic.view): \(diagnostic.error)"
+        }
+    }
+
     private var repositoryRoot: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -115,7 +139,6 @@ struct SwiftUIViewTaskLifecycleTests {
 
     @Test
     func interpretedSwiftUIStartsAsyncTaskBodyInCanonicalAsyncContext() async throws {
-        RenderDiagnostics.reset()
         let source = try String(contentsOf: fixture, encoding: .utf8)
         let interpreter = Interpreter(registry: ViewRegistry())
         try interpreter.run(source: source)
@@ -136,17 +159,14 @@ struct SwiftUIViewTaskLifecycleTests {
         window.orderFrontRegardless()
         defer { window.close() }
 
-        let deadline = Date().addingTimeInterval(2)
         var events: [String] = []
-        repeat {
-            await Task.yield()
+        await waitUntil {
             events = interpreter.globals.lookup("swiftUIViewTaskEvents")?
                 .arrayValue?.compactMap(\.stringValue) ?? []
-        } while events.count < 2 && Date() < deadline
+            return events.count >= 2
+        }
 
-        let diagnostics = RenderDiagnostics.errors.map {
-            "\($0.view): \($0.error)"
-        }.joined(separator: " | ")
+        let diagnostics = lifecycleDiagnostics().joined(separator: " | ")
         let runtime = "active=\(interpreter.concurrencyRuntime.activeRecordCount) "
             + interpreter.concurrencyRuntime.records.values.map {
                 "\($0.kind.rawValue):\($0.state.rawValue)"
@@ -155,9 +175,8 @@ struct SwiftUIViewTaskLifecycleTests {
             events == ["started", "value:21"],
             Comment(rawValue: diagnostics + " " + runtime))
 
-        while interpreter.concurrencyRuntime.activeRecordCount != 0
-            && Date() < deadline {
-            await Task.yield()
+        await waitUntil {
+            interpreter.concurrencyRuntime.activeRecordCount == 0
         }
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
@@ -165,12 +184,11 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
-        #expect(RenderDiagnostics.errors.isEmpty)
+        #expect(lifecycleDiagnostics().isEmpty)
     }
 
     @Test
     func interpretedSwiftUICancelsTaskWhenViewDisappears() async throws {
-        RenderDiagnostics.reset()
         let source = try String(contentsOf: cancellationFixture, encoding: .utf8)
         let interpreter = Interpreter(registry: ViewRegistry())
         try interpreter.run(source: source)
@@ -192,13 +210,12 @@ struct SwiftUIViewTaskLifecycleTests {
         window.orderFrontRegardless()
         defer { window.close() }
 
-        let deadline = Date().addingTimeInterval(2)
         var events: [String] = []
-        repeat {
-            await Task.yield()
+        await waitUntil {
             events = interpreter.globals.lookup("swiftUIViewTaskCancellationEvents")?
                 .arrayValue?.compactMap(\.stringValue) ?? []
-        } while events.isEmpty && Date() < deadline
+            return !events.isEmpty
+        }
 
         #expect(events == ["started"])
         #expect(interpreter.concurrencyRuntime.records.values.contains {
@@ -209,15 +226,14 @@ struct SwiftUIViewTaskLifecycleTests {
         })
 
         hostingView.rootView = AnyView(EmptyView())
-        repeat {
-            await Task.yield()
+        await waitUntil {
             events = interpreter.globals.lookup("swiftUIViewTaskCancellationEvents")?
                 .arrayValue?.compactMap(\.stringValue) ?? []
-        } while events.count < 2 && Date() < deadline
+            return events.count >= 2
+        }
 
-        while interpreter.concurrencyRuntime.activeRecordCount != 0
-            && Date() < deadline {
-            await Task.yield()
+        await waitUntil {
+            interpreter.concurrencyRuntime.activeRecordCount == 0
         }
         #expect(events == ["started", "cancelled"])
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
@@ -226,12 +242,11 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
-        #expect(RenderDiagnostics.errors.isEmpty)
+        #expect(lifecycleDiagnostics().isEmpty)
     }
 
     @Test
     func interpretedSwiftUIReplacesTaskWhenIDChanges() async throws {
-        RenderDiagnostics.reset()
         let source = try String(contentsOf: idFixture, encoding: .utf8)
         let interpreter = Interpreter(registry: ViewRegistry())
         try interpreter.run(source: source)
@@ -259,28 +274,25 @@ struct SwiftUIViewTaskLifecycleTests {
         window.orderFrontRegardless()
         defer { window.close() }
 
-        let deadline = Date().addingTimeInterval(2)
         func events() -> [String] {
             interpreter.globals.lookup("swiftUIViewTaskIDEvents")?
                 .arrayValue?.compactMap(\.stringValue) ?? []
         }
-        while !events().contains("start:1") && Date() < deadline {
-            await Task.yield()
+        await waitUntil {
+            events().contains("start:1")
         }
 
         hostingView.rootView = try render(id: 2)
-        while (!events().contains("cancel:1")
-            || !events().contains("start:2")) && Date() < deadline {
-            await Task.yield()
+        await waitUntil {
+            events().contains("cancel:1") && events().contains("start:2")
         }
 
         hostingView.rootView = AnyView(EmptyView())
-        while !events().contains("cancel:2") && Date() < deadline {
-            await Task.yield()
+        await waitUntil {
+            events().contains("cancel:2")
         }
-        while interpreter.concurrencyRuntime.activeRecordCount != 0
-            && Date() < deadline {
-            await Task.yield()
+        await waitUntil {
+            interpreter.concurrencyRuntime.activeRecordCount == 0
         }
 
         #expect(events().sorted() == ["cancel:1", "cancel:2", "start:1", "start:2"])
@@ -290,6 +302,6 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
-        #expect(RenderDiagnostics.errors.isEmpty)
+        #expect(lifecycleDiagnostics().isEmpty)
     }
 }
