@@ -89,6 +89,8 @@ extension Interpreter {
             program: program,
             heap: runtimeHeap,
             concurrencyRuntime: concurrencyRuntime,
+            executionPlan: program.declarationIndex.resolve(
+                conditionHolds: ifConfigConditionHolds),
             lazyTopLevelGlobals: lazyTopLevelGlobals,
             completionPolicy: completionPolicy,
             owner: self)
@@ -177,6 +179,7 @@ extension Interpreter {
         do {
             result = try await runProgramSuspending(
                 program: session.program,
+                executionPlan: session.executionPlan,
                 lazyTopLevelGlobals: session.lazyTopLevelGlobals)
         } catch {
             await cancelOwnedTasks(in: session.id)
@@ -201,14 +204,16 @@ extension Interpreter {
     }
 
     private func runProgramSuspending(
-        program: ParsedProgram, lazyTopLevelGlobals: Bool
+        program: ParsedProgram,
+        executionPlan: ResolvedDeclarationPlan,
+        lazyTopLevelGlobals: Bool
     ) async throws -> RuntimeValue {
         let file = program.syntax
         locationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         assumesCompiledImports = lazyTopLevelGlobals
-        try collectDeclarations(from: file)
+        try collectDeclarations(from: executionPlan)
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
@@ -219,16 +224,17 @@ extension Interpreter {
 
         return try await withTopLevelStructuredScopeSuspending(in: globals) {
             try await executeTopLevelStatementsSuspending(
-                file, lazyTopLevelGlobals: lazyTopLevelGlobals)
+                executionPlan.topLevelItems,
+                lazyTopLevelGlobals: lazyTopLevelGlobals)
         }
     }
 
     private func executeTopLevelStatementsSuspending(
-        _ file: SourceFileSyntax,
+        _ topLevelItems: [CodeBlockItemSyntax],
         lazyTopLevelGlobals: Bool
     ) async throws -> RuntimeValue {
         var last: RuntimeValue = .void
-        for item in expandedTopLevelItems(file.statements) {
+        for item in topLevelItems {
             try checkRuntimeCancellation()
             if case .stmt(let statement) = item.item,
                statement.is(DeferStmtSyntax.self) {
@@ -388,13 +394,15 @@ extension Interpreter {
         lazyTopLevelGlobals: Bool
     ) throws -> RuntimeValue {
         let file = program.syntax
+        let executionPlan = program.declarationIndex.resolve(
+            conditionHolds: ifConfigConditionHolds)
         locationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved
         // identifier there is an unmerged import, never a typo.
         assumesCompiledImports = lazyTopLevelGlobals
-        try collectDeclarations(from: file)
+        try collectDeclarations(from: executionPlan)
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
@@ -404,7 +412,7 @@ extension Interpreter {
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void
-        for item in expandedTopLevelItems(file.statements) {
+        for item in executionPlan.topLevelItems {
             if case .stmt(let stmt) = item.item, stmt.is(DeferStmtSyntax.self) {
                 // Top-level `defer` runs at PROCESS exit on device — the
                 // harness has no such moment; cleanup-at-exit is invisible

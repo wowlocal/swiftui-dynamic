@@ -97,8 +97,9 @@ The first M9 prerequisite slice is implemented: `ParsedProgram` now owns the
 immutable parsed/operator-folded syntax tree and source-location index, is
 strictly `Sendable`, and may be reused by independent interpreter sessions.
 Eight detached readers and two concurrent cooperative sessions exercise the
-same instance without sharing evaluator state. Declaration indexes and the
-mutable runtime heap do not belong in this value.
+same instance without sharing evaluator state. It now also owns a target-
+neutral, all-conditional-branch `ParsedDeclarationIndex`; mutable runtime
+symbols and the runtime heap do not belong in this value.
 
 The second prerequisite makes that mutable boundary explicit. Each
 `Interpreter` now owns exactly one `RuntimeHeap`, and its global environment,
@@ -118,6 +119,17 @@ heap/runtime capabilities alive without retaining the facade. Other callback
 entries still allocate raw runtime session IDs, declaration/evaluator state
 still lives on the facade, and overlapping facade sessions are not claimed
 safe. This remains MainActor-confined ownership work, not worker execution.
+
+The fourth prerequisite moves top-level declaration discovery out of the
+evaluator. Parsing now classifies every possible nominal, function, global,
+typealias, and extension once, including every conditional-compilation branch.
+Each session resolves that immutable index once against its own build identity,
+and both declaration materialization and top-level execution consume the same
+resolved plan. Eight detached readers share the index, while one parsed source
+resolves different iOS/macOS nominal + typealias + extension plans correctly.
+The resulting mutable `StructSymbol`/`EnumSymbol` graphs are still created per
+facade/session on MainActor; member, call, isolation, and compiler-preflight
+metadata have not all moved into `ParsedProgram` yet.
 
 The stable target separates five concerns:
 
@@ -502,6 +514,15 @@ SwiftSyntax values may require an internal immutable wrapper rather than direct
 `Sendable` conformance. The semantic requirement is immutability and absence of
 task-specific state.
 
+Current implementation stage (2026-07-17): `ParsedProgram` owns the folded
+syntax, source-location index, and a public immutable `ParsedDeclarationIndex`.
+The index classifies all possible top-level primary declarations, aliases, and
+extensions across nested conditional regions. A session resolves exactly one
+ordered build-specific plan; the collector no longer rescans the source or
+re-evaluates top-level `#if` regions in three separate passes. Mutable runtime
+symbol materialization remains session/facade-owned. Full member/call/
+isolation metadata and the compiler-preflight fingerprint remain target work.
+
 ### 6.2 `InterpreterSession`
 
 An `InterpreterSession` binds one parsed program to one runtime heap and
@@ -527,10 +548,11 @@ executes through it. `makeSession(program:)` plus `runAsync(session:)` exposes
 the same path for explicit ownership. Focused tests prove unique IDs, the live
 root task's ID, policy/program/heap/runtime binding, foreign-facade rejection,
 single-use state, complete runtime draining, and heap/runtime lifetime after
-facade release. The session intentionally remains MainActor-confined and holds
-a weak facade reference because declaration collection and evaluation have not
-yet moved out of `Interpreter`; host callback and SwiftUI task entries still
-need migration to this boundary.
+facade release. The session also binds the one build-resolved declaration plan
+used by runtime-symbol materialization and top-level execution. It intentionally
+remains MainActor-confined and holds a weak facade reference because mutable
+symbol collection and evaluation have not yet moved out of `Interpreter`;
+host callback and SwiftUI task entries still need migration to this boundary.
 
 ### 6.3 `RuntimeHeap`
 
@@ -2574,12 +2596,14 @@ Proof:
 - parallel stress tests have no races or invariant violations;
 - semantic parity is unchanged between cooperative and parallel runtime modes.
 
-Implemented prerequisite slices (2026-07-17): parsing and operator folding now
-produce a reusable immutable `ParsedProgram`. Its SwiftSyntax tree and location
-converter cross strict-concurrency detached-task boundaries as `Sendable`, and
-fresh interpreters can execute one parsed program in independent async
-sessions while keeping globals and runtime records separate. Legacy
-`run(source:)` still maps parse failures to the same located `RuntimeError`.
+Implemented prerequisite slices (2026-07-17): parsing, operator folding, and
+target-neutral top-level declaration discovery now produce a reusable immutable
+`ParsedProgram`. Its SwiftSyntax tree, location converter, and all-branch
+declaration index cross strict-concurrency detached-task boundaries as
+`Sendable`; each session resolves one build-specific plan, and fresh
+interpreters can execute one parsed program independently while keeping
+globals, mutable symbols, and runtime records separate. Legacy `run(source:)`
+still maps parse failures to the same located `RuntimeError`.
 Each `Interpreter` also owns one explicit, MainActor-confined `RuntimeHeap`
 that roots the actual global environment, synthesized environment models, and
 SwiftUI state cells; focused tests prove identity, cross-interpreter isolation,
@@ -2589,10 +2613,11 @@ runtime, runtime ID, lazy-global mode, and completion policy; focused tests
 prove live-ID propagation, ownership validation, single-use state, draining,
 and facade-independent heap/runtime lifetime. These slices separate immutable
 program input, mutable storage, and execution identity without changing
-scheduling. Declaration collection and evaluator state must still move behind
-the session; raw-ID callback entries, overlapping facade sessions, worker-safe
-heap classification, physical worker scheduling, cooperative-versus-parallel
-parity, and TSan evidence remain open.
+scheduling. Member/call/isolation indexing is still incomplete, and mutable
+symbol materialization plus evaluator state must move fully behind the session;
+raw-ID callback entries, overlapping facade sessions, worker-safe heap
+classification, physical worker scheduling, cooperative-versus-parallel parity,
+and TSan evidence remain open.
 
 ## 15. Verification gates
 

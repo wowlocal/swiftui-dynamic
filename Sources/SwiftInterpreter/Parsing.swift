@@ -5,9 +5,10 @@ import SwiftParserDiagnostics
 
 /// Immutable, executor-neutral input to an interpreter session.
 ///
-/// Parsing and operator folding happen once. The resulting SwiftSyntax tree
-/// and source-location index are immutable and `Sendable`, so independent
-/// sessions may share them without sharing any evaluator heap state.
+/// Parsing, operator folding, and target-neutral declaration discovery happen
+/// once. The resulting SwiftSyntax tree, source-location index, and all-branch
+/// declaration index are immutable and `Sendable`, so independent sessions
+/// may share them without sharing evaluator or runtime-symbol state.
 public nonisolated struct ParsedProgram: Sendable {
     public struct ParseFailure: Error, CustomStringConvertible, Sendable {
         public let message: String
@@ -19,6 +20,7 @@ public nonisolated struct ParsedProgram: Sendable {
 
     public let source: String
     public let fileName: String
+    public let declarationIndex: ParsedDeclarationIndex
     let syntax: SourceFileSyntax
     let locationConverter: SourceLocationConverter
 
@@ -66,6 +68,8 @@ public nonisolated struct ParsedProgram: Sendable {
         }
 
         syntax = foldedFile
+        declarationIndex = ParsedDeclarationIndex(
+            statements: foldedFile.statements)
         locationConverter = converter
     }
 

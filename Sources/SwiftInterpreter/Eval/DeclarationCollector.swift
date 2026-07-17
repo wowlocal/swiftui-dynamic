@@ -1,97 +1,43 @@
 import Foundation
 import SwiftSyntax
 
-/// Pass 1: hoist struct/enum/function declarations from a parsed file into the
-/// global environment; pass 2 merges extensions into the collected symbols.
+/// Materialize one build-resolved immutable declaration plan into mutable
+/// session symbols. Pass 1 hoists nominal/function/global declarations into
+/// the global environment; pass 2 merges extensions into those symbols.
 /// Top-level `let`/`var` and expressions are executed in source order by
 /// `Interpreter.run` afterwards.
 extension Interpreter {
-    /// Flattens active `#if` clauses into the top-level item stream.
-    func expandedTopLevelItems(_ items: CodeBlockItemListSyntax) -> [CodeBlockItemSyntax] {
-        var out: [CodeBlockItemSyntax] = []
-        for item in items {
-            if case .decl(let decl) = item.item,
-               let ifConfig = decl.as(IfConfigDeclSyntax.self) {
-                if let clause = activeIfConfigClause(ifConfig),
-                   case .statements(let nested)? = clause.elements {
-                    out += expandedTopLevelItems(nested)
-                }
-                continue
-            }
-            out.append(item)
-        }
-        return out
-    }
-
-    func collectDeclarations(from file: SourceFileSyntax) throws {
+    func collectDeclarations(
+        from plan: ResolvedDeclarationPlan
+    ) throws {
         pendingDeinitializerIsolationChecks.removeAll(keepingCapacity: true)
-        for item in expandedTopLevelItems(file.statements) {
-            guard case .decl(let decl) = item.item else { continue }
-            if let structDecl = decl.as(StructDeclSyntax.self) {
-                try collectStruct(structDecl)
-            } else if let classDecl = decl.as(ClassDeclSyntax.self) {
-                try collectClass(classDecl)
-            } else if let actorDecl = decl.as(ActorDeclSyntax.self) {
-                try collectActor(actorDecl)
-            } else if let enumDecl = decl.as(EnumDeclSyntax.self) {
-                try collectEnum(enumDecl)
-            } else if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
+        for declaration in plan.primaryDeclarations {
+            switch declaration {
+            case .structure(let declaration):
+                try collectStruct(declaration)
+            case .classType(let declaration):
+                try collectClass(declaration)
+            case .actor(let declaration):
+                try collectActor(declaration)
+            case .enumeration(let declaration):
+                try collectEnum(declaration)
+            case .protocolType(let declaration):
                 // Only the INHERITANCE is recorded (requirements carry no
                 // bodies; defaults live in the protocol's extensions).
-                protocolInheritance[protocolDecl.name.text] =
-                    protocolDecl.inheritanceClause?.inheritedTypes.map {
+                protocolInheritance[declaration.name.text] =
+                    declaration.inheritanceClause?.inheritedTypes.map {
                         $0.type.trimmedDescription
                     } ?? []
-            } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
-                try defineFunction(funcDecl, in: globals)
-            } else if let varDecl = decl.as(VariableDeclSyntax.self), isHoistableGlobal(varDecl) {
-                // Top-level globals are LAZY (real Swift semantics for
-                // non-main files): forward and cross-file references work,
-                // initializers run on first read.
-                let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
-                for binding in varDecl.bindings {
-                    guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
-                    globals.define(
-                        ident.identifier.text,
-                        .native(LazyGlobal(
-                            initializer: binding.initializer?.value,
-                            annotation: binding.typeAnnotation?.type)),
-                        declaredTypeName: binding.typeAnnotation?.type.trimmedDescription,
-                        referenceOwnership: referenceOwnership)
-                }
-            } else if let varDecl = decl.as(VariableDeclSyntax.self) {
-                // `var uptime: String { … }` at file scope — a computed
-                // global; the accessor runs on every read. Observer-only
-                // globals (didSet) are STORED (observers inert).
-                for binding in varDecl.bindings {
-                    guard let ident = binding.pattern.as(IdentifierPatternSyntax.self),
-                          let accessorBlock = binding.accessorBlock else { continue }
-                    if let accessors = parseAccessors(of: accessorBlock) {
-                        globals.define(
-                            ident.identifier.text,
-                            .native(ComputedGlobal(
-                                accessor: accessors.getter,
-                                annotation: binding.typeAnnotation?.type)),
-                            declaredTypeName: binding.typeAnnotation?.type.trimmedDescription)
-                    } else {
-                        let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
-                        globals.define(
-                            ident.identifier.text,
-                            .native(LazyGlobal(
-                                initializer: binding.initializer?.value,
-                                annotation: binding.typeAnnotation?.type)),
-                            declaredTypeName: binding.typeAnnotation?.type.trimmedDescription,
-                            referenceOwnership: referenceOwnership)
-                    }
-                }
+            case .function(let declaration):
+                try defineFunction(declaration, in: globals)
+            case .variable(let declaration):
+                try collectGlobalVariable(declaration)
             }
         }
         // Alias HEADS first: `typealias LoadableSubject<T> = Binding<…>`
         // makes `extension LoadableSubject` a Binding extension — the
         // mapping must exist before extensions collect.
-        for item in expandedTopLevelItems(file.statements) {
-            guard case .decl(let decl) = item.item,
-                  let alias = decl.as(TypeAliasDeclSyntax.self) else { continue }
+        for alias in plan.typeAliases {
             var target = alias.initializer.value.trimmedDescription
             if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
             target = target.trimmingCharacters(in: .whitespaces)
@@ -99,17 +45,13 @@ extension Interpreter {
                 aliasHeads[alias.name.text] = target
             }
         }
-        for item in expandedTopLevelItems(file.statements) {
-            guard case .decl(let decl) = item.item,
-                  let extensionDecl = decl.as(ExtensionDeclSyntax.self) else { continue }
-            try collectExtension(extensionDecl)
+        for declaration in plan.extensionDeclarations {
+            try collectExtension(declaration)
         }
         // `typealias BlockMatrixType = BlockMatrix<IdentifiedBlock>` — the
         // alias resolves to the target TYPE (generic arguments dropped, like
         // everywhere else). Tuple/function aliases stay inert.
-        for item in expandedTopLevelItems(file.statements) {
-            guard case .decl(let decl) = item.item,
-                  let alias = decl.as(TypeAliasDeclSyntax.self) else { continue }
+        for alias in plan.typeAliases {
             var target = alias.initializer.value.trimmedDescription
             if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
             target = target.trimmingCharacters(in: .whitespaces)
@@ -118,6 +60,60 @@ extension Interpreter {
             }
             if enumSymbols[alias.name.text] == nil, let enumSymbol = enumSymbols[target] {
                 enumSymbols[alias.name.text] = enumSymbol
+            }
+        }
+    }
+
+    private func collectGlobalVariable(
+        _ declaration: VariableDeclSyntax
+    ) throws {
+        if isHoistableGlobal(declaration) {
+            // Top-level globals are LAZY (real Swift semantics for non-main
+            // files): forward and cross-file references work, initializers
+            // run on first read.
+            let ownership = ReferenceOwnership(
+                modifiers: declaration.modifiers)
+            for binding in declaration.bindings {
+                guard let identifier = binding.pattern.as(
+                    IdentifierPatternSyntax.self) else { continue }
+                globals.define(
+                    identifier.identifier.text,
+                    .native(LazyGlobal(
+                        initializer: binding.initializer?.value,
+                        annotation: binding.typeAnnotation?.type)),
+                    declaredTypeName:
+                        binding.typeAnnotation?.type.trimmedDescription,
+                    referenceOwnership: ownership)
+            }
+            return
+        }
+
+        // `var uptime: String { … }` at file scope — a computed global; the
+        // accessor runs on every read. Observer-only globals (didSet) are
+        // stored, with observers currently inert.
+        for binding in declaration.bindings {
+            guard let identifier = binding.pattern.as(
+                    IdentifierPatternSyntax.self),
+                  let accessorBlock = binding.accessorBlock else { continue }
+            if let accessors = parseAccessors(of: accessorBlock) {
+                globals.define(
+                    identifier.identifier.text,
+                    .native(ComputedGlobal(
+                        accessor: accessors.getter,
+                        annotation: binding.typeAnnotation?.type)),
+                    declaredTypeName:
+                        binding.typeAnnotation?.type.trimmedDescription)
+            } else {
+                let ownership = ReferenceOwnership(
+                    modifiers: declaration.modifiers)
+                globals.define(
+                    identifier.identifier.text,
+                    .native(LazyGlobal(
+                        initializer: binding.initializer?.value,
+                        annotation: binding.typeAnnotation?.type)),
+                    declaredTypeName:
+                        binding.typeAnnotation?.type.trimmedDescription,
+                    referenceOwnership: ownership)
             }
         }
     }

@@ -1,10 +1,11 @@
 /// One execution binding between immutable source and mutable runtime state.
 ///
 /// The current cooperative implementation is deliberately MainActor-
-/// confined. A session owns the heap and runtime capabilities needed by one
-/// async entry, while holding only a weak link to the compatibility
-/// `Interpreter` facade. This makes the ownership boundary real without
-/// claiming that the heap is safe to hand to physical workers.
+/// confined. A session owns the build-resolved declaration plan plus the heap
+/// and runtime capabilities needed by one async entry, while holding only a
+/// weak link to the compatibility `Interpreter` facade. This makes the
+/// ownership boundary real without claiming that the heap is safe to hand to
+/// physical workers.
 @MainActor
 public final class InterpreterSession {
     public enum State: Sendable, Equatable {
@@ -21,12 +22,14 @@ public final class InterpreterSession {
     public private(set) var state: State = .ready
 
     let concurrencyRuntime: CooperativeConcurrencyRuntime
+    let executionPlan: ResolvedDeclarationPlan
     private weak var owner: Interpreter?
 
     init(
         program: ParsedProgram,
         heap: RuntimeHeap,
         concurrencyRuntime: CooperativeConcurrencyRuntime,
+        executionPlan: ResolvedDeclarationPlan,
         lazyTopLevelGlobals: Bool,
         completionPolicy: SessionCompletionPolicy,
         owner: Interpreter
@@ -34,6 +37,7 @@ public final class InterpreterSession {
         self.program = program
         self.heap = heap
         self.concurrencyRuntime = concurrencyRuntime
+        self.executionPlan = executionPlan
         self.lazyTopLevelGlobals = lazyTopLevelGlobals
         self.completionPolicy = completionPolicy
         self.owner = owner

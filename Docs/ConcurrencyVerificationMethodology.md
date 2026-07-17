@@ -154,9 +154,16 @@ program, heap, cooperative runtime, runtime ID, lazy-global mode, and
 completion policy. Compile-time RED and focused GREEN evidence cover binding,
 live-ID propagation, unique identity, foreign-facade rejection, reuse
 rejection, draining, and facade-independent heap/runtime lifetime. Existing
-same-source async-let parity is rerun as the no-semantic-change check. Moving
-declarations/evaluation fully behind the session, unifying raw-ID callback
-entries, overlapping-session policy, worker-safe heap classification,
+same-source async-let parity is rerun as the no-semantic-change check. Its
+fourth prerequisite adds a target-neutral, all-branch, immutable Sendable
+declaration index to `ParsedProgram`; each session resolves one build-specific
+plan consumed by both mutable symbol materialization and top-level execution.
+The compile-time RED was the absent index/plan API. Focused GREEN evidence
+covers eight detached readers, distinct iOS/macOS nominal + typealias +
+extension plans from one parsed source, and 209 declaration/language/async/
+compiler-preflight tests. Extending immutable member/call/isolation metadata,
+moving mutable symbols/evaluation fully behind the session, unifying raw-ID
+callback entries, overlapping-session policy, worker-safe heap classification,
 physical workers, cooperative-versus-parallel differential evidence, and TSan
 remain open.
 

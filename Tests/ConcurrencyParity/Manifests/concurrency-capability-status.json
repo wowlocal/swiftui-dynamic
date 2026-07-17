@@ -2918,7 +2918,9 @@
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
         "ParsedProgramConcurrencyTests/parsedProgramIsSendableAcrossDetachedReaders",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableDeclarationIndex",
         "ParsedProgramConcurrencyTests/oneParsedProgramBacksIndependentAsyncSessions",
+        "ParsedProgramConcurrencyTests/sessionsBindBuildResolvedDeclarationPlans",
         "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError",
         "RuntimeHeapOwnershipTests/interpreterExposesItsActualGlobalStorageRoot",
         "RuntimeHeapOwnershipTests/independentInterpretersDoNotShareMutableHeap",
@@ -2931,7 +2933,7 @@
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Three M9 prerequisites are green: parsed/operator-folded syntax and its source-location index live in an immutable Sendable ParsedProgram reusable across detached readers and independent cooperative sessions; each Interpreter owns a distinct explicit MainActor-confined RuntimeHeap rooted at its actual globals, synthesized environment models, and SwiftUI state cells; and every runAsync program entry executes through a single-use InterpreterSession binding the program, heap, cooperative runtime, runtime ID, lazy-global mode, and completion policy. Focused evidence covers live identity, ownership/reuse rejection, draining, and heap/runtime lifetime. This is not a physical execution claim. Declaration metadata and evaluation remain on the facade, callback entries still use raw runtime IDs, overlapping facade sessions lack a worker-safe policy, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Four M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and a target-neutral all-branch ParsedDeclarationIndex reusable across detached readers; each session resolves one build-specific top-level plan consumed by runtime-symbol materialization and execution; each Interpreter owns a distinct explicit MainActor-confined RuntimeHeap rooted at its actual globals, synthesized environment models, and SwiftUI state cells; and every runAsync entry executes through a single-use InterpreterSession binding the program, plan, heap, cooperative runtime, runtime ID, lazy-global mode, and completion policy. Focused evidence covers distinct iOS/macOS nominal + typealias + extension plans, live identity, ownership/reuse rejection, draining, and heap/runtime lifetime. This is not a physical execution claim. Member/call/isolation/compiler metadata, mutable symbols, and evaluation remain on the facade; callback entries still use raw runtime IDs, overlapping facade sessions lack a worker-safe policy, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }
