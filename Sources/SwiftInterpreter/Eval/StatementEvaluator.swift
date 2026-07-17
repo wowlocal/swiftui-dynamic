@@ -4,6 +4,7 @@ import SwiftSyntax
 /// How a statement finished. Control flow propagates as values instead of
 /// thrown errors: blocks stop and pass `.returnValue`/`.breakLoop`/`.continueLoop`
 /// upward until a loop or function boundary consumes them.
+@MainActor
 enum StatementResult {
     case normal(RuntimeValue)
     case returnValue(RuntimeValue)

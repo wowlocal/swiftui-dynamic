@@ -6,6 +6,7 @@ import SwiftSyntax
 /// member/subscript lvalues. Every other consumer — host functions, enum
 /// inits, markers — unwraps to `current`, the value at call time, preserving
 /// the old tolerated behavior for host sinks like `.store(in: &cancellables)`.
+@MainActor
 final class InoutSlot {
     let box: Box?
     let target: Interpreter.LValue?
@@ -49,7 +50,7 @@ extension CallArguments {
 /// `enumerated().forEach { rowSnapshot[$0] … $1 }` idiom) or stays whole in
 /// `$0` (`flatten.map { $0.item }`) — mirroring Swift's anonymous-parameter
 /// arity inference.
-enum ShorthandTupleScanner {
+nonisolated enum ShorthandTupleScanner {
     static func splats(_ body: CodeBlockItemListSyntax) -> Bool {
         body.contains { referencesDollarOne(Syntax($0)) }
     }

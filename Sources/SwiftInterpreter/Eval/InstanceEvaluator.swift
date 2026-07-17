@@ -6,7 +6,9 @@ import SwiftSyntax
 /// weak/unowned source slot can only legally contain a class; this wrapper
 /// preserves that compiled type fact and gives the synthetic caller a stable
 /// identity to own.
-private final class SynthesizedExternalObject: InertCallable, CustomStringConvertible {
+private nonisolated final class SynthesizedExternalObject:
+    Sendable, InertCallable, CustomStringConvertible
+{
     let typeName: String
 
     init(typeName: String) {

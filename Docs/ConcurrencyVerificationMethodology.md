@@ -656,6 +656,29 @@ intermediate program states, the pre-existing `hostTypeExtensions` regression,
 and origin/newer HostRegistry selection through both direct closure calls and
 runtime callback entries.
 
+Its thirtieth prerequisite verifies that the interpreter core no longer
+depends on target-wide MainActor default isolation. The architectural RED is a
+normal `SwiftInterpreter` build immediately after removing that target setting:
+every mutable evaluator/runtime edge that relied on implicit isolation must be
+made explicit, not hidden behind blanket `@unchecked Sendable`. Immutable
+descriptors and identifiers remain nonisolated and Sendable; mutable values,
+heap roots, symbol graphs, evaluator contexts, and runtime registries remain
+explicitly MainActor-confined until a later edge-by-edge worker policy exists.
+
+Closing evidence typechecks two fixtures against the built public module under
+Swift 6 complete strict concurrency. The positive fixture constructs runtime
+IDs and clock values in a `nonisolated` function. The negative fixture attempts
+to construct `RuntimeHeap`, `Interpreter`, and `RuntimeValue` there and must
+fail with MainActor-isolation diagnostics. A standalone native probe must also
+show detached immutable reads plus explicit MainActor mutation without
+asserting scheduling order. Because the production change is an isolation
+refactor, the semantic workflow is an already-GREEN characterization: the
+unchanged `task-owned-evaluator-context` case must preserve its complete
+100-event multiset in twenty native/interpreter repetitions. Focused ownership,
+module-boundary, and methodology tests must remain green. This prerequisite
+does not satisfy physical-worker, worker-safe heap, parallel-mode, or TSan
+requirements.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

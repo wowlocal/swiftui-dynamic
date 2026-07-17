@@ -20,6 +20,7 @@ private func runtimeValueIsOptional<T>(_ value: T) -> Bool {
 /// Construct through the `native(_:)` factories. The untyped overload
 /// normalizes every supported core value into its dedicated case while
 /// preserving the opaque host escape hatch at the framework boundary.
+@MainActor
 public enum RuntimeValue {
     case void
     case nilValue
@@ -297,13 +298,13 @@ extension RuntimeValue {
 
 /// `self` inside an EnvironmentValues computed getter: `self[Key.self]`
 /// answers the key type's static defaultValue (the pre-@Entry pattern).
-public final class EnvironmentValuesStub {
+public nonisolated final class EnvironmentValuesStub: Sendable {
     public init() {}
 }
 
 /// A generic TYPE APPLICATION carried textually (`PaginatedResponse<Movie>`)
 /// — the decode bridge re-parses it to bind the struct's own generics.
-public struct GenericApplication {
+public nonisolated struct GenericApplication: Sendable {
     public let text: String
 
     public init(text: String) {
@@ -313,6 +314,7 @@ public struct GenericApplication {
 
 /// A call on an implicit member expression, e.g. `.system(size: 40)` — carried
 /// opaquely until a gateway resolves it against the parameter's expected type.
+@MainActor
 public struct ImplicitMemberCall {
     public let name: String
     public let arguments: CallArguments
@@ -340,6 +342,7 @@ extension ImplicitMemberCall: CaseShaped {
 /// `.blue.opacity(0.2)` or `.easeInOut(duration: 0.3).delay(0.2)` — resolved
 /// recursively at gateway boundaries. `base` is the full previous marker
 /// (implicit member, ImplicitMemberCall, or another chain).
+@MainActor
 public struct ChainedImplicitCall {
     public let base: RuntimeValue
     public let member: String
@@ -362,16 +365,17 @@ public struct ChainedImplicitCall {
 /// projection. Pipelines chain inertly (debounce/removeDuplicates/sink all
 /// absorb) and never emit headlessly: timers and debounce schedulers don't
 /// run, so the honest behavior is a silent pipeline.
-public struct PublishedProjection: InertCallable {
+public nonisolated struct PublishedProjection: Sendable, InertCallable {
     public init() {}
 }
 
 /// Bridge stub types conform so calling them is inert-chainable
 /// (`vc.present(alert, animated: true)` on a UIKit hosting stub).
-public protocol InertCallable {}
+public nonisolated protocol InertCallable {}
 
 /// Host values that stand for enum cases (the bridge's Result carrier):
 /// pattern matching and bare-case comparisons read this shape.
+@MainActor
 public protocol CaseShaped {
     var caseName: String { get }
     var casePayloads: [RuntimeValue] { get }
@@ -380,6 +384,7 @@ public protocol CaseShaped {
 /// `/AppAction.milestone` — the CasePaths/TCA case-path prefix operator.
 /// The path itself is inert: whatever consumes it (reducer scoping,
 /// pullbacks) is external framework machinery that absorbs markers.
+@MainActor
 public struct CasePathMarker: InertCallable {
     public let path: String
     /// Resolved case reference (`/AppAction.milestone`): extraction and
@@ -397,6 +402,7 @@ public struct CasePathMarker: InertCallable {
 /// `super` inside a class body: member access dispatches to the interpreted
 /// superclass when one exists, and is inert for host superclasses (NSObject,
 /// UIViewController, …) whose initializers have no interpreter analog.
+@MainActor
 public struct SuperReference {
     public let instance: Instance
 
@@ -408,16 +414,18 @@ public struct SuperReference {
 /// `objectWillChange` on interpreted ObservableObjects — `.send()` fires
 /// the instance's change signal (live views re-render); other pipeline
 /// members chain inertly.
+@MainActor
 public final class ObjectWillChangePublisher: InertCallable {
-    public let fire: () -> Void
+    public let fire: @MainActor () -> Void
 
-    public init(fire: @escaping () -> Void) {
+    public init(fire: @escaping @MainActor () -> Void) {
         self.fire = fire
     }
 }
 
 /// A `lazy var` instance property's pending initializer: evaluated with
 /// `self` bound on FIRST ACCESS, then replaced by the value.
+@MainActor
 public final class LazyMemberSeed {
     public let initializer: ExprSyntax
     public let annotation: TypeSyntax?
@@ -432,6 +440,7 @@ public final class LazyMemberSeed {
 /// `data.write(to:)` it lands in the in-run blob store; `Data(contentsOf:)`
 /// returns it and `decoder.decode(_:from:)` unwraps the ORIGINAL value —
 /// real persistence semantics within a run.
+@MainActor
 public final class EncodedValueBlob {
     public let value: RuntimeValue
 
@@ -440,7 +449,7 @@ public final class EncodedValueBlob {
     }
 }
 
-public struct KeyPathStub {
+public nonisolated struct KeyPathStub: Sendable {
     /// `\.account.emojis` → ["account", "emojis"]; `\.self` → ["self"].
     public var components: [String] = []
 
@@ -451,7 +460,7 @@ public struct KeyPathStub {
 
 /// `KeyPathComparator(\Order.status, order: .reverse)` / `SortDescriptor`:
 /// a key path + direction, applied by `sorted(using:)`.
-public struct KeyPathComparatorBox {
+public nonisolated struct KeyPathComparatorBox: Sendable {
     public let keyPath: KeyPathStub
     public let ascending: Bool
 
@@ -465,7 +474,7 @@ public struct KeyPathComparatorBox {
 /// assumed to be a host type used for static access (`Color.red`,
 /// `UIScreen.main`). Member access on it yields an implicit member; calling
 /// it is a located error.
-public struct HostTypeMarker {
+public nonisolated struct HostTypeMarker: Sendable {
     public let name: String
     public let genericArguments: [String]
 
@@ -478,6 +487,7 @@ public struct HostTypeMarker {
 /// The value of `$model` where model is @StateObject/@ObservedObject: member
 /// access projects a `BindingStub` onto the model's property box, so
 /// `TextField("…", text: $store.query)` works.
+@MainActor
 public struct ModelProjection {
     public let model: Instance
 

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSyntax
 
-private struct AsyncLetProjectedBinding {
+private nonisolated struct AsyncLetProjectedBinding: Sendable {
     let name: String
     let tupleProjection: [Int]
     let annotation: String?

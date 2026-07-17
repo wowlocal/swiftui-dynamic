@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSyntax
 
-enum CoreFunctionIntrinsic {
+nonisolated enum CoreFunctionIntrinsic: Sendable {
     case intConversion
     case integerMinimum
     case integerMaximum

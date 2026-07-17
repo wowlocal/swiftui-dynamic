@@ -4,6 +4,7 @@ import SwiftSyntax
 /// Hosts may retain it and re-enter from a newly-created native task; every
 /// callback is rebound to the original evaluator context instead of relying
 /// on ambient native TaskLocal inheritance.
+@MainActor
 final class TaskBoundEvalContext: EvalContext {
     let interpreter: Interpreter
     let evaluationContext: EvaluationTaskContext

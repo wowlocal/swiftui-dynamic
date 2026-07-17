@@ -2,6 +2,7 @@
 /// value type. Ordinary host classes retain identity; bridge boxes for SDK
 /// structs adopt this protocol so every interpreter storage boundary gives
 /// them the same copy-in/copy-out ownership as their native value.
+@MainActor
 public protocol HostValueSemantic {
     func copiedHostValue() -> Any
 }
@@ -13,6 +14,7 @@ public protocol HostValueSemantic {
 /// can expose concrete equality here, including resolution of a contextual
 /// enum spelling such as `.completed`. Returning nil leaves the comparison to
 /// the interpreter's ordinary identity and value rules.
+@MainActor
 public protocol HostRuntimeEquatable {
     func runtimeEquals(_ other: Any) -> Bool?
     func runtimeEquals(implicitMemberNamed name: String) -> Bool?

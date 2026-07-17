@@ -53,6 +53,7 @@ public struct RuntimeInstant: Hashable, Sendable, Comparable,
 
 /// Monotonic time owned by the interpreter runtime. Tests inject a manual
 /// clock; production uses a continuous clock and never blocks an executor.
+@MainActor
 public protocol RuntimeClock: AnyObject {
     var now: RuntimeInstant { get }
 
@@ -65,6 +66,7 @@ public protocol RuntimeClock: AnyObject {
     func cancelSleep(task: RuntimeTaskID)
 }
 
+@MainActor
 public final class ContinuousRuntimeClock: RuntimeClock {
     private let clock = ContinuousClock()
 
@@ -94,6 +96,7 @@ public final class ContinuousRuntimeClock: RuntimeClock {
     }
 }
 
+@MainActor
 public final class ManualRuntimeClock: RuntimeClock {
     private struct Sleeper {
         let deadline: RuntimeInstant

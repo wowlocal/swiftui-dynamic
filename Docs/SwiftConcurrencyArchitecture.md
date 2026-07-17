@@ -684,6 +684,30 @@ registry. Focused tests prove inherited lookup, one-way overlay isolation,
 release of empty intermediate states, and both direct-call and runtime-entry
 registry provenance.
 
+The thirtieth prerequisite removes `defaultIsolation(MainActor.self)` from the
+`SwiftInterpreter` target. This is an isolation-boundary change, not a
+scheduler change: `Interpreter`, `RuntimeHeap`, `RuntimeProgramState`,
+`CooperativeConcurrencyRuntime`, evaluator contexts, runtime values, symbol
+graphs, environments, boxes, instances, and their mutable helper carriers now
+declare `@MainActor` directly. Executor-neutral identifiers, durations,
+immutable descriptors, syntax-only helpers, and native task/continuation
+carriers declare `Sendable` or `nonisolated` where their stored state permits
+it. No blanket `@unchecked Sendable` conformance was introduced.
+
+Removing the target default produced the architectural RED: the compiler
+reported every evaluator/runtime dependency that had relied on implicit
+isolation. A public-module Swift 6 typecheck now accepts off-actor construction
+of `RuntimeSessionID`, `RuntimeTaskID`, `RuntimeInstant`, and
+`RuntimeDuration`, while a negative fixture rejects off-actor construction of
+`RuntimeHeap`, `Interpreter`, and `RuntimeValue`. A standalone strict Swift 6
+probe read immutable program data from a detached task and mutated an explicit
+MainActor heap, returning exact `14:7` in twenty runs. The unchanged
+`task-owned-evaluator-context` same-source oracle preserves its 100-event
+multiset in twenty native/interpreter repetitions. The focused board completed
+48 ownership/isolation tests in five suites, all forty-two methodology checks,
+and both compile-boundary tests in two seconds. Physical workers, worker-safe
+heap access, cooperative-versus-parallel parity, and TSan remain open.
+
 The stable target separates five concerns:
 
 ```text
@@ -814,12 +838,16 @@ validate the active toolchain but are not historical receipts.
 
 ## 4. Current architecture and its ceiling
 
-### 4.1 Package-wide main-actor isolation
+### 4.1 Explicit interpreter isolation; MainActor-default UI boundary
 
-The package currently applies `defaultIsolation(MainActor.self)` broadly. This
-protects the mutable interpreter and fits SwiftUI, but it also means all source
-tasks ultimately execute through one native actor. Interleaving is possible at
-suspension points; physical parallelism is not.
+The `SwiftInterpreter` target no longer applies
+`defaultIsolation(MainActor.self)`. Immutable and value-semantic descriptors
+therefore remain executor-neutral by default, while mutable evaluator, runtime,
+symbol, value, and heap capabilities declare `@MainActor` at their actual
+ownership boundary. `SwiftUIBridge`, UI executables, and their tests retain
+MainActor default isolation because that is their host contract. Source tasks
+still ultimately execute evaluator work through one native actor: interleaving
+is possible at suspension points, but physical parallelism is not.
 
 Keeping the interpreter on the main actor is acceptable during the cooperative
 executor phases. It must not be confused with source-level `@MainActor`
@@ -834,7 +862,7 @@ cooperative phase; returning the evaluator's physical thread would collapse
 the two abstraction layers. This projection does not claim physical
 parallelism.
 
-Eventually the targets should separate:
+The longer-term target split remains:
 
 - `SwiftInterpreterCore`: executor-neutral runtime and evaluator;
 - `SwiftUIBridge`: `@MainActor`-isolated UI integration;

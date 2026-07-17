@@ -1,6 +1,7 @@
 /// A tuple value with optional element labels: `(x: 1, y: 2)` or `(1, "a")`.
 /// Members are accessed as `.0`/`.1` or by label.
-public struct TupleValue: CustomStringConvertible {
+@MainActor
+public struct TupleValue: @preconcurrency CustomStringConvertible {
     public let labels: [String?]
     public var values: [RuntimeValue]
 
@@ -26,7 +27,8 @@ public struct TupleValue: CustomStringConvertible {
 /// An order-preserving dictionary of RuntimeValues. The struct storage gives
 /// assignments native value semantics; dictionary lvalues use explicit
 /// read-modify-write so nested mutations propagate to their owning box.
-public struct DictValue: CustomStringConvertible {
+@MainActor
+public struct DictValue: @preconcurrency CustomStringConvertible {
     public private(set) var keys: [RuntimeValue] = []
     public private(set) var values: [RuntimeValue] = []
 

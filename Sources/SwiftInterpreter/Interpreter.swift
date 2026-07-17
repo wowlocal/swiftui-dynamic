@@ -221,6 +221,7 @@ public nonisolated struct InterpreterBuildConfiguration: Sendable, Equatable {
 /// framework functionality itself; anything beyond core language semantics is
 /// delegated to a `HostRegistry` (the SwiftUI bridge, or a trace registry in
 /// tests).
+@MainActor
 public final class Interpreter {
     /// Empty compatibility surface used only before the first program is
     /// prepared. Every executable program receives a distinct state object.

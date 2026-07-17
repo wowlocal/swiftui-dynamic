@@ -44,6 +44,7 @@ public nonisolated enum ReferenceOwnership: Sendable, Equatable {
 /// use the same zeroing host primitive: the interpreter converts a missing
 /// formerly-live target into its own RuntimeError instead of crashing the host
 /// process with a native dangling-unowned trap.
+@MainActor
 private final class RuntimeReferenceStorage {
     enum TargetKind {
         case interpreted
@@ -144,12 +145,13 @@ private final class RuntimeReferenceStorage {
     }
 }
 
-private struct DanglingUnownedReference {}
+private nonisolated struct DanglingUnownedReference: Sendable {}
 
 /// A mutable binding. Environments hand out Boxes rather than values so that
 /// closures capturing an environment see later mutations — matching Swift's
 /// capture-by-reference semantics for `var`s. `@State` storage is also a Box;
 /// its `onChange` observer is what drives SwiftUI re-rendering.
+@MainActor
 public final class Box {
     private enum Storage {
         case strong(RuntimeValue)
@@ -241,6 +243,7 @@ public final class Box {
 /// A top-level global not yet initialized — real Swift globals are lazy, so
 /// forward/cross-file references work. Forced (evaluated + replaced) on
 /// first read.
+@MainActor
 public final class LazyGlobal {
     public let initializer: ExprSyntax?
     public let annotation: TypeSyntax?
@@ -253,6 +256,7 @@ public final class LazyGlobal {
 
 /// `var uptime: String { … }` at FILE scope — a global computed property:
 /// the accessor evaluates on every read (never cached).
+@MainActor
 public final class ComputedGlobal {
     public let accessor: CodeBlockItemListSyntax
     public let annotation: TypeSyntax?
@@ -265,6 +269,7 @@ public final class ComputedGlobal {
 
 /// A lexical scope: a dictionary of named Boxes with a parent chain
 /// (block → closure/method → globals).
+@MainActor
 public final class Environment {
     private let retainedParent: Environment?
     private weak var unretainedParent: Environment?

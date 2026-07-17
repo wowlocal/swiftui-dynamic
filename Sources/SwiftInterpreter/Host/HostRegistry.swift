@@ -5,7 +5,9 @@ enum CallArgumentSourceProvenance: Equatable {
     case directGlobalAsyncFunctionDeclaration
 }
 
+@MainActor
 public struct CallArguments {
+    @MainActor
     public struct Argument {
         public let label: String?
         public let value: RuntimeValue
@@ -86,6 +88,7 @@ public struct CallArguments {
 }
 
 /// A gateway for `.modifier(...)` calls on host view values.
+@MainActor
 public struct HostModifier {
     public let name: String
     public let apply: @MainActor (RuntimeValue, CallArguments, EvalContext) throws -> RuntimeValue
@@ -99,6 +102,7 @@ public struct HostModifier {
 /// What gateways can ask of the interpreter mid-call: run an interpreted
 /// closure (Button actions, ForEach content) or evaluate one in ViewBuilder
 /// mode (container content).
+@MainActor
 public protocol EvalContext: AnyObject {
     /// Logical executor currently running interpreted source. Cooperative
     /// builds may physically host every instruction on MainActor while still
@@ -368,6 +372,7 @@ extension EvalContext {
 /// Implemented by the SwiftUI bridge (and by the trace registry in tests).
 /// The interpreter core never imports SwiftUI; view values flow through it
 /// opaquely and all rendering decisions happen behind this protocol.
+@MainActor
 public protocol HostRegistry: AnyObject {
     /// Generated declarations compiled and imported by native semantic
     /// preflight. Runtime implementations remain in this registry; the module

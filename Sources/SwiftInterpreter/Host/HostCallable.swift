@@ -3,6 +3,7 @@
 /// and call the real API. Gateways are immutable reference descriptors: this
 /// keeps the runtime-value payload small while allowing dual sync/async entry
 /// points without exposing their storage layout.
+@MainActor
 public final class HostFunction {
     public let name: String
     /// Source generic specialization carried by constructor-shaped host
@@ -355,6 +356,7 @@ public final class HostFunction {
 /// Typed getter/setter descriptor for framework properties. `HostRegistry`
 /// performs lookup by receiver and name; this descriptor validates the
 /// receiver, getter result, and every assigned value before host code runs.
+@MainActor
 public final class HostProperty {
     public typealias Getter = @MainActor
         (RuntimeValue, EvalContext) throws -> RuntimeValue

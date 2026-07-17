@@ -7,6 +7,7 @@ import SwiftSyntax
 /// delayed materialization unobservable while removing RuntimeValue traffic
 /// from the repeated path. Read-only observed Boxes are safe: fallback blocks
 /// run through a synchronization boundary and refresh the cached value.
+@MainActor
 fileprivate final class PreparedIntSlot {
     let box: Box
     var value: Int
@@ -51,6 +52,7 @@ fileprivate final class PreparedIntSlot {
 /// It is refreshed after every ordinary fallback block, so mutations through
 /// aliases or source subscript assignment become visible before execution
 /// returns to the prepared path.
+@MainActor
 fileprivate final class PreparedIntCollection {
     private enum Storage {
         case array([Int])
@@ -116,6 +118,7 @@ fileprivate final class PreparedIntCollection {
     }
 }
 
+@MainActor
 fileprivate final class PreparedLoopState {
     private let integerSlots: [PreparedIntSlot]
     private let integerCollections: [PreparedIntCollection]
@@ -157,6 +160,7 @@ fileprivate final class PreparedLoopState {
 /// may enter an ordinary evaluator block through an explicit synchronization
 /// boundary. Any other unsupported syntax rejects the plan, so this remains an
 /// optimization and never becomes an alternate acceptance path for source.
+@MainActor
 final class PreparedFiniteLoop {
     private let environment: Environment
     private let elements: [Int]
@@ -234,6 +238,7 @@ final class PreparedFiniteLoop {
     }
 }
 
+@MainActor
 fileprivate enum PreparedLoopStatement {
     case store(PreparedIntSlot, PreparedIntExpression)
     case compound(
@@ -349,11 +354,13 @@ fileprivate enum PreparedLoopStatement {
     }
 }
 
+@MainActor
 fileprivate enum PreparedConditionalBody {
     case prepared([PreparedLoopStatement])
     case fallback(CodeBlockItemListSyntax)
 }
 
+@MainActor
 fileprivate indirect enum PreparedIntExpression {
     case constant(Int)
     case slot(PreparedIntSlot)
@@ -412,6 +419,7 @@ fileprivate indirect enum PreparedIntExpression {
 /// Located adapter for the shared integer core. Keeping this as a direct call
 /// avoids allocating a relocation closure for every prepared arithmetic node.
 @inline(__always)
+@MainActor
 private func preparedApply(
     _ operation: Builtins.IntBinaryOperation,
     _ lhs: Int,
@@ -426,6 +434,7 @@ private func preparedApply(
     }
 }
 
+@MainActor
 fileprivate indirect enum PreparedBoolExpression {
     case constant(Bool)
     case slot(Box, ExprSyntax)
@@ -488,6 +497,7 @@ private nonisolated final class PreparedLoopCaptureVisitor: SyntaxVisitor {
     }
 }
 
+@MainActor
 private final class PreparedFiniteLoopCompiler {
     private unowned let interpreter: Interpreter
     private let environment: Environment

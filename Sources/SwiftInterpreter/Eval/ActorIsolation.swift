@@ -1,7 +1,7 @@
 /// Source value used when `#isolation` names an executor without an
 /// interpreted actor instance (currently MainActor). Source actors retain
 /// their real `Instance` value so identity and lifetime remain canonical.
-struct RuntimeActorIsolationValue {
+nonisolated struct RuntimeActorIsolationValue: Sendable {
     let executor: RuntimeExecutorKind
 }
 

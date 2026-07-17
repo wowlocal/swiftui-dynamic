@@ -8832,3 +8832,36 @@ and lexical frames now select the originating host registry for direct calls
 as well as callback-created entries. Dedicated tests cover the original
 `390.0` case, overload provenance, overlay immutability, empty-state release,
 and direct/callback registry identity.
+
+### Explicit interpreter isolation boundary
+
+The thirtieth M9 prerequisite removes the `SwiftInterpreter` target's implicit
+`defaultIsolation(MainActor.self)`. Mutable language state and evaluation stay
+confined: the interpreter facade, heap, runtime/program state, cooperative task
+registry, evaluator contexts, runtime values, environments, boxes, symbols,
+instances, host-call capabilities, and their mutable helper carriers now state
+`@MainActor` directly. Immutable runtime IDs, clock descriptors, syntax-only
+helpers, and safe native task/continuation carriers are executor-neutral and
+Sendable. The change adds no blanket `@unchecked Sendable` escape hatch and no
+physical scheduler.
+
+The architectural RED was the target build after removing the default: it
+exposed every implicit-isolation dependency. The committed module-boundary
+fixtures now use the real Swift 6 compiler with complete strict concurrency.
+`ExecutorNeutralDescriptors.swift` typechecks while constructing runtime IDs
+and clock values from a `nonisolated` function;
+`MutableRuntimeOffActor.swift` must reject `RuntimeHeap`, `Interpreter`, and
+`RuntimeValue` construction outside MainActor. A standalone native probe
+combining a detached immutable read with `MainActor.run` returned exact `14:7`
+in twenty runs.
+
+This slice has no semantic RED, so it reuses the unchanged
+`task-owned-evaluator-context` characterization. Native Swift and the
+interpreter preserve the complete 100-event multiset in twenty bounded runs;
+completion order remains deliberately unspecified and shard digests are not
+compared. The canonical focused iteration completed 48 ownership/isolation
+tests in five suites, both compile-boundary tests, all forty-two methodology
+checks, and all twenty parity repetitions on four workers in two seconds.
+Evaluation is still MainActor-hosted. Heap-edge classification, physical
+workers, cooperative-versus-parallel parity, and Thread Sanitizer evidence
+remain open M9 work.

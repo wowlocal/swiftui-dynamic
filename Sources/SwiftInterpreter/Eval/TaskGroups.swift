@@ -1,6 +1,6 @@
 import Foundation
 
-private enum SourceTaskGroupOutcomeConsumer: Equatable {
+private nonisolated enum SourceTaskGroupOutcomeConsumer: Equatable, Sendable {
     case scopeExit
     case waitForAll
 }

@@ -4,6 +4,7 @@ import SwiftSyntax
 /// environment captured at creation. Methods are represented as closures whose
 /// captured environment has `self` bound. `isBuilder` marks `@ViewBuilder`
 /// functions and `some View` returns — their bodies evaluate in builder mode.
+@MainActor
 public final class ClosureValue {
     public nonisolated struct Parameter: Sendable {
         public let name: String
@@ -169,7 +170,7 @@ public final class ClosureValue {
 }
 
 /// Identity of a host-extension method execution (type + member).
-public struct ExtensionFrame: Hashable {
+public nonisolated struct ExtensionFrame: Hashable, Sendable {
     public let typeName: String
     public let member: String
 }

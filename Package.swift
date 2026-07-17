@@ -3,12 +3,16 @@ import PackageDescription
 
 let mainActorByDefault: [SwiftSetting] = [.defaultIsolation(MainActor.self)]
 
+// Keep the core target executor-neutral by default. Mutable evaluator/runtime
+// capabilities declare their actual MainActor confinement in source; the UI
+// bridge and host executables retain MainActor default isolation below.
+//
 // `-Onone` gives the evaluator's large syntax-dispatch functions 15–20 KB
 // stack frames and turns enum/tree dispatch into the dominant cost. That can
 // exhaust an iOS main thread's ~1 MB stack and makes data-heavy interpretation
 // needlessly slow on macOS. Keep the surrounding app debuggable while compiling
 // the execution engine itself with production-quality frames and dispatch.
-let interpreterSettings = mainActorByDefault + [
+let interpreterSettings: [SwiftSetting] = [
     .unsafeFlags(["-O"], .when(platforms: [.iOS, .macOS], configuration: .debug)),
 ]
 

@@ -2,6 +2,7 @@
 ///
 /// The handle is a core runtime value rather than a SwiftUI stub: cancellation
 /// and completion semantics must be identical for every host registry.
+@MainActor
 public enum RuntimeTaskOutcome {
     case success(RuntimeValue, successType: String?)
     case failure(RuntimeValue, failureType: String?)
@@ -12,7 +13,11 @@ public enum RuntimeTaskOutcome {
 ///
 /// The value keeps interpreted payloads intact so enum-pattern matching and
 /// `get()` can rethrow an app-defined error rather than reducing it to text.
-public final class RuntimeResultValue: CaseShaped, CustomStringConvertible {
+@MainActor
+public final class RuntimeResultValue:
+    CaseShaped, @preconcurrency CustomStringConvertible
+{
+    @MainActor
     public enum Outcome {
         case success(RuntimeValue, type: String?)
         case failure(RuntimeValue, type: String?)
@@ -50,12 +55,14 @@ public final class RuntimeResultValue: CaseShaped, CustomStringConvertible {
     }
 }
 
+@MainActor
 public final class RuntimeTaskHandle {
     public typealias State = RuntimeTaskState
 
     /// Value-only state retained after the active registry and native driver
     /// are released. Runtime values survive only through the logical outcome,
     /// which is exactly what later `value` and `result` reads require.
+    @MainActor
     private struct ReleasedState {
         let id: RuntimeTaskID
         let sessionID: RuntimeSessionID
