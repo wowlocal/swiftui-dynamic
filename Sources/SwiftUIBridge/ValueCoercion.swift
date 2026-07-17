@@ -213,8 +213,13 @@ enum Coerce {
             }
         }
         if case .implicitMember(let name) = value {
-            if let color = colorNamed(name) { return AnyShapeStyle(color) }
             switch name {
+            // In a STYLE position the hierarchy names are HIERARCHICAL
+            // styles deriving from the current primary (the accent-tinted
+            // card-header icons) — Color.primary/.secondary are only for
+            // COLOR positions (Coerce.color).
+            case "primary": return AnyShapeStyle(HierarchicalShapeStyle.primary)
+            case "secondary": return AnyShapeStyle(HierarchicalShapeStyle.secondary)
             case "tertiary": return AnyShapeStyle(.tertiary)
             case "quaternary": return AnyShapeStyle(.quaternary)
             case "ultraThinMaterial": return AnyShapeStyle(.ultraThinMaterial)
@@ -225,6 +230,7 @@ enum Coerce {
             case "bar": return AnyShapeStyle(.bar)
             default: break
             }
+            if let color = colorNamed(name) { return AnyShapeStyle(color) }
         }
         throw RuntimeError(message: "expected a color/gradient/material, got \(value.stringified)")
     }

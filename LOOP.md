@@ -1917,3 +1917,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   smoke + R3 all green; Mythic pre-existing failure unchanged. Next:
   gate + close for the corners/alignment pair; remaining truck 0.113%
   = three header icons.
+- 2026-07-17 TRUCK AE=0 — pixel-perfect (worktree iteration 29): the
+  header-icon class was the style funnel handing back the CONCRETE
+  Color.secondary in STYLE positions — native `.secondary` there is
+  the HIERARCHICAL style deriving from the current primary, so the
+  card-header icons rendered gray instead of the accent-derived tint.
+  Funnel reordered: primary/secondary/tertiary/quaternary resolve as
+  HierarchicalShapeStyle BEFORE colorNamed, and the foregroundColor
+  gateway keeps true Color semantics (colorLike first — the deprecated
+  API takes a Color, not a style). Truck 0.113% -> 0.000% AND
+  card-orders 0.168% -> 0.000% (its status plate was the same class).
+  FOUR rows at AE=0: donut-view, card-donuts, card-orders, TRUCK —
+  the mission's primary screen is pixel-identical to native, including
+  through the R3 mutation (detail-truck 0.000%). Pin:
+  hierarchicalSecondaryDerivesFromAccent (bitmap equality against a
+  compiled native control of the exact header shape). Remaining board:
+  socialfeed 0.166, donuts 0.437, orders 0.492, content (documented
+  artifact). Gate rolling for the close.

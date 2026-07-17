@@ -117,6 +117,11 @@ extension ViewRegistry {
         // stays handwritten.
         register("foregroundColor") { view, args, _ in
             guard let value = args.positional(0) else { throw RuntimeError(message: "missing style argument") }
+            // The deprecated API takes a COLOR — Color.secondary here, not
+            // the hierarchical style (that's foregroundStyle's domain).
+            if let color = Coerce.colorLike(value) {
+                return AnyView(view.foregroundColor(color))
+            }
             return AnyView(view.foregroundStyle(try Coerce.shapeStyle(value)))
         }
 
