@@ -426,15 +426,6 @@ public final class Interpreter {
         get { evaluationTaskContext.evaluationDepth }
         set { evaluationTaskContext.evaluationDepth = newValue }
     }
-    /// Stack bounds are thread-stable for this main-actor interpreter. Cache
-    /// them once instead of asking pthread for the same values at every
-    /// recursion probe on the expression hot path.
-    struct EvaluationStackBounds {
-        let lowerBound: UInt
-        let size: UInt
-        let safetyHeadroom: UInt
-    }
-    var evaluationStackBounds: EvaluationStackBounds?
     var resolveAnnotatedDepth: Int {
         get { evaluationTaskContext.resolveAnnotatedDepth }
         set { evaluationTaskContext.resolveAnnotatedDepth = newValue }

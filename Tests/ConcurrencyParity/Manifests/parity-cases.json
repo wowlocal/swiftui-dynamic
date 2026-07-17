@@ -472,7 +472,7 @@
     "interpreterEntry": "startCancellationContextProbe()",
     "interpreterProjection": "instance-task-state-and-string-array:first:events",
     "nativeFact": "Cancelling a task only after it has entered a cancellable suspension completes it with CancellationError, while an interleaved sibling retains its extension's lexical nested type and completes with 'beta'.",
-    "notes": "The started barrier forces cancellation-during-suspension. No task-start or sibling-completion order is asserted."
+    "notes": "The started barrier forces cancellation-during-suspension. No task-start or sibling-completion order is asserted. This exact fixture also guards task-owned evaluator cleanup after the native-stack cache became pthread-scoped; it makes no physical-thread placement claim."
   },
   {
     "id": "detached-host-context-reentry",

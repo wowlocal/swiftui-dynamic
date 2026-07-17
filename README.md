@@ -116,6 +116,9 @@ with the detailed design in
   the synchronous facade context keeps reserved ID `0`. Evaluator contexts
   identify their owning runtime rather than retaining or identifying the
   interpreter facade; explicit host re-entry capabilities remain separate.
+  The native-stack guard cache is task-owned too and is keyed by the stable
+  numeric ID of its supplying pthread, so a Swift task that resumes on another
+  worker cannot reuse the previous thread's stack geometry.
   Remaining member semantics, call-site semantic resolution, compiler
   metadata, evaluator/session migration, heap-edge classification, workers,
   mode-differential parity, and TSan are still open.

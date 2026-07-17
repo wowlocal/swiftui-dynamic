@@ -553,6 +553,31 @@ The canonical parallel iteration completed nine targeted tests in six suites,
 all forty-two methodology checks, and all twenty exact parity repetitions on
 four workers in 1.9 seconds.
 
+Its twenty-sixth prerequisite verifies that native-stack guard geometry is
+task-owned and never treated as stable across pthread migration. The
+compile-time RED requires `EvaluationTaskContext.evaluationStackBounds`, a
+stable numeric pthread ID on `EvaluationStackBounds`, and cleanup as part of
+`removeAllDynamicState()`. The production check must select the cache only
+when the current pthread ID matches; otherwise it must query fresh stack
+bounds. A long-lived compatibility context follows the same rule.
+
+The native observation is a separately compiled Apple Swift 6.3.3 program:
+256 child tasks each cross 32 checked-continuation suspensions. Three runs
+observe 5,663, 5,636, and 5,720 pthread changes. The counts are evidence of
+migration, not a required scheduler result. The semantic differential remains
+the unchanged exact `task-context-cancellation` fixture, whose explicit
+started barrier avoids an ordering assumption. Native Swift and the
+interpreter must both produce `cancelled,beta` in all twenty bounded
+repetitions; the canonical native digest is
+`ba7179bb0bf0eee67a3387d8970c61377f3858c23b6b8764d9c2b37403530735` per
+shard. Focused coverage also retains source-task and async-initializer contexts
+through completion and requires them to be dynamically empty, including the
+stack cache. No worker-count, physical-thread placement, or parallel-execution
+claim follows from this prerequisite.
+The canonical parallel iteration completed ten targeted tests in five suites,
+all forty-two methodology checks, and all twenty exact parity repetitions on
+four workers in 2.1 seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

@@ -3,6 +3,25 @@ import Testing
 
 @Suite("Concurrency runtime ownership")
 struct ConcurrencyRuntimeOwnershipTests {
+    @Test func nativeStackBoundsAreTaskOwnedAndThreadScoped() {
+        let runtime = CooperativeConcurrencyRuntime()
+        let first = runtime.makeEvaluationTaskContext()
+        let second = runtime.makeEvaluationTaskContext()
+
+        first.evaluationStackBounds = EvaluationStackBounds(
+            threadID: 41,
+            lowerBound: 1,
+            size: 2,
+            safetyHeadroom: 3)
+
+        #expect(first.evaluationStackBounds?.matches(threadID: 41) == true)
+        #expect(first.evaluationStackBounds?.matches(threadID: 42) == false)
+        #expect(second.evaluationStackBounds == nil)
+
+        first.removeAllDynamicState()
+        #expect(first.evaluationStackBounds == nil)
+    }
+
     @Test func evaluationContextUsesRuntimeIdentityWithoutRetainingFacade() {
         var interpreter: Interpreter? = Interpreter()
         guard let runtime = interpreter?.concurrencyRuntime else {

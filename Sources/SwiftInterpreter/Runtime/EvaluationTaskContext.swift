@@ -1,6 +1,21 @@
 import Foundation
 import SwiftSyntax
 
+/// Native stack geometry is a pthread capability, not a property of an
+/// interpreter facade or a Swift task. A source task may resume on another
+/// pthread after suspension, so every cached value records the thread that
+/// supplied it.
+struct EvaluationStackBounds {
+    let threadID: UInt64
+    let lowerBound: UInt
+    let size: UInt
+    let safetyHeadroom: UInt
+
+    func matches(threadID candidate: UInt64) -> Bool {
+        threadID == candidate
+    }
+}
+
 /// Mutable evaluator state owned by exactly one interpreted source task.
 ///
 /// The interpreter remains MainActor-confined while the concurrency runtime
@@ -25,6 +40,7 @@ final class EvaluationTaskContext {
     var steps = 0
     var callDepth = 0
     var evaluationDepth = 0
+    var evaluationStackBounds: EvaluationStackBounds?
     var resolveAnnotatedDepth = 0
     var synchronousTaskDepth = 0
     var asyncTemporarySerial = 0
@@ -82,6 +98,7 @@ final class EvaluationTaskContext {
         steps == 0
             && callDepth == 0
             && evaluationDepth == 0
+            && evaluationStackBounds == nil
             && resolveAnnotatedDepth == 0
             && synchronousTaskDepth == 0
             && asyncTemporarySerial == 0
@@ -115,6 +132,7 @@ final class EvaluationTaskContext {
         steps = 0
         callDepth = 0
         evaluationDepth = 0
+        evaluationStackBounds = nil
         resolveAnnotatedDepth = 0
         synchronousTaskDepth = 0
         asyncTemporarySerial = 0

@@ -552,6 +552,37 @@ The canonical parallel iteration completed nine ownership/re-entry tests in
 six suites, all forty-two methodology checks, and all twenty exact parity
 repetitions on four workers in 1.9 seconds.
 
+The twenty-sixth prerequisite removes the facade-wide native-stack-bounds
+cache. Stack geometry belongs to a pthread, while recursion counters and their
+guard state belong to one source task. Each `EvaluationTaskContext` therefore
+owns one optional `EvaluationStackBounds` tagged with the stable numeric ID of
+the pthread that supplied it. The evaluator reuses that geometry only while
+the current ID matches, recomputes it after a thread migration, and clears it
+with the rest of the task's dynamic state at completion. The synchronous
+compatibility context uses the same rule, so even that long-lived context
+cannot assume thread affinity.
+
+The architectural RED was compile-time: `EvaluationTaskContext` exposed no
+stack-bound state, while `Interpreter` held one mutable cache justified only by
+current MainActor confinement. A real Apple Swift 6.3.3 probe compiled 256
+child tasks with 32 checked-continuation suspensions each. Three executions
+observed 5,663, 5,636, and 5,720 transitions between pthreads. Those counts and
+their scheduling order are not contractual; they are a direct witness that a
+task-to-thread affinity assumption is invalid. The focused ownership test now
+proves two contexts do not share the cache and completion clears it. Retained
+source-task and async-initializer contexts additionally remain dynamically
+empty after execution, including this cache.
+
+The unchanged `task-context-cancellation` same-source oracle remains exact at
+`cancelled,beta` in twenty native/interpreter repetitions. Every native shard
+reports SHA-256
+`ba7179bb0bf0eee67a3387d8970c61377f3858c23b6b8764d9c2b37403530735`.
+This change removes mutable facade state and makes the guard migration-safe;
+it does not make the evaluator Sendable or claim physical parallelism.
+The canonical parallel iteration completed ten targeted tests in five suites,
+all forty-two methodology checks, and all twenty exact parity repetitions on
+four workers in 2.1 seconds.
+
 The stable target separates five concerns:
 
 ```text
