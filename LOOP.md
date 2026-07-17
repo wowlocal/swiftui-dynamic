@@ -1573,3 +1573,14 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   belongs to the concurrency lane (their tests + validator script);
   the mechanism is posted in claims. Five lane commits remain queued
   for one clean gate.
+- 2026-07-17 gate deadlock FIXED (worktree iteration 11): every test
+  Process spawn now sets standardInput = FileHandle.nullDevice — the
+  ruby validator child inherited the parallel worker's never-closing
+  stdin pipe and waitUntilExit pinned both workers (~89 tests in).
+  With the fix the suite RUNS TO COMPLETION under the gate (1064
+  tests in 413s). One NEW failure surfaced and is attributed
+  upstream: sessionScriptToleranceIntervalsAndAppending (top-level
+  fatalError tolerance for merged tooling scripts) passes at lane
+  ffedc48 and fails after merge 6909753 brought the concurrency
+  lane's AsyncThrowingStream/actor series — flagged in claims. The
+  six-commit queue still awaits one clean gate.
