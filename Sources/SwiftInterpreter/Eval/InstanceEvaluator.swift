@@ -223,7 +223,7 @@ extension Interpreter {
     private func initializerIsAsync(
         _ initializer: InitializerDeclSyntax
     ) -> Bool {
-        initializer.signature.effectSpecifiers?.asyncSpecifier != nil
+        initializerMetadata(for: initializer).isAsync
     }
 
     public func instantiate(_ symbol: StructSymbol, with args: CallArguments, node: Syntax? = nil) throws -> RuntimeValue {
@@ -372,7 +372,7 @@ extension Interpreter {
             }
             let initialized = try runInitializer(
                 chosen, on: instance, args: args, node: node)
-            return chosen.optionalMark != nil
+            return initializerMetadata(for: chosen).isFailable
                 ? initialized.liftedToOptional(wrappedTypeName: symbol.name)
                 : initialized
         }
@@ -417,7 +417,7 @@ extension Interpreter {
         let instance = try makeInstanceSeed(for: symbol, node: node)
         let initialized = try await runInitializerSuspending(
             chosen, on: instance, args: arguments, node: node)
-        return chosen.optionalMark != nil
+        return initializerMetadata(for: chosen).isFailable
             ? initialized.liftedToOptional(wrappedTypeName: symbol.name)
             : initialized
     }
@@ -435,7 +435,8 @@ extension Interpreter {
         _ chosen: InitializerDeclSyntax, on instance: Instance,
         args: CallArguments, node: Syntax?
     ) throws -> RuntimeValue {
-        guard let body = chosen.body else {
+        let metadata = initializerMetadata(for: chosen)
+        guard let body = metadata.body else {
             throw RuntimeError(message: "init of '\(instance.symbol.name)' has no body")
         }
         let inserted = activeInitializers.insert(chosen.id).inserted
@@ -446,25 +447,20 @@ extension Interpreter {
         let ownsInitializationFlag = !instance.isInitializing
         if ownsInitializationFlag { instance.isInitializing = true }
         defer { if ownsInitializationFlag { instance.isInitializing = false } }
-        let parameters = initializerMetadata(for: chosen).parameters
         let initEnv = selfEnvironment(.instance(instance))
-        let closure = ClosureValue(
-            parameters: parameters,
-            body: body.statements,
+        let closure = makeInitializerClosure(
+            chosen,
+            body: body,
             captured: initEnv,
-            programMetadata: currentProgramMetadata
-        )
-        // Initializers have their declaration's lexical scope just like
-        // methods; otherwise a nested name can resolve in the caller's type.
-        closure.lexicalOwner = declLexicalOwners[chosen.id] ?? instance.symbol
-        closure.debugName = "init:\(instance.symbol.name)"
+            debugName: "init:\(instance.symbol.name)",
+            fallbackLexicalOwner: instance.symbol)
         let outcome: RuntimeValue
         do {
             outcome = try callWithArguments(closure, args: args, node: node)
         } catch let failure as RuntimeError where failure.message == Self.initFailedSentinel {
             return .nilValue // a delegated failable init said no
         }
-        if chosen.optionalMark != nil, outcome.isNil {
+        if metadata.isFailable, outcome.isNil {
             return .nilValue // failable init: `return nil` means NO value
         }
         if case .instance(let final)? = initEnv.lookup("self"), final !== instance {
@@ -479,7 +475,8 @@ extension Interpreter {
         _ chosen: InitializerDeclSyntax, on instance: Instance,
         args: CallArguments, node: Syntax?
     ) async throws -> RuntimeValue {
-        guard let body = chosen.body else {
+        let metadata = initializerMetadata(for: chosen)
+        guard let body = metadata.body else {
             throw RuntimeError(
                 message: "init of '\(instance.symbol.name)' has no body")
         }
@@ -493,13 +490,12 @@ extension Interpreter {
         defer { if ownsInitializationFlag { instance.isInitializing = false } }
 
         let initEnv = selfEnvironment(.instance(instance))
-        let closure = ClosureValue(
-            parameters: initializerMetadata(for: chosen).parameters,
-            body: body.statements,
+        let closure = makeInitializerClosure(
+            chosen,
+            body: body,
             captured: initEnv,
-            programMetadata: currentProgramMetadata)
-        closure.lexicalOwner = declLexicalOwners[chosen.id] ?? instance.symbol
-        closure.debugName = "asyncInit:\(instance.symbol.name)"
+            debugName: "asyncInit:\(instance.symbol.name)",
+            fallbackLexicalOwner: instance.symbol)
 
         let outcome: RuntimeValue
         do {
@@ -509,7 +505,7 @@ extension Interpreter {
             where failure.message == Self.initFailedSentinel {
             return .nilValue
         }
-        if chosen.optionalMark != nil, outcome.isNil { return .nilValue }
+        if metadata.isFailable, outcome.isNil { return .nilValue }
         if case .instance(let final)? = initEnv.lookup("self"),
            final !== instance {
             if ownsInitializationFlag { final.isInitializing = false }
@@ -530,18 +526,13 @@ extension Interpreter {
     }
 
     /// `init(from decoder:)` / `init(coder:)` — only decoders reach these.
-    static func isCodableInit(_ initializer: InitializerDeclSyntax) -> Bool {
-        let params = initializer.signature.parameterClause.parameters
-        guard params.count == 1, let only = params.first else { return false }
-        let label = only.firstName.text
-        let type = only.type.trimmedDescription
-        return (label == "from" && type.contains("Decoder"))
-            || (label == "coder" && type.contains("Coder"))
+    func isCodableInitializer(_ initializer: InitializerDeclSyntax) -> Bool {
+        initializerMetadata(for: initializer).isCodable
     }
 
     func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
         chooseInitializerStrict(from: initializers, for: args)
-            ?? initializers.first { !Self.isCodableInit($0) }
+            ?? initializers.first { !isCodableInitializer($0) }
             ?? initializers[0]
     }
 
@@ -669,7 +660,9 @@ extension Interpreter {
                 let closure = ClosureValue(
                     parameters: [], body: body.statements,
                     captured: selfEnvironment(.instance(instance)),
-                    programMetadata: currentProgramMetadata)
+                    programMetadata: currentProgramMetadata,
+                    programPlan: currentProgramPlan)
+                closure.programState = currentProgramState
                 closure.lexicalOwner = symbol
                 closure.lexicalExecutor = symbol.deinitializerExecutor
                 closure.executorPreference = symbol.deinitializerExecutor
@@ -846,14 +839,18 @@ extension Interpreter {
         // arguments rarely satisfy `init?` guards, and `init(from:
         // decoder)` is only ever reached through real decoders.
         let preferred = symbol.initializers.first {
-            $0.optionalMark == nil && !Self.isCodableInit($0)
-        } ?? symbol.initializers.first { !Self.isCodableInit($0) }
+            let metadata = initializerMetadata(for: $0)
+            return !metadata.isFailable && !metadata.isCodable
+        } ?? symbol.initializers.first {
+            !initializerMetadata(for: $0).isCodable
+        }
             ?? symbol.initializers.first
         if let initializer = preferred {
-            for param in initializer.signature.parameterClause.parameters
-            where param.defaultValue == nil {
-                let label = param.firstName.text
-                let typeName = param.type.trimmedDescription
+            for parameter in initializerMetadata(for: initializer).parameters
+            where parameter.defaultValue == nil {
+                let label = parameter.label ?? "_"
+                let typeName = parameter.typeAnnotation?.trimmedDescription
+                    ?? "Any"
                 let value: RuntimeValue
                 if let constraint = symbol.genericParameters[typeName] {
                     value = synthesizedGenericValue(constraint: constraint, parameter: typeName)
@@ -1052,7 +1049,7 @@ extension Interpreter {
     }
 
     func methodIsMutating(_ declaration: FunctionDeclSyntax) -> Bool {
-        declaration.modifiers.contains { $0.name.text == "mutating" }
+        functionMetadata(for: declaration).modifierNames.contains("mutating")
     }
 
     /// A type annotation turns a bare `.member` (or `.member(payload)`) into
@@ -1312,7 +1309,7 @@ extension Interpreter {
                 }
                 if let overloads = symbol.staticMethods[call.name],
                    let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
                     return try callWithArguments(closure, args: call.arguments, node: nil)
@@ -1338,7 +1335,7 @@ extension Interpreter {
                let overloads = hostSymbol.staticMethods[call.name],
                let method = chooseFunction(from: overloads, for: call.arguments)
                    ?? extensionFallback(overloads, member: call.name, typeName: typeName),
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))
                 return try callWithArguments(closure, args: call.arguments, node: nil)
@@ -1421,7 +1418,7 @@ extension Interpreter {
                let overloads = hostSymbol.staticMethods[call.name],
                let method = chooseFunction(from: overloads, for: call.arguments)
                    ?? extensionFallback(overloads, member: call.name, typeName: typeName),
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))
                 return try callWithArguments(closure, args: call.arguments, node: nil)

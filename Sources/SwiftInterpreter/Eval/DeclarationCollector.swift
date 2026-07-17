@@ -346,81 +346,7 @@ extension Interpreter {
     /// construction derives platform, environment, architecture, and active
     /// conditions from the compiler-preflight build target.
     func ifConfigConditionHolds(_ condition: ExprSyntax?) -> Bool {
-        guard let condition else { return true } // #else
-        if let paren = condition.as(TupleExprSyntax.self), paren.elements.count == 1,
-           let only = paren.elements.first {
-            return ifConfigConditionHolds(only.expression)
-        }
-        if let ref = condition.as(DeclReferenceExprSyntax.self) {
-            return buildConfiguration.activeCompilationConditions.contains(
-                ref.baseName.text)
-        }
-        if let call = condition.as(FunctionCallExprSyntax.self),
-           let callee = call.calledExpression.as(DeclReferenceExprSyntax.self) {
-            let argument = call.arguments.first?.expression.trimmedDescription ?? ""
-            switch callee.baseName.text {
-            case "os":
-                return argument == buildConfiguration.platformName
-            case "arch":
-                return argument == buildConfiguration.architecture
-            case "canImport":
-                if call.arguments.count == 2,
-                   let versionArgument = call.arguments.last,
-                   let versionKind = versionArgument.label?.text,
-                   versionKind == "_version"
-                        || versionKind == "_underlyingVersion" {
-                    return buildConfiguration.canImport(
-                        argument,
-                        versionKind: versionKind,
-                        version: versionArgument.expression
-                            .trimmedDescription)
-                }
-                if call.arguments.count != 1,
-                   buildConfiguration.authoritativeImportableModules != nil {
-                    return false
-                }
-                return buildConfiguration.canImport(argument)
-            case "swift":
-                return buildConfiguration.swiftConditionalCompilationVersion?
-                    .satisfies(argument) ?? true
-            case "compiler":
-                return buildConfiguration.compilerVersion?
-                    .satisfies(argument) ?? true
-            case "targetEnvironment":
-                return argument == buildConfiguration.targetEnvironment
-            default:
-                return buildConfiguration.conditionalCompilationQuery(
-                    predicate: callee.baseName.text,
-                    argument: argument) ?? false
-            }
-        }
-        if let prefix = condition.as(PrefixOperatorExprSyntax.self), prefix.operator.text == "!" {
-            return !ifConfigConditionHolds(prefix.expression)
-        }
-        if let infix = condition.as(InfixOperatorExprSyntax.self) {
-            let op = infix.operator.trimmedDescription
-            if op == "&&" {
-                return ifConfigConditionHolds(infix.leftOperand) && ifConfigConditionHolds(infix.rightOperand)
-            }
-            if op == "||" {
-                return ifConfigConditionHolds(infix.leftOperand) || ifConfigConditionHolds(infix.rightOperand)
-            }
-        }
-        if let sequence = condition.as(SequenceExprSyntax.self) {
-            // #if conditions aren't operator-folded; handle && / || runs.
-            let elements = Array(sequence.elements)
-            let operators = stride(from: 1, to: elements.count, by: 2).compactMap {
-                elements[$0].as(BinaryOperatorExprSyntax.self)?.operator.text
-            }
-            let operands = stride(from: 0, to: elements.count, by: 2).map { elements[$0] }
-            if operators.allSatisfy({ $0 == "&&" }), !operators.isEmpty {
-                return operands.allSatisfy { ifConfigConditionHolds($0) }
-            }
-            if operators.allSatisfy({ $0 == "||" }), !operators.isEmpty {
-                return operands.contains { ifConfigConditionHolds($0) }
-            }
-        }
-        return false
+        buildConfiguration.ifConfigConditionHolds(condition)
     }
 
     /// The first clause whose condition holds (`#else` always does).
@@ -535,46 +461,36 @@ extension Interpreter {
         return symbol
     }
 
-    private func collectStructMembers(_ block: MemberBlockSyntax, into symbol: StructSymbol) throws {
-        try collectMemberItems(block.members, into: symbol)
-    }
-
-    private func collectMemberItems(_ members: MemberBlockItemListSyntax, into symbol: StructSymbol) throws {
-        for member in members {
-            if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
-                if let clause = activeIfConfigClause(ifConfig),
-                   case .decls(let nested)? = clause.elements {
-                    try collectMemberItems(nested, into: symbol)
-                }
-                continue
-            }
-            if let varDecl = member.decl.as(VariableDeclSyntax.self) {
+    private func collectStructMembers(
+        _ block: MemberBlockSyntax,
+        into symbol: StructSymbol
+    ) throws {
+        for member in memberDeclarations(in: block) {
+            switch member {
+            case .variable(let varDecl):
                 try collectProperties(varDecl, into: symbol)
-            } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
+            case .function(let funcDecl):
                 declLexicalOwners[funcDecl.id] = symbol
-                if isStatic(funcDecl.modifiers) {
-                    symbol.staticMethods[funcDecl.name.text, default: []].append(funcDecl)
+                let metadata = functionMetadata(for: funcDecl)
+                if metadata.isTypeMember {
+                    symbol.staticMethods[metadata.name, default: []].append(
+                        funcDecl)
                 } else {
-                    symbol.methods[funcDecl.name.text, default: []].append(funcDecl)
+                    symbol.methods[metadata.name, default: []].append(funcDecl)
                 }
-            } else if let initDecl = member.decl.as(InitializerDeclSyntax.self) {
+            case .initializer(let initDecl):
                 declLexicalOwners[initDecl.id] = symbol
                 symbol.initializers.append(initDecl)
-            } else if let deinitDecl = member.decl.as(DeinitializerDeclSyntax.self) {
-                let attributeNames = deinitDecl.attributes.compactMap {
-                    $0.as(AttributeSyntax.self)?.attributeName
-                        .trimmedDescription.split(separator: ".").last
-                        .map(String.init)
-                }
-                if deinitDecl.modifiers.contains(where: {
-                    $0.name.text == "isolated"
-                }) || !attributeNames.isEmpty {
+            case .deinitializer(let deinitDecl):
+                let metadata = deinitializerMetadata(for: deinitDecl)
+                if metadata.requiresIsolationResolution {
                     pendingDeinitializerIsolationChecks.append((
                         symbol: symbol,
-                        declaration: deinitDecl))
+                        declaration: deinitDecl,
+                        metadata: metadata))
                 }
-                symbol.deinitBody = deinitDecl.body
-            } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
+                symbol.deinitBody = metadata.body
+            case .typeAlias(let alias):
                 // Member typealiases resolve like nested types (bare name
                 // when unclaimed); generic arguments drop.
                 let metadata = typeAliasMetadata(for: alias)
@@ -596,9 +512,11 @@ extension Interpreter {
                    let enumSymbol = enumSymbols[target] {
                     enumSymbols[metadata.name] = enumSymbol
                 }
-            } else if let subscriptDecl = member.decl.as(SubscriptDeclSyntax.self),
-                      let accessorBlock = subscriptDecl.accessorBlock,
-                      let accessors = parseAccessors(of: accessorBlock) {
+            case .subscriptDeclaration(let subscriptDecl):
+                guard let accessorBlock = subscriptDecl.accessorBlock,
+                      let accessors = parseAccessors(of: accessorBlock) else {
+                    continue
+                }
                 declLexicalOwners[subscriptDecl.id] = symbol
                 let metadata = subscriptMetadata(for: subscriptDecl)
                 symbol.subscripts.append(.init(
@@ -610,7 +528,7 @@ extension Interpreter {
                     declarationID: subscriptDecl.id,
                     isAsync: accessors.isGetterAsync,
                     isThrowing: accessors.isGetterThrowing))
-            } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
+            case .enumeration(let nestedEnum):
                 if Self.tracedIdentifier == nestedEnum.name.text {
                     Swift.print("   ⌗ nestedEnum \(symbol.name).\(nestedEnum.name.text) bareTaken=\(enumSymbols[nestedEnum.name.text] != nil)")
                 }
@@ -630,17 +548,19 @@ extension Interpreter {
                 if globals.lookup(nested.name) == nil {
                     globals.define(nested.name, .enumType(nested))
                 }
-            } else if let nestedStruct = member.decl.as(StructDeclSyntax.self) {
+            case .structure(let nestedStruct):
                 let nestedSymbol = try makeStructSymbol(nestedStruct)
                 registerNestedType(nestedSymbol, in: symbol)
-            } else if let nestedClass = member.decl.as(ClassDeclSyntax.self) {
+            case .classType(let nestedClass):
                 // Nested classes (UserPreferences.Storage) register like
                 // nested structs — reference-typed.
                 let nestedSymbol = try makeClassLikeSymbol(nestedClass)
                 registerNestedType(nestedSymbol, in: symbol)
-            } else if let nestedActor = member.decl.as(ActorDeclSyntax.self) {
+            case .actor(let nestedActor):
                 let nestedSymbol = try makeClassLikeSymbol(nestedActor)
                 registerNestedType(nestedSymbol, in: symbol)
+            case .enumCase, .protocolType, .other:
+                continue
             }
         }
     }
@@ -910,8 +830,8 @@ extension Interpreter {
         let rawIsString = symbol.conformances.contains("String")
 
         var nextIntRaw = 0
-        for decl in flattenedMemberDecls(node.memberBlock.members) {
-            if let caseDecl = decl.as(EnumCaseDeclSyntax.self) {
+        for member in memberDeclarations(in: node.memberBlock) {
+            if case .enumCase(let caseDecl) = member {
                 for element in caseDecl.elements {
                     let caseMetadata = enumCaseMetadata(for: element)
                     let caseName = caseMetadata.name
@@ -933,36 +853,21 @@ extension Interpreter {
                         associatedTypeNames: associatedTypeNames))
                 }
             } else {
-                try collectEnumMember(decl, into: symbol)
+                try collectEnumMember(member, into: symbol)
             }
         }
         return symbol
     }
 
-    /// Member declarations with `#if` blocks expanded to their active clause
-    /// (design-token enums split statics across canImport(UIKit)/AppKit).
-    private func flattenedMemberDecls(_ members: MemberBlockItemListSyntax) -> [DeclSyntax] {
-        var result: [DeclSyntax] = []
-        for member in members {
-            if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
-                if let clause = activeIfConfigClause(ifConfig),
-                   case .decls(let nested)? = clause.elements {
-                    result.append(contentsOf: flattenedMemberDecls(nested))
-                }
-                continue
-            }
-            result.append(member.decl)
-        }
-        return result
-    }
-
-    private func collectEnumMember(_ decl: DeclSyntax, into symbol: EnumSymbol) throws {
-        if let initDecl = decl.as(InitializerDeclSyntax.self) {
+    private func collectEnumMember(
+        _ member: ParsedMemberDeclaration,
+        into symbol: EnumSymbol
+    ) throws {
+        switch member {
+        case .initializer(let initDecl):
             declLexicalOwners[initDecl.id] = symbol
             symbol.initializers.append(initDecl)
-            return
-        }
-        if let varDecl = decl.as(VariableDeclSyntax.self) {
+        case .variable(let varDecl):
             let declarationMetadata = propertyMetadata(for: varDecl)
             let hasBuilderAttribute = declarationMetadata.hasBuilderAttribute
             let isStaticDecl = declarationMetadata.isStatic
@@ -1053,14 +958,16 @@ extension Interpreter {
                     }
                 }
             }
-        } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
+        case .function(let funcDecl):
             declLexicalOwners[funcDecl.id] = symbol
-            if isStatic(funcDecl.modifiers) {
-                symbol.staticMethods[funcDecl.name.text, default: []].append(funcDecl)
+            let metadata = functionMetadata(for: funcDecl)
+            if metadata.isTypeMember {
+                symbol.staticMethods[metadata.name, default: []].append(
+                    funcDecl)
             } else {
-                symbol.methods[funcDecl.name.text, default: []].append(funcDecl)
+                symbol.methods[metadata.name, default: []].append(funcDecl)
             }
-        } else if let nestedEnum = decl.as(EnumDeclSyntax.self) {
+        case .enumeration(let nestedEnum):
             // Enums are namespaces as often as value types
             // (`TestCase.Cases.allCases`) — nested types register under the
             // dotted name and the bare name when unclaimed, mirroring the
@@ -1073,7 +980,7 @@ extension Interpreter {
             if globals.lookup(nested.name) == nil {
                 globals.define(nested.name, .enumType(nested))
             }
-        } else if let nestedStruct = decl.as(StructDeclSyntax.self) {
+        case .structure(let nestedStruct):
             let nestedSymbol = try makeStructSymbol(nestedStruct)
             symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
             structSymbols.append(nestedSymbol)
@@ -1081,7 +988,7 @@ extension Interpreter {
             if globals.lookup(nestedSymbol.name) == nil {
                 globals.define(nestedSymbol.name, .type(nestedSymbol))
             }
-        } else if let nestedClass = decl.as(ClassDeclSyntax.self) {
+        case .classType(let nestedClass):
             let nestedSymbol = try makeClassLikeSymbol(nestedClass)
             symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
             structSymbols.append(nestedSymbol)
@@ -1089,6 +996,9 @@ extension Interpreter {
             if globals.lookup(nestedSymbol.name) == nil {
                 globals.define(nestedSymbol.name, .type(nestedSymbol))
             }
+        case .actor, .deinitializer, .subscriptDeclaration, .typeAlias,
+             .enumCase, .protocolType, .other:
+            return
         }
     }
 
@@ -1146,8 +1056,8 @@ extension Interpreter {
                     symbol.conformances.append(name)
                 }
             }
-            for decl in flattenedMemberDecls(node.memberBlock.members) {
-                try collectEnumMember(decl, into: symbol)
+            for member in memberDeclarations(in: node.memberBlock) {
+                try collectEnumMember(member, into: symbol)
             }
         default:
             // Extensions of host types (`extension View { func … }`) collect
@@ -1160,34 +1070,39 @@ extension Interpreter {
                 canonical = target
                 hops += 1
             }
-            let symbol = hostExtensionSymbols[canonical]
-                ?? StructSymbol(name: canonical, conformsToView: false)
+            let symbol = mutableHostExtensionSymbol(named: canonical)
             try collectStructMembers(node.memberBlock, into: symbol)
-            hostExtensionSymbols[canonical] = symbol
         }
     }
 
     // MARK: - Functions
 
     func defineFunction(_ node: FunctionDeclSyntax, in env: Environment) throws {
-        guard let body = node.body else {
+        let metadata = functionMetadata(for: node)
+        guard let body = metadata.body else {
             // Bodyless declarations are extern/C bridges (@_silgen_name
             // Carbon privates): inert absorbers, like the C-interop family.
-            let name = node.name.text
+            let name = metadata.name
             env.define(name, .hostFunction(HostFunction(name: name) { _, _ in
                 .native(ChainedImplicitCall(
                     base: .implicitMember(name), member: "call", arguments: CallArguments()))
             }))
             return
         }
-        env.define(node.name.text, .closure(makeFunctionClosure(node, body: body, captured: env)))
+        env.define(
+            metadata.name,
+            .closure(makeFunctionClosure(node, body: body, captured: env)))
         if env === globals {
-            globalFunctionOverloads[node.name.text, default: []].append(node)
+            globalFunctionOverloads[metadata.name, default: []].append(node)
         }
     }
 
     func makeFunctionClosure(_ node: FunctionDeclSyntax, body: CodeBlockSyntax, captured: Environment) -> ClosureValue {
-        let metadata = functionMetadata(for: node)
+        let programState = programStateOwningDeclaration(node.id)
+        let programPlan = programState?.programPlan ?? currentProgramPlan
+        let programMetadata = programPlan?.metadata ?? currentProgramMetadata
+        let metadata = programMetadata?.callableMetadataIndex.metadata(for: node)
+            ?? ParsedFunctionMetadata(node)
         let closure = ClosureValue(
             parameters: metadata.parameters,
             body: body.statements,
@@ -1195,13 +1110,16 @@ extension Interpreter {
             isBuilder: metadata.isBuilder,
             returnType: metadata.returnType,
             returnTypeName: metadata.returnTypeName,
-            programMetadata: currentProgramMetadata
+            programMetadata: programMetadata,
+            programPlan: programPlan
         )
+        closure.programState = programState
         closure.functionDeclID = node.id
-        let lexicalOwner = declLexicalOwners[node.id]
+        let lexicalOwner = programState?.declarationLexicalOwners[node.id]
+            ?? declLexicalOwners[node.id]
         closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
-        closure.debugName = node.name.text
+        closure.debugName = metadata.name
         closure.sourceFunctionName = metadata.sourceFunctionName
         let isAnyNonisolated = metadata.isAnyNonisolated
         closure.isExplicitlyNonisolated = metadata.isExplicitlyNonisolated
@@ -1221,6 +1139,68 @@ extension Interpreter {
             closure.executorPreference = .actor(actorID)
         }
         return closure
+    }
+
+    /// Build every source initializer body from the same immutable metadata
+    /// and declaration-isolation rules. Actor initializers are lexically
+    /// nonisolated during initialization; ordinary class/struct/enum
+    /// initializers inherit a nominal global actor unless the declaration is
+    /// explicitly nonisolated.
+    func makeInitializerClosure(
+        _ node: InitializerDeclSyntax,
+        body: CodeBlockSyntax,
+        captured: Environment,
+        debugName: String,
+        fallbackLexicalOwner: AnyObject? = nil
+    ) -> ClosureValue {
+        let programState = programStateOwningDeclaration(node.id)
+        let programPlan = programState?.programPlan ?? currentProgramPlan
+        let programMetadata = programPlan?.metadata ?? currentProgramMetadata
+        let metadata = programMetadata?.callableMetadataIndex.metadata(for: node)
+            ?? ParsedInitializerMetadata(node)
+        let closure = ClosureValue(
+            parameters: metadata.parameters,
+            body: body.statements,
+            captured: captured,
+            programMetadata: programMetadata,
+            programPlan: programPlan)
+        closure.programState = programState
+        let lexicalOwner = programState?.declarationLexicalOwners[node.id]
+            ?? declLexicalOwners[node.id]
+            ?? fallbackLexicalOwner
+        let actorInitializer =
+            (lexicalOwner as? StructSymbol)?.isActor == true
+        closure.functionDeclID = node.id
+        closure.lexicalOwner = lexicalOwner
+        closure.debugName = debugName
+        closure.isExplicitlyNonisolated = metadata.isExplicitlyNonisolated
+        closure.executorPreference = initializerExecutorPreference(
+            metadata, lexicalOwner: lexicalOwner)
+        if !metadata.isAnyNonisolated,
+           (!actorInitializer || metadata.isMainActor) {
+            closure.globalActorAttributeCandidates =
+                metadata.attributeNames + lexicalAttributeNames(of: lexicalOwner)
+        }
+        return closure
+    }
+
+    private func initializerExecutorPreference(
+        _ metadata: ParsedInitializerMetadata,
+        lexicalOwner: AnyObject?
+    ) -> RuntimeExecutorKind? {
+        if metadata.isAnyNonisolated {
+            return nil
+        }
+        if metadata.isMainActor {
+            return .mainActor
+        }
+        if let owner = lexicalOwner as? StructSymbol, owner.isActor {
+            return nil
+        }
+        if lexicalAttributeNames(of: lexicalOwner).contains("MainActor") {
+            return .mainActor
+        }
+        return nil
     }
 
     /// Runtime executor metadata for the function forms established by the
@@ -1382,13 +1362,8 @@ extension Interpreter {
         let pending = pendingDeinitializerIsolationChecks
         pendingDeinitializerIsolationChecks.removeAll(keepingCapacity: true)
 
-        for (symbol, deinitDecl) in pending {
-            let attributeNames = deinitDecl.attributes.compactMap {
-                $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-            }
-            if deinitDecl.modifiers.contains(where: {
-                $0.name.text == "isolated"
-            }) {
+        for (symbol, deinitDecl, metadata) in pending {
+            if metadata.hasIsolatedModifier {
                 if symbol.attributeNames.contains(where: {
                     isMainActorTypeName($0)
                 }) {
@@ -1408,11 +1383,13 @@ extension Interpreter {
                 continue
             }
 
-            if attributeNames.contains(where: { isMainActorTypeName($0) }) {
+            if metadata.attributeTypeNames.contains(where: {
+                isMainActorTypeName($0)
+            }) {
                 symbol.deinitializerExecutor = .mainActor
                 continue
             }
-            guard let globalActorName = attributeNames.first(where: {
+            guard let globalActorName = metadata.attributeTypeNames.first(where: {
                 isGlobalActorTypeName($0)
             }) else { continue }
 

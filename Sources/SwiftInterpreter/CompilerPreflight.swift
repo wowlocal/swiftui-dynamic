@@ -29,7 +29,7 @@ public enum CompilerPreflightAppleSDK: String, Sendable, CaseIterable {
     case visionOSSimulator = "xrsimulator"
 
     /// Spelling accepted by Swift's `#if os(...)` predicate.
-    public var platformName: String {
+    public nonisolated var platformName: String {
         switch self {
         case .macOS: "macOS"
         case .iOS, .iOSSimulator, .macCatalyst: "iOS"
@@ -51,7 +51,7 @@ public enum CompilerPreflightAppleSDK: String, Sendable, CaseIterable {
     }
 
     /// Spelling accepted by Swift's `#if targetEnvironment(...)` predicate.
-    public var targetEnvironment: String? {
+    public nonisolated var targetEnvironment: String? {
         switch self {
         case .iOSSimulator, .tvOSSimulator, .watchOSSimulator,
              .visionOSSimulator:
@@ -82,7 +82,8 @@ public enum CompilerPreflightAppleSDK: String, Sendable, CaseIterable {
     }
 }
 
-public struct CompilerPreflightVersion: Sendable, Equatable, Comparable,
+public nonisolated struct CompilerPreflightVersion:
+    Sendable, Equatable, Comparable,
     CustomStringConvertible
 {
     public let major: UInt
@@ -133,7 +134,7 @@ public struct CompilerPreflightVersion: Sendable, Equatable, Comparable,
         return lhs.patch < rhs.patch
     }
 
-    func satisfies(_ rawPredicate: String) -> Bool {
+    nonisolated func satisfies(_ rawPredicate: String) -> Bool {
         let predicate = rawPredicate.replacingOccurrences(of: " ", with: "")
         // Swift conditional-compilation version predicates support only these
         // two operators. Native preflight diagnoses every other spelling.
@@ -212,7 +213,7 @@ public struct CompilerPreflightVersionedImportQuery: Sendable, Equatable,
         self.isImportable = isImportable
     }
 
-    var identity: String {
+    nonisolated var identity: String {
         moduleName + "\u{0}" + versionKind.rawValue + "\u{0}" + version
     }
 
@@ -254,7 +255,7 @@ public struct CompilerPreflightConditionalCompilationQuery: Sendable,
         self.isActive = isActive
     }
 
-    var identity: String {
+    nonisolated var identity: String {
         predicate.rawValue + "\u{0}" + argument
     }
 

@@ -12,14 +12,20 @@ extension Interpreter {
         evaluationDepth += 1
         defer { evaluationDepth -= 1 }
 
+        let taskContext = evaluationTaskContext
+        let thread = pthread_self()
+        var threadID: UInt64 = 0
+        let hasStableThreadID = pthread_threadid_np(nil, &threadID) == 0
         let stackBounds: EvaluationStackBounds
-        if let cached = evaluationStackBounds {
+        if let cached = taskContext.evaluationStackBounds,
+           hasStableThreadID,
+           cached.matches(threadID: threadID) {
             stackBounds = cached
         } else {
-            let thread = pthread_self()
             let top = UInt(bitPattern: pthread_get_stackaddr_np(thread))
             let size = UInt(pthread_get_stacksize_np(thread))
             let bounds = EvaluationStackBounds(
+                threadID: threadID,
                 lowerBound: top - size,
                 size: size,
                 // Desktop threads keep the historical 1.5 MB reserve. Small
@@ -27,7 +33,9 @@ extension Interpreter {
                 safetyHeadroom: size >= 4_194_304
                     ? UInt(1_572_864)
                     : max(UInt(32_768), size / 16))
-            evaluationStackBounds = bounds
+            // Failure to obtain a stable ID makes this invocation
+            // deliberately uncached; another pthread must never inherit it.
+            taskContext.evaluationStackBounds = hasStableThreadID ? bounds : nil
             stackBounds = bounds
         }
 #if os(iOS)
@@ -269,6 +277,15 @@ extension Interpreter {
             if macro.macroName.text == "function",
                let functionName = env.lookup("#function") {
                 return functionName
+            }
+            if macro.macroName.text == "line" {
+                guard let location = locationConverter?.location(
+                    for: macro.positionAfterSkippingLeadingTrivia)
+                else {
+                    throw RuntimeError(message:
+                        "#line requires source-location ownership")
+                }
+                return .native(location.line)
             }
             if macro.macroName.text == "isolation" {
                 return try currentSourceIsolationValue()

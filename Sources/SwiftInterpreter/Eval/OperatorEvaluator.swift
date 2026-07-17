@@ -813,7 +813,7 @@ extension Interpreter {
         }
         func runOperator(_ method: FunctionDeclSyntax, _ selfValue: RuntimeValue,
                          _ a: RuntimeValue, _ b: RuntimeValue) throws -> RuntimeValue {
-            guard let body = method.body else {
+            guard let body = functionMetadata(for: method).body else {
                 throw RuntimeError(message: "operator '\(op)' has no body")
             }
             let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
@@ -1009,7 +1009,7 @@ extension Interpreter {
             return nil
         }
         if let method = overloads?.first(where: { !activeFunctionBodies.contains($0.id) }),
-           let body = method.body {
+           let body = functionMetadata(for: method).body {
             return makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
         }
         // Pre-protocol style: a TOP-LEVEL `func == (lhs: AppState, rhs:
@@ -1017,9 +1017,11 @@ extension Interpreter {
         // parameter's type name (last dotted component, extension-tolerant).
         let wanted = typeName.split(separator: ".").last.map(String.init) ?? typeName
         for decl in globalFunctionOverloads["=="] ?? [] where !activeFunctionBodies.contains(decl.id) {
-            guard let body = decl.body,
-                  let first = decl.signature.parameterClause.parameters.first else { continue }
-            let paramType = first.type.trimmedDescription
+            let metadata = functionMetadata(for: decl)
+            guard let body = metadata.body,
+                  let paramType = metadata.parameters.first?.typeName else {
+                continue
+            }
             let head = paramType.split(separator: ".").last.map(String.init) ?? paramType
             if head == wanted {
                 return makeFunctionClosure(decl, body: body, captured: globals)

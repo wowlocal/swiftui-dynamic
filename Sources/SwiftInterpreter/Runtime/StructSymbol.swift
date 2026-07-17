@@ -273,6 +273,45 @@ public final class StructSymbol {
         self.conformsToView = conformsToView
     }
 
+    /// A newer compatibility program may extend the same host type without
+    /// mutating the synthetic symbol retained by an older escaped closure.
+    /// Syntax/value members are copied as one MainActor-confined snapshot;
+    /// subsequent collection mutates only the returned overlay.
+    func copyForExtensionOverlay() -> StructSymbol {
+        let copy = StructSymbol(name: name, conformsToView: conformsToView)
+        copy.isRepresentable = isRepresentable
+        copy.conformsToShape = conformsToShape
+        copy.staticComputedProperties = staticComputedProperties
+        copy.superclassName = superclassName
+        copy.genericParameters = genericParameters
+        copy.orderedGenericParameters = orderedGenericParameters
+        copy.conformances = conformances
+        copy.isClass = isClass
+        copy.isActor = isActor
+        copy.requiresCustomExecutorDispatch = requiresCustomExecutorDispatch
+        copy.deinitBody = deinitBody
+        copy.deinitializerExecutor = deinitializerExecutor
+        copy.executorOwnedDeinitializerError = executorOwnedDeinitializerError
+        copy.conformsToObservableObject = conformsToObservableObject
+        copy.observableViaMacro = observableViaMacro
+        copy.staticWrapped = staticWrapped
+        copy.attributeNames = attributeNames
+        copy.subscripts = subscripts
+        copy.storedProperties = storedProperties
+        copy.computedProperties = computedProperties
+        copy.methods = methods
+        copy.initializers = initializers
+        copy.staticProperties = staticProperties
+        copy.taskLocalProperties = taskLocalProperties
+        copy.staticMethods = staticMethods
+        copy.nestedTypes = nestedTypes
+        copy.staticCache = staticCache
+        copy.staticReferenceBoxes = staticReferenceBoxes
+        copy.staticStoragePolicies = staticStoragePolicies
+        copy.staticUninitialized = staticUninitialized
+        return copy
+    }
+
     public var isObservable: Bool {
         conformsToObservableObject || observableViaMacro
     }

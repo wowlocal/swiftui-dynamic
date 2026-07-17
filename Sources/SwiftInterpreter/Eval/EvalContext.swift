@@ -271,6 +271,15 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func sourceStaticMember(
+        named member: String, ofType typeName: String
+    ) throws -> RuntimeValue? {
+        try bound {
+            try interpreter.sourceStaticMember(
+                named: member, ofType: typeName)
+        }
+    }
+
     func hostTypeName(of value: RuntimeValue) -> String {
         bound { interpreter.hostTypeName(of: value) }
     }
@@ -324,6 +333,15 @@ extension Interpreter: EvalContext {
         return HostRuntimeTypeSystem.typeName(of: value)
     }
 
+    public func sourceStaticMember(
+        named member: String, ofType typeName: String
+    ) throws -> RuntimeValue? {
+        guard let symbol = hostExtensionSymbols[typeName] else {
+            return nil
+        }
+        return try staticMember(member, of: symbol)
+    }
+
     public func hostValue(
         _ value: RuntimeValue, matchesType typeName: String
     ) -> Bool {
@@ -365,6 +383,10 @@ extension Interpreter: EvalContext {
         let entry = concurrencyRuntime.createEntry(
             kind: .hostCallback,
             heap: runtimeHeap,
+            programState: closure.programState
+                ?? currentProgramState,
+            programPlan: closure.programPlan
+                ?? currentProgramPlan,
             programMetadata: closure.programMetadata
                 ?? currentProgramMetadata,
             interpreter: self)
@@ -380,7 +402,7 @@ extension Interpreter: EvalContext {
         precondition(
             concurrencyRuntime.begin(record),
             "a fresh host callback task must begin exactly once")
-        let context = makeEvaluationTaskContext(
+        let context = concurrencyRuntime.makeEvaluationTaskContext(
             runtimeTaskID: record.id,
             runtimeEntry: entry,
             isAsyncSession: true,
@@ -431,6 +453,10 @@ extension Interpreter: EvalContext {
         let entry = concurrencyRuntime.createEntry(
             kind: .swiftUITask,
             heap: runtimeHeap,
+            programState: closure.programState
+                ?? currentProgramState,
+            programPlan: closure.programPlan
+                ?? currentProgramPlan,
             programMetadata: closure.programMetadata
                 ?? currentProgramMetadata,
             interpreter: self)
@@ -713,6 +739,8 @@ extension Interpreter: EvalContext {
             ?? concurrencyRuntime.createEntry(
                 kind: .compatibilityTask,
                 heap: runtimeHeap,
+                programState: currentProgramState,
+                programPlan: currentProgramPlan,
                 programMetadata: currentProgramMetadata,
                 interpreter: self)
         let priority = explicitPriority ?? (kind == .detached
@@ -821,14 +849,11 @@ extension Interpreter: EvalContext {
         startPolicy: RuntimeTaskStartPolicy = .enqueued,
         body: @escaping @MainActor @Sendable () async throws -> RuntimeValue
     ) throws {
-        guard concurrencyRuntime.activeRecordCount <= scheduledTaskLimit else {
-            throw RuntimeError(
-                message: "interpreted task limit exceeded", fatal: true)
-        }
+        try concurrencyRuntime.requireTaskCapacity()
 
         let handle = pending.handle
         let record = pending.record
-        let taskContext = makeEvaluationTaskContext(
+        let taskContext = concurrencyRuntime.makeEvaluationTaskContext(
             runtimeTaskID: handle.id,
             runtimeEntry: pending.entry,
             isAsyncSession: true,
@@ -893,19 +918,15 @@ extension Interpreter: EvalContext {
         handle.attach(task)
         guard sessionOwned else { return }
 
-        scheduledTasks.append(handle)
+        let runtime = concurrencyRuntime
+        runtime.retainScheduledTask(handle)
         let cleanup: @MainActor @Sendable () async -> Void = {
-            [weak self, weak handle] in
+            [weak runtime, weak handle] in
             await task.value
-            guard let self, let handle else { return }
-            self.releaseScheduledTask(handle)
+            guard let runtime, let handle else { return }
+            runtime.releaseScheduledTask(handle)
         }
         Task.detached(operation: cleanup)
-    }
-
-    func releaseScheduledTask(_ handle: RuntimeTaskHandle) {
-        scheduledTasks.removeAll { $0.id == handle.id }
-        concurrencyRuntime.release(handle.id)
     }
 
     public func invokeHostConstructor(

@@ -146,6 +146,54 @@
     "notes": "Exact output is mac:42 in all repetitions. Native runs use the pinned macOS target and both executions select the non-watchOS branch. FoodTruck cites conditional private top-level and member aliases in DetailedMapView; no inaccessible inactive-branch, positive-macOS-predicate, scheduler-order, or physical-thread claim is made."
   },
   {
+    "id": "deinitializer-metadata",
+    "fixture": "Fixtures/deinitializer-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "deinitializerMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An ordinary unannotated deinitializer on a MainActor-isolated class remains nonisolated and completes synchronously before execution continues after the final release.",
+    "notes": "Exact output is body|none:foodtruck|after in all repetitions. FoodTruck cites the ordinary deinitializer on MainActor-isolated StoreMessagesManager; no physical-thread, scheduler-order, isolated-deinitializer, or custom-global-actor teardown claim is made."
+  },
+  {
+    "id": "conditional-member-metadata",
+    "fixture": "Fixtures/conditional-member-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await conditionalMemberMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "The first active conditional-compilation clause contributes its stored property, method, nested type, extension method, and enum case while declarations from the inactive member clauses do not participate.",
+    "notes": "Native macOS and the interpreter's legacy iOS build identity both select the non-watchOS branch and produce foodtruck:7:type:extension:regular:nested. The first probe used String(describing:) for the enum and exposed an unrelated formatting divergence, so the oracle was narrowed before production to a String raw value. The corrected case was green before and after member-plan migration in twenty bounded repetitions; each native shard reported SHA-256 8c1f91f180b8517d68ab0a40b3f0cc2ab73a32db163c2d296b1bc25d9561a937. The same unchanged case remained exact before and after immutable target-resolved program ownership: declaration selection survives the actor hop and is not a new runtime-semantic claim. FoodTruck cites five conditional member regions in StoreSupportView, DonutGalleryGrid, OrdersView, and DetailedMapView; positive-watchOS selection, new member semantics, scheduler order, and physical threads are outside this case."
+  },
+  {
+    "id": "callable-placement-metadata",
+    "fixture": "Fixtures/callable-placement-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await callablePlacementMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Static and instance methods of a MainActor-isolated nominal inherit that actor while remaining callable through the type and an instance respectively.",
+    "notes": "Exact output is type:same:foodtruck|instance:same in all repetitions and remains unchanged after an awaited actor hop and the immutable function-body migration. FoodTruck cites 133 functions including async account/StoreKit bodies, local layout helpers, mutating model operations, modifiers, and static callables; no bodyless invocation, class-func, physical-thread, scheduler-order, or unrelated-overload claim is made."
+  },
+  {
+    "id": "initializer-declaration-metadata",
+    "fixture": "Fixtures/initializer-declaration-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await initializerDeclarationMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An ordinary initializer of a MainActor-isolated class inherits MainActor, an explicit nonisolated initializer has nil lexical isolation, and failable initializer success or failure survives an awaited actor hop.",
+    "notes": "Exact output is isolated:same:foodtruck|nonisolated:none:store|accepted|rejected in all repetitions. FoodTruck cites ordinary actor initializers, nonisolated initializers on MainActor classes, and init?; no async-initializer, custom-global-actor, physical-thread, or scheduler-order claim is made."
+  },
+  {
     "id": "actor-isolated-deinitializer",
     "fixture": "Fixtures/actor-isolated-deinitializer.swift",
     "mode": "runtime",
@@ -412,7 +460,7 @@
     "interpreterProjection": "instance-string-array:values",
     "predicate": "same-event-multiset",
     "nativeFact": "One hundred sibling MainActor tasks retain the lexical nested type and local index belonging to their own invocation across a forced yield; only completion order is unspecified.",
-    "notes": "Native support and the interpreter harness both provide parityYield(_:) as an identity gateway with one real Task.yield suspension."
+    "notes": "Native support and the interpreter harness both provide parityYield(_:) as an identity gateway with one real Task.yield suspension. Every interpreted async context identity is allocated by CooperativeConcurrencyRuntime; completion order and ordered shard digests remain deliberately unspecified."
   },
   {
     "id": "task-context-cancellation",
@@ -424,7 +472,7 @@
     "interpreterEntry": "startCancellationContextProbe()",
     "interpreterProjection": "instance-task-state-and-string-array:first:events",
     "nativeFact": "Cancelling a task only after it has entered a cancellable suspension completes it with CancellationError, while an interleaved sibling retains its extension's lexical nested type and completes with 'beta'.",
-    "notes": "The started barrier forces cancellation-during-suspension. No task-start or sibling-completion order is asserted."
+    "notes": "The started barrier forces cancellation-during-suspension. No task-start or sibling-completion order is asserted. This exact fixture also guards task-owned evaluator cleanup after the native-stack cache became pthread-scoped; it makes no physical-thread placement claim."
   },
   {
     "id": "detached-host-context-reentry",
@@ -436,7 +484,7 @@
     "interpreterEntry": "await detachedHostContextProbe()",
     "interpreterProjection": "string",
     "nativeFact": "Task.detached does not inherit a TaskLocal value, but an explicitly captured value can be rebound around an async callback and remains visible inside that callback.",
-    "notes": "The interpreter twin uses a real native detached task and verifies that TaskBoundEvalContext rebinds the exact originating EvaluationTaskContext ID."
+    "notes": "The interpreter twin uses a real native detached task and verifies that TaskBoundEvalContext rebinds the exact originating EvaluationTaskContext ID. EvaluationTaskContext identifies its owning CooperativeConcurrencyRuntime without retaining or identifying an Interpreter facade; TaskBoundEvalContext remains the explicit host re-entry owner."
   },
   {
     "id": "async-initializer-context",
@@ -678,7 +726,7 @@
     "interpreterEntry": "await taskHandleDeallocationProbe()",
     "interpreterProjection": "string",
     "nativeFact": "Discarding the last source-level handle to an unstructured task neither cancels the task nor ends its operation; the task remains alive independently until completion.",
-    "notes": "The Task result is assigned directly to _, so no source handle survives creation. MainActor gates prove that the task starts, remains active after the drop, and finishes only after explicit release. Exact output is completed,active on Swift 6.3.3."
+    "notes": "The Task result is assigned directly to _, so no source handle survives creation. MainActor gates prove that the task starts, remains active after the drop, and finishes only after explicit release. Exact output is completed,active on Swift 6.3.3. The interpreter's cooperative runtime strongly owns scheduled handles until autonomous completion or session-policy release."
   },
   {
     "id": "task-cancellation-caught",
@@ -1537,7 +1585,31 @@
     "interpreterEntry": "parityInterpreterHostCallbackOverlap()",
     "interpreterProjection": "host-callback-overlap-global-string:parityHostCallbackOverlapProbe:events:worker-started",
     "nativeFact": "A MainActor task created by one synchronous callback may remain suspended while a later callback enters, observes and mutates the same actor-isolated state, and resumes it; the later callback completes before that task continues on MainActor.",
-    "notes": "The harness waits for the first callback's task to publish worker-started before invoking the same retained callback again. Continuation resume is synchronous but MainActor serialization forces second-return before worker-resumed, so the exact three snapshots are causal and assert no unrelated scheduler or physical-thread order. Apple Swift 6.3.3 strict-concurrency compilation produced the same result in twenty bounded runs."
+    "notes": "The harness waits for the first callback's task to publish worker-started before invoking the same retained callback again. Continuation resume is synchronous but MainActor serialization forces second-return before worker-resumed, so the exact three snapshots are causal and assert no unrelated scheduler or physical-thread order. Apple Swift 6.3.3 strict-concurrency compilation and the interpreter produced the same result in twenty bounded runs before and after mutable program registries plus the selected HostRegistry moved into session-owned RuntimeProgramState; every four-worker native shard reported SHA-256 4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652."
+  },
+  {
+    "id": "host-static-shadow-after-suspension",
+    "fixture": "Fixtures/host-static-shadow-after-suspension.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parityHostStaticShadowAfterSuspension()",
+    "interpreterProjection": "string",
+    "nativeFact": "A same-module Date.now extension remains the selected static member when an implicit .now value crosses a host-call boundary after suspension.",
+    "notes": "The exact output is 1784228400. Task.yield establishes a suspension but no relative ready-task order is asserted; the focused ownership regression separately invokes an escaped origin callback after the interpreter has prepared a newer program."
+  },
+  {
+    "id": "source-provenance-after-suspension",
+    "fixture": "Fixtures/source-provenance-after-suspension.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await paritySourceProvenanceAfterSuspension()",
+    "interpreterProjection": "string",
+    "nativeFact": "An escaping async closure keeps the lexical source identity of its body across suspension; #line is the authored line in that body rather than a later invocation context.",
+    "notes": "The exact output is 5. The fixture asserts only immutable source provenance across one suspension; it makes no scheduler-order, physical-thread, or parallelism claim."
   },
   {
     "id": "task-read-missing-await-diagnostic",
@@ -1843,7 +1915,7 @@
     "interpreterEntry": "await taskExecutorPreferenceNilProbe()",
     "interpreterProjection": "string",
     "nativeFact": "With no ambient custom TaskExecutor, withTaskExecutorPreference(nil, isolation: nil) invokes each supplied bare unqualified global async operation function, whose declaration carries a plain explicit nonisolated modifier and no executor preference, in the same task. The success operation observes its detached task's name, native high-priority raw value, task-local binding, and cancellation state across a forced yield; identity, name, priority, task local, and cancellation remain stable after scope exit. Cancelling the current task inside the cancellation operation is visible to the caller after return, while successful values and the exact typed source error propagate.",
-    "notes": "Apple Swift 6.3.3 compiled the same source in Swift 6 strict-concurrency mode with warnings as errors, and twenty bounded native runs produced one exact observation. Only the explicit-nil task-executor and isolation subset without an ambient custom preference and with the supplied bare unqualified global async operation functions, whose declarations carry a plain explicit nonisolated modifier and no executor preference, is asserted. Native nil inherits an ambient custom preference rather than clearing it. @concurrent operations, qualified or parenthesized references, custom executor scheduling and inheritance, nonisolated(nonsending), closure-expression operations, arbitrary actor isolation, resume executors, physical threads, and unrelated task order remain outside this case."
+    "notes": "Apple Swift 6.3.3 compiled the same source in Swift 6 strict-concurrency mode with warnings as errors, and twenty bounded native runs produced one exact observation. The observation remains exact after synchronous and suspending argument collection migrated to immutable call-site metadata and its captured bare-unqualified direct-reference provenance. Only the explicit-nil task-executor and isolation subset without an ambient custom preference and with the supplied bare unqualified global async operation functions, whose declarations carry a plain explicit nonisolated modifier and no executor preference, is asserted. Native nil inherits an ambient custom preference rather than clearing it. @concurrent operations, qualified or parenthesized references, custom executor scheduling and inheritance, nonisolated(nonsending), closure-expression operations, arbitrary actor isolation, resume executors, physical threads, and unrelated task order remain outside this case."
   },
   {
     "id": "extract-isolation-nonisolated",

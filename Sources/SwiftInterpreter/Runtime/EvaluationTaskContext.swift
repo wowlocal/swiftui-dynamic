@@ -1,6 +1,21 @@
 import Foundation
 import SwiftSyntax
 
+/// Native stack geometry is a pthread capability, not a property of an
+/// interpreter facade or a Swift task. A source task may resume on another
+/// pthread after suspension, so every cached value records the thread that
+/// supplied it.
+struct EvaluationStackBounds {
+    let threadID: UInt64
+    let lowerBound: UInt
+    let size: UInt
+    let safetyHeadroom: UInt
+
+    func matches(threadID candidate: UInt64) -> Bool {
+        threadID == candidate
+    }
+}
+
 /// Mutable evaluator state owned by exactly one interpreted source task.
 ///
 /// The interpreter remains MainActor-confined while the concurrency runtime
@@ -18,13 +33,14 @@ final class EvaluationTaskContext {
     let isAsyncSession: Bool
     var priority: RuntimeTaskPriority
     let taskLocals: RuntimeTaskLocalStorage
-    weak var interpreter: Interpreter?
+    weak var concurrencyRuntime: CooperativeConcurrencyRuntime?
     let initialExecutor: RuntimeExecutorKind
     var currentExecutor: RuntimeExecutorKind
 
     var steps = 0
     var callDepth = 0
     var evaluationDepth = 0
+    var evaluationStackBounds: EvaluationStackBounds?
     var resolveAnnotatedDepth = 0
     var synchronousTaskDepth = 0
     var asyncTemporarySerial = 0
@@ -39,6 +55,11 @@ final class EvaluationTaskContext {
     var dependencyInFlight: Set<String> = []
 
     var callStackNames: [String] = []
+    /// Lexical program capabilities selected by the currently executing
+    /// source closures. A runtime entry owns the session/task lifetime, but a
+    /// closure retained in the shared heap may originate in an older program
+    /// state and must resolve declarations against that exact state.
+    var programStateFrames: [RuntimeProgramState] = []
     var lexicalOwnerFrames: [AnyObject] = []
     /// Static executor context of the currently evaluated source declaration.
     /// A `nil` frame is intentional: a plain/nonisolated declaration may run
@@ -60,7 +81,7 @@ final class EvaluationTaskContext {
         priority: RuntimeTaskPriority = .medium,
         executor: RuntimeExecutorKind = .mainActor,
         taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage(),
-        interpreter: Interpreter
+        concurrencyRuntime: CooperativeConcurrencyRuntime
     ) {
         precondition(
             runtimeEntry == nil || runtimeSessionID == nil
@@ -75,13 +96,14 @@ final class EvaluationTaskContext {
         initialExecutor = executor
         currentExecutor = executor
         self.taskLocals = taskLocals
-        self.interpreter = interpreter
+        self.concurrencyRuntime = concurrencyRuntime
     }
 
     var isDynamicallyEmpty: Bool {
         steps == 0
             && callDepth == 0
             && evaluationDepth == 0
+            && evaluationStackBounds == nil
             && resolveAnnotatedDepth == 0
             && synchronousTaskDepth == 0
             && asyncTemporarySerial == 0
@@ -94,6 +116,7 @@ final class EvaluationTaskContext {
             && activeCollisionProperties.isEmpty
             && dependencyInFlight.isEmpty
             && callStackNames.isEmpty
+            && programStateFrames.isEmpty
             && lexicalOwnerFrames.isEmpty
             && lexicalExecutorFrames.isEmpty
             && expectedAnnotationStack.isEmpty
@@ -103,6 +126,19 @@ final class EvaluationTaskContext {
             && taskLocals.isEmpty
             && currentExecutor == initialExecutor
             && !deferredExtensionRetry
+    }
+
+    func enterProgramState(_ state: RuntimeProgramState?) {
+        guard let state else { return }
+        programStateFrames.append(state)
+    }
+
+    func leaveProgramState(_ state: RuntimeProgramState?) {
+        guard let state else { return }
+        precondition(
+            programStateFrames.last === state,
+            "closure program-state frames must unwind in LIFO order")
+        programStateFrames.removeLast()
     }
 
     /// Break task-owned capture graphs as soon as evaluation completes. The
@@ -115,6 +151,7 @@ final class EvaluationTaskContext {
         steps = 0
         callDepth = 0
         evaluationDepth = 0
+        evaluationStackBounds = nil
         resolveAnnotatedDepth = 0
         synchronousTaskDepth = 0
         asyncTemporarySerial = 0
@@ -127,6 +164,7 @@ final class EvaluationTaskContext {
         activeCollisionProperties.removeAll(keepingCapacity: false)
         dependencyInFlight.removeAll(keepingCapacity: false)
         callStackNames.removeAll(keepingCapacity: false)
+        programStateFrames.removeAll(keepingCapacity: false)
         lexicalOwnerFrames.removeAll(keepingCapacity: false)
         lexicalExecutorFrames.removeAll(keepingCapacity: false)
         expectedAnnotationStack.removeAll(keepingCapacity: false)

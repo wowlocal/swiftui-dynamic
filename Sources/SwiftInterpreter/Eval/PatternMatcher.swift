@@ -466,7 +466,7 @@ extension Interpreter {
             guard let overloads else { continue }
             let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
             if let method = chooseFunction(from: available, for: args) ?? available.first,
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(home))
                 return try callWithArguments(closure, args: args, node: Syntax(node))
             }
@@ -475,7 +475,7 @@ extension Interpreter {
         if let overloads = globalFunctionOverloads["~="] {
             let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
             if let function = chooseFunction(from: available, for: args) ?? available.first,
-               let body = function.body {
+               let body = functionMetadata(for: function).body {
                 let closure = makeFunctionClosure(function, body: body, captured: globals)
                 return try callWithArguments(closure, args: args, node: Syntax(node))
             }

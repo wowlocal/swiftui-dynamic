@@ -278,6 +278,384 @@ Remaining member families, call-site/compiler metadata, mutable-symbol/
 evaluator migration, worker-safe heap classification, physical workers, mode-
 differential evidence, and TSan remain open.
 
+Its fourteenth prerequisite adds all-branch deinitializer headers to the
+composite capability. The architecture workflow is a gap closure: the captured
+compile-time RED had no `ParsedDeinitializerMetadataIndex`, summary,
+compatibility accessor, composite component, or runtime lookup. The semantic
+workflow is an already-GREEN characterization rather than an invented runtime
+mismatch. FoodTruck cites the ordinary `deinit` on its `@MainActor`
+`StoreMessagesManager`. GREEN covers all-scope/all-branch body, attribute, and
+modifier facts, explicit isolated/nonisolated classification, eight detached
+readers, pure foreign-syntax fallback, session/callback provenance, and the
+existing teardown consumers. Apple Swift 6.3.3 and the interpreter both
+produce `body|none:foodtruck|after` in twenty bounded repetitions: the ordinary
+deinitializer sees nil isolation and completes before execution continues
+after final release. No isolated/custom-global-actor expansion, scheduler
+order, physical thread, or physical parallelism is inferred. Remaining member
+families, call-site/compiler metadata, mutable-symbol/evaluator migration,
+worker-safe heap classification, physical workers, mode-differential evidence,
+and TSan remain open.
+
+Its fifteenth prerequisite extends the all-branch callable index with immutable
+function names, modifier names, and static/class-versus-instance placement.
+The architecture workflow is a gap closure: the captured compile-time RED had
+no `typeMemberFunctionCount` or `modifiedFunctionCount` summary fields and no
+`name`, `modifierNames`, or `isTypeMember` callable-entry facts. Struct/enum
+method registration, global binding, closure naming, and lexical capture
+discovery now consume the index with pure foreign-syntax fallback; session and
+escaped-callback provenance retain the originating snapshot. FoodTruck cites
+`static func` demand in `City`, `StoreMessagesManager`, and `TaskSeconds`.
+The semantic workflow is an already-GREEN characterization. Its first apparent
+`none` result came from a parity helper that recognized source-actor instances
+but not the runtime carrier for `MainActor.shared`; correcting that generic
+helper before the production change made the unchanged interpreter match
+Swift. Apple Swift 6.3.3 and the interpreter both produce
+`type:same:foodtruck|instance:same` in twenty bounded repetitions, including
+the exact value after an awaited actor hop. `class` placement is indexed as a
+syntax fact, but no class-method dispatch, scheduler order, physical thread, or
+unrelated overload is inferred. Remaining member families, call-site/compiler
+metadata, mutable-symbol/evaluator migration, worker-safe heap classification,
+physical workers, mode-differential evidence, and TSan remain open.
+
+Its sixteenth prerequisite extends initializer entries in the all-branch
+callable index with immutable bodies, attribute and modifier names,
+failable/Codable classification, and explicit nonisolated/MainActor facts.
+The architecture workflow captured a compile-time RED for absent summary and
+entry fields. The semantic workflow is a gap closure: the first preliminary
+run incorrectly passed because the interpreter-side helper compared its
+dynamic executor rather than native Swift's lexical `#isolation`; correcting
+that generic oracle before production exposed the repeatable native
+`isolated:same` versus interpreted `isolated:none` mismatch. One shared
+initializer-closure builder now supplies metadata and declaration isolation to
+struct/class/actor, enum, extension, superclass, synchronous, and suspending
+paths; selection, synthesized arguments, optional projection, and bridge
+Codable discovery use the same index. FoodTruck cites nonisolated initializers
+on its MainActor StoreKit controller classes, the ordinary `StoreActor`
+initializer, and `Subscription.init?`. Apple Swift 6.3.3 and the interpreter
+both produce
+`isolated:same:foodtruck|nonisolated:none:store|accepted|rejected` in twenty
+bounded repetitions after the fix, including exact preservation across an
+awaited actor hop. Existing actor and async-initializer parity remains green.
+No new async/custom-global-actor initializer, scheduler-order, physical-thread,
+or physical-parallelism claim is inferred. Remaining member families,
+call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
+heap classification, physical workers, mode-differential evidence, and TSan
+remain open.
+
+Its seventeenth prerequisite completes the indexed function-declaration body
+boundary. The architecture workflow captured a compile-time RED for missing
+`ParsedFunctionMetadata.body` and `bodylessFunctionCount`; immutable entries
+now distinguish executable bodies from bodyless requirements and extern
+absorbers. Every synchronous/suspending global, member, static, enum,
+extension, operator, pattern, and public-evaluation path consumes body,
+parameter/default/label, and `mutating` facts from that index with pure
+foreign-syntax fallback. Detached readers, session/runtime-entry provenance,
+and representative dispatch regressions cover ownership. FoodTruck supplies
+133 declaration bodies spanning async account/StoreKit work, layouts and local
+helpers, mutating model operations, static reducers/operators, and modifiers.
+The semantic workflow is an already-GREEN characterization: Apple Swift 6.3.3
+and the interpreter still produce `type:same:foodtruck|instance:same` in all
+twenty bounded `callable-placement-metadata` repetitions after an awaited actor
+hop. Nineteen focused dispatch/ownership tests, forty-two methodology checks,
+and those twenty parity repetitions completed in thirteen seconds. No
+bodyless invocation, new isolation rule, scheduler order, physical
+thread, or physical parallelism is claimed. Remaining member families,
+call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
+heap classification, physical workers, mode-differential evidence, and TSan
+remain open.
+
+Its eighteenth prerequisite introduces the immutable call-site argument
+boundary. The architecture workflow captured a compile-time RED for the absent
+`ParsedCallSiteMetadataIndex`, `ParsedProgram.callSiteMetadataIndex`, and
+composite capability edge. Entries preserve ordinary labels/expressions, first
+and additional trailing closures in source order, and bare unqualified direct-
+reference spelling; compiler-only `#if` predicate calls are excluded. The
+synchronous and suspending collectors now consume the same indexed shape, and
+the bounded async-operation provenance rule uses its direct-reference fact.
+FoodTruck supplies 41 additional-trailing-closure spellings and three direct
+`Button(action:)` uses of `onPurchase`/`onDismiss`. The semantic workflow is an
+already-GREEN characterization: Apple Swift 6.3.3 and the interpreter preserve
+the exact explicit-nil executor-preference task-state/error projection in all
+twenty bounded `with-task-executor-preference-nil` repetitions. Four native
+shards each reported SHA-256
+`8cd6f4abe47320a422f3c0da80530aa47491ddb0eace1d6087040e1f16dd5e86`.
+The final prebuilt focused gate completed ten tests in four suites, all
+forty-two methodology checks, and all twenty parity repetitions in two
+seconds.
+Qualified/converted references, full overload identity, new executor behavior,
+scheduler order, physical thread, and physical parallelism are not inferred.
+Remaining member families, call-site semantic resolution, compiler metadata,
+mutable-symbol/evaluator migration, worker-safe heap classification, physical
+workers, mode-differential evidence, and TSan remain open.
+
+Its nineteenth prerequisite introduces the immutable all-branch member plan.
+The architecture workflow captured a compile-time RED for the absent
+`ParsedMemberMetadataIndex`, composite parsed-program edge, and runtime member
+resolver. The index classifies direct members and preserves nested ordered
+conditional clauses; a session resolves one active sequence with its build
+identity before struct/class/actor/enum/extension symbol materialization. The
+first same-source probe exposed an unrelated enum `String(describing:)`
+formatting difference, so the oracle was corrected before production to use a
+String raw value. The unchanged interpreter was then GREEN, and Apple Swift
+6.3.3 plus the post-migration interpreter both produced
+`foodtruck:7:type:extension:regular:nested` in all twenty bounded
+`conditional-member-metadata` repetitions. Four native shards each reported
+SHA-256
+`8c1f91f180b8517d68ab0a40b3f0cc2ab73a32db163c2d296b1bc25d9561a937`.
+The final prebuilt focused gate completed sixteen tests in ten suites, all
+forty-two methodology checks, and all twenty parity repetitions in one second.
+FoodTruck supplies five conditional member regions across `StoreSupportView`,
+`DonutGalleryGrid`, `OrdersView`, and `DetailedMapView`. Positive-watchOS
+selection, new member semantics, compiler-only signature parsing, scheduler
+order, physical thread, and physical parallelism are not inferred. Remaining
+member semantics, call-site/compiler metadata, mutable-symbol/evaluator
+migration, worker-safe heap classification, physical workers,
+mode-differential evidence, and TSan remain open.
+
+Its twentieth prerequisite verifies target-plan ownership rather than inventing
+a new runtime semantic. The architecture workflow first captured a compile-time
+RED for the absent `ResolvedProgramPlan`, parsed-program resolver, and
+session/runtime-entry/closure plan edges. The immutable target evaluator and
+both declaration indexes were then made callable outside MainActor, and one
+session-owned plan was propagated unchanged through escaped callbacks,
+SwiftUI entries, and their source tasks. Identity assertions deliberately
+prepare a different program before invoking an older closure, so a fallback to
+mutable facade state is observable.
+
+The native semantic baseline was captured before production changes with the
+existing `conditional-member-metadata` case. Apple Swift 6.3.3 selected the
+non-watchOS declaration/member branches, carried the result through an actor
+hop, and produced
+`foodtruck:7:type:extension:regular:nested` in all twenty bounded
+repetitions. Four native shards each reported SHA-256
+`8c1f91f180b8517d68ab0a40b3f0cc2ab73a32db163c2d296b1bc25d9561a937`.
+The same exact case remained GREEN after migration; no duplicate fixture or
+post-hoc oracle was introduced. The final prebuilt focused gate completed
+thirteen ownership/dispatch tests in seven suites, all forty-two methodology
+checks, and all twenty parity repetitions within two seconds. FoodTruck's five
+conditional member regions bound the demand. New branch semantics, positive-
+watchOS behavior, scheduler order, physical threads, and physical parallelism
+are not inferred.
+
+Its twenty-first prerequisite verifies mutable program-state ownership. The
+architecture workflow captured a compile-time RED for the absent
+`RuntimeProgramState` and the missing session/runtime-entry/closure ownership
+edges. The focused test prepares two sessions before running either, then
+requires each session to materialize only its own nominal registry. A second
+test prepares a newer session before invoking an older escaped callback and
+requires the callback root plus its spawned task to observe the exact original
+state identity. A weak-reference assertion covers the simple session-owned
+lifetime without claiming that every future symbol/value graph is cycle-free.
+
+The semantic workflow is an already-GREEN characterization using the existing
+`host-callback-overlap` fixture. Its continuation gate establishes only the
+causal `worker-started`, `second-return`, `worker-resumed` trace: a later
+synchronous MainActor callback runs while the first callback's task is parked,
+and that task resumes afterward. Native Swift 6.3.3 was compiled and captured
+before production changes in twenty bounded runs. The same fixture is reused
+unchanged after migration; no physical-thread or unrelated scheduler-order
+claim is allowed. The closing gate must also run both session/state ownership
+suites and the complete methodology suite from the prebuilt bundle.
+
+Its twenty-second prerequisite verifies immutable source-map ownership. The
+architecture workflow first captured a behavioral RED: an escaped closure from
+`Origin.swift`, invoked after the facade ran `Newer.swift`, located its runtime
+error at the newer converter's `41:2` rather than the authored `3:9`. The fix
+adds file identity and the immutable converter to `ResolvedProgramPlan`; runtime
+diagnostics select it through the exact `RuntimeEntry`, while parsing and
+synchronous compatibility work retain a separately named fallback.
+
+The native semantic baseline was captured before production changes with Apple
+Swift 6.3.3, macOS SDK 26.5, and target `arm64-apple-macosx26.0`. An escaped
+async closure yielded and then evaluated `#line`; its authored line remained
+`4`. The manifest-backed `source-provenance-after-suspension` version places
+that expression on line `5`, and native Swift plus the interpreter produce
+exact output `5` in twenty bounded runs. Four native shards each report
+SHA-256
+`322f82b1ee560245f7819acb862b0cc122800997a5b88693393f20d65762314b`.
+Only lexical source provenance is asserted. Scheduler order, worker identity,
+physical threads, and physical parallelism remain unasserted. The closing gate
+must include the cross-program callback regression, the complete runtime-entry
+ownership suite, all methodology checks, and all twenty focused parity runs.
+The canonical parallel iteration completed thirteen ownership/source-map tests
+in seven suites, all forty-two methodology checks, and all twenty parity
+repetitions on four workers in 1.8 seconds.
+
+Its twenty-third prerequisite verifies canonical runtime ownership of session-
+owned unstructured and detached handles. The architecture workflow first
+captured a compile-time RED requiring a strong runtime handle registry, task-
+capacity guard, session-scoped lookup, and idempotent canonical release; those
+capabilities existed only as mutable facade bookkeeping. Production launch,
+autonomous completion cleanup, drain, and cancellation must now use the runtime
+API, while the facade may expose only a read-only compatibility view.
+
+The semantic workflow is an already-GREEN characterization using the unchanged
+`task-handle-deallocation` fixture. Before production changes, Apple Swift
+6.3.3 and the interpreter both produced exact output `completed,active` in
+twenty bounded runs. Four native shards each report SHA-256
+`372f912e1aed613d03587d6bd5fc29d6c08f1299ce903484b08e01c8e89a12f9`.
+The post-change differential must preserve that exact observation. The focused
+ownership test drops its local `RuntimeTaskHandle`, requires the runtime to
+retain it and its active record, and then requires canonical release to remove
+both. The closing gate must include session drain/cancel, autonomous cleanup,
+structured-child lifetime, real SwiftUI cancellation, all methodology checks,
+and all twenty focused parity repetitions. No physical-thread or parallel-
+execution assertion is allowed.
+The canonical parallel iteration completed eleven targeted tests in four
+suites, all forty-two methodology checks, and all twenty parity repetitions on
+four workers in 1.9 seconds.
+
+Its twenty-fourth prerequisite verifies runtime ownership of evaluator-context
+identity allocation. The architecture workflow captured a compile-time RED:
+`CooperativeConcurrencyRuntime` had no context factory, while `Interpreter`
+owned the monotonic counter and constructed every program-root, callback, and
+source-task context. Production async entry points must now use one runtime
+factory; only the facade's synchronous compatibility context may retain the
+reserved ID `0`.
+
+The semantic workflow is an already-GREEN characterization using the unchanged
+`task-owned-evaluator-context` fixture. Apple Swift 6.3.3 and the interpreter
+each preserve the same 100-event multiset across a forced `Task.yield()` in
+twenty bounded repetitions. The event order is unspecified, so native shard
+hashes may differ and no total ordering is asserted. The post-change
+differential must preserve the multiset. Focused coverage requires unique
+nonzero runtime-allocated context IDs plus source-task and async-initializer
+context cleanup, stale-context rejection, suspension-budget renewal,
+callback/task entry propagation, program-session identity, and real SwiftUI
+async entry. A clean rebuild is required after changing the runtime class
+layout before the final prebuilt parallel gate.
+The canonical parallel iteration completed nine targeted tests in seven
+suites, all forty-two methodology checks, and all twenty predicate parity
+repetitions on four workers in 2.1 seconds.
+
+Its twenty-fifth prerequisite verifies that evaluator contexts identify their
+owning runtime rather than a facade. The compile-time RED required
+`makeEvaluationTaskContext()` without an interpreter argument and a weak
+runtime capability on the resulting context. The focused ownership tests must
+prove that retaining a context does not retain the facade, that the context's
+runtime remains identifiable, and that a foreign-runtime ambient context is
+not selected by another interpreter. Explicit `TaskBoundEvalContext` host
+ownership remains unchanged because retained host callbacks need a real re-
+entry capability.
+
+The semantic workflow is an already-GREEN characterization using
+`detached-host-context-reentry`. Apple Swift 6.3.3 establishes exact output
+`lost,preserved`: `Task.detached` first observes the default TaskLocal value,
+then an explicitly captured value is rebound around an async callback. Native
+Swift and the interpreter match in twenty bounded repetitions before and after
+the ownership change; every native shard reports SHA-256
+`dfe2ffa3bba5229691693999686926094a6ab74bf6414514dfd18ce8d2b6a1fb`.
+The closing focused filter includes context ID allocation/selection, facade
+release, source-task cleanup, stale-context rejection, callback/task entry,
+session lifetime, and real SwiftUI async entry. No implicit detached
+inheritance, worker thread, or physical-parallelism claim is allowed.
+The canonical parallel iteration completed nine targeted tests in six suites,
+all forty-two methodology checks, and all twenty exact parity repetitions on
+four workers in 1.9 seconds.
+
+Its twenty-sixth prerequisite verifies that native-stack guard geometry is
+task-owned and never treated as stable across pthread migration. The
+compile-time RED requires `EvaluationTaskContext.evaluationStackBounds`, a
+stable numeric pthread ID on `EvaluationStackBounds`, and cleanup as part of
+`removeAllDynamicState()`. The production check must select the cache only
+when the current pthread ID matches; otherwise it must query fresh stack
+bounds. A long-lived compatibility context follows the same rule.
+
+The native observation is a separately compiled Apple Swift 6.3.3 program:
+256 child tasks each cross 32 checked-continuation suspensions. Three runs
+observe 5,663, 5,636, and 5,720 pthread changes. The counts are evidence of
+migration, not a required scheduler result. The semantic differential remains
+the unchanged exact `task-context-cancellation` fixture, whose explicit
+started barrier avoids an ordering assumption. Native Swift and the
+interpreter must both produce `cancelled,beta` in all twenty bounded
+repetitions; the canonical native digest is
+`ba7179bb0bf0eee67a3387d8970c61377f3858c23b6b8764d9c2b37403530735` per
+shard. Focused coverage also retains source-task and async-initializer contexts
+through completion and requires them to be dynamically empty, including the
+stack cache. No worker-count, physical-thread placement, or parallel-execution
+claim follows from this prerequisite.
+The canonical parallel iteration completed ten targeted tests in five suites,
+all forty-two methodology checks, and all twenty exact parity repetitions on
+four workers in 2.1 seconds.
+
+Its twenty-seventh prerequisite verifies host-registry provenance across
+program replacement. The required semantic RED creates an escaped callback
+under registry A, changes the facade default to registry B, proves a newly
+prepared program sees B, and then invokes the old callback. Returning B from
+that callback is the bug; returning A proves the callback's retained
+`RuntimeProgramState` owns the selection. The implementation must route all
+active evaluator registry access through the current runtime entry's program
+state, with the facade value used only as the default for future preparation.
+
+A strict Apple Swift 6.3.3 probe separately pins ordinary dependency capture:
+a callback formed with capability `origin`, followed by active capability
+`newer`, returns exact `origin,newer` in three compiled executions. The
+same-source concurrency oracle is the unchanged `host-callback-overlap` case.
+Its explicit continuation gate makes the three snapshots causal; native Swift
+and the interpreter remain exact in twenty bounded repetitions with canonical
+native SHA-256
+`4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652`
+per shard. Focused coverage must include escaped source-map and registry
+provenance, callback/descendant-task entry sharing, session ownership/lifetime,
+and real SwiftUI task entry plus cancellation. No Sendable registry or
+physical-worker claim is allowed.
+The canonical parallel iteration completed eight targeted tests in three
+suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 2.2 seconds.
+
+Its twenty-eighth prerequisite verifies that host coercions resolve source
+static members through the originating program entry rather than process-wide
+mutable state. The required semantic RED prepares an escaped callback under a
+frozen `Date.now`, prepares a newer program without that extension, and then
+invokes the old callback. Returning the wall-clock day is the bug; returning
+the origin epoch proves the retained entry owns lookup provenance. The common
+mechanism is a type/member-parameterized `EvalContext.sourceStaticMember`
+capability. Interpreter-backed contexts bind it to their current runtime entry;
+legacy embedders return nil explicitly. The Date bridge consumes this general
+capability instead of an `Interpreter` static closure.
+
+A strict Apple Swift 6.3.3 probe separately passes implicit `.now` into
+`Calendar.startOfDay(for:)` after `Task.yield()` and returns exact
+`1784160000` with a UTC calendar in three runs. The committed same-source
+fixture projects the raw authored epoch and must return `1784228400` on both
+sides in twenty bounded repetitions. Focused coverage also keeps the original
+FoodTruck Calendar coercions, qualified/annotated static shadowing, cross-
+program callback provenance, and real SwiftUI runtime entry green. No ready-
+task order, worker thread, Sendable bridge, or physical parallelism is claimed.
+The canonical parallel iteration completed seven targeted tests in four
+suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 1.8 seconds.
+
+Its twenty-ninth prerequisite verifies closure-origin program provenance on
+ordinary evaluator calls, not only on host-created runtime entries. The RED
+must use one interpreter and two runs: program A declares the retained closure
+and the actor/overload metadata it needs; program B contains only the call.
+The suspending assertion requires actor-isolated storage to remain executor-
+owned after `Task.yield()`. The synchronous assertion requires overload
+selection from A. A result obtained from B's newly prepared state is the bug.
+
+The common mechanism is a task-owned LIFO of lexical
+`RuntimeProgramState` capabilities entered before invocation resolution and
+left on every exit. `RuntimeEntry` remains the ownership/cancellation
+capability and must not be replaced merely to change lexical lookup. Focused
+cleanup requires the frame stack and every runtime registry to be empty. A
+strict Swift 6 probe with two actor calls must return sorted `1:2` in twenty
+bounded compiled runs; this is an invariant claim about actor serialization,
+not a cross-program Swift feature or a task-order claim. Closing evidence must
+include both minimal provenance tests, the exact actor replay seed, the full
+64-seed actor board, and the parallel trap/SwiftUI/task-group/cancellation
+regression board.
+
+The full gate must also exercise compatibility host-extension reuse. A host
+value created by program B has no interpreted nominal symbol, so program A's
+extension is a separate provenance path from a retained closure. The minimal
+RED declares an extension plus an overloaded helper in A and calls the member
+from B. Closing evidence requires exact overload output, a one-way overlay
+test proving B cannot mutate A's synthetic symbol, weak release of empty
+intermediate program states, the pre-existing `hostTypeExtensions` regression,
+and origin/newer HostRegistry selection through both direct closure calls and
+runtime callback entries.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

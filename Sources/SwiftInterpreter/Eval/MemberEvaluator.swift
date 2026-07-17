@@ -302,7 +302,9 @@ extension Interpreter {
             // property when every method overload requires arguments.
             if instance.symbol.computedProperties[name] != nil,
                overloads.allSatisfy({ method in
-                   method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
+                   functionMetadata(for: method).parameters.contains {
+                       $0.defaultValue == nil
+                   }
                }) {
                 return try evaluateComputed(
                     instance.symbol.computedProperties[name]!,
@@ -318,7 +320,7 @@ extension Interpreter {
                let superName = instance.symbol.superclassName,
                !isInterpretedType(superName),
                overloads.allSatisfy({ method in
-                   method.signature.parameterClause.parameters.contains {
+                   functionMetadata(for: method).parameters.contains {
                        $0.defaultValue == nil
                    }
                }) {
@@ -338,7 +340,9 @@ extension Interpreter {
                 }
                 method = candidate
             }
-            guard let body = method.body else { return nil }
+            guard let body = functionMetadata(for: method).body else {
+                return nil
+            }
             return .closure(makeFunctionClosure(
                 method, body: body, captured: instanceMethodEnvironment(instance)))
         }
@@ -352,7 +356,7 @@ extension Interpreter {
                 let method = overloads.count > 1
                     ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? firstMethod)
                     : firstMethod
-                if let body = method.body {
+                if let body = functionMetadata(for: method).body {
                     return .closure(makeFunctionClosure(
                         method, body: body, captured: instanceMethodEnvironment(instance)))
                 }
@@ -379,7 +383,9 @@ extension Interpreter {
                 // requires arguments — the instanceMember rule.
                 if let computed = proto.computedProperties[name],
                    overloads.allSatisfy({ method in
-                       method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
+                       functionMetadata(for: method).parameters.contains {
+                           $0.defaultValue == nil
+                       }
                    }) {
                     return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
                 }
@@ -389,7 +395,7 @@ extension Interpreter {
                 let method = overloads.count > 1
                     ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? firstMethod)
                     : firstMethod
-                if let body = method.body {
+                if let body = functionMetadata(for: method).body {
                     return .closure(makeFunctionClosure(
                         method, body: body, captured: instanceMethodEnvironment(instance)))
                 }
@@ -443,11 +449,8 @@ extension Interpreter {
             // host call, not a shadow hit.
             let callLabels = Set(args.arguments.compactMap(\.label))
             let shapePool = pool.filter { method in
-                let paramLabels = Set(method.signature.parameterClause.parameters.compactMap {
-                    parameter -> String? in
-                    let label = parameter.firstName.text
-                    return label == "_" ? nil : label
-                })
+                let paramLabels = Set(
+                    functionMetadata(for: method).parameters.compactMap(\.label))
                 return callLabels.isSubset(of: paramLabels)
             }
             var chosen = chooseFunction(from: shapePool, for: args) ?? shapePool.first
@@ -457,7 +460,8 @@ extension Interpreter {
                 // behavior for label-lenient code.
                 chosen = pool.first
             }
-            if let method = chosen, let body = method.body {
+            if let method = chosen,
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))
                 return try callWithArguments(closure, args: args, node: nil)
@@ -485,7 +489,9 @@ extension Interpreter {
                 if let computed = symbol.computedProperties[name],
                    !activeCollisionProperties.contains(collisionKey),
                    overloads.allSatisfy({ method in
-                       method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
+                       functionMetadata(for: method).parameters.contains {
+                           $0.defaultValue == nil
+                       }
                    }) {
                     activeCollisionProperties.insert(collisionKey)
                     defer { activeCollisionProperties.remove(collisionKey) }
@@ -497,7 +503,9 @@ extension Interpreter {
                 let method = overloads.count > 1
                     ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? firstOverload)
                     : firstOverload
-                guard let body = method.body else { return nil }
+                guard let body = functionMetadata(for: method).body else {
+                    return nil
+                }
                 let frame = ExtensionFrame(typeName: typeName, member: name)
                 // A same-named self-call INSIDE this method's own body is
                 // the other overload (UTM: onReceive(Notification.Name…)
@@ -621,7 +629,9 @@ extension Interpreter {
             let method = overloads.count > 1
                 ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? first)
                 : first
-            guard let body = method.body else { return nil }
+            guard let body = functionMetadata(for: method).body else {
+                return nil
+            }
             let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumCase(value)))
             closure.functionDeclID = method.id
             return .closure(closure)
@@ -721,7 +731,9 @@ extension Interpreter {
                 body: member.getter,
                 captured: env,
                 returnTypeName: member.resultTypeName,
-                programMetadata: currentProgramMetadata)
+                programMetadata: currentProgramMetadata,
+                programPlan: currentProgramPlan)
+            closure.programState = currentProgramState
             return try callWithArguments(closure, args: args, node: nil)
         }
     }
@@ -740,7 +752,9 @@ extension Interpreter {
                 body: member.getter,
                 captured: env,
                 returnTypeName: member.resultTypeName,
-                programMetadata: currentProgramMetadata)
+                programMetadata: currentProgramMetadata,
+                programPlan: currentProgramPlan)
+            closure.programState = currentProgramState
             return try await callWithArgumentsSuspending(
                 closure, args: args, node: nil)
         }
@@ -792,6 +806,9 @@ extension Interpreter {
         name: String,
         _ operation: (Environment) throws -> T
     ) throws -> T {
+        let programState = programStateOwningDeclaration(declarationID)
+        evaluationTaskContext.enterProgramState(programState)
+        defer { evaluationTaskContext.leaveProgramState(programState) }
         let previousExecutor = evaluationTaskContext.currentExecutor
         if let calleeExecutor {
             evaluationTaskContext.currentExecutor = calleeExecutor
@@ -848,6 +865,9 @@ extension Interpreter {
         name: String,
         _ operation: (Environment) async throws -> T
     ) async throws -> T {
+        let programState = programStateOwningDeclaration(declarationID)
+        evaluationTaskContext.enterProgramState(programState)
+        defer { evaluationTaskContext.leaveProgramState(programState) }
         let previousExecutor = evaluationTaskContext.currentExecutor
         if let calleeExecutor {
             evaluationTaskContext.currentExecutor = calleeExecutor
@@ -1063,7 +1083,7 @@ extension Interpreter {
                     return try evaluateComputed(computed, selfValue: .nilValue, name: name)
                 }
                 if let overloads = optionalExtension.methods[name], let method = overloads.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     return .closure(makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.nilValue)))
                 }
@@ -1082,7 +1102,7 @@ extension Interpreter {
                 if let overloads = optionalExtension.methods[name],
                    let method = chooseFunction(
                        from: overloads, for: CallArguments()) ?? overloads.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     return .closure(makeFunctionClosure(
                         method, body: body,
                         captured: selfEnvironment(baseValue)))
@@ -1258,7 +1278,9 @@ extension Interpreter {
             if name == "allCases",
                symbol.staticComputedProperties["allCases"] == nil,
                symbol.staticMethods["allCases"]?.contains(where: { method in
-                   !method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
+                   !functionMetadata(for: method).parameters.contains {
+                       $0.defaultValue == nil
+                   }
                }) != true {
                 // SYNTHESIZED CaseIterable for BARE references — an argful
                 // `static func allCases(for:)` overload dispatches at CALL
@@ -1598,7 +1620,7 @@ extension Interpreter {
                                     message: "no matching superclass initializer "
                                         + "'\(parent.name).init'")
                             }
-                            if initializer.signature.effectSpecifiers?.asyncSpecifier != nil {
+                            if self.initializerMetadata(for: initializer).isAsync {
                                 throw RuntimeError(
                                     message: "async superclass initializers require "
                                         + "suspension-aware dispatch")
@@ -1615,7 +1637,8 @@ extension Interpreter {
                     }
                     // Interpreted superclass: dispatch methods/computed with
                     // self bound to the SAME instance (super dispatch).
-                    if let method = parent.methods[name]?.first, let body = method.body {
+                    if let method = parent.methods[name]?.first,
+                       let body = functionMetadata(for: method).body {
                         return .closure(makeFunctionClosure(
                             method, body: body,
                             captured: selfEnvironment(.instance(superRef.instance))))

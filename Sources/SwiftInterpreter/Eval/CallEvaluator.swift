@@ -143,7 +143,7 @@ extension Interpreter {
         _ modifier: Instance, to content: RuntimeValue, node: Syntax?
     ) throws -> RuntimeValue {
         guard let overloads = modifier.symbol.methods["body"], let method = overloads.first,
-              let body = method.body else {
+              let body = functionMetadata(for: method).body else {
             return content // bodyless conformer: identity
         }
         let closure = makeFunctionClosure(
@@ -233,7 +233,7 @@ extension Interpreter {
                         base: baseValue, member: name, arguments: args))
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: instanceMethodEnvironment(instance))
                     return try invoke(.closure(closure), with: args, node: call)
@@ -250,7 +250,7 @@ extension Interpreter {
                         base: baseValue, member: name, arguments: args))
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
                     return try invoke(.closure(closure), with: args, node: call)
@@ -270,7 +270,7 @@ extension Interpreter {
                         base: baseValue, member: name, arguments: args))
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.enumType(symbol)))
                     return try invoke(.closure(closure), with: args, node: call)
@@ -303,7 +303,7 @@ extension Interpreter {
                     let own = (instance.symbol.methods[name] ?? [])
                         .filter { !activeFunctionBodies.contains($0.id) }
                     if let method = chooseFunction(from: own, for: args),
-                       let body = method.body {
+                       let body = functionMetadata(for: method).body {
                         let closure = makeFunctionClosure(
                             method, body: body, captured: instanceMethodEnvironment(instance))
                         return try invoke(.closure(closure), with: args, node: call)
@@ -315,7 +315,9 @@ extension Interpreter {
                         // Only a FITTING overload rescues — a wrong-shaped
                         // sibling must fall through to the modifier retry.
                         guard let method = chooseFunction(from: available, for: args),
-                              let body = method.body else { continue }
+                              let body = functionMetadata(for: method).body else {
+                            continue
+                        }
                         let closure = makeFunctionClosure(
                             method, body: body, captured: instanceMethodEnvironment(instance))
                         return try invoke(.closure(closure), with: args, node: call)
@@ -371,7 +373,7 @@ extension Interpreter {
                         base: .implicitMember(name), member: "call", arguments: args))
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(method, body: body, captured: globals)
                     return try invoke(.closure(closure), with: args, node: call)
                 }
@@ -392,7 +394,7 @@ extension Interpreter {
                         base: .instance(instance), member: name, arguments: args))
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let methodEnvironment = methodIsMutating(method)
                         ? selfEnvironment(.instance(instance))
                         : instanceMethodEnvironment(instance)
@@ -410,7 +412,7 @@ extension Interpreter {
                         base: .type(symbol), member: name, arguments: args))
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
                     return try invoke(.closure(closure), with: args, node: call)
@@ -438,7 +440,7 @@ extension Interpreter {
         guard let superclassName = instance.symbol.superclassName,
               !isInterpretedType(superclassName) else { return false }
         return overloads.allSatisfy { method in
-            method.signature.parameterClause.parameters.contains {
+            functionMetadata(for: method).parameters.contains {
                 $0.defaultValue == nil
             }
         }
@@ -507,8 +509,9 @@ extension Interpreter {
             if case .instance(let modifier)? = args.positional(0),
                modifier.symbol.conformances.contains("ViewModifier"),
                let overloads = modifier.symbol.methods["body"],
-               let method = overloads.first, method.body != nil,
-               method.signature.parameterClause.parameters.count == 1 {
+               let method = overloads.first,
+               functionMetadata(for: method).body != nil,
+               functionMetadata(for: method).parameters.count == 1 {
                 injectEnvironmentValues(into: modifier, values: [:])
                 return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
             }
@@ -521,9 +524,10 @@ extension Interpreter {
         if case .enumCase(let receiver) = baseValue,
            let overloads = receiver.symbol.methods[name],
            let method = overloads.first(where: { declared in
-               declared.modifiers.contains { $0.name.text == "mutating" }
+               functionMetadata(for: declared).modifierNames
+                   .contains("mutating")
            }),
-           let body = method.body,
+           let body = functionMetadata(for: method).body,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             let selfEnv = selfEnvironment(.enumCase(receiver))
@@ -547,7 +551,7 @@ extension Interpreter {
             if !mutating.isEmpty {
                 let args = try collectArguments(of: call, in: env)
                 if let method = chooseFunction(from: mutating, for: args) ?? mutating.first,
-                   let body = method.body,
+                   let body = functionMetadata(for: method).body,
                    let target = try? resolveLValue(base, in: env),
                    case .instance(let working) = baseValue.copiedForValueSemantics() {
                     let selfEnv = selfEnvironment(.instance(working))

@@ -661,11 +661,25 @@ private enum ConcurrencyParityHarness {
             "parityCurrentIsolationMatches",
             .hostFunction(HostFunction(
                 name: "parityCurrentIsolationMatches"
-            ) { arguments, context in
-                guard case .instance(let expected)? = arguments.positional(0),
-                      let expectedID = expected.actorID,
-                      let actualID = context.sourceExecutor.actorID else {
+            ) { arguments, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                guard let actual = isolation.unwrappedOptionalOrSelf else {
                     return .native("none")
+                }
+                if case .host(let expectedPayload)? = arguments.positional(0),
+                   let expected = expectedPayload
+                    as? RuntimeActorIsolationValue,
+                   case .host(let actualPayload) = actual,
+                   let actual = actualPayload as? RuntimeActorIsolationValue {
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }
+                guard case .instance(let expected)? = arguments.positional(0),
+                      case .instance(let actual) = actual,
+                      let expectedID = expected.actorID,
+                      let actualID = actual.actorID else {
+                    return .native("other")
                 }
                 return .native(actualID == expectedID ? "same" : "other")
             }))
@@ -850,6 +864,29 @@ private enum ConcurrencyParityHarness {
                 name: "parityHostGatewayEvents"
             ) { _, _ in
                 .native(hostGatewayEvents.joined(separator: ","))
+            }))
+        interpreter.globals.define(
+            "parityHostDateEpoch",
+            .hostFunction(HostFunction(
+                name: "parityHostDateEpoch"
+            ) { arguments, context in
+                let argument = arguments.positional(0)
+                let date: Date?
+                if case .host(let value)? = argument {
+                    date = value as? Date
+                } else if case .implicitMember("now")? = argument,
+                          let resolved = try context.sourceStaticMember(
+                            named: "now", ofType: "Date"),
+                          case .host(let value) = resolved {
+                    date = value as? Date
+                } else {
+                    date = nil
+                }
+                guard let date else {
+                    throw RuntimeError(message:
+                        "parityHostDateEpoch needs a resolved Date")
+                }
+                return .native(String(Int(date.timeIntervalSince1970)))
             }))
         interpreter.globals.define("parityReadTaskLocal", .hostFunction(HostFunction(
             name: "parityReadTaskLocal",

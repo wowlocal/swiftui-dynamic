@@ -100,7 +100,7 @@ extension Interpreter {
             let method = overloads.count > 1
                 ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? first)
                 : first
-            if let body = method.body {
+            if let body = functionMetadata(for: method).body {
                 return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol))))
             }
         }
@@ -191,7 +191,9 @@ extension Interpreter {
                 }
                 return .native(all)
             }
-            guard let body = method.body else { return nil }
+            guard let body = functionMetadata(for: method).body else {
+                return nil
+            }
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumType(symbol))))
         }
         if name == "allCases", symbol.conformances.contains("CaseIterable") {

@@ -9,12 +9,21 @@ struct RuntimeEntryOwnershipTests {
         var observedKinds: [RuntimeEntry.Kind] = []
         var observedHeapMatches: [Bool] = []
         var observedMetadata: [ParsedCallableMetadataIndex.Summary?] = []
+        var observedCallSiteCounts: [Int?] = []
+        var observedMemberBlockCounts: [Int?] = []
+        var observedTypeMemberFunctionCounts: [Int?] = []
+        var observedBodylessFunctionCounts: [Int?] = []
+        var observedInitializerCounts: [Int?] = []
+        var observedFailableInitializerCounts: [Int?] = []
         var observedDeclarationCounts: [Int?] = []
         var observedNominalCounts: [Int?] = []
         var observedPropertyBindingCounts: [Int?] = []
         var observedEnumCaseCounts: [Int?] = []
         var observedExtensionCounts: [Int?] = []
         var observedTypeAliasCounts: [Int?] = []
+        var observedDeinitializerCounts: [Int?] = []
+        var observedProgramPlans: [ResolvedProgramPlan?] = []
+        var observedProgramStates: [RuntimeProgramState?] = []
         weak var observedEntry: RuntimeEntry?
         interpreter.globals.define(
             "captureRuntimeEntry",
@@ -29,6 +38,21 @@ struct RuntimeEntryOwnershipTests {
                     observedKinds.append(entry.kind)
                     observedHeapMatches.append(entry.heap === interpreter.runtimeHeap)
                     observedMetadata.append(entry.callableMetadataIndex?.summary)
+                    observedCallSiteCounts.append(entry.programMetadata?
+                        .callSiteMetadataIndex.summary.callCount)
+                    observedMemberBlockCounts.append(entry.programMetadata?
+                        .memberMetadataIndex.summary.memberBlockCount)
+                    observedTypeMemberFunctionCounts.append(
+                        entry.callableMetadataIndex?.summary
+                            .typeMemberFunctionCount)
+                    observedBodylessFunctionCounts.append(
+                        entry.callableMetadataIndex?.summary
+                            .bodylessFunctionCount)
+                    observedInitializerCounts.append(
+                        entry.callableMetadataIndex?.summary.initializerCount)
+                    observedFailableInitializerCounts.append(
+                        entry.callableMetadataIndex?.summary
+                            .failableInitializerCount)
                     observedDeclarationCounts.append(entry.programMetadata?
                         .declarationIndex.summary
                         .possiblePrimaryDeclarationCount)
@@ -42,11 +66,21 @@ struct RuntimeEntryOwnershipTests {
                         .extensionMetadataIndex.summary.extensionCount)
                     observedTypeAliasCounts.append(entry.programMetadata?
                         .typeAliasMetadataIndex.summary.typeAliasCount)
+                    observedDeinitializerCounts.append(entry.programMetadata?
+                        .deinitializerMetadataIndex.summary.deinitializerCount)
+                    observedProgramPlans.append(entry.programPlan)
+                    observedProgramStates.append(entry.programState)
                     return .void
                 })))
         let value = try interpreter.run(source: """
-        struct OriginMarker { let value = 1 }
+        struct OriginMarker {
+            let value = 1
+            final class Lifetime { deinit {} }
+            static func origin() {}
+            init?(originValue: Int) { return nil }
+        }
         enum OriginState { case ready }
+        protocol OriginAPI { func requiredValue() }
         extension OriginMarker {}
         typealias OriginAlias = OriginMarker
         func makeCallback() -> () -> Void {
@@ -60,9 +94,22 @@ struct RuntimeEntryOwnershipTests {
         makeCallback()
         """)
         let closure = try #require(value.closureValue)
-        _ = interpreter.makeSession(program: try ParsedProgram(source: """
-        struct NewerMarker { let value = 1 }
-        struct NewestMarker { let value = 2 }
+        let originatingPlan = try #require(closure.programPlan)
+        let originatingState = try #require(closure.programState)
+        let newerSession = interpreter.makeSession(
+            program: try ParsedProgram(source: """
+        struct NewerMarker {
+            let value = 1
+            final class Lifetime { deinit {} }
+            static func newerTypeValue() {}
+            init(newerValue: Int) {}
+        }
+        struct NewestMarker {
+            let value = 2
+            final class Lifetime { deinit {} }
+            static func newestTypeValue() {}
+            init(newestValue: Int) {}
+        }
         enum NewerState { case first; case second }
         extension NewerMarker {}
         extension NewestMarker {}
@@ -71,6 +118,11 @@ struct RuntimeEntryOwnershipTests {
         func newer() {}
         func newest() {}
         """))
+        #expect(newerSession.programState !== originatingState)
+        #expect(originatingState.programPlan === originatingPlan)
+        #expect(originatingState.structSymbols.contains {
+            $0.name == "OriginMarker"
+        })
 
         _ = try interpreter.callHostCallback(closure, arguments: [])
 
@@ -86,13 +138,26 @@ struct RuntimeEntryOwnershipTests {
         #expect(Set(observedIDs).count == 1)
         #expect(observedKinds == [.hostCallback, .hostCallback])
         #expect(observedHeapMatches == [true, true])
-        #expect(observedMetadata.map { $0?.functionCount } == [1, 1])
-        #expect(observedDeclarationCounts == [3, 3])
+        #expect(observedMetadata.map { $0?.functionCount } == [3, 3])
+        #expect(observedCallSiteCounts == [4, 4])
+        #expect(observedMemberBlockCounts == [5, 5])
+        #expect(observedTypeMemberFunctionCounts == [1, 1])
+        #expect(observedBodylessFunctionCounts == [1, 1])
+        #expect(observedInitializerCounts == [1, 1])
+        #expect(observedFailableInitializerCounts == [1, 1])
+        #expect(observedDeclarationCounts == [4, 4])
         #expect(observedNominalCounts == [1, 1])
         #expect(observedPropertyBindingCounts == [1, 1])
         #expect(observedEnumCaseCounts == [1, 1])
         #expect(observedExtensionCounts == [1, 1])
         #expect(observedTypeAliasCounts == [1, 1])
+        #expect(observedDeinitializerCounts == [1, 1])
+        #expect(observedProgramPlans.count == 2)
+        #expect(observedProgramPlans.allSatisfy { $0 === originatingPlan })
+        #expect(observedProgramStates.count == 2)
+        #expect(observedProgramStates.allSatisfy {
+            $0 === originatingState
+        })
         #expect(observedEntry == nil,
             "the runtime entry must release after its final task record")
     }
@@ -129,4 +194,104 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedHeapMatches == [true, true])
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
+
+    @Test func escapedCallbackUsesItsOriginatingSourceMap() throws {
+        let interpreter = Interpreter()
+        let origin = try ParsedProgram(
+            source: """
+            func makeCallback() -> () -> Void {
+                {
+                    missingFromOrigin
+                }
+            }
+            makeCallback()
+            """,
+            fileName: "Origin.swift")
+        let value = try interpreter.run(program: origin)
+        let closure = try #require(value.closureValue)
+        #expect(closure.programPlan?.fileName == "Origin.swift")
+
+        let newer = try ParsedProgram(
+            source: String(repeating: "\n", count: 40) + "0",
+            fileName: "Newer.swift")
+        _ = try interpreter.run(program: newer)
+
+        do {
+            _ = try interpreter.callHostCallback(closure, arguments: [])
+            Issue.record("the unresolved origin identifier did not fail")
+        } catch let runtimeError as RuntimeError {
+            #expect(runtimeError.message ==
+                "unresolved identifier 'missingFromOrigin'")
+            #expect(runtimeError.line == 3)
+            #expect(runtimeError.column == 9)
+        }
+    }
+
+    @Test func escapedCallbackUsesItsOriginatingHostRegistry() throws {
+        var originRegistry: RegistryIdentityProbe? = RegistryIdentityProbe(
+            "origin")
+        weak let retainedOriginRegistry = originRegistry
+        let interpreter = Interpreter(registry: originRegistry)
+        let value = try interpreter.run(source: """
+            func directOriginRegistryIdentity() -> String {
+                registryIdentity()
+            }
+            func makeCallback() -> () -> String {
+                { registryIdentity() }
+            }
+            makeCallback()
+            """)
+        let closure = try #require(value.closureValue)
+
+        let newerRegistry = RegistryIdentityProbe("newer")
+        interpreter.registry = newerRegistry
+        originRegistry = nil
+        #expect(retainedOriginRegistry != nil)
+        #expect(try interpreter.run(source: "registryIdentity()").stringValue
+            == "newer")
+        #expect(try interpreter.run(
+            source: "directOriginRegistryIdentity()").stringValue == "origin")
+
+        let callbackValue = try interpreter.callHostCallback(
+            closure, arguments: [])
+        #expect(callbackValue.stringValue == "origin")
+
+        let unbridgedInterpreter = Interpreter()
+        let unbridgedValue = try unbridgedInterpreter.run(source: """
+            func makeCallback() -> () -> String {
+                { registryIdentity() }
+            }
+            makeCallback()
+            """)
+        let unbridgedClosure = try #require(unbridgedValue.closureValue)
+        unbridgedInterpreter.registry = newerRegistry
+        #expect(throws: RuntimeError.self) {
+            try unbridgedInterpreter.callHostCallback(
+                unbridgedClosure, arguments: [])
+        }
+    }
+}
+
+private final class RegistryIdentityProbe: HostRegistry {
+    private let identityFunction: HostFunction
+
+    init(_ identity: String) {
+        identityFunction = HostFunction(name: "registryIdentity") { _, _ in
+            .native(identity)
+        }
+    }
+
+    func cFunction(named name: String) -> HostFunction? {
+        name == "registryIdentity" ? identityFunction : nil
+    }
+
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
 }
