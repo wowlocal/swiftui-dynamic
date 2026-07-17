@@ -5,10 +5,11 @@ import SwiftParserDiagnostics
 
 /// Immutable, executor-neutral input to an interpreter session.
 ///
-/// Parsing, operator folding, and target-neutral declaration discovery happen
-/// once. The resulting SwiftSyntax tree, source-location index, and all-branch
-/// declaration index are immutable and `Sendable`, so independent sessions
-/// may share them without sharing evaluator or runtime-symbol state.
+/// Parsing, operator folding, and target-neutral metadata discovery happen
+/// once. The resulting SwiftSyntax tree, source-location index, declaration
+/// plan, callable metadata, and nominal headers are immutable and `Sendable`,
+/// so independent sessions may share them without sharing evaluator or
+/// runtime-symbol state.
 public nonisolated struct ParsedProgram: Sendable {
     public struct ParseFailure: Error, CustomStringConvertible, Sendable {
         public let message: String
@@ -26,6 +27,9 @@ public nonisolated struct ParsedProgram: Sendable {
     }
     public var callableMetadataIndex: ParsedCallableMetadataIndex {
         metadata.callableMetadataIndex
+    }
+    public var nominalMetadataIndex: ParsedNominalMetadataIndex {
+        metadata.nominalMetadataIndex
     }
     let syntax: SourceFileSyntax
     let locationConverter: SourceLocationConverter

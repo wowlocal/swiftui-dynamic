@@ -24,10 +24,9 @@ extension Interpreter {
             case .protocolType(let declaration):
                 // Only the INHERITANCE is recorded (requirements carry no
                 // bodies; defaults live in the protocol's extensions).
-                protocolInheritance[declaration.name.text] =
-                    declaration.inheritanceClause?.inheritedTypes.map {
-                        $0.type.trimmedDescription
-                    } ?? []
+                let metadata = nominalMetadata(for: declaration)
+                protocolInheritance[metadata.name] =
+                    metadata.inheritedTypeNames
             case .function(let declaration):
                 try defineFunction(declaration, in: globals)
             case .variable(let declaration):
@@ -449,25 +448,28 @@ extension Interpreter {
         globals.define(symbol.name, .type(symbol))
     }
 
-    private func recordGenericParameters(_ clause: GenericParameterClauseSyntax?, into symbol: StructSymbol) {
-        guard let clause else { return }
-        for parameter in clause.parameters {
-            symbol.genericParameters[parameter.name.text] =
-                parameter.inheritedType?.trimmedDescription ?? ""
-            symbol.orderedGenericParameters.append(parameter.name.text)
+    private func recordGenericParameters(
+        _ parameters: [ParsedNominalMetadata.GenericParameter],
+        into symbol: StructSymbol
+    ) {
+        for parameter in parameters {
+            symbol.genericParameters[parameter.name] =
+                parameter.inheritedTypeName ?? ""
+            symbol.orderedGenericParameters.append(parameter.name)
         }
     }
 
     func makeStructSymbol(_ node: StructDeclSyntax) throws -> StructSymbol {
-        let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
-        let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
-        recordGenericParameters(node.genericParameterClause, into: symbol)
+        let metadata = nominalMetadata(for: node)
+        let inherited = metadata.inheritedTypeNames
+        let symbol = StructSymbol(
+            name: metadata.name,
+            conformsToView: inherited.contains("View"))
+        recordGenericParameters(metadata.genericParameters, into: symbol)
         symbol.isRepresentable = inherited.contains { $0.hasSuffix("Representable") }
         symbol.conformsToShape = inherited.contains("Shape") || inherited.contains("InsettableShape")
         symbol.conformances = inherited
-        symbol.attributeNames = node.attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-        }
+        symbol.attributeNames = metadata.attributeNames
         symbol.observableViaMacro = symbol.attributeNames.contains("Observable")
         try collectStructMembers(node.memberBlock, into: symbol)
         return symbol
@@ -484,32 +486,42 @@ extension Interpreter {
     ]
 
     private func collectClass(_ node: ClassDeclSyntax) throws {
-        registerTypeSymbol(try makeClassLikeSymbol(
-            name: node.name.text, inheritanceClause: node.inheritanceClause,
-            memberBlock: node.memberBlock, attributes: node.attributes))
+        registerTypeSymbol(try makeClassLikeSymbol(node))
     }
 
     /// Actors share the nominal-member collector with classes but retain their
     /// language kind. Instance allocation assigns the runtime actor identity;
     /// isolated member closures then enter that actor's logical executor.
     private func collectActor(_ node: ActorDeclSyntax) throws {
-        registerTypeSymbol(try makeClassLikeSymbol(
-            name: node.name.text, inheritanceClause: node.inheritanceClause,
-            memberBlock: node.memberBlock, attributes: node.attributes,
-            isActor: true))
+        registerTypeSymbol(try makeClassLikeSymbol(node))
     }
 
     func makeClassLikeSymbol(
-        name: String,
-        inheritanceClause: InheritanceClauseSyntax?,
-        memberBlock: MemberBlockSyntax,
-        attributes: AttributeListSyntax,
-        isActor: Bool = false
+        _ node: ClassDeclSyntax
     ) throws -> StructSymbol {
-        let inherited = inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
-        let symbol = StructSymbol(name: name, conformsToView: inherited.contains("View"))
+        try makeClassLikeSymbol(
+            metadata: nominalMetadata(for: node),
+            memberBlock: node.memberBlock)
+    }
+
+    func makeClassLikeSymbol(
+        _ node: ActorDeclSyntax
+    ) throws -> StructSymbol {
+        try makeClassLikeSymbol(
+            metadata: nominalMetadata(for: node),
+            memberBlock: node.memberBlock)
+    }
+
+    private func makeClassLikeSymbol(
+        metadata: ParsedNominalMetadata,
+        memberBlock: MemberBlockSyntax
+    ) throws -> StructSymbol {
+        let inherited = metadata.inheritedTypeNames
+        let symbol = StructSymbol(
+            name: metadata.name,
+            conformsToView: inherited.contains("View"))
         symbol.isClass = true
-        symbol.isActor = isActor
+        symbol.isActor = metadata.kind == .actor
         symbol.conformances = inherited
         // A superclass, if present, is first in the clause; protocols follow.
         if let first = inherited.first, !Self.knownProtocols.contains(first),
@@ -517,9 +529,7 @@ extension Interpreter {
             symbol.superclassName = first
         }
         symbol.conformsToObservableObject = inherited.contains("ObservableObject")
-        symbol.attributeNames = attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-        }
+        symbol.attributeNames = metadata.attributeNames
         symbol.observableViaMacro = symbol.attributeNames.contains("Observable")
         try collectStructMembers(memberBlock, into: symbol)
         return symbol
@@ -625,15 +635,10 @@ extension Interpreter {
             } else if let nestedClass = member.decl.as(ClassDeclSyntax.self) {
                 // Nested classes (UserPreferences.Storage) register like
                 // nested structs — reference-typed.
-                let nestedSymbol = try makeClassLikeSymbol(
-                    name: nestedClass.name.text, inheritanceClause: nestedClass.inheritanceClause,
-                    memberBlock: nestedClass.memberBlock, attributes: nestedClass.attributes)
+                let nestedSymbol = try makeClassLikeSymbol(nestedClass)
                 registerNestedType(nestedSymbol, in: symbol)
             } else if let nestedActor = member.decl.as(ActorDeclSyntax.self) {
-                let nestedSymbol = try makeClassLikeSymbol(
-                    name: nestedActor.name.text, inheritanceClause: nestedActor.inheritanceClause,
-                    memberBlock: nestedActor.memberBlock,
-                    attributes: nestedActor.attributes, isActor: true)
+                let nestedSymbol = try makeClassLikeSymbol(nestedActor)
                 registerNestedType(nestedSymbol, in: symbol)
             }
         }
@@ -921,13 +926,10 @@ extension Interpreter {
     }
 
     private func makeEnumSymbol(_ node: EnumDeclSyntax) throws -> EnumSymbol {
-        let symbol = EnumSymbol(name: node.name.text)
-        symbol.conformances = node.inheritanceClause?.inheritedTypes.map {
-            $0.type.trimmedDescription
-        } ?? []
-        symbol.attributeNames = node.attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-        }
+        let metadata = nominalMetadata(for: node)
+        let symbol = EnumSymbol(name: metadata.name)
+        symbol.conformances = metadata.inheritedTypeNames
+        symbol.attributeNames = metadata.attributeNames
         let rawIsString = symbol.conformances.contains("String")
 
         var nextIntRaw = 0
@@ -1107,9 +1109,7 @@ extension Interpreter {
                 globals.define(nestedSymbol.name, .type(nestedSymbol))
             }
         } else if let nestedClass = decl.as(ClassDeclSyntax.self) {
-            let nestedSymbol = try makeClassLikeSymbol(
-                name: nestedClass.name.text, inheritanceClause: nestedClass.inheritanceClause,
-                memberBlock: nestedClass.memberBlock, attributes: nestedClass.attributes)
+            let nestedSymbol = try makeClassLikeSymbol(nestedClass)
             symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
             structSymbols.append(nestedSymbol)
             globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))

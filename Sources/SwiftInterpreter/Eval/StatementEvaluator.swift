@@ -242,9 +242,7 @@ extension Interpreter {
             return
         }
         if let classDecl = decl.as(ClassDeclSyntax.self) {
-            let symbol = try makeClassLikeSymbol(
-                name: classDecl.name.text, inheritanceClause: classDecl.inheritanceClause,
-                memberBlock: classDecl.memberBlock, attributes: classDecl.attributes)
+            let symbol = try makeClassLikeSymbol(classDecl)
             env.define(symbol.name, .type(symbol))
             return
         }

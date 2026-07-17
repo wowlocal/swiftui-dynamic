@@ -194,8 +194,15 @@ real SwiftUI task entry. The SwiftUI cancellation check exposed a test race:
 the source `started` event precedes registration of its sleep suspension. The
 test now waits causally for both that event and runtime `.waiting`, with a
 record dump on failure. The existing `extract-isolation-nonisolated` result is
+unchanged in twenty native/interpreter repetitions. Its ninth prerequisite
+adds all-branch nominal headers to that same composite capability. The
+compile-time RED was the absent nominal index/summary API. GREEN covers all five
+nominal kinds, inactive conditional branches, nested declarations, attributes,
+inheritance, generic constraints, eight detached readers, session and escaped-
+callback provenance, and the existing struct/class/enum/actor/protocol
+materialization suites. The causal `custom-global-actor-isolation` fixture is
 unchanged in twenty native/interpreter repetitions. Extending immutable
-nominal/property-storage, call-site, and compiler metadata, moving mutable
+property-storage/member, call-site, and compiler metadata, moving mutable
 symbols and evaluation fully behind the session, worker-safe heap
 classification, physical workers, cooperative-versus-parallel differential
 evidence, and TSan remain open.

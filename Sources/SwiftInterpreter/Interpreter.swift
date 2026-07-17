@@ -677,6 +677,10 @@ public final class Interpreter {
         currentProgramMetadata?.callableMetadataIndex
     }
 
+    var currentNominalMetadataIndex: ParsedNominalMetadataIndex? {
+        currentProgramMetadata?.nominalMetadataIndex
+    }
+
     func functionMetadata(
         for node: FunctionDeclSyntax
     ) -> ParsedFunctionMetadata {
@@ -703,6 +707,41 @@ public final class Interpreter {
     ) -> ParsedSubscriptMetadata {
         currentCallableMetadataIndex?.metadata(for: node)
             ?? ParsedSubscriptMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: StructDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: ClassDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: ActorDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: EnumDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: ProtocolDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
     }
 
 }

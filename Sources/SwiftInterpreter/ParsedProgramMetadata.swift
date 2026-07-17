@@ -6,10 +6,12 @@ import SwiftSyntax
 public nonisolated struct ParsedProgramMetadata: Sendable {
     public let declarationIndex: ParsedDeclarationIndex
     public let callableMetadataIndex: ParsedCallableMetadataIndex
+    public let nominalMetadataIndex: ParsedNominalMetadataIndex
 
     init(file: SourceFileSyntax) {
         declarationIndex = ParsedDeclarationIndex(
             statements: file.statements)
         callableMetadataIndex = ParsedCallableMetadataIndex(file: file)
+        nominalMetadataIndex = ParsedNominalMetadataIndex(file: file)
     }
 }

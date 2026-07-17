@@ -268,6 +268,114 @@ struct ParsedProgramConcurrencyTests {
         #expect(syncAccessor.setter?.parameterName == "replacement")
     }
 
+    @Test func parsedProgramOwnsSendableNominalMetadataIndex() async throws {
+        let program = try ParsedProgram(source: """
+        @globalActor
+        struct UIRealm {
+            actor Storage {}
+            static let shared = Storage()
+        }
+
+        @Observable
+        final class Model: NSObject, ObservableObject {}
+        actor Worker: Sendable {}
+        enum Outcome<Value>: Sendable { case value(Value) }
+        protocol Service: Sendable {}
+
+        #if os(iOS)
+        struct Selected: View {}
+        #else
+        class Selected: NSObject {}
+        #endif
+        """)
+        let expected = ParsedNominalMetadataIndex.Summary(
+            structureCount: 2,
+            classCount: 2,
+            actorCount: 2,
+            enumerationCount: 1,
+            protocolCount: 1,
+            attributedNominalCount: 2,
+            genericNominalCount: 1,
+            inheritedTypeCount: 7)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.nominalMetadataIndex)
+        #expect(program.nominalMetadataIndex.summary == expected)
+        #expect(program.metadata.nominalMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.nominalMetadataIndex.summary }
+        }
+        var observations: [ParsedNominalMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let structures: [StructDeclSyntax] = program.syntax.statements.compactMap {
+            guard case .decl(let declaration) = $0.item else { return nil }
+            return declaration.as(StructDeclSyntax.self)
+        }
+        let uiRealm = try #require(structures.first)
+        let metadata = try #require(
+            program.nominalMetadataIndex.metadata(for: uiRealm))
+        #expect(metadata.kind == .structure)
+        #expect(metadata.name == "UIRealm")
+        #expect(metadata.attributeNames == ["globalActor"])
+        #expect(metadata.inheritedTypeNames.isEmpty)
+        #expect(metadata.genericParameters.isEmpty)
+
+        let classes: [ClassDeclSyntax] = program.syntax.statements.compactMap {
+            guard case .decl(let declaration) = $0.item else { return nil }
+            return declaration.as(ClassDeclSyntax.self)
+        }
+        let model = try #require(classes.first)
+        let modelMetadata = try #require(
+            program.nominalMetadataIndex.metadata(for: model))
+        #expect(modelMetadata.kind == .classType)
+        #expect(modelMetadata.attributeNames == ["Observable"])
+        #expect(modelMetadata.inheritedTypeNames
+            == ["NSObject", "ObservableObject"])
+
+        let actors: [ActorDeclSyntax] = program.syntax.statements.compactMap {
+            guard case .decl(let declaration) = $0.item else { return nil }
+            return declaration.as(ActorDeclSyntax.self)
+        }
+        let worker = try #require(actors.first)
+        let workerMetadata = try #require(
+            program.nominalMetadataIndex.metadata(for: worker))
+        #expect(workerMetadata.kind == .actor)
+        #expect(workerMetadata.inheritedTypeNames == ["Sendable"])
+
+        let enumerations: [EnumDeclSyntax] = program.syntax.statements.compactMap {
+            guard case .decl(let declaration) = $0.item else { return nil }
+            return declaration.as(EnumDeclSyntax.self)
+        }
+        let outcome = try #require(enumerations.first)
+        let outcomeMetadata = try #require(
+            program.nominalMetadataIndex.metadata(for: outcome))
+        #expect(outcomeMetadata.kind == .enumeration)
+        #expect(outcomeMetadata.genericParameters.map(\.name) == ["Value"])
+        #expect(outcomeMetadata.genericParameters.map(\.inheritedTypeName)
+            == [nil])
+
+        let protocols: [ProtocolDeclSyntax] =
+            program.syntax.statements.compactMap {
+                guard case .decl(let declaration) = $0.item else { return nil }
+                return declaration.as(ProtocolDeclSyntax.self)
+            }
+        let service = try #require(protocols.first)
+        let serviceMetadata = try #require(
+            program.nominalMetadataIndex.metadata(for: service))
+        #expect(serviceMetadata.kind == .protocolType)
+        #expect(serviceMetadata.inheritedTypeNames == ["Sendable"])
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata?.nominalMetadataIndex
+            .summary == expected)
+    }
+
     @Test func parsedProgramMetadataIsOneSendableRuntimeCapability()
     async throws {
         let program = try ParsedProgram(source: """
@@ -281,26 +389,31 @@ struct ParsedProgramConcurrencyTests {
             == program.declarationIndex.summary)
         #expect(program.metadata.callableMetadataIndex.summary
             == program.callableMetadataIndex.summary)
+        #expect(program.metadata.nominalMetadataIndex.summary
+            == program.nominalMetadataIndex.summary)
 
         let readers = (0..<8).map { _ in
             Task.detached {
                 (
                     program.metadata.declarationIndex.summary
                         .possiblePrimaryDeclarationCount,
-                    program.metadata.callableMetadataIndex.summary.functionCount
+                    program.metadata.callableMetadataIndex.summary.functionCount,
+                    program.metadata.nominalMetadataIndex.summary.structureCount
                 )
             }
         }
-        var observations: [(Int, Int)] = []
+        var observations: [(Int, Int, Int)] = []
         for reader in readers {
             observations.append(await reader.value)
         }
-        #expect(observations.allSatisfy { $0 == (2, 1) })
+        #expect(observations.allSatisfy { $0 == (2, 1, 1) })
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
         #expect(session.runtimeEntry.programMetadata?.callableMetadataIndex
             .summary == program.callableMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.nominalMetadataIndex
+            .summary == program.nominalMetadataIndex.summary)
         #expect(try await interpreter.runAsync(session: session).intValue == 42)
     }
 
