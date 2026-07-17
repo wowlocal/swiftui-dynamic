@@ -1385,10 +1385,13 @@ consumer, `finish` resumes all remaining consumers with terminal `nil`, and
 the record closes only after the buffer and wait edges drain. Cancelling a task
 parked in `next()` synchronously invokes the installed termination closure with
 `.cancelled` before making that call return `nil`; the callback registration is
-one-shot and is cleared at termination. Construction accepts an explicit
-element specialization, and unsupported buffering policies fail closed instead
-of being ignored. The current slices do not yet claim explicit-finish callback
-parity, deinit/lifetime termination, iterator-copy behavior, bounded buffering,
+one-shot and is cleared at termination. Explicit `finish()` similarly invokes
+one `.finished` callback synchronously before returning, retains values already
+buffered, makes later `next()` calls stably return `nil`, and rejects later
+`yield` calls as `.terminated`. Construction accepts an explicit element
+specialization, and unsupported buffering policies fail closed instead of being
+ignored. The current slices do not yet claim deinit/lifetime termination,
+iterator-copy behavior, multiple-consumer behavior, bounded buffering,
 `AsyncThrowingStream`, or source checked continuations.
 
 ### 6.19 Host gateway runtime
@@ -1964,8 +1967,9 @@ Each milestone is independently gated through
   protocol-extension defaults for both requirements and typed opaque
   host-bridged iteration are also covered. The first unbounded `AsyncStream`
   producer/consumer slice now owns empty-stream suspension, value delivery,
-  finish-to-`nil`, cancelled-consumer callback-before-`nil`, and cleanup;
-  explicit-finish callbacks, termination/lifetime, iterator copies, buffering,
+  finish-to-`nil`, one-shot `.finished`/`.cancelled` callback ordering,
+  stable terminal reads, rejected post-finish yield, and cleanup;
+  deinit/lifetime termination, iterator copies, multiple consumers, buffering,
   `AsyncThrowingStream`, and checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
@@ -2171,10 +2175,12 @@ suspension. The first unbounded `AsyncStream` slice also suspends an empty
 consumer in a runtime-owned stream registry, delivers two producer values, and
 terminates at `nil` after `finish()` with complete cleanup. A controlled
 follow-up cancels a parked consumer and proves the one-shot `.cancelled`
-termination callback occurs before `next()` resumes with `nil`. Explicit-finish
-callbacks, deinit/lifetime termination, iterator copies, bounded buffering,
-throwing streams, and continuation ownership remain active rather than being
-inferred from those slices.
+termination callback occurs before `next()` resumes with `nil`. Another exact
+characterization proves explicit `finish()` invokes `.finished` before
+returning, retains buffered values, produces stable terminal `nil`, and rejects
+post-terminal yield. Deinit/lifetime termination, iterator copies, multiple
+consumers, bounded buffering, throwing streams, and continuation ownership
+remain active rather than being inferred from those slices.
 
 Deliverables:
 

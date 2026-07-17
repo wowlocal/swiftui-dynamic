@@ -1903,5 +1903,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Cancelling a task suspended in an empty AsyncStream.Iterator.next() synchronously invokes onTermination with .cancelled before resuming next() with nil. The consumer remains marked cancelled while completing normally.",
     "notes": "The MainActor child sets enteredNext immediately before awaiting next(); run-to-suspension means the parent cannot observe that flag until the iterator is actually parked. Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native/interpreter runs produced exact output true:true:cancelled:cancelled with canonical native-observation SHA-256 56a7e6749ac968b86afc193b51e0a60609748b599aff47a818c4c729d5c17616. The result asserts the causal callback-before-nil edge, cancellation observation, and final callback value without relying on unrelated scheduler order or a physical thread. Focused evidence requires the stream wait, cancellation registration, stream record, source tasks, and scheduler to drain."
+  },
+  {
+    "id": "async-stream-finish-termination",
+    "fixture": "Fixtures/async-stream-finish-termination.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamFinishTerminationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncStream.Continuation.finish() marks the stream terminal, synchronously invokes onTermination(.finished) before returning, preserves already-buffered values, and makes repeated finish calls inert. A yield after finish returns .terminated and cannot create another element.",
+    "notes": "The callback writes finished and source code appends after-finish only after finish() returns, making their order observable without scheduler assumptions. Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native/interpreter runs produced exact output 3:true:true:finished,after-finish:terminated with canonical native-observation SHA-256 e5c5b4559a7c0e21a670c4febbf08d3bff2709e4d9580c49d0b93b5b69404f2b. Two terminal next() calls prove stable nil, and the post-terminal yield result is rendered directly as terminated. This was characterization of the existing general stream mechanism; no production change was required."
   }
 ]
