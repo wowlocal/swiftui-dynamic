@@ -924,7 +924,8 @@ extension Interpreter {
                     let closure = ClosureValue(
                         parameters: initializerMetadata(for: chosen).parameters,
                         body: body.statements,
-                        captured: env)
+                        captured: env,
+                        callableMetadataIndex: currentCallableMetadataIndex)
                     closure.debugName = "extInit:\(function.name)"
                     _ = try await callWithArgumentsSuspending(
                         closure, args: arguments, node: Syntax(node))

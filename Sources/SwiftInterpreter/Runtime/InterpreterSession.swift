@@ -43,7 +43,10 @@ public final class InterpreterSession {
         self.completionPolicy = completionPolicy
         self.owner = owner
         runtimeEntry = concurrencyRuntime.createEntry(
-            kind: .program, heap: heap, interpreter: owner)
+            kind: .program,
+            heap: heap,
+            callableMetadataIndex: program.callableMetadataIndex,
+            interpreter: owner)
         id = runtimeEntry.id
     }
 

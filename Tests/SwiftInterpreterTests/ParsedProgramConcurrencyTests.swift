@@ -136,6 +136,55 @@ struct ParsedProgramConcurrencyTests {
         #expect(macValue.intValue == 21)
     }
 
+    @Test func parsedProgramOwnsSendableCallableMetadataIndex() async throws {
+        let program = try ParsedProgram(source: """
+        @MainActor
+        func mainActorValue(_ input: Int = 1) async -> Int { input }
+
+        struct Worker {
+            init(seed: Int) {}
+
+            nonisolated func plain(label: String) async throws -> Int {
+                1
+            }
+
+            #if os(iOS)
+            @concurrent func selected() async {}
+            #else
+            func selected() {}
+            #endif
+        }
+
+        await mainActorValue(42)
+        """)
+        let expected = ParsedCallableMetadataIndex.Summary(
+            functionCount: 4,
+            initializerCount: 1,
+            asyncFunctionCount: 3,
+            throwingFunctionCount: 1,
+            explicitlyNonisolatedFunctionCount: 1,
+            mainActorFunctionCount: 1,
+            concurrentFunctionCount: 1)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.callableMetadataIndex)
+        #expect(program.callableMetadataIndex.summary == expected)
+        let readers = (0..<8).map { _ in
+            Task.detached { program.callableMetadataIndex.summary }
+        }
+        var observations: [ParsedCallableMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.callableMetadataIndex?.summary == expected)
+        let result = try await interpreter.runAsync(session: session)
+        #expect(result.intValue == 42)
+    }
+
     @Test func sourceEntryStillReturnsLocatedRuntimeParseError() throws {
         do {
             _ = try Interpreter().run(source: "let value = \"")

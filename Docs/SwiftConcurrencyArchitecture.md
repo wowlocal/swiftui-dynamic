@@ -141,6 +141,18 @@ a second callback can resume a task parked by the first and completes before
 that task continues on MainActor. This defines the current overlap policy; it
 does not authorize physical concurrent heap access.
 
+The sixth prerequisite moves function and initializer call metadata out of
+mutable facade caches. `ParsedProgram` now owns one immutable, Sendable,
+all-branch `ParsedCallableMetadataIndex` containing parameter/call shapes,
+return and builder facts, generic names, effects, declaration attributes, and
+the currently modeled explicit isolation flags. A program `RuntimeEntry`
+retains that index, and escaped source closures carry the capability into
+fresh host-callback and SwiftUI entries. Eight detached readers observe one
+snapshot, while focused ownership tests prove sessions and callback-created
+tasks keep the originating program's metadata. Existing native parity for
+plain explicitly nonisolated async declarations remains exact; this slice does
+not claim complete member/accessor, call-site, or compiler metadata.
+
 The stable target separates five concerns:
 
 ```text
@@ -528,13 +540,17 @@ SwiftSyntax values may require an internal immutable wrapper rather than direct
 task-specific state.
 
 Current implementation stage (2026-07-17): `ParsedProgram` owns the folded
-syntax, source-location index, and a public immutable `ParsedDeclarationIndex`.
-The index classifies all possible top-level primary declarations, aliases, and
+syntax, source-location index, a public immutable `ParsedDeclarationIndex`, and
+a public immutable `ParsedCallableMetadataIndex`. The declaration index
+classifies all possible top-level primary declarations, aliases, and
 extensions across nested conditional regions. A session resolves exactly one
 ordered build-specific plan; the collector no longer rescans the source or
-re-evaluates top-level `#if` regions in three separate passes. Mutable runtime
-symbol materialization remains session/facade-owned. Full member/call/
-isolation metadata and the compiler-preflight fingerprint remain target work.
+re-evaluates top-level `#if` regions in three separate passes. The callable
+index records all-branch function/initializer parameter shapes, effects,
+return/builder/generic facts, attributes, and the modeled declaration-level
+isolation flags once. Mutable runtime symbol materialization remains
+session/facade-owned. Member/accessor metadata, call-site semantic resolution,
+and the compiler-preflight fingerprint remain target work.
 
 ### 6.2 `InterpreterSession`
 
@@ -563,7 +579,8 @@ root task's ID, policy/program/heap/runtime binding, foreign-facade rejection,
 single-use state, complete runtime draining, and heap/runtime lifetime after
 facade release. The session also binds the one build-resolved declaration plan
 used by runtime-symbol materialization and top-level execution. Its root task
-and evaluation context retain the same explicit `RuntimeEntry`. Host callbacks
+and evaluation context retain the same explicit `RuntimeEntry`, including the
+program's immutable callable metadata index. Host callbacks
 and SwiftUI tasks create distinct entry capabilities through that same runtime
 mechanism, and all source tasks inherit the object rather than only copying its
 numeric ID. The session intentionally remains MainActor-confined and holds a
@@ -2645,10 +2662,17 @@ SwiftUI tasks, and every source task they create now retain an explicit
 `RuntimeEntry`; focused ownership tests prove callback parent/child identity,
 distinct callback IDs over one heap, and final release. A causal same-source
 probe establishes cooperative overlap against the confined heap in twenty
-native/interpreter repetitions. These slices separate immutable program input,
-mutable storage, and execution identity without changing scheduling.
-Member/call/isolation indexing is still incomplete, and mutable symbol
-materialization plus evaluator state must move fully behind the session;
+native/interpreter repetitions. `ParsedProgram` additionally owns an immutable
+all-branch `ParsedCallableMetadataIndex`; the runtime no longer stores mutable
+function/initializer metadata caches on the facade. Sessions and escaped
+callbacks retain the originating index through `RuntimeEntry`, and eight
+detached readers exercise one snapshot under Swift 6 strict concurrency.
+Existing `extractIsolation` parity characterizes the no-semantic-change result
+for plain explicitly nonisolated async declarations. These slices separate
+immutable program input, mutable storage, and execution identity without
+changing scheduling. Member/accessor and call-site metadata indexing remains
+incomplete, and mutable symbol materialization plus evaluator state must move
+fully behind the session;
 worker-safe heap classification, physical worker scheduling,
 cooperative-versus-parallel parity, and TSan evidence remain open.
 

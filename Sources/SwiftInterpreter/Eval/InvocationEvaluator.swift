@@ -177,7 +177,10 @@ extension Interpreter {
                     env.define("self", .void)
                     let parameters = initializerMetadata(for: chosen).parameters
                     let closure = ClosureValue(
-                        parameters: parameters, body: body.statements, captured: env)
+                        parameters: parameters,
+                        body: body.statements,
+                        captured: env,
+                        callableMetadataIndex: currentCallableMetadataIndex)
                     closure.debugName = "extInit:\(function.name)"
                     _ = try callWithArguments(closure, args: args, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void
@@ -239,7 +242,11 @@ extension Interpreter {
                 let env = Environment(parent: globals)
                 env.define("self", .void)
                 let parameters = initializerMetadata(for: chosen).parameters
-                let closure = ClosureValue(parameters: parameters, body: body.statements, captured: env)
+                let closure = ClosureValue(
+                    parameters: parameters,
+                    body: body.statements,
+                    captured: env,
+                    callableMetadataIndex: currentCallableMetadataIndex)
                 closure.debugName = "enumInit:\(symbol.name)"
                 _ = try callWithArguments(closure, args: args, node: Syntax(node))
                 let assigned = env.lookup("self") ?? .void
@@ -681,7 +688,8 @@ extension Interpreter {
 
         let value = ClosureValue(
             parameters: parameters, body: closure.statements,
-            captured: captured)
+            captured: captured,
+            callableMetadataIndex: currentCallableMetadataIndex)
         value.lexicalExecutor = currentLexicalExecutor
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
@@ -1048,7 +1056,8 @@ extension Interpreter {
                         parameters: c.parameters, body: c.body, captured: c.captured,
                         isBuilder: true,
                         returnType: parameter.builderReturnType ?? c.returnType,
-                        returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName
+                        returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName,
+                        callableMetadataIndex: c.callableMetadataIndex
                     ))
                 }
                 env.define(

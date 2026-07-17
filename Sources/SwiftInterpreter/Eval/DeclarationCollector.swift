@@ -1230,30 +1230,22 @@ extension Interpreter {
             captured: captured,
             isBuilder: metadata.isBuilder,
             returnType: metadata.returnType,
-            returnTypeName: metadata.returnTypeName
+            returnTypeName: metadata.returnTypeName,
+            callableMetadataIndex: currentCallableMetadataIndex
         )
         closure.functionDeclID = node.id
         let lexicalOwner = declLexicalOwners[node.id]
         closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
         closure.debugName = node.name.text
-        let parameterLabels = node.signature.parameterClause.parameters
-            .map { $0.firstName.text + ":" }
-            .joined()
-        closure.sourceFunctionName =
-            "\(node.name.text)(\(parameterLabels))"
-        let isAnyNonisolated = node.modifiers.contains {
-            $0.name.text == "nonisolated"
-        }
-        closure.isExplicitlyNonisolated = node.modifiers.contains {
-            $0.trimmedDescription == "nonisolated"
-        }
+        closure.sourceFunctionName = metadata.sourceFunctionName
+        let isAnyNonisolated = metadata.isAnyNonisolated
+        closure.isExplicitlyNonisolated = metadata.isExplicitlyNonisolated
         closure.executorPreference = functionExecutorPreference(
-            node, lexicalOwner: lexicalOwner)
+            metadata, lexicalOwner: lexicalOwner)
         if !isAnyNonisolated {
             closure.globalActorAttributeCandidates =
-                functionAttributeNames(node)
-                + lexicalAttributeNames(of: lexicalOwner)
+                metadata.attributeNames + lexicalAttributeNames(of: lexicalOwner)
         }
         if closure.executorPreference == nil,
            !isAnyNonisolated,
@@ -1274,17 +1266,16 @@ extension Interpreter {
     /// their caller's executor. User-declared global actors are resolved
     /// lazily from `globalActorAttributeCandidates` at invocation.
     private func functionExecutorPreference(
-        _ node: FunctionDeclSyntax,
+        _ metadata: ParsedFunctionMetadata,
         lexicalOwner: AnyObject?
     ) -> RuntimeExecutorKind? {
-        let attributes = functionAttributeNames(node)
-        if attributes.contains("concurrent") {
+        if metadata.isConcurrent {
             return .cooperativeDefault
         }
-        if node.modifiers.contains(where: { $0.name.text == "nonisolated" }) {
+        if metadata.isAnyNonisolated {
             return nil
         }
-        if attributes.contains("MainActor") {
+        if metadata.isMainActor {
             return .mainActor
         }
         if let owner = lexicalOwner as? StructSymbol,
@@ -1292,15 +1283,6 @@ extension Interpreter {
             return .mainActor
         }
         return nil
-    }
-
-    private func functionAttributeNames(
-        _ node: FunctionDeclSyntax
-    ) -> [String] {
-        node.attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-                .split(separator: ".").last.map(String.init)
-        }
     }
 
     private func lexicalAttributeNames(of owner: AnyObject?) -> [String] {

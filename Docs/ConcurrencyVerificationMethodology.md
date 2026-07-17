@@ -170,10 +170,19 @@ A causally gated Swift 6 same-source probe establishes the overlap policy in
 twenty repetitions: a second MainActor callback may run while a task from the
 first is parked and completes before that task resumes. Cooperative overlap is
 therefore supported; physical concurrent heap access remains unclaimed.
-Extending immutable member/call/isolation metadata, moving mutable symbols and
-evaluation fully behind the session, worker-safe heap classification, physical
-workers, cooperative-versus-parallel differential evidence, and TSan remain
-open.
+Its sixth prerequisite removes the mutable function/initializer metadata
+caches from the facade. One immutable Sendable all-branch callable index now
+belongs to `ParsedProgram`; the program entry and escaped callbacks retain it,
+and runtime symbol construction consumes it. The compile-time RED was the
+absent index/summary/runtime-entry API. GREEN evidence covers eight detached
+readers, session and callback propagation, 145 affected runtime/language/
+compiler tests, and twenty unchanged `extract-isolation-nonisolated` native/
+interpreter repetitions under Apple Swift 6.3.3. This was an already-GREEN
+semantic characterization, not a fabricated runtime mismatch. Extending
+immutable member/accessor, call-site, and compiler metadata, moving mutable
+symbols and evaluation fully behind the session, worker-safe heap
+classification, physical workers, cooperative-versus-parallel differential
+evidence, and TSan remain open.
 
 ## Process and liveness isolation
 

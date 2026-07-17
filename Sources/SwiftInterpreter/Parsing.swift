@@ -21,6 +21,7 @@ public nonisolated struct ParsedProgram: Sendable {
     public let source: String
     public let fileName: String
     public let declarationIndex: ParsedDeclarationIndex
+    public let callableMetadataIndex: ParsedCallableMetadataIndex
     let syntax: SourceFileSyntax
     let locationConverter: SourceLocationConverter
 
@@ -70,6 +71,7 @@ public nonisolated struct ParsedProgram: Sendable {
         syntax = foldedFile
         declarationIndex = ParsedDeclarationIndex(
             statements: foldedFile.statements)
+        callableMetadataIndex = ParsedCallableMetadataIndex(file: foldedFile)
         locationConverter = converter
     }
 

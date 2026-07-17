@@ -363,7 +363,11 @@ extension Interpreter: EvalContext {
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
         let entry = concurrencyRuntime.createEntry(
-            kind: .hostCallback, heap: runtimeHeap, interpreter: self)
+            kind: .hostCallback,
+            heap: runtimeHeap,
+            callableMetadataIndex: closure.callableMetadataIndex
+                ?? currentCallableMetadataIndex,
+            interpreter: self)
         let taskLocals = RuntimeTaskLocalStorage()
         let record = concurrencyRuntime.createTask(
             entry: entry,
@@ -425,7 +429,11 @@ extension Interpreter: EvalContext {
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
         let entry = concurrencyRuntime.createEntry(
-            kind: .swiftUITask, heap: runtimeHeap, interpreter: self)
+            kind: .swiftUITask,
+            heap: runtimeHeap,
+            callableMetadataIndex: closure.callableMetadataIndex
+                ?? currentCallableMetadataIndex,
+            interpreter: self)
         let priority = RuntimeTaskPriority(Task.currentPriority)
         let taskLocals = RuntimeTaskLocalStorage()
         let record = concurrencyRuntime.createTask(
@@ -702,6 +710,7 @@ extension Interpreter: EvalContext {
             ?? concurrencyRuntime.createEntry(
                 kind: .compatibilityTask,
                 heap: runtimeHeap,
+                callableMetadataIndex: currentCallableMetadataIndex,
                 interpreter: self)
         let priority = explicitPriority ?? (kind == .detached
             ? .medium : evaluationTaskContext.priority)

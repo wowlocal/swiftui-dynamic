@@ -405,29 +405,7 @@ public final class Interpreter {
     /// per name, so calls consult this table for shape choice.
     var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]
 
-    /// Call-shape and closure metadata are properties of syntax declarations,
-    /// not of individual invocations. Cache them by SwiftSyntax identity so
-    /// overload dispatch never rebuilds syntax collections or descriptions.
-    struct CallableShape {
-        let parameterCount: Int
-        let labels: Set<String>
-        let wildcardCount: Int
-        let requiredLabels: [String]
-
-        func matches(_ arguments: ArgumentShape) -> Bool {
-            guard arguments.count <= parameterCount,
-                  arguments.labels.isSubset(of: labels),
-                  arguments.unlabeledCount <= wildcardCount else { return false }
-            var missingRequired = 0
-            for label in requiredLabels where !arguments.labels.contains(label) {
-                missingRequired += 1
-                if missingRequired > arguments.unlabeledTrailingCount { return false }
-            }
-            return true
-        }
-    }
-
-    struct ArgumentShape {
+    nonisolated struct ArgumentShape: Sendable {
         let count: Int
         let labels: Set<String>
         let unlabeledCount: Int
@@ -453,22 +431,11 @@ public final class Interpreter {
         }
     }
 
-    struct FunctionMetadata {
-        let parameters: [ClosureValue.Parameter]
-        let shape: CallableShape
-        let returnType: TypeSyntax?
-        let returnTypeName: String?
-        let isBuilder: Bool
-        let genericParameters: [String]
-    }
-
-    struct InitializerMetadata {
-        let parameters: [ClosureValue.Parameter]
-        let shape: CallableShape
-    }
-
-    var functionMetadataCache: [SyntaxIdentifier: FunctionMetadata] = [:]
-    var initializerMetadataCache: [SyntaxIdentifier: InitializerMetadata] = [:]
+    /// Last immutable program metadata used by the synchronous compatibility
+    /// facade. Canonical async work resolves metadata from its RuntimeEntry;
+    /// this fallback keeps post-run rendering/instantiation APIs source-
+    /// compatible without rebuilding mutable syntax caches.
+    var compatibilityCallableMetadataIndex: ParsedCallableMetadataIndex?
 
     /// Per-view-IDENTITY state cells: compiled SwiftUI keeps @State/
     /// @StateObject storage alive across re-renders of the same position;
@@ -701,81 +668,23 @@ public final class Interpreter {
         defineGlobalBuiltins()
     }
 
-    func functionMetadata(for node: FunctionDeclSyntax) -> FunctionMetadata {
-        let identifier = Syntax(node).id
-        if let cached = functionMetadataCache[identifier] { return cached }
-        let parameters = node.signature.parameterClause.parameters
-        let returnType = node.signature.returnClause?.type
-        let returnTypeName = returnType?.trimmedDescription
-        let returnsView = returnTypeName?.contains("some View") ?? false
-        let isBuilder = returnsView || node.attributes.contains {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-        }
-        let metadata = FunctionMetadata(
-            parameters: closureParameters(from: parameters),
-            shape: callableShape(from: parameters),
-            returnType: returnType,
-            returnTypeName: returnTypeName,
-            isBuilder: isBuilder,
-            genericParameters: node.genericParameterClause?.parameters.map(\.name.text) ?? [])
-        functionMetadataCache[identifier] = metadata
-        return metadata
+    var currentCallableMetadataIndex: ParsedCallableMetadataIndex? {
+        evaluationTaskContext.runtimeEntry?.callableMetadataIndex
+            ?? compatibilityCallableMetadataIndex
     }
 
-    func initializerMetadata(for node: InitializerDeclSyntax) -> InitializerMetadata {
-        let identifier = Syntax(node).id
-        if let cached = initializerMetadataCache[identifier] { return cached }
-        let parameters = node.signature.parameterClause.parameters
-        let metadata = InitializerMetadata(
-            parameters: closureParameters(from: parameters),
-            shape: callableShape(from: parameters))
-        initializerMetadataCache[identifier] = metadata
-        return metadata
+    func functionMetadata(
+        for node: FunctionDeclSyntax
+    ) -> ParsedFunctionMetadata {
+        currentCallableMetadataIndex?.metadata(for: node)
+            ?? ParsedFunctionMetadata(node)
     }
 
-    private func closureParameters(
-        from parameters: FunctionParameterListSyntax
-    ) -> [ClosureValue.Parameter] {
-        var result: [ClosureValue.Parameter] = []
-        result.reserveCapacity(parameters.count)
-        let backticks = CharacterSet(charactersIn: "`")
-        for parameter in parameters {
-            let firstName = parameter.firstName.text.trimmingCharacters(in: backticks)
-            result.append(ClosureValue.Parameter(
-                name: (parameter.secondName ?? parameter.firstName).text
-                    .trimmingCharacters(in: backticks),
-                label: firstName == "_" ? nil : firstName,
-                defaultValue: parameter.defaultValue?.value,
-                typeAnnotation: parameter.type,
-                isBuilderAttributed: parameter.attributes.contains {
-                    $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-                } || ClosureValue.Parameter.isBuilderAttributedType(parameter.type),
-                isVariadic: parameter.ellipsis != nil,
-                isIsolated: ClosureValue.Parameter.isIsolatedType(
-                    parameter.type)))
-        }
-        return result
-    }
-
-    private func callableShape(from parameters: FunctionParameterListSyntax) -> CallableShape {
-        var labels: Set<String> = []
-        var wildcardCount = 0
-        var requiredLabels: [String] = []
-        requiredLabels.reserveCapacity(parameters.count)
-        for parameter in parameters {
-            let label = parameter.firstName.text
-            labels.insert(label)
-            if label == "_" {
-                wildcardCount += 1
-            } else if parameter.defaultValue == nil {
-                requiredLabels.append(label)
-            }
-        }
-        return CallableShape(
-            parameterCount: parameters.count,
-            labels: labels,
-            wildcardCount: wildcardCount,
-            requiredLabels: requiredLabels)
+    func initializerMetadata(
+        for node: InitializerDeclSyntax
+    ) -> ParsedInitializerMetadata {
+        currentCallableMetadataIndex?.metadata(for: node)
+            ?? ParsedInitializerMetadata(node)
     }
 
 }

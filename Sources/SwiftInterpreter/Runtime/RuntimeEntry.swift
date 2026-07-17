@@ -21,17 +21,20 @@ final class RuntimeEntry {
     let id: RuntimeSessionID
     let kind: Kind
     let heap: RuntimeHeap?
+    let callableMetadataIndex: ParsedCallableMetadataIndex?
     private(set) weak var interpreter: Interpreter?
 
     init(
         id: RuntimeSessionID,
         kind: Kind,
         heap: RuntimeHeap?,
+        callableMetadataIndex: ParsedCallableMetadataIndex?,
         interpreter: Interpreter?
     ) {
         self.id = id
         self.kind = kind
         self.heap = heap
+        self.callableMetadataIndex = callableMetadataIndex
         self.interpreter = interpreter
     }
 }

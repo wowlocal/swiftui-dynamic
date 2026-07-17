@@ -715,12 +715,17 @@ final class CooperativeConcurrencyRuntime {
     func createEntry(
         kind: RuntimeEntry.Kind,
         heap: RuntimeHeap? = nil,
+        callableMetadataIndex: ParsedCallableMetadataIndex? = nil,
         interpreter: Interpreter? = nil
     ) -> RuntimeEntry {
         let id = RuntimeSessionID(rawValue: nextSessionID)
         nextSessionID += 1
         return RuntimeEntry(
-            id: id, kind: kind, heap: heap, interpreter: interpreter)
+            id: id,
+            kind: kind,
+            heap: heap,
+            callableMetadataIndex: callableMetadataIndex,
+            interpreter: interpreter)
     }
 
     func recordNonthrowingCallbackFailure(
