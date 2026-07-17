@@ -98,8 +98,16 @@ immutable parsed/operator-folded syntax tree and source-location index, is
 strictly `Sendable`, and may be reused by independent interpreter sessions.
 Eight detached readers and two concurrent cooperative sessions exercise the
 same instance without sharing evaluator state. Declaration indexes and the
-mutable runtime heap have not moved into this value yet; the evaluator and
-heap remain MainActor-confined, so this is not a physical-parallelism claim.
+mutable runtime heap do not belong in this value.
+
+The second prerequisite makes that mutable boundary explicit. Each
+`Interpreter` now owns exactly one `RuntimeHeap`, and its global environment,
+synthesized environment models, and SwiftUI state cells are rooted there.
+Independent interpreters have distinct heaps, the compatibility `globals` API
+exposes the actual heap root, and releasing the facade releases the heap. The
+heap, evaluator, declarations, and runtime registries remain MainActor-
+confined; `Environment`, `Box`, and `Instance` have not been made `Sendable`.
+This is an ownership characterization, not a physical-parallelism claim.
 
 The stable target separates five concerns:
 
@@ -525,6 +533,13 @@ parallel execution, every heap access must be classified as:
 - protected by a synchronization primitive;
 - copied across the boundary;
 - rejected as non-`Sendable`.
+
+Current implementation stage (2026-07-17): `RuntimeHeap` is the explicit
+MainActor-confined owner of the global environment, synthesized environment
+models, and SwiftUI state cells. The legacy `Interpreter.globals` surface
+forwards to that same root. Declaration metadata, the explicit session
+boundary, runtime registries, and worker-safe access policy remain separate
+M9 work; no heap object is currently handed to a physical worker.
 
 ### 6.4 `EvaluationTaskContext`
 
@@ -2537,15 +2552,20 @@ Proof:
 - parallel stress tests have no races or invariant violations;
 - semantic parity is unchanged between cooperative and parallel runtime modes.
 
-Implemented prerequisite slice (2026-07-17): parsing and operator folding now
+Implemented prerequisite slices (2026-07-17): parsing and operator folding now
 produce a reusable immutable `ParsedProgram`. Its SwiftSyntax tree and location
 converter cross strict-concurrency detached-task boundaries as `Sendable`, and
 fresh interpreters can execute one parsed program in independent async
 sessions while keeping globals and runtime records separate. Legacy
 `run(source:)` still maps parse failures to the same located `RuntimeError`.
-This removes parsing from session-owned mutable state but deliberately leaves
-declaration collection, `RuntimeHeap`, worker scheduling, and TSan evidence
-open.
+Each `Interpreter` also owns one explicit, MainActor-confined `RuntimeHeap`
+that roots the actual global environment, synthesized environment models, and
+SwiftUI state cells; focused tests prove identity, cross-interpreter isolation,
+and facade-owned lifetime. These slices separate immutable program input from
+mutable storage without changing scheduling. Declaration collection, an
+explicit `InterpreterSession`, worker-safe heap classification, physical
+worker scheduling, cooperative-versus-parallel parity, and TSan evidence
+remain open.
 
 ## 15. Verification gates
 

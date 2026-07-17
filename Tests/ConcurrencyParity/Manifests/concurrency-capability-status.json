@@ -2919,12 +2919,15 @@
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
         "ParsedProgramConcurrencyTests/parsedProgramIsSendableAcrossDetachedReaders",
         "ParsedProgramConcurrencyTests/oneParsedProgramBacksIndependentAsyncSessions",
-        "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError"
+        "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError",
+        "RuntimeHeapOwnershipTests/interpreterExposesItsActualGlobalStorageRoot",
+        "RuntimeHeapOwnershipTests/independentInterpretersDoNotShareMutableHeap",
+        "RuntimeHeapOwnershipTests/heapLifetimeIsOwnedByInterpreterFacade"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "The first M9 prerequisite is green: parsed/operator-folded syntax and its source-location index live in an immutable Sendable ParsedProgram reusable across detached readers and independent cooperative sessions. This is not a physical execution claim. Declaration metadata, the heap, and runtime registries remain MainActor hosted; the interpreter still has no opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence until ownership and synchronization are implemented."
+      "notes": "Two M9 prerequisites are green: parsed/operator-folded syntax and its source-location index live in an immutable Sendable ParsedProgram reusable across detached readers and independent cooperative sessions, and each Interpreter owns a distinct explicit MainActor-confined RuntimeHeap rooted at its actual globals, synthesized environment models, and SwiftUI state cells. This is not a physical execution claim. Declaration metadata, the explicit session boundary, worker-safe heap classification, and runtime registries remain MainActor hosted; the interpreter still has no opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence until ownership and synchronization are implemented."
     }
   ]
 }

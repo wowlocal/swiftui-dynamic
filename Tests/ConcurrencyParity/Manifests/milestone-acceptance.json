@@ -1279,8 +1279,8 @@
       "title": "Optional physical parallelism",
       "status": "partial",
       "dependsOn": ["M4", "M5", "M7", "M8"],
-      "ledgerEvidence": "The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. Parsing and operator folding now produce an immutable Sendable ParsedProgram that is reusable by detached readers and independent interpreter sessions without shared evaluator state. The source-callable _swift_createJobForTestingOnly hook remains preflight-only/deferred.",
-      "ledgerRemainingWork": "Move declaration metadata into the immutable program boundary, separate the session/runtime heap, add worker synchronization or confinement, Thread Sanitizer evidence, and cooperative-versus-parallel semantic parity without exposing Box, Environment, or Instance to races.",
+      "ledgerEvidence": "The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. Parsing and operator folding produce an immutable Sendable ParsedProgram reusable by detached readers and independent interpreter sessions without shared evaluator state. Each Interpreter owns a distinct MainActor-confined RuntimeHeap that roots its actual global environment, synthesized environment models, and SwiftUI state cells; identity, isolation, and facade-owned lifetime are covered. The source-callable _swift_createJobForTestingOnly hook remains preflight-only/deferred.",
+      "ledgerRemainingWork": "Move declaration metadata into the immutable program boundary, introduce an explicit InterpreterSession, classify every heap edge for worker access, add physical-worker scheduling, Thread Sanitizer evidence, and cooperative-versus-parallel semantic parity without exposing Box, Environment, or Instance to races.",
       "requirements": [
         {
           "id": "parallel-runtime-and-sanitizers",
@@ -1298,10 +1298,13 @@
             "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
             "ParsedProgramConcurrencyTests/parsedProgramIsSendableAcrossDetachedReaders",
             "ParsedProgramConcurrencyTests/oneParsedProgramBacksIndependentAsyncSessions",
-            "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError"
+            "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError",
+            "RuntimeHeapOwnershipTests/interpreterExposesItsActualGlobalStorageRoot",
+            "RuntimeHeapOwnershipTests/independentInterpretersDoNotShareMutableHeap",
+            "RuntimeHeapOwnershipTests/heapLifetimeIsOwnedByInterpreterFacade"
           ],
           "gapEvidenceIDs": ["physical-parallel-runtime-and-sanitizers"],
-          "notes": "The first M9 prerequisite slice moves parsed and operator-folded syntax plus its source-location index into an immutable Sendable ParsedProgram. Eight detached readers share one syntax tree, and two fresh interpreters execute one parsed program in independent cooperative async sessions with empty runtime registries; legacy source entry preserves located parse errors. This is an architectural characterization, not a physical execution claim. Declaration indexing, the RuntimeHeap/session split, physical workers, ExecutorJob creation/scheduling, synchronized/confined heap components, Thread Sanitizer, and parity between cooperative and parallel modes remain unimplemented. Real Swift preflight keeps the public testing-only job hook distinct from compiler ABI exclusions."
+          "notes": "Two M9 prerequisite slices are green. Parsed and operator-folded syntax plus its source-location index live in an immutable Sendable ParsedProgram: eight detached readers share one syntax tree, two fresh interpreters execute it in independent cooperative async sessions with empty runtime registries, and legacy source entry preserves located parse errors. Each Interpreter now owns a distinct MainActor-confined RuntimeHeap that roots the actual globals, synthesized environment models, and SwiftUI state cells; focused tests prove root identity, cross-interpreter isolation, and facade-owned lifetime. These are architectural characterizations, not a physical execution claim. Declaration indexing, an explicit InterpreterSession, worker-safe heap classification, physical workers, ExecutorJob creation/scheduling, Thread Sanitizer, and parity between cooperative and parallel modes remain unimplemented. Real Swift preflight keeps the public testing-only job hook distinct from compiler ABI exclusions."
         }
       ]
     }

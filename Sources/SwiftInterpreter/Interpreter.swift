@@ -130,7 +130,8 @@ public struct InterpreterBuildConfiguration: Sendable, Equatable {
 /// delegated to a `HostRegistry` (the SwiftUI bridge, or a trace registry in
 /// tests).
 public final class Interpreter {
-    public let globals = Environment()
+    public let runtimeHeap: RuntimeHeap
+    public var globals: Environment { runtimeHeap.globals }
     let concurrencyRuntime: CooperativeConcurrencyRuntime
     public let runtimeClock: any RuntimeClock
     public var registry: HostRegistry?
@@ -144,7 +145,10 @@ public final class Interpreter {
     var enumSymbols: [String: EnumSymbol] = [:]
     /// Env-object models constructed as fresh-store stand-ins (one per type,
     /// so every view reading the type sees the same instance).
-    var synthesizedEnvironmentModels: [String: Instance] = [:]
+    var synthesizedEnvironmentModels: [String: Instance] {
+        _read { yield runtimeHeap.synthesizedEnvironmentModels }
+        _modify { yield &runtimeHeap.synthesizedEnvironmentModels }
+    }
     /// Interpreted `extension View { … }` / `extension String { … }` members,
     /// keyed by the extended host type's name.
     var hostExtensionSymbols: [String: StructSymbol] = [:]
@@ -481,7 +485,10 @@ public final class Interpreter {
         /// call site get distinct state (compiled SwiftUI's per-ID storage).
         let salt: String
     }
-    var viewStateCells: [ViewStateKey: Box] = [:]
+    var viewStateCells: [ViewStateKey: Box] {
+        _read { yield runtimeHeap.viewStateCells }
+        _modify { yield &runtimeHeap.viewStateCells }
+    }
     var viewIdentitySalts: [String] {
         get { evaluationTaskContext.viewIdentitySalts }
         set { evaluationTaskContext.viewIdentitySalts = newValue }
@@ -626,6 +633,7 @@ public final class Interpreter {
         registry: HostRegistry? = nil,
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
+        runtimeHeap = RuntimeHeap()
         self.registry = registry
         compilerPreflight = nil
         compilerPreflightMode = .disabled
@@ -643,6 +651,7 @@ public final class Interpreter {
         compilerPreflightMode: CompilerPreflightMode = .required,
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
+        runtimeHeap = RuntimeHeap()
         self.registry = registry
         self.compilerPreflight = compilerPreflight
         self.compilerPreflightMode = compilerPreflightMode
@@ -659,6 +668,7 @@ public final class Interpreter {
         runtimeClock: any RuntimeClock,
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
+        runtimeHeap = RuntimeHeap()
         self.registry = registry
         compilerPreflight = nil
         compilerPreflightMode = .disabled
@@ -677,6 +687,7 @@ public final class Interpreter {
         compilerPreflightMode: CompilerPreflightMode = .required,
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
+        runtimeHeap = RuntimeHeap()
         self.registry = registry
         self.compilerPreflight = compilerPreflight
         self.compilerPreflightMode = compilerPreflightMode

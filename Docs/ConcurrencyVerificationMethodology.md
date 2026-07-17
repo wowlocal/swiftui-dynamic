@@ -144,8 +144,13 @@ provisional only because broad M5/M7 are partial. Its requirement-level
 prerequisites are covered, so M9 physical parallelism is now the active cycle.
 Its first architectural prerequisite is green: one immutable `ParsedProgram`
 can cross detached readers and back independent cooperative sessions without
-sharing evaluator state. Physical workers, heap confinement, cooperative-
-versus-parallel differential evidence, and TSan remain open.
+sharing evaluator state. Its second prerequisite makes each interpreter's
+actual mutable storage root explicit: one MainActor-confined `RuntimeHeap`
+owns globals, synthesized environment models, and SwiftUI state cells, with
+identity, cross-interpreter isolation, and facade-lifetime coverage. This is
+still characterization only. An explicit session boundary, declaration
+metadata separation, worker-safe heap classification, physical workers,
+cooperative-versus-parallel differential evidence, and TSan remain open.
 
 ## Process and liveness isolation
 
