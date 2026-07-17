@@ -75,8 +75,9 @@ struct UnsafeCurrentTaskRuntimeTests {
     @Test
     func readingCancellationRecordsCooperativeObservation() throws {
         let runtime = CooperativeConcurrencyRuntime()
+        let entry = runtime.createEntry(kind: .test)
         let record = runtime.createTask(
-            sessionID: runtime.createSession(),
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,

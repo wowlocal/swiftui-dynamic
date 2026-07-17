@@ -412,7 +412,8 @@ final class RuntimeNativeTaskDriver {
 /// `release(_:)` replaces that edge with a compact completion snapshot.
 final class RuntimeTaskRecord {
     let id: RuntimeTaskID
-    let sessionID: RuntimeSessionID
+    let entry: RuntimeEntry
+    var sessionID: RuntimeSessionID { entry.id }
     let kind: RuntimeTaskKind
     /// Source-visible immutable name supplied at creation. Names are metadata
     /// of this task and are deliberately not inherited by child tasks.
@@ -465,7 +466,7 @@ final class RuntimeTaskRecord {
 
     init(
         id: RuntimeTaskID,
-        sessionID: RuntimeSessionID,
+        entry: RuntimeEntry,
         kind: RuntimeTaskKind,
         name: String?,
         parent: RuntimeTaskID?,
@@ -474,7 +475,7 @@ final class RuntimeTaskRecord {
         taskLocals: RuntimeTaskLocalStorage
     ) {
         self.id = id
-        self.sessionID = sessionID
+        self.entry = entry
         self.kind = kind
         self.name = name
         self.parent = parent
@@ -711,10 +712,15 @@ final class CooperativeConcurrencyRuntime {
         self.diagnostics = diagnostics
     }
 
-    func createSession() -> RuntimeSessionID {
+    func createEntry(
+        kind: RuntimeEntry.Kind,
+        heap: RuntimeHeap? = nil,
+        interpreter: Interpreter? = nil
+    ) -> RuntimeEntry {
         let id = RuntimeSessionID(rawValue: nextSessionID)
         nextSessionID += 1
-        return id
+        return RuntimeEntry(
+            id: id, kind: kind, heap: heap, interpreter: interpreter)
     }
 
     func recordNonthrowingCallbackFailure(
@@ -956,7 +962,7 @@ final class CooperativeConcurrencyRuntime {
     }
 
     func createTask(
-        sessionID: RuntimeSessionID,
+        entry: RuntimeEntry,
         kind: RuntimeTaskKind,
         parent: RuntimeTaskID?,
         priority: RuntimeTaskPriority,
@@ -967,12 +973,15 @@ final class CooperativeConcurrencyRuntime {
         let id = RuntimeTaskID(rawValue: nextTaskID)
         nextTaskID += 1
         let record = RuntimeTaskRecord(
-            id: id, sessionID: sessionID, kind: kind, name: name,
+            id: id, entry: entry, kind: kind, name: name,
             parent: parent,
             priority: priority, executorPreference: executorPreference,
             taskLocals: taskLocals)
         records[id] = record
         if let parent, let parentRecord = records[parent] {
+            precondition(
+                parentRecord.entry === entry,
+                "runtime child task must retain its parent's entry")
             // Creation/inheritance and structured ownership are deliberately
             // separate edges. `Task {}` has a creator but is not a structured
             // child and must not receive cancellation through this relation.

@@ -131,7 +131,7 @@ extension Interpreter {
         let runtime = session.concurrencyRuntime
         let taskLocals = RuntimeTaskLocalStorage()
         let root = runtime.createTask(
-            sessionID: session.id, kind: .root, parent: nil,
+            entry: session.runtimeEntry, kind: .root, parent: nil,
             priority: RuntimeTaskPriority(Task.currentPriority),
             executorPreference: .mainActor,
             taskLocals: taskLocals,
@@ -139,7 +139,7 @@ extension Interpreter {
         _ = runtime.begin(root)
         let context = makeEvaluationTaskContext(
             runtimeTaskID: root.id,
-            runtimeSessionID: session.id,
+            runtimeEntry: session.runtimeEntry,
             isAsyncSession: true,
             priority: root.effectivePriority,
             executor: root.executorPreference,

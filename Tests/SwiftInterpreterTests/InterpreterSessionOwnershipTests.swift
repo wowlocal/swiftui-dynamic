@@ -24,6 +24,10 @@ struct InterpreterSessionOwnershipTests {
         #expect(session.program.source == program.source)
         #expect(session.heap === interpreter.runtimeHeap)
         #expect(session.concurrencyRuntime === interpreter.concurrencyRuntime)
+        #expect(session.runtimeEntry.kind == .program)
+        #expect(session.runtimeEntry.heap === interpreter.runtimeHeap)
+        #expect(session.runtimeEntry.interpreter === interpreter)
+        #expect(session.runtimeEntry.id == session.id)
         if case .drainOwnedTasks = session.completionPolicy {
             // Expected policy is bound into the session.
         } else {

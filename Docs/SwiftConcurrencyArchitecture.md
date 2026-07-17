@@ -112,13 +112,12 @@ This is an ownership characterization, not a physical-parallelism claim.
 
 The third prerequisite makes `runAsync` construct and execute through a real
 single-use `InterpreterSession`. That object binds one `ParsedProgram`, the
-facade's `RuntimeHeap`, the cooperative runtime, one `RuntimeSessionID`, lazy-
+facade's `RuntimeHeap`, the cooperative runtime, one runtime entry, lazy-
 global mode, and completion policy. The live root task carries exactly that
-ID; foreign-facade execution and reuse are rejected; and the session keeps its
-heap/runtime capabilities alive without retaining the facade. Other callback
-entries still allocate raw runtime session IDs, declaration/evaluator state
-still lives on the facade, and overlapping facade sessions are not claimed
-safe. This remains MainActor-confined ownership work, not worker execution.
+entry; foreign-facade execution and reuse are rejected; and the session keeps
+its heap/runtime capabilities alive without retaining the facade. Declaration
+and evaluator state still lives on the facade. This remains MainActor-confined
+ownership work, not worker execution.
 
 The fourth prerequisite moves top-level declaration discovery out of the
 evaluator. Parsing now classifies every possible nominal, function, global,
@@ -130,6 +129,17 @@ resolves different iOS/macOS nominal + typealias + extension plans correctly.
 The resulting mutable `StructSymbol`/`EnumSymbol` graphs are still created per
 facade/session on MainActor; member, call, isolation, and compiler-preflight
 metadata have not all moved into `ParsedProgram` yet.
+
+The fifth prerequisite replaces bare production `RuntimeSessionID` ownership
+with an explicit `RuntimeEntry` capability. Program roots, synchronous host
+callbacks, SwiftUI-owned async entries, and every source task they create now
+retain one entry object that binds its unique ID, entry kind, interpreter, and
+heap. A completed callback root may release while its unstructured tasks keep
+the entry and heap alive. Distinct callback entries may overlap cooperatively
+against the same MainActor-confined heap: a causally gated Swift 6 probe proves
+a second callback can resume a task parked by the first and completes before
+that task continues on MainActor. This defines the current overlap policy; it
+does not authorize physical concurrent heap access.
 
 The stable target separates five concerns:
 
@@ -144,7 +154,10 @@ InterpreterSession ─────────────── HostGatewayRunt
           │     ├── class storage         │
           │     └── actor storage         │
           │                               │
-          └── ConcurrencyRuntime ◀────────┘
+          └── RuntimeEntry ◀──────────────┘
+                    │
+                    ▼
+              ConcurrencyRuntime
                 ├── TaskRecord graph
                 ├── StructuredScope graph
                 ├── Executor registry
@@ -549,10 +562,13 @@ the same path for explicit ownership. Focused tests prove unique IDs, the live
 root task's ID, policy/program/heap/runtime binding, foreign-facade rejection,
 single-use state, complete runtime draining, and heap/runtime lifetime after
 facade release. The session also binds the one build-resolved declaration plan
-used by runtime-symbol materialization and top-level execution. It intentionally
-remains MainActor-confined and holds a weak facade reference because mutable
-symbol collection and evaluation have not yet moved out of `Interpreter`;
-host callback and SwiftUI task entries still need migration to this boundary.
+used by runtime-symbol materialization and top-level execution. Its root task
+and evaluation context retain the same explicit `RuntimeEntry`. Host callbacks
+and SwiftUI tasks create distinct entry capabilities through that same runtime
+mechanism, and all source tasks inherit the object rather than only copying its
+numeric ID. The session intentionally remains MainActor-confined and holds a
+weak facade reference because mutable symbol collection and evaluation have
+not yet moved out of `Interpreter`.
 
 ### 6.3 `RuntimeHeap`
 
@@ -1757,8 +1773,9 @@ suspensions inline.
 
 All retained synchronous framework closures use one host-callback adapter. It
 creates the logical entry, binds task-local/runtime context, executes the
-closure synchronously, releases the entry after its own dynamic state is
-clean, and reports an uncaught callback error through bridge diagnostics.
+closure synchronously, releases its root after the root's dynamic state is
+clean, and reports an uncaught callback error through bridge diagnostics. The
+entry itself remains owned by any source tasks that outlive the callback.
 Buttons, generated actions, gestures, bindings, lifecycle event modifiers,
 and Objective-C completions share this path. Queued GCD deliveries retain
 their own deterministic/wall-clock bridge policy and require a separate
@@ -1772,6 +1789,16 @@ The current synchronous rendering compatibility path remains separate. A view
 task must use the canonical concurrency runtime even when it was created by a
 synchronous render pass.
 
+Current overlap policy (2026-07-17): each external invocation receives a
+distinct `RuntimeEntry`, while tasks created by that invocation retain and
+inherit it. Multiple entries may be live cooperatively on one facade and share
+its heap because every interpreter instruction and heap access is still
+MainActor-confined. Existing completion-policy evidence proves one program
+entry does not drain another entry's task, while the callback probe proves a
+later callback can resume an earlier entry. Entries must not execute
+heap-touching evaluator work on physical workers. The later worker-safe
+classification must preserve this overlap rather than rejecting it wholesale.
+
 ## 7. Ownership and isolation matrix
 
 | Component | Mutable? | Initial owner | Parallel target |
@@ -1779,6 +1806,8 @@ synchronous render pass.
 | `ParsedProgram` | No | Session | Immutable/Sendable |
 | Declaration metadata | No after build | Program | Immutable/Sendable |
 | `InterpreterSession` | Yes | Cooperative runtime | Actor or explicit synchronization |
+| `RuntimeEntry` | Weak owner edge only | External invocation/source-task graph | Immutable identity; heap capability follows heap policy |
+| `RuntimeHeap` | Yes | Interpreter session/facade | Executor-confined or synchronized by edge class |
 | Global environment | Yes | Runtime heap | Executor-confined or synchronized |
 | `EvaluationTaskContext` | Yes | One task | Never shared concurrently |
 | Lexical `Environment` | Yes | Owning task/closure | Capture rules plus executor checks |
@@ -2609,15 +2638,19 @@ that roots the actual global environment, synthesized environment models, and
 SwiftUI state cells; focused tests prove identity, cross-interpreter isolation,
 and facade-owned lifetime. Every `runAsync` program entry now executes through
 a real single-use `InterpreterSession` binding that program, heap, cooperative
-runtime, runtime ID, lazy-global mode, and completion policy; focused tests
+runtime, runtime entry, lazy-global mode, and completion policy; focused tests
 prove live-ID propagation, ownership validation, single-use state, draining,
-and facade-independent heap/runtime lifetime. These slices separate immutable
-program input, mutable storage, and execution identity without changing
-scheduling. Member/call/isolation indexing is still incomplete, and mutable
-symbol materialization plus evaluator state must move fully behind the session;
-raw-ID callback entries, overlapping facade sessions, worker-safe heap
-classification, physical worker scheduling, cooperative-versus-parallel parity,
-and TSan evidence remain open.
+and facade-independent heap/runtime lifetime. Program roots, host callbacks,
+SwiftUI tasks, and every source task they create now retain an explicit
+`RuntimeEntry`; focused ownership tests prove callback parent/child identity,
+distinct callback IDs over one heap, and final release. A causal same-source
+probe establishes cooperative overlap against the confined heap in twenty
+native/interpreter repetitions. These slices separate immutable program input,
+mutable storage, and execution identity without changing scheduling.
+Member/call/isolation indexing is still incomplete, and mutable symbol
+materialization plus evaluator state must move fully behind the session;
+worker-safe heap classification, physical worker scheduling,
+cooperative-versus-parallel parity, and TSan evidence remain open.
 
 ## 15. Verification gates
 

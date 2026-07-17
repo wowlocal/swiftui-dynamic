@@ -161,11 +161,19 @@ plan consumed by both mutable symbol materialization and top-level execution.
 The compile-time RED was the absent index/plan API. Focused GREEN evidence
 covers eight detached readers, distinct iOS/macOS nominal + typealias +
 extension plans from one parsed source, and 209 declaration/language/async/
-compiler-preflight tests. Extending immutable member/call/isolation metadata,
-moving mutable symbols/evaluation fully behind the session, unifying raw-ID
-callback entries, overlapping-session policy, worker-safe heap classification,
-physical workers, cooperative-versus-parallel differential evidence, and TSan
-remain open.
+compiler-preflight tests. The fifth prerequisite replaces bare production
+runtime IDs with an explicit `RuntimeEntry` capability inherited by each source
+task. Its compile-time RED was the missing type/context capability;
+focused ownership GREEN proves callback parent/child identity, outliving-task
+retention, final release, and distinct callback entries over one confined heap.
+A causally gated Swift 6 same-source probe establishes the overlap policy in
+twenty repetitions: a second MainActor callback may run while a task from the
+first is parked and completes before that task resumes. Cooperative overlap is
+therefore supported; physical concurrent heap access remains unclaimed.
+Extending immutable member/call/isolation metadata, moving mutable symbols and
+evaluation fully behind the session, worker-safe heap classification, physical
+workers, cooperative-versus-parallel differential evidence, and TSan remain
+open.
 
 ## Process and liveness isolation
 

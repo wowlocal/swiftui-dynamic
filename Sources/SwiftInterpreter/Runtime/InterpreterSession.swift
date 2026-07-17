@@ -22,6 +22,7 @@ public final class InterpreterSession {
     public private(set) var state: State = .ready
 
     let concurrencyRuntime: CooperativeConcurrencyRuntime
+    let runtimeEntry: RuntimeEntry
     let executionPlan: ResolvedDeclarationPlan
     private weak var owner: Interpreter?
 
@@ -41,7 +42,9 @@ public final class InterpreterSession {
         self.lazyTopLevelGlobals = lazyTopLevelGlobals
         self.completionPolicy = completionPolicy
         self.owner = owner
-        id = concurrencyRuntime.createSession()
+        runtimeEntry = concurrencyRuntime.createEntry(
+            kind: .program, heap: heap, interpreter: owner)
+        id = runtimeEntry.id
     }
 
     func validateExecution(on interpreter: Interpreter) throws {
@@ -51,7 +54,9 @@ public final class InterpreterSession {
         }
         guard owner === interpreter,
               heap === interpreter.runtimeHeap,
-              concurrencyRuntime === interpreter.concurrencyRuntime else {
+              concurrencyRuntime === interpreter.concurrencyRuntime,
+              runtimeEntry.heap === interpreter.runtimeHeap,
+              runtimeEntry.interpreter === interpreter else {
             throw RuntimeError(message:
                 "interpreter session belongs to a different interpreter")
         }

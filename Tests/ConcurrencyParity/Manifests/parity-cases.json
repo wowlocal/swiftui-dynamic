@@ -1492,6 +1492,18 @@
     "notes": "The interpreter entry deliberately returns before the callback fires, matching a retained SwiftUI Button action. Exact output started,done-3 proves both synchronous callback semantics and independently scheduled concurrency-runtime work; no physical worker-thread identity is asserted."
   },
   {
+    "id": "host-callback-overlap",
+    "fixture": "Fixtures/host-callback-overlap.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "parityInterpreterHostCallbackOverlap()",
+    "interpreterProjection": "host-callback-overlap-global-string:parityHostCallbackOverlapProbe:events:worker-started",
+    "nativeFact": "A MainActor task created by one synchronous callback may remain suspended while a later callback enters, observes and mutates the same actor-isolated state, and resumes it; the later callback completes before that task continues on MainActor.",
+    "notes": "The harness waits for the first callback's task to publish worker-started before invoking the same retained callback again. Continuation resume is synchronous but MainActor serialization forces second-return before worker-resumed, so the exact three snapshots are causal and assert no unrelated scheduler or physical-thread order. Apple Swift 6.3.3 strict-concurrency compilation produced the same result in twenty bounded runs."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

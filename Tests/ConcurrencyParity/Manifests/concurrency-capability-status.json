@@ -2914,7 +2914,9 @@
       "implementationStatus": "known-divergence",
       "verificationStatus": "none",
       "requirementRef": "M9/parallel-runtime-and-sanitizers",
-      "evidenceCaseIDs": [],
+      "evidenceCaseIDs": [
+        "host-callback-overlap"
+      ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
         "ParsedProgramConcurrencyTests/parsedProgramIsSendableAcrossDetachedReaders",
@@ -2928,12 +2930,15 @@
         "InterpreterSessionOwnershipTests/sessionBindsProgramHeapRuntimePolicyAndLiveRuntimeID",
         "InterpreterSessionOwnershipTests/sessionsHaveUniqueRuntimeIdentityAndAreSingleUse",
         "InterpreterSessionOwnershipTests/sessionRejectsExecutionByAnotherInterpreter",
-        "InterpreterSessionOwnershipTests/sessionKeepsItsHeapAndRuntimeAliveWithoutRetainingFacade"
+        "InterpreterSessionOwnershipTests/sessionKeepsItsHeapAndRuntimeAliveWithoutRetainingFacade",
+        "AsyncExecutionTests/drainPolicyDoesNotWaitForAnotherSessionTasks",
+        "RuntimeEntryOwnershipTests/hostCallbackAndSpawnedTaskShareOneOwnedEntry",
+        "RuntimeEntryOwnershipTests/separateCallbacksUseDistinctEntriesAgainstTheSameHeap"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Four M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and a target-neutral all-branch ParsedDeclarationIndex reusable across detached readers; each session resolves one build-specific top-level plan consumed by runtime-symbol materialization and execution; each Interpreter owns a distinct explicit MainActor-confined RuntimeHeap rooted at its actual globals, synthesized environment models, and SwiftUI state cells; and every runAsync entry executes through a single-use InterpreterSession binding the program, plan, heap, cooperative runtime, runtime ID, lazy-global mode, and completion policy. Focused evidence covers distinct iOS/macOS nominal + typealias + extension plans, live identity, ownership/reuse rejection, draining, and heap/runtime lifetime. This is not a physical execution claim. Member/call/isolation/compiler metadata, mutable symbols, and evaluation remain on the facade; callback entries still use raw runtime IDs, overlapping facade sessions lack a worker-safe policy, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Five M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and a target-neutral all-branch ParsedDeclarationIndex reusable across detached readers; each session resolves one build-specific top-level plan consumed by runtime-symbol materialization and execution; each Interpreter owns a distinct explicit MainActor-confined RuntimeHeap rooted at its actual globals, synthesized environment models, and SwiftUI state cells; every runAsync entry executes through a single-use InterpreterSession binding the program, plan, heap, cooperative runtime, runtime entry, lazy-global mode, and completion policy; and program roots, synchronous host callbacks, SwiftUI tasks, plus their source tasks carry one explicit RuntimeEntry capability instead of relying on a bare ID. Focused evidence covers distinct iOS/macOS nominal + typealias + extension plans, session identity/rejection/draining/lifetime, two overlapping program entries with isolated completion policies, callback parent/child entry identity and release, distinct callback entries over one heap, and twenty causal native/interpreter overlap repetitions. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Member/call/isolation/compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

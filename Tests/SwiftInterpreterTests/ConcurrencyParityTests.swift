@@ -766,7 +766,7 @@ private enum ConcurrencyParityHarness {
                             "actor queue gate entered an invalid state")
                     }
                     let blocker = interpreter.concurrencyRuntime.createTask(
-                        sessionID: owner.sessionID,
+                        entry: owner.entry,
                         kind: .unstructured,
                         parent: nil,
                         priority: owner.effectivePriority,
@@ -1045,6 +1045,45 @@ private enum ConcurrencyParityHarness {
                 await Task.yield()
             }
             externalProjectionOutput = immediate + "," + (try projectedString())
+        } else if projection.hasPrefix("host-callback-overlap-global-string:") {
+            let fields = projection.dropFirst(
+                "host-callback-overlap-global-string:".count
+            ).split(separator: ":", maxSplits: 2).map(String.init)
+            guard fields.count == 3,
+                  let closure = value.closureValue else {
+                throw RuntimeError(message:
+                    "case '\(parityCase.id)' did not return an overlapping host callback closure")
+            }
+            func projectedEvents() throws -> String {
+                guard case .instance(let instance)? = interpreter.globals.lookup(
+                    fields[0]),
+                      let events = instance.box(for: fields[1])?.value.arrayValue,
+                      events.allSatisfy({ $0.stringValue != nil }) else {
+                    throw RuntimeError(message:
+                        "case '\(parityCase.id)' did not expose String array '\(fields[0]).\(fields[1])'")
+                }
+                return events.compactMap(\.stringValue).joined(separator: ",")
+            }
+
+            _ = try interpreter.callHostCallback(closure, arguments: [])
+            for _ in 0..<10_000
+            where try !projectedEvents().contains(fields[2]) {
+                await Task.yield()
+            }
+            let parked = try projectedEvents()
+            guard parked.contains(fields[2]) else {
+                throw RuntimeError(message:
+                    "case '\(parityCase.id)' did not reach callback overlap marker '\(fields[2])'")
+            }
+            _ = try interpreter.callHostCallback(closure, arguments: [])
+            let immediate = try projectedEvents()
+            for _ in 0..<10_000
+            where !interpreter.scheduledTasks.isEmpty
+                || interpreter.concurrencyRuntime.activeRecordCount != 0 {
+                await Task.yield()
+            }
+            externalProjectionOutput = parked + "|" + immediate + "|"
+                + (try projectedEvents())
         }
 
         guard actorQueueGateTask == nil,

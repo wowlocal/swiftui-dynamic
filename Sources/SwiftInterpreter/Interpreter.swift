@@ -288,6 +288,7 @@ public final class Interpreter {
 
     func makeEvaluationTaskContext(
         runtimeTaskID: RuntimeTaskID? = nil,
+        runtimeEntry: RuntimeEntry? = nil,
         runtimeSessionID: RuntimeSessionID? = nil,
         isAsyncSession: Bool = false,
         priority: RuntimeTaskPriority = .medium,
@@ -299,6 +300,7 @@ public final class Interpreter {
         return EvaluationTaskContext(
             id: id,
             runtimeTaskID: runtimeTaskID,
+            runtimeEntry: runtimeEntry,
             runtimeSessionID: runtimeSessionID,
             isAsyncSession: isAsyncSession,
             priority: priority,

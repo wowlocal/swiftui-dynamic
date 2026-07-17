@@ -362,10 +362,11 @@ extension Interpreter: EvalContext {
     public func callHostCallback(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
-        let sessionID = concurrencyRuntime.createSession()
+        let entry = concurrencyRuntime.createEntry(
+            kind: .hostCallback, heap: runtimeHeap, interpreter: self)
         let taskLocals = RuntimeTaskLocalStorage()
         let record = concurrencyRuntime.createTask(
-            sessionID: sessionID,
+            entry: entry,
             kind: .hostCallback,
             parent: nil,
             priority: RuntimeTaskPriority(Task.currentPriority),
@@ -377,7 +378,7 @@ extension Interpreter: EvalContext {
             "a fresh host callback task must begin exactly once")
         let context = makeEvaluationTaskContext(
             runtimeTaskID: record.id,
-            runtimeSessionID: sessionID,
+            runtimeEntry: entry,
             isAsyncSession: true,
             priority: record.effectivePriority,
             executor: record.executorPreference,
@@ -423,11 +424,12 @@ extension Interpreter: EvalContext {
     public func callSwiftUITask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
-        let sessionID = concurrencyRuntime.createSession()
+        let entry = concurrencyRuntime.createEntry(
+            kind: .swiftUITask, heap: runtimeHeap, interpreter: self)
         let priority = RuntimeTaskPriority(Task.currentPriority)
         let taskLocals = RuntimeTaskLocalStorage()
         let record = concurrencyRuntime.createTask(
-            sessionID: sessionID,
+            entry: entry,
             kind: .swiftUITask,
             parent: nil,
             priority: priority,
@@ -437,7 +439,7 @@ extension Interpreter: EvalContext {
         let handle = RuntimeTaskHandle(
             runtime: concurrencyRuntime, record: record)
         let pending = PendingRuntimeTask(
-            sessionID: sessionID,
+            entry: entry,
             priority: priority,
             taskLocals: taskLocals,
             record: record,
@@ -683,7 +685,7 @@ extension Interpreter: EvalContext {
     }
 
     private struct PendingRuntimeTask {
-        let sessionID: RuntimeSessionID
+        let entry: RuntimeEntry
         let priority: RuntimeTaskPriority
         let taskLocals: RuntimeTaskLocalStorage
         let record: RuntimeTaskRecord
@@ -696,8 +698,11 @@ extension Interpreter: EvalContext {
         name: String? = nil,
         operationExecutor: RuntimeExecutorKind? = nil
     ) -> PendingRuntimeTask {
-        let sessionID = evaluationTaskContext.runtimeSessionID
-            ?? concurrencyRuntime.createSession()
+        let entry = evaluationTaskContext.runtimeEntry
+            ?? concurrencyRuntime.createEntry(
+                kind: .compatibilityTask,
+                heap: runtimeHeap,
+                interpreter: self)
         let priority = explicitPriority ?? (kind == .detached
             ? .medium : evaluationTaskContext.priority)
         let taskLocals = kind == .detached
@@ -721,7 +726,7 @@ extension Interpreter: EvalContext {
             }
         }
         let record = concurrencyRuntime.createTask(
-            sessionID: sessionID,
+            entry: entry,
             kind: kind,
             parent: kind == .detached
                 ? nil : evaluationTaskContext.runtimeTaskID,
@@ -730,7 +735,7 @@ extension Interpreter: EvalContext {
             taskLocals: taskLocals,
             name: name)
         return PendingRuntimeTask(
-            sessionID: sessionID,
+            entry: entry,
             priority: priority,
             taskLocals: taskLocals,
             record: record,
@@ -813,7 +818,7 @@ extension Interpreter: EvalContext {
         let record = pending.record
         let taskContext = makeEvaluationTaskContext(
             runtimeTaskID: handle.id,
-            runtimeSessionID: pending.sessionID,
+            runtimeEntry: pending.entry,
             isAsyncSession: true,
             priority: record.effectivePriority,
             executor: record.executorPreference,

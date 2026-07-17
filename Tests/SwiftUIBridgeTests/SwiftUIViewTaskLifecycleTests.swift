@@ -30,6 +30,34 @@ private final class WeakLifecycleReference<Value: AnyObject> {
 
 @Suite(.serialized)
 struct SwiftUIViewTaskLifecycleTests {
+    @MainActor
+    private static var processLifetimeLifecycleWindows: [NSWindow] = []
+
+    @MainActor
+    private func makeLifecycleWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false)
+        // Window transform animations can outlive an individual test and race
+        // AppKit teardown in the next test process-lifetime fixture. The tests
+        // exercise SwiftUI lifecycle semantics, not window presentation.
+        window.animationBehavior = .none
+        Self.processLifetimeLifecycleWindows.append(window)
+        return window
+    }
+
+    @MainActor
+    private func retireLifecycleWindow(_ window: NSWindow) async {
+        window.contentView = nil
+        // Closing a test window starts an AppKit transform-animation teardown
+        // that can race the next test's autorelease-pool drain. Retaining the
+        // now-empty headless window keeps that process-global implementation
+        // detail out of the interpreter lifecycle assertion below.
+        await Task.yield()
+    }
+
     private func waitUntil(
         timeout: Duration = .seconds(30),
         _ condition: @MainActor () -> Bool
@@ -201,14 +229,9 @@ struct SwiftUIViewTaskLifecycleTests {
         }
         let rendered = try interpreter.evaluateBody(of: instance)
         let hostingView = NSHostingView(rootView: try ViewRegistry.anyView(rendered))
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false)
+        let window = makeLifecycleWindow()
         window.contentView = hostingView
         window.orderFrontRegardless()
-        defer { window.close() }
 
         var events: [String] = []
         await waitUntil {
@@ -236,6 +259,7 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(lifecycleDiagnostics().isEmpty)
+        await retireLifecycleWindow(window)
     }
 
     @Test
@@ -252,14 +276,9 @@ struct SwiftUIViewTaskLifecycleTests {
         let rendered = try interpreter.evaluateBody(of: instance)
         let hostingView = NSHostingView(
             rootView: AnyView(try ViewRegistry.anyView(rendered)))
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false)
+        let window = makeLifecycleWindow()
         window.contentView = hostingView
         window.orderFrontRegardless()
-        defer { window.close() }
 
         var events: [String] = []
         await waitUntil {
@@ -271,6 +290,9 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(events == ["started"])
         #expect(interpreter.concurrencyRuntime.records.values.contains {
             $0.kind == .swiftUITask
+                && $0.entry.kind == .swiftUITask
+                && $0.entry.heap === interpreter.runtimeHeap
+                && $0.entry.interpreter === interpreter
                 && $0.state == .waiting
                 && $0.executorPreference == .mainActor
                 && $0.evaluationContext?.currentExecutor == .mainActor
@@ -294,6 +316,7 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(lifecycleDiagnostics().isEmpty)
+        await retireLifecycleWindow(window)
     }
 
     @Test
@@ -316,14 +339,9 @@ struct SwiftUIViewTaskLifecycleTests {
         }
 
         let hostingView = NSHostingView(rootView: try render(id: 1))
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false)
+        let window = makeLifecycleWindow()
         window.contentView = hostingView
         window.orderFrontRegardless()
-        defer { window.close() }
 
         func events() -> [String] {
             interpreter.globals.lookup("swiftUIViewTaskIDEvents")?
@@ -354,6 +372,7 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(lifecycleDiagnostics().isEmpty)
+        await retireLifecycleWindow(window)
     }
 
     @Test
@@ -382,14 +401,9 @@ struct SwiftUIViewTaskLifecycleTests {
         }
 
         let hostingView = NSHostingView(rootView: try render(generation: "first"))
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false)
+        let window = makeLifecycleWindow()
         window.contentView = hostingView
         window.orderFrontRegardless()
-        defer { window.close() }
 
         await waitUntil {
             events().contains("render:first") && events().contains("start:first")
@@ -418,6 +432,7 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(lifecycleDiagnostics().isEmpty)
+        await retireLifecycleWindow(window)
     }
 
     @Test
@@ -450,14 +465,9 @@ struct SwiftUIViewTaskLifecycleTests {
         let rendered = try interpreter.evaluateBody(of: instance)
         let hostingView = NSHostingView(
             rootView: AnyView(try ViewRegistry.anyView(rendered)))
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false)
+        let window = makeLifecycleWindow()
         window.contentView = hostingView
         window.orderFrontRegardless()
-        defer { window.close() }
 
         func events() -> [String] {
             interpreter.globals.lookup("swiftUIRefreshableEvents")?
@@ -491,6 +501,7 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(RenderDiagnostics.errors.contains {
             $0.view == "refresh action completion"
         } == false)
+        await retireLifecycleWindow(window)
     }
 
     @Test
@@ -541,11 +552,7 @@ struct SwiftUIViewTaskLifecycleTests {
 
             var hostingView: NSHostingView<AnyView>? = NSHostingView(
                 rootView: AnyView(EmptyView()))
-            var window: NSWindow? = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false)
+            var window: NSWindow? = makeLifecycleWindow()
             window?.contentView = hostingView
             window?.orderFrontRegardless()
 
@@ -640,7 +647,9 @@ struct SwiftUIViewTaskLifecycleTests {
 
             hostingView?.rootView = AnyView(EmptyView())
             window?.contentView = nil
-            window?.close()
+            if let window {
+                await retireLifecycleWindow(window)
+            }
             hostingView = nil
             window = nil
             interpreter = nil
