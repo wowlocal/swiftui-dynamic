@@ -180,6 +180,14 @@ termination fails the case; a hang is never normalized into a trap. This
 assertion is reserved for native behavior that cannot be expressed as a
 catchable source error.
 
+Runtime warnings use a separate successful-process assertion. Each native and
+interpreted child must exit zero and contain every authored warning fragment;
+missing fragments, nonzero exit, or deadline termination fail the case. Only
+after those checks may the harness normalize the diagnostic to a stable
+`runtime-warning` marker. A host cleanup policy may drain work that native
+process exit abandons, but it runs after the source observation and is recorded
+explicitly in the case manifest.
+
 `stress` means more than process completion. Every stress case names a checked
 invariant or expected terminal sentinel. Race exploration uses recorded seeds
 and prints the replay seed on failure. The required suite grows by milestone:

@@ -2155,6 +2155,52 @@
     "notes": "Both resume calls are program-ordered in the continuation body, so the trap requires no scheduler, executor, physical-thread, or parallelism claim. This is the self-contained same-source adapter for the unchanged pinned swiftlang checked_continuation.swift oracle, whose StdlibUnittest test independently expects a crash for the same returning-then-returning misuse. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors; native and interpreted execution trapped in all twenty bounded isolated runs. This was an already-GREEN characterization: the source carrier already rejected the second resume as a fatal invariant, so no production change was required for this form. Focused evidence records one created record, no suspension, and complete ownership cleanup. Canonical native-observation SHA-256: 14011640abe8a0f135e2a1f33df41bcb1fd9839ed9365f7d30e03fb19e1ce64e."
   },
   {
+    "id": "checked-continuation-abandonment",
+    "fixture": "Fixtures/checked-continuation-abandonment.swift",
+    "mode": "runtime",
+    "assertion": "runtime-warning",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationAbandonmentProbe()",
+    "interpreterProjection": "string",
+    "interpreterCompletionPolicy": "cancel-remaining-tasks",
+    "nativeWarningContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "checkedContinuationAbandonmentProbe() leaked its continuation without resuming it",
+      "remain suspended forever"
+    ],
+    "interpreterWarningContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "checkedContinuationAbandonmentProbe() leaked its continuation without resuming it",
+      "remain suspended forever"
+    ],
+    "nativeFact": "Dropping the last checked-continuation token without resuming logs a runtime misuse warning, does not trap, and leaves the task waiting on that continuation suspended indefinitely.",
+    "notes": "Task.immediate causally executes the complete continuation body before returning its handle, so caller-returned plus the warning requires no sleep or scheduler-order assumption. Apple Swift 6.3.3 compiled the source in complete strict-concurrency mode with warnings as errors and produced exit 0, stdout caller-returned, and the same three warning fragments in twenty bounded runs. The native wrapper then exits its process; the interpreter wrapper applies cancelRemainingTasks only after the same source observation so the intentionally suspended task and continuation registry can be torn down. That host-boundary cleanup is not a source continuation result and does not alter the warning invariant. No physical-thread or parallelism claim is made."
+  },
+  {
+    "id": "checked-throwing-continuation-abandonment",
+    "fixture": "Fixtures/checked-throwing-continuation-abandonment.swift",
+    "mode": "runtime",
+    "assertion": "runtime-warning",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedThrowingContinuationAbandonmentProbe()",
+    "interpreterProjection": "string",
+    "interpreterCompletionPolicy": "cancel-remaining-tasks",
+    "nativeWarningContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "checkedThrowingContinuationAbandonmentProbe() leaked its continuation without resuming it",
+      "remain suspended forever"
+    ],
+    "interpreterWarningContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "checkedThrowingContinuationAbandonmentProbe() leaked its continuation without resuming it",
+      "remain suspended forever"
+    ],
+    "nativeFact": "Dropping the last checked-throwing-continuation token without resuming logs a runtime misuse warning, does not enter source catch or trap, and leaves the task waiting on that continuation suspended indefinitely.",
+    "notes": "Task.immediate causally executes the complete throwing-continuation body before returning its handle. Apple Swift 6.3.3 compiled the source in complete strict-concurrency mode with warnings as errors and produced exit 0, stdout caller-returned, and the same three warning fragments in twenty bounded runs; source catch is unreachable because abandonment is a warning and not an error result. This form shares the checked token canary and the nonthrowing fixture's captured missing-warning RED. The native wrapper exits its process, while the interpreter wrapper applies cancelRemainingTasks only after the source observation to drain the deliberately suspended runtime owner. No scheduler-order, physical-thread, or parallelism claim is made."
+  },
+  {
     "id": "checked-continuation-mainactor-resume",
     "fixture": "Fixtures/checked-continuation-mainactor-resume.swift",
     "mode": "runtime",

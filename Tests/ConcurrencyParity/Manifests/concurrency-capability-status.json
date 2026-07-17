@@ -2520,6 +2520,7 @@
       "evidenceCaseIDs": [
         "checked-continuation-value-resume",
         "checked-continuation-double-resume",
+        "checked-continuation-abandonment",
         "checked-continuation-mainactor-resume",
         "checked-continuation-omitted-isolation",
         "checked-continuation-result-spellings",
@@ -2529,6 +2530,7 @@
       "testNames": [
         "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
         "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
+        "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
         "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
         "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
         "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
@@ -2541,7 +2543,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withCheckedContinuation declaration now routes explicit isolation: nil and MainActor.shared, explicit source-actor isolation, plus omitted caller-defaulted #isolation for nonisolated, MainActor, and source-actor callers, resume(returning:) value, explicit-nil Void resume(), and nonthrowing Result<T, Never> resume(with:) subsets through a runtime-owned continuation record. A detached source producer resumes one parked owner task; omitted isolation is materialized once from caller lexical isolation. The shared contextual-executor invocation runs the synchronous body on MainActor or the selected source actor, restores a different caller executor after the body, and lets canonical continuation suspension release and reacquire an already-owned actor mailbox so another actor message can reenter before returning on the required resume executor. Result success delegates to the same returning terminal transition. Normal completion and infrastructure cancellation remove continuation/task/session ownership. Same-source native/interpreter parity covers every claimed delayed shape; compiler preflight accepts the Result<T, Never> spelling and rejects zero-argument resume() when the success type is not Void. Returning-then-returning double resume has process-isolated runtime-trap parity and focused one-record cleanup evidence. Abandonment policy and escaped-token lifetime remain open; the complete declaration therefore stays a known divergence with verification none."
+      "notes": "The public withCheckedContinuation declaration now routes explicit isolation: nil and MainActor.shared, explicit source-actor isolation, plus omitted caller-defaulted #isolation for nonisolated, MainActor, and source-actor callers, resume(returning:) value, explicit-nil Void resume(), and nonthrowing Result<T, Never> resume(with:) subsets through a runtime-owned continuation record. A detached source producer resumes one parked owner task; omitted isolation is materialized once from caller lexical isolation. The shared contextual-executor invocation runs the synchronous body on MainActor or the selected source actor, restores a different caller executor after the body, and lets canonical continuation suspension release and reacquire an already-owned actor mailbox so another actor message can reenter before returning on the required resume executor. Result success delegates to the same returning terminal transition. Normal completion and infrastructure cancellation remove continuation/task/session ownership. Same-source native/interpreter parity covers every claimed delayed shape; compiler preflight accepts the Result<T, Never> spelling and rejects zero-argument resume() when the success type is not Void. Returning-then-returning double resume has process-isolated runtime-trap parity and focused one-record cleanup evidence. Final checked-token release without resume now matches Swift's successful-process misuse warning and leaves the source task suspended; explicit infrastructure abort suppresses a teardown-only false warning. Escaped-token lifetime remains open; the complete declaration therefore stays a known divergence with verification none."
     },
     {
       "id": "swift-concurrency-api-v1:ace6ad5d810bcf9eda3b3214d498b783a36385621bc9361241fba14afb9f1e39",
@@ -2551,6 +2553,7 @@
       "evidenceCaseIDs": [
         "checked-throwing-continuation-value-error",
         "checked-throwing-continuation-double-resume",
+        "checked-throwing-continuation-abandonment",
         "checked-throwing-continuation-mainactor-error",
         "checked-throwing-continuation-source-actor-isolation",
         "checked-continuation-omitted-isolation",
@@ -2560,6 +2563,7 @@
       "testNames": [
         "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
         "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
+        "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
         "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
         "CheckedContinuationRuntimeTests/throwingSourceActorIsolationRestoresErrorAndCleansUp",
         "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
@@ -2571,7 +2575,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withCheckedThrowingContinuation declaration now routes explicit isolation: nil for resume(returning:), resume(throwing:), concrete-error Result resume(with:), and existential Result<T, any Error> resume(with:), plus explicit MainActor.shared and omitted caller-defaulted #isolation for nonisolated and MainActor callers, plus explicit and caller-defaulted source-actor isolation, through the same runtime-owned continuation record as the nonthrowing form. Omitted isolation is materialized once from caller lexical isolation. Contextual MainActor or source-actor body execution restores the @concurrent caller's cooperative required executor before exact source-error catch; the caller-defaulted actor path releases its mailbox while parked, permits gated reentry, and reacquires it before catch handling. Result success and failure delegate to the existing returning and throwing terminal transitions through InterpretedThrow, and every evidenced path drains task/session ownership. Compiler preflight accepts the existential Result spelling and rejects a non-Result argument. Returning-then-throwing double resume has process-isolated runtime-trap parity; the common async `do`/`catch` boundary preserves that fatal invariant, and focused evidence proves one-record cleanup. Abandonment policy and escaped-token lifetime remain open, so the complete declaration stays a known divergence with verification none."
+      "notes": "The public withCheckedThrowingContinuation declaration now routes explicit isolation: nil for resume(returning:), resume(throwing:), concrete-error Result resume(with:), and existential Result<T, any Error> resume(with:), plus explicit MainActor.shared and omitted caller-defaulted #isolation for nonisolated and MainActor callers, plus explicit and caller-defaulted source-actor isolation, through the same runtime-owned continuation record as the nonthrowing form. Omitted isolation is materialized once from caller lexical isolation. Contextual MainActor or source-actor body execution restores the @concurrent caller's cooperative required executor before exact source-error catch; the caller-defaulted actor path releases its mailbox while parked, permits gated reentry, and reacquires it before catch handling. Result success and failure delegate to the existing returning and throwing terminal transitions through InterpretedThrow, and every evidenced path drains task/session ownership. Compiler preflight accepts the existential Result spelling and rejects a non-Result argument. Returning-then-throwing double resume has process-isolated runtime-trap parity; the common async `do`/`catch` boundary preserves that fatal invariant, and focused evidence proves one-record cleanup. Final checked-token release without resume shares the successful-process misuse-warning canary and never enters source catch; explicit infrastructure abort suppresses a teardown-only false warning. Escaped-token lifetime remains open, so the complete declaration stays a known divergence with verification none."
     },
     {
       "id": "swift-concurrency-api-v1:1c6b71ba2592eb2a5841edbe5c173bf0dcc5801237920669367ca47a9797fcc3",
@@ -2836,9 +2840,13 @@
       "requirementRef": "M6/protocol-iteration-streams-and-continuations",
       "evidenceCaseIDs": [
         "checked-continuation-value-resume",
+        "checked-continuation-double-resume",
+        "checked-continuation-abandonment",
         "checked-continuation-mainactor-resume",
         "checked-continuation-omitted-isolation",
         "checked-throwing-continuation-value-error",
+        "checked-throwing-continuation-double-resume",
+        "checked-throwing-continuation-abandonment",
         "checked-throwing-continuation-mainactor-error",
         "checked-throwing-continuation-result-resume",
         "checked-continuation-result-spellings",
@@ -2847,6 +2855,8 @@
       ],
       "testNames": [
         "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
+        "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
+        "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
         "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
         "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
         "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
@@ -2863,7 +2873,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. Checked continuations add runtime-owned delayed resume(returning:) values for explicit isolation: nil, MainActor.shared, and a source actor plus omitted caller-defaulted #isolation from nonisolated, MainActor, and source-actor callers, zero-argument Void resume(), nonthrowing Result<T, Never> resume(with:), contextual actor body execution, caller-executor restoration, actor-mailbox release/reentry/reacquisition, bounded registry ownership, and infrastructure-abort cleanup. The throwing form additionally projects the original resume(throwing:) source value, has exact MainActor and source-actor body/caller-restoration evidence for its error paths, including mailbox release/reentry/reacquisition for a caller-defaulted actor, and maps both concrete-error and existential Result<T, any Error> success/failure through resume(with:) to the same terminal transitions. Both checked forms have process-isolated double-resume trap parity and fatal invariants bypass source `do`/`catch`. Unsafe continuations, abandonment, and remaining continuation lifetime edges keep this family a known divergence."
+      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. Checked continuations add runtime-owned delayed resume(returning:) values for explicit isolation: nil, MainActor.shared, and a source actor plus omitted caller-defaulted #isolation from nonisolated, MainActor, and source-actor callers, zero-argument Void resume(), nonthrowing Result<T, Never> resume(with:), contextual actor body execution, caller-executor restoration, actor-mailbox release/reentry/reacquisition, bounded registry ownership, and infrastructure-abort cleanup. The throwing form additionally projects the original resume(throwing:) source value, has exact MainActor and source-actor body/caller-restoration evidence for its error paths, including mailbox release/reentry/reacquisition for a caller-defaulted actor, and maps both concrete-error and existential Result<T, any Error> success/failure through resume(with:) to the same terminal transitions. Both checked forms have process-isolated double-resume trap parity and fatal invariants bypass source `do`/`catch`; both also have successful-process final-token abandonment-warning parity while leaving the source owner suspended. Unsafe continuations and remaining escaped-token lifetime edges keep this family a known divergence."
     },
     {
       "id": "swiftui-view-owned-async-lifecycle",

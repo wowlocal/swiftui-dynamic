@@ -1633,6 +1633,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.evidenceCaseIDs == [
             "checked-continuation-value-resume",
             "checked-continuation-double-resume",
+            "checked-continuation-abandonment",
             "checked-continuation-mainactor-resume",
             "checked-continuation-omitted-isolation",
             "checked-continuation-result-spellings",
@@ -1642,6 +1643,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.testNames == [
             "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
             "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
+            "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
             "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
             "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
@@ -1662,6 +1664,8 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.notes.contains("Result<T, Never>"))
         #expect(checkedClaim.notes.contains("caller lexical isolation"))
         #expect(checkedClaim.notes.contains("double resume"))
+        #expect(checkedClaim.notes.contains("successful-process misuse warning"))
+        #expect(checkedClaim.notes.contains("Escaped-token lifetime remains open"))
 
         let checkedThrowingClaim = try #require(claims.first {
             $0.id == checkedThrowing.id
@@ -1673,6 +1677,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.evidenceCaseIDs == [
             "checked-throwing-continuation-value-error",
             "checked-throwing-continuation-double-resume",
+            "checked-throwing-continuation-abandonment",
             "checked-throwing-continuation-mainactor-error",
             "checked-throwing-continuation-source-actor-isolation",
             "checked-continuation-omitted-isolation",
@@ -1682,6 +1687,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.testNames == [
             "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
             "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
+            "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
             "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
             "CheckedContinuationRuntimeTests/throwingSourceActorIsolationRestoresErrorAndCleansUp",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
@@ -1702,6 +1708,9 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.notes.contains("InterpretedThrow"))
         #expect(checkedThrowingClaim.notes.contains("caller lexical isolation"))
         #expect(checkedThrowingClaim.notes.contains("double resume"))
+        #expect(checkedThrowingClaim.notes.contains("misuse-warning canary"))
+        #expect(checkedThrowingClaim.notes.contains(
+            "Escaped-token lifetime remains open"))
 
         let routedIDs = Set([checked.id, checkedThrowing.id])
         let deferredClaims = claims.filter { !routedIDs.contains($0.id) }

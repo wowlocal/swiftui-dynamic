@@ -72,8 +72,11 @@ well. Both stream flavors' evidenced cancellation, buffering, iterator-copy,
 and lifetime tails are covered. Checked nonthrowing and throwing continuations
 now cover explicit and caller-defaulted source actors. Checked continuations
 also preserve Swift's fatal invariant when either checked form is resumed more
-than once, including through source `do`/`catch`. Unsafe continuations and
-checked-continuation abandonment/escaped-token lifetime edges remain open.
+than once, including through source `do`/`catch`. Both checked forms now emit
+Swift's successful-process misuse warning when the final unresumed source token
+is released; the waiting task stays suspended and explicit host teardown
+remains separate. Unsafe continuations and checked-continuation escaped-token
+lifetime remain open.
 The remaining Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1385,8 +1388,12 @@ hang; ordinary source cancellation does not resolve the continuation. Omitted
 selection. The nonthrowing and throwing explicit plus caller-defaulted
 source-actor shapes have exact native parity. Both checked forms also have
 process-isolated native/interpreted parity for the fatal double-resume
-diagnostic; fatal runtime invariants bypass source `do`/`catch`. Abandonment,
-escaped-token lifetime, and unsafe variants remain open.
+diagnostic; fatal runtime invariants bypass source `do`/`catch`. Final release
+of an unresumed checked token instead emits a successful-process runtime
+warning through a diagnostic sink that does not retain the session, leaves the
+waiting task parked, and never enters source `catch`; infrastructure abort
+invalidates the token before host cleanup. Escaped-token lifetime and unsafe
+variants remain open.
 
 ### 6.18 Async sequences and streams
 
@@ -1856,6 +1863,9 @@ Assertion kinds:
 - `diagnostic`: compiler failure category and source position;
 - `runtime-trap`: each isolated process exits nonzero and contains its
   authored diagnostic fragment; timeout is a failure, never a trap;
+- `runtime-warning`: each isolated process exits zero and contains every
+  authored warning fragment; nonzero exit, missing fragments, and timeout are
+  failures;
 - `stress`: no deadlock, crash, leak threshold, or invariant failure.
 
 ### 12.3 Native compilation
@@ -2109,8 +2119,10 @@ Each milestone is independently gated through
   and `Result<T, Never>` success through the same terminal transition and
   cleanup path.
   Both checked forms diagnose double resume as a fatal runtime invariant even
-  inside source `do`/`catch`. Unsafe variants plus abandonment and
-  escaped-token lifetime diagnostics remain active;
+  inside source `do`/`catch`. They also diagnose final-token abandonment as a
+  successful-process warning while leaving the owner suspended; host teardown
+  is explicit and occurs after observation. Unsafe variants plus escaped-token
+  lifetime diagnostics remain active;
   complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
@@ -2365,9 +2377,11 @@ and concrete-error plus existential-error Result success/failure through
 the nonthrowing explicit-`nil` Void slice maps zero-argument
 `resume()` and `Result<T, Never>` success to that same successful terminal
 path. Both checked forms now have process-isolated parity for Swift's fatal
-double-resume invariant, including its escape from source `do`/`catch`.
-Abandonment and escaped-token lifetime diagnostics remain active rather than
-being inferred from the covered resume paths or stream behavior.
+double-resume invariant, including its escape from source `do`/`catch`, and for
+Swift's nonfatal final-token abandonment warning. The latter leaves the source
+task suspended and uses explicit infrastructure cancellation only after the
+warning observation. Escaped-token lifetime remains active rather than being
+inferred from the covered resume paths or stream behavior.
 
 Deliverables:
 

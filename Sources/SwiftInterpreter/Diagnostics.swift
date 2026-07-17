@@ -1,3 +1,5 @@
+import Foundation
+
 /// A located evaluation or parse error, surfaced verbatim in the demo's error bar.
 public struct RuntimeError: Error, CustomStringConvertible {
     public let message: String
@@ -36,4 +38,33 @@ public struct InterpretedThrow: Error {
 /// table); the evaluator catches it and re-throws with a source location.
 struct EvalMessage: Error {
     let text: String
+}
+
+/// Lightweight process diagnostics that may outlive an interpreter session.
+/// Runtime source tokens retain this sink rather than the interpreter/runtime,
+/// so a final-release warning never becomes a session-ownership edge.
+nonisolated final class RuntimeDiagnosticSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedWarnings: [String] = []
+    private let writesToStandardError: Bool
+
+    init(writesToStandardError: Bool = true) {
+        self.writesToStandardError = writesToStandardError
+    }
+
+    var warnings: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedWarnings
+    }
+
+    func emitWarning(_ message: String) {
+        let terminated = message.hasSuffix("\n") ? message : message + "\n"
+        lock.lock()
+        storedWarnings.append(terminated)
+        if writesToStandardError {
+            FileHandle.standardError.write(Data(terminated.utf8))
+        }
+        lock.unlock()
+    }
 }

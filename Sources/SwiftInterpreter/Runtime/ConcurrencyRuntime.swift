@@ -661,6 +661,7 @@ final class CooperativeConcurrencyRuntime {
     private static let maximumLiveContinuations = 1_024
 
     let clock: any RuntimeClock
+    let diagnostics: RuntimeDiagnosticSink
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
     private var nextActorID: UInt64 = 1
@@ -701,8 +702,12 @@ final class CooperativeConcurrencyRuntime {
     /// point instead of silently discarding it from `deinit`.
     private var pendingUnownedNonthrowingCallbackFailure: Error?
 
-    init(clock: any RuntimeClock = ContinuousRuntimeClock()) {
+    init(
+        clock: any RuntimeClock = ContinuousRuntimeClock(),
+        diagnostics: RuntimeDiagnosticSink = RuntimeDiagnosticSink()
+    ) {
         self.clock = clock
+        self.diagnostics = diagnostics
     }
 
     func createSession() -> RuntimeSessionID {
@@ -1254,6 +1259,7 @@ final class CooperativeConcurrencyRuntime {
 
     private func abortContinuation(_ record: RuntimeContinuationRecord) {
         guard case .pending = record.state else { return }
+        record.sourceToken?.invalidateForInfrastructureAbort()
         record.state = .aborted
         let waiter = record.nativeWaiter
         record.nativeWaiter = nil

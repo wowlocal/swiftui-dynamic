@@ -460,6 +460,63 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test
+    func abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let cases = [
+            (
+                fixture: "checked-continuation-abandonment.swift",
+                entry: "await checkedContinuationAbandonmentProbe()",
+                function: "checkedContinuationAbandonmentProbe()"
+            ),
+            (
+                fixture: "checked-throwing-continuation-abandonment.swift",
+                entry: "await checkedThrowingContinuationAbandonmentProbe()",
+                function: "checkedThrowingContinuationAbandonmentProbe()"
+            ),
+        ]
+
+        for item in cases {
+            let fixture = packageRoot.appendingPathComponent(
+                "Tests/ConcurrencyParity/Fixtures/" + item.fixture)
+            let source = try String(contentsOf: fixture, encoding: .utf8)
+                + "\n\(item.entry)\n"
+            let interpreter = Interpreter()
+
+            let value = try await interpreter.runAsync(
+                source: source,
+                completionPolicy: .cancelRemainingTasks)
+
+            #expect(value.stringValue == "caller-returned")
+            let warning = try #require(
+                interpreter.concurrencyRuntime.diagnostics.warnings.first)
+            #expect(warning.contains("SWIFT TASK CONTINUATION MISUSE"))
+            #expect(warning.contains(
+                item.function + " leaked its continuation without resuming it"))
+            #expect(warning.contains("remain suspended forever"))
+
+            #expect(
+                interpreter.concurrencyRuntime.diagnostics.warnings.count == 1)
+            #expect(
+                interpreter.concurrencyRuntime.totalContinuationsCreated == 1)
+            #expect(
+                interpreter.concurrencyRuntime.continuationSuspensionCount == 1)
+            #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(
+                interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
+    }
+
     @Test func sourceActorIsolationOwnsBodyReentersAndCleansUp()
         async throws
     {

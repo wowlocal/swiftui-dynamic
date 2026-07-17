@@ -125,6 +125,15 @@ double-resume crash shapes. Each source is compiled as real Swift and run in a
 separate native/interpreted process so a fatal invariant cannot be mistaken for
 a catchable source error.
 
+The abandonment fixtures are separately anchored in the same pinned commit's
+`stdlib/public/Concurrency/CheckedContinuation.swift`. That implementation's
+`CheckedContinuationCanary` deinitializer defines the final-token-release
+warning policy; it is standard-library source rather than an executable lit
+test and is therefore cited rather than copied into the direct fixture
+allowlist. The repository-owned bounded adapters compile with real Swift,
+require successful process exit plus the authored warning fragments, and keep
+the indefinitely suspended task outside the observable source result.
+
 The corpus is checked in so normal test runs do not need network access. To
 refresh it reproducibly, run:
 
