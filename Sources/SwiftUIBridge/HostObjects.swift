@@ -507,6 +507,13 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         // the storage is fresh-store results: empty (same doctrine as the
         // wrapper flatten).
         return HostFunction(name: name) { _, _ in .native([RuntimeValue]()) }
+    case "LocalizedStringKey":
+        // The merged model has no string catalogs: a key IS its literal
+        // text (the String(localized:) doctrine) — `Text(.init(donut.name))`
+        // renders the name instead of absorbing.
+        return HostFunction(name: name) { args, _ in
+            .native(args.positional(0)?.stringValue ?? "")
+        }
     case "ProposedViewSize":
         return HostFunction(name: name) { args, _ in
             if case .host(let any)? = args.positional(0), let size = any as? CGSize {

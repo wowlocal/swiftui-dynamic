@@ -12,12 +12,19 @@ extension ViewRegistry {
     func registerViews() {
         // MARK: Text & symbols
 
-        constructors["Text"] = HostFunction(name: "Text") { args, _ in
-            guard let value = args.positional(0) else {
+        constructors["Text"] = HostFunction(name: "Text") { args, ctx in
+            guard var value = args.positional(0) else {
                 throw RuntimeError(message: "Text needs a string argument")
             }
             if case .host(let any) = value, let box = any as? AttributedStringBox {
                 return .native(TextBox(Text(box.attributed)))
+            }
+            // TYPED markers resolve at this boundary (the computed-property
+            // laziness contract): `var title: LocalizedStringKey { .init(x) }`
+            // reaches Text as an init marker hinted with the property type.
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+               let hint = call.typeHint, let interpreter = ctx as? Interpreter {
+                value = interpreter.resolveForBridge(value, typeName: hint)
             }
             // Unknowables read "" (fresh-string doctrine) — marker dumps
             // must never reach rendered Text.

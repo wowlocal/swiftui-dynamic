@@ -1532,3 +1532,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   InterpreterScopeAndSequenceTests (hoisting + self-mutation, zip
   tuples, nested-row build). Upstream corpus floor still 674/680
   (isolated-deinit staging) — close-merge remains deferred.
+- 2026-07-17 socialfeed pills COMPLETE (worktree iteration 9):
+  **socialfeed 10.789% → 0.393%, truck 4.336% → 1.998%** (the truck's
+  social card body rides the same fix). The pill texts were init
+  markers: `var title: LocalizedStringKey { .init(donut.name) }` — a
+  computed property returning `.init(…)`. Three-piece fix, all
+  doctrine-tier: (1) LocalizedStringKey host ctor — a key IS its
+  literal text in the merged model (String(localized:) doctrine);
+  (2) computed-property markers now CARRY the property's declared type
+  as their typeHint (the laziness contract said "resolve at the
+  dispatch boundary" but a hintless marker never could); (3) the REAL
+  Text gateway resolves hinted markers via resolveForBridge before the
+  fresh-string doctrine blanks them. Board: content 25.806% (the last
+  big row — twin-side blank sidebar policy; detail-* rows are the
+  sanctioned per-panel comparison), donuts 1.041%, orders 0.777%,
+  card-orders 2.385%, card-donuts/donut-view 0.000%. Pins:
+  ComputedMarkerHintTests (typed marker + Text-boundary resolution +
+  key ctor). Upstream deinit floor still holds three lane commits
+  unmerged.

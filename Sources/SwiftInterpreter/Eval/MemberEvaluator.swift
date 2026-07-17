@@ -906,6 +906,15 @@ extension Interpreter {
                 // Keep contextual markers lazy. Receiver operations that
                 // require the concrete type (notably user subscripts) resolve
                 // this value against the annotation at their dispatch boundary.
+                // A HINTLESS marker can never resolve downstream, though —
+                // carry the property's declared type with it
+                // (`var title: LocalizedStringKey { .init(name) }`).
+                if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+                   call.typeHint == nil,
+                   let typeName = computed.typeAnnotation?.trimmedDescription {
+                    return .native(ImplicitMemberCall(
+                        name: call.name, arguments: call.arguments, typeHint: typeName))
+                }
                 return value
             default:
                 throw RuntimeError(message:
