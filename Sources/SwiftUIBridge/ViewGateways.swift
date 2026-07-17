@@ -261,6 +261,28 @@ extension ViewRegistry {
 
         constructors["List"] = HostFunction(name: "List") { args, ctx in
             let content = try Self.dataOrPlainContent(args, ctx)
+            // Dynamic selection values cannot satisfy the static Hashable
+            // generic, so rows tag with their stable stringified identity
+            // and the binding hands the app back the ORIGINAL runtime value
+            // (NavigationSelectionValues) — a click then re-renders the
+            // detail exactly like a programmatic state write.
+            if let selectionArg = args.labeled("selection"),
+               let box = try? Coerce.bindingBox(selectionArg) {
+                let binding = Binding<String?>(
+                    get: {
+                        if case .nilValue = box.value { return nil }
+                        return box.value.stringified
+                    },
+                    set: { newTag in
+                        guard let newTag else {
+                            box.value = .nilValue
+                            return
+                        }
+                        box.value = NavigationSelectionValues.byTag[newTag] ?? .string(newTag)
+                    }
+                )
+                return .native(AnyView(List(selection: binding) { Self.indexed(content) }))
+            }
             return .native(AnyView(List { Self.indexed(content) }))
         }
 
@@ -410,8 +432,12 @@ extension ViewRegistry {
                 let label = views.count == 1 ? views[0] : AnyView(HStack { Self.indexed(views) })
                 // Dynamic interpreted values cannot satisfy a static generic
                 // Hashable constraint. Their stable textual identity keeps the
-                // real NavigationLink behavior and rendering intact.
-                return .native(AnyView(NavigationLink(value: value.stringified) { label }))
+                // real NavigationLink behavior and rendering intact; the tag
+                // makes the row selectable in a List(selection:) and the
+                // registry preserves the original value for the write-back.
+                let tag = value.stringified
+                NavigationSelectionValues.byTag[tag] = value
+                return .native(AnyView(NavigationLink(value: tag) { label }.tag(tag)))
             }
 
             let destination: AnyView
@@ -812,6 +838,13 @@ func tableColumnSpecMember(_ name: String, on value: Any) -> RuntimeValue? {
 
 enum TableRowCollector {
     nonisolated(unsafe) static var active: [RuntimeValue]?
+}
+
+/// `NavigationLink(value:)` rows tag with their stable stringified identity;
+/// the ORIGINAL runtime values park here so a List selection write can hand
+/// the app back the exact value it navigated with.
+enum NavigationSelectionValues {
+    static var byTag: [String: RuntimeValue] = [:]
 }
 
 extension ViewRegistry {

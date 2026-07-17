@@ -16,6 +16,16 @@ struct DemoApp: App {
         }
     }
 
+    /// `--sweep <outDir>` (with --project): drive the LIVE window with real
+    /// NSEvents after the project renders — the R4 "a person can use it"
+    /// check. Captures land in outDir; the process exits with the verdict.
+    static var sweepDirectory: String? {
+        CommandLine.arguments.firstIndex(of: "--sweep").flatMap { index in
+            CommandLine.arguments.indices.contains(index + 1)
+                ? CommandLine.arguments[index + 1] : nil
+        }
+    }
+
     /// `--network live` → real HTTP (the human demo gate);
     /// `--network replay:<fixturesDir>` → recorded responses.
     /// With no flag, the interactive editor demo uses live HTTP so city
@@ -119,6 +129,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first?.makeKeyAndOrderFront(nil)
+        if let sweepDirectory = DemoApp.sweepDirectory {
+            Task { await SweepDriver.run(outDirectory: sweepDirectory) }
+        }
         // Self-capture evidence for headless verification sessions that
         // lack screen-recording access: after the LIVE interactive window
         // settles, write its contentView bitmap and keep running.

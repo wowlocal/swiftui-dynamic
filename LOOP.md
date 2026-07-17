@@ -2044,3 +2044,27 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   ten scenarios 0.000% (detail-orders floor 0.039 -> 0.000).
   Pin: TableSortHeaderProbeTests.sortedColumnHeaderMatchesNative.
   Gate next.
+- 2026-07-17 R4 OPENS — live sidebar navigation works (worktree iteration
+  37): the R4 rung had NO live-window verification. New instrument:
+  `Scripts/foodtruck-r4.sh` runs the demo with `--sweep`, drives the REAL
+  interactive window (SweepDriver: AppKit row selection on the sidebar
+  outline — synthesized NSEvent pairs cannot aim or complete list
+  tracking without an accessibility grant) and verifies each navigation
+  lands its panel by changed-pixel floors. First sweep found the class:
+  the List gateway DROPPED `selection:` and NavigationLink rows had no
+  tags — clicks highlighted rows but never wrote interpreted state; the
+  detail froze. Fix (reusable): rows tag with their stringified identity,
+  NavigationSelectionValues maps tags back to the ORIGINAL runtime
+  values, and List(selection:) binds through Coerce.bindingBox — click →
+  state write → detail re-render now proven live (orders swap: 422k
+  pixels) and pinned headlessly. Boards unmoved: R2 unchanged (content
+  byte-identical 26.137%, rest 0), R3 ten scenarios 0.000. NEXT CLASS
+  (sweep finding): after an interactive re-render the sidebar comes back
+  blank/light — appearance context is lost on the re-rendered subtree
+  (sweep-2/3 captures in /tmp/foodtruck-r4). Twin-side note: content
+  pump probes (runloop + contentViewController) cannot make the REAL
+  NavigationSplitView paint headless — cacheDisplay misses window-server
+  material layers; the honest content row needs an own-window
+  ScreenCaptureKit/CGWindowList capture arc on BOTH sides.
+  Pin: NavigationSelectionProbeTests.sidebarSelectionWritesInterpretedStateAndSwapsDetail.
+  Gate next.
