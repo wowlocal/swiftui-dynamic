@@ -667,7 +667,7 @@ extension ViewRegistry {
             guard let selection = args.labeled("selection") else {
                 throw RuntimeError(message: "Picker needs a selection: binding")
             }
-            let binding = try Coerce.stringBinding(selection)
+            let binding = try Coerce.selectionBinding(selection)
             let content = try Self.builderContent(args, ctx)
             let title = args.positional(0)?.stringValue ?? ""
             return .native(AnyView(Picker(title, selection: binding) { Self.indexed(content) }))

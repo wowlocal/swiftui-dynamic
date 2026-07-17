@@ -2146,3 +2146,25 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   R2 board intact (orders 0.000 fresh-vs-fresh). Pin:
   InterpretedChartTests.integerAxisAndClosureLabelsMatchNative (AE=0).
   Gate still blocked by main-red.
+- 2026-07-17 LIVE MUTATION LANDS — enum-tagged Picker selections
+  (worktree iteration 42): the sweep gained a MUTATION phase — after
+  landing saleshistory/topfive it drives the Timeframe segmented
+  control through the genuine AppKit action path and requires a chart
+  repaint. First run exposed the class: the Picker bound through a
+  plain string binding, so the segment write stored the tag STRING in
+  enum-typed state and the app's `switch timeframe` stopped matching
+  ("switch was not exhaustive for Timeframe.month"). Fix (the i37
+  registry doctrine, now shared): `.tag(...)` registers its ORIGINAL
+  runtime value in NavigationSelectionValues and Picker binds through
+  the new Coerce.selectionBinding — get reads the state's stringified
+  identity, set writes the registered original back. The Month
+  mutation now renders perfectly (segment highlighted, totals 7,983 →
+  17,351 donuts, a month of points per series, y-axis rescaled, 0
+  diagnostics). Headless note: SwiftUI's SegmentedControlCoordinator
+  accepts the segment but only writes its binding inside a RUNNING
+  app, so the end-to-end stays covered by the live r4 mutate step; the
+  pin covers the two mechanisms directly (registry keys are
+  type-prefixed stringified identities, e.g. "Timeframe.month"). All
+  19 neighbor pins pass; R2/R3 within floors (orders 0.017% = the
+  known ±1/255 AA flicker, floor 0.039). Pin:
+  PickerSelectionProbeTests. Gate still blocked by main-red.

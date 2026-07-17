@@ -569,7 +569,12 @@ extension ViewRegistry {
         }
         register("tag") { view, args, _ in
             let value = args.positional(0)
-            return AnyView(view.tag(value?.stringValue ?? value?.stringified ?? ""))
+            let tag = value?.stringValue ?? value?.stringified ?? ""
+            // Selection write-backs must hand the app its ORIGINAL value
+            // (enum cases switch-match again) — the same registry the
+            // NavigationLink rows use.
+            if let value { NavigationSelectionValues.byTag[tag] = value }
+            return AnyView(view.tag(tag))
         }
         register("disabled") { view, args, _ in
             AnyView(view.disabled(args.positional(0)?.boolValue ?? false))

@@ -79,12 +79,52 @@ enum SweepDriver {
                     && freshDiagnostics == 0
             }
             print("SWEEP \(step.name) changed=\(changed) tables=\(rowCounts) diag=\(RenderDiagnostics.errors.count) landed=\(landed)")
+            if ProcessInfo.processInfo.environment["DEMO_SWEEP_CONTROLS"] != nil,
+               let content = window.contentView {
+                var controls: [String] = []
+                func walkControls(_ view: NSView) {
+                    if view is NSControl || String(describing: type(of: view)).contains("Segment") {
+                        controls.append("\(String(describing: type(of: view))) frame=\(Int(view.frame.width))x\(Int(view.frame.height))")
+                    }
+                    view.subviews.forEach(walkControls)
+                }
+                walkControls(content)
+                print("SWEEP-CONTROLS \(controls.prefix(12).joined(separator: " | "))")
+            }
             for entry in RenderDiagnostics.errors.suffix(max(0, RenderDiagnostics.errors.count - reportedDiagnostics)).prefix(6) {
                 print("SWEEP-DIAG \(step.name) \(entry.view): \(entry.error.message.prefix(110))")
             }
             reportedDiagnostics = RenderDiagnostics.errors.count
             allGreen = allGreen && landed
             previous = current
+            // MUTATION phase: panels with a timeframe picker must respond
+            // to a segment change — the genuine AppKit action path drives
+            // the SwiftUI binding into interpreted state and the chart
+            // must repaint with the new range.
+            if landed, ["saleshistory", "topfive"].contains(step.name) {
+                if let segmented = firstSegmentedControl(in: window) {
+                    segmented.selectedSegment = min(1, segmented.segmentCount - 1)
+                    if let action = segmented.action {
+                        NSApp.sendAction(action, to: segmented.target, from: segmented)
+                    }
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    let mutated = capture(
+                        "sweep-\(index + 1)-\(step.name)-mutated", window: window,
+                        outDirectory: outDirectory)
+                    let mutatedChanged = changedPixels(previous, mutated)
+                    let mutatedLanded = mutatedChanged > 20000
+                    print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) landed=\(mutatedLanded)")
+                    for entry in RenderDiagnostics.errors.dropFirst(reportedDiagnostics).prefix(4) {
+                        print("SWEEP-DIAG \(step.name)-mutate \(entry.view): \(entry.error.message.prefix(110))")
+                    }
+                    reportedDiagnostics = RenderDiagnostics.errors.count
+                    allGreen = allGreen && mutatedLanded
+                    previous = mutated
+                } else {
+                    print("SWEEP \(step.name)-mutate no-segmented-control")
+                    allGreen = false
+                }
+            }
         }
         let diagnostics = RenderDiagnostics.errors.count
         print("SWEEP diagnostics=\(diagnostics)")
@@ -153,6 +193,19 @@ enum SweepDriver {
             .write(to: URL(fileURLWithPath: path))
         print("SWEEP-CAPTURE \(name) \(path)")
         return rep
+    }
+
+    static func firstSegmentedControl(in window: NSWindow) -> NSSegmentedControl? {
+        var found: NSSegmentedControl?
+        func walk(_ view: NSView) {
+            if found == nil, let control = view as? NSSegmentedControl,
+               !control.isHiddenOrHasHiddenAncestor {
+                found = control
+            }
+            view.subviews.forEach(walk)
+        }
+        if let content = window.contentView { walk(content) }
+        return found
     }
 
     /// Row counts of every live NSTableView — the in-process hierarchy is

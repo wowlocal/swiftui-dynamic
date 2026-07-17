@@ -37,6 +37,20 @@ enum Coerce {
         )
     }
 
+    /// Tagged-selection binding: reads the state's stable string identity
+    /// and writes back the ORIGINAL runtime value a `.tag(...)` registered
+    /// for it — enum-case selections keep switch-matching after a control
+    /// drives the binding.
+    static func selectionBinding(_ value: RuntimeValue) throws -> Binding<String> {
+        let box = try bindingBox(value)
+        return Binding(
+            get: { box.value.stringValue ?? box.value.stringified },
+            set: { newTag in
+                box.value = NavigationSelectionValues.byTag[newTag] ?? .native(newTag)
+            }
+        )
+    }
+
     static func stringBinding(_ value: RuntimeValue) throws -> Binding<String> {
         let box = try bindingBox(value)
         return Binding(
