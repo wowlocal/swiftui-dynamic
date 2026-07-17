@@ -1677,3 +1677,18 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   usable interactive window. Remaining: R4 pixel residue, click-driven
   interaction sweeps, and the upstream checked-continuation completion
   that still gates the eleven-commit merge.
+- 2026-07-17 donuts-gallery residue diagnosed to the data (worktree
+  iteration 18): the 1.041% donuts row is a SORT-ORDER divergence of
+  two adjacent pairs (Cosmos/Picnic Basket, Nighttime/Strawberry
+  Sprinkles) in DonutGallery's default `.popularity(.week)` sort. The
+  interpreted sort and dictionary machinery are CORRECT (distilled
+  probe passes; month sales match; comparator deterministic): the
+  divergence is in the WEEK sales data itself — interp cosmos=218/
+  picnic=216 and sprinkles=94/nighttime=93, while the twin's implied
+  ordering requires the opposite by 1-2 counts. Orders are verified
+  identical order-for-order (RNG parity), so the residual stream is
+  the SALES-HISTORY generation tail (a different seeded path than
+  todaysOrders). STAKED: diff the sales-history stream via RNG_TRACE
+  + a twin dump extension, the way the orders stream was aligned on
+  07-11. Upstream checked-continuation completion still gates the
+  merge queue (fourteen commits).
