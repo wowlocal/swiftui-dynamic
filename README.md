@@ -103,10 +103,13 @@ with the detailed design in
   call-site argument structure/provenance, and all-branch conditional member
   plans are now immutable Sendable indexes. Each session owns one immutable
   target-resolved program plan, and runtime entries plus escaped closures retain
-  that exact plan across callbacks and SwiftUI/source tasks; remaining member
-  semantics, call-site semantic resolution, compiler metadata, mutable-session
-  migration, heap-edge classification, workers, mode-differential parity, and
-  TSan are still open.
+  that exact plan across callbacks and SwiftUI/source tasks. Each prepared
+  program also owns a distinct MainActor-confined `RuntimeProgramState`; its
+  session, entries, and escaped closures retain the originating mutable symbol
+  and declaration registries even after the facade prepares another program.
+  Remaining member semantics, call-site semantic resolution, compiler
+  metadata, evaluator/session migration, heap-edge classification, workers,
+  mode-differential parity, and TSan are still open.
 - **Covered demand cycles:** M5 actor identity/mailboxes and storage
   confinement, M6 protocol sequences/streams/checked continuations, and M8
   SwiftUI-owned `.task` lifecycle have scoped executable evidence. Their broad

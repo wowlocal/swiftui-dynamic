@@ -1585,7 +1585,7 @@
     "interpreterEntry": "parityInterpreterHostCallbackOverlap()",
     "interpreterProjection": "host-callback-overlap-global-string:parityHostCallbackOverlapProbe:events:worker-started",
     "nativeFact": "A MainActor task created by one synchronous callback may remain suspended while a later callback enters, observes and mutates the same actor-isolated state, and resumes it; the later callback completes before that task continues on MainActor.",
-    "notes": "The harness waits for the first callback's task to publish worker-started before invoking the same retained callback again. Continuation resume is synchronous but MainActor serialization forces second-return before worker-resumed, so the exact three snapshots are causal and assert no unrelated scheduler or physical-thread order. Apple Swift 6.3.3 strict-concurrency compilation produced the same result in twenty bounded runs."
+    "notes": "The harness waits for the first callback's task to publish worker-started before invoking the same retained callback again. Continuation resume is synchronous but MainActor serialization forces second-return before worker-resumed, so the exact three snapshots are causal and assert no unrelated scheduler or physical-thread order. Apple Swift 6.3.3 strict-concurrency compilation and the interpreter produced the same result in twenty bounded runs before and after mutable program registries moved into session-owned RuntimeProgramState; every four-worker native shard reported SHA-256 4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652."
   },
   {
     "id": "task-read-missing-await-diagnostic",

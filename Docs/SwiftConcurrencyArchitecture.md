@@ -422,6 +422,31 @@ suites plus all forty-two methodology checks within two seconds.
 No new conditional-compilation semantics, scheduler order, physical thread, or
 physical parallelism is inferred.
 
+The twenty-first prerequisite introduces `RuntimeProgramState`, one
+MainActor-confined mutable capability per prepared program. It owns the
+materialized struct/enum/host-extension registries, protocol inheritance,
+global overload and dependency caches, lexical declaration owners, and
+deferred extension/type-alias/deinitializer work that previously lived as
+independent fields on the `Interpreter` facade. `InterpreterSession` and its
+root `RuntimeEntry` retain the capability; each source closure stamps it at
+creation, so later host callbacks, SwiftUI entries, compatibility tasks, and
+their source tasks select the originating mutable declaration state rather
+than the facade's most recently prepared program. Synchronous compatibility
+APIs retain an explicit last-program fallback, and the empty bootstrap state
+is used only before any program is prepared.
+
+The architectural RED was compile-time: there was no `RuntimeProgramState`
+type or state edge on sessions, runtime entries, or closures. Focused ownership
+tests require two sessions to materialize distinct nominal registries and an
+escaped callback plus its parked task to retain the exact originating state
+after a newer session is prepared. The semantic workflow reuses the causally
+gated `host-callback-overlap` fixture: native Swift establishes that a later
+inline callback completes before the parked MainActor task resumes, without
+asserting unrelated ready-task order. This change groups and routes mutable
+state but does not make `StructSymbol`, `EnumSymbol`, `RuntimeValue`,
+`Environment`, `Box`, or `Instance` Sendable. The heap and evaluator remain
+MainActor-confined, so no physical-worker or parallel-heap claim is made.
+
 The stable target separates five concerns:
 
 ```text
@@ -433,6 +458,10 @@ Immutable ParsedProgram
                     │
                     ▼
 InterpreterSession ─────────────── HostGatewayRuntime
+          │                               │
+          ├── RuntimeProgramState         │
+          │     ├── mutable symbols          │
+          │     └── declaration registries   │
           │                               │
           ├── RuntimeHeap                 │
           │     ├── globals               │
@@ -583,12 +612,13 @@ priority, current logical executor, and structured-scope frames now belong to
 one `EvaluationTaskContext`. Host callbacks carry that context explicitly, and
 task completion clears it. `withParkedEvaluatorFrames` no longer exists.
 
-The remaining ceiling is one level higher: `Interpreter` still combines
-parsed declarations, global/runtime heap state, scheduled task handles, and the
-cooperative runtime. Overlapping sessions on one interpreter would therefore
-share mutable program/global state even though their per-task dynamic state is
-independent. The target `ParsedProgram`/`InterpreterSession`/`RuntimeHeap`
-separation remains required before executor-neutral or parallel operation.
+The remaining ceiling is one level higher: sessions now own distinct mutable
+`RuntimeProgramState` declaration registries, but `Interpreter` still combines
+the evaluator, compatibility facade, shared `RuntimeHeap`, scheduled task
+handles, and cooperative runtime. Overlapping entries therefore select the
+correct program state while still sharing MainActor-confined global/view heap
+storage. Moving evaluation behind the session and classifying every heap edge
+remain required before executor-neutral or parallel operation.
 
 ### 4.3 Async overlay over synchronous evaluation
 

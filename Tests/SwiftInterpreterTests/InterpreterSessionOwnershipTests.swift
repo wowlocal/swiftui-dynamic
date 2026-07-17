@@ -31,6 +31,8 @@ struct InterpreterSessionOwnershipTests {
         #expect(session.runtimeEntry.heap === interpreter.runtimeHeap)
         #expect(session.runtimeEntry.interpreter === interpreter)
         #expect(session.runtimeEntry.id == session.id)
+        #expect(session.programState === session.runtimeEntry.programState)
+        #expect(session.programState.programPlan === session.programPlan)
         #expect(session.runtimeEntry.callableMetadataIndex?.summary
             == program.callableMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.propertyMetadataIndex
@@ -55,6 +57,42 @@ struct InterpreterSessionOwnershipTests {
         #expect(value.stringValue == session.id.description)
         #expect(session.state == .finished)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func sessionsOwnDistinctMutableDeclarationState() async throws {
+        let interpreter = Interpreter()
+        let first = interpreter.makeSession(
+            program: try ParsedProgram(source: """
+            struct FirstMarker {}
+            FirstMarker()
+            """))
+        let second = interpreter.makeSession(
+            program: try ParsedProgram(source: """
+            struct SecondMarker {}
+            SecondMarker()
+            """))
+
+        #expect(first.programState !== second.programState)
+        #expect(first.programState.programPlan === first.programPlan)
+        #expect(second.programState.programPlan === second.programPlan)
+        #expect(first.runtimeEntry.programState === first.programState)
+        #expect(second.runtimeEntry.programState === second.programState)
+
+        _ = try await interpreter.runAsync(session: first)
+        #expect(first.programState.structSymbols.contains {
+            $0.name == "FirstMarker"
+        })
+        #expect(!first.programState.structSymbols.contains {
+            $0.name == "SecondMarker"
+        })
+
+        _ = try await interpreter.runAsync(session: second)
+        #expect(second.programState.structSymbols.contains {
+            $0.name == "SecondMarker"
+        })
+        #expect(!second.programState.structSymbols.contains {
+            $0.name == "FirstMarker"
+        })
     }
 
     @Test func sessionsHaveUniqueRuntimeIdentityAndAreSingleUse() async throws {
@@ -96,6 +134,7 @@ struct InterpreterSessionOwnershipTests {
         weak var releasedFacade: Interpreter?
         weak var releasedHeap: RuntimeHeap?
         weak var releasedRuntime: CooperativeConcurrencyRuntime?
+        weak var releasedProgramState: RuntimeProgramState?
         var session: InterpreterSession?
 
         do {
@@ -105,15 +144,18 @@ struct InterpreterSessionOwnershipTests {
                 program: try ParsedProgram(source: "42"))
             releasedHeap = interpreter?.runtimeHeap
             releasedRuntime = interpreter?.concurrencyRuntime
+            releasedProgramState = session?.programState
             interpreter = nil
         }
 
         #expect(releasedFacade == nil)
         #expect(releasedHeap != nil)
         #expect(releasedRuntime != nil)
+        #expect(releasedProgramState != nil)
         #expect(session != nil)
         session = nil
         #expect(releasedHeap == nil)
         #expect(releasedRuntime == nil)
+        #expect(releasedProgramState == nil)
     }
 }

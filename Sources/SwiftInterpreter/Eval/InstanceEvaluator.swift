@@ -662,6 +662,7 @@ extension Interpreter {
                     captured: selfEnvironment(.instance(instance)),
                     programMetadata: currentProgramMetadata,
                     programPlan: currentProgramPlan)
+                closure.programState = currentProgramState
                 closure.lexicalOwner = symbol
                 closure.lexicalExecutor = symbol.deinitializerExecutor
                 closure.executorPreference = symbol.deinitializerExecutor

@@ -23,6 +23,7 @@ struct RuntimeEntryOwnershipTests {
         var observedTypeAliasCounts: [Int?] = []
         var observedDeinitializerCounts: [Int?] = []
         var observedProgramPlans: [ResolvedProgramPlan?] = []
+        var observedProgramStates: [RuntimeProgramState?] = []
         weak var observedEntry: RuntimeEntry?
         interpreter.globals.define(
             "captureRuntimeEntry",
@@ -68,6 +69,7 @@ struct RuntimeEntryOwnershipTests {
                     observedDeinitializerCounts.append(entry.programMetadata?
                         .deinitializerMetadataIndex.summary.deinitializerCount)
                     observedProgramPlans.append(entry.programPlan)
+                    observedProgramStates.append(entry.programState)
                     return .void
                 })))
         let value = try interpreter.run(source: """
@@ -93,7 +95,9 @@ struct RuntimeEntryOwnershipTests {
         """)
         let closure = try #require(value.closureValue)
         let originatingPlan = try #require(closure.programPlan)
-        _ = interpreter.makeSession(program: try ParsedProgram(source: """
+        let originatingState = try #require(closure.programState)
+        let newerSession = interpreter.makeSession(
+            program: try ParsedProgram(source: """
         struct NewerMarker {
             let value = 1
             final class Lifetime { deinit {} }
@@ -114,6 +118,11 @@ struct RuntimeEntryOwnershipTests {
         func newer() {}
         func newest() {}
         """))
+        #expect(newerSession.programState !== originatingState)
+        #expect(originatingState.programPlan === originatingPlan)
+        #expect(originatingState.structSymbols.contains {
+            $0.name == "OriginMarker"
+        })
 
         _ = try interpreter.callHostCallback(closure, arguments: [])
 
@@ -145,6 +154,10 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedDeinitializerCounts == [1, 1])
         #expect(observedProgramPlans.count == 2)
         #expect(observedProgramPlans.allSatisfy { $0 === originatingPlan })
+        #expect(observedProgramStates.count == 2)
+        #expect(observedProgramStates.allSatisfy {
+            $0 === originatingState
+        })
         #expect(observedEntry == nil,
             "the runtime entry must release after its final task record")
     }

@@ -1111,6 +1111,7 @@ extension Interpreter {
             programMetadata: currentProgramMetadata,
             programPlan: currentProgramPlan
         )
+        closure.programState = currentProgramState
         closure.functionDeclID = node.id
         let lexicalOwner = declLexicalOwners[node.id]
         closure.lexicalOwner = lexicalOwner
@@ -1156,6 +1157,7 @@ extension Interpreter {
             captured: captured,
             programMetadata: currentProgramMetadata,
             programPlan: currentProgramPlan)
+        closure.programState = currentProgramState
         let lexicalOwner = declLexicalOwners[node.id] ?? fallbackLexicalOwner
         let actorInitializer =
             (lexicalOwner as? StructSymbol)?.isActor == true

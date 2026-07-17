@@ -691,6 +691,7 @@ extension Interpreter {
             captured: captured,
             programMetadata: currentProgramMetadata,
             programPlan: currentProgramPlan)
+        value.programState = currentProgramState
         value.lexicalExecutor = currentLexicalExecutor
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
@@ -1053,14 +1054,16 @@ extension Interpreter {
                 // @…Builder parameter collects its block's items when
                 // called instead of returning the last expression.
                 if parameter.isBuilderAttributed, case .closure(let c) = resolved, !c.isBuilder {
-                    resolved = .closure(ClosureValue(
+                    let builderClosure = ClosureValue(
                         parameters: c.parameters, body: c.body, captured: c.captured,
                         isBuilder: true,
                         returnType: parameter.builderReturnType ?? c.returnType,
                         returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName,
                         programMetadata: c.programMetadata,
                         programPlan: c.programPlan
-                    ))
+                    )
+                    builderClosure.programState = c.programState
+                    resolved = .closure(builderClosure)
                 }
                 env.define(
                     parameter.name, resolved,

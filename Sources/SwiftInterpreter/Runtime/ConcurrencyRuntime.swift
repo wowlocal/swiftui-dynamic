@@ -715,6 +715,7 @@ final class CooperativeConcurrencyRuntime {
     func createEntry(
         kind: RuntimeEntry.Kind,
         heap: RuntimeHeap? = nil,
+        programState: RuntimeProgramState? = nil,
         programPlan: ResolvedProgramPlan? = nil,
         programMetadata: ParsedProgramMetadata? = nil,
         interpreter: Interpreter? = nil
@@ -725,6 +726,7 @@ final class CooperativeConcurrencyRuntime {
             id: id,
             kind: kind,
             heap: heap,
+            programState: programState,
             programPlan: programPlan,
             programMetadata: programMetadata,
             interpreter: interpreter)

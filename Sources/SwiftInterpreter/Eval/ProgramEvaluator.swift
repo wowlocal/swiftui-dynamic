@@ -44,8 +44,9 @@ extension Interpreter {
     }
 
     /// Execute an immutable parsed program in a fresh async runtime session.
-    /// The syntax tree may be shared by independent interpreters; evaluator
-    /// state, globals, task records, and host state remain session-confined.
+    /// The syntax tree may be shared by independent interpreters. Mutable
+    /// declaration registries are session-owned; globals, task records, and
+    /// host state remain confined to the owning interpreter/runtime.
     @discardableResult
     public func runAsync(
         program: ParsedProgram,
@@ -87,12 +88,17 @@ extension Interpreter {
     ) -> InterpreterSession {
         let programPlan = program.resolve(
             buildConfiguration: buildConfiguration)
+        let programState = RuntimeProgramState(
+            programPlan: programPlan,
+            assumesCompiledImports: lazyTopLevelGlobals)
         compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
+        compatibilityProgramState = programState
         return InterpreterSession(
             program: program,
             heap: runtimeHeap,
             concurrencyRuntime: concurrencyRuntime,
+            programState: programState,
             programPlan: programPlan,
             lazyTopLevelGlobals: lazyTopLevelGlobals,
             completionPolicy: completionPolicy,
@@ -215,7 +221,6 @@ extension Interpreter {
         locationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
-        assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: executionPlan)
         processDeferredExtensions()
         resolvePendingMemberAliases()
@@ -398,8 +403,12 @@ extension Interpreter {
     ) throws -> RuntimeValue {
         let programPlan = program.resolve(
             buildConfiguration: buildConfiguration)
+        let programState = RuntimeProgramState(
+            programPlan: programPlan,
+            assumesCompiledImports: lazyTopLevelGlobals)
         compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
+        compatibilityProgramState = programState
         let file = program.syntax
         let executionPlan = programPlan.declarationPlan
         locationConverter = program.locationConverter
@@ -407,7 +416,6 @@ extension Interpreter {
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved
         // identifier there is an unmerged import, never a typo.
-        assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: executionPlan)
         processDeferredExtensions()
         resolvePendingMemberAliases()

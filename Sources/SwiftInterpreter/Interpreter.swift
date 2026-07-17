@@ -222,6 +222,9 @@ public nonisolated struct InterpreterBuildConfiguration: Sendable, Equatable {
 /// delegated to a `HostRegistry` (the SwiftUI bridge, or a trace registry in
 /// tests).
 public final class Interpreter {
+    /// Empty compatibility surface used only before the first program is
+    /// prepared. Every executable program receives a distinct state object.
+    private let bootstrapProgramState = RuntimeProgramState()
     public let runtimeHeap: RuntimeHeap
     public var globals: Environment { runtimeHeap.globals }
     let concurrencyRuntime: CooperativeConcurrencyRuntime
@@ -233,8 +236,14 @@ public final class Interpreter {
     public internal(set) var lastCompilerPreflightResult:
         CompilerPreflightResult?
     /// Struct symbols in declaration order (used to pick the root View).
-    public internal(set) var structSymbols: [StructSymbol] = []
-    var enumSymbols: [String: EnumSymbol] = [:]
+    public internal(set) var structSymbols: [StructSymbol] {
+        _read { yield activeProgramState.structSymbols }
+        _modify { yield &activeProgramState.structSymbols }
+    }
+    var enumSymbols: [String: EnumSymbol] {
+        _read { yield activeProgramState.enumSymbols }
+        _modify { yield &activeProgramState.enumSymbols }
+    }
     /// Env-object models constructed as fresh-store stand-ins (one per type,
     /// so every view reading the type sees the same instance).
     var synthesizedEnvironmentModels: [String: Instance] {
@@ -243,8 +252,13 @@ public final class Interpreter {
     }
     /// Interpreted `extension View { … }` / `extension String { … }` members,
     /// keyed by the extended host type's name.
-    var hostExtensionSymbols: [String: StructSymbol] = [:]
-    var assumesCompiledImports = false
+    var hostExtensionSymbols: [String: StructSymbol] {
+        _read { yield activeProgramState.hostExtensionSymbols }
+        _modify { yield &activeProgramState.hostExtensionSymbols }
+    }
+    var assumesCompiledImports: Bool {
+        activeProgramState.assumesCompiledImports
+    }
     /// Legacy default captured by interpreters constructed without an
     /// explicit `InterpreterBuildConfiguration`. Target-manifest callers use
     /// immutable per-instance build identity instead.
@@ -285,7 +299,10 @@ public final class Interpreter {
     /// Interpreted protocol declarations' inheritance (`protocol
     /// ConnectedView: View`) — conformance through a protocol must count as
     /// View-ness for the render pipeline.
-    var protocolInheritance: [String: [String]] = [:]
+    var protocolInheritance: [String: [String]] {
+        _read { yield activeProgramState.protocolInheritance }
+        _modify { yield &activeProgramState.protocolInheritance }
+    }
 
     func protocolReachesView(_ name: String, seen: inout Set<String>) -> Bool {
         guard seen.insert(name).inserted else { return false }
@@ -456,7 +473,10 @@ public final class Interpreter {
     /// DI-container resolution (`@Dependency(\.pool)`): instances are SHARED
     /// per type, and circular graphs break with an absorbing marker (real
     /// containers resolve cycles lazily).
-    var dependencyCache: [String: RuntimeValue] = [:]
+    var dependencyCache: [String: RuntimeValue] {
+        _read { yield activeProgramState.dependencyCache }
+        _modify { yield &activeProgramState.dependencyCache }
+    }
     var dependencyInFlight: Set<String> {
         get { evaluationTaskContext.dependencyInFlight }
         set { evaluationTaskContext.dependencyInFlight = newValue }
@@ -495,7 +515,10 @@ public final class Interpreter {
     /// GLOBAL function overload sets (`func L10n(_:)` beside
     /// `func L10n(_:_ arguments: CVarArg...)`): globals hold one closure
     /// per name, so calls consult this table for shape choice.
-    var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]
+    var globalFunctionOverloads: [String: [FunctionDeclSyntax]] {
+        _read { yield activeProgramState.globalFunctionOverloads }
+        _modify { yield &activeProgramState.globalFunctionOverloads }
+    }
 
     nonisolated struct ArgumentShape: Sendable {
         let count: Int
@@ -532,6 +555,18 @@ public final class Interpreter {
     /// Canonical async work reads its exact plan from RuntimeEntry; this
     /// fallback serves synchronous APIs and foreign syntax.
     var compatibilityProgramPlan: ResolvedProgramPlan?
+    /// Mutable declaration registries for the last compatibility program.
+    /// Canonical runtime work selects its exact state from RuntimeEntry.
+    var compatibilityProgramState: RuntimeProgramState?
+
+    var currentProgramState: RuntimeProgramState? {
+        evaluationTaskContext.runtimeEntry?.programState
+            ?? compatibilityProgramState
+    }
+
+    private var activeProgramState: RuntimeProgramState {
+        currentProgramState ?? bootstrapProgramState
+    }
 
     /// Per-view-IDENTITY state cells: compiled SwiftUI keeps @State/
     /// @StateObject storage alive across re-renders of the same position;
@@ -579,7 +614,10 @@ public final class Interpreter {
     }
     /// Declaration → the symbol whose body/extension lexically holds it
     /// (StructSymbol or EnumSymbol), stamped at collection.
-    var declLexicalOwners: [SyntaxIdentifier: AnyObject] = [:]
+    var declLexicalOwners: [SyntaxIdentifier: AnyObject] {
+        _read { yield activeProgramState.declarationLexicalOwners }
+        _modify { yield &activeProgramState.declarationLexicalOwners }
+    }
     /// The RUNNING function's declaring scopes, innermost last. Plain
     /// closures push nothing — they inherit their enclosing frame.
     var lexicalOwnerFrames: [AnyObject] {
@@ -652,25 +690,37 @@ public final class Interpreter {
         get { evaluationTaskContext.expectedAnnotationStack }
         set { evaluationTaskContext.expectedAnnotationStack = newValue }
     }
-    var pendingDottedExtensions: [ExtensionDeclSyntax] = []
+    var pendingDottedExtensions: [ExtensionDeclSyntax] {
+        _read { yield activeProgramState.pendingDottedExtensions }
+        _modify { yield &activeProgramState.pendingDottedExtensions }
+    }
     /// Top-level typealias heads (`LoadableSubject` → `Binding`), for
     /// canonicalizing extension targets before resolution.
-    var aliasHeads: [String: String] = [:]
+    var aliasHeads: [String: String] {
+        _read { yield activeProgramState.aliasHeads }
+        _modify { yield &activeProgramState.aliasHeads }
+    }
     /// Member typealiases whose targets resolve only after the extension
     /// pass (typealias API = TestWebRepository.API).
-    var pendingMemberAliases: [(StructSymbol, String, String)] = []
+    var pendingMemberAliases: [
+        RuntimeProgramState.PendingMemberAlias
+    ] {
+        _read { yield activeProgramState.pendingMemberAliases }
+        _modify { yield &activeProgramState.pendingMemberAliases }
+    }
     /// Executor-owned deinitializers are classified only after every nominal
     /// declaration and typealias has been collected. The owning symbol keeps
     /// either a supported MainActor capability or a located unsupported
     /// requirement, so collection stays legal and construction fails closed
     /// only when no teardown capability exists.
     var pendingDeinitializerIsolationChecks: [
-        (
-            symbol: StructSymbol,
-            declaration: DeinitializerDeclSyntax,
-            metadata: ParsedDeinitializerMetadata
-        )
-    ] = []
+        RuntimeProgramState.PendingDeinitializerIsolationCheck
+    ] {
+        _read { yield activeProgramState.pendingDeinitializerIsolationChecks }
+        _modify {
+            yield &activeProgramState.pendingDeinitializerIsolationChecks
+        }
+    }
     /// Property/method collision preferences currently evaluating — the
     /// property's own body reaching the same name falls to the METHOD.
     var activeCollisionProperties: Set<String> {
@@ -776,6 +826,7 @@ public final class Interpreter {
 
     var currentProgramPlan: ResolvedProgramPlan? {
         evaluationTaskContext.runtimeEntry?.programPlan
+            ?? currentProgramState?.programPlan
             ?? compatibilityProgramPlan
     }
 

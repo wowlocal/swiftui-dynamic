@@ -139,6 +139,9 @@ public final class ClosureValue {
     /// the source closure. External callback entries reuse this exact object
     /// rather than resolving branches through current facade state.
     public internal(set) var programPlan: ResolvedProgramPlan?
+    /// MainActor-confined mutable declaration materialization associated with
+    /// `programPlan`. Escaped host callbacks reuse this exact capability.
+    var programState: RuntimeProgramState?
     public var callableMetadataIndex: ParsedCallableMetadataIndex? {
         programMetadata?.callableMetadataIndex
     }

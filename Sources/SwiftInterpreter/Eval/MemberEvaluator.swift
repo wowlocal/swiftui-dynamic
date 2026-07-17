@@ -733,6 +733,7 @@ extension Interpreter {
                 returnTypeName: member.resultTypeName,
                 programMetadata: currentProgramMetadata,
                 programPlan: currentProgramPlan)
+            closure.programState = currentProgramState
             return try callWithArguments(closure, args: args, node: nil)
         }
     }
@@ -753,6 +754,7 @@ extension Interpreter {
                 returnTypeName: member.resultTypeName,
                 programMetadata: currentProgramMetadata,
                 programPlan: currentProgramPlan)
+            closure.programState = currentProgramState
             return try await callWithArgumentsSuspending(
                 closure, args: args, node: nil)
         }

@@ -437,6 +437,26 @@ conditional member regions bound the demand. New branch semantics, positive-
 watchOS behavior, scheduler order, physical threads, and physical parallelism
 are not inferred.
 
+Its twenty-first prerequisite verifies mutable program-state ownership. The
+architecture workflow captured a compile-time RED for the absent
+`RuntimeProgramState` and the missing session/runtime-entry/closure ownership
+edges. The focused test prepares two sessions before running either, then
+requires each session to materialize only its own nominal registry. A second
+test prepares a newer session before invoking an older escaped callback and
+requires the callback root plus its spawned task to observe the exact original
+state identity. A weak-reference assertion covers the simple session-owned
+lifetime without claiming that every future symbol/value graph is cycle-free.
+
+The semantic workflow is an already-GREEN characterization using the existing
+`host-callback-overlap` fixture. Its continuation gate establishes only the
+causal `worker-started`, `second-return`, `worker-resumed` trace: a later
+synchronous MainActor callback runs while the first callback's task is parked,
+and that task resumes afterward. Native Swift 6.3.3 was compiled and captured
+before production changes in twenty bounded runs. The same fixture is reused
+unchanged after migration; no physical-thread or unrelated scheduler-order
+claim is allowed. The closing gate must also run both session/state ownership
+suites and the complete methodology suite from the prebuilt bundle.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

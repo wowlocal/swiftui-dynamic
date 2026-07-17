@@ -23,6 +23,7 @@ public final class InterpreterSession {
 
     let concurrencyRuntime: CooperativeConcurrencyRuntime
     let runtimeEntry: RuntimeEntry
+    let programState: RuntimeProgramState
     let programPlan: ResolvedProgramPlan
     var executionPlan: ResolvedDeclarationPlan {
         programPlan.declarationPlan
@@ -33,6 +34,7 @@ public final class InterpreterSession {
         program: ParsedProgram,
         heap: RuntimeHeap,
         concurrencyRuntime: CooperativeConcurrencyRuntime,
+        programState: RuntimeProgramState,
         programPlan: ResolvedProgramPlan,
         lazyTopLevelGlobals: Bool,
         completionPolicy: SessionCompletionPolicy,
@@ -41,6 +43,10 @@ public final class InterpreterSession {
         self.program = program
         self.heap = heap
         self.concurrencyRuntime = concurrencyRuntime
+        precondition(
+            programState.programPlan === programPlan,
+            "interpreter session program state and plan must match")
+        self.programState = programState
         self.programPlan = programPlan
         self.lazyTopLevelGlobals = lazyTopLevelGlobals
         self.completionPolicy = completionPolicy
@@ -48,6 +54,7 @@ public final class InterpreterSession {
         runtimeEntry = concurrencyRuntime.createEntry(
             kind: .program,
             heap: heap,
+            programState: programState,
             programPlan: programPlan,
             programMetadata: program.metadata,
             interpreter: owner)
