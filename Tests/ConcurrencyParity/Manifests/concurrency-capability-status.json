@@ -2899,12 +2899,13 @@
         "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIStartsAsyncTaskBodyInCanonicalAsyncContext",
         "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears",
         "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIReplacesTaskWhenIDChanges",
-        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIPreservesTaskWhenIDDoesNotChange"
+        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUIPreservesTaskWhenIDDoesNotChange",
+        "SwiftUIViewTaskLifecycleTests/interpretedRefreshActionWaitsForAsyncBodyCompletion"
       ],
       "gapEvidenceIDs": [
         "view-owned-async-lifecycle-runtime"
       ],
-      "notes": "BridgeGen emits the active-SDK .task, .task(id:), and .refreshable async-closure modifier surface. One reusable adapter lets real SwiftUI own appearance and identity while creating a canonical parentless .swiftUITask runtime session for each invocation. Same-source NSHostingView fixtures have strict native parity for async task-group entry, disappearance cancellation, id replacement, causal same-id task preservation, logical MainActor identity, and complete task/group/scope/continuation/host-operation/scheduler cleanup. .refreshable trigger/completion lifetime and teardown stress remain open, so the aggregate capability is still a known divergence rather than a full runtime-support claim."
+      "notes": "BridgeGen emits the active-SDK .task, .task(id:), and .refreshable async-closure modifier surface. One reusable adapter lets real SwiftUI own appearance and identity while creating a canonical parentless .swiftUITask runtime session for each invocation. Same-source NSHostingView fixtures have strict native parity for async task-group entry, disappearance cancellation, id replacement, causal same-id task preservation, RefreshAction completion only after the async body finishes, logical MainActor identity, and complete task/group/scope/continuation/host-operation/scheduler cleanup. Repeated teardown and retained-session stress remain open, so the aggregate capability is still a known divergence rather than a full runtime-support claim."
     },
     {
       "id": "physical-parallel-execution",

@@ -81,7 +81,16 @@ struct ViewTaskLifecycleMain {
             .joined(separator: ",")
         sameIDWindow.close()
 
+        let (_, refreshWindow) = host(
+            AnyView(SwiftUIRefreshableCompletionProbe()))
+        pump { swiftUIRefreshableEvents == ["started"] }
+        swiftUIRefreshableRelease = true
+        pump { swiftUIRefreshableEvents.count == 3 }
+        let refreshable = swiftUIRefreshableEvents.joined(separator: ",")
+        refreshWindow.close()
+
         print("entry=\(entry)|disappearance=\(disappearance)"
-            + "|id=\(replacement)|same-id=\(sameID)")
+            + "|id=\(replacement)|same-id=\(sameID)"
+            + "|refreshable=\(refreshable)")
     }
 }

@@ -86,8 +86,8 @@ SDK `.task`, `.task(id:)`, and `.refreshable` surface, while one reusable
 adapter lets real SwiftUI own appearance/identity and enters each invocation
 through a fresh canonical `.swiftUITask` session. Same-source hosted probes
 cover async entry, logical MainActor identity, disappearance cancellation, id
-replacement, same-id preservation, and complete per-task cleanup. Refresh
-completion lifetime and teardown stress remain open.
+replacement, same-id preservation, refresh trigger/completion, and complete
+per-task cleanup. Repeated teardown and retained-session stress remain open.
 
 The stable target separates five concerns:
 
@@ -2145,9 +2145,9 @@ Each milestone is independently gated through
   are M2 driver release, M5 logical executor identity, and M7 native preflight.
   Its first gap-closure slice generates the async modifier surface and covers
   `.task` runtime entry, disappearance cancellation, `.task(id:)` replacement,
-  same-id task preservation, logical MainActor execution, and cleanup through
-  actual `NSHostingView` lifecycle. `.refreshable` completion lifetime and
-  teardown stress remain in the active cycle;
+  same-id task preservation, `.refreshable` completion lifetime, logical
+  MainActor execution, and cleanup through actual `NSHostingView` lifecycle.
+  Teardown and retained-session stress remain in the active cycle;
   and
 - M9 remains deferred until the ownership/isolation/lifecycle prerequisites are
   complete.
@@ -2490,9 +2490,9 @@ there is no handwritten `.task` name branch. The tag invokes a documented
 SwiftUI-magic adapter that creates a fresh parentless `.swiftUITask` session
 and maps native lifecycle cancellation into cooperative source cancellation.
 Strict same-source `NSHostingView` fixtures cover task-group entry, removal,
-id replacement, and same-id preservation in twenty stable native runs and
-matching interpreter runs. The aggregate milestone remains partial for
-`.refreshable` trigger/completion lifetime and retained-session stress.
+id replacement, same-id preservation, and refresh trigger/completion in twenty
+stable native runs and matching interpreter runs. The aggregate milestone
+remains partial for repeated teardown and retained-session stress.
 
 ### Milestone 9: optional physical parallelism
 

@@ -5,6 +5,21 @@ import SwiftUI
 import Testing
 @testable import SwiftUIBridge
 
+private struct InterpretedRefreshActionTriggerHost: View {
+    @SwiftUI.Environment(\.refresh) private var refresh
+    let onReturned: @MainActor @Sendable () -> Void
+
+    var body: some View {
+        Text("interpreted-refresh-action-trigger")
+            .task {
+                if let refresh {
+                    await refresh()
+                }
+                onReturned()
+            }
+    }
+}
+
 @Suite(.serialized)
 struct SwiftUIViewTaskLifecycleTests {
     private func waitUntil(
@@ -61,6 +76,16 @@ struct SwiftUIViewTaskLifecycleTests {
     private var sameIDFixture: URL {
         repositoryRoot.appendingPathComponent(
             "Tests/NativeProbes/SwiftUI/view-task-same-id-stability.swift")
+    }
+
+    private var refreshableFixture: URL {
+        repositoryRoot.appendingPathComponent(
+            "Tests/NativeProbes/SwiftUI/view-refreshable-completion.swift")
+    }
+
+    private var refreshTriggerSupport: URL {
+        repositoryRoot.appendingPathComponent(
+            "Tests/NativeProbes/SwiftUI/ViewRefreshActionTriggerSupport.swift")
     }
 
     private func run(
@@ -129,6 +154,8 @@ struct SwiftUIViewTaskLifecycleTests {
                 cancellationFixture.path,
                 idFixture.path,
                 sameIDFixture.path,
+                refreshableFixture.path,
+                refreshTriggerSupport.path,
                 nativeMain.path,
                 "-o", binary.path,
             ])
@@ -141,7 +168,8 @@ struct SwiftUIViewTaskLifecycleTests {
             observation.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                 == "entry=started,value:21|disappearance=started,cancelled|"
                     + "id=cancel:1,cancel:2,start:1,start:2|"
-                    + "same-id=finish:first,render:first,render:same,start:first")
+                    + "same-id=finish:first,render:first,render:same,start:first|"
+                    + "refreshable=started,finished,returned")
     }
 
     @Test
@@ -374,5 +402,78 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(lifecycleDiagnostics().isEmpty)
+    }
+
+    @Test
+    func interpretedRefreshActionWaitsForAsyncBodyCompletion() async throws {
+        let source = try String(contentsOf: refreshableFixture, encoding: .utf8)
+        let registry = ViewRegistry()
+        registry.constructors["RefreshActionTrigger"] = HostFunction(
+            name: "RefreshActionTrigger"
+        ) { args, context in
+            guard let closure = args.firstUnlabeledClosure else {
+                throw RuntimeError(message:
+                    "RefreshActionTrigger needs a completion closure")
+            }
+            let callback = InterpretedHostCallback(
+                closure: closure,
+                context: context,
+                diagnosticContext: "refresh action completion")
+            let action = ActionValue(run: { callback.call() })
+            return .native(AnyView(InterpretedRefreshActionTriggerHost(
+                onReturned: { action.run() })))
+        }
+
+        let interpreter = Interpreter(registry: registry)
+        try interpreter.run(source: source)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
+            Issue.record("refreshable probe did not instantiate")
+            return
+        }
+        let rendered = try interpreter.evaluateBody(of: instance)
+        let hostingView = NSHostingView(
+            rootView: AnyView(try ViewRegistry.anyView(rendered)))
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false)
+        window.contentView = hostingView
+        window.orderFrontRegardless()
+        defer { window.close() }
+
+        func events() -> [String] {
+            interpreter.globals.lookup("swiftUIRefreshableEvents")?
+                .arrayValue?.compactMap(\.stringValue) ?? []
+        }
+        await waitUntil { events() == ["started"] }
+
+        #expect(events() == ["started"])
+        #expect(interpreter.concurrencyRuntime.records.values.contains {
+            $0.kind == .swiftUITask
+                && $0.state == .waiting
+                && $0.executorPreference == .mainActor
+                && $0.evaluationContext?.currentExecutor == .mainActor
+        })
+
+        interpreter.globals.box(for: "swiftUIRefreshableRelease")?.value
+            = .native(true)
+        await waitUntil { events().count == 3 }
+        await waitUntil {
+            interpreter.concurrencyRuntime.activeRecordCount == 0
+        }
+
+        #expect(events() == ["started", "finished", "returned"])
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(lifecycleDiagnostics().isEmpty)
+        #expect(RenderDiagnostics.errors.contains {
+            $0.view == "refresh action completion"
+        } == false)
     }
 }
