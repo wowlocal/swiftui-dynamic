@@ -1561,3 +1561,15 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   one clean gate; the exact pair is flagged to the concurrency lane
   in claims. Five lane commits queue: frozen clock, Charts gateway,
   axis DSL + stdlib sweep, FlowLayout semantics, socialfeed pills.
+- 2026-07-17 gate-deadlock DIAGNOSED (worktree iteration 10, diagnosis
+  iteration): the suite stage's reproducible hang is the upstream
+  requiredModeRejectsExternalActor{ComputedSetter,SubscriptSetter}
+  BeforeMutation tests spawning Scripts/
+  validate-concurrency-parity-summaries.rb — the ruby child blocks at
+  0% CPU (stdin pipe never closes under swiftpm-testing-helper's
+  parallel workers) and the test's waitUntilExit stalls both workers
+  after ~89 passes. Reproduced OUTSIDE the gate with the exact helper
+  invocation; the pair passes together standalone in 1.5s. The fix
+  belongs to the concurrency lane (their tests + validator script);
+  the mechanism is posted in claims. Five lane commits remain queued
+  for one clean gate.
