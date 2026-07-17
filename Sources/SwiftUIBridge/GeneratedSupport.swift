@@ -15,7 +15,7 @@ enum ParamTag: Hashable {
     case bindingBool, bindingString, bindingDouble
     case shapeStyle, anyView, shape
     case visibility, axisSet, edgeInsets, gradient, gridItems
-    case axis, colorArray
+    case axis, colorArray, annotationPosition
     case builder, action, asyncAction, equatable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
@@ -278,6 +278,8 @@ enum GeneratedDispatch {
             }
             if let closed: ClosedRange<Double> = hostValue(value) { return closed }
             throw RuntimeError(message: "expected a closed range (ClosedRange<Double>) like 0...1")
+        case .annotationPosition:
+            return Coerce.annotationPosition(value)
         case .calendarComponent:
             return try Coerce.calendarComponent(value)
         case .calendarComponentSet:

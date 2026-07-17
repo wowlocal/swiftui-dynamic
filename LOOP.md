@@ -2444,3 +2444,27 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   fan-change tip: all nine navigations + four mutations GREEN, zero
   diagnostics — the TupleView splice fix is regression-clean on every
   board (R2, R3, R4, isolated full suite).
+- 2026-07-18 FIVE SCREENS JOIN THE BOARD; SALESHISTORY PIXEL-PERFECT
+  (worktree iteration 58): the R2 board grew from 13 to 18 rows —
+  saleshistory, topfive, city-cupertino, city-london, order-detail
+  (account/store screens are EXTENDED_ALL-excluded both sides by
+  doctrine). order-detail and topfive landed AE=0 immediately.
+  saleshistory measured 5.992% and closed to 0.000 in one iteration:
+  (1) Charts joined the BridgeGen MODIFIER sweep (interfaceFiles +
+  "Charts." prefix strip + AnnotationPosition mapping/ParamTag/coercion
+  shared with the mark-annotation arm) — .chartLegend graduated from the
+  inert list to 16 generated variants, restoring position: .top; (2) two
+  axis-glue fixes in the allowed Charts DSL tier: bare AxisValueLabel()
+  now renders the AUTOMATIC formatted value (empty-string title had
+  suppressed the "Jul 5" date label) and .automatic(...) keeps
+  roundUpperBound. Pin: InterpretedChartTests
+  .legendPositionAndBareAxisLabelsMatchNative (AE=0 vs native).
+  BOARD: 15/18 rows at 0.000; remaining: city-cupertino/london 54.060%
+  (NEW CLASS QUEUE: DetailedMapView is an NSViewControllerRepresentable
+  hosting a real MKMapView — representable execution is a major arc; and
+  Measurement(value:unit:) renders a stub description into the weather
+  label — BridgeGen Foundation arc: Unit->Dimension specialization +
+  swept units table), content 26.778% (documented artifact). Gate RED
+  with main's known parallel-worker signature (same hung set; 3rd-round
+  attribution already filed on clean main 5cecca0) — lane still
+  gate-blocked, exonerated.

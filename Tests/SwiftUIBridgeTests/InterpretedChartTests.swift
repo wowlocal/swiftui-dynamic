@@ -402,4 +402,92 @@ extension InterpretedChartTests {
         print("PROBE integer-axis-closure-labels mismatched:", mismatched)
         #expect(mismatched == 0)
     }
+
+    // The saleshistory R2 class: `.chartLegend(position: .top)` (generated
+    // tier — Charts joined the BridgeGen modifier sweep) and the bare
+    // `AxisValueLabel()` inside a custom AxisMarks builder rendering the
+    // AUTOMATIC formatted value (an empty-string title suppressed it).
+    @MainActor
+    @Test func legendPositionAndBareAxisLabelsMatchNative() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    LineMark(x: .value(String("D"), 1.0), y: .value(String("S"), 100.0))
+                        .foregroundStyle(by: .value(String("City"), String("Cupertino")))
+                    LineMark(x: .value(String("D"), 2.0), y: .value(String("S"), 180.0))
+                        .foregroundStyle(by: .value(String("City"), String("Cupertino")))
+                    LineMark(x: .value(String("D"), 1.0), y: .value(String("S"), 60.0))
+                        .foregroundStyle(by: .value(String("City"), String("London")))
+                    LineMark(x: .value(String("D"), 2.0), y: .value(String("S"), 90.0))
+                        .foregroundStyle(by: .value(String("City"), String("London")))
+                }
+                .chartLegend(position: .top)
+                .chartXAxis {
+                    AxisMarks { value in
+                        if value.index < value.count - 1 {
+                            AxisValueLabel()
+                        }
+                        AxisTick()
+                        AxisGridLine()
+                    }
+                }
+                .background(Color.white)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interp = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                LineMark(x: .value("D", 1.0), y: .value("S", 100.0))
+                    .foregroundStyle(by: .value("City", "Cupertino"))
+                LineMark(x: .value("D", 2.0), y: .value("S", 180.0))
+                    .foregroundStyle(by: .value("City", "Cupertino"))
+                LineMark(x: .value("D", 1.0), y: .value("S", 60.0))
+                    .foregroundStyle(by: .value("City", "London"))
+                LineMark(x: .value("D", 2.0), y: .value("S", 90.0))
+                    .foregroundStyle(by: .value("City", "London"))
+            }
+            .chartLegend(position: .top)
+            .chartXAxis {
+                AxisMarks { value in
+                    if value.index < value.count - 1 {
+                        AxisValueLabel()
+                    }
+                    AxisTick()
+                    AxisGridLine()
+                }
+            }
+            .background(Color.white)), size: size)
+        var mismatched = 0
+        for x in 0..<300 {
+            for y in 0..<200 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.greenComponent - b.greenComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        print("PROBE legend-position-bare-axis-labels mismatched:", mismatched)
+        #expect(mismatched == 0)
+    }
 }

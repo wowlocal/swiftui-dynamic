@@ -143,6 +143,12 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
         capture("donuts", size: screenSize, DonutGallery(model: model))
         capture("orders", size: screenSize, OrdersView(model: model))
         capture("socialfeed", size: screenSize, SocialFeedView())
+        capture("saleshistory", size: screenSize, SalesHistoryView(model: model))
+        capture("topfive", size: screenSize, TopFiveDonutsView(model: model))
+        capture("city-cupertino", size: screenSize, CityView(city: .cupertino))
+        capture("city-london", size: screenSize, CityView(city: .london))
+        capture("order-detail", size: screenSize,
+                OrderDetailView(order: model.orderBinding(for: model.orders[0].id)))
         capture("diag-donuteditor", size: screenSize,
                 DonutEditor(donut: .constant(model.newDonut)))
         if arguments.contains("--own-window-probe") {

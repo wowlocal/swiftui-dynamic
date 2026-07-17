@@ -429,8 +429,10 @@ extension ViewRegistry {
         // ChartContent and ChartProxy have static associated types that are
         // unavailable after interpretation. Preserve the chart surface and
         // accept its presentation/configuration modifiers inertly.
+        // chartLegend graduated to the generated tier (Charts joined the
+        // BridgeGen modifier sweep; AnnotationPosition coerces).
         for name in [
-            "chartLegend", "chartOverlay", "chartPlotStyle",
+            "chartOverlay", "chartPlotStyle",
             "chartXAxis", "chartYAxis", "chartYScale",
         ] {
             register(name) { view, _, _ in view }

@@ -434,6 +434,16 @@ struct FoodTruckCheckMain {
                 "OrdersView(model: model)"), size: screenSize)
             capturePNG("socialfeed", source: probeMergeBase + probeApp(
                 "SocialFeedView()"), size: screenSize)
+            capturePNG("saleshistory", source: probeMergeBase + probeApp(
+                "SalesHistoryView(model: model)"), size: screenSize)
+            capturePNG("topfive", source: probeMergeBase + probeApp(
+                "TopFiveDonutsView(model: model)"), size: screenSize)
+            capturePNG("city-cupertino", source: probeMergeBase + probeApp(
+                "CityView(city: City.cupertino)"), size: screenSize)
+            capturePNG("city-london", source: probeMergeBase + probeApp(
+                "CityView(city: City.london)"), size: screenSize)
+            capturePNG("order-detail", source: probeMergeBase + probeApp(
+                "OrderDetailView(order: model.orderBinding(for: model.orders[0].id))"), size: screenSize)
             capturePNG("diag-donuteditor", source: probeMergeBase + probeApp(
                 "DonutEditor(donut: $model.newDonut)"), size: screenSize)
             capturePNG("card-donuts", source: probeMergeBase + probeApp(

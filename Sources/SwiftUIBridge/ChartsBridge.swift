@@ -236,7 +236,12 @@ extension ViewRegistry {
                 }
                 throw RuntimeError(message: "AxisValueLabel format shape not bridged yet")
             }
-            let label = args.positional(0)?.stringValue ?? ""
+            // Bare `AxisValueLabel()` renders the AUTOMATIC formatted value
+            // — an empty-string title suppressed the label entirely (the
+            // saleshistory "Jul 5" x-axis date went missing).
+            guard let label = args.positional(0)?.stringValue else {
+                return .native(AnyAxisMark(erasing: AxisValueLabel()))
+            }
             return .native(AnyAxisMark(erasing: AxisValueLabel(label)))
         }
 
@@ -252,11 +257,13 @@ extension ViewRegistry {
                     values = .automatic(
                         minimumStride: stride,
                         desiredCount: call.arguments.labeled("desiredCount")?.intValue,
-                        roundLowerBound: call.arguments.labeled("roundLowerBound")?.boolValue)
+                        roundLowerBound: call.arguments.labeled("roundLowerBound")?.boolValue,
+                        roundUpperBound: call.arguments.labeled("roundUpperBound")?.boolValue)
                 } else {
                     values = .automatic(
                         desiredCount: call.arguments.labeled("desiredCount")?.intValue,
-                        roundLowerBound: call.arguments.labeled("roundLowerBound")?.boolValue)
+                        roundLowerBound: call.arguments.labeled("roundLowerBound")?.boolValue,
+                        roundUpperBound: call.arguments.labeled("roundUpperBound")?.boolValue)
                 }
             } else if let raw = args.labeled("values") {
                 var dates: [Date] = []
@@ -475,14 +482,7 @@ func chartContentMember(_ name: String, on value: Any) -> RuntimeValue? {
             guard let closure = args.firstUnlabeledClosure else { return .native(mark) }
             let views = try ctx.callBuilderClosure(closure, arguments: [])
                 .compactMap { try? ViewRegistry.anyView($0) }
-            let position: AnnotationPosition = switch args.labeled("position") {
-            case .implicitMember("top"): .top
-            case .implicitMember("bottom"): .bottom
-            case .implicitMember("leading"): .leading
-            case .implicitMember("trailing"): .trailing
-            case .implicitMember("overlay"): .overlay
-            default: .automatic
-            }
+            let position = Coerce.annotationPosition(args.labeled("position"))
             let spacing = args.labeled("spacing")?.doubleValue.map { CGFloat($0) }
             guard let view = views.first else { return .native(mark) }
             return .native(AnyChartContent(mark.annotation(
@@ -621,5 +621,29 @@ func axisValueMember(_ name: String, on value: Any) -> RuntimeValue? {
     case "index": return .native(axisValue.index)
     case "count": return .native(axisValue.count)
     default: return nil
+    }
+}
+
+extension Coerce {
+    /// Charts' AnnotationPosition statics (`.chartLegend(position: .top)`,
+    /// mark `.annotation(position:)`) — shared by the generated modifier
+    /// tier and the handwritten mark-annotation DSL arm.
+    static func annotationPosition(_ value: RuntimeValue?) -> AnnotationPosition {
+        if let value, case .host(let any) = value, let position = any as? AnnotationPosition {
+            return position
+        }
+        guard let value, case .implicitMember(let name) = value else { return .automatic }
+        switch name {
+        case "top": return .top
+        case "bottom": return .bottom
+        case "leading": return .leading
+        case "trailing": return .trailing
+        case "overlay": return .overlay
+        case "topLeading": return .topLeading
+        case "topTrailing": return .topTrailing
+        case "bottomLeading": return .bottomLeading
+        case "bottomTrailing": return .bottomTrailing
+        default: return .automatic
+        }
     }
 }
