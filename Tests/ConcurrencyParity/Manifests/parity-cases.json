@@ -1927,5 +1927,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Two independent AsyncStream iterators may wait concurrently on the same empty storage. A single continuation.finish() resumes every parked consumer with nil, and both tasks complete normally.",
     "notes": "Each MainActor child increments enteredCount immediately before awaiting next(). The parent cannot observe count 2 until both children have yielded the executor inside next(), then calls finish. Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native/interpreter runs produced exact output true:true:2 with canonical native-observation SHA-256 4b4ba4ee7f6ceb999b5122aea7f8ca85d6e4269f859552649e79676f384f2090. The result is commutative and makes no claim about which consumer resumes first. Focused evidence requires at least two runtime-owned stream suspensions and complete cleanup. This was characterization of the existing general stream mechanism; no production change was required."
+  },
+  {
+    "id": "async-stream-copied-iterators",
+    "fixture": "Fixtures/async-stream-copied-iterators.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamCopiedIteratorsProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncStream.Iterator is a value type whose copies have independent mutating-next access while sharing the same stream storage. Two copies may park concurrently, and two yields resume them with one distinct element each.",
+    "notes": "Each task creates a local mutable iterator from the same seed value, then signals immediately before next(isolation: #isolation). The explicit isolation argument is required by strict Swift 6 sendability checking and keeps both calls on MainActor. The parent waits until both are parked, yields 4 and 6, and sorts the two results; no consumer assignment or resume order is asserted. Apple Swift 6.3.3 compiled with warnings as errors, and twenty native/interpreter runs produced exact output 4:6:2 with canonical native-observation SHA-256 594fcb32181db21eab266d2a8ba6ccdbb8183487d482a5db80bee4e6990e9062. Focused evidence requires two real stream suspensions and complete cleanup."
   }
 ]

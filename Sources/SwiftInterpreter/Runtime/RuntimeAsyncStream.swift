@@ -192,7 +192,8 @@ final class RuntimeAsyncStreamSequence: RuntimeConcurrencyHostValue {
     var sourceProtocolNames: [String] { ["AsyncSequence"] }
 }
 
-final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue {
+final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue,
+    HostValueSemantic {
     let storage: RuntimeAsyncStreamStorage
     var isAwaitingNext = false
 
@@ -205,6 +206,10 @@ final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue {
     }
 
     var sourceProtocolNames: [String] { ["AsyncIteratorProtocol"] }
+
+    func copiedHostValue() -> Any {
+        RuntimeAsyncStreamIterator(storage: storage)
+    }
 }
 
 final class RuntimeAsyncStreamContinuation: RuntimeConcurrencyHostValue {

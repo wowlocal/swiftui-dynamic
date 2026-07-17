@@ -1392,9 +1392,11 @@ buffered, makes later `next()` calls stably return `nil`, and rejects later
 specialization, and unsupported buffering policies fail closed instead of being
 ignored. Multiple independently-created iterators may own simultaneous wait
 edges on one storage, and `finish()` resumes all of them with terminal `nil`.
-The current slices do not yet claim deinit/lifetime termination, iterator-copy
-behavior, bounded buffering, `AsyncThrowingStream`, or source checked
-continuations.
+Iterator carriers opt into the interpreter's generic host value-semantics
+boundary: each source copy owns a distinct mutable `next()` token while all
+copies retain the same stream storage. The current slices do not yet claim
+deinit/lifetime termination, bounded buffering, `AsyncThrowingStream`, or
+source checked continuations.
 
 ### 6.19 Host gateway runtime
 
@@ -1971,7 +1973,7 @@ Each milestone is independently gated through
   producer/consumer slice now owns empty-stream suspension, value delivery,
   finish-to-`nil`, one-shot `.finished`/`.cancelled` callback ordering,
   stable terminal reads, rejected post-finish yield, multiple parked consumers,
-  and cleanup; deinit/lifetime termination, iterator copies, buffering,
+  independent and copied iterators, and cleanup; deinit/lifetime termination, buffering,
   `AsyncThrowingStream`, and checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
@@ -2181,10 +2183,11 @@ termination callback occurs before `next()` resumes with `nil`. Another exact
 characterization proves explicit `finish()` invokes `.finished` before
 returning, retains buffered values, produces stable terminal `nil`, and rejects
 post-terminal yield. Two independently-created iterators are also proven to
-park simultaneously and drain from one `finish()`. Deinit/lifetime
-termination, copied iterators, bounded buffering, throwing streams, and
-continuation ownership remain active rather than being inferred from those
-slices.
+park simultaneously and drain from one `finish()`. Value-copied iterators also
+own independent mutable next tokens while sharing storage and distributing
+yielded elements. Deinit/lifetime termination, bounded buffering, throwing
+streams, and continuation ownership remain active rather than being inferred
+from those slices.
 
 Deliverables:
 
