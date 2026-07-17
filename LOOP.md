@@ -1934,3 +1934,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   compiled native control of the exact header shape). Remaining board:
   socialfeed 0.166, donuts 0.437, orders 0.492, content (documented
   artifact). Gate rolling for the close.
+- 2026-07-17 orders Details menus render (worktree iteration 30): the
+  per-row Details Menu (ellipsis.circle, iconOnly) vanished because
+  `.menuStyle` was an UNKNOWN modifier — protocol-typed style param,
+  closed set per the buttonStyle doctrine (AGENTS.md's sanctioned
+  handwritten tier) — and the unknown modifier absorbed the whole Menu
+  subtree. Added the menuStyle switch (borderlessButton/button/
+  automatic) beside buttonStyle/pickerStyle. Orders 0.492% -> 0.039%
+  (22 row menus paint); detail-orders follows. Pin:
+  borderlessMenuRendersIconOnlyLabel (bitmap equality vs a compiled
+  native control of the exact OrdersTable spelling). Remaining orders
+  residue 0.039% = the sorted-column header treatment (bold + sort
+  chevron on "Status"). Board: FOUR rows at AE=0 + orders 0.039 +
+  socialfeed 0.166 + donuts 0.437 + content (documented). Gate next.
