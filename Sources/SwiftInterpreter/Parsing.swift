@@ -111,7 +111,9 @@ public nonisolated struct ParsedProgram: Sendable {
     ) -> ResolvedProgramPlan {
         ResolvedProgramPlan(
             metadata: metadata,
-            buildConfiguration: buildConfiguration)
+            buildConfiguration: buildConfiguration,
+            fileName: fileName,
+            locationConverter: locationConverter)
     }
 
     public static func isToleratedParseRecovery(_ message: String) -> Bool {
@@ -154,7 +156,7 @@ extension Interpreter {
 
     public func parse(source: String) throws -> SourceFileSyntax {
         let program = try makeParsedProgram(source: source)
-        locationConverter = program.locationConverter
+        compatibilityLocationConverter = program.locationConverter
         return program.syntax
     }
 

@@ -194,4 +194,36 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedHeapMatches == [true, true])
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
+
+    @Test func escapedCallbackUsesItsOriginatingSourceMap() throws {
+        let interpreter = Interpreter()
+        let origin = try ParsedProgram(
+            source: """
+            func makeCallback() -> () -> Void {
+                {
+                    missingFromOrigin
+                }
+            }
+            makeCallback()
+            """,
+            fileName: "Origin.swift")
+        let value = try interpreter.run(program: origin)
+        let closure = try #require(value.closureValue)
+        #expect(closure.programPlan?.fileName == "Origin.swift")
+
+        let newer = try ParsedProgram(
+            source: String(repeating: "\n", count: 40) + "0",
+            fileName: "Newer.swift")
+        _ = try interpreter.run(program: newer)
+
+        do {
+            _ = try interpreter.callHostCallback(closure, arguments: [])
+            Issue.record("the unresolved origin identifier did not fail")
+        } catch let runtimeError as RuntimeError {
+            #expect(runtimeError.message ==
+                "unresolved identifier 'missingFromOrigin'")
+            #expect(runtimeError.line == 3)
+            #expect(runtimeError.column == 9)
+        }
+    }
 }

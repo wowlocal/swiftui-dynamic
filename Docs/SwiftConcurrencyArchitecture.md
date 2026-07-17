@@ -447,6 +447,30 @@ state but does not make `StructSymbol`, `EnumSymbol`, `RuntimeValue`,
 `Environment`, `Box`, or `Instance` Sendable. The heap and evaluator remain
 MainActor-confined, so no physical-worker or parallel-heap claim is made.
 
+The twenty-second prerequisite closes the remaining source-location ownership
+split. `ResolvedProgramPlan` now retains the originating file identity and
+immutable `SourceLocationConverter` beside its target and metadata. Runtime
+diagnostics and `#line` first resolve through the current `RuntimeEntry` plan;
+only work with no runtime entry may use the explicitly named synchronous
+compatibility converter. An escaped callback therefore cannot have syntax from
+`Origin.swift` interpreted through the facade's later `Newer.swift` source map.
+
+The architectural RED was behavioral and captured before production changes:
+after an origin closure escaped and a second program ran, its unresolved
+identifier was mislabeled `41:2` instead of authored `3:9`. The native semantic
+probe used Apple Swift 6.3.3, the macOS 26.5 SDK, and target
+`arm64-apple-macosx26.0`; an async closure returned its lexical `#line` after
+`Task.yield()`. The standalone probe produced `4`, and the manifest-backed
+same-source fixture produces `5` in both native Swift and the interpreter in
+twenty bounded repetitions. Four five-observation native shards each report
+SHA-256
+`322f82b1ee560245f7819acb862b0cc122800997a5b88693393f20d65762314b`.
+This proves source provenance across a suspension and later callback entry; it
+does not assert scheduler order, physical-thread placement, or parallelism.
+The canonical parallel iteration completed thirteen ownership/source-map tests
+in seven suites, all forty-two methodology checks, and all twenty parity
+repetitions on four workers in 1.8 seconds.
+
 The stable target separates five concerns:
 
 ```text
@@ -454,7 +478,7 @@ Immutable ParsedProgram
           └── ParsedProgramMetadata
                     │ resolve(target)
                     ▼
-          ResolvedProgramPlan
+          ResolvedProgramPlan [target + source map]
                     │
                     ▼
 InterpreterSession ─────────────── HostGatewayRuntime

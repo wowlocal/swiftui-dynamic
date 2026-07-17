@@ -46,17 +46,26 @@ public nonisolated final class ResolvedProgramPlan: Sendable {
 
     public let metadata: ParsedProgramMetadata
     public let buildConfiguration: InterpreterBuildConfiguration
+    /// Source-file identity retained with every runtime entry and escaped
+    /// callback. Diagnostics must never consult the facade's most recently
+    /// parsed program for a node owned by this plan.
+    public let fileName: String
     public let summary: Summary
 
+    let locationConverter: SourceLocationConverter
     let declarationPlan: ResolvedDeclarationPlan
     private let memberPlan: ResolvedMemberPlan
 
     init(
         metadata: ParsedProgramMetadata,
-        buildConfiguration: InterpreterBuildConfiguration
+        buildConfiguration: InterpreterBuildConfiguration,
+        fileName: String,
+        locationConverter: SourceLocationConverter
     ) {
         self.metadata = metadata
         self.buildConfiguration = buildConfiguration
+        self.fileName = fileName
+        self.locationConverter = locationConverter
         declarationPlan = metadata.declarationIndex.resolve(
             conditionHolds: buildConfiguration.ifConfigConditionHolds)
         memberPlan = metadata.memberMetadataIndex.resolve(

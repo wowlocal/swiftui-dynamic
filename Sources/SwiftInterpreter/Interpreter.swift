@@ -382,7 +382,18 @@ public final class Interpreter {
         absorbedHostMembers[key, default: 0] += 1
     }
 
-    var locationConverter: SourceLocationConverter?
+    /// Source map used by compatibility-only synchronous parsing/evaluation.
+    /// Canonical runtime work always reads the immutable converter retained
+    /// by its exact RuntimeEntry plan, so a later facade run cannot relabel an
+    /// escaped callback's diagnostics.
+    var compatibilityLocationConverter: SourceLocationConverter?
+    var locationConverter: SourceLocationConverter? {
+        if let entry = evaluationTaskContext.runtimeEntry {
+            return entry.programPlan?.locationConverter
+                ?? entry.programState?.programPlan?.locationConverter
+        }
+        return compatibilityLocationConverter
+    }
     private lazy var synchronousEvaluationTaskContext = EvaluationTaskContext(
         id: 0, interpreter: self)
     private var nextEvaluationTaskContextID: UInt64 = 1

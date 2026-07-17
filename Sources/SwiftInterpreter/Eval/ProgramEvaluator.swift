@@ -94,6 +94,7 @@ extension Interpreter {
         compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
         compatibilityProgramState = programState
+        compatibilityLocationConverter = program.locationConverter
         return InterpreterSession(
             program: program,
             heap: runtimeHeap,
@@ -218,7 +219,7 @@ extension Interpreter {
         lazyTopLevelGlobals: Bool
     ) async throws -> RuntimeValue {
         let file = program.syntax
-        locationConverter = program.locationConverter
+        compatibilityLocationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         try collectDeclarations(from: executionPlan)
@@ -411,7 +412,7 @@ extension Interpreter {
         compatibilityProgramState = programState
         let file = program.syntax
         let executionPlan = programPlan.declarationPlan
-        locationConverter = program.locationConverter
+        compatibilityLocationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved

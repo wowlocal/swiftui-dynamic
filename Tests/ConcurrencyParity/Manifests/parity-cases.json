@@ -1588,6 +1588,18 @@
     "notes": "The harness waits for the first callback's task to publish worker-started before invoking the same retained callback again. Continuation resume is synchronous but MainActor serialization forces second-return before worker-resumed, so the exact three snapshots are causal and assert no unrelated scheduler or physical-thread order. Apple Swift 6.3.3 strict-concurrency compilation and the interpreter produced the same result in twenty bounded runs before and after mutable program registries moved into session-owned RuntimeProgramState; every four-worker native shard reported SHA-256 4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652."
   },
   {
+    "id": "source-provenance-after-suspension",
+    "fixture": "Fixtures/source-provenance-after-suspension.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await paritySourceProvenanceAfterSuspension()",
+    "interpreterProjection": "string",
+    "nativeFact": "An escaping async closure keeps the lexical source identity of its body across suspension; #line is the authored line in that body rather than a later invocation context.",
+    "notes": "The exact output is 5. The fixture asserts only immutable source provenance across one suspension; it makes no scheduler-order, physical-thread, or parallelism claim."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

@@ -107,6 +107,9 @@ with the detailed design in
   program also owns a distinct MainActor-confined `RuntimeProgramState`; its
   session, entries, and escaped closures retain the originating mutable symbol
   and declaration registries even after the facade prepares another program.
+  The resolved plan also owns file identity and its immutable source map, so
+  escaped callbacks keep native-like diagnostic and `#line` provenance after
+  suspension or a later facade run.
   Remaining member semantics, call-site semantic resolution, compiler
   metadata, evaluator/session migration, heap-edge classification, workers,
   mode-differential parity, and TSan are still open.

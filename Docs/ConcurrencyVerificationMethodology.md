@@ -457,6 +457,30 @@ unchanged after migration; no physical-thread or unrelated scheduler-order
 claim is allowed. The closing gate must also run both session/state ownership
 suites and the complete methodology suite from the prebuilt bundle.
 
+Its twenty-second prerequisite verifies immutable source-map ownership. The
+architecture workflow first captured a behavioral RED: an escaped closure from
+`Origin.swift`, invoked after the facade ran `Newer.swift`, located its runtime
+error at the newer converter's `41:2` rather than the authored `3:9`. The fix
+adds file identity and the immutable converter to `ResolvedProgramPlan`; runtime
+diagnostics select it through the exact `RuntimeEntry`, while parsing and
+synchronous compatibility work retain a separately named fallback.
+
+The native semantic baseline was captured before production changes with Apple
+Swift 6.3.3, macOS SDK 26.5, and target `arm64-apple-macosx26.0`. An escaped
+async closure yielded and then evaluated `#line`; its authored line remained
+`4`. The manifest-backed `source-provenance-after-suspension` version places
+that expression on line `5`, and native Swift plus the interpreter produce
+exact output `5` in twenty bounded runs. Four native shards each report
+SHA-256
+`322f82b1ee560245f7819acb862b0cc122800997a5b88693393f20d65762314b`.
+Only lexical source provenance is asserted. Scheduler order, worker identity,
+physical threads, and physical parallelism remain unasserted. The closing gate
+must include the cross-program callback regression, the complete runtime-entry
+ownership suite, all methodology checks, and all twenty focused parity runs.
+The canonical parallel iteration completed thirteen ownership/source-map tests
+in seven suites, all forty-two methodology checks, and all twenty parity
+repetitions on four workers in 1.8 seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

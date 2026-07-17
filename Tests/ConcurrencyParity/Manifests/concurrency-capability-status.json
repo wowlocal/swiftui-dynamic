@@ -2927,7 +2927,8 @@
         "callable-placement-metadata",
         "initializer-declaration-metadata",
         "conditional-member-metadata",
-        "with-task-executor-preference-nil"
+        "with-task-executor-preference-nil",
+        "source-provenance-after-suspension"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -2973,6 +2974,7 @@
         "ClosureTests/multipleTrailingClosuresBindMemberwiseInOrder",
         "RuntimeEntryOwnershipTests/hostCallbackAndSpawnedTaskShareOneOwnedEntry",
         "RuntimeEntryOwnershipTests/separateCallbacksUseDistinctEntriesAgainstTheSameHeap",
+        "RuntimeEntryOwnershipTests/escapedCallbackUsesItsOriginatingSourceMap",
         "EnumAndSwitchTests/rawValueEnums",
         "EnumAndSwitchTests/switchWithAssociatedValues",
         "TypeFeatureTests/extensionsAddMembers",
@@ -2996,7 +2998,7 @@
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Twenty-one M9 prerequisites are green. ParsedProgram owns immutable all-branch declaration/member metadata and resolves one immutable Sendable target plan before mutable symbol materialization. Each prepared program now also owns one MainActor-confined RuntimeProgramState containing its mutable declaration/symbol registries. InterpreterSession, RuntimeEntry, and escaped source closures retain both exact capabilities across host callbacks, SwiftUI tasks, compatibility tasks, and source tasks, preventing fallback to a later facade program. Distinct-session materialization, callback/task identity, simple state lifetime, actor/subscript/deinitializer propagation, explicit-trap containment, and real SwiftUI lifecycle tests cover the boundary. The causally controlled host-callback-overlap characterization remained exact before and after migration: native Swift 6.3.3 and the interpreter produced worker-started,second-return,worker-resumed in twenty bounded repetitions, with native SHA-256 4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652 per shard. The final prebuilt gate completed twelve ownership/dispatch tests in seven suites, all forty-two methodology checks, and all twenty parity repetitions within two seconds. Scheduler order beyond those controlled edges, physical threads, and physical parallelism are not claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member semantics, call-site semantic resolution, compiler metadata, mutable value graphs, and evaluation are still confined, and the interpreter has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Twenty-two M9 prerequisites are green. ParsedProgram owns immutable all-branch declaration/member metadata and resolves one immutable Sendable target plan before mutable symbol materialization. That plan now also owns file identity and its immutable source map. Each prepared program owns one MainActor-confined RuntimeProgramState containing its mutable declaration/symbol registries. InterpreterSession, RuntimeEntry, and escaped source closures retain the exact plan and state across host callbacks, SwiftUI tasks, compatibility tasks, and source tasks, preventing fallback to a later facade program for target selection, mutable registries, or diagnostics. Distinct-session materialization, callback/task identity, simple state lifetime, cross-program source provenance, actor/subscript/deinitializer propagation, explicit-trap containment, and real SwiftUI lifecycle tests cover the boundary. The source-provenance-after-suspension fixture matches Apple Swift 6.3.3 exactly at lexical line 5 in twenty bounded repetitions, with native SHA-256 322f82b1ee560245f7819acb862b0cc122800997a5b88693393f20d65762314b per shard. The canonical parallel iteration completed thirteen ownership/source-map tests in seven suites, all forty-two methodology checks, and all twenty parity repetitions on four workers in 1.8 seconds. Scheduler order, physical threads, and physical parallelism are not claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member semantics, call-site semantic resolution, compiler metadata, mutable value graphs, and evaluation are still confined, and the interpreter has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

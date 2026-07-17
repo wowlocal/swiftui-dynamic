@@ -164,7 +164,7 @@ struct ParsedProgramConcurrencyTests {
         typealias Alias = Selected.Nested
         extension Selected { static func extensionValue() -> Int { 2 } }
         #endif
-        """)
+        """, fileName: "TargetPlan.swift")
         let iosConfiguration = InterpreterBuildConfiguration(
             platformName: "iOS", activeCompilationConditions: [])
         let macConfiguration = InterpreterBuildConfiguration(
@@ -189,6 +189,8 @@ struct ParsedProgramConcurrencyTests {
                 .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
         #expect(iosPlan.metadata === program.metadata)
         #expect(macPlan.metadata === program.metadata)
+        #expect(iosPlan.fileName == "TargetPlan.swift")
+        #expect(macPlan.fileName == "TargetPlan.swift")
         #expect(iosPlan.buildConfiguration == iosConfiguration)
         #expect(macPlan.buildConfiguration == macConfiguration)
         #expect(iosPlan.declarationPlan.primaryDeclarations.count == 1)

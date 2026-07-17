@@ -270,6 +270,15 @@ extension Interpreter {
                let functionName = env.lookup("#function") {
                 return functionName
             }
+            if macro.macroName.text == "line" {
+                guard let location = locationConverter?.location(
+                    for: macro.positionAfterSkippingLeadingTrivia)
+                else {
+                    throw RuntimeError(message:
+                        "#line requires source-location ownership")
+                }
+                return .native(location.line)
+            }
             if macro.macroName.text == "isolation" {
                 return try currentSourceIsolationValue()
             }
