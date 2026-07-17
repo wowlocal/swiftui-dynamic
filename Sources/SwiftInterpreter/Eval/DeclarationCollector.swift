@@ -37,11 +37,9 @@ extension Interpreter {
         // makes `extension LoadableSubject` a Binding extension — the
         // mapping must exist before extensions collect.
         for alias in plan.typeAliases {
-            var target = alias.initializer.value.trimmedDescription
-            if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
-            target = target.trimmingCharacters(in: .whitespaces)
-            if target.first?.isUppercase == true, !target.contains("(") {
-                aliasHeads[alias.name.text] = target
+            let metadata = typeAliasMetadata(for: alias)
+            if metadata.isNominalTarget {
+                aliasHeads[metadata.name] = metadata.lookupTargetName
             }
         }
         for declaration in plan.extensionDeclarations {
@@ -51,14 +49,15 @@ extension Interpreter {
         // alias resolves to the target TYPE (generic arguments dropped, like
         // everywhere else). Tuple/function aliases stay inert.
         for alias in plan.typeAliases {
-            var target = alias.initializer.value.trimmedDescription
-            if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
-            target = target.trimmingCharacters(in: .whitespaces)
-            if globals.lookup(alias.name.text) == nil, let value = globals.lookup(target) {
-                globals.define(alias.name.text, value)
+            let metadata = typeAliasMetadata(for: alias)
+            let target = metadata.lookupTargetName
+            if globals.lookup(metadata.name) == nil,
+               let value = globals.lookup(target) {
+                globals.define(metadata.name, value)
             }
-            if enumSymbols[alias.name.text] == nil, let enumSymbol = enumSymbols[target] {
-                enumSymbols[alias.name.text] = enumSymbol
+            if enumSymbols[metadata.name] == nil,
+               let enumSymbol = enumSymbols[target] {
+                enumSymbols[metadata.name] = enumSymbol
             }
         }
     }
@@ -578,23 +577,24 @@ extension Interpreter {
             } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
                 // Member typealiases resolve like nested types (bare name
                 // when unclaimed); generic arguments drop.
-                var target = alias.initializer.value.trimmedDescription
-                if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
-                target = target.trimmingCharacters(in: .whitespaces)
+                let metadata = typeAliasMetadata(for: alias)
+                let target = metadata.lookupTargetName
                 if let value = globals.lookup(target) {
-                    symbol.nestedTypes[alias.name.text] = value
-                    if globals.lookup(alias.name.text) == nil {
-                        globals.define(alias.name.text, value)
+                    symbol.nestedTypes[metadata.name] = value
+                    if globals.lookup(metadata.name) == nil {
+                        globals.define(metadata.name, value)
                     }
                 } else {
                     // The target may only exist after the extension pass
                     // (`typealias API = TestWebRepository.API` where API is
                     // declared by a LATER `extension TestWebRepository`) —
                     // retry once every type exists.
-                    pendingMemberAliases.append((symbol, alias.name.text, target))
+                    pendingMemberAliases.append((
+                        symbol, metadata.name, target))
                 }
-                if enumSymbols[alias.name.text] == nil, let enumSymbol = enumSymbols[target] {
-                    enumSymbols[alias.name.text] = enumSymbol
+                if enumSymbols[metadata.name] == nil,
+                   let enumSymbol = enumSymbols[target] {
+                    enumSymbols[metadata.name] = enumSymbol
                 }
             } else if let subscriptDecl = member.decl.as(SubscriptDeclSyntax.self),
                       let accessorBlock = subscriptDecl.accessorBlock,

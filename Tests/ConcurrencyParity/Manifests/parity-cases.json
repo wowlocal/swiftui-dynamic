@@ -134,6 +134,18 @@
     "notes": "Exact output is true:42:21 in all repetitions. FoodTruck cites dotted, conforming, and generic-where extension headers; no nonmatching-constraint, scheduler-order, or physical-thread claim is made."
   },
   {
+    "id": "typealias-metadata",
+    "fixture": "Fixtures/typealias-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await typeAliasMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Active conditional top-level and member type aliases denote the selected concrete type when a value crosses an actor boundary.",
+    "notes": "Exact output is mac:42 in all repetitions. Native runs use the pinned macOS target and both executions select the non-watchOS branch. FoodTruck cites conditional private top-level and member aliases in DetailedMapView; no inaccessible inactive-branch, positive-macOS-predicate, scheduler-order, or physical-thread claim is made."
+  },
+  {
     "id": "actor-isolated-deinitializer",
     "fixture": "Fixtures/actor-isolated-deinitializer.swift",
     "mode": "runtime",

@@ -238,6 +238,24 @@ same-source actor-crossing oracle cover the boundary. Swift 6 and the
 interpreter produce `true:42:21` in twenty repetitions. Nonmatching generic
 constraints, scheduler order, and physical workers are not claimed.
 
+The thirteenth prerequisite adds an immutable, all-branch
+`ParsedTypeAliasMetadataIndex` to the composite capability. Every typealias is
+indexed by syntax identity across top-level, member, local, nested, and
+inactive conditional-compilation regions. The index owns the alias name, full
+target spelling, normalized lookup target, generic parameters and
+requirements, attributes, modifiers, and nominal-versus-tuple/function target
+classification. Top-level alias heads and values, member aliases, local
+aliases, and lexical-name discovery consume those immutable headers with a
+pure fallback for foreign or synthetic syntax; active-branch selection and
+binding into mutable runtime symbols remain session-owned. FoodTruck bounds
+the slice with the conditional private top-level and member aliases in
+`DetailedMapView`, while cited corpus regressions cover generic alias
+normalization. Eight detached readers, session and callback provenance, alias/
+deinitializer regressions, and a same-source actor-crossing oracle cover the
+boundary. Swift 6 and the interpreter produce `mac:42` in twenty repetitions
+for the selected non-watchOS branch. Inaccessible inactive-branch behavior,
+scheduler order, and physical workers are not claimed.
+
 The stable target separates five concerns:
 
 ```text
@@ -618,6 +636,7 @@ public struct ParsedProgram: Sendable {
     let propertyMetadata: PropertyMetadataIndex
     let enumCaseMetadata: EnumCaseMetadataIndex
     let extensionMetadata: ExtensionMetadataIndex
+    let typeAliasMetadata: TypeAliasMetadataIndex
     let callMetadata: CallMetadataIndex
     let isolationMetadata: IsolationIndex
     let sourceLocations: SourceLocationIndex
@@ -634,7 +653,8 @@ syntax, source-location index, and one public immutable
 `ParsedProgramMetadata` capability. That value owns the public
 `ParsedDeclarationIndex`, `ParsedCallableMetadataIndex`,
 `ParsedNominalMetadataIndex`, `ParsedPropertyMetadataIndex`, and
-`ParsedEnumCaseMetadataIndex`, and `ParsedExtensionMetadataIndex`;
+`ParsedEnumCaseMetadataIndex`, `ParsedExtensionMetadataIndex`, and
+`ParsedTypeAliasMetadataIndex`;
 compatibility accessors on `ParsedProgram`
 expose the same values. The declaration index
 classifies all possible top-level primary declarations, aliases, and
@@ -663,8 +683,13 @@ generic requirements, attributes, and modifiers across every conditional
 branch. Extension target resolution and conformance merging consume those
 headers while the session owns branch selection and member materialization.
 Nonmatching generic-constraint selection remains outside the implemented
-claim. Remaining member families, call-site semantic resolution, and the
-compiler-preflight fingerprint remain target work.
+claim. The type-alias index records alias names, full and normalized target
+spellings, generic parameters and requirements, attributes, modifiers, and
+nominal-target classification across every lexical and conditional region.
+Top-level, member, and local alias binding consumes those headers while the
+session owns active-branch selection and mutable symbol lookup. Remaining
+member families, call-site semantic resolution, and the compiler-preflight
+fingerprint remain target work.
 
 ### 6.2 `InterpreterSession`
 
@@ -2778,8 +2803,8 @@ distinct callback IDs over one heap, and final release. A causal same-source
 probe establishes cooperative overlap against the confined heap in twenty
 native/interpreter repetitions. `ParsedProgram` additionally owns one immutable
 `ParsedProgramMetadata` capability containing its declaration and all-branch
-callable, nominal, property, enum-case, and extension indexes; the runtime no
-longer stores mutable function/initializer metadata caches on the facade.
+callable, nominal, property, enum-case, extension, and type-alias indexes; the
+runtime no longer stores mutable function/initializer metadata caches on the facade.
 Sessions and escaped callbacks retain the originating capability through
 `RuntimeEntry`, and eight detached readers exercise one snapshot under Swift 6
 strict concurrency.
@@ -2811,6 +2836,12 @@ type and inherited-type spellings, while generic requirements, attributes,
 and modifiers remain available as immutable program facts. The
 `extension-metadata` fixture remains exact in twenty native/interpreter
 repetitions for the demand-cited matching-constraint subset.
+The composite additionally owns all-branch type-alias headers. Alias head
+registration and top-level, member, local, and lexical-name binding consume
+the indexed source and normalized target spellings. The `typealias-metadata`
+fixture remains exact in twenty native/interpreter repetitions for the
+selected non-watchOS branch, while target-aware project selection remains M7
+evidence.
 These slices separate immutable program input, mutable storage, and execution
 identity without changing scheduling. Remaining member families, call-site, and
 compiler metadata indexing remains incomplete, and mutable

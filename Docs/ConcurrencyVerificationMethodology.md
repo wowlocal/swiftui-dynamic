@@ -256,6 +256,28 @@ compiler metadata, mutable-symbol/evaluator migration, worker-safe heap
 classification, physical workers, mode-differential evidence, and TSan remain
 open.
 
+Its thirteenth prerequisite adds all-branch type-alias headers to the
+composite capability. The architecture workflow is a gap closure: the captured
+compile-time RED had no `ParsedTypeAliasMetadataIndex`, summary, compatibility
+accessor, composite component, or runtime lookup. The semantic workflow is an
+already-GREEN characterization. FoodTruck supplies demand citations for the
+conditional private top-level `ViewControllerRepresentable` and member
+`ViewController` aliases in `DetailedMapView`; corpus regressions cite generic
+aliases used as extension targets. GREEN covers exact all-scope/all-branch
+summaries, full and normalized targets, generic parameters/requirements,
+attributes, modifiers, nominal-versus-tuple targets, eight detached readers,
+pure foreign-syntax fallback, session/callback provenance, and top-level,
+member, local, generic-extension, and global-actor-alias consumers. A selected
+top-level and member alias constructs a value that crosses an actor boundary;
+Apple Swift 6.3.3 and the interpreter both produce `mac:42` in twenty bounded
+repetitions for the non-watchOS branch. The harness's legacy iOS-shaped build
+identity is not used to claim positive macOS predicate behavior; target-aware
+platform selection remains separate M7 project evidence. No inaccessible
+inactive-branch behavior, scheduler order, or physical thread is inferred.
+Remaining member families, call-site/compiler metadata, mutable-symbol/
+evaluator migration, worker-safe heap classification, physical workers, mode-
+differential evidence, and TSan remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

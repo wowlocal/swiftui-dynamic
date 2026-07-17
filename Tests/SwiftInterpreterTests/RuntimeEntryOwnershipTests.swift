@@ -14,6 +14,7 @@ struct RuntimeEntryOwnershipTests {
         var observedPropertyBindingCounts: [Int?] = []
         var observedEnumCaseCounts: [Int?] = []
         var observedExtensionCounts: [Int?] = []
+        var observedTypeAliasCounts: [Int?] = []
         weak var observedEntry: RuntimeEntry?
         interpreter.globals.define(
             "captureRuntimeEntry",
@@ -39,12 +40,15 @@ struct RuntimeEntryOwnershipTests {
                         .enumCaseMetadataIndex.summary.caseElementCount)
                     observedExtensionCounts.append(entry.programMetadata?
                         .extensionMetadataIndex.summary.extensionCount)
+                    observedTypeAliasCounts.append(entry.programMetadata?
+                        .typeAliasMetadataIndex.summary.typeAliasCount)
                     return .void
                 })))
         let value = try interpreter.run(source: """
         struct OriginMarker { let value = 1 }
         enum OriginState { case ready }
         extension OriginMarker {}
+        typealias OriginAlias = OriginMarker
         func makeCallback() -> () -> Void {
             {
                 captureRuntimeEntry()
@@ -62,6 +66,8 @@ struct RuntimeEntryOwnershipTests {
         enum NewerState { case first; case second }
         extension NewerMarker {}
         extension NewestMarker {}
+        typealias NewerAlias = NewerMarker
+        typealias NewestAlias = NewestMarker
         func newer() {}
         func newest() {}
         """))
@@ -86,6 +92,7 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedPropertyBindingCounts == [1, 1])
         #expect(observedEnumCaseCounts == [1, 1])
         #expect(observedExtensionCounts == [1, 1])
+        #expect(observedTypeAliasCounts == [1, 1])
         #expect(observedEntry == nil,
             "the runtime entry must release after its final task record")
     }

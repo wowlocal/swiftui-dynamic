@@ -10,6 +10,7 @@ public nonisolated struct ParsedProgramMetadata: Sendable {
     public let propertyMetadataIndex: ParsedPropertyMetadataIndex
     public let enumCaseMetadataIndex: ParsedEnumCaseMetadataIndex
     public let extensionMetadataIndex: ParsedExtensionMetadataIndex
+    public let typeAliasMetadataIndex: ParsedTypeAliasMetadataIndex
 
     init(file: SourceFileSyntax) {
         declarationIndex = ParsedDeclarationIndex(
@@ -19,5 +20,6 @@ public nonisolated struct ParsedProgramMetadata: Sendable {
         propertyMetadataIndex = ParsedPropertyMetadataIndex(file: file)
         enumCaseMetadataIndex = ParsedEnumCaseMetadataIndex(file: file)
         extensionMetadataIndex = ParsedExtensionMetadataIndex(file: file)
+        typeAliasMetadataIndex = ParsedTypeAliasMetadataIndex(file: file)
     }
 }

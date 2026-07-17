@@ -217,13 +217,14 @@ extension Interpreter {
             // to the target type in this scope (generic arguments dropped,
             // like everywhere else). Unknown host targets bind a type
             // marker; tuple/function aliases stay inert.
-            var target = alias.initializer.value.trimmedDescription
-            if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
-            target = target.trimmingCharacters(in: .whitespaces)
+            let metadata = typeAliasMetadata(for: alias)
+            let target = metadata.lookupTargetName
             if let value = globals.lookup(target) ?? env.lookup(target) {
-                env.define(alias.name.text, value)
-            } else if let first = target.first, first.isUppercase, !target.contains("(") {
-                env.define(alias.name.text, try resolveIdentifier(target, in: env, node: alias))
+                env.define(metadata.name, value)
+            } else if metadata.isNominalTarget {
+                env.define(
+                    metadata.name,
+                    try resolveIdentifier(target, in: env, node: alias))
             }
             return
         }

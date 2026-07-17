@@ -700,6 +700,17 @@ public final class Interpreter {
             ?? ParsedExtensionMetadata(node)
     }
 
+    var currentTypeAliasMetadataIndex: ParsedTypeAliasMetadataIndex? {
+        currentProgramMetadata?.typeAliasMetadataIndex
+    }
+
+    func typeAliasMetadata(
+        for node: TypeAliasDeclSyntax
+    ) -> ParsedTypeAliasMetadata {
+        currentTypeAliasMetadataIndex?.metadata(for: node)
+            ?? ParsedTypeAliasMetadata(node)
+    }
+
     func enumCaseMetadata(
         for node: EnumCaseElementSyntax
     ) -> ParsedEnumCaseMetadata {

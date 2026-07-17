@@ -411,7 +411,7 @@ extension Interpreter {
                 } else if let type = declaration.as(ActorDeclSyntax.self) {
                     bound.insert(type.name.text)
                 } else if let alias = declaration.as(TypeAliasDeclSyntax.self) {
-                    bound.insert(alias.name.text)
+                    bound.insert(typeAliasMetadata(for: alias).name)
                 }
             }
 

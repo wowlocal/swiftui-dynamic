@@ -724,12 +724,112 @@ struct ParsedProgramConcurrencyTests {
             == ["Element == Int", "State: Equatable"])
     }
 
+    @Test func parsedProgramOwnsSendableTypeAliasMetadataIndex() async throws {
+        let program = try ParsedProgram(source: """
+        struct Box<Value> {}
+
+        @available(macOS 10, *)
+        public typealias PublicAlias<T> = Module.Box<T> where T: Sendable
+        typealias Pair = (Int, Int)
+
+        struct Owner {
+            #if os(iOS)
+            private typealias Active = Box<Int>
+            #else
+            fileprivate typealias Active = Box<String>
+            #endif
+        }
+
+        func local() {
+            typealias Local = Box<Double>
+        }
+        """)
+        let expected = ParsedTypeAliasMetadataIndex.Summary(
+            typeAliasCount: 5,
+            genericTypeAliasCount: 1,
+            genericParameterCount: 1,
+            genericRequirementCount: 1,
+            attributedTypeAliasCount: 1,
+            modifiedTypeAliasCount: 3,
+            nominalTargetCount: 4,
+            dottedTargetCount: 1)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.typeAliasMetadataIndex)
+        #expect(program.typeAliasMetadataIndex.summary == expected)
+        #expect(program.metadata.typeAliasMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.typeAliasMetadataIndex.summary }
+        }
+        var observations: [ParsedTypeAliasMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let aliases: [TypeAliasDeclSyntax] =
+            program.syntax.statements.compactMap {
+                guard case .decl(let declaration) = $0.item else {
+                    return nil
+                }
+                return declaration.as(TypeAliasDeclSyntax.self)
+            }
+        let publicAlias = try #require(aliases.first)
+        let metadata = try #require(
+            program.typeAliasMetadataIndex.metadata(for: publicAlias))
+        #expect(metadata.name == "PublicAlias")
+        #expect(metadata.targetTypeName == "Module.Box<T>")
+        #expect(metadata.lookupTargetName == "Module.Box")
+        #expect(metadata.genericParameters.map(\.name) == ["T"])
+        #expect(metadata.genericRequirements == ["T: Sendable"])
+        #expect(metadata.attributeNames == ["available"])
+        #expect(metadata.modifierNames == ["public"])
+        #expect(metadata.isNominalTarget)
+
+        let pair = try #require(aliases.dropFirst().first)
+        let pairMetadata = try #require(
+            program.typeAliasMetadataIndex.metadata(for: pair))
+        #expect(pairMetadata.targetTypeName == "(Int, Int)")
+        #expect(!pairMetadata.isNominalTarget)
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata?.typeAliasMetadataIndex
+            .summary == expected)
+    }
+
+    @Test func typeAliasMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        @available(macOS 10, *)
+        public typealias Foreign<T: Hashable> = Module.Box<T>
+        where T: Sendable
+        """)
+        let declaration = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(TypeAliasDeclSyntax.self))
+        let interpreter = Interpreter()
+
+        let metadata = interpreter.typeAliasMetadata(for: declaration)
+        #expect(metadata.name == "Foreign")
+        #expect(metadata.targetTypeName == "Module.Box<T>")
+        #expect(metadata.lookupTargetName == "Module.Box")
+        #expect(metadata.genericParameters.map(\.name) == ["T"])
+        #expect(metadata.genericParameters.map(\.inheritedTypeName)
+            == ["Hashable"])
+        #expect(metadata.genericRequirements == ["T: Sendable"])
+        #expect(metadata.attributeNames == ["available"])
+        #expect(metadata.modifierNames == ["public"])
+        #expect(metadata.isNominalTarget)
+    }
+
     @Test func parsedProgramMetadataIsOneSendableRuntimeCapability()
     async throws {
         let program = try ParsedProgram(source: """
         struct Marker {}
         enum Phase { case ready }
         extension Phase {}
+        typealias MarkerAlias = Marker
         func makeValue() -> Int { 42 }
         makeValue()
         """)
@@ -747,25 +847,28 @@ struct ParsedProgramConcurrencyTests {
             == program.enumCaseMetadataIndex.summary)
         #expect(program.metadata.extensionMetadataIndex.summary
             == program.extensionMetadataIndex.summary)
+        #expect(program.metadata.typeAliasMetadataIndex.summary
+            == program.typeAliasMetadataIndex.summary)
 
         let readers = (0..<8).map { _ in
             Task.detached {
-                (
+                [
                     program.metadata.declarationIndex.summary
                         .possiblePrimaryDeclarationCount,
                     program.metadata.callableMetadataIndex.summary.functionCount,
                     program.metadata.nominalMetadataIndex.summary.structureCount,
                     program.metadata.propertyMetadataIndex.summary.bindingCount,
                     program.metadata.enumCaseMetadataIndex.summary.caseElementCount,
-                    program.metadata.extensionMetadataIndex.summary.extensionCount
-                )
+                    program.metadata.extensionMetadataIndex.summary.extensionCount,
+                    program.metadata.typeAliasMetadataIndex.summary.typeAliasCount
+                ]
             }
         }
-        var observations: [(Int, Int, Int, Int, Int, Int)] = []
+        var observations: [[Int]] = []
         for reader in readers {
             observations.append(await reader.value)
         }
-        #expect(observations.allSatisfy { $0 == (3, 1, 1, 0, 1, 1) })
+        #expect(observations.allSatisfy { $0 == [3, 1, 1, 0, 1, 1, 1] })
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
@@ -779,6 +882,8 @@ struct ParsedProgramConcurrencyTests {
             .summary == program.enumCaseMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.extensionMetadataIndex
             .summary == program.extensionMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.typeAliasMetadataIndex
+            .summary == program.typeAliasMetadataIndex.summary)
         #expect(try await interpreter.runAsync(session: session).intValue == 42)
     }
 
