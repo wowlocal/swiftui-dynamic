@@ -2381,3 +2381,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   AsyncContext passes isolated — a load flake alongside "parallel test
   workers failed" appearing once in the suite tail; watching whether
   the containment fully holds on the re-roll. Gate re-rolling.
+- 2026-07-17 ORDER COMPLETION LANDS LIVE — four mutations green
+  (worktree iteration 54): the orders step gains the R3 status flow
+  DRIVEN LIVE: the row's real Details menu (SwiftUIPopupButton) opens
+  under performClick tracking (SwiftUI populates bridged menus only
+  during REAL tracking — delegate menuNeedsUpdate/update() stay empty;
+  an .eventTracking-mode timer fires the item and dismisses), the
+  "Complete Order" item action runs the interpreted Button closure ->
+  model.markOrderAsCompleted -> published change -> table re-render:
+  Order#1215 visibly flips to "Completed" (668px = the one row's
+  status cell, native's exact visual scope; floor calibrated 300).
+  R4 BOARD: nine navigations + FOUR live mutations green (order
+  completion, both timeframe pickers, editor rename), zero
+  diagnostics. NOTE main still RED (47ee78e reproduces the
+  parallel-worker crash under gate load — 2nd attribution filed;
+  lane-concurrency owes the containment under the GATE's parallel
+  config). Lane remains gate-blocked; iterating continues.

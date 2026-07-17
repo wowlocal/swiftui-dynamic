@@ -101,6 +101,62 @@ enum SweepDriver {
             reportedDiagnostics = RenderDiagnostics.errors.count
             allGreen = allGreen && landed
             previous = current
+            // MUTATION phase: an order completes through its row's real
+            // Details menu — menu item action -> interpreted Button action
+            // -> model mutation -> table re-render (the R3 status flow,
+            // driven LIVE).
+            if landed, step.name == "orders" {
+                var popup: NSPopUpButton?
+                func findPopup(_ view: NSView) {
+                    if popup == nil, let candidate = view as? NSPopUpButton,
+                       candidate.frame.width < 40 {
+                        popup = candidate
+                    }
+                    view.subviews.forEach(findPopup)
+                }
+                if let content = window.contentView { findPopup(content) }
+                if let popup {
+                    // SwiftUI populates bridged menus only during REAL
+                    // tracking: open with performClick (blocks in
+                    // .eventTracking mode) and let a tracking-mode timer
+                    // fire the Complete item and dismiss.
+                    let fired = MenuDriveState()
+                    let timer = Timer(timeInterval: 0.6, repeats: false) { _ in
+                        MainActor.assumeIsolated {
+                            guard let menu = popup.menu else { return }
+                            let titles = menu.items.map(\.title)
+                            print("SWEEP-MENU items: \(titles.joined(separator: " | "))")
+                            if let completeIndex = menu.items.firstIndex(where: { $0.title.contains("Complete") }) {
+                                menu.performActionForItem(at: completeIndex)
+                                fired.didFire = true
+                            }
+                            menu.cancelTracking()
+                        }
+                    }
+                    RunLoop.main.add(timer, forMode: .eventTracking)
+                    popup.performClick(nil)
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    if fired.didFire {
+                        let mutated = capture(
+                            "sweep-\(index + 1)-\(step.name)-mutated", window: window,
+                            outDirectory: outDirectory)
+                        let mutatedChanged = changedPixels(previous, mutated)
+                        // One order's Status cell repaints ("Placed" ->
+                        // "Completed") — a single-row text change, same
+                        // visual scope as native.
+                        let mutatedLanded = mutatedChanged > 300
+                        print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) landed=\(mutatedLanded)")
+                        allGreen = allGreen && mutatedLanded
+                        previous = mutated
+                    } else {
+                        print("SWEEP \(step.name)-mutate complete-item-not-fired")
+                        allGreen = false
+                    }
+                } else {
+                    print("SWEEP \(step.name)-mutate no-menu")
+                    allGreen = false
+                }
+            }
             // MUTATION phase: the donut editor must accept a rename
             // through the real NSTextField commit path and repaint the
             // preview with the new name.
@@ -232,6 +288,10 @@ enum SweepDriver {
             .write(to: URL(fileURLWithPath: path))
         print("SWEEP-CAPTURE \(name) \(path)")
         return rep
+    }
+
+    final class MenuDriveState {
+        var didFire = false
     }
 
     static func firstTextField(in window: NSWindow) -> NSTextField? {
