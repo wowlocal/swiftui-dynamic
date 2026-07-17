@@ -136,9 +136,11 @@ actor cycle is covered and provisional: every scoped requirement has
 executable evidence, while its broad M4 and M7 dependencies retain explicitly
 owned partial-surface gaps. A provisional milestone may therefore close its
 own scoped requirements without claiming those broader dependencies complete.
-The active runtime cycle is M6 protocol iteration, streams, and continuations;
-its executor-owned resume prerequisite is the covered M5 identity/storage
-requirement. M8 view-owned async lifecycle is the queued next demand cycle.
+The demand-scoped M6 protocol/stream/continuation cycle is closed; its broader
+unsafe-ownership, negative-capacity, and upstream-adapter divergences remain
+explicitly demand-deferred. M8 view-owned async lifecycle is the active demand
+cycle, with covered M2 driver-release, M5 logical-executor, and M7 native-
+preflight prerequisites.
 
 ## Process and liveness isolation
 
