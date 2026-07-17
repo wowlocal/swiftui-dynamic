@@ -129,6 +129,7 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "UnitPoint": return .init(tag: "unitPoint", cast: "%@ as! UnitPoint")
     case "ContentMode": return .init(tag: "contentMode", cast: "%@ as! ContentMode")
     case "Image.Scale": return .init(tag: "imageScale", cast: "%@ as! Image.Scale")
+    case "SymbolRenderingMode": return .init(tag: "symbolRenderingMode", cast: "%@ as! SymbolRenderingMode")
     case "Visibility": return .init(tag: "visibility", cast: "%@ as! Visibility")
     case "Axis.Set": return .init(tag: "axisSet", cast: "%@ as! Axis.Set")
     case "EdgeInsets": return .init(tag: "edgeInsets", cast: "%@ as! EdgeInsets")

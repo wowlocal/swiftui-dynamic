@@ -1724,3 +1724,17 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   1.400% (annotation icons + pillar shadow), socialfeed 0.472%,
   orders 0.492%, card-orders 0.168%. Upstream alias-test completion
   still gates the sixteen-commit merge.
+- 2026-07-17 symbolRenderingMode joins the generated tier (worktree
+  iteration 21): the annotation-icon chain's missing link —
+  `.symbolRenderingMode(.palette)` was unbridged because
+  SymbolRenderingMode (a static-constant struct, not an enum) wasn't in
+  BridgeGen's modifier param whitelist. Added the mapping + ParamTag +
+  marker coercion (palette/hierarchical/multicolor/monochrome);
+  regenerated (501 modifier variants). Truck holds 1.400% — the icons
+  STILL don't paint despite the chain now resolving and the annotation
+  arm running without diagnostics; restaked with the next probe:
+  annotation-in-isolation through the ChartsBridge arm (suspects: the
+  omitted alignment parameter, or views.first coming up empty in the
+  annotation builder). The `.shadow(.drop)` pillar style remains the
+  other truck residue. Upstream alias-test completion still gates the
+  seventeen-commit merge.
