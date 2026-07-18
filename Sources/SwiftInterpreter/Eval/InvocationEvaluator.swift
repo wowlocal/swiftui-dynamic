@@ -640,7 +640,8 @@ extension Interpreter {
                     name, capturedValue,
                     declaredTypeName: captureTypeName(
                         for: capturedValue, ownership: ownership),
-                    referenceOwnership: ownership)
+                    referenceOwnership: ownership,
+                    isMutableBinding: false)
             }
         }
 
@@ -693,6 +694,7 @@ extension Interpreter {
             programPlan: currentProgramPlan)
         value.programState = currentProgramState
         value.lexicalExecutor = currentLexicalExecutor
+        value.isPhysicalSnapshotKernelCandidate = closure.signature == nil
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
         // only the value environment lets same-named nested types resolve in

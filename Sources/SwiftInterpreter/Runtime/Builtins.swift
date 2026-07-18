@@ -5,6 +5,7 @@ import Foundation
 /// Int/Double promotion. `&&`/`||`/`??` are short-circuited in the evaluator
 /// and never reach this table. Errors are unlocated `EvalMessage`s; the
 /// evaluator re-throws them with the operator node's source location.
+@MainActor
 public enum Builtins {
     /// A decoded integer operation. The tree evaluator still resolves source
     /// spellings on demand, while prepared semantic IR stores this compact tag

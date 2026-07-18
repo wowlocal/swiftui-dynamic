@@ -1,6 +1,7 @@
 /// Multicast change notification for observable model instances. Handlers are
 /// keyed by observer identity so re-subscription (every body evaluation) stays
 /// idempotent; observers hold themselves weakly inside their handlers.
+@MainActor
 public final class ChangeSignal {
     private var observers: [ObjectIdentifier: @MainActor () -> Void] = [:]
 
@@ -20,7 +21,7 @@ public final class ChangeSignal {
 /// retain the node directly. The representation is shared, the semantics are
 /// not: `RuntimeValue.copiedForValueSemantics()` is the ownership authority.
 @MainActor
-public final class Instance: CustomStringConvertible {
+public final class Instance: @preconcurrency CustomStringConvertible {
     public let symbol: StructSymbol
     /// Present only for source actors. The ID selects the logical actor
     /// executor independently of the host object's memory address and is the
@@ -115,7 +116,10 @@ extension Interpreter {
     }
 }
 
-public struct InterpretedGeneratorProxy: RandomNumberGenerator {
+@MainActor
+public struct InterpretedGeneratorProxy:
+    @preconcurrency RandomNumberGenerator
+{
     let interpreter: Interpreter
     let generator: Instance
 

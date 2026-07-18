@@ -656,6 +656,298 @@ intermediate program states, the pre-existing `hostTypeExtensions` regression,
 and origin/newer HostRegistry selection through both direct closure calls and
 runtime callback entries.
 
+Its thirtieth prerequisite verifies that the interpreter core no longer
+depends on target-wide MainActor default isolation. The architectural RED is a
+normal `SwiftInterpreter` build immediately after removing that target setting:
+every mutable evaluator/runtime edge that relied on implicit isolation must be
+made explicit, not hidden behind blanket `@unchecked Sendable`. Immutable
+descriptors and identifiers remain nonisolated and Sendable; mutable values,
+heap roots, symbol graphs, evaluator contexts, and runtime registries remain
+explicitly MainActor-confined until a later edge-by-edge worker policy exists.
+
+Closing evidence typechecks two fixtures against the built public module under
+Swift 6 complete strict concurrency. The positive fixture constructs runtime
+IDs and clock values in a `nonisolated` function. The negative fixture attempts
+to construct `RuntimeHeap`, `Interpreter`, and `RuntimeValue` there and must
+fail with MainActor-isolation diagnostics. A standalone native probe must also
+show detached immutable reads plus explicit MainActor mutation without
+asserting scheduling order. Because the production change is an isolation
+refactor, the semantic workflow is an already-GREEN characterization: the
+unchanged `task-owned-evaluator-context` case must preserve its complete
+100-event multiset in twenty native/interpreter repetitions. Focused ownership,
+module-boundary, and methodology tests must remain green. This prerequisite
+does not satisfy physical-worker, worker-safe heap, parallel-mode, or TSan
+requirements.
+
+Its thirty-first prerequisite establishes the fail-closed boundary that a
+future physical scheduler must consume. The exact native question is whether
+a detached task may read mutable MainActor state directly. Under Swift 6
+complete strict concurrency the positive probe copies `[2, 3, 5]` before
+detaching and must print exact `2,3,5,10|10`; the paired negative fixture reads
+the actor property inside `Task.detached` and must fail compilation with a
+MainActor isolation diagnostic. No worker start order is asserted.
+
+The runtime RED must be a compile failure caused by the absence of a worker
+capability and value-snapshot type. The closing implementation may retain only
+checked-Sendable immutable entry metadata and recursively copied values. It
+must exhaustively reject opaque host values, ordinary instances, actor
+instances, closures, host functions, nominal/enum symbols, and enum values at
+the exact nested path. It must add no `@unchecked Sendable` conformance.
+`RuntimeHeap` stored roots are compared against a named classification
+inventory; adding an unclassified root makes the test RED. A deliberately
+retained confined edge and an incomplete manifest must both be rejected by the
+executable admission predicate. The inverse snapshot-to-runtime conversion
+runs only on MainActor. The unchanged `task-owned-evaluator-context` board is
+the semantic characterization: this architectural slice does not claim that
+source evaluation has moved to physical workers. Physical scheduling,
+cooperative-versus-parallel parity, and TSan remain separate closing work.
+
+Its thirty-second prerequisite turns that data boundary into an actual, still
+internal physical-worker driver. The native probe must compile under complete
+strict concurrency without blocking APIs or unchecked Sendable wrappers. Two
+`Task.detached` jobs share only `Synchronization.Atomic` state; the first spins
+without suspension until release, so observing both entries first proves
+physical overlap rather than cooperative interleaving. The probe is bounded
+and must print exact `overlap:2` in twenty runs. No particular pthread, start
+order, or completion order is asserted.
+
+The runtime workflow is gap closure: tests first fail to compile because the
+job, driver, and configuration-error types do not exist. Closing code accepts
+only `RuntimeWorkerCapability`, an async Sendable operation, and a
+`RuntimeWorkerValueSnapshot` result. A configured bound limits real detached
+tasks; successful output is restored to input order; parent cancellation must
+cancel the detached task; one job failure must cancel a suspended sibling; and
+scope exit must release operation captures. Invalid nonpositive bounds fail as
+typed values. All waits are deadline-bounded and use checked-Sendable atomics.
+The unchanged `task-owned-evaluator-context` case remains the source-semantic
+oracle because no interpreted closure is routed through the driver yet. This
+prerequisite does not satisfy parallel source execution, mode parity, or TSan.
+
+Its thirty-third prerequisite routes the first demand-cited source operation
+through that boundary. The exact semantic question is whether explicit
+parallel mode can execute signature-free, argument-free `Task.detached`
+closures returning Sendable literals and publish the exact values through
+`await value`, without transferring the source closure, syntax, environment,
+runtime value graph, heap, host bridge, or evaluator to a worker. The native
+fixture must compile under Swift 6 complete strict concurrency with warnings as
+errors and return exact `atlas:42` in twenty bounded runs. That result proves
+the awaited values, not worker start/completion order or physical overlap; the
+thirty-second checked-Atomic probe remains the physical-overlap oracle.
+
+The workflow is gap closure. The recorded RED is a compile failure for the
+missing validated execution-mode/configuration types, initializer overload, and
+physical-source receipt. Closing code keeps cooperative mode as the default and
+preserves the legacy public initializer signatures. Parallel admission is
+fail-closed: only a source closure expression with no authored signature,
+arguments, parameters, builder transform, or extra statements, the ordinary
+enqueued launch policy, and exactly one representable literal expression/return
+may lower. All other shapes use the unchanged cooperative evaluator before any
+worker evaluation occurs.
+
+Lowering and result materialization are MainActor-isolated. The detached native
+operation captures only a checked capability and constant snapshot kernel, and
+the shared driver-wide permit pool enforces the configured bound across
+concurrent batches. A canceled queued waiter must be removed without consuming
+a later permit. Same-source parity explicitly selects parallel mode and requires
+exactly two successful physical-source receipts so cooperative fallback cannot
+make the case accidentally green. Focused evidence also covers default-mode
+behavior, mixed supported/unsupported bodies, authored-signature fallback,
+immediate-detached launch preservation, public-module typechecking of old and
+new initializers, invalid bounds, global capacity, cancellation, and cleanup.
+This prerequisite does not claim general evaluator parallelism, captured or
+suspending closures, heap access, scheduler order, speedup, full mode parity,
+or TSan cleanliness.
+
+Its thirty-fourth prerequisite establishes a scoped runtime-mode differential
+and Thread Sanitizer board before admitting richer worker kernels. This is an
+already-GREEN characterization, not a semantic gap closure: the production
+driver and literal source kernel passed the first manual sanitized run, so no
+runtime RED or behavior change is invented. The exact questions are whether
+the demand-cited literal fixture returns the same value in cooperative and
+parallel modes with distinct zero/two physical receipts, and whether the
+currently admitted physical boundary reports any data race under TSan.
+
+The existing checked-Atomic native overlap fixture remains the physical oracle.
+It compiles under Swift 6 complete strict concurrency with warnings as errors
+and `-sanitize=thread`, performs twenty bounded overlap repetitions within one
+instrumented process, and prints exact `overlap:2`. One process avoids paying
+sanitizer startup twenty times without weakening the repetition count. The
+same-source mode test reads the committed `parallel-literal-detached` fixture
+and performs twenty paired interpreter runs. Each pair must return exact
+`atlas:42`, drain both task registries, record zero physical kernels in default
+cooperative mode, and exactly two in explicit parallel mode.
+
+The sanitizer runner uses an independent `.build-tsan` cache and executes the
+prebuilt driver/source-kernel suites with parallel workers. SwiftPM's testing
+helper loads a Mach-O test bundle dynamically, so the TSan runtime must be
+inserted before the helper starts. The first direct-prebuilt attempt exposed a
+false-green hazard: TSan printed "interceptors not installed" but the helper
+exited zero. The committed runner passes the runtime path through the protected
+shell boundary, sets `DYLD_INSERT_LIBRARIES` immediately before the helper, and
+fails on either interceptor diagnostic regardless of exit status. A
+methodology test pins those source-level requirements. Build work has a
+600-second wall deadline; native and prebuilt execution each have 60 seconds,
+and timeout terminates the isolated process group rather than leaving compiler
+or test descendants alive. This receipt is scoped:
+captured/scalar-expression and suspending kernels, actors, host calls, heap
+access, and the full parallel mode still require expanded mode-differential and
+TSan coverage.
+
+The `SwiftInterpreterTests` target is MainActor-isolated by default, but the
+physical-worker driver probes are explicitly `nonisolated`. They hop to
+`MainActor.run` only to project a checked Sendable capability, then perform
+worker launch, cancellation, permit, and deadline orchestration off the shared
+MainActor test queue. Otherwise one `Task.yield()` can place the controlling
+probe behind hundreds of unrelated tests while its detached workers consume
+their bounded deadlines, creating a deterministic load-induced false RED. The
+closing gate also resolves both `swift` and `swiftc` through the same `xcrun`
+selection and derives the prebuilt helper from that driver's runtime resource;
+ambient Swiftly or Homebrew PATH entries cannot mix the build/runtime with a
+different native oracle.
+
+Its thirty-fifth prerequisite is a gap closure for the first demand-cited
+captured scalar expression. CotEditor's `EditorCounter.swift:130` executes
+`await Task.detached { string.count }.value`, where `string` is a local
+immutable `String`. The exact semantic question is whether that operation can
+publish the native grapheme count in explicit parallel mode while no mutable
+binding, global storage, evaluator object, or syntax node crosses the worker
+boundary. Apple Swift 6.3.3 compiled the same-source fixture in complete strict
+Swift 6 mode with warnings as errors and returned exact `5:9` in twenty
+bounded runs. Each native five-repetition shard reported SHA-256
+`056cf461832cc0054882f24a52cbebddce0d96374179c21cc2f13e22eea43f3e`;
+no worker order is asserted.
+
+The captured RED was intentionally receipt-based: interpreted behavior already
+returned `5:9` through cooperative fallback, but parallel mode recorded zero
+physical source executions instead of two. Closing code preserves the legacy
+public `Box` initializer and `Environment.define` signatures while retaining
+source `let`/`var` mutability inside each evaluator box. MainActor lowering
+admits only a locally owned immutable String binding, copies it recursively
+into `RuntimeWorkerCapability`, and emits typed binding-plus-`String.count`
+expression IR. Mutable bindings, globals, authored closure signatures, and all
+other expressions remain on the confined cooperative evaluator.
+
+Twenty paired cooperative/parallel runs preserve exact `5:9`, empty task
+registries, and zero/two receipts. The same source-kernel suite is part of the
+dedicated TSan runner, which rebuilt and passed the twenty-iteration native
+overlap probe plus all seventeen driver/source-kernel tests on four workers.
+This expands the scoped sanitizer claim only to the new immutable-String-count
+kernel; future physical kernels must extend both boards again. The canonical
+ordinary focused iteration rebuilt once, then completed 59 tests in ten
+ownership/capture/worker suites, all forty-three methodology checks, and all
+twenty parity repetitions in nineteen seconds; its post-build lanes each took
+about two seconds.
+
+Its thirty-sixth prerequisite is a gap closure for CotEditor's next
+demand-cited captured scalar expression. `EditorCounter.swift:176` executes
+`await Task.detached { selectedStrings.map(\.count).reduce(0, +) }.value`,
+where `selectedStrings` is a local immutable `[Substring]`. The exact semantic
+question is whether explicit parallel mode may publish the sum of Swift
+grapheme counts while only a recursive value snapshot and typed IR cross the
+worker boundary. Worker start and completion order are not asserted.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete strict Swift 6
+mode with warnings as errors and returned exact `6:10` in twenty bounded runs.
+Each native five-repetition shard reported SHA-256
+`ddbe36d8251c2e1a3d3d558a0e0796e114031f85a98cde26c8536d13562ab0ed`.
+The captured RED was receipt-based: interpreted behavior already returned
+`6:10` through cooperative fallback, but explicit parallel mode recorded zero
+physical source executions instead of two.
+
+MainActor lowering admits only the exact `map(\.count).reduce(0, +)` syntax, a
+capture box owned directly by the closure environment, an immutable source
+binding, and an array whose recursively copied elements are String snapshots.
+It emits one executor-neutral String-count-sum node. The worker performs Swift
+grapheme counts and checked integer addition only. Mutable bindings, globals,
+alternate seeds, authored signatures, alternate map spellings, and every
+non-String element remain cooperative before any worker evaluation occurs.
+
+Twenty paired cooperative/parallel runs preserve exact `6:10`, empty task
+registries, and zero/two receipts. The dedicated TSan runner rebuilt its cache
+and passed the twenty-iteration native overlap probe plus all twenty
+driver/source-kernel tests on four workers, with no interceptor or race
+diagnostic. The complete sanitized board took 146 seconds, including a
+137-second rebuild. This extends the claim only to the exact immutable
+Substring-array count reduction; every future physical kernel must extend both
+the mode differential and sanitizer board again. The canonical prebuilt
+focused iteration completed 57 tests in nine ownership/worker suites, all
+forty-three methodology checks, and all twenty parity repetitions on four
+workers in five seconds.
+
+Its thirty-seventh prerequisite is a gap closure for
+swift-composable-architecture's demand-cited
+`await Task.detached(priority: .background) { await Task.yield() }.value`.
+The exact semantic question is whether explicit parallel mode may execute that
+single suspending operation on a real detached worker and publish its awaited
+`Void`, while only an empty checked capability and typed yield command cross
+the worker boundary. Apple Swift 6.3.3 compiled the same-source fixture in
+complete strict Swift 6 mode with warnings as errors and returned exact
+`yielded:2` in twenty bounded runs. Each native five-repetition shard reported
+SHA-256
+`a8da6accf02cddfd0779ab299c9ccaf8f75d2092aa1704824745f6c197af7e8c`.
+The sequential calls prove completion only, not a worker thread or scheduler
+order.
+
+Both recorded REDs were receipt-based: the interpreter already returned the
+right value through cooperative fallback, while parity and a direct runtime
+test observed zero physical executions instead of two. Admission requires an
+ordinary signature-free, argument-free, single-expression detached closure and
+the exact zero-argument `await Task.yield()` syntax. MainActor emits a typed
+`taskYield` kernel and empty capability; the physical operation invokes native
+`Task.yield()` asynchronously and returns a `Void` snapshot. Authored async
+signatures, multiple statements, alternate calls, and captures fail closed to
+the unchanged cooperative evaluator before worker submission.
+
+Twenty paired mode runs require exact `yielded:2`, zero/two receipts, and empty
+registries. The scoped TSan runner rebuilt with the same Xcode toolchain in 97
+seconds, passed twenty native overlap iterations, and ran all twenty-three
+driver/source-kernel tests on four workers; the complete board took 106 seconds
+without a race or interceptor diagnostic. The canonical focused iteration
+completed eighty-three tests in nine ownership/worker suites, all forty-three
+methodology checks, and all twenty parity repetitions on four workers in four
+seconds. This is evidence for only the exact
+yield command. Captured suspending bodies, richer async expressions, general
+evaluator work, actors, host calls, and heap access remain outside the worker
+boundary.
+
+Its thirty-eighth prerequisite is a gap closure for CotEditor's demand-cited
+`Task.detached { string.distance(from: string.startIndex, to: location) }`.
+The exact question is whether explicit parallel mode can copy an immutable
+String and a String.Index derived from it, execute Swift's grapheme-aware
+distance on a real worker, and publish the same value. The fixture also cancels
+a third non-checking task before awaiting it, pinning Swift's cooperative
+cancellation rule: the value still completes while the handle remains marked
+cancelled. Apple Swift 6.3.3 compiled the fixture in complete strict Swift 6
+mode with warnings as errors and returned exact `2:5|2:true` in twenty bounded
+runs. Every native five-repetition shard reported SHA-256
+`da866620191667df04f2901b8f5ca2478e97f730df4787c6d7c5b18260518f28`.
+
+The first RED was receipt-based: cooperative fallback already returned the
+correct distances, but explicit parallel mode recorded zero physical
+executions instead of two. The first production pass exposed a second RED:
+native-driver cancellation escaped into the finite worker operation and threw
+`CancellationError` instead of publishing `2`. The source-kernel path now
+isolates finite physical work from logical source cancellation, while the
+ordinary driver API continues to forward infrastructure cancellation.
+
+MainActor admission requires the exact `distance(from: string.startIndex,
+to: location)` shape, the same String reference for the receiver and
+`startIndex`, and directly owned immutable String and String.Index captures.
+Only typed copies enter the checked capability; the worker receives typed
+start-index/distance IR. Mutable bindings, globals, alternate `from:`
+expressions, authored signatures, and all other shapes remain cooperative.
+Twenty paired mode runs preserve exact `2:5|2:true`, empty registries, and
+zero/three receipts. The incremental scoped TSan board passed twenty native
+overlap iterations and all twenty-eight driver/source-kernel tests on four
+workers in fifty seconds without a race or interceptor diagnostic. The
+canonical focused iteration completed eighty-nine ownership/worker tests in
+nine suites, all forty-three methodology checks (the forty-test board plus
+three source-bound gate checks), and all twenty parity repetitions on four
+workers in two seconds. No
+String.Index provenance beyond Swift's own copied value semantics, native
+thread identity, unrelated scheduling order, or general cancellation-checking
+kernel is asserted.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

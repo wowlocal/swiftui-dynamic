@@ -4,6 +4,7 @@
 /// `RuntimeValue` cases; opaque framework values alone flow through `.host`.
 /// Evaluators switch on this view when they do not need to distinguish the
 /// physical storage case, while gateways retain the `hostPayload` adapter.
+@MainActor
 public enum RuntimePayload {
     case void
     case nilValue

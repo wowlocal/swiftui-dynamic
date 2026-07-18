@@ -1,6 +1,7 @@
 /// The source token is a small capability over a runtime-owned continuation
 /// record. It deliberately retains only the record identity after completion;
 /// an escaped token cannot keep its task, session, or interpreter alive.
+@MainActor
 final class RuntimeCheckedContinuation: RuntimeConcurrencyHostValue {
     weak var runtime: CooperativeConcurrencyRuntime?
     let id: RuntimeContinuationID
@@ -98,6 +99,7 @@ final class RuntimeCheckedContinuation: RuntimeConcurrencyHostValue {
     }
 }
 
+@MainActor
 enum RuntimeContinuationState {
     case pending
     case resumed(RuntimeValue)
@@ -107,6 +109,7 @@ enum RuntimeContinuationState {
 
 /// Mutable continuation lifecycle owned by `CooperativeConcurrencyRuntime`
 /// and linked from exactly one source task while active.
+@MainActor
 final class RuntimeContinuationRecord {
     let id: RuntimeContinuationID
     let ownerTaskID: RuntimeTaskID

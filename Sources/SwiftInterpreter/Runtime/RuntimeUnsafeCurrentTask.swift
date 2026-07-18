@@ -5,14 +5,16 @@
 /// handle, and creating one here would add an ownership edge. The runtime is
 /// weak because Swift guarantees the capability only for the dynamic extent
 /// of the operation.
+@MainActor
 final class RuntimeUnsafeCurrentTaskLease {
     private(set) var isValid = true
 
     func invalidate() { isValid = false }
 }
 
+@MainActor
 final class RuntimeUnsafeCurrentTask: HostValueSemantic,
-    HostRuntimeEquatable, CustomStringConvertible {
+    HostRuntimeEquatable, @preconcurrency CustomStringConvertible {
     private weak var runtime: CooperativeConcurrencyRuntime?
     private let runtimeIdentity: ObjectIdentifier
     private let lease: RuntimeUnsafeCurrentTaskLease

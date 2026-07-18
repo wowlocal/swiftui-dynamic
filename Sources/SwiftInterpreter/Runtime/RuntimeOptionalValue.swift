@@ -9,6 +9,7 @@
 /// This node is reference-backed so the hot `RuntimeValue` enum can keep a
 /// direct case while still representing recursively nested optionals.  The
 /// node is immutable, so sharing it does not change value semantics.
+@MainActor
 public final class RuntimeOptionalValue {
     public let wrapped: RuntimeValue?
     public let wrappedTypeName: String?
@@ -47,6 +48,7 @@ public final class RuntimeOptionalValue {
 }
 
 /// A non-lossy one-level view used by Optional language operations.
+@MainActor
 public enum RuntimeOptionalState {
     case notOptional
     case none(wrappedTypeName: String?)

@@ -1,6 +1,7 @@
 /// Eager member lookup retains all established precedence rules, but cannot
 /// itself await an effectful host getter. The async evaluator resolves this
 /// private carrier immediately after lookup and never exposes it to source.
+@MainActor
 final class PendingHostPropertyRead {
     let property: HostProperty
     let receiver: RuntimeValue

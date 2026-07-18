@@ -3,11 +3,13 @@ import Foundation
 /// Source-facing metadata for interpreter-owned concurrency carriers. Keeping
 /// this beside the runtime values lets type and protocol checks stay generic;
 /// evaluator dispatch still keys on concrete capabilities, never source names.
+@MainActor
 protocol RuntimeConcurrencyHostValue: AnyObject {
     var sourceTypeName: String { get }
     var sourceProtocolNames: [String] { get }
 }
 
+@MainActor
 private enum RuntimeAsyncStreamNext {
     case value(RuntimeValue)
     case finished
@@ -61,7 +63,10 @@ private enum RuntimeAsyncStreamTermination: CustomStringConvertible {
     }
 }
 
-private enum RuntimeAsyncThrowingStreamTermination: CustomStringConvertible {
+@MainActor
+private enum RuntimeAsyncThrowingStreamTermination:
+    @preconcurrency CustomStringConvertible
+{
     case cancelled
     case finished(RuntimeValue?)
 
@@ -77,6 +82,7 @@ private enum RuntimeAsyncThrowingStreamTermination: CustomStringConvertible {
     }
 }
 
+@MainActor
 private final class RuntimeAsyncStreamWaiter {
     let taskID: RuntimeTaskID
     let continuation: CheckedContinuation<RuntimeAsyncStreamNext, Never>
@@ -90,7 +96,8 @@ private final class RuntimeAsyncStreamWaiter {
     }
 }
 
-enum RuntimeAsyncStreamYieldResult: CustomStringConvertible {
+@MainActor
+enum RuntimeAsyncStreamYieldResult: @preconcurrency CustomStringConvertible {
     case enqueued(remaining: Int)
     case dropped(RuntimeValue)
     case terminated
@@ -122,6 +129,7 @@ private enum RuntimeAsyncStreamBufferingPolicy {
     }
 }
 
+@MainActor
 final class RuntimeAsyncStreamStorage {
     weak var runtime: CooperativeConcurrencyRuntime?
     weak var callbackOwner: Interpreter?
@@ -348,6 +356,7 @@ final class RuntimeAsyncStreamStorage {
     }
 }
 
+@MainActor
 final class RuntimeAsyncStreamSequence: RuntimeConcurrencyHostValue {
     let storage: RuntimeAsyncStreamStorage
 
@@ -363,6 +372,7 @@ final class RuntimeAsyncStreamSequence: RuntimeConcurrencyHostValue {
     var sourceProtocolNames: [String] { ["AsyncSequence"] }
 }
 
+@MainActor
 final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue,
     HostValueSemantic {
     let storage: RuntimeAsyncStreamStorage
@@ -408,6 +418,7 @@ final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue,
     }
 }
 
+@MainActor
 final class RuntimeAsyncStreamContinuation: RuntimeConcurrencyHostValue {
     /// Producer handles do not own native stream lifetime. The sequence
     /// and its iterators retain storage; once those owners disappear, this

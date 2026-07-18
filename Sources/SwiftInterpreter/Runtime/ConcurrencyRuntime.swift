@@ -130,6 +130,7 @@ public struct RuntimeTaskPriority: Hashable, Sendable, Comparable,
 
     public var description: String { "TaskPriority(rawValue: \(rawValue))" }
 
+    @MainActor
     static func sourceValue(_ value: RuntimeValue?) throws -> Self? {
         guard let value, !value.isNil else { return nil }
         if case .host(let payload) = value,
@@ -160,6 +161,7 @@ public struct RuntimeTaskPriority: Hashable, Sendable, Comparable,
 /// Converts the source-facing `String?` accepted by task creation APIs into
 /// immutable task-record metadata. Optional payloads are unwrapped exactly
 /// once; an empty string remains a real name and is never normalized to nil.
+@MainActor
 enum RuntimeTaskName {
     static func sourceValue(_ value: RuntimeValue?) throws -> String? {
         guard let value,
@@ -178,6 +180,7 @@ enum RuntimeTaskName {
 /// supports only the native `nil` spelling, which requests no custom task
 /// executor. Any non-nil value must fail closed instead of being silently
 /// downgraded to the cooperative default executor.
+@MainActor
 enum RuntimeTaskExecutorPreference {
     static func requireSupportedNil(
         _ value: RuntimeValue?, api: String
@@ -193,6 +196,7 @@ enum RuntimeTaskExecutorPreference {
 /// conflating it with task lineage. The current incremental runtime can make
 /// the native synchronous-prefix guarantee only when caller and operation are
 /// both MainActor-isolated; every other legal Swift shape remains fail-closed.
+@MainActor
 enum RuntimeImmediateOperationExecutor {
     static func supportedExecutor(
         operation: ClosureValue,
@@ -362,6 +366,7 @@ struct InterpreterSessionAbort: Error {}
 /// the callback synchronously from the task that requests cancellation, just
 /// as native `Task.cancel()` does; the closure's lexical captures remain its
 /// own, while task-local dynamic context belongs to the cancelling task.
+@MainActor
 private final class RuntimeCancellationHandlerRegistration {
     let id: RuntimeCancellationHandlerID
     let invoke: @MainActor () throws -> Void
@@ -379,6 +384,7 @@ private final class RuntimeCancellationHandlerRegistration {
 /// One dynamically-scoped source priority-escalation handler. Priority
 /// donation updates the target task before invoking every active registration;
 /// adding a registration never replays an escalation that happened earlier.
+@MainActor
 private final class RuntimePriorityEscalationHandlerRegistration {
     let id: RuntimePriorityEscalationHandlerID
     let invoke: @MainActor (
@@ -399,7 +405,7 @@ private final class RuntimePriorityEscalationHandlerRegistration {
 /// Native execution resource retained only while a runtime task is active.
 /// Keeping this as a reference object makes ownership independently testable:
 /// a completed source handle must not retain either this driver or its task.
-final class RuntimeNativeTaskDriver {
+nonisolated final class RuntimeNativeTaskDriver: Sendable {
     let task: Task<Void, Never>
 
     init(task: Task<Void, Never>) {
@@ -410,6 +416,7 @@ final class RuntimeNativeTaskDriver {
 /// Mutable lifecycle record owned by the cooperative concurrency runtime.
 /// A source-level handle refers to this record only while execution is active;
 /// `release(_:)` replaces that edge with a compact completion snapshot.
+@MainActor
 final class RuntimeTaskRecord {
     let id: RuntimeTaskID
     let entry: RuntimeEntry
@@ -489,11 +496,12 @@ final class RuntimeTaskRecord {
 /// One lexical structured-concurrency scope owned by a source task. Child
 /// task records remain in the task graph, while this record identifies the
 /// subset whose lifetime must be closed before the lexical block can exit.
-enum RuntimeStructuredScopeKind {
+nonisolated enum RuntimeStructuredScopeKind: Sendable {
     case asyncLet
     case taskGroup
 }
 
+@MainActor
 final class RuntimeStructuredScopeRecord {
     let id: RuntimeStructuredScopeID
     let ownerTaskID: RuntimeTaskID
@@ -514,6 +522,7 @@ final class RuntimeStructuredScopeRecord {
 /// Runtime identity and structured ownership for one source task group.
 /// Source-facing mutation stays on `RuntimeTaskGroup`; the scheduler record
 /// keeps only task IDs and the shared lexical scope edge.
+@MainActor
 final class RuntimeTaskGroupRecord {
     let id: RuntimeTaskGroupID
     let ownerTaskID: RuntimeTaskID
@@ -584,6 +593,7 @@ final class RuntimeTaskGroupRecord {
 /// Runtime ownership for one live AsyncStream storage. Source values own the
 /// storage itself; this record owns only task-wait edges, so registering a
 /// stream cannot extend its source lifetime.
+@MainActor
 final class RuntimeAsyncStreamRecord {
     let id: RuntimeAsyncStreamID
     var waitingTaskIDs: Set<RuntimeTaskID> = []
@@ -599,6 +609,7 @@ final class RuntimeAsyncStreamRecord {
 /// The mailbox serializes source-task entry into actor execution segments;
 /// it is deliberately independent from the physical MainActor host on which
 /// the cooperative evaluator currently runs.
+@MainActor
 final class RuntimeActorRecord {
     let id: RuntimeActorID
     weak var instance: Instance?
@@ -617,7 +628,7 @@ final class RuntimeActorRecord {
     }
 }
 
-struct RuntimeActorExecutorLease: Equatable {
+nonisolated struct RuntimeActorExecutorLease: Equatable, Sendable {
     let actorID: RuntimeActorID
     let taskID: RuntimeTaskID
 }
@@ -626,7 +637,7 @@ struct RuntimeActorExecutorLease: Equatable {
 /// suspended. Nested same-actor invocations contribute one depth apiece; the
 /// whole segment is released together and restored before source evaluation
 /// resumes so outstanding invocation leases remain balanced.
-struct RuntimeActorExecutorSuspension: Equatable {
+nonisolated struct RuntimeActorExecutorSuspension: Equatable, Sendable {
     let actorID: RuntimeActorID
     let taskID: RuntimeTaskID
     let depth: Int
@@ -636,13 +647,13 @@ struct RuntimeActorExecutorSuspension: Equatable {
 /// low-level task state transition and executor ownership move together so a
 /// new suspension kind cannot accidentally park a task while retaining an
 /// actor.
-struct RuntimeTaskSuspensionLease: Equatable {
+nonisolated struct RuntimeTaskSuspensionLease: Equatable, Sendable {
     let taskID: RuntimeTaskID
     let reason: RuntimeSuspension
     let actorExecutor: RuntimeActorExecutorSuspension?
 }
 
-private final class RuntimeActorMailboxWaiter {
+private nonisolated final class RuntimeActorMailboxWaiter: Sendable {
     let taskID: RuntimeTaskID
     let ownerDepth: Int
     let continuation: CheckedContinuation<Void, Never>
@@ -658,6 +669,7 @@ private final class RuntimeActorMailboxWaiter {
     }
 }
 
+@MainActor
 final class CooperativeConcurrencyRuntime {
     private static let maximumActorMailboxWaiters = 1_024
     private static let maximumLiveContinuations = 1_024
@@ -704,6 +716,10 @@ final class CooperativeConcurrencyRuntime {
     private(set) var asyncStreamSuspensionCount = 0
     private(set) var totalContinuationsCreated = 0
     private(set) var continuationSuspensionCount = 0
+    /// Monotonic test/diagnostic receipt for source operations that actually
+    /// crossed the checked physical-worker boundary. Planning or cooperative
+    /// fallback does not increment it.
+    private(set) var totalPhysicalSourceKernelExecutions = 0
     /// Swift callback types such as `AsyncStream.Continuation.onTermination`
     /// are nonthrowing, but evaluating their source bodies can still uncover
     /// an interpreter/runtime failure. Destruction cannot throw, so retain the
@@ -717,6 +733,10 @@ final class CooperativeConcurrencyRuntime {
     ) {
         self.clock = clock
         self.diagnostics = diagnostics
+    }
+
+    func recordPhysicalSourceKernelExecution() {
+        totalPhysicalSourceKernelExecutions += 1
     }
 
     func createEntry(

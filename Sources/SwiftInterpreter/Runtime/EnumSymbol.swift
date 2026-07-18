@@ -2,6 +2,7 @@ import SwiftSyntax
 
 /// A user-defined enum: cases (with resolved raw values and associated-value
 /// arity), methods, computed properties, and statics.
+@MainActor
 public final class EnumSymbol {
     public struct Case {
         public let name: String
@@ -53,7 +54,8 @@ public final class EnumSymbol {
 }
 
 /// A value of an interpreted enum: the case name plus any associated values.
-public final class EnumCaseValue: CustomStringConvertible {
+@MainActor
+public final class EnumCaseValue: @preconcurrency CustomStringConvertible {
     public let symbol: EnumSymbol
     public let name: String
     public let associated: [RuntimeValue]

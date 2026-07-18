@@ -684,6 +684,30 @@ registry. Focused tests prove inherited lookup, one-way overlay isolation,
 release of empty intermediate states, and both direct-call and runtime-entry
 registry provenance.
 
+The thirtieth prerequisite removes `defaultIsolation(MainActor.self)` from the
+`SwiftInterpreter` target. This is an isolation-boundary change, not a
+scheduler change: `Interpreter`, `RuntimeHeap`, `RuntimeProgramState`,
+`CooperativeConcurrencyRuntime`, evaluator contexts, runtime values, symbol
+graphs, environments, boxes, instances, and their mutable helper carriers now
+declare `@MainActor` directly. Executor-neutral identifiers, durations,
+immutable descriptors, syntax-only helpers, and native task/continuation
+carriers declare `Sendable` or `nonisolated` where their stored state permits
+it. No blanket `@unchecked Sendable` conformance was introduced.
+
+Removing the target default produced the architectural RED: the compiler
+reported every evaluator/runtime dependency that had relied on implicit
+isolation. A public-module Swift 6 typecheck now accepts off-actor construction
+of `RuntimeSessionID`, `RuntimeTaskID`, `RuntimeInstant`, and
+`RuntimeDuration`, while a negative fixture rejects off-actor construction of
+`RuntimeHeap`, `Interpreter`, and `RuntimeValue`. A standalone strict Swift 6
+probe read immutable program data from a detached task and mutated an explicit
+MainActor heap, returning exact `14:7` in twenty runs. The unchanged
+`task-owned-evaluator-context` same-source oracle preserves its 100-event
+multiset in twenty native/interpreter repetitions. The focused board completed
+48 ownership/isolation tests in five suites, all forty-two methodology checks,
+and both compile-boundary tests in two seconds. Physical workers, worker-safe
+heap access, cooperative-versus-parallel parity, and TSan remain open.
+
 The stable target separates five concerns:
 
 ```text
@@ -814,12 +838,16 @@ validate the active toolchain but are not historical receipts.
 
 ## 4. Current architecture and its ceiling
 
-### 4.1 Package-wide main-actor isolation
+### 4.1 Explicit interpreter isolation; MainActor-default UI boundary
 
-The package currently applies `defaultIsolation(MainActor.self)` broadly. This
-protects the mutable interpreter and fits SwiftUI, but it also means all source
-tasks ultimately execute through one native actor. Interleaving is possible at
-suspension points; physical parallelism is not.
+The `SwiftInterpreter` target no longer applies
+`defaultIsolation(MainActor.self)`. Immutable and value-semantic descriptors
+therefore remain executor-neutral by default, while mutable evaluator, runtime,
+symbol, value, and heap capabilities declare `@MainActor` at their actual
+ownership boundary. `SwiftUIBridge`, UI executables, and their tests retain
+MainActor default isolation because that is their host contract. Source tasks
+still ultimately execute evaluator work through one native actor: interleaving
+is possible at suspension points, but physical parallelism is not.
 
 Keeping the interpreter on the main actor is acceptable during the cooperative
 executor phases. It must not be confused with source-level `@MainActor`
@@ -834,7 +862,7 @@ cooperative phase; returning the evaluator's physical thread would collapse
 the two abstraction layers. This projection does not claim physical
 parallelism.
 
-Eventually the targets should separate:
+The longer-term target split remains:
 
 - `SwiftInterpreterCore`: executor-neutral runtime and evaluator;
 - `SwiftUIBridge`: `@MainActor`-isolated UI integration;
@@ -1199,13 +1227,103 @@ parallel execution, every heap access must be classified as:
 - copied across the boundary;
 - rejected as non-`Sendable`.
 
-Current implementation stage (2026-07-17): `RuntimeHeap` is the explicit
+Current implementation stage (2026-07-18): `RuntimeHeap` is the explicit
 MainActor-confined owner of the global environment, synthesized environment
 models, and SwiftUI state cells. The legacy `Interpreter.globals` surface
 forwards to that same root. The explicit `runAsync` session binds this heap,
-but declaration/evaluator migration, callback-session unification, runtime
-registry isolation, and worker-safe access policy remain separate M9 work; no
-heap object is currently handed to a physical worker.
+but declaration/evaluator migration, callback-session unification, and runtime
+registry isolation remain separate M9 work; no heap object is currently handed
+to a physical worker.
+
+Worker-admission stage (2026-07-18): a `RuntimeEntry` can now project a
+structurally `Sendable` `RuntimeWorkerCapability`. The projection retains only
+entry identity plus immutable `ResolvedProgramPlan`/`ParsedProgramMetadata`
+and recursively copies the admitted `RuntimeValue` subset into an immutable
+snapshot. It has no heap, program-state, interpreter, environment, box,
+instance, closure, symbol, or opaque-host reference. Every current
+`RuntimeHeap` stored root is inventoried as MainActor-confined and excluded;
+the test inventory is compared with the heap's actual stored-property labels
+so a future root requires an explicit policy update. Every `RuntimeValue` case
+is handled by one exhaustive transfer switch: scalar and container graphs are
+copied, actor instances are actor-confined, ordinary interpreted references
+are MainActor-confined, and opaque host values are rejected as non-Sendable.
+Nested rejection reports the exact value path and returns no partial
+capability. This is a fail-closed data boundary for future pure worker kernels,
+not permission to run the evaluator or touch the heap on a physical worker.
+
+Physical-driver stage (2026-07-18): `RuntimePhysicalWorkerDriver` is an
+explicit bounded executor for those capabilities. Each active slot owns one
+real `Task.detached`; one shared FIFO permit pool enforces the configured limit
+across concurrent batches, while each throwing task group preserves input order
+on success, forwards structured cancellation into the detached native task,
+cancels siblings on failure, and drains every slot before scope exit. Invalid
+bounds fail as values. Tests use checked-Sendable atomics: two nonsuspending
+spin jobs must enter before release, proving physical overlap, while a third
+remains outside a two-worker bound. Cancellation, queued-waiter removal,
+sibling failure, empty input, and operation-capture release are separately
+pinned.
+
+Source-kernel stage (2026-07-18): cooperative remains the default. Explicit
+parallel mode admits only ordinary enqueued `Task.detached` source closures
+with no authored signature, arguments, parameters, builder transform, extra
+statements, or unmodeled expression. MainActor lowers literals to a constant
+snapshot kernel and empty checked capability. The first corpus-demanded scalar
+expression, CotEditor's `Task.detached { string.count }`, is admitted only when
+`string` resolves to a locally captured source `let` whose runtime value is a
+String. MainActor copies it into the checked capability and emits typed
+binding-plus-String-count IR. Mutable/global captures and every other shape
+retain cooperative evaluation; only copied Sendable values and typed IR cross
+to the driver, and MainActor materializes the result.
+
+The second corpus-demanded scalar expression is CotEditor's
+`Task.detached { selectedStrings.map(\.count).reduce(0, +) }`, where the local
+immutable value is `[Substring]`. Admission requires that exact zero-seed
+key-path/reduction spelling and a directly owned immutable array whose runtime
+elements all copy as String snapshots. MainActor recursively copies the array
+and emits one typed String-count-sum node. Mutable bindings, globals, alternate
+seeds, closure-map spellings, and non-String elements remain cooperative.
+
+The first corpus-demanded suspending command is
+swift-composable-architecture's
+`Task.detached(priority: .background) { await Task.yield() }`. Admission
+requires one signature-free zero-argument `await Task.yield()` expression.
+MainActor emits typed `taskYield` IR and an empty checked capability; the real
+detached worker invokes native `Task.yield()` and returns a `Void` snapshot.
+Authored signatures, multiple statements, captures, and alternate calls remain
+cooperative before worker submission.
+
+The third corpus-demanded scalar expression is CotEditor's
+`Task.detached { string.distance(from: string.startIndex, to: location) }`.
+Admission requires directly owned immutable String and String.Index captures,
+the same String reference for the receiver and `startIndex`, and the exact
+label/expression shape. MainActor copies both typed values and emits typed
+start-index/distance IR. Mutable or global bindings, alternate `from:`
+expressions, authored signatures, and all other forms remain cooperative. A
+finite source-kernel execution is isolated from logical source-task
+cancellation so a non-checking cancelled body still publishes its value; the
+ordinary physical-driver API retains infrastructure-cancellation forwarding.
+
+Scoped sanitizer stage (2026-07-18): `run-concurrency-tsan.sh` owns a separate
+sanitized build cache. Its native checked-Atomic overlap executable performs
+twenty bounded repetitions in one process, and its prebuilt test bundle runs
+the driver plus source-kernel suites in parallel. The runner loads the TSan
+runtime before SwiftPM's bundle helper and rejects both a nonzero exit and the
+otherwise-zero-exit "interceptors not installed" diagnostic. A twenty-pair
+same-source test requires cooperative and parallel modes to return the same
+`atlas:42`, with zero versus two physical receipts and empty task registries.
+A second twenty-pair test requires exact `5:9` and the same zero/two receipt
+split for the immutable-String-count kernel. A third requires exact `6:10` and
+the same receipt split for the immutable-Substring-array count reduction. A
+fourth requires exact `yielded:2`, empty registries, and the same receipt split
+for the typed yield command. A fifth requires exact `2:5|2:true`, empty
+registries, and zero/three receipts for the typed String/String.Index distance
+kernel including immediate cooperative cancellation. All twenty-eight
+driver/source-kernel tests run under TSan. This receipt covers only the
+checked driver, constant snapshot kernel, typed immutable-String-count kernel,
+typed immutable-Substring-array reduction, exact no-capture `Task.yield`, and
+typed immutable String/String.Index-distance kernels; future value shapes,
+captured or richer suspending work, actor, host, or heap-capable kernels
+require their own expanded differential and sanitizer evidence.
 
 ### 6.4 `EvaluationTaskContext`
 
@@ -2858,9 +2976,18 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Physical execution remains absent until the
-  runtime supplies confinement/synchronization plus TSan and cooperative-
-  versus-parallel semantic evidence.
+  covered. Five narrow physical paths now exist behind a validated explicit
+  mode: a signature-free, argument-free, single-literal `Task.detached`
+  closure; the CotEditor-cited `string.count` spelling when `string` is a
+  locally captured immutable String; and CotEditor's
+  `selectedStrings.map(\.count).reduce(0, +)` spelling over a local immutable
+  `[Substring]`; swift-composable-architecture's exact no-capture
+  `Task.detached(priority: .background) { await Task.yield() }` command; and
+  CotEditor's exact immutable String/String.Index `distance(from:to:)`
+  spelling. All five lower to checked snapshot kernels
+  and have paired cooperative/parallel plus TSan evidence. The general
+  evaluator, mutable/global captures, heap, source closures, environments,
+  actors, and host gateways remain MainActor-confined.
 
 M5 was intentionally decomposed, and its slices were ordered so that no flip to
 fail-closed rejection lands before the replacement runtime exists. The covered
@@ -3309,12 +3436,85 @@ modifiers, failable/Codable classification, and isolation facts through one
 shared closure builder. The `initializer-declaration-metadata` fixture has
 exact twenty-run parity for inherited MainActor isolation, explicit
 nonisolation, failable outcomes, and preservation across an actor hop.
-These slices separate immutable program input, mutable storage, and execution
-identity without changing scheduling. Remaining member families, call-site, and
-compiler metadata indexing remains incomplete, and mutable
-symbol materialization plus evaluator state must move fully behind the session;
-worker-safe heap classification, physical worker scheduling,
-cooperative-versus-parallel parity, and TSan evidence remain open.
+The core target now declares its mutable actor boundaries explicitly instead of
+depending on target-wide default isolation. `RuntimeEntry` can project only a
+checked-Sendable immutable worker capability and recursively copied value
+snapshots; every mutable heap root and opaque runtime value remains excluded.
+A bounded physical driver launches real detached workers, shares one FIFO
+permit pool across concurrent batches, drains cancellation and failure, and
+restores successful output order. Its strict checked-Atomic native probe proves
+two nonsuspending jobs physically overlap without claiming a scheduler order.
+
+The first source-kernel stage (2026-07-18) adds a public validated
+`RuntimeExecutionMode`; cooperative remains the default and the legacy public
+initializer entry points remain available. In explicit parallel mode, an
+eligible literal-only detached closure is lowered entirely on MainActor to a
+constant snapshot kernel plus an empty checked capability. The native worker
+captures only those Sendable values. Its result is materialized on MainActor,
+and an execution receipt increments only after the physical job succeeds.
+Authored signatures, capture lists, parameters, builders, immediate launch
+policies, multiple statements, and every nonliteral expression use the
+unchanged cooperative evaluator. No
+source closure, syntax node, `RuntimeValue`, environment, heap, host bridge, or
+evaluator crosses the worker boundary.
+
+The second source-kernel stage (2026-07-18) is demand-cited by CotEditor's
+`EditorCounter.swift:130`. Evaluator boxes now retain source binding mutability
+without changing their legacy public construction/definition signatures.
+Explicit parallel mode may lower `Task.detached { string.count }` only when the
+capture environment directly owns `string`, its source binding is `let`, and
+its runtime value is a String. MainActor recursively copies that value into the
+checked worker capability and emits a typed snapshot-expression kernel. The
+worker performs only the binding read and Swift `String.count`; mutable
+bindings, globals, authored signatures, and other expressions stay
+cooperative. Same-source mode parity and the scoped TSan board cover this new
+kernel alongside the literal kernel.
+
+The third source-kernel stage (2026-07-18) is demand-cited by CotEditor's
+`EditorCounter.swift:176`. Explicit parallel mode may lower
+`Task.detached { selectedStrings.map(\.count).reduce(0, +) }` only when the
+capture environment directly owns `selectedStrings`, its source binding is
+immutable, and every `[Substring]` runtime element is representable as a copied
+String snapshot. MainActor emits typed String-count-sum IR; the worker performs
+only grapheme counts and checked integer addition. Mutable/global bindings,
+alternate seeds, authored signatures, and alternate map/reduce spellings stay
+cooperative. Same-source parity and the scoped TSan board cover this kernel.
+
+The fourth source-kernel stage (2026-07-18) is demand-cited by
+swift-composable-architecture's `TestStore.swift:1856`. Explicit parallel mode
+may lower only a signature-free, argument-free, single-expression detached
+closure containing the exact zero-argument `await Task.yield()` call. MainActor
+emits typed `taskYield` IR with an empty checked capability; the physical
+operation invokes native `Task.yield()` asynchronously and publishes a `Void`
+snapshot. Authored async signatures, multiple statements, captures, and
+alternate calls remain cooperative. Same-source parity and the expanded TSan
+board cover this first suspending kernel without claiming scheduler order or
+thread identity.
+
+The fifth source-kernel stage (2026-07-18) is demand-cited by CotEditor's
+`EditorCounter.swift:191`. Explicit parallel mode may lower only the exact
+`string.distance(from: string.startIndex, to: location)` expression when both
+the String and String.Index bindings are directly owned immutable captures.
+MainActor copies those typed values and emits start-index/distance IR; the
+worker performs only Swift's grapheme-aware distance. Finite source-kernel
+execution does not inherit logical source cancellation, matching Swift's rule
+that cancellation is cooperative, while direct driver callers retain
+infrastructure cancellation. Mutable/global bindings, alternate `from:`
+expressions, authored signatures, and other forms remain cooperative.
+Same-source parity and the expanded TSan board cover the exact kernel and an
+immediately cancelled non-checking task without claiming general cancellation
+checks, scheduler order, or thread identity.
+
+Earlier metadata slices separate immutable program input, mutable storage, and
+execution identity without changing scheduling; the source kernels change
+scheduling only for their admitted subsets. Remaining member families, call-site
+and compiler metadata indexing remain incomplete, mutable symbol
+materialization plus evaluator state must move fully behind the session, and
+demand-cited value, richer scalar-expression, and captured or richer suspending
+kernels still need safe lowering. The scoped
+literal/String-count/Substring-reduction/yield/String-distance differential
+and TSan board is green, but the board must expand with every future worker
+kernel before M9 can close.
 
 ## 15. Verification gates
 

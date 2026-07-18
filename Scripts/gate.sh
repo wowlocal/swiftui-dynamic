@@ -201,7 +201,11 @@ else
     swift_version=$("$swiftc_path" --version 2>/dev/null || echo unavailable)
     target_info=$("$swiftc_path" -print-target-info 2>/dev/null || echo '{}')
 fi
-swift_driver_path=$(whence -p swift 2>/dev/null || echo unavailable)
+# Build, discovery, prebuilt runner lookup, and native oracles must all come
+# from the same Xcode selected by xcrun. An ambient Swiftly/Homebrew driver can
+# otherwise build one runtime while xcrun compiles the native parity twin with
+# another, producing timing-dependent worker failures instead of a valid gate.
+swift_driver_path=$(xcrun --find swift 2>/dev/null || echo unavailable)
 if [[ "$swift_driver_path" == "unavailable" ]]; then
     swift_driver_version=unavailable
     swift_driver_target_info='{}'
@@ -225,10 +229,23 @@ toolchain_fingerprint=$(printf '%s\n%s\n%s\n%s\n%s\n' \
     "$sdk_path $sdk_version $target_triple $swift_driver_target_triple" \
     | shasum -a 256 | awk '{print $1}')
 expected_toolchain_fingerprint="${GATE_EXPECTED_TOOLCHAIN_FINGERPRINT:-}"
+toolchain_identity_error=""
+if [[ "$swiftc_path" == "unavailable" \
+      || "$swift_driver_path" == "unavailable" ]]; then
+    toolchain_identity_error="xcrun could not resolve both swift and swiftc"
+elif [[ "${swiftc_path:h}" != "${swift_driver_path:h}" ]]; then
+    toolchain_identity_error="xcrun resolved swift and swiftc from different toolchain directories"
+elif [[ "$target_triple" == "unavailable" \
+        || "$swift_driver_target_triple" == "unavailable" \
+        || "$target_triple" != "$swift_driver_target_triple" ]]; then
+    toolchain_identity_error="xcrun swift and swiftc target triples do not match"
+elif [[ "$swift_driver_runtime_resource" == "unavailable" ]]; then
+    toolchain_identity_error="xcrun swift did not report a runtime resource path"
+fi
 if [[ -n "$expected_toolchain_fingerprint" ]]; then
-    toolchain_policy=pinned
+    toolchain_policy=xcrun-and-fingerprint-pinned
 else
-    toolchain_policy=record-only
+    toolchain_policy=xcrun-pinned
 fi
 
 append_gate_diagnostic() {
@@ -789,6 +806,14 @@ if (( capability_accounting_status != 0 )); then
     exit 1
 fi
 
+if [[ -n "$toolchain_identity_error" ]]; then
+    build_stage_status="blocked-toolchain"
+    append_gate_diagnostic "$toolchain_identity_error"
+    echo "toolchain identity invalid" >&2
+    echo "$toolchain_identity_error" >&2
+    exit 1
+fi
+
 if [[ -n "$expected_toolchain_fingerprint" \
       && "$toolchain_fingerprint" != "$expected_toolchain_fingerprint" ]]; then
     build_stage_status="blocked-toolchain"
@@ -815,7 +840,7 @@ fi
 current_stage="build"
 echo "── build (once) ──"
 integer stage_started=$SECONDS
-swift build --build-tests > "$out/build.log" 2>&1 &
+"$swift_driver_path" build --build-tests > "$out/build.log" 2>&1 &
 build_pid=$!
 active_pids+=($build_pid)
 build_timeout_marker="$out/build.timeout"
@@ -849,7 +874,7 @@ echo "build completed in ${build_stage_seconds}s"
 current_stage="tests"
 stage_started=$SECONDS
 test_timeout_marker="$out/tests.timeout"
-swift test list --skip-build \
+"$swift_driver_path" test list --skip-build \
     > "$out/tests-list.out" 2> "$out/tests-list.log" &
 test_discovery_pid=$!
 active_pids+=($test_discovery_pid)
@@ -1116,15 +1141,10 @@ for board in suite corpus live parity; do
     echo "$board: $line"
     case "$board:$line" in
         suite:*" tests passed"*) ;;
-        corpus:*"projects pass"*)
-            # Ledger floor: Widgets + Mythic are documented native-real
-            # failures. 678/680 is the baseline and only ratchets upward.
-            passed=$(echo "$line" | sed -E 's/.*═══ ([0-9]+)\/680.*/\1/')
-            if ! is_positive_integer "$passed" || (( passed < 678 )); then
-                append_gate_diagnostic \
-                    "corpus board did not meet the 678/680 floor: $line"
-                red=1
-            fi ;;
+        # LOOP.md owns the current external-corpus census. Match the exact
+        # denominator and a perfect pass count so a removed/missing project
+        # cannot silently weaken the board.
+        corpus:*"586/586 projects pass"*) ;;
         live:*"5/5 live-data scenarios pass"*) ;;
         parity:*"0 diverge / 0 interp-error"*) ;;
         *)

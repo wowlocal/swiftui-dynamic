@@ -266,7 +266,7 @@ All allocations can be overridden:
 | `GATE_KEEP_LOGS=1` | Preserve the temporary build/worker logs and print their directory | disabled |
 | `GATE_RECEIPT_PATH` | Machine-readable closing receipt | `.build/gate-receipt.json` |
 | `GATE_LOCK_DIRECTORY` | Override the cross-worktree exclusive closing-gate lease path; intended for isolated methodology tests | shared git common directory |
-| `GATE_EXPECTED_TOOLCHAIN_FINGERPRINT` | Require a pinned combined build/native/SDK fingerprint; unset records without pinning | unset |
+| `GATE_EXPECTED_TOOLCHAIN_FINGERPRINT` | Add an exact combined build/native/SDK fingerprint pin; unset still pins build, runner, and native oracle to the single Xcode selected by `xcrun` | unset |
 | `GATE_CAPABILITY_INVENTORY_INPUT_PATH` / `GATE_CAPABILITY_STATUS_INPUT_PATH` | Override only the physical accounting inputs for fail-closed negative controls; the receipt records both canonical and physical paths | checked-in manifests |
 
 Every worker value must be a positive integer. Setting an override above the

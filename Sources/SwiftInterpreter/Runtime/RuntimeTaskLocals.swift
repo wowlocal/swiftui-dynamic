@@ -41,6 +41,7 @@ public struct RuntimeTaskLocalKey: Hashable, Sendable, CustomStringConvertible {
 /// implicit `nil` default for an optional declaration. The default has ordinary
 /// static initialization semantics and is cached after the first successful
 /// read.
+@MainActor
 final class RuntimeTaskLocalDeclaration {
     let key: RuntimeTaskLocalKey
     let initializer: ExprSyntax?
@@ -63,7 +64,10 @@ final class RuntimeTaskLocalDeclaration {
 /// Source-visible projected `$value`. It carries the declaration's immutable
 /// default so `TaskLocal.get()` can distinguish an absent task binding from a
 /// bound optional `nil`, without reaching back into shared interpreter state.
-final class RuntimeTaskLocalProjection: CustomStringConvertible {
+@MainActor
+final class RuntimeTaskLocalProjection:
+    @preconcurrency CustomStringConvertible
+{
     let key: RuntimeTaskLocalKey
     let defaultValue: RuntimeValue
     let valueTypeName: String
@@ -86,6 +90,7 @@ final class RuntimeTaskLocalProjection: CustomStringConvertible {
 
 /// Mutable storage owned by exactly one interpreted task. Inheritance creates
 /// a value-semantic snapshot rather than sharing this object with the child.
+@MainActor
 final class RuntimeTaskLocalStorage {
     private var values: [RuntimeTaskLocalKey: RuntimeValue]
 

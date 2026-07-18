@@ -4,6 +4,7 @@ import SwiftSyntax
 /// How a statement finished. Control flow propagates as values instead of
 /// thrown errors: blocks stop and pass `.returnValue`/`.breakLoop`/`.continueLoop`
 /// upward until a loop or function boundary consumes them.
+@MainActor
 enum StatementResult {
     case normal(RuntimeValue)
     case returnValue(RuntimeValue)
@@ -105,8 +106,9 @@ extension Interpreter {
             // bindings share the NEXT annotation in their run (initializers
             // break the run).
             let allBindings = Array(varDecl.bindings)
-            let referenceOwnership = propertyMetadata(
-                for: varDecl).referenceOwnership
+            let declarationMetadata = propertyMetadata(for: varDecl)
+            let referenceOwnership = declarationMetadata.referenceOwnership
+            let isMutableBinding = declarationMetadata.isMutable
             func sharedAnnotation(startingAt index: Int) -> TypeSyntax? {
                 for later in allBindings[index...] {
                     if let type = later.typeAnnotation?.type { return type }
@@ -132,7 +134,9 @@ extension Interpreter {
                     }
                     for (element, elementValue) in zip(tuplePattern.elements, tuple.values) {
                         if let ident = element.pattern.as(IdentifierPatternSyntax.self) {
-                            env.define(ident.identifier.text, elementValue)
+                            env.define(
+                                ident.identifier.text, elementValue,
+                                isMutableBinding: isMutableBinding)
                         }
                     }
                     continue
@@ -155,7 +159,8 @@ extension Interpreter {
                         env.define(
                             ident.identifier.text,
                             try resolveAnnotated(value, annotation: binding.typeAnnotation?.type),
-                            declaredTypeName: typeName)
+                            declaredTypeName: typeName,
+                            isMutableBinding: isMutableBinding)
                     default:
                         throw error(binding, "control flow escaped local computed var")
                     }
@@ -168,7 +173,9 @@ extension Interpreter {
                     // gives a fresh model of the keypath'd type; unknown
                     // types absorb.
                     if let injected = try localDependencyValue(varDecl, in: env) {
-                        env.define(ident.identifier.text, injected)
+                        env.define(
+                            ident.identifier.text, injected,
+                            isMutableBinding: isMutableBinding)
                         continue
                     }
                     let annotationText = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
@@ -178,7 +185,8 @@ extension Interpreter {
                             ident.identifier.text,
                             .none(forTypeAnnotation: annotationText),
                             declaredTypeName: annotationText,
-                            referenceOwnership: referenceOwnership) // `var x: T?`/`T!` is nil
+                            referenceOwnership: referenceOwnership,
+                            isMutableBinding: isMutableBinding) // `var x: T?`/`T!` is nil
                         continue
                     }
                     if !annotationText.isEmpty {
@@ -187,7 +195,8 @@ extension Interpreter {
                         env.define(
                             ident.identifier.text, .void,
                             declaredTypeName: annotationText,
-                            referenceOwnership: referenceOwnership)
+                            referenceOwnership: referenceOwnership,
+                            isMutableBinding: isMutableBinding)
                         continue
                     }
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
@@ -201,7 +210,8 @@ extension Interpreter {
                 env.define(
                     ident.identifier.text, resolved,
                     declaredTypeName: hint,
-                    referenceOwnership: referenceOwnership)
+                    referenceOwnership: referenceOwnership,
+                    isMutableBinding: isMutableBinding)
             }
             return
         }

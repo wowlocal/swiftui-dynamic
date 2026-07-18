@@ -2,6 +2,7 @@ import Foundation
 
 // MARK: - Argument and return contracts
 
+@MainActor
 extension HostSignature {
     /// Returns `nil` when this declaration cannot accept the evaluated call.
     /// This non-throwing form is used to rank overload candidates.
@@ -87,6 +88,7 @@ extension HostSignature {
     }
 }
 
+@MainActor
 private extension HostSignature {
     struct ShapeMatch {
         let parameterIndices: [Int]
