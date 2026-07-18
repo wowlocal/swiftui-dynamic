@@ -127,6 +127,7 @@ func sourcesFingerprint() -> String? {
 }
 
 let cacheEligible = limit == .max && filter == nil && !force
+    && window == nil && thenUnit == nil
     && parallelOptions.shardCount == 1
     && ProcessInfo.processInfo.environment["INTERP_ABSORB_CENSUS"] == nil
     && ProcessInfo.processInfo.environment["INTERP_APPSHELL_CENSUS"] == nil

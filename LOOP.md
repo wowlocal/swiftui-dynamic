@@ -2787,3 +2787,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   slice — instrument bug, fix first next iteration). NOTE: the
   sharded gate corpus reports 678/680 with this failure INCLUDED —
   the baseline is unchanged; this is queue work, not a regression.
+- 2026-07-18 apple-browsers EXONERATED — CORPUS AT ITS HONEST CEILING
+  (worktree iteration 75): the i74 "25 units" instrument mystery was
+  ProjectCheck's DEFAULT limit=25 (and `--filter` was never a flag —
+  unknown args become the corpus ROOT; the confusing "from Mythic"
+  header). With the cache guard extended to window/then runs, four
+  bisect rounds settled it: [0:293], [293:486], [486:679], AND the
+  full [0:679] chain each leave apple-browsers GREEN — its subscript
+  failure existed ONLY under the i73 release-semantics experiment
+  (its request setup differs under #if DEBUG), never in the baseline.
+  The last green gate's corpus log confirms: 678/680 = ONE real
+  failure (oss:Mythic, the app-authored debug trap) + ONE census skip
+  (oss:MonitorControl, no View structs). The corpus backstop is at its
+  honest ceiling; Mythic stays the documented single red (it does not
+  meet the quarantine bar — that is for third-party-internals
+  dependencies). The --window/--then bisect instrument + fixed cache
+  guard stay landed for future pollution hunts.
