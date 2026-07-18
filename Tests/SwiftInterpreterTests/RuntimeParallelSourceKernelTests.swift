@@ -342,6 +342,56 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func shadowedTaskNanosecondsPrefixStaysOnTheCooperativeEvaluator()
+        async throws
+    {
+        let source = """
+        @MainActor var shadowNanosecondsObservations: [String] = []
+
+        @MainActor
+        func recordShadowNanoseconds(_ value: String) {
+            shadowNanosecondsObservations.append(value)
+        }
+
+        struct ShadowTaskNanosecondsReceiver: Sendable {
+            func sleep(nanoseconds: UInt64) async throws {
+                await recordShadowNanoseconds("source")
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let spawn = {
+                (operation: @escaping @Sendable () async -> Void) in
+                Task.detached(operation: operation)
+            }
+            await {
+                let Task = ShadowTaskNanosecondsReceiver()
+                await spawn {
+                    try? await Task.sleep(nanoseconds: 0)
+                    await recordShadowNanoseconds("suffix")
+                }.value
+            }()
+            return shadowNanosecondsObservations.joined(separator: ",")
+        }
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "source,suffix")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func immutableBooleanParameterConditionalSleepUsesPhysicalSuspendingKernel()
         async throws
     {
@@ -455,6 +505,39 @@ struct RuntimeParallelSourceKernelTests {
             "Tests/ConcurrencyParity/Fixtures/parallel-detached-try-optional-nanoseconds-sleep-prefix.swift")
         let source = try String(contentsOf: fixture, encoding: .utf8)
             + "\nawait parallelDetachedTryOptionalNanosecondsSleepPrefixProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func signatureFreeTryOptionalNanosecondsSleepPrefixReentersMainActorContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedSignatureFreeTryOptionalNanosecondsSleepPrefixProbe()\n"
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 1)
         let cooperative = Interpreter()

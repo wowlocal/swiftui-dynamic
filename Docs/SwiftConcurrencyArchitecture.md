@@ -3026,7 +3026,7 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Six narrow snapshot-kernel paths, three demand-cited physical sleep-
+  covered. Six narrow snapshot-kernel paths, four demand-cited physical sleep-
   prefix spellings, and five demand-cited physical source-call-wrapper paths now exist
   behind a validated explicit mode. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
@@ -4768,6 +4768,38 @@ diagnostic. The canonical prebuilt iteration passed 47 targeted tests in two
 suites, all 46 methodology/gate checks, and all 20 parity repetitions in 10
 seconds.
 
+The seventy-sixth prerequisite extends the same confined continuation to
+Planet's signature-free `Task.sleep(nanoseconds:)` form. Both cited sites use
+a `.utility` detached task, a nonnegative integer literal, and
+`MainActor.run` to mutate the implicitly captured receiver after the sleep.
+The worker command still contains only an empty checked capability plus the
+typed `UInt64` literal.
+
+`RuntimeTaskRecord` retains the receiver through the confined source closure,
+the MainActor suffix, and the complete source outcome. Cancellation reaches
+native sleep, authored `try?` suppresses its ordinary error, permit handoff
+precedes suffix entry, and the suffix resumes under the same cancelled logical
+task. No receiver, source closure, `Environment`, `RuntimeValue`, evaluator,
+or MainActor capability crosses to the worker.
+
+Strict native/interpreted execution returned exact
+`completed:false,cancelled:true|false:true` in twenty runs. The raw native
+digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`;
+every five-run focused shard retained
+`128279d479fdb8fdc315653b76f48229b0d39d7a7b39b551b6c12b11056708cb`.
+The receipt RED moved from zero to two physical executions. Captured/computed
+nanoseconds and a source-shadowed Task target remain cooperative behind
+focused zero-receipt evidence.
+
+Focused parity passed 20/20 on four workers in one second, the parallel
+source-kernel suite passed 43/43, and the exact-tip physical board passed
+86/86 in three suites in one second. A fresh TSan build passed native overlap
+20/20 plus all 86 tests in 25 seconds without a race or interceptor
+diagnostic. The canonical prebuilt iteration passed 49 targeted tests in two
+suites, all 46 methodology/gate checks, and all 20 parity repetitions in 10
+seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4800,6 +4832,7 @@ and parallel-detached-weak-inherited-string-array-source-call
 and parallel-detached-inherited-try-optional-source-call
 and parallel-detached-try-optional-sleep-prefix
 and parallel-detached-try-optional-nanoseconds-sleep-prefix
+and parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension

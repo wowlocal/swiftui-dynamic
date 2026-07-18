@@ -275,13 +275,13 @@ extension Interpreter {
             permitLifetime: .operation)
     }
 
-    /// FreeChat and Provenance use detached bodies whose first statement is a
-    /// contained throwing sleep and whose second statement re-enters
-    /// application code. Execute only the exact demand-proven core-Task sleep
-    /// on a worker. The suffix remains a MainActor-confined closure owned by
-    /// RuntimeTaskRecord, and its complete RuntimeValue/Error outcome is
-    /// redeemed by the logical task after the worker returns a Sendable
-    /// completion token.
+    /// FreeChat, Provenance, and Planet use detached bodies whose first
+    /// statement is a contained throwing sleep and whose second statement
+    /// re-enters application code. Execute only the exact demand-proven
+    /// core-Task sleep on a worker. The suffix remains a MainActor-confined
+    /// closure owned by RuntimeTaskRecord, and its complete RuntimeValue/Error
+    /// outcome is redeemed by the logical task after the worker returns a
+    /// Sendable completion token.
     private func physicalTryOptionalSleepPrefixJob(
         closure: ClosureValue,
         entry: RuntimeEntry,
@@ -320,7 +320,8 @@ extension Interpreter {
            let duration = sourceSnapshotSleepDuration(
                sleepArgument.expression) {
             sleepKernel = .taskSleep(.constant(duration))
-        } else if closure.isPhysicalWeakSelfSourceCallCandidate,
+        } else if (closure.isPhysicalSnapshotKernelCandidate
+                    || closure.isPhysicalWeakSelfSourceCallCandidate),
                   sleepArgument.label?.text == "nanoseconds",
                   let nanoseconds = sourceSnapshotNanosecondsLiteral(
                       sleepArgument.expression) {

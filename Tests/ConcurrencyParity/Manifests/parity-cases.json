@@ -2862,6 +2862,21 @@
     "notes": "Provenance demand-cites `Task.detached(priority: .utility) { [weak self] in try? await Task.sleep(nanoseconds: 100_000_000); await MainActor.run { self?.setupPrimarySubscriptions() } }` at ImportProgressViewModel.swift:132-136. The bounded same-source fixture retains that weak-capture, literal-nanoseconds, and MainActor-run shape with zero-duration success and immediately cancelled 30-second branches. Strict Apple Swift 6.3.3 returned exact `completed:false,cancelled:true|false:true` in twenty bounded runs; the standalone observation digest was 21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e and every five-run focused shard retained 432229c2edb0bd47e62066c636a5d17499311877f8ea718aa1af5c2ddd3f0263. Before the fix, parallel mode recorded zero physical receipts and both interpreter modes returned `|false:true` because imported MainActor.run degraded to an inert member marker. The active _Concurrency.swiftinterface now generates an exact MainActor.run intrinsic; same-named source types retain source precedence, explicit resultType plus generated-but-unrouted MainActor members fail closed, and only a nonnegative nanoseconds integer literal in the cited two-item weak-self closure is physically admitted. The exact-tip physical board passed 82/82 in three suites; a fresh TSan build passed native overlap 20/20 plus all 82 tests in 32 seconds without a race or interceptor diagnostic."
   },
   {
+    "id": "parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix",
+    "fixture": "Fixtures/parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedSignatureFreeTryOptionalNanosecondsSleepPrefixProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A signature-free detached task whose literal `try? await Task.sleep(nanoseconds:)` is followed by `MainActor.run` suppresses sleep cancellation and executes that continuation in the same cancelled task; the continuation observes the cancellation bit and the handle completes successfully.",
+    "notes": "Planet demand-cites the exact signature-free `Task.detached(priority: .utility) { try? await Task.sleep(nanoseconds: 200_000_000); await MainActor.run { self.isOperating = false } }` spelling at PlanetAPIController.swift:70-75 and 101-106. The bounded same-source fixture retains the implicit strong receiver, literal nanoseconds, MainActor suffix, zero-duration success, and immediately cancelled 30-second branch. Strict Apple Swift 6.3.3 compiled it with complete concurrency checking and warnings as errors and returned exact `completed:false,cancelled:true|false:true` in twenty runs; the standalone twenty-line output had SHA-256 21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e, and every five-run focused shard retained 128279d479fdb8fdc315653b76f48229b0d39d7a7b39b551b6c12b11056708cb. Before the fix, cooperative and parallel interpreter modes already returned the exact value, but parallel mode recorded zero physical submissions/executions instead of two. The existing confined continuation command now admits only a nonnegative literal nanoseconds argument for the signature-free two-item route; only the sleep crosses the worker boundary, while the receiver, suffix closure, MainActor invocation, and complete RuntimeValue/Error outcome remain confined. Captured/computed nanoseconds and source-shadowed Task.sleep remain cooperative. Focused parity passed 20/20, the physical board passed 86/86, and a fresh TSan build passed native overlap 20/20 plus all 86 tests without diagnostics."
+  },
+  {
     "id": "parallel-detached-weak-try-optional-sleep-prefix",
     "fixture": "Fixtures/parallel-detached-weak-try-optional-sleep-prefix.swift",
     "mode": "runtime",

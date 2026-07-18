@@ -2130,6 +2130,36 @@ seconds. The exact-tip physical board passed 84/84 tests in three suites in
 one second; a fresh TSan build passed native overlap 20/20 plus all 84 tests
 in 26 seconds without a race or interceptor diagnostic.
 
+The seventy-sixth M9 slice asks the same cancellation/continuation question
+for Planet's signature-free literal-nanoseconds spelling at
+`PlanetAPIController.swift:70-75` and `101-106`. It keeps the implicit strong
+receiver and `MainActor.run` suffix confined; it does not admit computed
+nanoseconds, a source-shadowed `Task.sleep`, or arbitrary authored signatures.
+
+Strict Apple Swift 6.3.3 returned exact
+`completed:false,cancelled:true|false:true` in twenty runs. The raw output
+digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`,
+and all four five-run focused shards reported
+`128279d479fdb8fdc315653b76f48229b0d39d7a7b39b551b6c12b11056708cb`.
+This proves only causal cancellation semantics: authored `try?` suppresses the
+sleep error, the MainActor suffix observes the same task's cancellation bit,
+and the successful handle retains that bit.
+
+The gap-closure RED was receipt-only: cooperative and parallel interpretation
+already returned the exact value, while parallel execution reported zero
+physical submissions/executions instead of two. The repair reuses the existing
+confined continuation/outcome token and broadens only its literal-nanoseconds
+admission to the signature-free shape. A focused target-shadow test retains
+the same-named source method on cooperative evaluation with zero receipts.
+
+The focused runner completed 20/20 parity repetitions on four workers in one
+second. The canonical prebuilt iteration passed 49 implementation tests in
+two suites, all 46 methodology/gate checks, and the focused parity case in 10
+seconds. The exact-tip physical board passed 86/86 tests in three suites in
+one second; a fresh TSan build passed native overlap 20/20 plus all 86 tests
+in 25 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
