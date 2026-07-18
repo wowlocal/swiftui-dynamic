@@ -21,8 +21,15 @@ public final class LiveModelStore {
     /// Instances by their model type name, in insertion order.
     private(set) var instances: [(typeName: String, value: RuntimeValue)] = []
 
+    /// Store writes publish here — @Query views subscribe (the model
+    /// changeSignal pattern) so an insert re-renders the querying view,
+    /// completing the M3 doctrine: what the UI writes, its queries read
+    /// back AND SHOW without external triggers.
+    public let changeSignal = ChangeSignal()
+
     func insert(_ value: RuntimeValue) {
         instances.append((Self.typeName(of: value), value))
+        changeSignal.fire()
     }
 
     func delete(_ value: RuntimeValue) {
@@ -39,7 +46,10 @@ public final class LiveModelStore {
             // stored-value shape as the fallback row identity.
             return Self.structuralKey(stored) == Self.structuralKey(target)
         }
-        if let index { instances.remove(at: index) }
+        if let index {
+            instances.remove(at: index)
+            changeSignal.fire()
+        }
     }
 
     func fetch(typeName: String?) -> [RuntimeValue] {

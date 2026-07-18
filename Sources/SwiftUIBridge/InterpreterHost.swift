@@ -13,6 +13,10 @@ public struct InterpreterHost {
         self.compilerPreflightMode = compilerPreflightMode
     }
 
+    /// The interpreter behind the most recent render — probe/test surface
+    /// (drive the live model store or read symbols of a hosted render).
+    public private(set) static var lastInterpreter: Interpreter?
+
     public func render(
         source: String,
         lazyTopLevelGlobals: Bool = false
@@ -87,6 +91,7 @@ public struct InterpreterHost {
                 compilerSources = explicitCompilerSources
                     ?? ProjectMaterial.compilerPreflightSources(from: source)
             }
+            Self.lastInterpreter = interpreter
             let last = try interpreter.run(
                 source: source,
                 lazyTopLevelGlobals: lazyTopLevelGlobals,
