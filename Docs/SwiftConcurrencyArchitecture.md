@@ -3047,9 +3047,12 @@ Each milestone is independently gated through
   weak-reference transfer remains forbidden. Repeated `[weak self]` optional
   async member calls instead use one cooperative suspension-aware path that
   evaluates the receiver once, skips nil arguments, and flattens the result.
+  Demand-cited optional async closures use the analogous cooperative callable
+  path: nil returns before argument collection, while a present closure enters
+  ordinary suspension-aware invocation and flattens its result.
   Physical Task-yield/sleep admission combines immutable callee shape with
-  the stable registered core-Task identity; lexically shadowed source calls remain
-  cooperative. The general
+  the stable registered core-Task identity; lexically shadowed source calls
+  remain cooperative. The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
 
@@ -4158,6 +4161,34 @@ seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 58
 driver/kernel/source-call tests in three suites on four workers in 24 seconds
 without a race or interceptor diagnostic.
 
+The fifty-eighth prerequisite closes cooperative optional async-callable
+dispatch. Aidoku, iTorrent, and Provenance all store optional async closures
+and invoke them with `await callback?()`. Native Swift makes the optional
+callable a control-flow boundary: a present closure invokes and suspends,
+while an absent closure skips arguments and invocation and produces nil.
+
+The suspension-aware call evaluator owns that boundary before argument
+collection. It evaluates the callee once, returns nil for `.none`, or unwraps
+`.some` and enters ordinary `invokeSuspending`; existing Optional lifting
+flattens the result to one level. The source closure, captures, environment,
+runtime values, heap, and evaluator stay confined, and the parity case requires
+zero physical receipts.
+
+Apple Swift 6.3.3 and interpreted execution returned exact
+`live:7:none|none|nil` in twenty bounded runs; every native five-run shard
+retained canonical SHA-256
+`aeba7d1f8923f7f34fb729387f5cf709d80eefe1cf283d8faff2811c04e40706`.
+The RED was a synchronous `Task.yield` failure inside the present closure; a
+fatal nil-side argument trap additionally proves skipped evaluation. Optional
+value-type async chains with mutating write-back, weak-receiver destruction
+races, and physical weak transfer remain open.
+
+The focused board passed 73 tests in six suites, all 46 methodology/gate
+checks, and twenty parity repetitions on four workers in six seconds. The
+rebuilt scoped TSan board passed native overlap 20/20 plus all 59
+driver/kernel/source-call tests in three suites on four workers in 58 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4179,6 +4210,7 @@ MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor/
 inherited-source-call
 and strong-self-capture-source-call
 and weak-self-optional-async-source-call
+and optional-async-closure-invocation
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

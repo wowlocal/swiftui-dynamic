@@ -925,6 +925,25 @@ extension Interpreter {
 
         let callee = try await evaluateSuspending(
             calleeMetadata.expression, in: env)
+
+        // An optional callable controls the whole invocation. Preserve the
+        // suspension-aware path for a present closure, but do not evaluate
+        // arguments at all when optional chaining finds nil.
+        if call.calledExpression.is(OptionalChainingExprSyntax.self) {
+            switch callee.optionalState {
+            case .none:
+                return .none()
+            case .some(let wrapped, _):
+                let args = try await collectArgumentsSuspending(
+                    of: call, in: env)
+                return try await invokeSuspending(
+                    wrapped, with: args, node: call
+                ).liftedToOptional()
+            case .notOptional:
+                break
+            }
+        }
+
         let args = try await collectArgumentsSuspending(of: call, in: env)
         return try await invokeSuspending(callee, with: args, node: call)
     }

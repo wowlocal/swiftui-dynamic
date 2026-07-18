@@ -1565,6 +1565,40 @@ seconds. The rebuilt scoped TSan board passed native overlap 20/20 and all 58
 driver/kernel/source-call tests in three suites on four workers in 24 seconds
 without a race or interceptor diagnostic.
 
+The fifty-eighth M9 slice closes demand-cited optional async callable dispatch
+such as Aidoku's `await loadMore?()`, iTorrent's `await refreshTask?()`, and
+Provenance's `await iterationComplete?()`. The semantic question is
+cooperative: does a present source closure use the suspension-aware evaluator,
+and does nil skip both argument evaluation and invocation? No physical closure
+transfer is admitted.
+
+The same-source oracle invokes a present `@Sendable` closure with one integer,
+samples nil actor isolation around `Task.yield`, and then calls a nil optional
+with a fatal argument expression. Apple Swift 6.3.3 complete-strict
+compilation with warnings as errors returned exact
+`live:7:none|none|nil` in twenty bounded runs. Every native five-run shard
+retained SHA-256
+`aeba7d1f8923f7f34fb729387f5cf709d80eefe1cf283d8faff2811c04e40706`;
+no worker identity or scheduler order is an oracle. The deterministic
+interpreter RED failed because synchronous Optional invocation reached
+`Task.yield` without the async runtime.
+
+`evaluateCallSuspending` now checks optional chaining on the callee before
+collecting arguments. Nil produces the chained nil result immediately. A
+present callable is unwrapped, dispatched through `invokeSuspending`, and
+lifted through the existing Optional flattening rule. The case requires zero
+physical receipts. Optional value-type async chains with mutating write-back,
+weak-receiver destruction races, and worker-side weak references remain
+outside the slice.
+
+The canonical focused board passed 73 tests in six suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers in two
+seconds, and the complete focused gate took six seconds. The rebuilt scoped
+TSan board passed native overlap 20/20 and all 59 driver/kernel/source-call
+tests in three suites on four workers in 58 seconds without a race or
+interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
