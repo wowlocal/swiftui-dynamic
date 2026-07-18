@@ -3850,6 +3850,41 @@ seconds. The expanded scoped TSan board passed native overlap 20/20 plus all
 48 driver/kernel/source-call tests in three suites on four workers in 66
 seconds without a race or interceptor diagnostic.
 
+The forty-ninth prerequisite extends the same physical-wrapper/confined-reentry
+architecture to TaskObservatory's exact `@concurrent nonisolated` source calls
+with labeled scalar arguments. The selected target remains an origin-bound own
+source-class method and must be async, nonthrowing, MainActor- or
+cooperative-default-executor bound, and Void- or String-returning. Admission is
+intentionally limited to explicit nondefaulted, nonvariadic, non-builder,
+nonisolated `Int`/`Int64` parameters supplied by integer literals or directly
+owned immutable `Int`/`Int64` captures. This is the demand-ordered depth cap;
+mutable, expression, noninteger, and opaque arguments remain cooperative.
+
+`RuntimePhysicalSourceCallCommand` now pairs each argument label with a checked
+worker-binding ID. `RuntimeWorkerCapability` carries the structurally copied
+integer values, and the confined relay requires exact command/capability
+cardinality and binding-name agreement before materializing them. It then
+reconstructs labeled `CallArguments`, reinstalls the original
+`EvaluationTaskContext`, and invokes the already selected source closure. The
+command still carries no receiver, source box, `RuntimeValue`, environment,
+program state, heap, or evaluator. The physical worker executes only the
+detached wrapper and executor handoff; source evaluation remains confined to
+the existing runtime executor.
+
+The bounded same-source Swift 6 probe returned exact `7:11|18:none` in twenty
+native/interpreted repetitions with four identical native five-run digests
+`34d58dd88621c8d3b3208bf3323e40b36c7d84323ee01c44574ee52ebcef4315`;
+the receipt RED moved from zero to one physical execution. An integration test
+uses the unchanged TaskObservatory sources and maximum parallelism one: all
+three detached `@concurrent` wrappers launch physically, the async-let,
+cancellation-handler, task-group, and waiter tree reaches its exact terminal
+state, and every runtime registry drains. The canonical focused iteration
+completed 62 tests in six suites, all 46 methodology/gate checks, and twenty
+parity repetitions on four workers in two seconds. The rebuilt scoped TSan
+board passed native overlap 20/20 plus all 49 driver/kernel/source-call tests
+in three suites on four workers in 87 seconds without a race or interceptor
+diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -3864,7 +3899,7 @@ behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
-MainActor-source-call
+MainActor-and-concurrent-integer-source-call
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

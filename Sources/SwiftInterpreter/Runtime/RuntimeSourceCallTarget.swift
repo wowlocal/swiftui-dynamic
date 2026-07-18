@@ -90,6 +90,14 @@ nonisolated enum RuntimePhysicalSourceCallResultKind: Sendable, Equatable {
     }
 }
 
+/// One evaluated source argument carried by name through the checked worker
+/// capability. Labels remain in the command so confined re-entry can bind the
+/// exact selected declaration without sending a CallArguments value.
+nonisolated struct RuntimePhysicalSourceCallArgument: Sendable, Equatable {
+    let label: String?
+    let bindingName: String
+}
+
 /// The complete executor-neutral command carried by the physical detached
 /// wrapper. It identifies an already selected declaration and its owning
 /// logical task, but contains no receiver, closure, environment, program
@@ -98,6 +106,7 @@ nonisolated struct RuntimePhysicalSourceCallCommand: Sendable, Equatable {
     let entryID: RuntimeSessionID
     let taskID: RuntimeTaskID
     let target: RuntimeSourceFunctionTargetDescriptor
+    let arguments: [RuntimePhysicalSourceCallArgument]
     let resultKind: RuntimePhysicalSourceCallResultKind
 }
 
@@ -133,7 +142,8 @@ final class RuntimeSourceCallReentryRelay {
         await handoff.reachedConfinedExecutor()
         guard capability.accessManifest.isWorkerSafe,
               capability.entryID == command.entryID,
-              capability.programPlan === command.target.originProgramPlan
+              capability.programPlan === command.target.originProgramPlan,
+              capability.bindings.count == command.arguments.count
         else {
             throw failure("source-call command has mismatched worker provenance")
         }
@@ -150,9 +160,22 @@ final class RuntimeSourceCallReentryRelay {
         }
 
         return try await EvaluationTaskContext.$current.withValue(context) {
+            var arguments: [CallArguments.Argument] = []
+            arguments.reserveCapacity(command.arguments.count)
+            for (argument, binding) in zip(
+                command.arguments, capability.bindings
+            ) {
+                guard argument.bindingName == binding.name else {
+                    throw failure(
+                        "source-call command has mismatched argument provenance")
+                }
+                arguments.append(.init(
+                    label: argument.label,
+                    value: binding.value.materializedRuntimeValue()))
+            }
             let value = try await interpreter.callBackgroundClosureSuspending(
                 registered.target.closure,
-                arguments: [])
+                arguments: CallArguments(arguments: arguments))
             let snapshot = try RuntimeWorkerValueSnapshot.copying(value)
             guard command.resultKind.accepts(snapshot) else {
                 throw failure(

@@ -198,7 +198,7 @@ extension Interpreter {
             return nil
         }
 
-        if let sourceCall = try physicalMainActorSourceCallJob(
+        if let sourceCall = try physicalConfinedSourceCallJob(
             expression,
             closure: closure,
             entry: entry,
@@ -245,13 +245,14 @@ extension Interpreter {
             permitLifetime: .operation)
     }
 
-    /// FoodTruck creates a detached wrapper whose complete body is
-    /// `await self.updatesLoop()`. Admit only that argument-free direct-self
-    /// shape after runtime resolution proves one exact, async, nonthrowing,
-    /// MainActor-isolated source-class method with a Void or String result.
-    /// The physical worker carries a command and an empty checked capability;
+    /// FoodTruck and TaskObservatory create detached wrappers whose complete
+    /// body is `await self.method(...)`. Admit only direct-self calls whose
+    /// arguments are literals or directly owned immutable captures, after
+    /// runtime resolution proves one exact async, nonthrowing source-class
+    /// method on MainActor or the @concurrent default executor. The physical
+    /// worker carries only a command and checked argument snapshots;
     /// RuntimeTaskRecord retains the selected receiver closure on MainActor.
-    private func physicalMainActorSourceCallJob(
+    private func physicalConfinedSourceCallJob(
         _ expression: ExprSyntax,
         closure: ClosureValue,
         entry: RuntimeEntry,
@@ -261,15 +262,13 @@ extension Interpreter {
         guard let awaitExpression = expression.as(AwaitExprSyntax.self),
               let call = awaitExpression.expression
                 .as(FunctionCallExprSyntax.self),
-              call.arguments.isEmpty,
               call.trailingClosure == nil,
               call.additionalTrailingClosures.isEmpty else {
             return nil
         }
         let metadata = closure.programMetadata?.callSiteMetadataIndex
             .metadata(for: call) ?? ParsedCallSiteMetadata(call)
-        guard metadata.arguments.isEmpty,
-              metadata.callee.shape == .explicitMember,
+        guard metadata.callee.shape == .explicitMember,
               let name = metadata.callee.name,
               let member = metadata.callee.member,
               member.declName.argumentNames == nil,
@@ -284,28 +283,46 @@ extension Interpreter {
               record.entry === entry,
               record.physicalSourceCall == nil,
               closure.programPlan === entry.programPlan,
+              let loweredArguments = try physicalSourceCallArguments(
+                metadata.arguments,
+                closure: closure),
               let target = resolveOwnSourceInstanceMethodCallTarget(
                 named: name,
                 on: instance,
-                arguments: CallArguments()),
+                arguments: loweredArguments.callArguments),
+              target.closure.parameters.count
+                == loweredArguments.commandArguments.count,
+              target.closure.parameters.allSatisfy({ parameter in
+                  parameter.defaultValue == nil
+                    && !parameter.isVariadic
+                    && !parameter.isBuilderAttributed
+                    && !parameter.isIsolated
+                    && ["Int", "Int64"].contains(
+                        RuntimeDeclaredType.nominalTypeName(
+                            parameter.typeName))
+              }),
               target.descriptor.originProgramPlan === entry.programPlan,
               target.descriptor.isAsync,
               !target.descriptor.isThrowing,
               case .lexicalType(
                 _, isTypeMember: false, isActor: false
               ) = target.descriptor.lexicalPlacement,
-              target.descriptor.isolation == .executor(.mainActor),
+              target.descriptor.isolation == .executor(.mainActor)
+                || target.descriptor.isolation
+                    == .executor(.cooperativeDefault),
               let resultKind = RuntimePhysicalSourceCallResultKind(
                 returnTypeName: target.descriptor.returnTypeName) else {
             return nil
         }
 
-        let capability = try entry.makeWorkerCapability(copying: [])
+        let capability = try entry.makeWorkerCapability(
+            copying: loweredArguments.sourceBindings)
         let handoff = RuntimePhysicalSourceExecutorHandoff()
         let command = RuntimePhysicalSourceCallCommand(
             entryID: entry.id,
             taskID: record.id,
             target: target.descriptor,
+            arguments: loweredArguments.commandArguments,
             resultKind: resultKind)
         let relay = concurrencyRuntime.sourceCallReentryRelay
         record.physicalSourceCall = RuntimeRegisteredPhysicalSourceCall(
@@ -326,6 +343,72 @@ extension Interpreter {
             // infrastructure cancellation that suppresses method entry.
             cancellationBehavior: .unobserved,
             permitLifetime: .untilConfinedExecutorEntry(handoff))
+    }
+
+    /// Evaluate no source effects while admitting a physical wrapper. An
+    /// integer literal is already a value, and a direct immutable Int/Int64
+    /// capture has fixed value semantics for this closure. Every other
+    /// argument spelling and type stays on the cooperative evaluator. The
+    /// checked capability performs the structural Sendable copy; the command
+    /// retains labels and binding IDs.
+    private func physicalSourceCallArguments(
+        _ metadata: [ParsedCallArgumentMetadata],
+        closure: ClosureValue
+    ) throws -> (
+        callArguments: CallArguments,
+        sourceBindings: [RuntimeWorkerSourceBinding],
+        commandArguments: [RuntimePhysicalSourceCallArgument]
+    )? {
+        var callArguments: [CallArguments.Argument] = []
+        var sourceBindings: [RuntimeWorkerSourceBinding] = []
+        var commandArguments: [RuntimePhysicalSourceCallArgument] = []
+        callArguments.reserveCapacity(metadata.count)
+        sourceBindings.reserveCapacity(metadata.count)
+        commandArguments.reserveCapacity(metadata.count)
+
+        for (index, argument) in metadata.enumerated() {
+            guard argument.trailingClosure == nil,
+                  !argument.isTrailing else {
+                return nil
+            }
+
+            let value: RuntimeValue
+            if let snapshot = literalWorkerSnapshot(argument.expression) {
+                guard case .int = snapshot else { return nil }
+                value = snapshot.materializedRuntimeValue()
+            } else if let reference = argument.expression
+                .as(DeclReferenceExprSyntax.self),
+                      reference.argumentNames == nil,
+                      let box = closure.captured.locallyOwnedBox(
+                        for: reference.baseName.text),
+                      !box.isMutableBinding {
+                value = try box.load()
+                guard let snapshot = try? RuntimeWorkerValueSnapshot.copying(
+                    value,
+                    path: "argument[\(index)]"),
+                      case .int = snapshot else {
+                    return nil
+                }
+            } else {
+                return nil
+            }
+
+            let bindingName = "$argument\(index)"
+            callArguments.append(.init(
+                label: argument.label,
+                value: value))
+            sourceBindings.append(RuntimeWorkerSourceBinding(
+                name: bindingName,
+                value: value))
+            commandArguments.append(RuntimePhysicalSourceCallArgument(
+                label: argument.label,
+                bindingName: bindingName))
+        }
+
+        return (
+            CallArguments(arguments: callArguments),
+            sourceBindings,
+            commandArguments)
     }
 
     /// TCA's TestStore uses exactly

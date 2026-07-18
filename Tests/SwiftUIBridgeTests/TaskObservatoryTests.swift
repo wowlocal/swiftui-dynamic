@@ -55,6 +55,61 @@ import Testing
             + "TaskGroup reduced 4 values into orbit-10")
     }
 
+    @Test func parallelExperimentUsesThreePhysicalConcurrentWrappers()
+        async throws
+    {
+        let projectRoot = repositoryRoot()
+            .appendingPathComponent("Examples/TaskObservatory")
+            .path
+        let source = ProjectMaterial.mergedSource(at: projectRoot) + """
+
+        @MainActor
+        func runParallelTaskObservatoryProbe() async -> String {
+            let store = TaskObservatoryStore()
+            store.start()
+
+            try? await Task.sleep(for: .milliseconds(320))
+            store.cancelBeacon()
+
+            while store.isRunning {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            while !store.observerTwo.hasPrefix("Received") {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+
+            return store.workers[0].phase + ","
+                + store.workers[1].phase + ","
+                + store.workers[2].phase + ","
+                + store.observerOne + ","
+                + store.observerTwo + ","
+                + store.groupStatus
+        }
+
+        await runParallelTaskObservatoryProbe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let result = try await interpreter.runAsync(
+            source: source,
+            lazyTopLevelGlobals: true)
+
+        #expect(result.stringValue == "Completed,Cancelled,Completed,"
+            + "Received orbit-10,Received orbit-10,"
+            + "TaskGroup reduced 4 values into orbit-10")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 3)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 3)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+    }
+
     @Test func hostedRunButtonCompletesItsConcurrencyTree() async throws {
         let projectRoot = repositoryRoot()
             .appendingPathComponent("Examples/TaskObservatory")

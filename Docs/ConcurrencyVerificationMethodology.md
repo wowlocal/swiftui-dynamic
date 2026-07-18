@@ -1264,6 +1264,45 @@ does not claim actor/host call routing, inherited/protocol-witness resolution,
 typed arguments, throwing source calls, richer results, or general evaluator
 parallelism.
 
+The forty-ninth M9 slice is a gap closure for TaskObservatory's exact
+`Task.detached { await self.method(label: integer, ...) }` family. The semantic
+question is whether explicit parallel mode may launch a real detached wrapper
+for a uniquely selected direct-self `@concurrent nonisolated` async source
+method, copy its labeled integer arguments across the worker boundary, then
+re-enter the confined evaluator under the logical default-executor task
+context while preserving MainActor hops and the exact result. The bounded
+same-source fixture calls `compute(id: 7, run: 11)`, yields, observes nil
+lexical isolation, records isolated receiver state, and returns exact
+`7:11|18:none`. Apple Swift 6 complete-strict compilation and the interpreter
+returned that result in twenty runs; every five-run native shard retained
+SHA-256
+`34d58dd88621c8d3b3208bf3323e40b36c7d84323ee01c44574ee52ebcef4315`.
+
+Behavior was already GREEN, while the deterministic receipt RED observed zero
+physical submissions/executions instead of one. Admission is deliberately
+depth-capped to integer literals or directly owned immutable `Int`/`Int64`
+captures matched to explicit nondefaulted, nonvariadic, non-builder,
+nonisolated `Int`/`Int64` parameters. Argument labels and checked binding IDs
+travel in the Sendable command; copied values travel in the worker capability.
+The confined relay validates their one-to-one provenance, reconstructs labeled
+`CallArguments`, reinstalls the task's `EvaluationTaskContext`, and invokes the
+origin-bound closure. Mutable captures, expression and noninteger arguments,
+ordinary explicit `nonisolated` methods, actors, ambiguity, throwing calls,
+and richer results stay cooperative.
+
+The unchanged TaskObservatory project supplies the demand and integration
+proof: with maximum parallelism one its three `@concurrent` wrappers record
+three physical receipts, preserve exact final worker/waiter/group state, and
+drain every task/group/scope registry. This proves physical wrapper launch,
+not physical source-evaluator execution. No receiver, `Box`, `RuntimeValue`,
+`CallArguments`, environment, program state, heap, or evaluator enters the
+worker capability. The canonical focused iteration completed 62 tests in six
+suites, all forty-three methodology checks plus three isolated gate-contract
+checks, and all twenty parity repetitions on four workers in two seconds. The
+rebuilt scoped TSan board passed native overlap 20/20 and all 49 driver/kernel/
+source-call tests in three suites on four workers in 87 seconds without a race
+or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

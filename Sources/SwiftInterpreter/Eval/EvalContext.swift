@@ -986,16 +986,25 @@ extension Interpreter: EvalContext {
     func callBackgroundClosureSuspending(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
+        try await callBackgroundClosureSuspending(
+            closure,
+            arguments: CallArguments(arguments: arguments.map {
+                .init(label: nil, value: $0)
+            }))
+    }
+
+    /// Label-preserving counterpart used by a checked physical source-call
+    /// command after its copied arguments re-enter the confined evaluator.
+    func callBackgroundClosureSuspending(
+        _ closure: ClosureValue, arguments: CallArguments
+    ) async throws -> RuntimeValue {
         let entrySteps = steps
         let slice = 20_000
         steps = max(0, stepBudget - slice)
         defer { steps = entrySteps }
         do {
-            let args = CallArguments(arguments: arguments.map {
-                .init(label: nil, value: $0)
-            })
             return try await callWithArgumentsSuspending(
-                closure, args: args, node: nil)
+                closure, args: arguments, node: nil)
         } catch let error as RuntimeError where error.budgetTrip {
             return .void
         }

@@ -196,6 +196,33 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func concurrentSourceCallCopiesArgumentsAndReentersItsLogicalExecutor()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-concurrent-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedConcurrentSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "7:11|18:none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func unsupportedIsolationAndResultFamiliesStayCooperative()
         async throws
     {
@@ -212,6 +239,10 @@ struct RuntimeSourceCallTargetTests {
 
             func integerValue() async -> Int { 7 }
 
+            func echo(_ value: Int) async -> String { "\\(value)" }
+
+            func echoString(_ value: String) async -> String { value }
+
             func run() async -> String {
                 let first = await Task.detached {
                     await self.detachedValue()
@@ -219,7 +250,17 @@ struct RuntimeSourceCallTargetTests {
                 let second = await Task.detached {
                     await self.integerValue()
                 }.value
-                return "\\(first):\\(second)"
+                var mutable = 5
+                let mutableArgument = await Task.detached {
+                    await self.echo(mutable)
+                }.value
+                let expressionArgument = await Task.detached {
+                    await self.echo(1 + 2)
+                }.value
+                let unsupportedScalar = await Task.detached {
+                    await self.echoString("text")
+                }.value
+                return "\\(first):\\(second):\\(mutableArgument):\\(expressionArgument):\\(unsupportedScalar)"
             }
         }
 
@@ -243,7 +284,7 @@ struct RuntimeSourceCallTargetTests {
         await probe()
         """)
 
-        #expect(value.stringValue == "nonisolated:7:actor")
+        #expect(value.stringValue == "nonisolated:7:5:3:text:actor")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime
