@@ -9,7 +9,7 @@
 # /tmp/foodtruck-r4-<step> for inspection.
 set -u
 cd "$(dirname "$0")/.." || exit 2
-swift build > /dev/null 2>&1 || exit 2
+xcrun swift build > /dev/null 2>&1 || exit 2
 typeset -a steps
 steps=(orders socialfeed saleshistory donuts donuteditor topfive cupertino london truck)
 red=0
