@@ -3662,12 +3662,38 @@ focused iteration completed 65 runtime/metadata/worker tests in three suites,
 all forty-three methodology checks plus three isolated gate-contract checks,
 and all twenty parity repetitions on four workers in one second.
 
+The forty-third prerequisite closes the method-target hole for the existing
+CotEditor `String.distance(from:to:)` kernel. A same-module extension declares
+that exact method and returns `77`; Apple Swift 6.3.3 selected it inside
+`Task.detached` in twenty complete-strict Swift 6 runs. Every native five-run
+shard reported SHA-256
+`0e8f6fc06b0a6860d392095f867a5b94dc032ed589e0a43d0ce9b30924258f53`.
+The deterministic RED left cooperative evaluation correct at `77`, while
+parallel admission executed the stdlib kernel, returned `2`, and recorded one
+physical submission/execution.
+
+Physical admission now asks the originating `RuntimeProgramState` for a typed
+standard-library method proof. Exact overload resolution remains session-owned
+and incomplete, so any same-base source-extension overload makes the proof
+unresolved and lowering fails closed; labels alone cannot prove identity in
+the presence of defaults, generics, and parameter types. The retained two-run
+regression returns `77` with zero receipts, while the positive stdlib distance
+probe still takes the physical path. No source syntax, overload symbol, or
+mutable state crosses the worker boundary, and no seventh kernel is introduced.
+The scoped TSan board passed twenty native overlap iterations plus all
+thirty-seven driver/source-kernel tests on four workers in 52 seconds. The
+canonical focused iteration completed 66 runtime/metadata/worker tests in
+three suites, all forty-three methodology checks plus three isolated
+gate-contract checks, and all twenty parity repetitions on four workers in two
+seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
 source/actor/host/standard-library target identities beyond normalized callee
-shape, the core-Task proof, and the `String.count` property proof remain
-incomplete, as does compiler metadata
+shape, the core-Task proof, the `String.count` property proof, and the
+conservative `String.distance` method proof remain incomplete, as does compiler
+metadata
 indexing; mutable symbol materialization plus evaluator state must move fully
 behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending

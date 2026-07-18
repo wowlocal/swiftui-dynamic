@@ -1082,6 +1082,32 @@ checks plus three isolated gate-contract checks, and all twenty parity
 repetitions on four workers in one second. This adds no kernel and does not
 generalize target resolution to other properties or methods.
 
+Its forty-third prerequisite is a gap closure for standard-library method
+target proof. The exact question is whether a same-module
+`String.distance(from:to:)` method shadows the imported method inside a
+detached operation. Apple Swift 6.3.3 compiled the same-source fixture in
+complete strict Swift 6 mode with warnings as errors and returned exact `77`
+in twenty bounded runs. Every five-run native shard reported SHA-256
+`0e8f6fc06b0a6860d392095f867a5b94dc032ed589e0a43d0ce9b30924258f53`.
+No worker identity or unrelated scheduler order is asserted.
+
+The deterministic RED compared both interpreter modes before production was
+changed. Cooperative evaluation selected the source method and returned `77`;
+explicit parallel mode executed the imported distance kernel, returned `2`,
+and recorded one physical submission/execution. Worker admission now obtains a
+typed method proof from the closure's originating `RuntimeProgramState`.
+Because labels are not a complete overload identity, every same-base source
+overload makes the proof unresolved until session-owned overload resolution
+can publish an exact declaration. A retained two-run regression pins
+origin-state ownership with zero receipts, while the positive stdlib probe
+retains physical admission. The scoped TSan board passed twenty native overlap
+iterations plus all thirty-seven driver/source-kernel tests on four workers in
+52 seconds. The canonical focused iteration completed 66
+runtime/metadata/worker tests in three suites, all forty-three methodology
+checks plus three isolated gate-contract checks, and all twenty parity
+repetitions on four workers in two seconds. This adds no kernel and makes no
+general overload-resolution claim.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

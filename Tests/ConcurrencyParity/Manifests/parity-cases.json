@@ -2650,5 +2650,20 @@
     "expectedPhysicalSourceKernelExecutions": 3,
     "nativeFact": "A Task.detached body may capture an immutable String and a String.Index derived from that same value, compute distance from startIndex, and publish the exact grapheme-step count through its awaited handle. Cancelling a non-checking task does not suppress that value, although its handle remains marked cancelled; no worker order is implied.",
     "notes": "CotEditor demand-cites this standard-library expression at Sources/Scanners/EditorCounter.swift:191. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned exact 2:5|2:true in twenty bounded runs; every five-repetition native shard reported SHA-256 da866620191667df04f2901b8f5ca2478e97f730df4787c6d7c5b18260518f28. The fixture includes extended grapheme clusters, awaits two ordinary handles, and immediately cancels a third before awaiting its still-successful value. The value path was already behaviorally correct through cooperative fallback, but the captured receipt RED observed zero physical executions instead of two; after physical lowering, a second RED exposed infrastructure cancellation escaping into the non-checking source body as CancellationError. MainActor admission now requires the exact distance(from: string.startIndex, to: location) spelling over directly owned immutable String and String.Index captures derived by source code, copies only those typed snapshots, and emits typed startIndex/distance IR. A source-kernel execution policy isolates the finite native job from logical source cancellation, while the ordinary driver API still forwards infrastructure cancellation. Mutable bindings, globals, alternate from expressions, authored signatures, and all other shapes remain cooperative. Twenty paired cooperative/parallel runs preserve exact 2:5|2:true, empty registries, and zero/three receipts; no worker order, thread identity, or general Task.isCancelled kernel is claimed."
+  },
+  {
+    "id": "parallel-shadowed-string-distance",
+    "fixture": "Fixtures/parallel-shadowed-string-distance.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelShadowedStringDistanceOutput()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "A same-module method declared in an extension of String with the exact distance(from:to:) signature shadows the standard-library method, including inside a Task.detached operation, so the task publishes the source method's exact Int value.",
+    "notes": "CotEditor demand-cites detached String.distance(from:to:) at Sources/Scanners/EditorCounter.swift:191. This gap-closure oracle proves that receiver shape, member name, and argument labels are not a declaration identity. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact 77 in twenty bounded runs; every five-repetition native shard reported SHA-256 0e8f6fc06b0a6860d392095f867a5b94dc032ed589e0a43d0ce9b30924258f53. Before the fix, cooperative interpretation selected the source method and returned 77, while explicit parallel mode executed the standard-library distance kernel, returned 2, and recorded one physical submission/execution. Physical lowering now asks the originating RuntimeProgramState for a typed standard-library method proof. Until session-owned overload resolution can publish an exact declaration, any same-base source extension overload fails closed; labels alone cannot prove identity in the presence of defaults, generics, and parameter types. A retained two-run regression proves origin-state ownership, while the positive stdlib distance probe retains its physical receipt. No worker identity or unrelated scheduler order is asserted."
   }
 ]

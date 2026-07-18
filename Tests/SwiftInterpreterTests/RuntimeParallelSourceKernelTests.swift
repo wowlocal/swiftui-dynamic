@@ -341,6 +341,38 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelSubmissions == 1)
     }
 
+    @Test
+    func sourceShadowedStringDistanceUsesOriginTargetAndStaysCooperative()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-string-distance.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        _ = try await cooperative.runAsync(source: source)
+        _ = try await parallel.runAsync(source: source)
+        let invocation = "await parallelShadowedStringDistanceProbe()"
+        let cooperativeValue = try await cooperative.runAsync(
+            source: invocation)
+        let parallelValue = try await parallel.runAsync(source: invocation)
+
+        #expect(cooperativeValue.intValue == 77)
+        #expect(parallelValue.intValue == cooperativeValue.intValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
     @Test func cancelledPhysicalStringDistanceStillReturnsItsValue()
         async throws
     {

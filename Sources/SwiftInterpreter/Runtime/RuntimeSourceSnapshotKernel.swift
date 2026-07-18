@@ -414,7 +414,10 @@ extension Interpreter {
               member.declName.argumentNames == nil,
               let stringReference = member.base?
                 .as(DeclReferenceExprSyntax.self),
-              stringReference.argumentNames == nil else {
+              stringReference.argumentNames == nil,
+              let programState = closure.programState,
+              programState.methodTargetProof(for: .stringDistanceFromTo)
+                == .standardLibrary(.stringDistanceFromTo) else {
             return nil
         }
 
