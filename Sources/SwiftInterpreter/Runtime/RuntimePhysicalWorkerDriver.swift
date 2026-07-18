@@ -105,17 +105,54 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
     }
 
     /// Execute one finite source kernel without turning a source task's
-    /// cooperative cancellation bit into infrastructure cancellation of the
-    /// physical job. Swift still enters a cancelled non-checking task body and
-    /// permits it to return a value. The surrounding runtime separately
-    /// observes session/host abort after this bounded job completes.
+    /// cooperative cancellation bit into infrastructure cancellation unless
+    /// the admitted source operation itself observes cancellation. Swift still
+    /// enters a cancelled non-checking task body and permits it to return a
+    /// value; a throwing sleep instead receives the request and throws.
     func executeSourceKernel(
+        _ sourceJob: RuntimePhysicalSourceKernelJob
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        switch sourceJob.cancellationBehavior {
+        case .unobserved:
+            let job = sourceJob.workerJob
+            let execution = Task.detached(
+                priority: job.priority.nativePriority
+            ) {
+                try await execute([job])
+            }
+            return try await Self.onlySourceSnapshot(
+                from: execution.value)
+        case .observed:
+            return try await executeCancellationObservingSourceKernel(
+                sourceJob.workerJob)
+        }
+    }
+
+    /// Infrastructure acquires capacity independently from source
+    /// cancellation, then attaches that request to the actual detached source
+    /// worker. This preserves Swift's rule that a pre-cancelled unstructured
+    /// operation still enters and observes cancellation inside Task.sleep.
+    private func executeCancellationObservingSourceKernel(
         _ job: RuntimePhysicalWorkerJob
     ) async throws -> RuntimeWorkerValueSnapshot {
+        let cancellation = RuntimePhysicalSourceCancellationRelay()
         let execution = Task.detached(priority: job.priority.nativePriority) {
-            try await execute([job])
+            try await Self.executeCancellationObservingDetached(
+                job, permits: permits, cancellation: cancellation)
         }
-        let output = try await execution.value
+        return try await withTaskCancellationHandler {
+            if Task.isCancelled {
+                await cancellation.requestCancellation()
+            }
+            return try await execution.value
+        } onCancel: {
+            Task { await cancellation.requestCancellation() }
+        }
+    }
+
+    private static func onlySourceSnapshot(
+        from output: [RuntimeWorkerValueSnapshot]
+    ) throws -> RuntimeWorkerValueSnapshot {
         guard let snapshot = output.first else {
             throw RuntimeError(message:
                 "physical source kernel returned no result")
@@ -163,6 +200,55 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         } onCancel: {
             task.cancel()
         }
+    }
+
+    private static func executeCancellationObservingDetached(
+        _ job: RuntimePhysicalWorkerJob,
+        permits: RuntimePhysicalWorkerPermitPool,
+        cancellation: RuntimePhysicalSourceCancellationRelay
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        try await permits.acquire()
+        let task = Task.detached(priority: job.priority.nativePriority) {
+            try await job.operation(job.capability)
+        }
+        await cancellation.attach(task)
+        do {
+            let value = try await task.value
+            await cancellation.finish()
+            await permits.release()
+            return value
+        } catch {
+            await cancellation.finish()
+            await permits.release()
+            throw error
+        }
+    }
+}
+
+/// Races a source cancellation request with physical-worker attachment without
+/// unchecked Sendable storage. A request arriving before attachment is applied
+/// immediately when the real source worker is created.
+private actor RuntimePhysicalSourceCancellationRelay {
+    typealias SourceTask = Task<RuntimeWorkerValueSnapshot, any Error>
+
+    private var cancellationRequested = false
+    private var sourceTask: SourceTask?
+
+    func attach(_ task: SourceTask) {
+        precondition(sourceTask == nil)
+        sourceTask = task
+        if cancellationRequested {
+            task.cancel()
+        }
+    }
+
+    func requestCancellation() {
+        cancellationRequested = true
+        sourceTask?.cancel()
+    }
+
+    func finish() {
+        sourceTask = nil
     }
 }
 

@@ -76,13 +76,15 @@ nonisolated struct RuntimePhysicalWorkerDriverTests {
         let job = RuntimePhysicalWorkerJob(capability: capability) { _ in
             .int(23)
         }
+        let sourceJob = RuntimePhysicalSourceKernelJob(
+            workerJob: job, cancellationBehavior: .unobserved)
         let driver = try RuntimePhysicalWorkerDriver(maximumParallelism: 1)
         let execution = Task.detached {
             gate.callerEntered.store(true, ordering: .releasing)
             while !gate.releaseCaller.load(ordering: .acquiring) {
                 await Task.yield()
             }
-            return try await driver.executeSourceKernel(job)
+            return try await driver.executeSourceKernel(sourceJob)
         }
 
         #expect(await waitUntil {
@@ -93,6 +95,50 @@ nonisolated struct RuntimePhysicalWorkerDriverTests {
 
         #expect(try await execution.value == .int(23))
         #expect(execution.isCancelled)
+    }
+
+    @Test func cancellationObservingSourceKernelEntersBeforeThrowing()
+        async throws
+    {
+        let capability = try await Self.makeEmptyCapability()
+        let gate = PhysicalWorkerSourceCancellationGate()
+        let probe = PhysicalWorkerCancellationProbe()
+        let job = RuntimePhysicalWorkerJob(capability: capability) { _ in
+            probe.started.store(true, ordering: .releasing)
+            do {
+                try await Task.sleep(for: .seconds(30))
+                return .void
+            } catch is CancellationError {
+                probe.observedCancellation.store(
+                    true, ordering: .releasing)
+                throw CancellationError()
+            }
+        }
+        let sourceJob = RuntimePhysicalSourceKernelJob(
+            workerJob: job, cancellationBehavior: .observed)
+        let driver = try RuntimePhysicalWorkerDriver(maximumParallelism: 1)
+        let execution = Task.detached {
+            gate.callerEntered.store(true, ordering: .releasing)
+            while !gate.releaseCaller.load(ordering: .acquiring) {
+                await Task.yield()
+            }
+            return try await driver.executeSourceKernel(sourceJob)
+        }
+
+        #expect(await waitUntil {
+            gate.callerEntered.load(ordering: .acquiring)
+        })
+        execution.cancel()
+        gate.releaseCaller.store(true, ordering: .releasing)
+
+        await #expect(throws: CancellationError.self) {
+            try await execution.value
+        }
+        let started = probe.started.load(ordering: .acquiring)
+        let observedCancellation = probe.observedCancellation.load(
+            ordering: .acquiring)
+        #expect(started)
+        #expect(observedCancellation)
     }
 
     @Test func workerFailureCancelsSiblingAndDrainsTheBatch() async throws {

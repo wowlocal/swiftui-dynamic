@@ -1303,6 +1303,19 @@ finite source-kernel execution is isolated from logical source-task
 cancellation so a non-checking cancelled body still publishes its value; the
 ordinary physical-driver API retains infrastructure-cancellation forwarding.
 
+The second corpus-demanded suspending command is Signal-iOS's
+`Task.detached { try await Task.sleep(for: slowLinking ? .seconds(3) :
+.milliseconds(500)) }`, where `slowLinking` is an immutable Bool parameter.
+Admission requires one exact `try await Task.sleep(for:)` expression, a
+directly owned immutable Bool capture, and nonnegative integer-literal
+`.seconds`/`.milliseconds` branches. MainActor copies the Bool and emits typed
+conditional-Duration plus sleep IR. A cancellation relay acquires worker
+capacity independently, attaches the logical request to the actual detached
+source worker, and remembers a request that wins the attachment race. Thus a
+pre-cancelled task still enters and its throwing sleep observes cancellation,
+while unsupported units, overloads, mutable/global conditions, and richer
+bodies remain cooperative.
+
 Scoped sanitizer stage (2026-07-18): `run-concurrency-tsan.sh` owns a separate
 sanitized build cache. Its native checked-Atomic overlap executable performs
 twenty bounded repetitions in one process, and its prebuilt test bundle runs
@@ -1317,13 +1330,18 @@ the same receipt split for the immutable-Substring-array count reduction. A
 fourth requires exact `yielded:2`, empty registries, and the same receipt split
 for the typed yield command. A fifth requires exact `2:5|2:true`, empty
 registries, and zero/three receipts for the typed String/String.Index distance
-kernel including immediate cooperative cancellation. All twenty-eight
+kernel including immediate cooperative cancellation. A sixth requires exact
+`slow:fast|cancelled:true`: parallel mode records two successful executions
+from three submissions, while cooperative mode records neither, and the
+pre-cancelled throwing sleep must enter before producing `CancellationError`.
+All thirty-three
 driver/source-kernel tests run under TSan. This receipt covers only the
 checked driver, constant snapshot kernel, typed immutable-String-count kernel,
 typed immutable-Substring-array reduction, exact no-capture `Task.yield`, and
-typed immutable String/String.Index-distance kernels; future value shapes,
-captured or richer suspending work, actor, host, or heap-capable kernels
-require their own expanded differential and sanitizer evidence.
+typed immutable String/String.Index-distance and conditional-Duration sleep
+kernels; future value shapes, richer suspending work, actor, host, or
+heap-capable kernels require their own expanded differential and sanitizer
+evidence.
 
 ### 6.4 `EvaluationTaskContext`
 
@@ -2976,7 +2994,7 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Five narrow physical paths now exist behind a validated explicit
+  covered. Six narrow physical paths now exist behind a validated explicit
   mode: a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
@@ -2984,7 +3002,8 @@ Each milestone is independently gated through
   `[Substring]`; swift-composable-architecture's exact no-capture
   `Task.detached(priority: .background) { await Task.yield() }` command; and
   CotEditor's exact immutable String/String.Index `distance(from:to:)`
-  spelling. All five lower to checked snapshot kernels
+  spelling; plus Signal-iOS's conditional `Task.sleep(for:)` over an immutable
+  Bool and literal seconds/milliseconds. All six lower to checked snapshot kernels
   and have paired cooperative/parallel plus TSan evidence. The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
@@ -3505,6 +3524,22 @@ Same-source parity and the expanded TSan board cover the exact kernel and an
 immediately cancelled non-checking task without claiming general cancellation
 checks, scheduler order, or thread identity.
 
+The sixth source-kernel stage (2026-07-18) is demand-cited by Signal-iOS's
+`BackupRestoreProgressModal.swift:541`. Explicit parallel mode may lower only
+an exact one-expression `try await Task.sleep(for:)` body whose ternary
+condition is a directly owned immutable Bool and whose branches are
+nonnegative integer-literal `.seconds` or `.milliseconds` durations. MainActor
+copies only the Bool and emits typed conditional-Duration plus sleep IR.
+Because throwing sleep observes cancellation, a Sendable actor relay separates
+uncancelled permit acquisition from the real source worker and forwards or
+remembers cancellation across their attachment race. This preserves Swift's
+pre-cancelled-body entry and `CancellationError` behavior without changing the
+non-checking finite-kernel rule. Mutable/global conditions, other units,
+alternate overloads, authored signatures, and richer bodies remain
+cooperative. Twenty exact native/parallel repetitions and the expanded TSan
+board cover two successful sleeps plus one causally pre-cancelled sleep without
+asserting elapsed time, worker identity, or scheduler order.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families, call-site
@@ -3512,7 +3547,8 @@ and compiler metadata indexing remain incomplete, mutable symbol
 materialization plus evaluator state must move fully behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
-literal/String-count/Substring-reduction/yield/String-distance differential
+literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep
+differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.
 
