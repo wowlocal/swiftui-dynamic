@@ -2667,6 +2667,21 @@
     "notes": "The pinned external corpus demand-cites the exact `Task.detached { @Sendable in ... }` spelling in swift-composable-architecture's CurrentValueRelayTests.swift:38 and the priority-bearing form in CotEditor's FileNode.swift:410. Apple Swift 6.3.3 compiled the same source in Swift 6 complete-strict mode with warnings as errors and returned exact same|same#none|none in twenty bounded runs; every focused five-run native-observation shard retained canonical SHA-256 c1c7528bed014c8a1065d919d0b0813aad3cb8170d5d495fd0968c2812edeaa4. The interpreter was already GREEN after the preceding closure-executor fix, so this is behavioral characterization with no production change. Runtime-inert `@Sendable` leaves API-selected executor policy intact: Task inherits the MainActor lexical context, while Task.detached suppresses it. Both authored signatures remain cooperative with zero physical receipts. No Sendable checking, worker identity, or unrelated scheduling order is asserted."
   },
   {
+    "id": "detached-mainactor-weak-self",
+    "fixture": "Fixtures/detached-mainactor-weak-self.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await detachedMainActorWeakSelfProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "An explicit MainActor detached-operation closure remains MainActor-isolated across suspension while its weak self capture remains non-owning; a receiver released during a causal suspension is absent on resume.",
+    "notes": "Provenance demand-cites 11 exact `Task.detached { @MainActor [weak self] in ... }` operation shapes, including DeltaSkinInputHandler.swift:3064 and two priority-bearing forms. Apple Swift 6.3.3's complete-strict region checker emits an internal checker diagnostic for that exact spelling; the fixture adds executor-neutral `@Sendable`, then compiles with warnings as errors. Twenty bounded native/interpreter runs returned exact same|same:alive#same|same:released; every focused five-run native-observation shard retained canonical SHA-256 768eb94127084dde469655732899dc1af00bd57c0f04a710c4edbc8e939c46d6. An actor gate causally proves the detached operation has entered and suspended before the parent clears its final strong receiver. The interpreter was already GREEN, so this is composition characterization with no production change. The authored signature remains cooperative with zero physical receipts, and no worker identity or unrelated scheduling order is asserted."
+  },
+  {
     "id": "parallel-detached-mainactor-source-call",
     "fixture": "Fixtures/parallel-detached-mainactor-source-call.swift",
     "mode": "runtime",

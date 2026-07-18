@@ -4437,6 +4437,24 @@ all 46 methodology/gate checks, and twenty parity repetitions in two seconds.
 The exact-tip async, generated Task-surface, and parallel-kernel board passed
 138 tests in three suites on four workers in two seconds.
 
+The sixty-sixth prerequisite composes that executor model with weak capture
+ownership for 11 Provenance `Task.detached { @MainActor [weak self] in ... }`
+operations. A causal actor gate suspends the operation before the parent drops
+its final strong receiver. Strict native Swift and interpreted execution
+returned exact `same|same:alive#same|same:released` in twenty runs, with
+five-run native digest
+`768eb94127084dde469655732899dc1af00bd57c0f04a710c4edbc8e939c46d6`.
+
+No architecture change was required. Explicit closure isolation still owns
+the source executor, while the capture environment still owns a non-retaining
+weak box; neither fact overwrites the other at detached entry. Because this is
+an authored MainActor signature, it remains cooperative with zero physical
+receipts rather than fabricating worker execution. The focused iteration
+passed three regressions, all 46 methodology/gate checks, and twenty parity
+repetitions in two seconds. The exact-tip async, generated Task-surface, and
+parallel-kernel board passed 139 tests in three suites on four workers in two
+seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and

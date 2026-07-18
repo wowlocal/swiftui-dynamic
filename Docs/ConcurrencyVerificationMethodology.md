@@ -1845,6 +1845,27 @@ gate-contract checks, and twenty parity repetitions in two seconds. The
 exact-tip async, generated Task-surface, and parallel-kernel board passed 138
 tests in three suites on four workers in two seconds.
 
+The sixty-sixth M9 slice characterizes the composition of two previously
+separate guarantees. Provenance contains 11 exact
+`Task.detached { @MainActor [weak self] in ... }` operations. One probe branch
+keeps the receiver live; a second uses an actor gate to establish task entry
+and suspension before the parent clears the final strong receiver.
+
+The exact corpus spelling triggers Apple Swift 6.3.3's region-checker internal
+unsupported-pattern diagnostic. The strict oracle therefore adds the already
+proven executor-neutral `@Sendable` attribute and otherwise preserves the
+shape. Twenty bounded native/interpreter runs returned exact
+`same|same:alive#same|same:released`; all four five-run shards retained digest
+`768eb94127084dde469655732899dc1af00bd57c0f04a710c4edbc8e939c46d6`.
+The interpreter was GREEN before any production edit, records zero physical
+receipts, and drains task, actor, scope, and group registries. Evidence is
+therefore an already-GREEN composition characterization. The focused
+iteration passed three regressions, all forty-three methodology checks plus
+three isolated gate-contract checks, and twenty parity repetitions on four
+workers in two seconds. The exact-tip async, generated Task-surface, and
+parallel-kernel board passed 139 tests in three suites on four workers in two
+seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
