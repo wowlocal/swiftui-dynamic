@@ -3762,11 +3762,52 @@ three suites, all forty-three methodology checks plus three isolated
 gate-contract checks, and all twenty parity repetitions on four workers in two
 seconds.
 
+The forty-seventh prerequisite establishes the first exact source-function
+target that can be handed to later worker/actor-relay design. FoodTruck's
+argument-free `await self.updatesLoop()` remains the demand citation. Apple
+Swift 6.3.3 and the interpreter returned exact `target:member` in twenty
+bounded same-source runs; all native five-run shards retained SHA-256
+`88ddf30fbc689070f9013a46d59717a74b18015dd09b8c8b2bd46316053566ff`.
+This is an already-GREEN behavior characterization with an architectural RED,
+not a new physical kernel.
+
+Resolution has two layers. Immutable parsed call-site metadata still owns only
+callee/argument shape. On MainActor, runtime receiver lookup filters an own
+reference-type method set and publishes a target only when exactly one
+declaration matches the call shape and no property collision exists. The
+selected closure carries an executor-neutral descriptor containing its origin
+`ResolvedProgramPlan`, declaration `SyntaxIdentifier`, native function
+spelling, lexical placement, isolation facts, effects, and return type name.
+Same-shape overloads remain unresolved because labels do not prove Swift's
+type-level overload choice.
+
+The origin plan is part of target identity. A regression first demonstrated
+that a retained instance resolved after a newer facade run was incorrectly
+rebound to the newer plan and lost its lexical type. Every source instance now
+retains its originating MainActor-confined `RuntimeProgramState`, value copies
+preserve that capability, and method closure formation accepts the explicit
+receiver origin. The descriptor alone is Sendable and readable by a detached
+native task; the instance, state, closure, environment, symbols, heap, and
+evaluator remain confined. The real argument-free suspending explicit-member
+path consumes the resolver, but explicit parallel mode records zero physical
+submissions/executions for this source call.
+
+The canonical focused iteration completed 45 ownership/target/worker tests in
+four suites, all forty-three methodology checks plus three isolated gate-
+contract checks, and all twenty parity repetitions on four workers in one
+second. The rebuilt scoped TSan board passed twenty native overlap iterations
+and all forty driver/source-kernel tests on four workers in 70 seconds. A
+future physical source-call design must use this descriptor in a typed command
+that re-enters the owning source executor; it must not send the evaluator or
+instance to a worker. Inherited/protocol witnesses, same-shape type overloads,
+actor/host target routing, and that re-entry command remain open.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
-source/actor/host/standard-library target identities beyond normalized callee
-shape and the existing core-Task, `String.count`, conservative
+source/actor/host/standard-library target identities beyond the unique own
+reference-method descriptor, normalized callee shape, and the existing
+core-Task, `String.count`, conservative
 `String.distance`, `Array.map`, `Array.reduce`, and `Substring.count` proofs
 remain incomplete, as does compiler metadata
 indexing. Mutable symbol materialization

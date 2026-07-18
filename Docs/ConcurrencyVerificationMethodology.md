@@ -1181,6 +1181,45 @@ repetitions on four workers in two seconds. The exact compound kernel's map, ele
 and reduce target chain is now closed; unrelated key-path inference and member
 families remain open.
 
+Its forty-seventh prerequisite returns to FoodTruck's argument-free source
+member call. The exact question is whether, after runtime receiver lookup and
+call-shape filtering select `await self.updatesLoop()`, the interpreter can
+publish the exact origin-program declaration target without moving the source
+instance, selected closure, environment, or evaluator to a worker. Apple Swift
+6.3.3 again compiled the existing same-source fixture in complete strict Swift
+6 mode with warnings as errors and returned exact `target:member` in twenty
+bounded runs. Every native five-run shard retained SHA-256
+`88ddf30fbc689070f9013a46d59717a74b18015dd09b8c8b2bd46316053566ff`.
+
+Behavior was already GREEN, so the planned RED was architectural: the exact
+selected source closure had no executor-neutral declaration descriptor or
+fail-closed target resolver. The first implementation run exposed a second,
+runtime RED: after a newer facade run, resolving a retained old instance's
+method rebound the same syntax identifier to the new program plan and
+classified its lexical placement as global. Source instances now retain their
+originating MainActor-confined `RuntimeProgramState`, and source-value copies
+preserve that edge. `makeFunctionClosure` can therefore form the method from
+the receiver's origin rather than the facade's current program.
+
+Every selected source function closure now projects a Sendable descriptor
+containing the origin `ResolvedProgramPlan`, declaration `SyntaxIdentifier`,
+native function spelling, lexical placement, resolved-or-lazy isolation facts,
+effects, and return type name. The shared resolver publishes a target only for
+an own reference-type method with no property collision and exactly one
+call-shape match; same-shape type overloads remain unresolved. The real
+suspending explicit-member path consumes this resolver for the demand-cited
+argument-free form. A detached native reader proves the descriptor is
+Sendable, a two-run regression proves origin-plan identity, and explicit
+parallel mode returns `target:member` with zero physical submissions or
+executions. The canonical focused iteration completed 45 ownership/target/
+worker tests in four suites, all forty-three methodology checks plus three
+isolated gate-contract checks, and all twenty parity repetitions on four
+workers in one second. The rebuilt scoped TSan board passed twenty native
+overlap iterations and all forty driver/source-kernel tests on four workers in
+70 seconds. This does not claim full Swift overload resolution, inherited or
+protocol-witness targets, host routing, actor re-entry from a physical worker,
+or physical execution of the source method.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

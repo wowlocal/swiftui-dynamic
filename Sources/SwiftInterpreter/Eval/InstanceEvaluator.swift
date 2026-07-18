@@ -98,7 +98,9 @@ extension Interpreter {
             throw error
         }
         let instance = Instance(
-            symbol: symbol, lifecycleOwner: symbol.isClass ? self : nil)
+            symbol: symbol,
+            lifecycleOwner: symbol.isClass ? self : nil,
+            programState: currentProgramState)
         if symbol.isActor {
             instance.actorID = concurrencyRuntime.registerActor(instance)
         }

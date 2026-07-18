@@ -25,6 +25,11 @@ public final class ChangeSignal {
 @MainActor
 public final class Instance: @preconcurrency CustomStringConvertible {
     public let symbol: StructSymbol
+    /// The mutable declaration/symbol capability that created this source
+    /// value. A later facade run must not rebind one of this instance's
+    /// methods to the newer program merely because the raw syntax is still
+    /// reachable through `symbol`.
+    let programState: RuntimeProgramState?
     /// Present only for source actors. The ID selects the logical actor
     /// executor independently of the host object's memory address and is the
     /// future key for storage confinement and mailbox state.
@@ -52,9 +57,24 @@ public final class Instance: @preconcurrency CustomStringConvertible {
     /// lease. Ordinary source construction leaves this empty.
     var synthesizedRootOwners: [RuntimeValue] = []
 
-    public init(symbol: StructSymbol, lifecycleOwner: Interpreter? = nil) {
+    public convenience init(
+        symbol: StructSymbol,
+        lifecycleOwner: Interpreter? = nil
+    ) {
+        self.init(
+            symbol: symbol,
+            lifecycleOwner: lifecycleOwner,
+            programState: nil)
+    }
+
+    init(
+        symbol: StructSymbol,
+        lifecycleOwner: Interpreter?,
+        programState: RuntimeProgramState?
+    ) {
         self.symbol = symbol
         self.lifecycleOwner = lifecycleOwner
+        self.programState = programState
     }
 
     isolated deinit {

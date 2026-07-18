@@ -747,6 +747,25 @@ extension Interpreter {
                 }
             }
 
+            // FoodTruck's detached updates loop is the first demand-cited
+            // source-call target. Resolve an argument-free own reference
+            // method to one exact origin declaration before invocation; the
+            // descriptor is Sendable, while this closure and receiver stay
+            // on the MainActor-confined evaluator.
+            if call.arguments.isEmpty,
+               call.trailingClosure == nil,
+               call.additionalTrailingClosures.isEmpty,
+               case .instance(let instance) = baseValue,
+               let target = resolveOwnSourceInstanceMethodCallTarget(
+                   named: name,
+                   on: instance,
+                   arguments: CallArguments()) {
+                return try await invokeSuspending(
+                    .closure(target.closure),
+                    with: CallArguments(),
+                    node: call)
+            }
+
             if case .instance(let instance) = baseValue,
                let overloads = instance.symbol.methods[name],
                shouldDirectlyDispatchInstanceCall(

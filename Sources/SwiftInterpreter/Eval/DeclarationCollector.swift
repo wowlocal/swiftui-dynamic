@@ -1097,8 +1097,14 @@ extension Interpreter {
         }
     }
 
-    func makeFunctionClosure(_ node: FunctionDeclSyntax, body: CodeBlockSyntax, captured: Environment) -> ClosureValue {
-        let programState = programStateOwningDeclaration(node.id)
+    func makeFunctionClosure(
+        _ node: FunctionDeclSyntax,
+        body: CodeBlockSyntax,
+        captured: Environment,
+        originProgramState: RuntimeProgramState? = nil
+    ) -> ClosureValue {
+        let programState = originProgramState
+            ?? programStateOwningDeclaration(node.id)
         let programPlan = programState?.programPlan ?? currentProgramPlan
         let programMetadata = programPlan?.metadata ?? currentProgramMetadata
         let metadata = programMetadata?.callableMetadataIndex.metadata(for: node)
@@ -1138,6 +1144,11 @@ extension Interpreter {
            let actorID = actor.actorID {
             closure.executorPreference = .actor(actorID)
         }
+        closure.sourceFunctionTargetDescriptor =
+            sourceFunctionTargetDescriptor(
+                declarationID: node.id,
+                metadata: metadata,
+                closure: closure)
         return closure
     }
 

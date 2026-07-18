@@ -2634,7 +2634,7 @@
     "interpreterEntry": "await detachedSourceMemberCallTargetProbe()",
     "interpreterProjection": "string",
     "nativeFact": "An explicit self member call inside Task.detached selects the captured MainActor-isolated instance method, suspends through its async body, and publishes that method's exact value rather than a same-named global function.",
-    "notes": "FoodTruck demand-cites the exact Task.detached { await self.updatesLoop() } shape in StoreMessagesManager.swift:33-35. The exact output is target:member; worker identity and unrelated scheduler order are not asserted. This is an already-GREEN behavioral characterization paired with an immutable callee-shape metadata prerequisite, not a claim that the general source evaluator or this source method executes on a physical worker."
+    "notes": "FoodTruck demand-cites the exact Task.detached { await self.updatesLoop() } shape in StoreMessagesManager.swift:33-35. The exact output is target:member; worker identity and unrelated scheduler order are not asserted. This already-GREEN behavior first anchored immutable callee-shape metadata and now anchors an origin-bound Sendable descriptor for the uniquely shape-resolved own reference method. Same-shape overloads remain unresolved, the source method stays on the confined evaluator with zero physical receipts, and no Instance, RuntimeProgramState, closure, environment, or evaluator crosses a worker boundary."
   },
   {
     "id": "parallel-captured-string-distance",

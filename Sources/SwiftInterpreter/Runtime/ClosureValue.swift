@@ -148,6 +148,12 @@ public final class ClosureValue {
     /// MainActor-confined mutable declaration materialization associated with
     /// `programPlan`. Escaped host callbacks reuse this exact capability.
     var programState: RuntimeProgramState?
+    /// Immutable identity of the exact source declaration represented by this
+    /// closure. Anonymous closure expressions and foreign-syntax fallbacks
+    /// leave it nil; a selected function/method may project this descriptor
+    /// without transferring the closure or its captured environment.
+    var sourceFunctionTargetDescriptor:
+        RuntimeSourceFunctionTargetDescriptor?
     public var callableMetadataIndex: ParsedCallableMetadataIndex? {
         programMetadata?.callableMetadataIndex
     }
