@@ -107,6 +107,23 @@ final class StateStore: ObservableObject {
         wireModelSubscriptions(of: instance)
     }
 
+    /// A view with @Query/@FetchRequest storage re-renders when the live
+    /// model store mutates — the store's changeSignal is the model
+    /// changeSignal pattern, and the send is the same self-healing shape.
+    func wireQuerySubscription(of instance: Instance, interpreter: Interpreter) {
+        guard instance.symbol.storedProperties.contains(where: { $0.wrapper == .query })
+        else { return }
+        LiveModelStore.for(interpreter).changeSignal.subscribe(ObjectIdentifier(self)) { [weak self] in
+            guard let store = self else { return }
+            let tick = store.renderTick
+            store.objectWillChange.send()
+            DispatchQueue.main.async { [weak store] in
+                guard let store, store.renderTick == tick else { return }
+                store.objectWillChange.send()
+            }
+        }
+    }
+
     /// Any @StateObject/@ObservedObject model this view declares re-renders it
     /// when a notifying property mutates. Keyed subscription keeps repeated
     /// adoption idempotent.
@@ -161,8 +178,13 @@ public struct InterpretedView: View {
         self.interpreter = interpreter
     }
 
+    /// Probe surface: total InterpretedView body evaluations this process
+    /// (idle-flat / advances-on-signal causality in re-render pins).
+    public static var bodyEvaluationCount = 0
+
     public var body: some View {
         store.renderTick &+= 1
+        Self.bodyEvaluationCount += 1
         if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
             print("TRACE-BINDING body-eval \(instance.symbol.name)")
         }
@@ -188,6 +210,7 @@ public struct InterpretedView: View {
         interpreter.injectEnvironmentValues(into: instance, values: environmentValues)
         LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
         store.adopt(into: instance)
+        store.wireQuerySubscription(of: instance, interpreter: interpreter)
         return interpretedBody
     }
 
