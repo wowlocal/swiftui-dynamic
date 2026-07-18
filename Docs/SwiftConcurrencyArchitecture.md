@@ -3035,7 +3035,10 @@ Each milestone is independently gated through
   `{ @MainActor [weak capture] in ... }` operation demand-cited by Provenance
   and KeyboardCowboy, apple-browsers' exact strong/weak/weak capture-list
   operation, plus Swiftfin's exact weak/strong capture-list operation. The
-  snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
+  Swiftfin form also has a complete composition characterization for its cited
+  `for await` loop, per-element weak-self guard, and optional callback; those
+  operations remain confined after the empty wrapper handoff. The snapshot
+  kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
   `selectedStrings.map(\.count).reduce(0, +)` spelling over a local immutable
@@ -5039,6 +5042,29 @@ worker capture access is claimed. The focused source-kernel suite passed
 55/55, all 46 methodology/gate checks passed, and the exact-tip physical board
 passed 98/98 tests in three suites. A fresh TSan build passed native overlap
 20/20 plus all 98 tests in 18 seconds without a race or interceptor diagnostic.
+
+The eighty-fourth prerequisite is verification-only: it composes Swiftfin's
+now-admitted contextual MainActor weak/strong wrapper with the complete cited
+`for await` loop, per-element `guard let self`, and optional callback. No new
+worker capability or closure shape is introduced. The empty physical command
+still carries only entry/task identity; async-sequence creation, iteration,
+weak lookup, strong key, optional callback, source body, evaluator, and outcome
+all remain in the confined continuation record.
+
+A gate in the sequence's first `next()` causally separates entry from release.
+The live branch suspends and records two MainActor callbacks; in the released
+branch the parent drops the final owner only after entry, then the resumed
+iteration returns at the authored guard with zero callbacks. Strict native and
+interpreted execution returned exact `same,same:2#0` in twenty bounded runs.
+The raw native digest was
+`6d5b6034081987f3c77e65fb626953a03030574b0a5a5dfd76fd014474b14294`,
+and every focused five-run shard retained
+`3e3161f2303f9393fe4012e18d1a8528c40764ad6b0d1f8728adf3623077c9a5`.
+Cooperative/parallel receipts remain zero/two and all registries drain. The
+focused source-kernel suite passed 56/56, all 46 methodology/gate checks
+passed, the exact-tip physical board passed 99/99 tests in three suites, and a
+fresh TSan build passed native overlap 20/20 plus all 99 tests in 24 seconds
+without a race or interceptor diagnostic.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change

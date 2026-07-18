@@ -1043,6 +1043,64 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func explicitMainActorWeakStrongCaptureForAwaitPreservesIterationAndRelease()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-strong-for-await.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorWeakStrongForAwaitProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        let expected = "same,same:2#0"
+        #expect(cooperativeValue.stringValue == expected)
+        #expect(value.stringValue == expected)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+        #expect(cooperative.concurrencyRuntime.activeActorCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func contextualTaskDetachedStaticMemberExecutesOperation() async throws {
         let interpreter = Interpreter()
 

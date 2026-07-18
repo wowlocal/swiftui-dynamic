@@ -2376,6 +2376,30 @@ seconds without a race or interceptor diagnostic. No worker identity,
 unrelated scheduler order, general capture-list transfer, or direct heap access
 is claimed.
 
+The eighty-fourth M9 slice is an already-GREEN composition characterization,
+not a production gap closure. It retains Swiftfin's exact contextual
+MainActor weak-self/strong-key wrapper and adds the rest of the cited operation:
+`for await`, a per-element `guard let self`, and an optional callback. A
+sequence gate reports first `next()` entry before the parent releases the final
+owner, making the zero-callback branch causal rather than timing-based.
+
+Apple Swift 6.3.3 compiled the same source with complete strict concurrency and
+warnings as errors. Twenty native/interpreted runs returned exact
+`same,same:2#0`; the raw native digest was
+`6d5b6034081987f3c77e65fb626953a03030574b0a5a5dfd76fd014474b14294`,
+and every focused shard retained
+`3e3161f2303f9393fe4012e18d1a8528c40764ad6b0d1f8728adf3623077c9a5`.
+The live path records two MainActor callbacks across sequence suspensions; the
+released path returns from the authored guard with none. Both interpreter modes
+were already exact, with zero/two cooperative/parallel receipts and complete
+registry cleanup, so no runtime mechanism changed. The canonical iteration
+passed 56/56 source-kernel tests, all 46 methodology/gate checks, and 20/20
+parity repetitions in two seconds. The physical board passed 99/99 tests in
+three suites, and a fresh TSan build passed native overlap 20/20 plus all 99
+tests in 24 seconds without a race or interceptor diagnostic. Sequence timing,
+ready-task order, worker identity, and direct worker iteration remain outside
+the assertion.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
