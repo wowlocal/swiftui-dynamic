@@ -645,6 +645,15 @@ extension Interpreter {
             guard let name = bindingMetadata.identifierName else {
                 throw error(binding, "unsupported property pattern")
             }
+            if let accessorBlock = binding.accessorBlock,
+               let accessor = unsupportedCoroutineAccessor(
+                   in: accessorBlock) {
+                throw error(
+                    binding,
+                    "coroutine property accessor '\(accessor)' is unsupported; "
+                        + "use ordinary get/set or provide a demand citation "
+                        + "for suspension-safe coroutine ownership")
+            }
             if isTaskLocal {
                 guard binding.accessorBlock == nil else {
                     throw error(
@@ -1251,6 +1260,38 @@ extension Interpreter {
     }
 
     // MARK: - Helpers
+
+    /// SwiftParser currently represents experimental `read`/`modify`
+    /// accessors either as accessor declarations or as getter-body calls with
+    /// trailing closures. Recognize both shapes before they can degrade into
+    /// an ordinary getter and fail later with an unrelated identifier error.
+    private func unsupportedCoroutineAccessor(
+        in accessorBlock: AccessorBlockSyntax
+    ) -> String? {
+        let spellings: Set<String> = ["read", "modify", "_read", "_modify"]
+        switch accessorBlock.accessors {
+        case .accessors(let accessors):
+            return accessors.lazy.map(\.accessorSpecifier.text).first {
+                spellings.contains($0)
+            }
+        case .getter(let items):
+            for item in items {
+                guard case .expr(let expression) = item.item,
+                      let call = expression.as(FunctionCallExprSyntax.self),
+                      let reference = call.calledExpression
+                        .as(DeclReferenceExprSyntax.self),
+                      spellings.contains(reference.baseName.text),
+                      call.arguments.isEmpty,
+                      let closure = call.trailingClosure,
+                      closure.tokens(viewMode: .sourceAccurate).contains(
+                          where: { $0.text == "yield" }) else {
+                    continue
+                }
+                return reference.baseName.text
+            }
+            return nil
+        }
+    }
 
     /// nil ⇒ no getter (willSet/didSet observers only): treat as stored.
     func parseAccessors(

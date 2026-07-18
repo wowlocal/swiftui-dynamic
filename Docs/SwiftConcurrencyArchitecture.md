@@ -4331,6 +4331,65 @@ four workers. The rebuilt scoped TSan board passed native overlap 20/20 plus
 all 62 physical driver/kernel/source-call tests in 24 seconds without a race
 or interceptor diagnostic.
 
+The sixty-third prerequisite closes the ordinary writable computed-property
+owner for the same Optional async mutation. The official basis remains
+`test/IRGen/run-coroutine_accessors.swift`: lines 200-220 define a computed
+Optional with `read`/`modify`, while lines 368-386 mutate it asynchronously.
+The independent unwind basis remains
+`test/Interpreter/coroutine_accessors_old_abi_nounwind.swift`, lines 9-41.
+The interpreter does not claim native `read`/`modify` syntax in this slice;
+the same-source probe distills the observable ownership rule through a normal
+synchronous, nonthrowing get/set pair.
+
+The 49-line probe records getter entry, mutation before and after
+`Task.yield`, setter input, and final backing storage for normal and typed-throw
+exits. Strict Apple Swift 6.3.3 and interpreted execution returned exact
+`get|enter|exit:seed-entered-resumed|set:seed-entered-resumed|seed-entered-resumed#get|enter|exit:seed-entered-resumed|set:seed-entered-resumed|seed-entered-resumed`
+in twenty bounded runs. Every native five-run shard retained canonical
+SHA-256
+`a02611976cbcd7de5b34b6f5bb05bcfddd74953d47d67d9db2666eb907bc88ab`.
+The deterministic RED was `get|enter|seed#get|enter|seed`: each getter ran
+once and the method began, but synchronous optional dispatch lost the
+suspending continuation and never called either setter.
+
+The confined LValue transaction now admits a directly named source-value
+computed property only when immutable metadata proves an Optional annotation,
+a synchronous nonthrowing getter, and a setter. It reads that lvalue once,
+invokes the ordinary suspending mutating working receiver, reconstructs the
+original typed Optional wrapper, and writes through the same lvalue after
+return or unwind. The mechanism is property- and fixture-independent and
+preserves wrapped-type and implicitly-unwrapped metadata. It remains wholly
+cooperative with zero physical receipts. Native coroutine accessors, async or
+throwing computed getters, computed reference or nested owners, and source
+subscripts remain outside this admitted subset. One native-positive companion
+case pins their shared named fail-closed boundary: native returns exact
+`seed-entered-resumed`, while the interpreter diagnoses unsupported async
+Optional value-mutation storage before arguments or payload mutation. Every
+native five-run shard retained SHA-256
+`ce729f52a3592f1c93a7140c8bc10addb7e62d41ae42f06a3651ce98efcba89a`.
+Before this boundary, execution entered the method synchronously and failed
+late at `Task.yield` with an unrelated runtime-entry diagnostic.
+
+The committed experimental-spelling probe
+`Tests/NativeProbes/Concurrency/optional-coroutine-accessor-async-writeback.swift`
+(source SHA-256
+`970932d93de220890b56e5a8b520a6c4d25dd1e07d148c44fc9f1405aa0ff223`)
+compiles with `-enable-experimental-feature CoroutineAccessors`, complete
+strict concurrency, and warnings as errors. It also returned exact
+`seed-entered-resumed` in twenty runs. Before the declaration boundary, the
+interpreter misparsed `read`/`modify` as an ordinary getter body and failed
+late with `unresolved identifier 'read'`. Property collection now recognizes
+both direct accessor nodes and SwiftParser's trailing-closure recovery shape
+for `read`, `modify`, `_read`, and `_modify`, then emits the named coroutine-
+ownership diagnostic at the declaration.
+
+The focused iterations passed both new regressions, all 46 methodology/gate
+checks, and twenty repetitions of each parity case on four workers. The
+exact-tip AsyncExecutionTests plus RuntimeSourceCallTargetTests board passed
+114 tests in two suites. The rebuilt scoped TSan board passed native overlap
+20/20 plus all 62 physical driver/kernel/source-call tests in three suites on
+four workers in 31 seconds without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and

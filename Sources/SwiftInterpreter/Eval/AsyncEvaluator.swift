@@ -726,9 +726,10 @@ extension Interpreter {
         return (result, resolvedReceiver)
     }
 
-    /// The first optional async write-back slice admits a local binding or
-    /// one directly named source stored property. Computed/coroutine and
-    /// subscript accessors need their own suspending access transaction.
+    /// Optional async write-back admits a local binding or one directly named
+    /// source property. A synchronous nonthrowing computed get/set pair can
+    /// use the same suspension-spanning copy-in/copy-out transaction as stored
+    /// value storage; native coroutine and subscript accessors remain separate.
     private func isSupportedOptionalAsyncMutationStorageSyntax(
         _ expression: ExprSyntax
     ) -> Bool {
@@ -742,18 +743,43 @@ extension Interpreter {
         return base.is(DeclReferenceExprSyntax.self)
     }
 
-    private func isStoredOptionalAsyncMutationLValue(_ target: LValue) -> Bool {
+    private func isSupportedOptionalAsyncMutationLValue(
+        _ target: LValue
+    ) -> Bool {
         switch target {
         case .box:
             return true
         case .instanceProperty(let instance, let name):
             return instance.symbol.storedProperty(named: name) != nil
         case .instanceValueProperty(let base, let symbol, let name):
-            return symbol.storedProperty(named: name) != nil
-                && isStoredOptionalAsyncMutationLValue(base)
+            if symbol.storedProperty(named: name) != nil {
+                return isSupportedOptionalAsyncMutationLValue(base)
+            }
+            guard let computed = symbol.computedProperties[name],
+                  computed.setter != nil,
+                  !computed.isAsync,
+                  !computed.isThrowing,
+                  let typeName = computed.typeAnnotation?.trimmedDescription,
+                  RuntimeOptionalValue.wrappedType(in: typeName) != nil else {
+                return false
+            }
+            return isSupportedOptionalAsyncMutationLValue(base)
         default:
             return false
         }
+    }
+
+    private func replacingOptionalPayload(
+        in optionalValue: RuntimeValue,
+        with payload: RuntimeValue
+    ) -> RuntimeValue {
+        guard case .optional(let optional) = optionalValue else {
+            return payload.liftedToOptional()
+        }
+        return .some(
+            payload,
+            wrappedTypeName: optional.wrappedTypeName,
+            isImplicitlyUnwrapped: optional.isImplicitlyUnwrapped)
     }
 
     func evaluateCallSuspending(
@@ -774,9 +800,9 @@ extension Interpreter {
             if let optional = baseExpression
                 .as(OptionalChainingExprSyntax.self),
                isSupportedOptionalAsyncMutationStorageSyntax(
-                    optional.expression),
+                   optional.expression),
                let storage = try? resolveLValue(optional.expression, in: env),
-               isStoredOptionalAsyncMutationLValue(storage) {
+               isSupportedOptionalAsyncMutationLValue(storage) {
                 optionalPayloadStorage = storage
                 evaluatedBase = try storage.read(self)
             } else {
@@ -819,9 +845,18 @@ extension Interpreter {
                     }
                     if case .instance(let instance) = wrapped,
                        !instance.symbol.isClass,
-                       let storage = optionalPayloadStorage,
                        !mutatingInstanceMethods(
                             named: name, on: instance).isEmpty {
+                        guard let storage = optionalPayloadStorage else {
+                            throw error(
+                                call,
+                                "async optional value mutation through a "
+                                    + "computed reference owner or unsupported "
+                                    + "storage path is unsupported; use direct "
+                                    + "stored Optional storage or a synchronous "
+                                    + "nonthrowing computed property on a "
+                                    + "source value")
+                        }
                         let args = try await collectArgumentsSuspending(
                             of: call, in: env)
                         if let invocation = try await
@@ -832,8 +867,11 @@ extension Interpreter {
                                 node: call,
                                 writeBackOnExit: { receiver in
                                     try self.relocating(call) {
-                                        try LValue.forceUnwrapped(storage)
-                                            .writeOwned(receiver, self)
+                                        try storage.writeOwned(
+                                            self.replacingOptionalPayload(
+                                                in: evaluatedBase,
+                                                with: receiver),
+                                            self)
                                     }
                                 }) {
                             return invocation.result.liftedToOptional()

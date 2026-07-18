@@ -1734,6 +1734,65 @@ scoped TSan board passed native overlap 20/20 plus all 62 physical
 driver/kernel/source-call tests in 24 seconds without a race or interceptor
 diagnostic.
 
+The sixty-third M9 slice asks the next ownership question: when the Optional
+payload belongs to an ordinary writable computed property on a source struct,
+does Swift call the getter once and the setter once with final `self` after
+either normal async return or unwind? Pinned
+`test/IRGen/run-coroutine_accessors.swift` lines 200-220 and 368-386 supply the
+computed coroutine plus async-mutation basis; pinned
+`test/Interpreter/coroutine_accessors_old_abi_nounwind.swift` lines 9-41
+supplies the cleanup-on-unwind basis. The differential deliberately uses a
+standard synchronous, nonthrowing get/set property; native `read`/`modify`
+syntax is not claimed.
+
+The probe mutates before and after `Task.yield` and records getter, method,
+setter, and backing-storage effects without asserting scheduler or thread
+order. Apple Swift 6.3.3 complete-strict compilation with warnings as errors
+and interpreted execution returned exact
+`get|enter|exit:seed-entered-resumed|set:seed-entered-resumed|seed-entered-resumed#get|enter|exit:seed-entered-resumed|set:seed-entered-resumed|seed-entered-resumed`
+in twenty bounded runs. Every native five-run shard retained SHA-256
+`a02611976cbcd7de5b34b6f5bb05bcfddd74953d47d67d9db2666eb907bc88ab`.
+The retained RED was `get|enter|seed#get|enter|seed`, which isolates the lost
+suspending continuation and absent setter rather than getter multiplicity or
+error routing.
+
+Focused evidence requires one getter and setter per present call, copy-out on
+return and typed throw, the original Optional wrapper and final payload,
+complete runtime cleanup, and zero physical receipts. Admission is metadata-
+bounded to a direct source-value member with an Optional annotation,
+synchronous nonthrowing getter, and setter. The shared LValue transaction reads
+once and commits a reconstructed typed Optional through that same owner on
+both exits. Native coroutine accessor spellings, async/throwing getters,
+computed reference or nested owners, and source subscripts remain outside the
+admitted support. One native-positive `interpreter-diagnostic` case represents
+that uncited remainder. Native returns exact `seed-entered-resumed`; every
+five-run shard retains SHA-256
+`ce729f52a3592f1c93a7140c8bc10addb7e62d41ae42f06a3651ce98efcba89a`.
+The interpreter fails before argument evaluation or payload mutation with a
+named async-Optional-mutation storage diagnostic. Its RED instead entered the
+method synchronously and failed late at `Task.yield`, which was not an
+acceptable depth-cap boundary.
+
+The exact upstream spelling has its own committed compiler probe at
+`Tests/NativeProbes/Concurrency/optional-coroutine-accessor-async-writeback.swift`
+(SHA-256
+`970932d93de220890b56e5a8b520a6c4d25dd1e07d148c44fc9f1405aa0ff223`).
+With the experimental CoroutineAccessors feature, complete strict concurrency,
+and warnings as errors, it returned `seed-entered-resumed` in twenty runs.
+The interpreter RED was the unrelated late diagnostic `unresolved identifier
+'read'`. Declaration collection now identifies direct and parser-recovered
+`read`/`modify`/`_read`/`_modify` shapes and fails immediately with the named
+coroutine-ownership diagnostic.
+
+The focused iterations passed both new regressions, all forty-three
+methodology checks plus three isolated gate-contract checks, and twenty
+repetitions of each parity case on four workers. The exact-tip
+AsyncExecutionTests plus RuntimeSourceCallTargetTests board passed 114 tests
+in two suites. The rebuilt
+scoped TSan board passed native overlap 20/20 plus all 62 physical
+driver/kernel/source-call tests in 31 seconds without a race or interceptor
+diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

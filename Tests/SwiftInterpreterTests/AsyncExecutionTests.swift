@@ -149,6 +149,77 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
     }
 
+    @Test func optionalAsyncMutatingStructMethodWritesBackThroughComputedProperty()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/optional-computed-value-mutating-async-writeback.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait optionalComputedValueMutatingAsyncWritebackProbe()\n"
+        let interpreter = Interpreter()
+
+        let interpreted = try await interpreter.runAsync(source: source)
+
+        let expected = "get|enter|exit:seed-entered-resumed|"
+            + "set:seed-entered-resumed|seed-entered-resumed"
+        #expect(interpreted.stringValue == "\(expected)#\(expected)")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func unsupportedOptionalAsyncMutationOwnerFailsClosed() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/optional-computed-reference-mutating-async-fail-closed.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait optionalComputedReferenceMutatingAsyncFailClosedProbe()\n"
+        let interpreter = Interpreter()
+
+        do {
+            _ = try await interpreter.runAsync(source: source)
+            Issue.record("unsupported async mutation owner returned a value")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("async optional value mutation"))
+            #expect(error.message.contains("computed reference owner"))
+        }
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func nativeCoroutineOptionalAccessorFailsClosedAtDeclaration()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let probe = root.appendingPathComponent(
+            "Tests/NativeProbes/Concurrency/optional-coroutine-accessor-async-writeback.swift")
+        let source = try String(contentsOf: probe, encoding: .utf8)
+            + "\nawait nativeCoroutineOptionalWritebackProbe()\n"
+        let interpreter = Interpreter()
+
+        do {
+            _ = try await interpreter.runAsync(source: source)
+            Issue.record("coroutine accessor was silently accepted")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("coroutine property accessor"))
+            #expect(error.message.contains("unsupported"))
+        }
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
     @Test func nestedAsyncMutatingMethodCopiesOutLikeNativeSwift() async throws {
         var nativeCounter = NativeNestedAsyncCounter(value: 4)
         await nativeCounter.update()
