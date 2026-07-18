@@ -115,7 +115,7 @@
           "evidenceByCoverage": {
             "audit": ["test:ConcurrencyParityTests/toolchainFingerprintIsComplete", "test:ConcurrencyMethodologyTests/gateReceiptContractIsSourceBoundAndActionable"]
           },
-          "notes": "Pinned or record-only toolchain identity, source start/end fingerprints, stage diagnostics, and durable GREEN/RED receipts are machine checked."
+          "notes": "A single xcrun-selected Xcode toolchain (optionally exact-fingerprint pinned), source start/end fingerprints, stage diagnostics, and durable GREEN/RED receipts are machine checked."
         }
       ]
     },

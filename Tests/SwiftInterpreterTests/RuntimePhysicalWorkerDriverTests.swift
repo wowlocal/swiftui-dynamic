@@ -3,15 +3,9 @@ import Testing
 @testable import SwiftInterpreter
 
 @Suite("Runtime physical worker driver")
-struct RuntimePhysicalWorkerDriverTests {
+nonisolated struct RuntimePhysicalWorkerDriverTests {
     @Test func boundedJobsPhysicallyOverlapAndPreserveInputOrder() async throws {
-        let interpreter = Interpreter()
-        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
-        let capabilities = try (0..<3).map { index in
-            try entry.makeWorkerCapability(copying: [
-                .init(name: "index", value: .native(index)),
-            ])
-        }
+        let capabilities = try await Self.makeIndexedCapabilities(0..<3)
         let gate = PhysicalWorkerBatchGate()
         let jobs = capabilities.map { capability in
             RuntimePhysicalWorkerJob(capability: capability) { capability in
@@ -45,9 +39,7 @@ struct RuntimePhysicalWorkerDriverTests {
     }
 
     @Test func cancellingExecutionCancelsTheDetachedWorker() async throws {
-        let interpreter = Interpreter()
-        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
-        let capability = try entry.makeWorkerCapability(copying: [])
+        let capability = try await Self.makeEmptyCapability()
         let probe = PhysicalWorkerCancellationProbe()
         let job = RuntimePhysicalWorkerJob(capability: capability) { _ in
             probe.started.store(true, ordering: .releasing)
@@ -79,9 +71,7 @@ struct RuntimePhysicalWorkerDriverTests {
     @Test func sourceKernelExecutionPreservesCooperativeCallerCancellation()
         async throws
     {
-        let interpreter = Interpreter()
-        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
-        let capability = try entry.makeWorkerCapability(copying: [])
+        let capability = try await Self.makeEmptyCapability()
         let gate = PhysicalWorkerSourceCancellationGate()
         let job = RuntimePhysicalWorkerJob(capability: capability) { _ in
             .int(23)
@@ -106,9 +96,7 @@ struct RuntimePhysicalWorkerDriverTests {
     }
 
     @Test func workerFailureCancelsSiblingAndDrainsTheBatch() async throws {
-        let interpreter = Interpreter()
-        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
-        let capability = try entry.makeWorkerCapability(copying: [])
+        let capability = try await Self.makeEmptyCapability()
         let probe = PhysicalWorkerFailureProbe()
         let sibling = RuntimePhysicalWorkerJob(capability: capability) { _ in
             probe.siblingStarted.store(true, ordering: .releasing)
@@ -158,9 +146,7 @@ struct RuntimePhysicalWorkerDriverTests {
     }
 
     @Test func completedBatchReleasesOperationCaptures() async throws {
-        let interpreter = Interpreter()
-        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
-        let capability = try entry.makeWorkerCapability(copying: [])
+        let capability = try await Self.makeEmptyCapability()
         let driver = try RuntimePhysicalWorkerDriver(maximumParallelism: 1)
         weak var releasedSentinel: PhysicalWorkerLifetimeSentinel?
 
@@ -181,13 +167,7 @@ struct RuntimePhysicalWorkerDriverTests {
     }
 
     @Test func concurrentBatchesShareOneGlobalWorkerBound() async throws {
-        let interpreter = Interpreter()
-        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
-        let capabilities = try (0..<4).map { index in
-            try entry.makeWorkerCapability(copying: [
-                .init(name: "index", value: .native(index)),
-            ])
-        }
+        let capabilities = try await Self.makeIndexedCapabilities(0..<4)
         let gate = PhysicalWorkerBatchGate()
         let jobs = capabilities.map { capability in
             RuntimePhysicalWorkerJob(capability: capability) { capability in
@@ -225,9 +205,7 @@ struct RuntimePhysicalWorkerDriverTests {
     }
 
     @Test func cancellingAQueuedBatchRemovesItsPermitWaiter() async throws {
-        let interpreter = Interpreter()
-        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
-        let capability = try entry.makeWorkerCapability(copying: [])
+        let capability = try await Self.makeEmptyCapability()
         let gate = PhysicalWorkerBatchGate()
         let queuedStarted = Atomic<Bool>(false)
         let blocking = RuntimePhysicalWorkerJob(
@@ -271,9 +249,33 @@ struct RuntimePhysicalWorkerDriverTests {
         #expect(!startedAfterRelease,
             "a cancelled permit waiter ran after capacity became available")
     }
+
+    private static func makeEmptyCapability() async throws
+        -> RuntimeWorkerCapability
+    {
+        try await MainActor.run {
+            let interpreter = Interpreter()
+            let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+            return try entry.makeWorkerCapability(copying: [])
+        }
+    }
+
+    private static func makeIndexedCapabilities(
+        _ indices: Range<Int>
+    ) async throws -> [RuntimeWorkerCapability] {
+        try await MainActor.run {
+            let interpreter = Interpreter()
+            let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+            return try indices.map { index in
+                try entry.makeWorkerCapability(copying: [
+                    .init(name: "index", value: .native(index)),
+                ])
+            }
+        }
+    }
 }
 
-private enum PhysicalWorkerProbeError: Error, Equatable {
+private nonisolated enum PhysicalWorkerProbeError: Error, Equatable {
     case deadline
     case expectedFailure
 }
@@ -301,7 +303,7 @@ private nonisolated final class PhysicalWorkerFailureProbe: Sendable {
 
 private nonisolated final class PhysicalWorkerLifetimeSentinel: Sendable {}
 
-private func waitUntil(
+private nonisolated func waitUntil(
     timeout: Duration = .seconds(2),
     _ predicate: @Sendable () -> Bool
 ) async -> Bool {

@@ -793,6 +793,18 @@ captured/scalar-expression and suspending kernels, actors, host calls, heap
 access, and the full parallel mode still require expanded mode-differential and
 TSan coverage.
 
+The `SwiftInterpreterTests` target is MainActor-isolated by default, but the
+physical-worker driver probes are explicitly `nonisolated`. They hop to
+`MainActor.run` only to project a checked Sendable capability, then perform
+worker launch, cancellation, permit, and deadline orchestration off the shared
+MainActor test queue. Otherwise one `Task.yield()` can place the controlling
+probe behind hundreds of unrelated tests while its detached workers consume
+their bounded deadlines, creating a deterministic load-induced false RED. The
+closing gate also resolves both `swift` and `swiftc` through the same `xcrun`
+selection and derives the prebuilt helper from that driver's runtime resource;
+ambient Swiftly or Homebrew PATH entries cannot mix the build/runtime with a
+different native oracle.
+
 Its thirty-fifth prerequisite is a gap closure for the first demand-cited
 captured scalar expression. CotEditor's `EditorCounter.swift:130` executes
 `await Task.detached { string.count }.value`, where `string` is a local

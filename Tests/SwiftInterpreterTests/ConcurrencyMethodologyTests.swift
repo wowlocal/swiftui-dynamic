@@ -2974,6 +2974,47 @@ struct ConcurrencyMethodologyTests {
                     + "of a user-configured external diff or text conversion"))
     }
 
+    @Test func physicalWorkerDriverProbesStayOffTheDefaultMainActor() throws {
+        let source = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Tests/SwiftInterpreterTests/RuntimePhysicalWorkerDriverTests.swift"),
+            encoding: .utf8)
+
+        #expect(source.contains(
+            "@Suite(\"Runtime physical worker driver\")\n"
+                + "nonisolated struct RuntimePhysicalWorkerDriverTests"),
+            Comment(rawValue:
+                "physical worker probes must not yield behind the package's "
+                    + "process-wide MainActor test queue while detached jobs "
+                    + "are holding bounded-worker deadlines"))
+        #expect(source.contains("await MainActor.run"),
+            Comment(rawValue:
+                "only MainActor-confined capability projection should hop "
+                    + "back to MainActor; worker orchestration must remain "
+                    + "nonisolated"))
+    }
+
+    @Test func closingGateUsesOneXcodeToolchainForBuildAndOracle() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+
+        for required in [
+            "swift_driver_path=$(xcrun --find swift",
+            "\"$swift_driver_path\" build --build-tests",
+            "\"$swift_driver_path\" test list --skip-build",
+            "toolchain_policy=xcrun-pinned",
+        ] {
+            #expect(script.contains(required),
+                Comment(rawValue:
+                    "closing gate lost its single-toolchain contract: "
+                        + required))
+        }
+        #expect(!script.contains("\nswift build"))
+        #expect(!script.contains("\nswift test"))
+    }
+
     @Test func physicalParallelismTSanBoardIsSourceBound() throws {
         let script = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(
