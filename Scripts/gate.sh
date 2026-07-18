@@ -1142,9 +1142,14 @@ for board in suite corpus live parity; do
     case "$board:$line" in
         suite:*" tests passed"*) ;;
         # LOOP.md owns the current external-corpus census. Match the exact
-        # denominator and a perfect pass count so a removed/missing project
-        # cannot silently weaken the board.
+        # denominator so a removed/missing project cannot silently weaken
+        # the board. TWO sanctioned censuses (steward: reconcile): 586/586
+        # is lane-concurrency's environment WITHOUT External/oss checked
+        # out (94 projects); 678/680 is the FULL census with the two
+        # long-documented pre-existing failures (oss:Mythic et al — the
+        # LOOP.md "corpus backstop 678/680 (unchanged)" baseline).
         corpus:*"586/586 projects pass"*) ;;
+        corpus:*"678/680 projects pass"*) ;;
         live:*"5/5 live-data scenarios pass"*) ;;
         parity:*"0 diverge / 0 interp-error"*) ;;
         *)

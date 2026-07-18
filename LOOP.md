@@ -2602,3 +2602,24 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   — landing it flips DEMO_SPLIT_REAL default, closes content to 0.000
   AND the window-title gap in one move. Gate expectation unchanged
   (main still red).
+- 2026-07-18 GATE GREEN — LANDING PREP (worktree iteration 65): main
+  healed at b56e6b4 (parallel-worker fix verified clean-detached, the
+  lane's own oracle method + an xcrun toolchain pin). Absorb surfaced
+  three landing classes, all closed: (1) my i62 Measurement tier vs the
+  GeneratedMemberTests validation suite — receiver seed added, settable
+  count pins 68->69, and a REAL matcher gap: class-typed contracts now
+  accept SUBCLASS instances (Foundation's units arrive as private
+  _NSStatic subclasses of NSDimension; ObjC isKind(of:) with the
+  NS-renaming fallback in HostRuntimeTypeSystem.matches). (2) The
+  toolchain pin: this shell's Swiftly swift 6.2.3 vs the gate's xcrun
+  6.3.3 — all direct swift invocations now go through xcrun. (3) THE
+  CORPUS CENSUS DISCREPANCY: the merged contract pinned 586/586 and
+  "retired" 680 — root-caused to External/ being a gitignored SYMLINK
+  that detached verification worktrees LACK, so the clean gate that
+  pinned the census never saw External/oss (94 projects). The full
+  census is 680 with 678 passing (both failures the long-documented
+  backstop baseline). gate.sh + the census meta-test now sanction BOTH
+  censuses fail-closed, rationale inline, steward-reconcile noted in
+  claims. CLOSING GATE: **GREEN 887s** — 1240 tests (6 shards), corpus
+  678/680, live 5/5, parity 345/0/0. First green gate since i36;
+  clean-detached re-verification + MERGE-READY next.

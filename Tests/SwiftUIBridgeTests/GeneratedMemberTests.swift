@@ -18,7 +18,7 @@ import SwiftInterpreter
         }
         #expect(GeneratedMembers.properties.values.count {
             $0.signature.isSettable
-        } == 68)
+        } == 69)
 
         let components = GeneratedMembers.properties["URLComponents.queryItems"]
         #expect(components?.signature.declaration ==
@@ -73,7 +73,7 @@ import SwiftInterpreter
             }
         }
 
-        #expect(exercised == 68)
+        #expect(exercised == 69)
     }
 
     @Test func generatedPropertiesValidateReceiverAndReadOnlyAccess() throws {
@@ -470,6 +470,8 @@ import SwiftInterpreter
                 unit: .hour, by: 3,
                 range: seedDate...seedDate.addingTimeInterval(24 * 3600)),
             "Date": seedDate,
+            "Measurement": Measurement<Dimension>(
+                value: 72, unit: UnitTemperature.fahrenheit),
             "DateComponents": dateComponents,
             "DateInterval": DateInterval(start: seedDate, duration: 3_600),
             "Decimal": Decimal(string: "12.5")!,
