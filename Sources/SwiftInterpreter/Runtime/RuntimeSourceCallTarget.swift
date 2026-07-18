@@ -127,10 +127,20 @@ nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
     }
 }
 
+/// Source provenance is part of physical admission rather than inferred from
+/// a synthetic binding name. Route proofs can therefore distinguish a
+/// side-effect-free literal from a directly owned immutable capture without
+/// widening every route that accepts the same scalar value kind.
+nonisolated enum RuntimePhysicalSourceCallArgumentOrigin: Sendable, Equatable {
+    case literal
+    case capturedImmutable
+}
+
 nonisolated struct RuntimePhysicalSourceCallArgument: Sendable, Equatable {
     let label: String?
     let bindingName: String
     let valueKind: RuntimePhysicalSourceCallValueKind
+    let origin: RuntimePhysicalSourceCallArgumentOrigin
 }
 
 /// The complete executor-neutral command carried by the physical detached

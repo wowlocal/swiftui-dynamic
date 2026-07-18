@@ -1925,6 +1925,33 @@ in three suites in one second;
 the rebuilt TSan board passed native overlap 20/20 plus all 67 tests in 26
 seconds without a race or interceptor diagnostic.
 
+The sixty-ninth M9 slice asks whether Provenance's exact weak-self call may
+pass a String literal to an inherited-isolation async Void source method
+without widening either existing captured-String route. The cited spelling is
+`Task.detached { [weak self] in await
+self?.restartProcessingIfQueueHasPendingWork(context: "timeout") }` at
+`GameImporter.swift:1297-1299`; the selected method begins at line 1092.
+
+Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
+concurrency checking and warnings as errors. Native and interpreted execution
+returned exact `timeout:none|none#some` in twenty bounded repetitions; every
+five-run shard retained canonical digest
+`fc29406e305e33efd900981045bd11728b7edc7f352ec5dd5f3dac67a99ee469`.
+The deterministic receipt RED already returned the exact value but observed
+zero physical submissions/executions instead of one.
+
+The positive regression requires one physical wrapper and empty runtime
+registries. The retained negative controls require the direct inherited route
+to reject String literals, the weak `@concurrent` route to reject literals,
+and the weak inherited route to reject captured or mutable Strings, MainActor
+targets, and unrelated shapes. Admission therefore records typed literal
+versus captured-immutable origin in the checked command instead of inferring
+semantics from a generated binding name. The focused regressions passed 5/5;
+the four-worker same-source board passed 20/20 in two seconds; the exact-tip
+physical board passed all 68 tests in one second; and the rebuilt TSan board
+passed native overlap 20/20 plus all 68 tests in 69 seconds without a race or
+interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

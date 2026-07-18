@@ -447,6 +447,7 @@ extension Interpreter {
                 let isSingleStringRoute = parameters.count == 1
                     && arguments.count == 1
                     && arguments[0].valueKind == .string
+                    && arguments[0].origin == .capturedImmutable
                 return isArgumentFreeRoute || isSingleStringRoute
             case .explicitlyNonisolated,
                  .executor(.detached),
@@ -510,11 +511,17 @@ extension Interpreter {
         }
         switch target.isolation {
         case .inherited:
-            return parameters.isEmpty && arguments.isEmpty
+            let isArgumentFreeRoute = parameters.isEmpty && arguments.isEmpty
+            let isStringLiteralRoute = parameters.count == 1
+                && arguments.count == 1
+                && arguments[0].valueKind == .string
+                && arguments[0].origin == .literal
+            return isArgumentFreeRoute || isStringLiteralRoute
         case .executor(.cooperativeDefault):
             return parameters.count == 1
                 && arguments.count == 1
                 && arguments[0].valueKind == .string
+                && arguments[0].origin == .capturedImmutable
         case .explicitlyNonisolated,
              .lazyGlobalActorCandidates,
              .executor(.mainActor),
@@ -547,10 +554,10 @@ extension Interpreter {
     }
 
     /// Evaluate no source effects while admitting a physical wrapper. An
-    /// integer or Boolean literal is already a value, and a direct immutable
-    /// Int/Int64 or demand-cited String capture has fixed value semantics for
-    /// this closure. Every other argument spelling and type stays on the
-    /// cooperative evaluator.
+    /// integer, Boolean, or demand-cited String literal is already a value,
+    /// and a direct immutable Int/Int64 or demand-cited String capture has
+    /// fixed value semantics for this closure. Every other argument spelling
+    /// and type stays on the cooperative evaluator.
     /// The checked capability performs the structural Sendable copy; the
     /// command retains labels, binding IDs, and the expected scalar kind.
     private func physicalSourceCallArguments(
@@ -576,15 +583,19 @@ extension Interpreter {
 
             let value: RuntimeValue
             let valueKind: RuntimePhysicalSourceCallValueKind
+            let origin: RuntimePhysicalSourceCallArgumentOrigin
             if let snapshot = literalWorkerSnapshot(argument.expression) {
                 switch snapshot {
                 case .int:
                     valueKind = .integer
                 case .bool:
                     valueKind = .boolean
+                case .string:
+                    valueKind = .string
                 default:
                     return nil
                 }
+                origin = .literal
                 value = snapshot.materializedRuntimeValue()
             } else if let reference = argument.expression
                 .as(DeclReferenceExprSyntax.self),
@@ -606,6 +617,7 @@ extension Interpreter {
                 default:
                     return nil
                 }
+                origin = .capturedImmutable
             } else {
                 return nil
             }
@@ -620,7 +632,8 @@ extension Interpreter {
             commandArguments.append(RuntimePhysicalSourceCallArgument(
                 label: argument.label,
                 bindingName: bindingName,
-                valueKind: valueKind))
+                valueKind: valueKind,
+                origin: origin))
         }
 
         return (

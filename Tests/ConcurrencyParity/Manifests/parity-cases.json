@@ -2832,6 +2832,21 @@
     "notes": "Amperfy demand-cites `Task.detached(priority: .high) { [weak self] in await self?.loadImageAndCacheIt(imagePath: imagePathToDisplay) }` at LibraryEntityImage.swift:171-173; the optional-binding String is immutable and the selected @concurrent source-class method takes one labeled String, is async/nonthrowing/Void, and begins at line 177. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact cover-cache:none|none#some in twenty bounded runs; every native five-run shard retained canonical SHA-256 048303aaf53c0ed1e6f9788bb5cf8564a63ad7b333f05addf7971bc5c510e699. The deterministic interpreter RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. Weak admission is a separate route proof: the checked worker carries only the copied String snapshot, while confined re-entry reloads the genuinely weak receiver, re-resolves the exact target with the materialized argument, and temporarily strengthens only a live receiver for invocation. An occupied-permit regression proves the String-bearing command does not retain a receiver released before re-entry. String literals, mutable captures, inherited/MainActor/actor routes, multiple arguments, throwing methods, and richer results remain cooperative."
   },
   {
+    "id": "parallel-detached-weak-inherited-string-literal-source-call",
+    "fixture": "Fixtures/parallel-detached-weak-inherited-string-literal-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedWeakInheritedStringLiteralSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "A live weak optional-self detached operation may pass one labeled String literal to an inherited-isolation async nonthrowing Void source-class method; the literal arrives exactly and the method retains nil actor isolation across suspension.",
+    "notes": "Provenance demand-cites `Task.detached { [weak self] in await self?.restartProcessingIfQueueHasPendingWork(context: \"timeout\") }` at GameImporter.swift:1297-1299; the selected own source-class method begins at line 1092 and is inherited-isolation, async, nonthrowing, Void-returning, with one labeled String parameter. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact timeout:none|none#some in twenty bounded native/interpreter runs; every native five-run shard retained canonical SHA-256 fc29406e305e33efd900981045bd11728b7edc7f352ec5dd5f3dac67a99ee469. The deterministic interpreter RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. Typed argument provenance distinguishes the side-effect-free String literal from an immutable capture without relying on a synthetic binding name: only this weak inherited literal route is added, while the Planet direct inherited route remains capture-only and the Amperfy weak @concurrent route remains capture-only. Mutable or captured String arguments on this route, String literals on those routes, MainActor/actor targets, multiple arguments, throwing methods, and richer results remain cooperative."
+  },
+  {
     "id": "parallel-detached-strong-self-capture-source-call",
     "fixture": "Fixtures/parallel-detached-strong-self-capture-source-call.swift",
     "mode": "runtime",

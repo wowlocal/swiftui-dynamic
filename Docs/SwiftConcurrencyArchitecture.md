@@ -3043,8 +3043,9 @@ Each milestone is independently gated through
   custom global actor, and inherited detached-caller isolation. Physical
   source-call bodies are signature-free except for Provenance's exact
   capture-only `{ [self] in await self.registerDefaults() }` spelling and the
-  exact capture-only weak-self forms for its inherited argument-free call and
-  Amperfy's `@concurrent` single-String call. The strong-capture proof cannot
+  exact capture-only weak-self forms for its inherited argument-free or
+  single-String-literal calls and Amperfy's `@concurrent`
+  single-captured-String call. The strong-capture proof cannot
   fall through to a snapshot kernel. No weak reference crosses a physical
   boundary: the runtime record retains the confined weak box and reloads it
   only after re-entry. All other `[weak self]` optional async member calls use
@@ -4519,6 +4520,39 @@ repetitions on four workers in two seconds. The exact-tip physical board passed
 67 tests in one second; its rebuilt TSan twin passed native overlap 20/20 plus
 all 67 tests in 26 seconds without a race or interceptor diagnostic.
 
+The sixty-ninth prerequisite adds Provenance's weak inherited String-literal
+shape without broadening the two captured-String routes. Its admitted body is
+exactly one `await self?.method(label: "literal")` expression in an exact
+capture-only `[weak self]` detached closure. The uniquely resolved own
+source-class method must inherit caller isolation, be async and nonthrowing,
+return Void, and declare exactly one matching String parameter.
+
+`RuntimePhysicalSourceCallArgumentOrigin` makes scalar provenance part of the
+checked command schema. Literal lowering materializes a side-effect-free String
+snapshot and records `.literal`; direct immutable binding lookup records
+`.capturedImmutable`. Route proofs consume that enum directly. They do not
+infer provenance from the command's diagnostic binding name, and they do not
+re-evaluate source effects on a worker.
+
+The weak worker command still contains no receiver, weak box, source closure,
+environment, `RuntimeValue`, program state, heap, or evaluator. After physical
+entry, confined re-entry reloads the weak box, materializes the literal
+argument, re-resolves the exact descriptor, and temporarily strengthens only a
+live receiver for invocation under the original nil-isolation detached task
+context. The Planet direct inherited and Amperfy weak `@concurrent` routes
+remain `.capturedImmutable`-only; the new weak inherited String route is
+`.literal`-only. Captured or mutable Strings on the new route, literals on the
+other routes, MainActor/actor methods, multiple arguments, throwing effects,
+and richer results remain cooperative.
+
+Strict native and interpreted execution returned exact
+`timeout:none|none#some` in twenty runs, with five-run digest
+`fc29406e305e33efd900981045bd11728b7edc7f352ec5dd5f3dac67a99ee469`;
+the physical receipt RED moved from zero to one. The focused regressions passed
+5/5, the exact-tip physical board passed 68 tests in one second, and the
+rebuilt TSan twin passed native overlap 20/20 plus all 68 tests in 69 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4526,8 +4560,9 @@ source class/actor/host/standard-library target identities beyond the unique
 own reference-method descriptor, the exact default-actor synchronous and async
 single-Int plus explicit-single-defaulted-Bool routes, the exact actor-declared
 custom-global-actor argument-free async Void route, the exact inherited-caller
-argument-free or single-String async Void routes, the exact weak-self
-`@concurrent` single-String async Void route, normalized callee shape,
+argument-free or direct captured-String async Void routes, the exact weak-self
+inherited argument-free/String-literal and `@concurrent` captured-String async
+Void routes, normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
@@ -4542,6 +4577,7 @@ inherited-source-call
 and strong-self-capture-source-call
 and parallel-detached-weak-self-source-call
 and parallel-detached-weak-concurrent-string-source-call
+and parallel-detached-weak-inherited-string-literal-source-call
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension
