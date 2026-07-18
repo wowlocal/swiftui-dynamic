@@ -599,6 +599,31 @@ extension Interpreter {
         }
     }
 
+    /// Capture lists are not generally transferable worker signatures. The
+    /// first demand-backed exception is the exact `[self] in` source call:
+    /// one ordinary strong self capture, with no alias, ownership
+    /// modifier, attributes, parameters, effects, return clause, or trailing
+    /// capture. The receiver still remains confined in the source closure.
+    private func isPhysicalStrongSelfSourceCallCandidate(
+        _ signature: ClosureSignatureSyntax?
+    ) -> Bool {
+        guard let signature,
+              signature.attributes.isEmpty,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil,
+              let captures = signature.capture?.items,
+              captures.count == 1,
+              let capture = captures.first,
+              capture.specifier == nil,
+              capture.name.text == "self",
+              capture.initializer == nil,
+              capture.trailingComma == nil else {
+            return false
+        }
+        return true
+    }
+
     func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) throws -> ClosureValue {
         var parameters: [ClosureValue.Parameter] = []
         if let input = closure.signature?.parameterClause {
@@ -695,6 +720,8 @@ extension Interpreter {
         value.programState = currentProgramState
         value.lexicalExecutor = currentLexicalExecutor
         value.isPhysicalSnapshotKernelCandidate = closure.signature == nil
+        value.isPhysicalStrongSelfSourceCallCandidate =
+            isPhysicalStrongSelfSourceCallCandidate(closure.signature)
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
         // only the value environment lets same-named nested types resolve in

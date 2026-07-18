@@ -136,6 +136,11 @@ public final class ClosureValue {
     /// remain on the cooperative evaluator until their transfer semantics are
     /// modeled rather than inferred from a literal body.
     var isPhysicalSnapshotKernelCandidate = false
+    /// True only for the demand-backed capture-only spelling `{ [self] in }`.
+    /// This does not admit general capture-list snapshot kernels: it may only
+    /// unlock a direct-self source-call wrapper whose confined registration
+    /// already owns the strongly captured receiver for the source task.
+    var isPhysicalStrongSelfSourceCallCandidate = false
     /// Immutable source-program capability retained by escaped callbacks. A
     /// fresh host/runtime entry can therefore recover every indexed
     /// declaration fact without consulting whichever program the facade ran

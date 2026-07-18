@@ -3041,6 +3041,9 @@ Each milestone is independently gated through
   source-call families launch only a checked wrapper command before confined
   re-entry: MainActor, `@concurrent`, default source actor, actor-declared
   custom global actor, and inherited detached-caller isolation. Physical
+  source-call bodies are signature-free except for Provenance's exact
+  capture-only `{ [self] in await self.registerDefaults() }` spelling; that
+  strong-capture proof cannot fall through to any snapshot kernel. Physical
   Task-yield/sleep admission combines immutable callee shape with the stable
   registered core-Task identity; lexically shadowed source calls remain
   cooperative. The general
@@ -4084,6 +4087,42 @@ four workers in one second. The rebuilt scoped TSan board passed native
 overlap 20/20 plus all 56 driver/kernel/source-call tests in three suites on
 four workers in 24 seconds without a race or interceptor diagnostic.
 
+The fifty-sixth prerequisite admits the first authored closure-signature
+subset without generalizing worker capture transfer. Provenance's
+`DiscSerialExtractorRegistry.registerDefaultsSync()` launches
+`Task.detached(priority: .userInitiated) { [self] in await
+self.registerDefaults() }`. The source class is `Sendable`; its selected own
+method is inherited-isolation, async, nonthrowing, argument-free, and
+Void-returning. An ordinary explicit strong self capture does not create an
+actor executor, so the method observes nil actor isolation before and after
+`Task.yield` just like the previously proven implicit capture.
+
+Closure formation publishes one confined provenance bit only when syntax is
+exactly one unmodified `self` capture with no initializer alias, attribute,
+parameter clause, effect, return clause, second capture, or trailing comma.
+The runtime task record retains that source closure and its strong receiver.
+The physical entry guard accepts this bit for the direct-self source-call
+attempt, but requires the original signature-free proof before considering
+any snapshot kernel. Thus failure to resolve the exact method or executor
+route returns to the cooperative evaluator without partially executing a
+literal or expression on a worker. The successful worker still carries only
+the existing Sendable entry/task/target/result command, and confined re-entry
+restores the logical detached task before ordinary invocation.
+
+Apple Swift 6.3.3 and interpreted execution returned exact
+`strong:none|none` in twenty bounded runs; every native five-run shard
+retained canonical SHA-256
+`14c92e632cbf820172e940cbe85fb910e691b2b5a8e7ccd49b1a5f976660df9e`.
+The receipt RED moved from zero to one physical execution. `unowned`, aliases,
+multiple captures, explicit parameter/effect/return signatures, and non-call
+bodies remain cooperative with zero receipts. Weak/optional-self async
+dispatch remains an unclaimed interpreter gap outside this route. The
+focused board passed 71 tests in six suites, all 46 methodology/gate checks,
+and twenty parity repetitions on four workers in one second. The rebuilt
+scoped TSan board passed native overlap 20/20 plus all 57
+driver/kernel/source-call tests in three suites on four workers in 49 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4103,6 +4142,7 @@ kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
 MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor/
 inherited-source-call
+and strong-self-capture-source-call
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

@@ -2757,6 +2757,21 @@
     "notes": "iTorrent demand-cites the one-expression Task.detached(priority: .utility) { await self.refreshWebServerState() } and refreshWebDavServerState() spellings in WebServerService.swift:120 and 128; WebServerService is @unchecked Sendable and both selected own source-class methods are plain async, nonthrowing, argument-free, and Void-returning at lines 198 and 222. The bounded same-source probe launches an unretained wrapper and reports #isolation before and after Task.yield without asserting a thread or scheduler order. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact none|none in twenty bounded runs; every native five-run shard reported canonical SHA-256 dc022b9fd32ef23613a6bf01ee0af601d88cf1f8fce887c8924f7047de1bd4b4. The receipt RED already returned that exact value through cooperative fallback but recorded zero physical submissions/executions instead of one. Admission is capped to an argument-free async nonthrowing Void own source-class method with inherited caller isolation; synchronous, argument-bearing, String-returning, explicitly nonisolated, throwing, ambiguous, and richer-result forms remain cooperative."
   },
   {
+    "id": "parallel-detached-strong-self-capture-source-call",
+    "fixture": "Fixtures/parallel-detached-strong-self-capture-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedStrongSelfCaptureSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "An ordinary capture-only [self] in signature strongly captures the source-class receiver without introducing actor isolation; its plain async Void method inherits the detached caller's nil actor isolation before and after Task.yield.",
+    "notes": "Provenance demand-cites the exact Task.detached(priority: .userInitiated) { [self] in await self.registerDefaults() } spelling in DiscSerialExtractorRegistry.swift:105-107; the registry is Sendable and registerDefaults() is an inherited-isolation, async, nonthrowing, argument-free, Void-returning own source-class method at lines 90-100. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact strong:none|none in twenty bounded runs; every native five-run shard retained canonical SHA-256 14c92e632cbf820172e940cbe85fb910e691b2b5a8e7ccd49b1a5f976660df9e. The deterministic interpreter RED returned the same value and drained its runtime state, but recorded zero physical submissions/executions instead of one. Admission recognizes only one ordinary strong self capture with no alias, ownership modifier, attributes, parameters, effects, return clause, additional capture, or trailing comma, and may use it only for a direct-self source-call wrapper. Unowned, alias, multi-capture, explicit-signature, and non-call forms stay cooperative; weak/optional-self async dispatch and richer closure forms remain unclaimed outside this slice."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

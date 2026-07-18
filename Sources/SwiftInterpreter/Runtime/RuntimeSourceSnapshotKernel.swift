@@ -191,7 +191,8 @@ extension Interpreter {
               arguments.isEmpty,
               closure.parameters.isEmpty,
               !closure.isBuilder,
-              closure.isPhysicalSnapshotKernelCandidate,
+              (closure.isPhysicalSnapshotKernelCandidate
+                || closure.isPhysicalStrongSelfSourceCallCandidate),
               closure.body.count == 1,
               let item = closure.body.first,
               let expression = Self.singleExpression(in: item) else {
@@ -205,6 +206,12 @@ extension Interpreter {
             record: record,
             priority: priority) {
             return sourceCall
+        }
+
+        // A modeled `[self] in` signature may unlock only the confined source
+        // call above. It must not broaden literal or value-snapshot kernels.
+        guard closure.isPhysicalSnapshotKernelCandidate else {
+            return nil
         }
 
         let capability: RuntimeWorkerCapability

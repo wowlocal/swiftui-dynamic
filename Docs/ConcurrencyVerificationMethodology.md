@@ -1460,7 +1460,7 @@ The canonical focused board passed 69 tests in six suites plus all
 forty-three methodology checks and three isolated gate-contract checks;
 focused parity completed all twenty repetitions on four workers in one
 second. The rebuilt scoped TSan board passed native overlap 20/20 and all 55
-driver/kernel/source-call tests in three suites on four workers in 24 seconds
+driver/kernel/source-call tests in three suites on four workers in 20 seconds
 without a race or interceptor diagnostic.
 
 The fifty-fifth M9 slice is a gap closure for iTorrent's exact plain-async
@@ -1495,7 +1495,39 @@ The canonical focused board passed 70 tests in six suites plus all
 forty-three methodology checks and three isolated gate-contract checks;
 focused parity completed all twenty repetitions on four workers in one
 second. The rebuilt scoped TSan board passed native overlap 20/20 and all 56
-driver/kernel/source-call tests in three suites on four workers in 20 seconds
+driver/kernel/source-call tests in three suites on four workers in 24 seconds
+without a race or interceptor diagnostic.
+
+The fifty-sixth M9 slice closes Provenance's capture-only strong-self wrapper:
+`Task.detached(priority: .userInitiated) { [self] in await
+self.registerDefaults() }`. The semantic question is whether that explicit
+strong capture may use the already proven inherited-isolation physical
+source-call route without treating general authored closure signatures as
+worker-safe.
+
+The same-source probe samples defaulted `#isolation` before and after
+`Task.yield`. Apple Swift 6.3.3 complete-strict compilation with warnings as
+errors and interpreted execution returned exact `strong:none|none` in twenty
+bounded runs; all native five-run shards retained SHA-256
+`14c92e632cbf820172e940cbe85fb910e691b2b5a8e7ccd49b1a5f976660df9e`.
+No physical thread, scheduler order, elapsed duration, weak-capture lifetime,
+or general capture-list transfer is an oracle. The interpreter RED returned
+the same source value with complete cleanup but zero physical receipts.
+
+The implementation classifies exactly one capture-only strong `self`
+signature when the closure is formed. Physical lowering may use that fact
+only for the direct-self source-call attempt and then fails closed before the
+ordinary snapshot-kernel table. Controls keep `unowned`, alias, multi-capture,
+explicit parameter/effect/return, and non-call forms cooperative with zero
+receipts. Weak/optional-self async dispatch remains unclaimed outside this
+slice. The worker receives no source receiver,
+closure, environment, runtime value, heap, or evaluator.
+
+The canonical focused board passed 71 tests in six suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers in one
+second. The rebuilt scoped TSan board passed native overlap 20/20 and all 57
+driver/kernel/source-call tests in three suites on four workers in 49 seconds
 without a race or interceptor diagnostic.
 
 ## Process and liveness isolation

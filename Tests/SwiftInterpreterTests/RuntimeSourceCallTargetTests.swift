@@ -406,6 +406,32 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func strongSelfCaptureSourceCallUsesPhysicalWrapper() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-strong-self-capture-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedStrongSelfCaptureSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "strong:none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func customExecutorGlobalActorSourceCallStaysCooperative() async throws {
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 1)
@@ -668,6 +694,37 @@ struct RuntimeSourceCallTargetTests {
             }
         }
 
+        final class UnsupportedPhysicalCaptureShapeProbe:
+            @unchecked Sendable
+        {
+            var observation = ""
+
+            func update() async {
+                await Task.yield()
+                observation += "x"
+            }
+
+            func run() async -> String {
+                await Task.detached { [unowned self] in
+                    await self.update()
+                }.value
+                await Task.detached { [alias = self] in
+                    await alias.update()
+                }.value
+                let marker = 1
+                await Task.detached { [self, marker] in
+                    await self.update()
+                }.value
+                await Task.detached { [self] () async -> Void in
+                    await self.update()
+                }.value
+                let literal = await Task.detached { [self] in
+                    7
+                }.value
+                return "\\(observation):\\(marker):\\(literal)"
+            }
+        }
+
         final class UnsupportedEnumGlobalActorProbe:
             @unchecked Sendable
         {
@@ -698,14 +755,15 @@ struct RuntimeSourceCallTargetTests {
             let wrapped = await UnsupportedWrappedGlobalActorProbe().run()
             let enumerated = await UnsupportedEnumGlobalActorProbe().run()
             let inherited = await UnsupportedInheritedIsolationProbe().run()
-            return "\\(isolated):\\(actor):\\(nominal):\\(wrapped):\\(enumerated):\\(inherited)"
+            let captures = await UnsupportedPhysicalCaptureShapeProbe().run()
+            return "\\(isolated):\\(actor):\\(nominal):\\(wrapped):\\(enumerated):\\(inherited):\\(captures)"
         }
 
         await probe()
         """)
 
         #expect(value.stringValue
-            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9:12:global:wrapped:enumerated:15:explicit:text")
+            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9:12:global:wrapped:enumerated:15:explicit:text:xxxx:1:7")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime
