@@ -650,6 +650,28 @@ extension Interpreter {
         return true
     }
 
+    /// Authored closure signatures are not generally transferable. Planet's
+    /// exact `{ @MainActor in expression }` spelling may use only the confined
+    /// entry/handoff wrapper: one argument-free attribute, no capture list,
+    /// parameters, effects, return clause, or additional attribute.
+    private func isPhysicalExplicitMainActorContinuationCandidate(
+        _ signature: ClosureSignatureSyntax?
+    ) -> Bool {
+        guard let signature,
+              signature.capture == nil,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil,
+              signature.attributes.count == 1,
+              let attribute = signature.attributes.first?
+                .as(AttributeSyntax.self),
+              attribute.attributeName.trimmedDescription == "MainActor",
+              attribute.arguments == nil else {
+            return false
+        }
+        return true
+    }
+
     func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) throws -> ClosureValue {
         var parameters: [ClosureValue.Parameter] = []
         if let input = closure.signature?.parameterClause {
@@ -760,6 +782,9 @@ extension Interpreter {
             value.globalActorAttributeCandidates = closureAttributeNames
         }
         value.isPhysicalSnapshotKernelCandidate = closure.signature == nil
+        value.isPhysicalExplicitMainActorContinuationCandidate =
+            isPhysicalExplicitMainActorContinuationCandidate(
+                closure.signature)
         value.isPhysicalStrongSelfSourceCallCandidate =
             isPhysicalStrongSelfSourceCallCandidate(closure.signature)
         value.isPhysicalWeakSelfSourceCallCandidate =

@@ -2190,6 +2190,37 @@ passed 88/88 tests in three suites in one second; a fresh TSan build passed
 native overlap 20/20 plus all 88 tests in 27 seconds without a race or
 interceptor diagnostic.
 
+The seventy-eighth M9 slice asks whether Planet's exact one-expression
+`Task.detached(priority: .utility) { @MainActor in ... }` operation enters its
+body after immediate cancellation. Both handles are formed on MainActor and
+the second is cancelled synchronously before its first await. The oracle thus
+proves a cancellation-before-entry edge without assuming detached-task start
+order.
+
+Strict Apple Swift 6.3.3 returned exact
+`completed:false,cancelled:true|false:true` in twenty runs. The raw output
+digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`,
+and all four five-run focused shards reported
+`df51c444c43d210be0c338ca979a1bcaf2f38902db17119d5435a4ae6f61059a`.
+The successful cancelled handle proves that cancellation state neither strips
+the explicit executor nor implicitly suppresses body entry.
+
+The receipt-only RED already returned the exact value through cooperative
+evaluation but recorded zero physical submissions/executions. Admission is
+limited to one imported `@MainActor` attribute and one expression; the worker
+performs only entry and executor handoff through the existing confined token.
+An additional `@Sendable` attribute and a same-named source global actor are
+retained controls with zero receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 47/47. The canonical prebuilt iteration
+passed 53 implementation tests in two suites, all 46 methodology/gate checks,
+and all 20 parity repetitions in 15 seconds. The exact-tip physical board
+passed 90/90 tests in three suites in one second; a fresh TSan build passed
+native overlap 20/20 plus all 90 tests in 55 seconds without a race or
+interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

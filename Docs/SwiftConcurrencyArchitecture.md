@@ -3027,9 +3027,11 @@ Each milestone is independently gated through
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
   covered. Six narrow snapshot-kernel paths, four demand-cited physical sleep-
-  prefix spellings, one demand-cited signature-free MainActor-run continuation
-  wrapper, and five demand-cited physical source-call-wrapper paths now exist
-  behind a validated explicit mode. The
+  prefix spellings, two demand-cited MainActor continuation wrappers, and five
+  demand-cited physical source-call-wrapper paths now exist behind a validated
+  explicit mode. The two continuation forms are a complete signature-free
+  imported `MainActor.run(body:)` body and Planet's exact one-expression
+  `{ @MainActor in ... }` operation. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
@@ -3079,6 +3081,10 @@ Each milestone is independently gated through
   physical wrapper and the same confined continuation/outcome token; imported
   nominal identity is required before launch, and the receiver and body stay
   confined.
+  Planet's exact one-expression `@MainActor in` operation reuses that empty
+  wrapper and token while retaining the complete authored closure on the
+  confined executor. Additional attributes and source-shadowed MainActor
+  declarations remain cooperative.
   The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
@@ -4836,6 +4842,38 @@ passed 88/88 tests in three suites in one second; a fresh TSan build passed
 native overlap 20/20 plus all 88 tests in 27 seconds without a race or
 interceptor diagnostic.
 
+The seventy-eighth prerequisite extends the empty continuation wrapper to
+Planet's exact one-expression `{ @MainActor in ... }` operation. Closure
+formation records a dedicated admissibility fact only when the signature has
+one argument-free imported MainActor attribute and no capture-list, parameter,
+effect, return, or additional-attribute surface. This fact may unlock only the
+continuation wrapper; it cannot borrow source-call or snapshot-kernel routes.
+
+The Sendable worker capability remains empty and its command contains only
+entry/task identity. At the globally isolated relay it releases the bounded
+permit, then the originating `EvaluationTaskContext` invokes the retained
+closure with its existing explicit executor. Neither the closure, captured
+receiver, body value, nor complete `RuntimeValue`/`Error` outcome crosses the
+worker boundary. Logical cancellation remains unobserved infrastructure state
+so it cannot suppress the non-checking actor entry.
+
+Strict native/interpreted execution returned exact
+`completed:false,cancelled:true|false:true` in twenty runs. The raw native
+digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`;
+every five-run focused shard retained
+`df51c444c43d210be0c338ca979a1bcaf2f38902db17119d5435a4ae6f61059a`.
+The receipt RED moved from zero to two physical wrappers. An additional
+`@Sendable` attribute and source-shadowed MainActor retain zero receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 47/47. The canonical prebuilt iteration
+passed 53 implementation tests in two suites, all 46 methodology/gate checks,
+and all 20 parity repetitions in 15 seconds. The exact-tip physical board
+passed 90/90 tests in three suites in one second; a fresh TSan build passed
+native overlap 20/20 plus all 90 tests in 55 seconds without a race or
+interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4870,6 +4908,7 @@ and parallel-detached-try-optional-sleep-prefix
 and parallel-detached-try-optional-nanoseconds-sleep-prefix
 and parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix
 and parallel-detached-mainactor-run-continuation
+and parallel-detached-explicit-mainactor-continuation
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension

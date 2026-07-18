@@ -201,6 +201,8 @@ extension Interpreter {
               closure.parameters.isEmpty,
               !closure.isBuilder,
               (closure.isPhysicalSnapshotKernelCandidate
+                || closure
+                    .isPhysicalExplicitMainActorContinuationCandidate
                 || closure.isPhysicalStrongSelfSourceCallCandidate
                 || closure.isPhysicalWeakSelfSourceCallCandidate) else {
             return nil
@@ -221,13 +223,20 @@ extension Interpreter {
             return nil
         }
 
-        if let mainActorRun = try physicalMainActorRunContinuationJob(
+        if let mainActorContinuation = try physicalMainActorContinuationJob(
             expression,
             closure: closure,
             entry: entry,
             record: record,
             priority: priority) {
-            return mainActorRun
+            return mainActorContinuation
+        }
+
+        // The exact explicit-MainActor signature may unlock only the complete
+        // confined continuation above. It must not borrow source-call or
+        // snapshot-kernel routes when imported identity is absent.
+        guard !closure.isPhysicalExplicitMainActorContinuationCandidate else {
+            return nil
         }
 
         if let sourceCall = try physicalConfinedSourceCallJob(
@@ -398,20 +407,24 @@ extension Interpreter {
             confinedContinuationCommand: command)
     }
 
-    /// Planet repeatedly launches a signature-free detached operation whose
-    /// complete body is imported `MainActor.run(body:)`. The worker performs
-    /// only the physical launch and executor handoff. The source closure,
-    /// captures, MainActor body, and complete outcome remain in the same
-    /// confined continuation record used by sleep-prefix jobs.
-    private func physicalMainActorRunContinuationJob(
+    /// Planet launches detached operations that either contain one imported
+    /// `MainActor.run(body:)` expression or carry the exact `@MainActor in`
+    /// signature. The worker performs only physical launch and executor
+    /// handoff. The source closure, captures, MainActor body, and complete
+    /// outcome remain in the continuation record used by sleep-prefix jobs.
+    private func physicalMainActorContinuationJob(
         _ expression: ExprSyntax,
         closure: ClosureValue,
         entry: RuntimeEntry,
         record: RuntimeTaskRecord,
         priority: RuntimeTaskPriority
     ) throws -> RuntimePhysicalSourceKernelJob? {
-        guard closure.isPhysicalSnapshotKernelCandidate,
-              isImportedMainActorRun(expression, closure: closure),
+        let isSignatureFreeRun = closure.isPhysicalSnapshotKernelCandidate
+            && isImportedMainActorRun(expression, closure: closure)
+        let isExplicitMainActorClosure = closure
+            .isPhysicalExplicitMainActorContinuationCandidate
+            && hasImportedMainActorIdentity(closure)
+        guard isSignatureFreeRun || isExplicitMainActorClosure,
               record.entry === entry,
               record.physicalSourceCall == nil,
               record.physicalSourceContinuation == nil,
@@ -440,17 +453,17 @@ extension Interpreter {
                     capability: capability,
                     handoff: handoff)
             },
-            // MainActor.run itself does not observe cancellation. Preserve the
-            // source task's logical bit without cancelling the infrastructure
-            // wrapper before its confined body can enter.
+            // Neither MainActor.run nor explicit actor isolation suppresses
+            // body entry on cancellation. Preserve the source task's logical
+            // bit without cancelling the infrastructure wrapper first.
             cancellationBehavior: .unobserved,
             permitLifetime: .untilConfinedExecutorEntry(handoff),
             confinedContinuationCommand: command)
     }
 
-    /// Imported nominal identity, not the source spelling, admits the worker
+    /// Imported nominal identity, not source spelling, admits either worker
     /// wrapper. An active source/local `MainActor` binding therefore keeps the
-    /// same call on the cooperative evaluator.
+    /// same call or closure annotation on the cooperative evaluator.
     private func isImportedMainActorRun(
         _ expression: ExprSyntax,
         closure: ClosureValue
@@ -475,6 +488,12 @@ extension Interpreter {
             return false
         }
 
+        return hasImportedMainActorIdentity(closure)
+    }
+
+    private func hasImportedMainActorIdentity(
+        _ closure: ClosureValue
+    ) -> Bool {
         guard let selected = closure.captured.lookup("MainActor") else {
             // Imported nominals are materialized lazily as HostTypeMarker;
             // absence here proves no lexical/source binding shadows it.

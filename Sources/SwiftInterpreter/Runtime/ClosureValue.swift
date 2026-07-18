@@ -136,6 +136,12 @@ public final class ClosureValue {
     /// remain on the cooperative evaluator until their transfer semantics are
     /// modeled rather than inferred from a literal body.
     var isPhysicalSnapshotKernelCandidate = false
+    /// True only for Planet's demand-backed exact `{ @MainActor in ... }`
+    /// signature: one imported MainActor attribute and no capture-list,
+    /// parameter, effect, return, or additional-attribute surface. The
+    /// complete closure remains confined; this flag may unlock only an
+    /// entry/handoff wrapper.
+    var isPhysicalExplicitMainActorContinuationCandidate = false
     /// True only for the demand-backed capture-only spelling `{ [self] in }`.
     /// This does not admit general capture-list snapshot kernels: it may only
     /// unlock a direct-self source-call wrapper whose confined registration

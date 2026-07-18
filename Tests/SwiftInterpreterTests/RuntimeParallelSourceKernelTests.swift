@@ -625,6 +625,88 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func explicitMainActorClosureUsesPhysicalWrapperAndConfinedContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-explicit-mainactor-continuation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedExplicitMainActorContinuationProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func unsupportedOrShadowedExplicitMainActorSignaturesStayCooperative()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let attributed = Interpreter(
+            executionMode: .parallel(parallelism))
+        let shadowed = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let attributedValue = try await attributed.runAsync(source: """
+        func probe() async -> String {
+            await Task.detached { @MainActor @Sendable in
+                "attributed"
+            }.value
+        }
+        await probe()
+        """)
+        let shadowedValue = try await shadowed.runAsync(source: """
+        actor SourceMainActor {}
+
+        @globalActor
+        struct MainActor {
+            static let shared = SourceMainActor()
+        }
+
+        func probe() async -> String {
+            await Task.detached { @MainActor in
+                "shadowed"
+            }.value
+        }
+        await probe()
+        """)
+
+        #expect(attributedValue.stringValue == "attributed")
+        #expect(shadowedValue.stringValue == "shadowed")
+        #expect(attributed.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(attributed.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(shadowed.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(shadowed.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(attributed.concurrencyRuntime.activeRecordCount == 0)
+        #expect(shadowed.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func weakTryOptionalDurationSleepPrefixReentersActorContinuation()
         async throws
     {
