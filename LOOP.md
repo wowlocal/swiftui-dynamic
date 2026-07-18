@@ -2803,3 +2803,14 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   meet the quarantine bar — that is for third-party-internals
   dependencies). The --window/--then bisect instrument + fixed cache
   guard stay landed for future pollution hunts.
+- 2026-07-18 RECEIPT LANDED — THE ABORT IS A LOAD FLAKE (worktree
+  iteration 76): the cold-detached worker abort did NOT reproduce on
+  an idle machine — clean main 8097881 went GREEN cold with every
+  worker exit 0, and the lane tip 6e03323 followed: GATE GREEN 1142s
+  on a clean detached checkout of the exact sha. The morning's three
+  cold REDs vs these two GREENs bound the abort as LOAD-DEPENDENT
+  (concurrent gates/boards were running then; both data points filed
+  for lane-concurrency). MERGE-READY 6e03323 upgraded from qualified
+  to full doctrine compliance — the i71-i75 stack (self-healing send,
+  rename-retitle closed with titled= asserted, corpus at honest
+  ceiling, bisect instrument) awaits the steward.
