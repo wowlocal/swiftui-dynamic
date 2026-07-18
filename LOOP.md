@@ -2844,3 +2844,33 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   The executing navigationDestination bridge stays landed and ready
   for a future real menu-tracking click driver. Boards unchanged
   (comment-only delta since the i77 gate GREEN 1103s).
+- 2026-07-18 i76-i78 RECEIPTED (worktree iteration 79): clean-detached
+  gate GREEN 1151s on exact tip 0251a20; MERGE-READY posted (the
+  drill + executing navigationDestination + parity probe stack).
+  Queue for future iterations: a real menu-tracking click driver
+  (would graduate pushed= and enable native-comparative menu-link
+  verification), the 17 unstable parity probes, the london diag
+  tripwire (quiet since i63), oss:Mythic driver-guard awareness.
+- 2026-07-18 MENU DRIVER SEARCH EXHAUSTED — USER-ACTION GATED
+  (worktree iteration 80): three permissionless menu-selection drivers
+  proven insufficient NATIVELY in the control probe: (1)
+  performActionForItem (fires Buttons, not links); (2) posted keyboard
+  navigation (never reaches the menu's private tracking loop); (3)
+  self-process AX press (cannot see tracking-menu items without the
+  trust grant). The probe documents the full search space. The drill's
+  graduation is now a USER-ACTION GATE (Accessibility grant), filed in
+  claims alongside the Screen Recording note — with the grant, HID
+  driving unlocks the whole i37 wishlist. Parity stands.
+- 2026-07-18 PARITY: 345 -> 361 MATCH — HASHING WAS THE INSTABILITY
+  (worktree iteration 81): the 17 "unstable" parity probes decomposed
+  as 16 hashValue probes + 1 honest wall-clock
+  (Date.timeIntervalSinceNow). The hashValues varied because the
+  parity TWIN ran without SWIFT_DETERMINISTIC_HASHING (per-process
+  hash seeds — the FoodTruckCheck re-exec precedent never reached
+  ParityCheck). ParityCheck now re-execs with deterministic hashing;
+  the twin inherits the env. All 16 graduate to MATCH — the
+  interpreter's hashValue bridging is native-EXACT under the shared
+  seed. Board: 361 match / 0 diverge / 0 interp-error / 1 unstable
+  (the wall-clock probe, honestly volatile) of 362. GATE GREEN 1100s
+  (the parity contract pattern-matches on 0-diverge, no churn).
+  PARITY_LIST_UNSTABLE env stays as the instrument.
