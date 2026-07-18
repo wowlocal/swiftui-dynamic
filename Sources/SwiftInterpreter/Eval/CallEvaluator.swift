@@ -155,10 +155,11 @@ extension Interpreter {
     }
 
     func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
+        let calleeMetadata = callSiteMetadata(for: call).callee
         // `ModifiedContent(content: self, modifier: TitleFont(size: 16))` —
         // the explicit ViewModifier application (MovieSwiftUI's titleStyle).
-        if let ref = call.calledExpression.as(DeclReferenceExprSyntax.self),
-           ref.baseName.text == "ModifiedContent",
+        if calleeMetadata.shape == .directReference,
+           calleeMetadata.name == "ModifiedContent",
            env.box(for: "ModifiedContent") == nil, globals.lookup("ModifiedContent") == nil {
             let args = try collectArguments(of: call, in: env)
             if let content = args.labeled("content"),
@@ -167,7 +168,7 @@ extension Interpreter {
             }
         }
         // `[Index]()` / `[String: Int]()` — typed empty containers.
-        if call.calledExpression.is(ArrayExprSyntax.self) {
+        if calleeMetadata.shape == .arrayType {
             if call.arguments.isEmpty { return .native([RuntimeValue]()) }
             // `[CChar](repeating: 0, count: n)` — the typed-array ctor.
             let args = try collectArguments(of: call, in: env)
@@ -177,17 +178,20 @@ extension Interpreter {
             if let array = args.positional(0)?.arrayValue { return .native(array) }
             return .native([RuntimeValue]())
         }
-        if call.calledExpression.is(DictionaryExprSyntax.self), call.arguments.isEmpty {
+        if calleeMetadata.shape == .dictionaryType, call.arguments.isEmpty {
             return .native(DictValue())
         }
         // `.system(size: 40)` — implicit member call, resolved later by a gateway.
-        if let member = call.calledExpression.as(MemberAccessExprSyntax.self), member.base == nil {
+        if calleeMetadata.shape == .implicitMember,
+           let member = calleeMetadata.member {
             let args = try collectArguments(of: call, in: env)
             return .native(ImplicitMemberCall(name: member.declName.baseName.text, arguments: args))
         }
         // Methods that mutate collections in place, and property/method pairs
         // like `first` / `first(where:)`, need the base handled specially.
-        if let member = call.calledExpression.as(MemberAccessExprSyntax.self), let baseExpr = member.base {
+        if calleeMetadata.shape == .explicitMember,
+           let member = calleeMetadata.member,
+           let baseExpr = member.base {
             let name = member.declName.baseName.text
             // Evaluate the receiver once, before arguments (native order).
             // Special mutation dispatch receives this value and only probes
@@ -350,9 +354,9 @@ extension Interpreter {
             }
         }
         // Unqualified overloaded calls inside the type's own body.
-        if let ref = call.calledExpression.as(DeclReferenceExprSyntax.self),
-           env.box(for: ref.baseName.text, before: globals) == nil {
-            let name = ref.baseName.text
+        if calleeMetadata.shape == .directReference,
+           let name = calleeMetadata.name,
+           env.box(for: name, before: globals) == nil {
             // Bare `path(percentEncoded:)` inside a URL extension — the
             // METHOD/property collision, implicit-self flavor.
             if name == "path",
@@ -419,7 +423,7 @@ extension Interpreter {
                 }
             }
         }
-        let callee = try evaluate(call.calledExpression, in: env)
+        let callee = try evaluate(calleeMetadata.expression, in: env)
         let args = try collectArguments(of: call, in: env)
         return try invoke(callee, with: args, node: call)
     }

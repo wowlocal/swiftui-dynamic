@@ -1135,12 +1135,15 @@ return/builder/generic facts, attributes, and the modeled declaration-level
 isolation flags once. It also records readable accessor getter/setter bodies
 and effects plus subscript parameters, call shapes, result types, and explicit
 nonisolation. Mutable runtime symbol materialization remains
-session/facade-owned. The call-site index records ordinary argument labels and
-expressions, first/additional trailing-closure structure, and bare unqualified
-reference spelling across runtime source regions while excluding compiler-only
-conditional predicates. Synchronous and suspending argument collection consume
-it; value evaluation, overload resolution, and call-target identity remain
-session-owned. The member index classifies every direct nominal/extension
+session/facade-owned. The call-site index records a normalized direct-reference,
+explicit-member, implicit-member, typed-array, typed-dictionary, or other
+callee shape plus the original immutable callee expression, ordinary argument
+labels and expressions, first/additional trailing-closure structure, and bare
+unqualified reference spelling across runtime source regions while excluding
+compiler-only conditional predicates. Synchronous and suspending call dispatch
+and argument collection consume it; value evaluation, overload resolution, and
+call-target identity remain session-owned. The member index classifies every
+direct nominal/extension
 declaration and nested conditional clause once; sessions resolve the active
 member sequence before mutable struct/enum/extension materialization. The
 nominal index records struct/class/actor/enum/
@@ -1165,8 +1168,8 @@ spellings, generic parameters and requirements, attributes, modifiers, and
 nominal-target classification across every lexical and conditional region.
 Top-level, member, and local alias binding consumes those headers while the
 session owns active-branch selection and mutable symbol lookup. Remaining
-member semantics and compiler-only signature parsing, call-site semantic
-resolution beyond these source facts, and the compiler-preflight fingerprint
+member semantics and compiler-only signature parsing, call-target resolution
+beyond the normalized callee shape, and the compiler-preflight fingerprint
 remain target work.
 
 ### 6.2 `InterpreterSession`
@@ -3069,6 +3072,12 @@ construct at least once):
 | `@TaskLocal` | 1 | 0 |
 | `withTaskExecutorPreference` | 0 | 0 |
 
+Demand refresh (2026-07-18): the checked-out OSS expansion now contains 94
+project trees. A direct source census finds 941 `Task.detached` occurrences in
+502 Swift files across 52 of those trees. This supersedes the older
+`Task.detached` row for within-M9 prioritization; the other rows retain their
+2026-07-16 measurement until the complete construct census is refreshed.
+
 Scheduling rule: work is selected from the `executionPlan` active cycle in
 its listed `requirementRefs` order, not from interface enumeration order.
 Surface work on constructs with zero measured demand is not schedulable; it
@@ -3561,10 +3570,40 @@ cooperative. Twenty exact native/parallel repetitions and the expanded TSan
 board cover two successful sleeps plus one causally pre-cancelled sleep without
 asserting elapsed time, worker identity, or scheduler order.
 
+The fortieth prerequisite returns to the immutable call boundary before
+admitting source-defined calls to physical lowering. The current 94 checked-out
+OSS project trees contain 941 `Task.detached` occurrences; after the six
+admitted kernels, the recurring shapes are predominantly source, actor, and
+host calls rather than another safe scalar primitive. FoodTruck supplies the
+exact `Task.detached { await self.updatesLoop() }` spelling in
+`StoreMessagesManager.swift:33-35`. A same-named global function in the probe
+makes target selection observable: Apple Swift 6.3.3 and the interpreter both
+returned exact `target:member` in twenty bounded runs, and all four native
+five-run shards reported SHA-256
+`88ddf30fbc689070f9013a46d59717a74b18015dd09b8c8b2bd46316053566ff`.
+This is an already-GREEN behavioral characterization, not an invented runtime
+RED and not a physical-execution claim.
+
+The architectural RED was compile-time: call-site metadata owned argument
+shape but no immutable callee classification. Each call now retains its
+original callee expression plus a normalized direct-reference,
+explicit-member, implicit-member, typed-array, typed-dictionary, or other
+shape and source name where one exists. Synchronous and suspending dispatch
+consume that same fact, and detached readers prove the composite metadata
+remains `Sendable`. Overload choice, receiver value lookup, source declaration
+identity, actor hopping, and host routing remain session-owned. In particular,
+this prerequisite does not treat a member name as an API identity, does not
+move `updatesLoop()` to a worker, and does not expose `Box`, `Environment`,
+`Instance`, or the evaluator across the physical boundary.
+The canonical focused iteration completed 143 call/metadata/async/host tests
+in six suites, all forty-three methodology checks plus the three separately
+isolated gate-contract checks, and all twenty parity repetitions on four
+workers in two seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families, call-site
-and compiler metadata indexing remain incomplete, mutable symbol
+target resolution and compiler metadata indexing remain incomplete, mutable symbol
 materialization plus evaluator state must move fully behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped

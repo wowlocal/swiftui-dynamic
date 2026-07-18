@@ -1000,6 +1000,32 @@ all twenty parity repetitions on four workers in two seconds. No general
 Duration expression, arbitrary suspension, evaluator work, actor, host call,
 or heap access is admitted by this evidence.
 
+Its fortieth prerequisite is an already-GREEN characterization for
+FoodTruck's `Task.detached { await self.updatesLoop() }` source-member call.
+The same-source probe defines a same-named global function, so exact
+`target:member` proves the explicit `self` receiver selects the captured
+MainActor-isolated instance method across its suspension. Apple Swift 6.3.3
+and the interpreter returned that exact value in twenty bounded runs; every
+native five-run shard reported SHA-256
+`88ddf30fbc689070f9013a46d59717a74b18015dd09b8c8b2bd46316053566ff`.
+No behavior RED was invented, and no worker identity or scheduler order is
+asserted.
+
+The architectural workflow captured a compile-time RED for the missing
+immutable callee-shape fact. `ParsedCallSiteMetadata` now owns the original
+callee expression plus a normalized direct-reference, explicit-member,
+implicit-member, typed-array, typed-dictionary, or other classification and
+source name where available. Synchronous and suspending dispatch consume that
+one metadata shape; a foreign-syntax fallback and a detached `Sendable` reader
+pin the boundary. Overload and declaration identity, receiver resolution,
+actor hops, host routing, and physical execution of the source method remain
+outside this prerequisite. It does not expose a runtime box, environment,
+instance, heap, host value, or evaluator to a worker.
+The canonical focused iteration completed 143 call/metadata/async/host tests
+in six suites, all forty-three methodology checks plus three isolated
+gate-contract checks, and all twenty parity repetitions on four workers in two
+seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

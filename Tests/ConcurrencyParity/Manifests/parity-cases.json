@@ -2595,6 +2595,18 @@
     "notes": "Signal-iOS demand-cites `try await Task.sleep(for: slowLinking ? .seconds(3) : .milliseconds(500))` in BackupRestoreProgressModal.swift:541, where slowLinking is an immutable Bool parameter. The same-source fixture uses zero/one-millisecond success durations plus a causally pre-cancelled 30-second branch so the assertion is bounded and does not treat timing as semantics. Apple Swift 6.3.3 compiled it in Swift 6 complete-strict mode with warnings as errors and returned exact slow:fast|cancelled:true in twenty bounded runs; every focused five-run shard reported SHA-256 d78d19bf880bb60f640e843e2e59091db7555910efa54f0ed50b4b5e8d62ac95. The captured receipt RED already returned the correct value through cooperative fallback but explicit parallel mode recorded zero successful physical source executions instead of two. MainActor now admits only plain `try await Task.sleep(for:)` with a directly owned immutable Bool condition and nonnegative integer-literal `.seconds`/`.milliseconds` branches, then copies the Bool and emits typed conditional-Duration plus sleep IR. Other units, overloads, mutable/global conditions, authored signatures, and richer bodies remain cooperative. A Sendable actor relay preserves pre-cancelled body entry and forwards cancellation to the actual source worker, so the throwing sleep produces CancellationError. Twenty paired mode runs preserve the exact value, empty registries, zero/two successful executions, and zero/three submissions. The TSan board passed twenty native overlap iterations and all thirty-three driver/source-kernel tests on four workers in 23 seconds without a race or interceptor diagnostic; no elapsed time, worker identity, or scheduler order is asserted."
   },
   {
+    "id": "detached-source-member-call-target",
+    "fixture": "Fixtures/detached-source-member-call-target.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await detachedSourceMemberCallTargetProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An explicit self member call inside Task.detached selects the captured MainActor-isolated instance method, suspends through its async body, and publishes that method's exact value rather than a same-named global function.",
+    "notes": "FoodTruck demand-cites the exact Task.detached { await self.updatesLoop() } shape in StoreMessagesManager.swift:33-35. The exact output is target:member; worker identity and unrelated scheduler order are not asserted. This is an already-GREEN behavioral characterization paired with an immutable callee-shape metadata prerequisite, not a claim that the general source evaluator or this source method executes on a physical worker."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

@@ -716,7 +716,9 @@ extension Interpreter {
         in env: Environment,
         forceInvocation: Bool
     ) async throws -> RuntimeValue {
-        if let member = call.calledExpression.as(MemberAccessExprSyntax.self),
+        let calleeMetadata = callSiteMetadata(for: call).callee
+        if calleeMetadata.shape == .explicitMember,
+           let member = calleeMetadata.member,
            let baseExpression = member.base {
             let name = member.declName.baseName.text
             let baseValue = try await evaluateSuspending(
@@ -829,9 +831,9 @@ extension Interpreter {
             }
         }
 
-        if let reference = call.calledExpression.as(DeclReferenceExprSyntax.self),
-           env.box(for: reference.baseName.text, before: globals) == nil {
-            let name = reference.baseName.text
+        if calleeMetadata.shape == .directReference,
+           let name = calleeMetadata.name,
+           env.box(for: name, before: globals) == nil {
             if let overloads = globalFunctionOverloads[name], overloads.count > 1 {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
@@ -864,7 +866,8 @@ extension Interpreter {
             }
         }
 
-        let callee = try await evaluateSuspending(call.calledExpression, in: env)
+        let callee = try await evaluateSuspending(
+            calleeMetadata.expression, in: env)
         let args = try await collectArgumentsSuspending(of: call, in: env)
         return try await invokeSuspending(callee, with: args, node: call)
     }
