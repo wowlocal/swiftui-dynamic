@@ -2851,3 +2851,13 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (would graduate pushed= and enable native-comparative menu-link
   verification), the 17 unstable parity probes, the london diag
   tripwire (quiet since i63), oss:Mythic driver-guard awareness.
+- 2026-07-18 MENU DRIVER SEARCH EXHAUSTED — USER-ACTION GATED
+  (worktree iteration 80): three permissionless menu-selection drivers
+  proven insufficient NATIVELY in the control probe: (1)
+  performActionForItem (fires Buttons, not links); (2) posted keyboard
+  navigation (never reaches the menu's private tracking loop); (3)
+  self-process AX press (cannot see tracking-menu items without the
+  trust grant). The probe documents the full search space. The drill's
+  graduation is now a USER-ACTION GATE (Accessibility grant), filed in
+  claims alongside the Screen Recording note — with the grant, HID
+  driving unlocks the whole i37 wishlist. Parity stands.

@@ -1,10 +1,3 @@
-// NATIVE control probe (2026-07-18, i78): does performActionForItem fire a
-// menu-hosted NavigationLink? VERDICT: NO — neither a TYPED nor an
-// AnyView-ERASED link pushes natively under this driver (both stay on
-// "Start"), while menu Buttons fire fine. The interpreted app is in PARITY:
-// the R4 orders-drill's pushed=false is a DRIVER limitation, not an
-// interpreter divergence. A future driver needs the real menu-tracking
-// click path. Run: xcrun swiftc -O menu-link-probe.swift -o /tmp/mlp && /tmp/mlp
 import AppKit
 import SwiftUI
 
@@ -40,10 +33,29 @@ struct Root: App {
             MainActor.assumeIsolated {
                 guard let menu = popup.menu else { return }
                 print("MENULINK items:", menu.items.map(\.title).joined(separator: "|"))
-                if let index = menu.items.firstIndex(where: { $0.title.contains("Typed") }) {
-                    menu.performActionForItem(at: index)
+                // Self-process ACCESSIBILITY press: the assistive
+                // path, allowed without grants for one's own app.
+                guard let index = menu.items.firstIndex(where: { $0.title.contains("Typed") }) else {
+                    menu.cancelTracking(); return
                 }
-                menu.cancelTracking()
+                let app = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+                func findPress(_ element: AXUIElement, depth: Int) -> Bool {
+                    guard depth < 12 else { return false }
+                    var titleRef: CFTypeRef?
+                    AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+                    if let title = titleRef as? String, title.contains("Typed") {
+                        return AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
+                    }
+                    var childrenRef: CFTypeRef?
+                    AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
+                    for child in (childrenRef as? [AXUIElement]) ?? [] {
+                        if findPress(child, depth: depth + 1) { return true }
+                    }
+                    return false
+                }
+                let pressed = findPress(app, depth: 0)
+                print("MENULINK ax-pressed=\(pressed) index=\(index)")
+                if !pressed { menu.cancelTracking() }
             }
         }
         RunLoop.main.add(timer, forMode: .eventTracking)
