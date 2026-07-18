@@ -787,7 +787,89 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
-    func unsupportedOrShadowedExplicitMainActorWeakSelfSignaturesStayCooperative()
+    func explicitMainActorNamedWeakCaptureUsesPhysicalWrapperWithoutStrengtheningCapture()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-capture.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorNamedWeakCaptureProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+        let corpus = Interpreter(executionMode: .parallel(parallelism))
+        let corpusValue = try await corpus.runAsync(source: """
+        @MainActor
+        final class Notifications {
+            var observation = "missing"
+
+            func notify() {
+                observation = "entered"
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let notifications = Notifications()
+            await Task.detached { @MainActor [weak notifications] in
+                notifications?.notify()
+            }.value
+            return notifications.observation
+        }
+        await probe()
+        """)
+
+        #expect(cooperativeValue.stringValue
+            == "same|same:alive#same|same:released")
+        #expect(value.stringValue
+            == "same|same:alive#same|same:released")
+        #expect(corpusValue.stringValue == "entered")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(corpus.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unsupportedOrShadowedExplicitMainActorWeakCaptureSignaturesStayCooperative()
         async throws
     {
         let parallelism = try RuntimeParallelismConfiguration(
@@ -808,6 +890,7 @@ struct RuntimeParallelSourceKernelTests {
 
             func probe() async -> String {
                 let marker = "additional"
+                let notifications = self
                 await Task.detached {
                     @MainActor @Sendable [weak self, marker] in
                     self?.record(marker)
@@ -815,6 +898,14 @@ struct RuntimeParallelSourceKernelTests {
                 await Task.detached {
                     @Sendable @MainActor [weak self] in
                     self?.record("reordered")
+                }.value
+                await Task.detached {
+                    @MainActor [weak observer = notifications] in
+                    observer?.record("aliased")
+                }.value
+                await Task.detached {
+                    @MainActor [unowned notifications] in
+                    notifications.record("unowned")
                 }.value
                 return observations.joined(separator: ",")
             }
@@ -839,7 +930,8 @@ struct RuntimeParallelSourceKernelTests {
         await Receiver().probe()
         """)
 
-        #expect(unsupportedValue.stringValue == "additional,reordered")
+        #expect(unsupportedValue.stringValue
+            == "additional,reordered,aliased,unowned")
         #expect(shadowedValue.stringValue == "shadowed")
         #expect(unsupported.concurrencyRuntime
             .totalPhysicalSourceKernelExecutions == 0)

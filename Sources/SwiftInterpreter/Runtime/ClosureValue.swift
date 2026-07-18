@@ -142,11 +142,11 @@ public final class ClosureValue {
     /// complete closure remains confined; this flag may unlock only an
     /// entry/handoff wrapper.
     var isPhysicalExplicitMainActorContinuationCandidate = false
-    /// True only for Provenance's demand-backed explicit-MainActor weak-self
-    /// signature. The complete closure and genuine weak box remain confined;
-    /// this flag may unlock only an entry/handoff wrapper, never a snapshot or
-    /// source-call route.
-    var isPhysicalExplicitMainActorWeakSelfContinuationCandidate = false
+    /// True only for a demand-backed explicit-MainActor signature with one
+    /// exact weak capture. The complete closure and genuine weak box remain
+    /// confined; this flag may unlock only an entry/handoff wrapper, never a
+    /// snapshot or source-call route.
+    var isPhysicalExplicitMainActorWeakCaptureContinuationCandidate = false
     /// True only for the demand-backed capture-only spelling `{ [self] in }`.
     /// This does not admit general capture-list snapshot kernels: it may only
     /// unlock a direct-self source-call wrapper whose confined registration

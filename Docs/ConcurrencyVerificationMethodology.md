@@ -2252,6 +2252,37 @@ repetitions in two seconds. The exact-tip physical board passed 92/92 tests in
 three suites in one second. A fresh TSan build passed native overlap 20/20 plus
 all 92 tests in 47 seconds without a race or interceptor diagnostic.
 
+The eightieth M9 slice asks whether KeyboardCowboy's exact
+`Task.detached { @MainActor [weak notifications] in ... }` operation preserves
+MainActor across suspension without retaining a named weak capture. It also
+asks whether the existing empty entry wrapper can be generalized by capture
+semantics rather than one identifier spelling while the weak box remains
+confined.
+
+Apple Swift 6.3.3's complete-strict region checker diagnoses the unmodified
+corpus spelling internally. The compiled same-source fixture therefore adds
+executor-neutral `@Sendable`, and an interpreter-only probe retains the exact
+source form. Twenty native runs returned exact
+`same|same:alive#same|same:released`; the raw digest was
+`8f8952506fd713e4c83ea12ceeb60b04bdca0851bde0d3068fb4e1bac0966d38`,
+and all four five-run shards retained
+`7491365c8c4a8fa386bd87ee3d2ac9ab4af932eced41a0597eea8945526ef8fd`.
+
+The value oracle was already GREEN, while the deterministic receipt RED
+recorded zero physical submissions/executions instead of two. Admission now
+accepts one exact weak capture with ordered MainActor and only the optional
+Sendable workaround. Alias/initializer, unowned ownership, additional capture,
+reversed-attribute, and source-shadowed controls retain zero receipts. The
+worker carries no capture or body syntax; closure, weak box, evaluator, and
+complete outcome stay behind the confined continuation token.
+
+Focused parity passed 20/20 on four workers in one second, the source-kernel
+suite passed 50/50, and the canonical prebuilt iteration passed those 50
+implementation tests, all 46 methodology/gate checks, and all 20 parity
+repetitions in two seconds. The exact-tip physical board passed 93/93 tests in
+three suites in one second. A fresh TSan build passed native overlap 20/20 plus
+all 93 tests in 51 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

@@ -646,17 +646,22 @@ extension Interpreter {
     private func hasExactWeakSelfCapture(
         _ signature: ClosureSignatureSyntax
     ) -> Bool {
+        exactWeakCaptureName(signature) == "self"
+    }
+
+    private func exactWeakCaptureName(
+        _ signature: ClosureSignatureSyntax
+    ) -> String? {
         guard let captures = signature.capture?.items,
               captures.count == 1,
               let capture = captures.first,
               capture.specifier?.specifier.text == "weak",
               capture.specifier?.detail == nil,
-              capture.name.text == "self",
               capture.initializer == nil,
               capture.trailingComma == nil else {
-            return false
+            return nil
         }
-        return true
+        return capture.name.text
     }
 
     /// Authored closure signatures are not generally transferable. Planet's
@@ -681,19 +686,19 @@ extension Interpreter {
         return true
     }
 
-    /// Provenance repeatedly uses `{ @MainActor [weak self] in ... }`. Apple
-    /// Swift 6.3.3's strict region checker requires the executor-neutral
-    /// `@Sendable` workaround in the native oracle, so both exact attribute
-    /// sequences are admitted. No other capture or signature surface may use
-    /// the confined entry/handoff wrapper.
-    private func isPhysicalExplicitMainActorWeakSelfContinuationCandidate(
+    /// Provenance and KeyboardCowboy use exact explicit-MainActor operations
+    /// with one weak capture. Apple Swift 6.3.3's strict region checker
+    /// requires the executor-neutral `@Sendable` workaround in native oracles,
+    /// so both exact attribute sequences are admitted. No alias, initializer,
+    /// second capture, or other signature surface may use the confined wrapper.
+    private func isPhysicalExplicitMainActorWeakCaptureContinuationCandidate(
         _ signature: ClosureSignatureSyntax?
     ) -> Bool {
         guard let signature,
               signature.parameterClause == nil,
               signature.effectSpecifiers == nil,
               signature.returnClause == nil,
-              hasExactWeakSelfCapture(signature) else {
+              exactWeakCaptureName(signature) != nil else {
             return false
         }
         let attributes = signature.attributes.compactMap {
@@ -823,8 +828,8 @@ extension Interpreter {
         value.isPhysicalExplicitMainActorContinuationCandidate =
             isPhysicalExplicitMainActorContinuationCandidate(
                 closure.signature)
-        value.isPhysicalExplicitMainActorWeakSelfContinuationCandidate =
-            isPhysicalExplicitMainActorWeakSelfContinuationCandidate(
+        value.isPhysicalExplicitMainActorWeakCaptureContinuationCandidate =
+            isPhysicalExplicitMainActorWeakCaptureContinuationCandidate(
                 closure.signature)
         value.isPhysicalStrongSelfSourceCallCandidate =
             isPhysicalStrongSelfSourceCallCandidate(closure.signature)

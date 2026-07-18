@@ -204,7 +204,7 @@ extension Interpreter {
                 || closure
                     .isPhysicalExplicitMainActorContinuationCandidate
                 || closure
-                    .isPhysicalExplicitMainActorWeakSelfContinuationCandidate
+                    .isPhysicalExplicitMainActorWeakCaptureContinuationCandidate
                 || closure.isPhysicalStrongSelfSourceCallCandidate
                 || closure.isPhysicalWeakSelfSourceCallCandidate) else {
             return nil
@@ -218,10 +218,10 @@ extension Interpreter {
             return prefix
         }
 
-        // The explicit-MainActor weak-self route transfers no body syntax or
+        // The explicit-MainActor weak-capture route transfers no body syntax or
         // capture. Its complete authored closure stays in the confined record,
         // so body length is not a worker-admission dimension.
-        if closure.isPhysicalExplicitMainActorWeakSelfContinuationCandidate {
+        if closure.isPhysicalExplicitMainActorWeakCaptureContinuationCandidate {
             return try physicalMainActorContinuationJob(
                 nil,
                 closure: closure,
@@ -251,7 +251,7 @@ extension Interpreter {
         // snapshot-kernel routes when imported identity is absent.
         guard !closure.isPhysicalExplicitMainActorContinuationCandidate,
               !closure
-                .isPhysicalExplicitMainActorWeakSelfContinuationCandidate else {
+                .isPhysicalExplicitMainActorWeakCaptureContinuationCandidate else {
             return nil
         }
 
@@ -443,7 +443,7 @@ extension Interpreter {
         let isExplicitMainActorClosure = (closure
             .isPhysicalExplicitMainActorContinuationCandidate
             || closure
-                .isPhysicalExplicitMainActorWeakSelfContinuationCandidate)
+                .isPhysicalExplicitMainActorWeakCaptureContinuationCandidate)
             && hasImportedMainActorIdentity(closure)
         guard isSignatureFreeRun || isExplicitMainActorClosure,
               record.entry === entry,

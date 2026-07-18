@@ -3031,8 +3031,9 @@ Each milestone is independently gated through
   demand-cited physical source-call-wrapper paths now exist behind a validated
   explicit mode. The three continuation forms are a complete signature-free
   imported `MainActor.run(body:)` body, Planet's exact one-expression
-  `{ @MainActor in ... }` operation, and Provenance's exact
-  `{ @MainActor [weak self] in ... }` operation. The
+  `{ @MainActor in ... }` operation, and the exact single-weak-capture
+  `{ @MainActor [weak capture] in ... }` operation demand-cited by Provenance
+  and KeyboardCowboy. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
@@ -4905,6 +4906,37 @@ passed those 49 implementation tests, all 46 methodology/gate checks, and all
 20 parity repetitions in two seconds. The exact-tip physical board passed
 92/92 tests in three suites in one second; a fresh TSan build passed native
 overlap 20/20 plus all 92 tests in 47 seconds without a race or interceptor
+diagnostic.
+
+The eightieth prerequisite generalizes the explicit-MainActor weak-self
+admissibility fact to KeyboardCowboy's exact single named weak capture. Closure
+formation classifies the ownership shape independently of the identifier: one
+weak capture, no alias or initializer, no second capture, and ordered
+MainActor with only the optional executor-neutral `@Sendable` oracle
+workaround. Unowned ownership and every richer signature remain outside the
+route.
+
+This does not widen the worker capability. The empty command still carries
+only entry/task identity and releases its permit at MainActor handoff. The
+complete closure, genuine named weak box, source referent, evaluator, body, and
+outcome remain confined. Consequently, physical promotion cannot retain a
+referent that the causal actor gate releases while the closure is suspended.
+
+Strict native/interpreted execution returned exact
+`same|same:alive#same|same:released` in twenty runs. The raw native digest was
+`8f8952506fd713e4c83ea12ceeb60b04bdca0851bde0d3068fb4e1bac0966d38`;
+every five-run focused shard retained
+`7491365c8c4a8fa386bd87ee3d2ac9ab4af932eced41a0597eea8945526ef8fd`.
+The receipt RED moved from zero to two physical wrappers. Alias/initializer,
+unowned, additional-capture, reversed-attribute, and source-shadowed controls
+retain zero receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 50/50. The canonical prebuilt iteration
+passed those 50 implementation tests, all 46 methodology/gate checks, and all
+20 parity repetitions in two seconds. The exact-tip physical board passed
+93/93 tests in three suites in one second; a fresh TSan build passed native
+overlap 20/20 plus all 93 tests in 51 seconds without a race or interceptor
 diagnostic.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
