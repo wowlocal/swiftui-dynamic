@@ -2425,6 +2425,30 @@ interceptor diagnostic. Source order constrains the two handle reads; operation
 start/completion order, worker identity, and arbitrary parenthesized bodies do
 not enter the claim.
 
+The eighty-sixth M9 slice is an already-GREEN frontend/default-argument
+composition characterization, not a production gap closure. Clop demand-cites
+`Task.detached(operation: { ... })` with the defaulted priority omitted. The
+probe asks whether that absent argument and labeled operation converge on the
+same detached, signature-free, suspending path as the explicit-priority form.
+
+Apple Swift 6.3.3 compiled the fixture with complete strict concurrency and
+warnings as errors. Twenty native/interpreted runs returned exact
+`defaulted:2`; the raw native digest was
+`b92d33ded64ecdb1fdd60c36c0ef66478b5d41b536cbadde67a06d0778589893`,
+and every focused shard retained
+`2d0946663d092ea34bb091ec6ce9a39aad121137aad06acadb2f2b6ba89d2b33`.
+Call-site metadata carries no priority value and one labeled closure, the
+generated gateway maps the default to `nil`, and the existing yield kernel
+receives the same `ClosureValue`; no runtime mechanism changed.
+Cooperative/parallel receipts are zero/two and registry cleanup is complete.
+The canonical iteration passed 58/58 source-kernel tests, all 46
+methodology/gate checks, and 20/20 parity repetitions in five seconds. The
+physical board passed 101/101 tests in three suites, and a fresh TSan build
+passed native overlap 20/20 plus all 101 tests in 156 seconds without a race or
+interceptor diagnostic. The selected priority value, operation ordering,
+worker identity, arbitrary bodies, and Clop's captured Image construction do
+not enter the claim.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

@@ -2610,6 +2610,21 @@
     "notes": "Damus demand-cites the parenthesized `Task.detached(priority: .background, operation: { ... })` spelling at EventActionBar.swift:257-261 and AppearanceSettingsView.swift:196-198. This is an already-GREEN frontend composition characterization, not a production gap closure: call-site metadata materializes the labeled closure argument, the generated Task gateway selects it, and the existing typed Task.yield kernel consumes the resulting signature-free ClosureValue without depending on trailing-closure syntax. Apple Swift 6.3.3 compiled the fixture in complete-strict Swift 6 mode with warnings as errors; twenty bounded native/interpreter runs returned exact yielded:2, and the raw native output had SHA-256 1c83194c943a93d0f11bbfe107b23ec2fcdeda5e6efb7f78b0c31885f9eef549. Cooperative/parallel modes record zero/two physical receipts and drain their task registries. Every five-run focused shard retained SHA-256 cbcb335f090be7e3b06e30b72823d6c25e0ec9a2ca2b77453fb4bfa1cd318115; the canonical iteration passed 57/57 source-kernel tests, all 46 methodology/gate checks, and 20/20 parity repetitions in four seconds. The exact-tip physical board passed 100/100 tests in three suites in 1.14 seconds, and a fresh TSan build passed native overlap 20/20 plus all 100 tests in 24 seconds without race or interceptor diagnostics. The two handle reads are source-ordered, but operation start/completion order, worker identity, arbitrary parenthesized bodies, and broader captured Damus source work are not asserted."
   },
   {
+    "id": "detached-operation-default-priority",
+    "fixture": "Fixtures/detached-operation-default-priority.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await detachedOperationDefaultPriorityProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 2,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "The parenthesized Task.detached(operation:) spelling applies its default priority, launches the labeled operation closure, permits a real Task.yield suspension, and completes its awaited Void handle.",
+    "notes": "Clop demand-cites the parenthesized `Task.detached(operation: { ... })` spelling with omitted priority at DropZone.swift:885-889. This is an already-GREEN frontend/default-argument composition characterization, not a production gap closure: call-site metadata preserves the absent priority and labeled closure argument, the generated Task gateway maps the absent priority to nil and selects operation, and the existing typed Task.yield kernel consumes the same signature-free ClosureValue. Apple Swift 6.3.3 compiled the fixture in complete-strict Swift 6 mode with warnings as errors; twenty bounded native runs returned exact defaulted:2, and their raw output had SHA-256 b92d33ded64ecdb1fdd60c36c0ef66478b5d41b536cbadde67a06d0778589893. Cooperative/parallel modes return the same value, record zero/two physical receipts, and drain their task registries. Every five-run focused shard retained SHA-256 2d0946663d092ea34bb091ec6ce9a39aad121137aad06acadb2f2b6ba89d2b33; the canonical iteration passed 58/58 source-kernel tests, all 46 methodology/gate checks, and 20/20 parity repetitions in five seconds. The exact-tip physical board passed 101/101 tests in three suites in 1.24 seconds, and a fresh TSan build passed native overlap 20/20 plus all 101 tests in 156 seconds without race or interceptor diagnostics. The two handle reads are source-ordered, but the runtime-selected priority value, operation start/completion order, worker identity, arbitrary parenthesized bodies, and Clop's captured Image construction are not asserted."
+  },
+  {
     "id": "parallel-shadowed-task-yield",
     "fixture": "Fixtures/parallel-shadowed-task-yield.swift",
     "mode": "runtime",

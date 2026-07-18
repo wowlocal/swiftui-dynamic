@@ -3050,7 +3050,10 @@ Bool and literal seconds/milliseconds. All six lower to checked snapshot
 kernels and have paired cooperative/parallel plus TSan evidence. Damus's
 parenthesized `Task.detached(priority:operation:)` spelling is characterized
 through the same call-site metadata, generated Task gateway, signature-free
-`ClosureValue`, and typed yield kernel; it adds no worker capability. The five
+`ClosureValue`, and typed yield kernel; it adds no worker capability. Clop's
+parenthesized `Task.detached(operation:)` spelling additionally proves that
+the omitted defaulted priority reaches that gateway as `nil` without creating
+a second execution path or worker capability. The five
 source-call families launch only a checked wrapper command before confined
   re-entry: MainActor, `@concurrent`, default source actor, actor-declared
   custom global actor, and inherited detached-caller isolation. Physical
@@ -5091,6 +5094,29 @@ a fresh TSan build passed native overlap 20/20 plus all 100 tests in 24 seconds
 without a race or interceptor diagnostic. The proof does not claim operation
 start/completion order, worker identity, arbitrary parenthesized bodies, or
 general captured Damus work.
+
+The eighty-sixth prerequisite is verification-only. It characterizes Clop's
+parenthesized `Task.detached(operation: { ... })` spelling with the defaulted
+priority omitted. Immutable call-site metadata represents that omission and
+the labeled closure independently. The generated Task gateway maps the absent
+priority to `nil`, selects `operation`, and supplies the resulting
+signature-free `ClosureValue` to the existing typed `Task.yield` admission
+and physical kernel. No new default-argument evaluator, lowering, command, or
+worker capability is introduced.
+
+Apple Swift 6.3.3 compiled the same-source fixture with complete strict
+concurrency and warnings as errors. Native and interpreted execution returned
+exact `defaulted:2` in twenty bounded repetitions. The raw native digest was
+`b92d33ded64ecdb1fdd60c36c0ef66478b5d41b536cbadde67a06d0778589893`,
+and every five-run focused shard retained
+`2d0946663d092ea34bb091ec6ce9a39aad121137aad06acadb2f2b6ba89d2b33`.
+Cooperative/parallel receipts are zero/two and every task registry drains. The
+focused source-kernel suite passed 58/58, all 46 methodology/gate checks
+passed, the exact-tip physical board passed 101/101 tests in three suites, and
+a fresh TSan build passed native overlap 20/20 plus all 101 tests in 156
+seconds without a race or interceptor diagnostic. The proof does not identify
+the runtime-selected priority, constrain operation order or worker identity,
+or admit arbitrary parenthesized bodies and Clop's captured Image construction.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
