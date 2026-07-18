@@ -97,6 +97,12 @@ public final class ViewRegistry: HostRegistry {
         if let platform = GeneratedPlatformBridge.constructor(named: resolvedName) {
             return platform
         }
+        // Generic-carrier Foundation values (Measurement) construct from
+        // the swept table before any absorbing fallback.
+        if constructors[resolvedName] == nil,
+           let carrier = GeneratedMembers.carrierConstructors[resolvedName] {
+            return carrier
+        }
         let hand = constructors[resolvedName]
         let generated = GeneratedConstructors.table[resolvedName]
         if hand == nil && generated == nil {

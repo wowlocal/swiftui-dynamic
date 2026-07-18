@@ -2536,3 +2536,27 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   foodtruck-r3.sh now refreshes twin captures on calendar-day change.
   R3 back to ten/ten 0.000 fresh-vs-fresh. Gate RED with main's known
   parallel-worker signature — still gate-blocked, exonerated.
+- 2026-07-18 CITY ARC COMPLETE: MEASUREMENT BRIDGED — ALL SCREENS AE=0
+  (worktree iteration 62): the weather-label residue closed with a new
+  BridgeGen tier: GENERIC-STRUCT CARRIERS (protocolReceivers applied to
+  generic receivers). Measurement sweeps as Measurement<Dimension> —
+  the generic parameter substitutes in mappings/contracts, receiver
+  casts use the carrier spelling, where-clause extensions matching the
+  carrier's own constraint sweep (formatted() lives in `extension
+  Measurement where UnitType: Dimension`), and carrier INITIALIZERS
+  emit as host constructors. The unit system sweeps from the Foundation
+  SYMBOL GRAPH (NSUnit family is Clang-imported, absent from the
+  textual interface): 203 class-var statics across 22 Dimension
+  classes feed the shared Coerce.dimension (bare `.fahrenheit` resolves
+  when unique; ambiguity throws). The pin caught a REAL divergence:
+  native formatted() locale-converts through the concrete unit type
+  (km/h -> mph under en_US) — the emitter now generates a
+  re-specialization switch over every swept unit class, so the erased
+  carrier formats native-identically. keyTypeName maps
+  Measurement<NSDimension> -> "Measurement" (the Decimal/NSDecimal
+  precedent). Pins: MeasurementBridgeTests (construct via bare +
+  qualified units, formatted parity vs native, converted(to:) values,
+  ambiguity fail-closed). CITY ROWS: 0.214 -> 0.000 BOTH. R2 BOARD:
+  17/18 screens AE=0 — every screen pixel-perfect except the
+  user-gated content artifact. Gate RED with main's known
+  parallel-worker signature — lane still gate-blocked, exonerated.

@@ -16,6 +16,7 @@ enum ParamTag: Hashable {
     case shapeStyle, anyView, shape
     case visibility, axisSet, edgeInsets, gradient, gridItems
     case axis, colorArray, annotationPosition
+    case dimension, measurement
     case builder, action, asyncAction, equatable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
@@ -280,6 +281,14 @@ enum GeneratedDispatch {
             throw RuntimeError(message: "expected a closed range (ClosedRange<Double>) like 0...1")
         case .annotationPosition:
             return Coerce.annotationPosition(value)
+        case .dimension:
+            return try Coerce.dimension(value)
+        case .measurement:
+            if case .host(let any) = value, let measurement = any as? Measurement<Dimension> {
+                return measurement
+            }
+            if let carrier = value.hostPayload as? Measurement<Dimension> { return carrier }
+            throw RuntimeError(message: "expected a Measurement value")
         case .calendarComponent:
             return try Coerce.calendarComponent(value)
         case .calendarComponentSet:
@@ -537,7 +546,11 @@ enum GeneratedMembers {
     /// runtime name, the table keys on the Swift one).
     static func keyTypeName(of value: Any) -> String {
         let name = String(describing: type(of: value))
-        return name == "NSDecimal" ? "Decimal" : name
+        if name == "NSDecimal" { return "Decimal" }
+        // Generic carriers key on the base name; the runtime prints the
+        // ObjC-renamed argument (Measurement<NSDimension>).
+        if name.hasPrefix("Measurement<") { return "Measurement" }
+        return name
     }
 
     static func member(_ name: String, on value: Any) -> RuntimeValue? {
@@ -954,4 +967,39 @@ protocol GeneratedMemberCarrier {
 extension GeneratedMemberCarrier {
     func writeGeneratedMemberValue(_ value: Any) -> Bool { false }
     func replacingGeneratedMemberValue(_ value: Any) -> Any? { nil }
+}
+
+extension Coerce {
+    /// Foundation's unit system: `.fahrenheit`-style implicit members
+    /// resolve through the swept Dimension statics (unique bare names —
+    /// ambiguity throws, listing the candidate containers); qualified
+    /// spellings arrive as host values and pass through.
+    static func dimension(_ value: RuntimeValue) throws -> Dimension {
+        if case .host(let any) = value {
+            if let dimension = any as? Dimension { return dimension }
+            if let platform = any as? GeneratedPlatformValue,
+               let dimension = platform.payload as? Dimension {
+                return dimension
+            }
+        }
+        if let carrier = value.hostPayload as? Dimension { return carrier }
+        if case .implicitMember(let name) = value {
+            let containers = GeneratedMembers.dimensionContainersByBareName[name] ?? []
+            if containers.count == 1,
+               let unit = GeneratedMembers.dimensionStatics["\(containers[0]).\(name)"] {
+                return unit
+            }
+            if containers.count > 1 {
+                throw RuntimeError(message:
+                    "unit .\(name) is ambiguous across \(containers.joined(separator: ", ")) — spell the container")
+            }
+        }
+        // `UnitTemperature.fahrenheit` chained member (host type marker).
+        if case .host(let any) = value, let chain = any as? ChainedImplicitCall,
+           case .implicitMember(let container) = chain.base,
+           let unit = GeneratedMembers.dimensionStatics["\(container).\(chain.member)"] {
+            return unit
+        }
+        throw RuntimeError(message: "expected a Foundation unit (Dimension) like .fahrenheit")
+    }
 }

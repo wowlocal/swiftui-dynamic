@@ -1556,3 +1556,55 @@ private func platformSymbolBaseName(
     guard name.first?.isLetter == true, !name.hasPrefix("_") else { return nil }
     return name
 }
+
+/// Foundation's unit-system statics from the Foundation SYMBOL GRAPH — the
+/// NSUnit family is Clang-imported and absent from the textual
+/// swiftinterface. Returns (container, name) pairs for every `class var`
+/// on a Dimension subclass whose type is the class itself.
+func sweptFoundationDimensionStatics() -> [(container: String, name: String)] {
+    let spec = PlatformFrameworkSpec(
+        name: "Foundation", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0)],
+        roots: [])
+    guard let graphURL = try? platformSymbolGraphURL(for: spec),
+          let graph = try? JSONDecoder().decode(
+              SymbolGraph.self, from: Data(contentsOf: graphURL)) else {
+        print("warning: no Foundation symbol graph for the unit sweep")
+        return []
+    }
+    var classByID: [String: String] = [:]
+    for symbol in graph.symbols where symbol.kind.identifier == "swift.class" {
+        guard symbol.pathComponents.count == 1 else { continue }
+        classByID[symbol.identifier.precise] = symbol.pathComponents[0]
+    }
+    // Dimension subclasses: walk inheritsFrom up to "Dimension".
+    var parentOf: [String: String] = [:]
+    for relationship in graph.relationships where relationship.kind == "inheritsFrom" {
+        guard let child = classByID[relationship.source],
+              let parent = classByID[relationship.target] else { continue }
+        parentOf[child] = parent
+    }
+    func descendsFromDimension(_ name: String) -> Bool {
+        var current: String? = name
+        var hops = 0
+        while let value = current, hops < 8 {
+            if value == "Dimension" { return true }
+            current = parentOf[value]
+            hops += 1
+        }
+        return false
+    }
+    var result: [(container: String, name: String)] = []
+    for symbol in graph.symbols where symbol.kind.identifier == "swift.type.property" {
+        guard symbol.pathComponents.count == 2 else { continue }
+        let container = symbol.pathComponents[0]
+        let name = symbol.pathComponents[1]
+        guard descendsFromDimension(container),
+              platformSymbolIsAvailable(symbol, for: spec),
+              symbol.declaration.contains(": \(container)")
+                || symbol.declaration.contains("-> \(container)") else { continue }
+        result.append((container: container, name: name))
+    }
+    return result
+}
