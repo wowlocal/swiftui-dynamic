@@ -798,7 +798,7 @@ extension Interpreter: EvalContext {
             operationExecutor: operationExecutor)
         let handle = pending.handle
         let arguments = arguments
-        let physicalKernelJob: RuntimePhysicalWorkerJob?
+        let physicalKernelJob: RuntimePhysicalSourceKernelJob?
         if evaluationTaskContext.isAsyncSession,
            kind == .detached,
            startPolicy == .enqueued {
@@ -848,6 +848,8 @@ extension Interpreter: EvalContext {
                     }
                     if let physicalKernelJob,
                        let driver = self.physicalWorkerDriver {
+                        self.concurrencyRuntime
+                            .recordPhysicalSourceKernelSubmission()
                         let snapshot = try await driver.executeSourceKernel(
                             physicalKernelJob)
                         self.concurrencyRuntime

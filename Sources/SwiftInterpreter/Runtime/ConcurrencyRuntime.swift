@@ -720,6 +720,10 @@ final class CooperativeConcurrencyRuntime {
     /// crossed the checked physical-worker boundary. Planning or cooperative
     /// fallback does not increment it.
     private(set) var totalPhysicalSourceKernelExecutions = 0
+    /// Source kernels submitted to the physical driver, including a
+    /// cancellation-observing kernel that terminates by throwing before it can
+    /// publish a successful result. Cooperative fallback does not increment it.
+    private(set) var totalPhysicalSourceKernelSubmissions = 0
     /// Swift callback types such as `AsyncStream.Continuation.onTermination`
     /// are nonthrowing, but evaluating their source bodies can still uncover
     /// an interpreter/runtime failure. Destruction cannot throw, so retain the
@@ -737,6 +741,10 @@ final class CooperativeConcurrencyRuntime {
 
     func recordPhysicalSourceKernelExecution() {
         totalPhysicalSourceKernelExecutions += 1
+    }
+
+    func recordPhysicalSourceKernelSubmission() {
+        totalPhysicalSourceKernelSubmissions += 1
     }
 
     func createEntry(

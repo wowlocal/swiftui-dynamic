@@ -76,6 +76,45 @@ nonisolated indirect enum RuntimeSourceSnapshotExpression:
     }
 }
 
+/// Typed duration selection for a demand-cited suspending worker command.
+/// Duration constants are lowered on MainActor; the worker may select between
+/// them only from a recursively copied Bool binding.
+nonisolated indirect enum RuntimeSourceSnapshotDurationExpression:
+    Sendable, Equatable
+{
+    case constant(RuntimeDuration)
+    case conditional(
+        condition: RuntimeSourceSnapshotExpression,
+        ifTrue: RuntimeSourceSnapshotDurationExpression,
+        ifFalse: RuntimeSourceSnapshotDurationExpression)
+
+    func execute(
+        with capability: RuntimeWorkerCapability
+    ) throws -> RuntimeDuration {
+        switch self {
+        case .constant(let duration):
+            return duration
+        case .conditional(let condition, let ifTrue, let ifFalse):
+            guard case .bool(let value) = try condition.execute(
+                with: capability) else {
+                throw RuntimeError(message:
+                    "physical conditional Duration kernel received a non-Bool snapshot")
+            }
+            return try (value ? ifTrue : ifFalse).execute(with: capability)
+        }
+    }
+}
+
+/// A source operation either observes cancellation or does not. The physical
+/// driver uses this language fact to distinguish Swift's cooperative finite
+/// bodies from cancellation-checking suspensions such as throwing sleep.
+nonisolated enum RuntimeSourceKernelCancellationBehavior:
+    Sendable, Equatable
+{
+    case unobserved
+    case observed
+}
+
 /// Executor-neutral work lowered from an explicitly admitted source closure.
 /// The demand-scoped surface is a literal or a typed snapshot expression. The
 /// kernel owns no syntax, evaluator, environment, closure, heap, or host value.
@@ -83,6 +122,16 @@ nonisolated enum RuntimeSourceSnapshotKernel: Sendable, Equatable {
     case constant(RuntimeWorkerValueSnapshot)
     case expression(RuntimeSourceSnapshotExpression)
     case taskYield
+    case taskSleep(RuntimeSourceSnapshotDurationExpression)
+
+    var cancellationBehavior: RuntimeSourceKernelCancellationBehavior {
+        switch self {
+        case .constant, .expression, .taskYield:
+            return .unobserved
+        case .taskSleep:
+            return .observed
+        }
+    }
 
     func execute(
         with capability: RuntimeWorkerCapability
@@ -91,7 +140,6 @@ nonisolated enum RuntimeSourceSnapshotKernel: Sendable, Equatable {
             throw RuntimeError(message:
                 "physical source kernel received an unsafe worker manifest")
         }
-        try Task.checkCancellation()
         switch self {
         case .constant(let value):
             return value
@@ -100,8 +148,20 @@ nonisolated enum RuntimeSourceSnapshotKernel: Sendable, Equatable {
         case .taskYield:
             await Task.yield()
             return .void
+        case .taskSleep(let durationExpression):
+            let duration = try durationExpression.execute(with: capability)
+            try await Task.sleep(for: .nanoseconds(duration.nanoseconds))
+            return .void
         }
     }
+}
+
+/// Source-specific metadata kept beside the generic checked worker job. It
+/// contains no evaluator or heap capability and lets the driver preserve the
+/// source operation's own cancellation-observation rule.
+nonisolated struct RuntimePhysicalSourceKernelJob: Sendable {
+    let workerJob: RuntimePhysicalWorkerJob
+    let cancellationBehavior: RuntimeSourceKernelCancellationBehavior
 }
 
 extension Interpreter {
@@ -114,7 +174,7 @@ extension Interpreter {
         arguments: [RuntimeValue],
         entry: RuntimeEntry,
         priority: RuntimeTaskPriority
-    ) throws -> RuntimePhysicalWorkerJob? {
+    ) throws -> RuntimePhysicalSourceKernelJob? {
         guard physicalWorkerDriver != nil,
               arguments.isEmpty,
               closure.parameters.isEmpty,
@@ -146,15 +206,21 @@ extension Interpreter {
             expression, closure: closure, entry: entry) {
             capability = lowered.capability
             kernel = lowered.kernel
+        } else if let lowered = try capturedImmutableBooleanConditionalSleepKernel(
+            expression, closure: closure, entry: entry) {
+            capability = lowered.capability
+            kernel = lowered.kernel
         } else {
             return nil
         }
-        return RuntimePhysicalWorkerJob(
-            capability: capability,
-            priority: priority
-        ) { capability in
-            try await kernel.execute(with: capability)
-        }
+        return RuntimePhysicalSourceKernelJob(
+            workerJob: RuntimePhysicalWorkerJob(
+                capability: capability,
+                priority: priority
+            ) { capability in
+                try await kernel.execute(with: capability)
+            },
+            cancellationBehavior: kernel.cancellationBehavior)
     }
 
     /// TCA's TestStore uses exactly
@@ -377,6 +443,118 @@ extension Interpreter {
                 stringExpression,
                 from: .stringStartIndex(stringExpression),
                 to: .binding(indexName))))
+    }
+
+    /// Signal-iOS executes a throwing `Task.sleep(for:)` whose duration is
+    /// selected from an immutable Bool parameter. Admit only that exact
+    /// standard-library shape, copy the Bool, and lower the two finite
+    /// Duration literals to typed IR. Mutable/global conditions, other units,
+    /// and alternate sleep overloads stay on the cooperative evaluator.
+    private func capturedImmutableBooleanConditionalSleepKernel(
+        _ expression: ExprSyntax,
+        closure: ClosureValue,
+        entry: RuntimeEntry
+    ) throws -> (
+        capability: RuntimeWorkerCapability,
+        kernel: RuntimeSourceSnapshotKernel
+    )? {
+        guard let tryExpression = expression.as(TryExprSyntax.self),
+              tryExpression.questionOrExclamationMark == nil,
+              let awaitExpression = tryExpression.expression
+                .as(AwaitExprSyntax.self),
+              let sleepCall = awaitExpression.expression
+                .as(FunctionCallExprSyntax.self),
+              sleepCall.trailingClosure == nil,
+              sleepCall.additionalTrailingClosures.isEmpty,
+              let sleepMember = sleepCall.calledExpression
+                .as(MemberAccessExprSyntax.self),
+              sleepMember.declName.baseName.text == "sleep",
+              sleepMember.declName.argumentNames == nil,
+              let taskReference = sleepMember.base?
+                .as(DeclReferenceExprSyntax.self),
+              taskReference.baseName.text == "Task",
+              taskReference.argumentNames == nil else {
+            return nil
+        }
+
+        let sleepArguments = Array(sleepCall.arguments)
+        guard sleepArguments.count == 1,
+              sleepArguments[0].label?.text == "for",
+              let selection = sleepArguments[0].expression
+                .as(TernaryExprSyntax.self),
+              let conditionReference = selection.condition
+                .as(DeclReferenceExprSyntax.self),
+              conditionReference.argumentNames == nil,
+              let trueDuration = sourceSnapshotSleepDuration(
+                selection.thenExpression),
+              let falseDuration = sourceSnapshotSleepDuration(
+                selection.elseExpression) else {
+            return nil
+        }
+
+        let conditionName = conditionReference.baseName.text
+        guard let box = closure.captured.locallyOwnedBox(for: conditionName),
+              !box.isMutableBinding,
+              case .bool(let condition) = try box.load() else {
+            return nil
+        }
+
+        let capability = try entry.makeWorkerCapability(copying: [
+            RuntimeWorkerSourceBinding(
+                name: conditionName, value: .bool(condition)),
+        ])
+        guard capability.bindings.count == 1,
+              capability.bindings[0].name == conditionName,
+              case .bool = capability.bindings[0].value else {
+            throw RuntimeError(message:
+                "physical conditional Task.sleep kernel produced an invalid snapshot")
+        }
+        return (
+            capability,
+            .taskSleep(.conditional(
+                condition: .binding(conditionName),
+                ifTrue: .constant(trueDuration),
+                ifFalse: .constant(falseDuration))))
+    }
+
+    /// The cited call uses only `.seconds(Int)` and `.milliseconds(Int)`.
+    /// Other Duration constructors remain cooperative until independently
+    /// demand-cited and characterized.
+    private func sourceSnapshotSleepDuration(
+        _ expression: ExprSyntax
+    ) -> RuntimeDuration? {
+        guard let call = expression.as(FunctionCallExprSyntax.self),
+              call.trailingClosure == nil,
+              call.additionalTrailingClosures.isEmpty,
+              let member = call.calledExpression
+                .as(MemberAccessExprSyntax.self),
+              member.base == nil,
+              member.declName.argumentNames == nil else {
+            return nil
+        }
+        let arguments = Array(call.arguments)
+        guard arguments.count == 1,
+              arguments[0].label == nil,
+              let literal = arguments[0].expression
+                .as(IntegerLiteralExprSyntax.self),
+              let parsed = try? integerValue(of: literal),
+              let amount = Int64(exactly: parsed),
+              amount >= 0 else {
+            return nil
+        }
+
+        let scale: Int64
+        switch member.declName.baseName.text {
+        case "seconds":
+            scale = 1_000_000_000
+        case "milliseconds":
+            scale = 1_000_000
+        default:
+            return nil
+        }
+        let product = amount.multipliedReportingOverflow(by: scale)
+        guard !product.overflow else { return nil }
+        return .nanoseconds(product.partialValue)
     }
 
     private static func singleExpression(

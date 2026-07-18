@@ -2568,6 +2568,21 @@
     "notes": "swift-composable-architecture demand-cites this exact spelling in Sources/ComposableArchitecture/TestStore.swift:1856. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned exact yielded:2 in twenty bounded runs; every five-repetition native shard reported SHA-256 a8da6accf02cddfd0779ab299c9ccaf8f75d2092aa1704824745f6c197af7e8c. The interpreter value was already correct through cooperative fallback, but the captured RED proved explicit parallel mode recorded zero physical source executions instead of two. MainActor lowering admits only a signature-free, argument-free, single-expression detached body whose expression is the exact zero-argument await Task.yield() call. It emits a typed task-yield kernel with an empty checked capability; the real detached worker suspends at Swift Task.yield and publishes a Void snapshot. Authored signatures, multiple statements, alternate calls, and every captured value remain cooperative. Twenty paired cooperative/parallel runs preserve exact yielded:2, empty task registries, and zero/two receipts. The two calls are sequential; no worker thread identity or unrelated ready-task order is asserted."
   },
   {
+    "id": "parallel-detached-conditional-sleep",
+    "fixture": "Fixtures/parallel-detached-conditional-sleep.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedConditionalSleepParityProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 2,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A Task.detached body may capture an immutable Bool parameter, select between two finite Duration literals, and suspend in throwing Task.sleep(for:) before publishing Void. Cancelling a second task before its body enters makes the sleep throw CancellationError and leaves its handle marked cancelled; elapsed time, worker identity, and unrelated scheduler order are not guaranteed.",
+    "notes": "Signal-iOS demand-cites `try await Task.sleep(for: slowLinking ? .seconds(3) : .milliseconds(500))` in BackupRestoreProgressModal.swift:541, where slowLinking is an immutable Bool parameter. The same-source fixture uses zero/one-millisecond success durations plus a causally pre-cancelled 30-second branch so the assertion is bounded and does not treat timing as semantics. Apple Swift 6.3.3 compiled it in Swift 6 complete-strict mode with warnings as errors and returned exact slow:fast|cancelled:true in twenty bounded runs; every focused five-run shard reported SHA-256 d78d19bf880bb60f640e843e2e59091db7555910efa54f0ed50b4b5e8d62ac95. The captured receipt RED already returned the correct value through cooperative fallback but explicit parallel mode recorded zero successful physical source executions instead of two. MainActor now admits only plain `try await Task.sleep(for:)` with a directly owned immutable Bool condition and nonnegative integer-literal `.seconds`/`.milliseconds` branches, then copies the Bool and emits typed conditional-Duration plus sleep IR. Other units, overloads, mutable/global conditions, authored signatures, and richer bodies remain cooperative. A Sendable actor relay preserves pre-cancelled body entry and forwards cancellation to the actual source worker, so the throwing sleep produces CancellationError. Twenty paired mode runs preserve the exact value, empty registries, zero/two successful executions, and zero/three submissions. The TSan board passed twenty native overlap iterations and all thirty-three driver/source-kernel tests on four workers in 23 seconds without a race or interceptor diagnostic; no elapsed time, worker identity, or scheduler order is asserted."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",
