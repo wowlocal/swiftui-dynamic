@@ -3050,6 +3050,10 @@ Each milestone is independently gated through
   Demand-cited optional async closures use the analogous cooperative callable
   path: nil returns before argument collection, while a present closure enters
   ordinary suspension-aware invocation and flattens its result.
+  A causally gated weak-lifetime oracle additionally proves that task-record
+  ownership of either cooperative path does not strengthen a weak capture
+  while its detached task is suspended. This does not admit a weak reference
+  to a physical worker.
   Physical Task-yield/sleep admission combines immutable callee shape with
   the stable registered core-Task identity; lexically shadowed source calls
   remain cooperative. The general
@@ -4189,6 +4193,30 @@ rebuilt scoped TSan board passed native overlap 20/20 plus all 59
 driver/kernel/source-call tests in three suites on four workers in 58 seconds
 without a race or interceptor diagnostic.
 
+The fifty-ninth prerequisite characterizes weak capture ownership across a
+causally controlled suspension. Session's group-notification jobs suspend a
+detached `[weak self]` task before their eventual `self?` call. A reentrant
+actor gate models that interval without using elapsed time: the task reports
+entry, the parent clears the final strong receiver, and only then can the task
+resume.
+
+Apple Swift 6.3.3 and the unchanged interpreter returned exact `released` in
+twenty bounded runs; every native five-run shard retained canonical SHA-256
+`c5e92e2453b9fcfd589dc5d3b917f8708b27239decb0a58ca175b11b85c27b6e`.
+The interpreter recorded zero physical receipts and complete task/actor
+cleanup, so this is characterization rather than a runtime gap closure.
+
+The ownership boundary is explicit: `RuntimeTaskRecord` owns the source
+closure, the closure owns a weak capture box, and that box does not own the
+source instance. Physical weak-reference transfer remains forbidden; optional
+value-type async chains with mutating write-back remain open.
+
+The focused board passed 74 tests in six suites, all 46 methodology/gate
+checks, and twenty parity repetitions on four workers in six seconds. The
+rebuilt scoped TSan board passed native overlap 20/20 plus all 60
+driver/kernel/source-call tests in three suites on four workers in 21 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4211,6 +4239,7 @@ inherited-source-call
 and strong-self-capture-source-call
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
+and weak-receiver-release-across-suspension
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

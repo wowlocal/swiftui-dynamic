@@ -1599,6 +1599,35 @@ TSan board passed native overlap 20/20 and all 59 driver/kernel/source-call
 tests in three suites on four workers in 58 seconds without a race or
 interceptor diagnostic.
 
+The fifty-ninth M9 slice is an already-GREEN characterization of weak capture
+lifetime across suspension. Session's group-notification jobs create detached
+`[weak self]` tasks, suspend in `Task.sleep`, and only then read `self?`. The
+oracle substitutes a causal actor gate so elapsed time and scheduler order are
+not evidence.
+
+The detached task first reports that it entered and suspended. Only afterward
+does the parent clear the final strong receiver and reopen the gate. Apple
+Swift 6.3.3 complete-strict compilation with warnings as errors and the
+unchanged interpreter returned exact `released` in twenty bounded runs. Every
+native five-run shard retained SHA-256
+`c5e92e2453b9fcfd589dc5d3b917f8708b27239decb0a58ca175b11b85c27b6e`;
+the interpreter recorded zero physical receipts and empty task/actor
+registries.
+
+No runtime mechanism changed. The evidence distinguishes ownership layers:
+the task record owns its source closure until completion, but the closure's
+weak capture box does not own the source instance. Physical weak-reference
+transfer and optional value-type mutating async chains remain outside the
+slice.
+
+The canonical focused board passed 74 tests in six suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers in two
+seconds, and the complete focused gate took six seconds. The rebuilt scoped
+TSan board passed native overlap 20/20 and all 60 driver/kernel/source-call
+tests in three suites on four workers in 21 seconds without a race or
+interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

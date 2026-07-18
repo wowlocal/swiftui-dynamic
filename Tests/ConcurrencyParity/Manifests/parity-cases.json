@@ -2802,6 +2802,21 @@
     "notes": "Corpus demand includes Aidoku's await loadMore?() at HomeListView.swift:145, iTorrent's await refreshTask?() at BaseCollectionViewController.swift:31, and Provenance's await iterationComplete?() at iCloudContainerSyncer.swift:187; each declaration is an optional async closure. The same-source oracle invokes a present @Sendable closure with one integer, observes nil actor isolation around Task.yield, then invokes a nil optional with a fatal argument trap that must not be evaluated. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact live:7:none|none|nil in twenty bounded runs; every native five-run shard retained canonical SHA-256 aeba7d1f8923f7f34fb729387f5cf709d80eefe1cf283d8faff2811c04e40706. The interpreter RED evaluated the present Optional closure through synchronous invocation and failed when Task.yield required the suspension-aware runtime. Suspension-aware call evaluation now recognizes optional chaining on the callee before argument collection: nil returns immediately, while a present callable is unwrapped, invoked through the ordinary async path, and flattened to one Optional result level. The source closure and captures remain cooperative with zero physical receipts; optional value-type async chains, weak-receiver destruction races, and physical weak-reference transfer remain outside this slice."
   },
   {
+    "id": "weak-receiver-release-across-suspension",
+    "fixture": "Fixtures/weak-receiver-release-across-suspension.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await weakReceiverReleaseAcrossSuspensionProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "Once a detached [weak receiver] task has causally entered and suspended before reading that capture, releasing the final strong owner deallocates the receiver; resumption observes nil and skips the optional call.",
+    "notes": "Session demand-cites this lifetime shape in GroupPromoteMemberJob.swift:203-209 and GroupInviteMemberJob.swift:207-209, where a Task.detached [weak self] operation sleeps before invoking self?.sendFailureNotifications(...). The same-source oracle replaces elapsed time with a reentrant actor gate: the detached task causally reports entry and suspends, the parent clears the only strong receiver, and only then does the gate reopen before the optional read. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact released in twenty bounded runs; every native five-run shard retained canonical SHA-256 c5e92e2453b9fcfd589dc5d3b917f8708b27239decb0a58ca175b11b85c27b6e. The unchanged interpreter was already GREEN with the same output, zero physical receipts, and empty task/actor registries. RuntimeTaskRecord may strongly own the source closure, but that closure's weak capture box does not retain the source instance. This characterization claims cooperative weak lifetime only; physical weak-reference transfer remains forbidden."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",
