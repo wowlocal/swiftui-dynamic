@@ -3015,6 +3015,25 @@ struct ConcurrencyMethodologyTests {
         #expect(!script.contains("\nswift test"))
     }
 
+    @Test func closingGatePinsTheCurrentProjectCorpusCensus() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+        let loop = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent("LOOP.md"),
+            encoding: .utf8)
+
+        #expect(loop.contains("ZERO absorptions across 586\n  projects"))
+        #expect(script.contains(
+            "corpus:*\"586/586 projects pass\"*)"),
+            Comment(rawValue:
+                "the closing gate must fail closed on the current 586-project "
+                    + "census instead of parsing the retired 680-project "
+                    + "denominator"))
+        #expect(!script.contains("678/680"))
+    }
+
     @Test func physicalParallelismTSanBoardIsSourceBound() throws {
         let script = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(

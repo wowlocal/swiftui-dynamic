@@ -1141,15 +1141,10 @@ for board in suite corpus live parity; do
     echo "$board: $line"
     case "$board:$line" in
         suite:*" tests passed"*) ;;
-        corpus:*"projects pass"*)
-            # Ledger floor: Widgets + Mythic are documented native-real
-            # failures. 678/680 is the baseline and only ratchets upward.
-            passed=$(echo "$line" | sed -E 's/.*═══ ([0-9]+)\/680.*/\1/')
-            if ! is_positive_integer "$passed" || (( passed < 678 )); then
-                append_gate_diagnostic \
-                    "corpus board did not meet the 678/680 floor: $line"
-                red=1
-            fi ;;
+        # LOOP.md owns the current external-corpus census. Match the exact
+        # denominator and a perfect pass count so a removed/missing project
+        # cannot silently weaken the board.
+        corpus:*"586/586 projects pass"*) ;;
         live:*"5/5 live-data scenarios pass"*) ;;
         parity:*"0 diverge / 0 interp-error"*) ;;
         *)
