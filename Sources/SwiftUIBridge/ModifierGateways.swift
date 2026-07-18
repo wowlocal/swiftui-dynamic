@@ -416,7 +416,10 @@ extension ViewRegistry {
         // MARK: Container configuration
 
         register("navigationTitle") { view, args, _ in
-            AnyView(view.navigationTitle(args.positional(0)?.stringValue ?? ""))
+            if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
+                print("TRACE-BINDING navigationTitle apply: \"\(args.positional(0)?.stringValue ?? "")\"")
+            }
+            return AnyView(view.navigationTitle(args.positional(0)?.stringValue ?? ""))
         }
         register("navigationDestination") { view, _, _ in
             // The destination's interpreted data type cannot satisfy

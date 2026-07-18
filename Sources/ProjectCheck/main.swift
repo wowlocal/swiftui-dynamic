@@ -44,6 +44,11 @@ let arguments = ParallelCheckOptions.strippingParallelOptions(from: rawArguments
 var root = "/Users/mike/Documents/sample-projects"
 var limit = 25
 var filter: String?
+/// Pollution bisect: `--window lo:hi --then <name>` runs the size-ordered
+/// slice, then checks <name> LAST in the same process (cross-unit state
+/// hunting; the apple-browsers class fails only after specific units).
+var window: String?
+var thenUnit: String?
 var force = false
 var iterator = arguments.makeIterator()
 while let argument = iterator.next() {
@@ -51,6 +56,8 @@ while let argument = iterator.next() {
     case "--limit": limit = Int(iterator.next() ?? "") ?? limit
     case "--all": limit = .max
     case "--project": filter = iterator.next()
+    case "--window": window = iterator.next()
+    case "--then": thenUnit = iterator.next()
     case "--force": force = true
     default: root = argument
     }
@@ -120,6 +127,7 @@ func sourcesFingerprint() -> String? {
 }
 
 let cacheEligible = limit == .max && filter == nil && !force
+    && window == nil && thenUnit == nil
     && parallelOptions.shardCount == 1
     && ProcessInfo.processInfo.environment["INTERP_ABSORB_CENSUS"] == nil
     && ProcessInfo.processInfo.environment["INTERP_APPSHELL_CENSUS"] == nil
@@ -212,6 +220,16 @@ for entry in ((try? fm.contentsOfDirectory(atPath: ossRoot)) ?? []).sorted() {
 // deterministic unit set as one worker.
 units.sort { $0.totalBytes < $1.totalBytes }
 if units.count > limit { units = Array(units.prefix(limit)) }
+if let window {
+    let parts = window.split(separator: ":").compactMap { Int($0) }
+    if parts.count == 2 {
+        let bounded = units[max(0, parts[0])..<min(parts[1], units.count)]
+        let tail = thenUnit.flatMap { name in
+            units.first { $0.name.localizedCaseInsensitiveContains(name) }
+        }
+        units = Array(bounded) + (tail.map { [$0] } ?? [])
+    }
+}
 
 let totalUnitCount = units.count
 

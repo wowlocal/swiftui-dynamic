@@ -293,6 +293,13 @@ public final class Interpreter {
     /// explicit `InterpreterBuildConfiguration`. Target-manifest callers use
     /// immutable per-instance build identity instead.
     public static var interpretsAsPlatform = "iOS"
+    /// Compilation conditions for default-configured interpreters — the
+    /// `interpretsAsPlatform` idea for `#if DEBUG`-family gates. `swift
+    /// build` (and the FoodTruck twin) are debug builds, so DEBUG is the
+    /// default; the corpus driver flips to RELEASE semantics — what
+    /// shipping users run (oss:Mythic's #if DEBUG back-step button traps
+    /// by design when clicked at stage 0; release builds don't have it).
+    public static var interpretsWithCompilationConditions: Set<String> = ["DEBUG"]
     /// RNG_TRACE diagnostics only.
     public static var rngDrawCount = 0
     /// Number of large finite loops prepared by this interpreter instance.
@@ -789,7 +796,8 @@ public final class Interpreter {
         compilerPreflightMode = .disabled
         self.buildConfiguration = buildConfiguration
             ?? InterpreterBuildConfiguration(
-                platformName: Self.interpretsAsPlatform)
+                platformName: Self.interpretsAsPlatform,
+                activeCompilationConditions: Self.interpretsWithCompilationConditions)
         self.executionMode = executionMode
         physicalWorkerDriver = Self.makePhysicalWorkerDriver(
             for: executionMode)
@@ -825,7 +833,8 @@ public final class Interpreter {
         self.compilerPreflightMode = compilerPreflightMode
         self.buildConfiguration = buildConfiguration
             ?? InterpreterBuildConfiguration(
-                platformName: Self.interpretsAsPlatform)
+                platformName: Self.interpretsAsPlatform,
+                activeCompilationConditions: Self.interpretsWithCompilationConditions)
         self.executionMode = executionMode
         physicalWorkerDriver = Self.makePhysicalWorkerDriver(
             for: executionMode)
@@ -858,7 +867,8 @@ public final class Interpreter {
         compilerPreflightMode = .disabled
         self.buildConfiguration = buildConfiguration
             ?? InterpreterBuildConfiguration(
-                platformName: Self.interpretsAsPlatform)
+                platformName: Self.interpretsAsPlatform,
+                activeCompilationConditions: Self.interpretsWithCompilationConditions)
         self.executionMode = executionMode
         physicalWorkerDriver = Self.makePhysicalWorkerDriver(
             for: executionMode)
@@ -897,7 +907,8 @@ public final class Interpreter {
         self.compilerPreflightMode = compilerPreflightMode
         self.buildConfiguration = buildConfiguration
             ?? InterpreterBuildConfiguration(
-                platformName: Self.interpretsAsPlatform)
+                platformName: Self.interpretsAsPlatform,
+                activeCompilationConditions: Self.interpretsWithCompilationConditions)
         self.executionMode = executionMode
         physicalWorkerDriver = Self.makePhysicalWorkerDriver(
             for: executionMode)

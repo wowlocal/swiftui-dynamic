@@ -159,7 +159,7 @@ enum SweepDriver {
                     }
                     RunLoop.main.add(timer, forMode: .eventTracking)
                     popup.performClick(nil)
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    try? await Task.sleep(nanoseconds: settleMs * 1_000_000)
                     if fired.didFire {
                         let mutated = capture(
                             "sweep-\(index + 1)-\(step.name)-mutated", window: window,
@@ -188,8 +188,15 @@ enum SweepDriver {
                 if let field = firstTextField(in: window) {
                     let expected = field.stringValue + " X"
                     field.stringValue = expected
+                    // A programmatic stringValue set never reaches the
+                    // SwiftUI coordinator's editing buffer (it listens via
+                    // controlTextDidChange) — without this, sendAction
+                    // commits the STALE buffer and the model never renames
+                    // (i72 finding: the write trace carried the old name).
+                    field.delegate?.controlTextDidChange?(
+                        Notification(name: NSControl.textDidChangeNotification, object: field))
                     let sent = field.sendAction(field.action, to: field.target)
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    try? await Task.sleep(nanoseconds: settleMs * 1_000_000)
                     let mutated = capture(
                         "sweep-\(index + 1)-\(step.name)-mutated", window: window,
                         outDirectory: outDirectory)
@@ -199,15 +206,13 @@ enum SweepDriver {
                     // the COMMITTED value survived the re-render plus a
                     // visible repaint.
                     let committed = firstTextField(in: window)?.stringValue == expected
-                    // KNOWN GAP (reported, not asserted): natively the
-                    // DETAIL column's .navigationTitle(donut.name) drives
-                    // the macOS titlebar; the interpreted split's HStack
-                    // fallback lets the SIDEBAR's "Food Truck" preference
-                    // win. Rides the real-NavigationSplitView arc (content
-                    // row artifact) — flip `titled` into the verdict when
-                    // that lands.
+                    // ASSERTED since i72: the rename must retitle the
+                    // macOS titlebar exactly as compiled (nested-field
+                    // publish -> self-healing send -> island re-render ->
+                    // navigationTitle re-apply; native truth pinned by
+                    // TwinRetitleApp).
                     let titled = window.title == expected
-                    let mutatedLanded = committed && mutatedChanged > 300
+                    let mutatedLanded = committed && titled && mutatedChanged > 300
                     print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) sent=\(sent) committed=\(committed) titled=\(titled) title=\"\(window.title)\" landed=\(mutatedLanded)")
                     for entry in RenderDiagnostics.errors.dropFirst(reportedDiagnostics).prefix(4) {
                         print("SWEEP-DIAG \(step.name)-mutate \(entry.view): \(entry.error.message.prefix(110))")
@@ -234,7 +239,7 @@ enum SweepDriver {
                     if let action = segmented.action {
                         NSApp.sendAction(action, to: segmented.target, from: segmented)
                     }
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    try? await Task.sleep(nanoseconds: settleMs * 1_000_000)
                     let mutated = capture(
                         "sweep-\(index + 1)-\(step.name)-mutated", window: window,
                         outDirectory: outDirectory)
