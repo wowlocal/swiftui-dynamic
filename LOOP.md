@@ -2746,3 +2746,9 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   asserted end to end: navigation, order completion via real menu,
   both picker mutations, editor rename INCLUDING the native titlebar
   behavior, live map, all screens AE=0.
+- 2026-07-18 i72 ADDENDUM: MERGE-BLOCKED — main's worker abort is BACK
+  under cold-detached conditions (clean main 8097881 RED, kept logs;
+  my tip same signature twice; warm worktree gates GREEN on identical
+  content). 4th-round attribution filed; i71+i72 exonerated and
+  waiting. The abort is now COLD-BUILD conditional — the receipt
+  standard itself (clean-detached) exposes it.
