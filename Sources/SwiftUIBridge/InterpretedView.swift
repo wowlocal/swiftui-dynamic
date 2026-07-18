@@ -111,7 +111,10 @@ final class StateStore: ObservableObject {
         where property.wrapper == .stateObject || property.wrapper == .observedObject
             || property.wrapper == .environmentObject {
             guard case .instance(let model)? = instance.box(for: property.name)?.value else { continue }
-            model.changeSignal.subscribe(ObjectIdentifier(self)) { [weak self] in
+            model.changeSignal.subscribe(ObjectIdentifier(self)) { [weak self, viewName = instance.symbol.name] in
+                if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
+                    print("TRACE-BINDING signal -> \(viewName) store \(self == nil ? "DEAD" : "live")")
+                }
                 self?.objectWillChange.send()
             }
         }
