@@ -1662,6 +1662,41 @@ complete focused gate took four seconds. The rebuilt scoped TSan board passed
 native overlap 20/20 and all 62 driver/kernel/source-call tests in three suites
 on four workers in 68 seconds without a race or interceptor diagnostic.
 
+The sixty-first M9 slice uses an official compiler-runtime test as the primary
+source rather than inventing an Optional write-back expectation. Pinned
+`swiftlang/swift` `test/IRGen/run-coroutine_accessors.swift` at
+`swift-6.3.3-RELEASE` commit
+`064859e41d68596f486c5d724401cb370f260409`, SHA-256
+`2fdae2aa9cd0153da1db13b5e227c6fe5a74112eda85b91795fad9554a80cc95`,
+requires `await b.value?.mutate()` to preserve nil and copy a mutated value
+back. The distilled fixture stays below forty lines while adding a real
+`Task.yield`, a direct Optional lvalue, and an enclosing source-value property.
+
+Apple Swift 6.3.3 complete-strict compilation with warnings as errors and the
+interpreter returned exact
+`direct-entered-resumed:direct-entered-resumed|nested-entered-resumed:nested-entered-resumed|nil:nil`
+in twenty bounded runs. Every native five-run shard retained SHA-256
+`7b98f96ff0ce968ecede27d9907e5ae498748983dd442b768d9b47f5d171a234`.
+The retained RED is causal and behavioral: before the runtime change, the
+first present call failed at `Task.yield` with `async host function 'yield'
+requires runAsync and await` because optional value dispatch invoked the
+method synchronously.
+
+Focused evidence requires mutation both before and after suspension to reach
+the original direct and nested storage, nil to remain nil, one Optional result
+lift, complete runtime cleanup, and zero physical receipts. The production
+path reuses the existing `LValue` and async mutating copy-in/copy-out kernels;
+it does not add an Optional-name, fixture, or standard-library special case.
+Throwing/cancellation exits and coroutine/computed/subscript accessors remain
+explicit follow-ups rather than being normalized into this success oracle.
+
+The canonical focused board passed 76 tests in seven suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers. The rebuilt
+scoped TSan board passed native overlap 20/20 plus all 62 physical
+driver/kernel/source-call tests in 17 seconds without a race or interceptor
+diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

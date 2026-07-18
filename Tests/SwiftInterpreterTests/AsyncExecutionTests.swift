@@ -104,6 +104,29 @@ struct AsyncExecutionTests {
         #expect(interpreted.stringValue == native)
     }
 
+    @Test func optionalAsyncMutatingStructMethodWritesBackAcrossSuspension()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/optional-value-mutating-async-writeback.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait optionalValueMutatingAsyncWritebackProbe()\n"
+        let interpreter = Interpreter()
+
+        let interpreted = try await interpreter.runAsync(source: source)
+
+        #expect(interpreted.stringValue
+            == "direct-entered-resumed:direct-entered-resumed"
+                + "|nested-entered-resumed:nested-entered-resumed|nil:nil")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
     @Test func nestedAsyncMutatingMethodCopiesOutLikeNativeSwift() async throws {
         var nativeCounter = NativeNestedAsyncCounter(value: 4)
         await nativeCounter.update()

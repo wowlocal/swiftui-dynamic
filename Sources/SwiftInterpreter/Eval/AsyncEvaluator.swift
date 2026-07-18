@@ -711,6 +711,36 @@ extension Interpreter {
             try resolveAnnotated(finalSelf, typeName: receiver.symbol.name))
     }
 
+    /// The first optional async write-back slice admits a local binding or
+    /// one directly named source stored property. Computed/coroutine and
+    /// subscript accessors need their own suspending access transaction.
+    private func isSupportedOptionalAsyncMutationStorageSyntax(
+        _ expression: ExprSyntax
+    ) -> Bool {
+        if expression.is(DeclReferenceExprSyntax.self) {
+            return true
+        }
+        guard let member = expression.as(MemberAccessExprSyntax.self),
+              let base = member.base else {
+            return false
+        }
+        return base.is(DeclReferenceExprSyntax.self)
+    }
+
+    private func isStoredOptionalAsyncMutationLValue(_ target: LValue) -> Bool {
+        switch target {
+        case .box:
+            return true
+        case .instanceProperty(let instance, let name):
+            return instance.symbol.storedProperty(named: name) != nil
+        case .instanceValueProperty(let base, let symbol, let name):
+            return symbol.storedProperty(named: name) != nil
+                && isStoredOptionalAsyncMutationLValue(base)
+        default:
+            return false
+        }
+    }
+
     func evaluateCallSuspending(
         _ call: FunctionCallExprSyntax,
         in env: Environment,
@@ -721,43 +751,77 @@ extension Interpreter {
            let member = calleeMetadata.member,
            let baseExpression = member.base {
             let name = member.declName.baseName.text
-            let evaluatedBase = try await evaluateSuspending(
-                baseExpression,
-                in: env,
-                forceInvocation: forceInvocation)
+            // A writable optional value must be borrowed through its storage
+            // for the whole async mutating call. Resolve the admitted stored
+            // path before reading it, then commit through that same lvalue.
+            let optionalPayloadStorage: LValue?
+            let evaluatedBase: RuntimeValue
+            if let optional = baseExpression
+                .as(OptionalChainingExprSyntax.self),
+               isSupportedOptionalAsyncMutationStorageSyntax(
+                    optional.expression),
+               let storage = try? resolveLValue(optional.expression, in: env),
+               isStoredOptionalAsyncMutationLValue(storage) {
+                optionalPayloadStorage = storage
+                evaluatedBase = try storage.read(self)
+            } else {
+                optionalPayloadStorage = nil
+                evaluatedBase = try await evaluateSuspending(
+                    baseExpression,
+                    in: env,
+                    forceInvocation: forceInvocation)
+            }
 
             // Optional chaining controls the entire call: evaluate the base
             // once, skip arguments and invocation for nil, or dispatch the
             // wrapped source reference through this same suspension-aware
             // call path before flattening the result back to one Optional
-            // level. Optional value types stay on their established path:
-            // rebinding one would lose mutating write-back provenance.
+            // level. The admitted source-value storage subset instead uses
+            // the lvalue transaction above so rebinding cannot lose write-back.
             if baseExpression.is(OptionalChainingExprSyntax.self) {
                 switch evaluatedBase.optionalState {
                 case .none:
                     return .none()
                 case .some(let wrapped, _):
-                    guard case .instance(let instance) = wrapped,
-                          instance.symbol.isClass || instance.symbol.isActor
-                    else {
-                        break
+                    if case .instance(let instance) = wrapped,
+                       instance.symbol.isClass || instance.symbol.isActor {
+                        let child = Environment(parent: env)
+                        let temporary = temporaryName()
+                        child.define(temporary, wrapped)
+                        let replacement = ExprSyntax(
+                            DeclReferenceExprSyntax(
+                                baseName: .identifier(temporary)))
+                        let rewrittenMember = member.with(
+                            \.base, replacement)
+                        let rewrittenCall = call.with(
+                            \.calledExpression,
+                            ExprSyntax(rewrittenMember))
+                        return try await evaluateCallSuspending(
+                            rewrittenCall,
+                            in: child,
+                            forceInvocation: forceInvocation
+                        ).liftedToOptional()
                     }
-                    let child = Environment(parent: env)
-                    let temporary = temporaryName()
-                    child.define(temporary, wrapped)
-                    let replacement = ExprSyntax(
-                        DeclReferenceExprSyntax(
-                            baseName: .identifier(temporary)))
-                    let rewrittenMember = member.with(
-                        \.base, replacement)
-                    let rewrittenCall = call.with(
-                        \.calledExpression,
-                        ExprSyntax(rewrittenMember))
-                    return try await evaluateCallSuspending(
-                        rewrittenCall,
-                        in: child,
-                        forceInvocation: forceInvocation
-                    ).liftedToOptional()
+                    if case .instance(let instance) = wrapped,
+                       !instance.symbol.isClass,
+                       let storage = optionalPayloadStorage,
+                       !mutatingInstanceMethods(
+                            named: name, on: instance).isEmpty {
+                        let args = try await collectArgumentsSuspending(
+                            of: call, in: env)
+                        if let invocation = try await
+                            invokeMutatingInstanceMethodSuspending(
+                                named: name,
+                                on: wrapped,
+                                arguments: args,
+                                node: call) {
+                            try relocating(call) {
+                                try LValue.forceUnwrapped(storage).writeOwned(
+                                    invocation.receiver, self)
+                            }
+                            return invocation.result.liftedToOptional()
+                        }
+                    }
                 case .notOptional:
                     break
                 }

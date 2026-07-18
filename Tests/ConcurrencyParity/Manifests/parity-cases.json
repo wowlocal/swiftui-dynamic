@@ -2832,6 +2832,21 @@
     "notes": "Session demand-cites this lifetime shape in GroupPromoteMemberJob.swift:203-209 and GroupInviteMemberJob.swift:207-209, where a Task.detached [weak self] operation sleeps before invoking self?.sendFailureNotifications(...). The same-source oracle replaces elapsed time with a reentrant actor gate: the detached task causally reports entry and suspends, the parent clears the only strong receiver, and only then does the gate reopen before the optional read. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact released in twenty bounded runs; every native five-run shard retained canonical SHA-256 c5e92e2453b9fcfd589dc5d3b917f8708b27239decb0a58ca175b11b85c27b6e. The unchanged interpreter was already GREEN with the same output, zero physical receipts, and empty task/actor registries. RuntimeTaskRecord may strongly own the source closure, but that closure's weak capture box does not retain the source instance. This characterization remains the cooperative multi-statement lifetime guarantee; the separately proved one-expression inherited argument-free Void route also defers its weak read until confined re-entry, while general physical weak-call families remain forbidden."
   },
   {
+    "id": "optional-value-mutating-async-writeback",
+    "fixture": "Fixtures/optional-value-mutating-async-writeback.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await optionalValueMutatingAsyncWritebackProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "An async mutating method reached through optional chaining borrows a present source value across suspension and writes its final value back through both direct Optional storage and an enclosing source-value property; nil remains unchanged and returns nil.",
+    "notes": "The official swiftlang/swift test/IRGen/run-coroutine_accessors.swift at swift-6.3.3-RELEASE commit 064859e41d68596f486c5d724401cb370f260409, SHA-256 2fdae2aa9cd0153da1db13b5e227c6fe5a74112eda85b91795fad9554a80cc95, lines 259-270 and 368-386 requires await b.value?.mutate() to preserve nil and copy the mutated present payload back as hihi. This same-source distillation adds a real Task.yield plus direct and nested Optional lvalues. Apple Swift 6.3.3 complete-strict compilation with warnings as errors and interpreted execution returned exact direct-entered-resumed:direct-entered-resumed|nested-entered-resumed:nested-entered-resumed|nil:nil in twenty bounded runs; every native five-run shard retained canonical SHA-256 7b98f96ff0ce968ecede27d9907e5ae498748983dd442b768d9b47f5d171a234. The deterministic interpreter RED invoked the present mutating method through the synchronous optional-member path and failed at Task.yield with async host function 'yield' requires runAsync and await. Suspension-aware optional-member dispatch now borrows a writable Optional source-value payload through its existing LValue transaction, invokes the mutating method on an independent working copy, and commits the final receiver through the same direct or enclosing stored-property path before lifting the result once. Nil returns before arguments or invocation. The case remains cooperative with zero physical receipts; throwing/cancellation exits and coroutine/computed/subscript accessor families remain separately unclaimed."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

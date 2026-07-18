@@ -4257,6 +4257,45 @@ rebuilt scoped TSan board passed native overlap 20/20 plus all 62
 driver/kernel/source-call tests in three suites on four workers in 68 seconds
 without a race or interceptor diagnostic.
 
+The sixty-first prerequisite closes the nonthrowing stored-lvalue success
+subset of optional value-type async mutation. The primary oracle is the
+official `swiftlang/swift` `test/IRGen/run-coroutine_accessors.swift` at
+`swift-6.3.3-RELEASE` commit
+`064859e41d68596f486c5d724401cb370f260409`, SHA-256
+`2fdae2aa9cd0153da1db13b5e227c6fe5a74112eda85b91795fad9554a80cc95`.
+Its lines 259-270 and 368-386 require `await b.value?.mutate()` to leave nil
+unchanged and copy a mutated present value back as `hihi`.
+
+The repository-owned same-source distillation puts a source struct behind
+both a direct `Optional` local and an enclosing source-value stored property.
+Its mutating method changes state before and after `Task.yield` and returns the
+final value. Apple Swift 6.3.3 complete-strict compilation with warnings as
+errors and interpreted execution returned exact
+`direct-entered-resumed:direct-entered-resumed|nested-entered-resumed:nested-entered-resumed|nil:nil`
+in twenty bounded runs; every native five-run shard retained canonical
+SHA-256
+`7b98f96ff0ce968ecede27d9907e5ae498748983dd442b768d9b47f5d171a234`.
+The deterministic RED entered the present method through synchronous optional
+member dispatch and failed when `Task.yield` required the async runtime.
+
+Suspension-aware call evaluation now resolves a writable optional payload
+through the existing confined `LValue` transaction before reading it. Nil
+returns before argument collection or invocation. A present source struct is
+copied into the ordinary async mutating-method working receiver, allowed to
+suspend, and committed through `LValue.forceUnwrapped` to the same direct or
+enclosing stored-property owner; source annotation resolution restores the
+Optional container instead of flattening it. The call result is lifted once,
+matching optional chaining. Reference receivers retain their prior temporary
+rebind path, and no value, lvalue, receiver, environment, or evaluator crosses
+a physical worker boundary; the case records zero physical receipts.
+
+Throwing and cancellation exits plus coroutine, computed, and richer
+subscript accessor families remain open. The focused board passed 76 tests in
+seven suites, all 46 methodology/gate checks, and twenty parity repetitions
+on four workers. The rebuilt scoped TSan board passed native overlap 20/20
+plus all 62 physical driver/kernel/source-call tests in 17 seconds without a
+race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4281,6 +4320,7 @@ and parallel-detached-weak-self-source-call
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension
+and optional-value-mutating-async-writeback
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.
