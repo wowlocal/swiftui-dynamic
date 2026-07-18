@@ -1018,12 +1018,16 @@ extension Interpreter {
             if values.count == 1, let tuple = values[0].tupleValue, tuple.values.count > 1,
                ShorthandTupleScanner.splats(closure.body) {
                 for (index, element) in tuple.values.enumerated() {
-                    env.define("$\(index)", element)
+                    env.define(
+                        "$\(index)", element,
+                        isMutableBinding: false)
                 }
                 return []
             }
             for (index, value) in values.enumerated() {
-                env.define("$\(index)", value)
+                env.define(
+                    "$\(index)", value,
+                    isMutableBinding: false)
             }
             return []
         }
@@ -1074,7 +1078,8 @@ extension Interpreter {
                 }
                 env.define(
                     parameter.name, resolved,
-                    declaredTypeName: parameter.typeName)
+                    declaredTypeName: parameter.typeName,
+                    isMutableBinding: false)
                 // `{ $item in … }` — the binding parameter also exposes its
                 // wrapped value: `item` shares the binding's box, so reads
                 // are live and writes propagate.
@@ -1088,7 +1093,8 @@ extension Interpreter {
                     try resolveAnnotated(
                         try evaluate(defaultValue, in: closure.captured),
                         parameter: parameter),
-                    declaredTypeName: parameter.typeName)
+                    declaredTypeName: parameter.typeName,
+                    isMutableBinding: false)
             } else if let node {
                 throw error(node, "missing argument for parameter '\(parameter.name)'")
             } else {

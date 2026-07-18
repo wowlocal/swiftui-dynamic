@@ -948,6 +948,47 @@ String.Index provenance beyond Swift's own copied value semantics, native
 thread identity, unrelated scheduling order, or general cancellation-checking
 kernel is asserted.
 
+Its thirty-ninth prerequisite is a gap closure for Signal-iOS's demand-cited
+`Task.detached { try await Task.sleep(for: slowLinking ? .seconds(3) :
+.milliseconds(500)) }`, where `slowLinking` is an immutable Bool parameter.
+The exact question is whether explicit parallel mode can copy that Bool,
+select a finite typed duration, suspend a real detached worker in throwing
+`Task.sleep(for:)`, and publish `Void`; a second probe cancels before body entry
+and requires the sleep itself to throw `CancellationError`. Elapsed time,
+worker identity, and unrelated scheduler order are deliberately excluded.
+Apple Swift 6.3.3 compiled the same-source fixture in complete strict Swift 6
+mode with warnings as errors and returned exact
+`slow:fast|cancelled:true` in twenty bounded runs. Every native five-run shard
+reported the focused-harness SHA-256
+`d78d19bf880bb60f640e843e2e59091db7555910efa54f0ed50b4b5e8d62ac95`.
+
+The captured RED was receipt-based: both successful calls and the cancelled
+call already returned the native value through cooperative fallback, but
+parallel mode recorded zero successful physical executions instead of two.
+Ordinary parameters and shorthand parameters are now represented as immutable
+source bindings, matching Swift and allowing only a directly owned Bool copy.
+Admission requires one exact `try await Task.sleep(for:)` expression whose
+condition is that immutable Bool and whose branches are nonnegative integer
+literals using only `.seconds` and `.milliseconds`. Other units, overloads,
+mutable/global conditions, authored signatures, and richer bodies fail closed
+to cooperative evaluation before submission.
+
+Throwing sleep differs from the already admitted non-checking finite kernels.
+The physical source job therefore carries typed cancellation behavior. A
+Sendable actor relay acquires the shared permit from uncancelled infrastructure,
+attaches the actual source `Task.detached`, and forwards or remembers a logical
+cancellation request across that race. The new driver regression proves that a
+pre-cancelled operation enters before it throws. Twenty paired mode runs
+preserve exact `slow:fast|cancelled:true`, empty registries, zero/two successful
+executions, and zero/three submissions. The scoped TSan board rebuilt in 11
+seconds, passed twenty native overlap iterations, and ran all thirty-three
+driver/source-kernel tests on four workers; the complete board took 23 seconds
+without a race or interceptor diagnostic. The canonical focused iteration ran
+the same thirty-three targeted tests, all forty-three methodology checks, and
+all twenty parity repetitions on four workers in two seconds. No general
+Duration expression, arbitrary suspension, evaluator work, actor, host call,
+or heap access is admitted by this evidence.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
