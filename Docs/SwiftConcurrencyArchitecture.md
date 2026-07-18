@@ -3027,14 +3027,14 @@ Each milestone is independently gated through
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
   covered. Six narrow snapshot-kernel paths, four demand-cited physical sleep-
-  prefix spellings, four demand-cited MainActor continuation wrappers, and five
+  prefix spellings, five demand-cited MainActor continuation wrappers, and five
   demand-cited physical source-call-wrapper paths now exist behind a validated
-  explicit mode. The four continuation forms are a complete signature-free
+  explicit mode. The five continuation forms are a complete signature-free
   imported `MainActor.run(body:)` body, Planet's exact one-expression
   `{ @MainActor in ... }` operation, and the exact single-weak-capture
   `{ @MainActor [weak capture] in ... }` operation demand-cited by Provenance
-  and KeyboardCowboy, plus apple-browsers' exact strong/weak/weak capture-list
-  operation. The
+  and KeyboardCowboy, apple-browsers' exact strong/weak/weak capture-list
+  operation, plus Swiftfin's exact weak/strong capture-list operation. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
@@ -5003,6 +5003,42 @@ passed those 54 implementation tests, all 46 methodology/gate checks, and all
 97/97 tests in three suites in one second; a fresh TSan build passed native
 overlap 20/20 plus all 97 tests in 27 seconds without a race or interceptor
 diagnostic.
+
+The eighty-third prerequisite admits Swiftfin's exact contextual
+`.detached(priority: .userInitiated) { @MainActor [weak self, key] in ... }`
+operation after the eighty-second prerequisite established its imported Task
+target. Closure formation extends the existing typed explicit-MainActor
+continuation-signature capability with one exact weak/strong case. The proof is
+structural: two captures in authored order, the first plain `weak`, the second
+ordinary strong ownership, and no alias, initializer, trailing capture,
+parameter, effect, return, or alternate-attribute surface.
+
+The worker boundary does not widen. The empty command still carries only
+runtime entry/task identity and releases its permit at MainActor handoff. The
+complete closure, genuine weak box, strong key, evaluator, source body, and
+`RuntimeValue`/`Error` outcome remain in the confined task record. Re-entry
+therefore observes the weak receiver only when the physical wrapper arrives,
+while the ordinary capture remains held by the source closure. Reversed,
+richer, aliased, unowned, reversed-attribute, and source-shadowed forms remain
+cooperative.
+
+Apple Swift 6.3.3's complete-strict region checker emits an internal checker
+diagnostic for the unmodified corpus spelling, so the compiled same-source
+fixture adds the already-proven executor-neutral `@Sendable` workaround. A
+separate interpreter probe retains the exact source. Native and interpreted
+execution returned exact
+`same|same:alive:key#same|same:released:key` in twenty bounded repetitions;
+the raw native digest was
+`670469e75b8848c1a7e32c5231b4d7ef53fa62cd346fcad76bc93fd4f9b915ca`,
+and every focused five-run shard retained
+`0dac459b29bdd7a66d688f919ec2d628313dcc45b7dd8d32cd435684aa4ede89`.
+The receipt RED moved from zero to two physical wrappers, and the unmodified
+contextual spelling moved from zero to one. The actor gate proves weak release
+and strong retention causally; no scheduler order, worker identity, or direct
+worker capture access is claimed. The focused source-kernel suite passed
+55/55, all 46 methodology/gate checks passed, and the exact-tip physical board
+passed 98/98 tests in three suites. A fresh TSan build passed native overlap
+20/20 plus all 98 tests in 18 seconds without a race or interceptor diagnostic.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change

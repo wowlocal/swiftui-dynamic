@@ -960,6 +960,89 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func explicitMainActorWeakStrongCaptureListUsesPhysicalWrapperWithoutChangingOwnership()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-strong-captures.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorWeakStrongCaptureProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+        let corpus = Interpreter(executionMode: .parallel(parallelism))
+        let corpusValue = try await corpus.runAsync(source: """
+        @MainActor
+        final class Receiver {
+            let key = "key"
+            var observation = "missing"
+
+            func launch() -> Task<Void, Never> {
+                .detached(priority: .userInitiated) {
+                    @MainActor [weak self, key] in
+                    self?.observation = key
+                }
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let receiver = Receiver()
+            await receiver.launch().value
+            return receiver.observation
+        }
+        await probe()
+        """)
+
+        let expected = "same|same:alive:key#same|same:released:key"
+        #expect(cooperativeValue.stringValue == expected)
+        #expect(value.stringValue == expected)
+        #expect(corpusValue.stringValue == "key")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(corpus.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func contextualTaskDetachedStaticMemberExecutesOperation() async throws {
         let interpreter = Interpreter()
 
@@ -1101,9 +1184,10 @@ struct RuntimeParallelSourceKernelTests {
 
             func probe() async -> String {
                 let marker = "additional"
+                let extra = "unused"
                 let notifications = self
                 await Task.detached {
-                    @MainActor @Sendable [weak self, marker] in
+                    @MainActor @Sendable [weak self, marker, extra] in
                     self?.record(marker)
                 }.value
                 await Task.detached {

@@ -700,6 +700,9 @@ extension Interpreter {
         if hasExactStrongWeakWeakCaptures(signature) {
             return .strongWeakWeakCaptures
         }
+        if hasExactWeakStrongCaptures(signature) {
+            return .weakStrongCaptures
+        }
         return nil
     }
 
@@ -725,6 +728,28 @@ extension Interpreter {
               secondWeak.specifier?.detail == nil,
               secondWeak.initializer == nil,
               secondWeak.trailingComma == nil else {
+            return false
+        }
+        return true
+    }
+
+    private func hasExactWeakStrongCaptures(
+        _ signature: ClosureSignatureSyntax
+    ) -> Bool {
+        guard let captures = signature.capture?.items,
+              captures.count == 2 else {
+            return false
+        }
+        let items = Array(captures)
+        let weak = items[0]
+        let strong = items[1]
+        guard weak.specifier?.specifier.text == "weak",
+              weak.specifier?.detail == nil,
+              weak.initializer == nil,
+              weak.trailingComma != nil,
+              strong.specifier == nil,
+              strong.initializer == nil,
+              strong.trailingComma == nil else {
             return false
         }
         return true

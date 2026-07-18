@@ -2341,6 +2341,41 @@ repetitions in two seconds. The exact-tip physical board passed 97/97 tests in
 three suites in one second. A fresh TSan build passed native overlap 20/20 plus
 all 97 tests in 27 seconds without a race or interceptor diagnostic.
 
+The eighty-third M9 slice closes Swiftfin's exact contextual
+`.detached(priority: .userInitiated) { @MainActor [weak self, key] in ... }`
+capture shape at `DefaultsObservable.swift:41`. The semantic question is
+whether the operation stays MainActor-isolated across suspension while weak
+`self` can disappear and the ordinary `key` capture remains alive. An actor
+gate fixes task entry and suspension before the parent clears both external
+references, so no elapsed-time or ready-task-order observation enters the
+assertion.
+
+Apple Swift 6.3.3's complete-strict region checker reports an internal
+unsupported-pattern diagnostic for the exact spelling. The compiled
+same-source fixture therefore adds executor-neutral `@Sendable`; an
+interpreter-only probe retains the unmodified corpus form. Twenty native and
+interpreted runs returned exact
+`same|same:alive:key#same|same:released:key`; the raw twenty-line digest was
+`670469e75b8848c1a7e32c5231b4d7ef53fa62cd346fcad76bc93fd4f9b915ca`,
+and every five-run focused shard retained
+`0dac459b29bdd7a66d688f919ec2d628313dcc45b7dd8d32cd435684aa4ede89`.
+
+Both interpreter modes already returned the exact value, while the
+deterministic receipt RED observed zero physical submissions/executions instead
+of two; the unmodified contextual spelling observed zero instead of one. The
+existing typed explicit-MainActor continuation capability now adds only the
+exact weak-then-strong ownership shape. The empty worker command carries no
+capture or body; closure, weak box, strong key, evaluator, and complete outcome
+stay confined through MainActor re-entry. Existing controls keep reversed,
+richer, aliased, unowned, alternate-attribute, and source-shadowed forms
+cooperative with zero receipts. Focused parity passed 20/20 on four workers in
+two seconds, the source-kernel suite passed 55/55, all 46 methodology/gate
+checks passed, and the exact-tip physical board passed 98/98 tests in three
+suites. A fresh TSan build passed native overlap 20/20 plus all 98 tests in 18
+seconds without a race or interceptor diagnostic. No worker identity,
+unrelated scheduler order, general capture-list transfer, or direct heap access
+is claimed.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

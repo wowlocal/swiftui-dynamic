@@ -13,12 +13,15 @@ public final class ClosureValue {
         case singleWeakCapture
         /// apple-browsers' exact strong/weak/weak capture-list operation.
         case strongWeakWeakCaptures
+        /// Swiftfin's exact weak/strong capture-list operation.
+        case weakStrongCaptures
 
         var keepsCompleteBodyConfined: Bool {
             switch self {
             case .captureless:
                 false
-            case .singleWeakCapture, .strongWeakWeakCaptures:
+            case .singleWeakCapture, .strongWeakWeakCaptures,
+                 .weakStrongCaptures:
                 true
             }
         }
