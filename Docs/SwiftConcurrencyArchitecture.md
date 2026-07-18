@@ -2527,6 +2527,27 @@ Async `.task`, `.task(id:)`, and `.refreshable` closures instead require the
 separate `swiftUITask` lifecycle contract above; they must not be implemented
 by extending the synchronous adapter.
 
+TaskObservatory verification (2026-07-18) exercises this boundary through the
+real hosted control rather than a direct model call. A fixed-size
+`NSHostingView` renders the unchanged project with `ViewRegistry`; an AppKit
+mouse event presses its actual **Run experiment** SwiftUI `Button`. The source
+callback creates canonical runtime tasks, both async-let children enter and
+join before Atlas completes, the cancellation-handler and task-group branches
+enter, two waiters consume the shared task result, all three workers finish,
+and every task/group/scope owner drains. A separate same-source
+retained-callback oracle
+composes async let, two shared-result waiters, a four-child group, and
+cancellation-handler observation. Strict Apple Swift 6.3.3 and interpreted
+execution returned exact
+`started,async:5|shared:10:10|cancelled` in twenty bounded repetitions; every
+native shard reported SHA-256
+`c4c9895155080edb1fd1dcf9b0e887a6c057553fd836addef8bc94ff20a885f8`.
+This is an already-GREEN characterization. It asserts callback immediacy,
+values, structured completion, cancellation observation, and cleanup, but no
+unrelated scheduler order or physical thread. The displayed `Worker pool` is
+the logical executor projection of `@concurrent nonisolated`; general physical
+tree-walk evaluation remains outside this claim.
+
 The current synchronous rendering compatibility path remains separate. A view
 task must use the canonical concurrency runtime even when it was created by a
 synchronous render pass.

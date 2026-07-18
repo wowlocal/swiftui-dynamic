@@ -71,6 +71,7 @@ evidence that remains covered.
 | `async-try-await-conditional` | exact | A throwing async call remains awaited when its optional result is compared with `nil` as the condition of a ternary expression | Native/interpreter parity in 20 repetitions: `nil`; the fixture yields once inside the call but makes no scheduler-order claim |
 | `host-gateway-suspension` | exact | Awaiting the controlled async wrapper suspends until its explicit gate opens, so a ready MainActor controller records progress before the wrapper returns | Native/interpreter parity in 20 repetitions: `before,host-enter,controller,host-exit,value`; the interpreted caller is `.waiting/.awaitingHost(operationID)` at the forced barrier and the operation registry is empty after completion |
 | `host-callback-task-runtime` | exact | A synchronous MainActor callback exposes its inline mutation before returning, while an unstructured task it creates continues through Swift concurrency and may own structured group children | Native/interpreter parity in 20 repetitions: `started,done-3`; the interpreter fires the retained closure only after its initial evaluation has returned, enters `.hostCallback`, and finishes with empty task/group/scope registries |
+| `host-callback-structured-composition` | exact | A retained synchronous MainActor callback returns after its inline mutation while independently scheduled work composes async-let children, a shared detached result with two waiters, task-group children, and cancellation-handler observation | Already-GREEN native/interpreter characterization in 20 repetitions: `started,async:5\|shared:10:10\|cancelled`; all four native shards report SHA-256 `c4c9895155080edb1fd1dcf9b0e887a6c057553fd836addef8bc94ff20a885f8`, with empty task/group/scope registries and no sibling-order or physical-thread claim |
 | `host-static-shadow-after-suspension` | exact | A same-module `Date.now` remains selected when implicit `.now` crosses a host-call boundary after suspension | Native/interpreter parity in 20 repetitions: `1784228400`; a focused cross-program callback regression proves a newer prepared program cannot redirect the old lookup, and no scheduler-order, worker-thread, or physical-parallelism claim is made |
 | `main-actor-task-partial-order` | partial order | A newly created MainActor task does not execute inline; `sync` precedes both task events | Expected native parity through async-session drain policy; relative child order is not asserted |
 | `concurrent-executor-hop` | exact | A `@concurrent nonisolated` async method leaves MainActor for entry and post-yield continuation, an awaited MainActor method runs on the main executor, and both direct and detached callers return to their prior executor afterward | Native/interpreter parity in 20 repetitions: `main\|worker:worker:main\|worker:worker:main\|main`; the interpreter models logical executor identity cooperatively and does not claim physical parallel execution |
@@ -2883,6 +2884,30 @@ A diagnostic run against the unchanged `Examples/TaskObservatory` source also
 entered its `Run` and `Cancel` closures externally and reached
 `Completed,Cancelled,Completed`, two `Received orbit-10` observers, and
 `TaskGroup reduced 4 values into orbit-10`.
+
+The 2026-07-18 interactive follow-up closes the test-path hole without changing
+the demo. An `NSHostingView` now hosts the unchanged project through the real
+`ViewRegistry`, sends mouse down/up to the actual **Run experiment** SwiftUI
+`Button`, and observes its source `@StateObject`. The callback immediately owns
+runtime tasks; both async-let children enter and join before Atlas completes,
+the cancellation-handler worker and all four task-group children enter, the
+two shared-value waiters receive `orbit-10`, all three workers finish, and the
+task/group/scope registries drain. Atlas, Beacon, and Comet report the logical
+`Worker pool` lane selected by their `@concurrent nonisolated` declarations;
+this remains a cooperative-executor observation rather than a claim that the
+tree-walk evaluator ran physically in parallel.
+
+This follow-up was already GREEN on the current runtime, so the workflow is
+characterization, not gap closure. The new same-source
+`host-callback-structured-composition.swift` oracle composes the same primitive
+families behind a retained callback and returns
+`started,async:5|shared:10:10|cancelled`. Apple Swift 6.3.3 and the interpreter
+matched exactly in twenty bounded repetitions; every four-worker native shard
+reported SHA-256
+`c4c9895155080edb1fd1dcf9b0e887a6c057553fd836addef8bc94ff20a885f8`.
+The result asserts values, structured completion, cancellation observation,
+callback immediacy, and cleanup only—not total sibling order or physical
+thread identity.
 
 The full shared-worktree run passes 795 tests in 151 suites. One test and its
 suite come from the preserved user-owned untracked `TaskObservatoryTests.swift`,

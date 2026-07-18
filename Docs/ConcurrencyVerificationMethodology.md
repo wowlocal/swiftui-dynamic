@@ -142,6 +142,17 @@ explicitly demand-deferred. The M8 view-owned async lifecycle cycle is covered
 with repeated teardown and weak session-release evidence; M8 remains
 provisional only because broad M5/M7 are partial. Its requirement-level
 prerequisites are covered, so M9 physical parallelism is now the active cycle.
+The TaskObservatory interactive follow-up is explicitly an already-GREEN M8
+characterization: it presses the unchanged project's actual SwiftUI Button in
+an `NSHostingView`, verifies async-let/cancellation-handler/task-group/shared-
+waiter completion and registry cleanup, and pairs that bridge regression with
+one same-source retained-callback composition fixture. Twenty strict native
+and interpreter repetitions return exact
+`started,async:5|shared:10:10|cancelled` with native shard SHA-256
+`c4c9895155080edb1fd1dcf9b0e887a6c057553fd836addef8bc94ff20a885f8`.
+Only values, callback immediacy, structured completion, cancellation
+observation, and cleanup are committed; total scheduler order and physical
+threads are not.
 Its first architectural prerequisite is green: one immutable `ParsedProgram`
 can cross detached readers and back independent cooperative sessions without
 sharing evaluator state. Its second prerequisite makes each interpreter's
