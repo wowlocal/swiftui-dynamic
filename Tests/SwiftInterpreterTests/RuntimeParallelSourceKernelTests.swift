@@ -869,6 +869,147 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func explicitMainActorMixedCaptureListUsesPhysicalWrapperWithoutChangingOwnership()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-mixed-captures.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorMixedCaptureProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+        let corpus = Interpreter(executionMode: .parallel(parallelism))
+        let corpusValue = try await corpus.runAsync(source: """
+        @MainActor
+        final class CapturedTarget {
+            var observation = "missing"
+
+            func record(_ value: String) {
+                observation = value
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let responders = CapturedTarget()
+            let webView = CapturedTarget()
+            let webViewDeinitObserver = CapturedTarget()
+            await Task.detached {
+                @MainActor [
+                    responders,
+                    weak webView,
+                    weak webViewDeinitObserver
+                ] in
+                responders.record(
+                    webView != nil && webViewDeinitObserver != nil
+                        ? "entered" : "released")
+            }.value
+            return responders.observation
+        }
+        await probe()
+        """)
+
+        let expected = "same|same:responders:alive:alive"
+            + "#same|same:responders:released:released"
+        #expect(cooperativeValue.stringValue == expected)
+        #expect(value.stringValue == expected)
+        #expect(corpusValue.stringValue == "entered")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(corpus.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unsupportedExplicitMainActorMixedCaptureShapesStayCooperative()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        final class CaptureTarget {
+            var observations: [String] = []
+
+            func record(_ value: String) {
+                observations.append(value)
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let responders = CaptureTarget()
+            let webView = CaptureTarget()
+            let observer = CaptureTarget()
+            await Task.detached {
+                @MainActor [weak webView, responders, weak observer] in
+                responders.record(webView == nil ? "missing" : "reordered")
+            }.value
+            await Task.detached {
+                @MainActor [responders, weak webView] in
+                responders.record(webView == nil ? "missing" : "short")
+            }.value
+            await Task.detached {
+                @MainActor [responders, weak alias = webView, weak observer] in
+                responders.record(
+                    alias == nil || observer == nil ? "missing" : "aliased")
+            }.value
+            return responders.observations.joined(separator: ",")
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "reordered,short,aliased")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func unsupportedOrShadowedExplicitMainActorWeakCaptureSignaturesStayCooperative()
         async throws
     {

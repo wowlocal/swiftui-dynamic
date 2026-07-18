@@ -201,10 +201,7 @@ extension Interpreter {
               closure.parameters.isEmpty,
               !closure.isBuilder,
               (closure.isPhysicalSnapshotKernelCandidate
-                || closure
-                    .isPhysicalExplicitMainActorContinuationCandidate
-                || closure
-                    .isPhysicalExplicitMainActorWeakCaptureContinuationCandidate
+                || closure.physicalExplicitMainActorContinuationSignature != nil
                 || closure.isPhysicalStrongSelfSourceCallCandidate
                 || closure.isPhysicalWeakSelfSourceCallCandidate) else {
             return nil
@@ -218,10 +215,11 @@ extension Interpreter {
             return prefix
         }
 
-        // The explicit-MainActor weak-capture route transfers no body syntax or
-        // capture. Its complete authored closure stays in the confined record,
-        // so body length is not a worker-admission dimension.
-        if closure.isPhysicalExplicitMainActorWeakCaptureContinuationCandidate {
+        // Capture-list routes transfer no body syntax or capture. Their
+        // complete authored closures stay in the confined record, so body
+        // length is not a worker-admission dimension.
+        if closure.physicalExplicitMainActorContinuationSignature?
+            .keepsCompleteBodyConfined == true {
             return try physicalMainActorContinuationJob(
                 nil,
                 closure: closure,
@@ -249,9 +247,7 @@ extension Interpreter {
         // The exact explicit-MainActor signature may unlock only the complete
         // confined continuation above. It must not borrow source-call or
         // snapshot-kernel routes when imported identity is absent.
-        guard !closure.isPhysicalExplicitMainActorContinuationCandidate,
-              !closure
-                .isPhysicalExplicitMainActorWeakCaptureContinuationCandidate else {
+        guard closure.physicalExplicitMainActorContinuationSignature == nil else {
             return nil
         }
 
@@ -440,10 +436,8 @@ extension Interpreter {
             closure.isPhysicalSnapshotKernelCandidate
                 && isImportedMainActorRun($0, closure: closure)
         } ?? false
-        let isExplicitMainActorClosure = (closure
-            .isPhysicalExplicitMainActorContinuationCandidate
-            || closure
-                .isPhysicalExplicitMainActorWeakCaptureContinuationCandidate)
+        let isExplicitMainActorClosure = closure
+            .physicalExplicitMainActorContinuationSignature != nil
             && hasImportedMainActorIdentity(closure)
         guard isSignatureFreeRun || isExplicitMainActorClosure,
               record.entry === entry,

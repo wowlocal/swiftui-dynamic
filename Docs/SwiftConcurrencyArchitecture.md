@@ -3027,13 +3027,14 @@ Each milestone is independently gated through
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
   covered. Six narrow snapshot-kernel paths, four demand-cited physical sleep-
-  prefix spellings, three demand-cited MainActor continuation wrappers, and five
+  prefix spellings, four demand-cited MainActor continuation wrappers, and five
   demand-cited physical source-call-wrapper paths now exist behind a validated
-  explicit mode. The three continuation forms are a complete signature-free
+  explicit mode. The four continuation forms are a complete signature-free
   imported `MainActor.run(body:)` body, Planet's exact one-expression
   `{ @MainActor in ... }` operation, and the exact single-weak-capture
   `{ @MainActor [weak capture] in ... }` operation demand-cited by Provenance
-  and KeyboardCowboy. The
+  and KeyboardCowboy, plus apple-browsers' exact strong/weak/weak capture-list
+  operation. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
@@ -4937,6 +4938,39 @@ passed those 50 implementation tests, all 46 methodology/gate checks, and all
 20 parity repetitions in two seconds. The exact-tip physical board passed
 93/93 tests in three suites in one second; a fresh TSan build passed native
 overlap 20/20 plus all 93 tests in 51 seconds without a race or interceptor
+diagnostic.
+
+The eighty-first prerequisite adds apple-browsers' exact one-strong/two-weak
+capture list without adding another boolean provenance flag. Closure formation
+now publishes one typed explicit-MainActor continuation-signature capability
+whose demand-backed cases are captureless, single weak capture, and exact
+strong/weak/weak captures. Each case has its own syntactic ownership proof;
+reordered, shorter, aliased, initialized, or otherwise attributed lists do not
+receive the capability.
+
+The runtime consumes only that typed capability. Capture-list cases bypass
+body-shape inspection because the entire authored closure stays in the
+confined continuation record; the physical command remains an empty
+entry/task handoff. Thus the worker cannot strengthen a weak reference or
+lose the strong reference: those ownership edges remain ordinary confined
+Environment storage and are observed only after MainActor re-entry.
+
+Strict native/interpreted execution returned exact
+`same|same:responders:alive:alive#same|same:responders:released:released` in
+twenty runs. The raw native digest was
+`1a85049a3ab02941d13c7bf7b3bef253460ee7d5727b66a7f9ffff78c229eb1c`;
+every five-run focused shard retained
+`332be7a83579da5bd920d679296ff7a338a14538922b2fc103b3ff84a50d2f3c`.
+The receipt RED moved from zero to two physical wrappers. Reordered ownership,
+short lists, aliases/initializers, alternate attributes, and source-shadowed
+MainActor retain zero receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 52/52. The canonical prebuilt iteration
+passed those 52 implementation tests, all 46 methodology/gate checks, and all
+20 parity repetitions in two seconds. The exact-tip physical board passed
+95/95 tests in three suites in one second; a fresh TSan build passed native
+overlap 20/20 plus all 95 tests in 56 seconds without a race or interceptor
 diagnostic.
 
 Earlier metadata slices separate immutable program input, mutable storage, and

@@ -6,6 +6,24 @@ import SwiftSyntax
 /// functions and `some View` returns — their bodies evaluate in builder mode.
 @MainActor
 public final class ClosureValue {
+    enum PhysicalExplicitMainActorContinuationSignature {
+        /// Planet's exact one-expression `{ @MainActor in ... }` operation.
+        case captureless
+        /// Provenance/KeyboardCowboy's exact single weak-capture operation.
+        case singleWeakCapture
+        /// apple-browsers' exact strong/weak/weak capture-list operation.
+        case strongWeakWeakCaptures
+
+        var keepsCompleteBodyConfined: Bool {
+            switch self {
+            case .captureless:
+                false
+            case .singleWeakCapture, .strongWeakWeakCaptures:
+                true
+            }
+        }
+    }
+
     public nonisolated struct Parameter: Sendable {
         public let name: String
         /// External argument label (nil for `_` and closure parameters).
@@ -136,17 +154,11 @@ public final class ClosureValue {
     /// remain on the cooperative evaluator until their transfer semantics are
     /// modeled rather than inferred from a literal body.
     var isPhysicalSnapshotKernelCandidate = false
-    /// True only for Planet's demand-backed exact `{ @MainActor in ... }`
-    /// signature: one imported MainActor attribute and no capture-list,
-    /// parameter, effect, return, or additional-attribute surface. The
-    /// complete closure remains confined; this flag may unlock only an
-    /// entry/handoff wrapper.
-    var isPhysicalExplicitMainActorContinuationCandidate = false
-    /// True only for a demand-backed explicit-MainActor signature with one
-    /// exact weak capture. The complete closure and genuine weak box remain
-    /// confined; this flag may unlock only an entry/handoff wrapper, never a
-    /// snapshot or source-call route.
-    var isPhysicalExplicitMainActorWeakCaptureContinuationCandidate = false
+    /// A demand-backed explicit-MainActor capture shape whose complete closure
+    /// stays confined. This capability may unlock only an entry/handoff
+    /// wrapper, never a snapshot or source-call route.
+    var physicalExplicitMainActorContinuationSignature:
+        PhysicalExplicitMainActorContinuationSignature?
     /// True only for the demand-backed capture-only spelling `{ [self] in }`.
     /// This does not admit general capture-list snapshot kernels: it may only
     /// unlock a direct-self source-call wrapper whose confined registration

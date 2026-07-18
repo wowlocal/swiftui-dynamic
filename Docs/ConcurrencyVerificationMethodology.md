@@ -2283,6 +2283,37 @@ repetitions in two seconds. The exact-tip physical board passed 93/93 tests in
 three suites in one second. A fresh TSan build passed native overlap 20/20 plus
 all 93 tests in 51 seconds without a race or interceptor diagnostic.
 
+The eighty-first M9 slice asks whether apple-browsers' exact
+`@MainActor [responders, weak webView, weak webViewDeinitObserver]` detached
+operation preserves its one strong and two weak ownership edges across a
+causal suspension. Physical promotion must prove the same result while sending
+none of those captures to the worker.
+
+Apple Swift 6.3.3's complete-strict region checker diagnoses the exact corpus
+spelling internally, so the compiled same-source fixture adds executor-neutral
+`@Sendable`; an interpreter-only probe retains the exact form. Twenty native
+runs returned exact
+`same|same:responders:alive:alive#same|same:responders:released:released`; the
+raw digest was
+`1a85049a3ab02941d13c7bf7b3bef253460ee7d5727b66a7f9ffff78c229eb1c`,
+and all four five-run shards retained
+`332be7a83579da5bd920d679296ff7a338a14538922b2fc103b3ff84a50d2f3c`.
+
+The value and ownership oracle was already GREEN, while the deterministic
+receipt RED recorded zero submissions/executions instead of two. A typed
+continuation-signature capability now distinguishes the demand-backed
+captureless, single-weak, and strong/weak/weak shapes. Reordered ownership,
+shorter lists, aliases/initializers, alternate attributes, and source-shadowed
+MainActor retain zero receipts. The worker continues to carry only entry/task
+identity.
+
+Focused parity passed 20/20 on four workers in one second, the source-kernel
+suite passed 52/52, and the canonical prebuilt iteration passed those 52
+implementation tests, all 46 methodology/gate checks, and all 20 parity
+repetitions in two seconds. The exact-tip physical board passed 95/95 tests in
+three suites in one second. A fresh TSan build passed native overlap 20/20 plus
+all 95 tests in 56 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

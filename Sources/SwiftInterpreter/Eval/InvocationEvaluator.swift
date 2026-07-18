@@ -664,55 +664,70 @@ extension Interpreter {
         return capture.name.text
     }
 
-    /// Authored closure signatures are not generally transferable. Planet's
-    /// exact `{ @MainActor in expression }` spelling may use only the confined
-    /// entry/handoff wrapper: one argument-free attribute, no capture list,
-    /// parameters, effects, return clause, or additional attribute.
-    private func isPhysicalExplicitMainActorContinuationCandidate(
+    /// Authored closure signatures are not generally transferable. This
+    /// classifier records only demand-backed explicit-MainActor capture
+    /// shapes. Every admitted shape may use only the confined entry/handoff
+    /// wrapper; the closure and capture storage never enter worker capability.
+    private func physicalExplicitMainActorContinuationSignature(
         _ signature: ClosureSignatureSyntax?
-    ) -> Bool {
-        guard let signature,
-              signature.capture == nil,
-              signature.parameterClause == nil,
-              signature.effectSpecifiers == nil,
-              signature.returnClause == nil,
-              signature.attributes.count == 1,
-              let attribute = signature.attributes.first?
-                .as(AttributeSyntax.self),
-              attribute.attributeName.trimmedDescription == "MainActor",
-              attribute.arguments == nil else {
-            return false
-        }
-        return true
-    }
-
-    /// Provenance and KeyboardCowboy use exact explicit-MainActor operations
-    /// with one weak capture. Apple Swift 6.3.3's strict region checker
-    /// requires the executor-neutral `@Sendable` workaround in native oracles,
-    /// so both exact attribute sequences are admitted. No alias, initializer,
-    /// second capture, or other signature surface may use the confined wrapper.
-    private func isPhysicalExplicitMainActorWeakCaptureContinuationCandidate(
-        _ signature: ClosureSignatureSyntax?
-    ) -> Bool {
+    ) -> ClosureValue.PhysicalExplicitMainActorContinuationSignature? {
         guard let signature,
               signature.parameterClause == nil,
               signature.effectSpecifiers == nil,
-              signature.returnClause == nil,
-              exactWeakCaptureName(signature) != nil else {
-            return false
+              signature.returnClause == nil else {
+            return nil
         }
         let attributes = signature.attributes.compactMap {
             $0.as(AttributeSyntax.self)
         }
         guard attributes.count == signature.attributes.count,
               attributes.allSatisfy({ $0.arguments == nil }) else {
-            return false
+            return nil
         }
         let names = attributes.map {
             $0.attributeName.trimmedDescription
         }
-        return names == ["MainActor"]
-            || names == ["MainActor", "Sendable"]
+        if signature.capture == nil {
+            return names == ["MainActor"] ? .captureless : nil
+        }
+        guard names == ["MainActor"]
+                || names == ["MainActor", "Sendable"] else {
+            return nil
+        }
+        if exactWeakCaptureName(signature) != nil {
+            return .singleWeakCapture
+        }
+        if hasExactStrongWeakWeakCaptures(signature) {
+            return .strongWeakWeakCaptures
+        }
+        return nil
+    }
+
+    private func hasExactStrongWeakWeakCaptures(
+        _ signature: ClosureSignatureSyntax
+    ) -> Bool {
+        guard let captures = signature.capture?.items,
+              captures.count == 3 else {
+            return false
+        }
+        let items = Array(captures)
+        let strong = items[0]
+        let firstWeak = items[1]
+        let secondWeak = items[2]
+        guard strong.specifier == nil,
+              strong.initializer == nil,
+              strong.trailingComma != nil,
+              firstWeak.specifier?.specifier.text == "weak",
+              firstWeak.specifier?.detail == nil,
+              firstWeak.initializer == nil,
+              firstWeak.trailingComma != nil,
+              secondWeak.specifier?.specifier.text == "weak",
+              secondWeak.specifier?.detail == nil,
+              secondWeak.initializer == nil,
+              secondWeak.trailingComma == nil else {
+            return false
+        }
+        return true
     }
 
     func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) throws -> ClosureValue {
@@ -825,12 +840,8 @@ extension Interpreter {
             value.globalActorAttributeCandidates = closureAttributeNames
         }
         value.isPhysicalSnapshotKernelCandidate = closure.signature == nil
-        value.isPhysicalExplicitMainActorContinuationCandidate =
-            isPhysicalExplicitMainActorContinuationCandidate(
-                closure.signature)
-        value.isPhysicalExplicitMainActorWeakCaptureContinuationCandidate =
-            isPhysicalExplicitMainActorWeakCaptureContinuationCandidate(
-                closure.signature)
+        value.physicalExplicitMainActorContinuationSignature =
+            physicalExplicitMainActorContinuationSignature(closure.signature)
         value.isPhysicalStrongSelfSourceCallCandidate =
             isPhysicalStrongSelfSourceCallCandidate(closure.signature)
         value.isPhysicalWeakSelfSourceCallCandidate =
