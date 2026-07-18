@@ -432,6 +432,103 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func weakSelfCaptureSourceCallUsesDeferredPhysicalWrapper() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-weak-self-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedWeakSelfSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "weak:none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func queuedWeakSelfPhysicalWrapperDoesNotRetainReceiver() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        let driver = try #require(interpreter.physicalWorkerDriver)
+        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+        let capability = try entry.makeWorkerCapability(copying: [])
+        let gate = DeferredWeakSourceCallPermitGate()
+        let blockingJob = RuntimePhysicalWorkerJob(
+            capability: capability
+        ) { _ in
+            await gate.block()
+            return .void
+        }
+        let blocker = Task.detached {
+            try await driver.execute([blockingJob])
+        }
+        await gate.waitUntilEntered()
+
+        let evaluation = Task { @MainActor in
+            try await interpreter.runAsync(source: """
+            final class QueuedWeakSourceCallProbe: @unchecked Sendable {
+                func processQueue() async {}
+
+                func launch() -> Task<Void?, Never> {
+                    Task.detached(priority: .background) { [weak self] in
+                        await self?.processQueue()
+                    }
+                }
+            }
+
+            func queuedWeakSourceCallProbe() async -> String {
+                var receiver: QueuedWeakSourceCallProbe? =
+                    QueuedWeakSourceCallProbe()
+                let task = receiver!.launch()
+                receiver = nil
+                if let _ = await task.value {
+                    return "retained"
+                }
+                return "released"
+            }
+
+            await queuedWeakSourceCallProbe()
+            """)
+        }
+
+        var observedQueuedSubmission = false
+        for _ in 0..<10_000 {
+            if interpreter.concurrencyRuntime
+                .totalPhysicalSourceKernelSubmissions == 1 {
+                observedQueuedSubmission = true
+                break
+            }
+            await Task.yield()
+        }
+        #expect(observedQueuedSubmission,
+            "weak source wrapper never queued behind the occupied permit")
+        await gate.release()
+
+        #expect(try await blocker.value == [.void])
+        let value = try await evaluation.value
+        #expect(value.stringValue == "released")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func weakSelfOptionalAsyncSourceCallStaysCooperativeAndSuspends()
         async throws
     {
@@ -786,6 +883,16 @@ struct RuntimeSourceCallTargetTests {
                 observation += "x"
             }
 
+            func update(_ value: Int) async {
+                await Task.yield()
+                observation += "\\(value)"
+            }
+
+            func weakStringValue() async -> String {
+                await Task.yield()
+                return "weak"
+            }
+
             func run() async -> String {
                 await Task.detached { [unowned self] in
                     await self.update()
@@ -803,7 +910,13 @@ struct RuntimeSourceCallTargetTests {
                 let literal = await Task.detached { [self] in
                     7
                 }.value
-                return "\\(observation):\\(marker):\\(literal)"
+                await Task.detached { [weak self] in
+                    await self?.update(2)
+                }.value
+                let weakString = await Task.detached { [weak self] in
+                    await self?.weakStringValue()
+                }.value ?? "missing"
+                return "\\(observation):\\(marker):\\(literal):\\(weakString)"
             }
         }
 
@@ -845,7 +958,7 @@ struct RuntimeSourceCallTargetTests {
         """)
 
         #expect(value.stringValue
-            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9:12:global:wrapped:enumerated:15:explicit:text:xxxx:1:7")
+            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9:12:global:wrapped:enumerated:15:explicit:text:xxxx2:1:7:weak")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime
@@ -941,5 +1054,36 @@ struct RuntimeSourceCallTargetTests {
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelExecutions == 2)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+}
+
+private actor DeferredWeakSourceCallPermitGate {
+    private var entered = false
+    private var entryWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+
+    func block() async {
+        entered = true
+        let waiters = entryWaiters
+        entryWaiters.removeAll(keepingCapacity: false)
+        for waiter in waiters {
+            waiter.resume()
+        }
+        await withCheckedContinuation { continuation in
+            precondition(releaseWaiter == nil)
+            releaseWaiter = continuation
+        }
+    }
+
+    func waitUntilEntered() async {
+        guard !entered else { return }
+        await withCheckedContinuation { continuation in
+            entryWaiters.append(continuation)
+        }
+    }
+
+    func release() {
+        releaseWaiter?.resume()
+        releaseWaiter = nil
     }
 }

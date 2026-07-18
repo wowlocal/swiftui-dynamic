@@ -1616,9 +1616,8 @@ registries.
 
 No runtime mechanism changed. The evidence distinguishes ownership layers:
 the task record owns its source closure until completion, but the closure's
-weak capture box does not own the source instance. Physical weak-reference
-transfer and optional value-type mutating async chains remain outside the
-slice.
+weak capture box does not own the source instance. General physical weak-call
+routing and optional value-type mutating async chains remain outside the slice.
 
 The canonical focused board passed 74 tests in six suites plus all
 forty-three methodology checks and three isolated gate-contract checks;
@@ -1627,6 +1626,41 @@ seconds, and the complete focused gate took six seconds. The rebuilt scoped
 TSan board passed native overlap 20/20 and all 60 driver/kernel/source-call
 tests in three suites on four workers in 21 seconds without a race or
 interceptor diagnostic.
+
+The sixtieth M9 slice closes Provenance's exact capture-only weak-self wrapper:
+`Task.detached(priority: .background) { [weak self] in await
+self?.processQueue() }`. The semantic question is whether one physical wrapper
+can preserve the weak read at body entry without moving the weak box or
+receiver to a worker and without retaining the receiver while capacity is
+queued.
+
+The same-source probe retains one receiver through result observation and
+samples defaulted `#isolation` before and after `Task.yield`. Apple Swift 6.3.3
+complete-strict compilation with warnings as errors and interpreted execution
+returned exact `weak:none|none` in twenty bounded runs. Every native five-run
+shard retained SHA-256
+`59b08bc91e9e8533552cc5edbaeedf8d0af325e761b6131da38169d353f0b121`;
+no thread identity, scheduler order, elapsed duration, or general capture-list
+transfer is an oracle. With admission disabled, the interpreter returned the
+same value but recorded zero physical receipts instead of one.
+
+The mechanism classifies only `[weak self] in`, preflights an argument-free
+inherited-isolation Void method, and sends only the existing typed command with
+an Optional-Void result contract. Confined registration owns the source
+closure's weak box, not a resolved method closure. The MainActor relay reads the
+box after worker entry, returns Optional.none when released, or temporarily
+retains and invokes a live receiver after rechecking the exact descriptor. A
+second deterministic test occupies the sole permit, clears the final strong
+receiver while the wrapper is queued, then releases capacity and requires
+`released` plus one receipt. Weak argument-bearing and String-returning calls
+are retained zero-receipt controls.
+
+The canonical focused board passed 75 tests in six suites plus all forty-three
+methodology checks and three isolated gate-contract checks; focused parity
+completed all twenty repetitions on four workers in one second, and the
+complete focused gate took four seconds. The rebuilt scoped TSan board passed
+native overlap 20/20 and all 62 driver/kernel/source-call tests in three suites
+on four workers in 68 seconds without a race or interceptor diagnostic.
 
 ## Process and liveness isolation
 

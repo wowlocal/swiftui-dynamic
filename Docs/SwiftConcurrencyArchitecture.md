@@ -4208,13 +4208,53 @@ cleanup, so this is characterization rather than a runtime gap closure.
 
 The ownership boundary is explicit: `RuntimeTaskRecord` owns the source
 closure, the closure owns a weak capture box, and that box does not own the
-source instance. Physical weak-reference transfer remains forbidden; optional
-value-type async chains with mutating write-back remain open.
+source instance. General physical weak-reference transfer remains forbidden;
+optional value-type async chains with mutating write-back remain open.
 
 The focused board passed 74 tests in six suites, all 46 methodology/gate
 checks, and twenty parity repetitions on four workers in six seconds. The
 rebuilt scoped TSan board passed native overlap 20/20 plus all 60
 driver/kernel/source-call tests in three suites on four workers in 21 seconds
+without a race or interceptor diagnostic.
+
+The sixtieth prerequisite admits Provenance's exact one-expression
+`Task.detached(priority: .background) { [weak self] in await
+self?.processQueue() }` wrapper without transferring a weak reference. The
+selected own source-class method is inherited-isolation, async, nonthrowing,
+argument-free, and Void-returning. Its native wrapper returns `Void?`: a live
+receiver produces `.some(())`, while a receiver released before body entry
+produces `.none` without invoking the method.
+
+Closure formation recognizes only the capture-only `[weak self] in` signature.
+Admission may temporarily read a live receiver to prove one exact declaration
+descriptor, but it does not register the resolved method closure because that
+closure would strongly retain the instance while the physical job waits for a
+permit. Instead, `RuntimeTaskRecord` retains the source operation closure and
+its genuine weak box. The Sendable worker command still contains only
+entry/task/descriptor/argument/result facts, now with an `optionalVoid` result
+kind; no `Box`, receiver, closure, `Environment`, `RuntimeValue`, program state,
+heap, or evaluator crosses the worker boundary.
+
+After the detached wrapper acquires capacity and enters the MainActor relay,
+the relay reads the confined weak box. Nil materializes a copied Optional.none
+snapshot. A live instance is temporarily retained for the dynamic call,
+re-resolved against the preflight descriptor, invoked through the ordinary
+suspension-aware evaluator, and returned as Optional.some(Void). Thus the weak
+read occurs at physical body re-entry rather than at registration. A causal
+occupied-permit regression drops the only strong receiver while the wrapper is
+queued and observes `released` through one physical receipt, proving the
+registration itself does not strengthen the capture.
+
+Apple Swift 6.3.3 and interpreted execution returned exact `weak:none|none` in
+twenty bounded runs; every native five-run shard retained canonical SHA-256
+`59b08bc91e9e8533552cc5edbaeedf8d0af325e761b6131da38169d353f0b121`.
+The receipt RED moved from zero to one physical execution. String-returning and
+argument-bearing weak calls, nil-at-admission, aliases, additional captures,
+explicit signatures, unowned captures, and richer routes remain cooperative.
+The focused board passed 75 tests in six suites, all 46 methodology/gate
+checks, and twenty parity repetitions on four workers in four seconds. The
+rebuilt scoped TSan board passed native overlap 20/20 plus all 62
+driver/kernel/source-call tests in three suites on four workers in 68 seconds
 without a race or interceptor diagnostic.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
@@ -4237,6 +4277,7 @@ literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep
 MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor/
 inherited-source-call
 and strong-self-capture-source-call
+and parallel-detached-weak-self-source-call
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension

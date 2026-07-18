@@ -624,6 +624,31 @@ extension Interpreter {
         return true
     }
 
+    /// The first weak-capture physical spelling is deliberately narrower than
+    /// general capture-list support: exactly `[weak self] in`, with no alias,
+    /// additional signature surface, or second capture. Admission later also
+    /// requires one argument-free optional-self source call returning Void.
+    private func isPhysicalWeakSelfSourceCallCandidate(
+        _ signature: ClosureSignatureSyntax?
+    ) -> Bool {
+        guard let signature,
+              signature.attributes.isEmpty,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil,
+              let captures = signature.capture?.items,
+              captures.count == 1,
+              let capture = captures.first,
+              capture.specifier?.specifier.text == "weak",
+              capture.specifier?.detail == nil,
+              capture.name.text == "self",
+              capture.initializer == nil,
+              capture.trailingComma == nil else {
+            return false
+        }
+        return true
+    }
+
     func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) throws -> ClosureValue {
         var parameters: [ClosureValue.Parameter] = []
         if let input = closure.signature?.parameterClause {
@@ -722,6 +747,8 @@ extension Interpreter {
         value.isPhysicalSnapshotKernelCandidate = closure.signature == nil
         value.isPhysicalStrongSelfSourceCallCandidate =
             isPhysicalStrongSelfSourceCallCandidate(closure.signature)
+        value.isPhysicalWeakSelfSourceCallCandidate =
+            isPhysicalWeakSelfSourceCallCandidate(closure.signature)
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
         // only the value environment lets same-named nested types resolve in

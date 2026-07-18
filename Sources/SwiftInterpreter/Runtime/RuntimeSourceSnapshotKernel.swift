@@ -192,7 +192,8 @@ extension Interpreter {
               closure.parameters.isEmpty,
               !closure.isBuilder,
               (closure.isPhysicalSnapshotKernelCandidate
-                || closure.isPhysicalStrongSelfSourceCallCandidate),
+                || closure.isPhysicalStrongSelfSourceCallCandidate
+                || closure.isPhysicalWeakSelfSourceCallCandidate),
               closure.body.count == 1,
               let item = closure.body.first,
               let expression = Self.singleExpression(in: item) else {
@@ -208,8 +209,9 @@ extension Interpreter {
             return sourceCall
         }
 
-        // A modeled `[self] in` signature may unlock only the confined source
-        // call above. It must not broaden literal or value-snapshot kernels.
+        // A modeled `[self] in` or `[weak self] in` signature may unlock only
+        // the confined source call above. It must not broaden literal or
+        // value-snapshot kernels.
         guard closure.isPhysicalSnapshotKernelCandidate else {
             return nil
         }
@@ -279,13 +281,36 @@ extension Interpreter {
               let name = metadata.callee.name,
               let member = metadata.callee.member,
               member.declName.argumentNames == nil,
-              let receiver = member.base?
-                .as(DeclReferenceExprSyntax.self),
-              receiver.baseName.text == "self",
-              receiver.argumentNames == nil,
               let selfBox = closure.captured.box(
-                for: "self", before: globals),
-              case .instance(let instance) = selfBox.value,
+                for: "self", before: globals) else {
+            return nil
+        }
+
+        let instance: Instance
+        let isWeakOptionalSelf: Bool
+        if let receiver = member.base?.as(DeclReferenceExprSyntax.self),
+           receiver.baseName.text == "self",
+           receiver.argumentNames == nil,
+           case .instance(let directInstance) = try selfBox.load() {
+            instance = directInstance
+            isWeakOptionalSelf = false
+        } else if closure.isPhysicalWeakSelfSourceCallCandidate,
+                  selfBox.referenceOwnership == .weak,
+                  let optional = member.base?
+                    .as(OptionalChainingExprSyntax.self),
+                  let receiver = optional.expression
+                    .as(DeclReferenceExprSyntax.self),
+                  receiver.baseName.text == "self",
+                  receiver.argumentNames == nil,
+                  case .some(.instance(let weakInstance), _) =
+                    try selfBox.load().optionalState {
+            instance = weakInstance
+            isWeakOptionalSelf = true
+        } else {
+            return nil
+        }
+
+        guard (!isWeakOptionalSelf || metadata.arguments.isEmpty),
               record.entry === entry,
               record.physicalSourceCall == nil,
               closure.programPlan === entry.programPlan,
@@ -314,10 +339,31 @@ extension Interpreter {
                 target.descriptor,
                 on: instance,
                 parameters: target.closure.parameters,
-                arguments: loweredArguments.commandArguments),
-              let resultKind = RuntimePhysicalSourceCallResultKind(
-                returnTypeName: target.descriptor.returnTypeName) else {
+                arguments: loweredArguments.commandArguments) else {
             return nil
+        }
+
+        let resultKind: RuntimePhysicalSourceCallResultKind
+        if isWeakOptionalSelf {
+            // Provenance's first weak route is an inherited-isolation,
+            // argument-free async Void method. The wrapper itself returns
+            // Void?, and the receiver must be resolved again only on re-entry.
+            guard target.descriptor.isolation == .inherited,
+                  target.descriptor.isAsync,
+                  target.closure.parameters.isEmpty,
+                  loweredArguments.commandArguments.isEmpty,
+                  RuntimePhysicalSourceCallResultKind(
+                    returnTypeName: target.descriptor.returnTypeName) == .void
+            else {
+                return nil
+            }
+            resultKind = .optionalVoid
+        } else {
+            guard let directResultKind = RuntimePhysicalSourceCallResultKind(
+                returnTypeName: target.descriptor.returnTypeName) else {
+                return nil
+            }
+            resultKind = directResultKind
         }
 
         let capability = try entry.makeWorkerCapability(
@@ -330,9 +376,15 @@ extension Interpreter {
             arguments: loweredArguments.commandArguments,
             resultKind: resultKind)
         let relay = concurrencyRuntime.sourceCallReentryRelay
+        let invocation: RuntimeRegisteredPhysicalSourceCallInvocation =
+            isWeakOptionalSelf
+                ? .weakSelfOptional(
+                    sourceClosure: closure,
+                    methodName: name)
+                : .resolved(target)
         record.physicalSourceCall = RuntimeRegisteredPhysicalSourceCall(
             command: command,
-            target: target)
+            invocation: invocation)
         return RuntimePhysicalSourceKernelJob(
             workerJob: RuntimePhysicalWorkerJob(
                 capability: capability,

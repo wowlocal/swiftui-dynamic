@@ -67,6 +67,9 @@ struct RuntimeResolvedSourceFunctionCall {
 nonisolated enum RuntimePhysicalSourceCallResultKind: Sendable, Equatable {
     case void
     case string
+    /// Result of the exact `await weakSelf?.voidMethod()` wrapper. Both a live
+    /// receiver (`.some(())`) and a released receiver (`.none`) are values.
+    case optionalVoid
 
     init?(returnTypeName: String?) {
         switch returnTypeName?.trimmingCharacters(
@@ -84,6 +87,12 @@ nonisolated enum RuntimePhysicalSourceCallResultKind: Sendable, Equatable {
         switch (self, snapshot) {
         case (.void, .void), (.string, .string):
             true
+        case (.optionalVoid, .optional(
+            wrapped: let wrapped,
+            wrappedTypeName: _,
+            isImplicitlyUnwrapped: false
+        )):
+            wrapped == nil || wrapped == .void
         default:
             false
         }
@@ -134,13 +143,24 @@ nonisolated struct RuntimePhysicalSourceCallCommand: Sendable, Equatable {
     let resultKind: RuntimePhysicalSourceCallResultKind
 }
 
+/// Confined invocation data selected for a physical source-call command. A
+/// strong/direct route may retain its already resolved method closure. A weak
+/// optional-self route retains only the source operation closure, whose `self`
+/// box is genuinely weak; it resolves and temporarily strengthens the receiver
+/// only after the detached wrapper reaches MainActor re-entry.
+@MainActor
+enum RuntimeRegisteredPhysicalSourceCallInvocation {
+    case resolved(RuntimeResolvedSourceFunctionCall)
+    case weakSelfOptional(sourceClosure: ClosureValue, methodName: String)
+}
+
 /// Confined half of a physical source-call command. RuntimeTaskRecord owns it
 /// for exactly the source task lifetime; only the matching Sendable command
 /// can ask the MainActor relay to use it.
 @MainActor
 struct RuntimeRegisteredPhysicalSourceCall {
     let command: RuntimePhysicalSourceCallCommand
-    let target: RuntimeResolvedSourceFunctionCall
+    let invocation: RuntimeRegisteredPhysicalSourceCallInvocation
 }
 
 /// Purpose-built executor gateway for a physical detached wrapper. A worker
@@ -177,7 +197,6 @@ final class RuntimeSourceCallReentryRelay {
               record.state == .running,
               let registered = record.physicalSourceCall,
               registered.command == command,
-              registered.target.descriptor == command.target,
               let context = record.evaluationContext,
               let interpreter = record.entry.interpreter else {
             throw failure("source-call command lost its confined runtime entry")
@@ -198,9 +217,51 @@ final class RuntimeSourceCallReentryRelay {
                     label: argument.label,
                     value: binding.value.materializedRuntimeValue()))
             }
-            let value = try await interpreter.callBackgroundClosureSuspending(
-                registered.target.closure,
-                arguments: CallArguments(arguments: arguments))
+            let callArguments = CallArguments(arguments: arguments)
+            let value: RuntimeValue
+            switch registered.invocation {
+            case .resolved(let target):
+                guard target.descriptor == command.target else {
+                    throw failure(
+                        "source-call command changed its resolved target")
+                }
+                value = try await interpreter.callBackgroundClosureSuspending(
+                    target.closure,
+                    arguments: callArguments)
+
+            case .weakSelfOptional(let sourceClosure, let methodName):
+                guard command.resultKind == .optionalVoid,
+                      command.arguments.isEmpty,
+                      sourceClosure.isPhysicalWeakSelfSourceCallCandidate,
+                      let selfBox = sourceClosure.captured.box(
+                        for: "self", before: interpreter.globals),
+                      selfBox.referenceOwnership == .weak else {
+                    throw failure(
+                        "weak-self source-call registration is invalid")
+                }
+                switch try selfBox.load().optionalState {
+                case .none:
+                    value = .none()
+                case .some(.instance(let instance), _):
+                    guard let target = interpreter
+                        .resolveOwnSourceInstanceMethodCallTarget(
+                            named: methodName,
+                            on: instance,
+                            arguments: CallArguments()),
+                          target.descriptor == command.target else {
+                        throw failure(
+                            "weak-self source-call target changed before re-entry")
+                    }
+                    let result = try await interpreter
+                        .callBackgroundClosureSuspending(
+                            target.closure,
+                            arguments: CallArguments())
+                    value = result.liftedToOptional()
+                case .some, .notOptional:
+                    throw failure(
+                        "weak-self source-call receiver has an invalid shape")
+                }
+            }
             let snapshot = try RuntimeWorkerValueSnapshot.copying(value)
             guard command.resultKind.accepts(snapshot) else {
                 throw failure(
