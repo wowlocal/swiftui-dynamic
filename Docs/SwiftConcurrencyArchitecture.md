@@ -3919,9 +3919,10 @@ placement and carries the exact runtime actor executor selected while forming
 the receiver closure. Physical admission now treats that pair as a separate
 route from MainActor and `@concurrent` source-class methods: it requires an
 argument-free, synchronous, nonthrowing, Void-returning own method on the exact
-receiver actor and its default executor. Async actor methods, arguments,
-String-returning actor methods, custom actor executors, nonisolated methods,
-and richer effects or results stay cooperative.
+receiver actor and its default executor. Zero-argument async methods,
+synchronous argument-bearing methods, String-returning actor methods, custom
+actor executors, nonisolated methods, and richer effects or results stay
+cooperative at this prerequisite.
 
 The checked worker boundary does not widen. The physical wrapper carries the
 same Sendable entry/task/descriptor/result command and reaches the confined
@@ -3951,12 +3952,43 @@ seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 51
 driver/kernel/source-call tests in three suites on four workers in 25 seconds
 without a race or interceptor diagnostic.
 
+The fifty-second prerequisite extends the exact default-actor route for
+Planet's async termination callback. The existing source-call argument lowerer
+already copies integer literals or directly owned immutable `Int`/`Int64`
+captures and preserves labels in a Sendable command. Actor admission now
+accepts that capability only when there is exactly one integer argument and
+the origin-bound selected method is async, nonthrowing, Void-returning, and
+isolated to the exact default receiver actor. This is a route-table extension,
+not a new evaluator or actor representation.
+
+After confined re-entry restores the task's `EvaluationTaskContext`, ordinary
+suspending invocation acquires the actor mailbox. The async body owns that
+lease while recording `start:17`; its `Task.yield` suspension releases the
+complete depth-counted segment, and continuation must reacquire it before
+recording `done:17`. Thus the physical wrapper composes with the existing actor
+reentrancy state machine rather than retaining an executor across suspension.
+The command still transfers no actor, receiver, `RuntimeValue`, environment,
+heap, or evaluator.
+
+Apple Swift 6.3.3 and interpreted execution returned exact
+`start:17|done:17` in twenty bounded runs; all native five-run shards retained
+canonical SHA-256
+`b2ba89617abb88d104c2131843423923d4bbf7b369d08f05192dd8985b01325a`.
+The receipt RED moved from zero to one physical execution. A Boolean-argument
+async actor control remains cooperative, as do zero-argument async,
+String/multiple/defaulted/mutable/expression arguments, throwing methods, and
+custom executors. The focused board passed 66 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in two
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 52
+driver/kernel/source-call tests in three suites on four workers in 25 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
 source class/actor/host/standard-library target identities beyond the unique
-own reference-method descriptor, the exact default-actor synchronous route,
-normalized callee shape, and the existing core-Task, `String.count`,
+own reference-method descriptor, the exact default-actor synchronous and async
+single-Int routes, normalized callee shape, and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
 indexing. Mutable symbol materialization

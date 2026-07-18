@@ -309,7 +309,7 @@ extension Interpreter {
               isSupportedPhysicalSourceCallRoute(
                 target.descriptor,
                 on: instance,
-                argumentCount: loweredArguments.commandArguments.count),
+                arguments: loweredArguments.commandArguments),
               let resultKind = RuntimePhysicalSourceCallResultKind(
                 returnTypeName: target.descriptor.returnTypeName) else {
             return nil
@@ -349,13 +349,13 @@ extension Interpreter {
     /// actor's synchronous method is still an asynchronous cross-actor call:
     /// confined re-entry invokes it through the ordinary suspending evaluator,
     /// which acquires that exact actor mailbox before touching actor storage.
-    /// Async, argument-bearing, String-returning, explicitly nonisolated, and
-    /// custom-executor actor methods remain cooperative until separately
-    /// proven.
+    /// The only async actor route owns one copied integer argument;
+    /// other argument families, String results, explicitly nonisolated methods,
+    /// and custom actor executors remain cooperative until separately proven.
     private func isSupportedPhysicalSourceCallRoute(
         _ target: RuntimeSourceFunctionTargetDescriptor,
         on instance: Instance,
-        argumentCount: Int
+        arguments: [RuntimePhysicalSourceCallArgument]
     ) -> Bool {
         switch target.lexicalPlacement {
         case .lexicalType(_, isTypeMember: false, isActor: false):
@@ -368,11 +368,18 @@ extension Interpreter {
         case .lexicalType(_, isTypeMember: false, isActor: true):
             guard instance.symbol.isActor,
                   !instance.symbol.requiresCustomExecutorDispatch,
-                  !target.isAsync,
-                  argumentCount == 0,
                   RuntimePhysicalSourceCallResultKind(
                     returnTypeName: target.returnTypeName) == .void,
                   let actorID = instance.actorID else {
+                return false
+            }
+            let isSynchronousVoidRoute = !target.isAsync
+                && arguments.isEmpty
+            let isAsyncIntegerVoidRoute = target.isAsync
+                && arguments.count == 1
+                && arguments[0].valueKind == .integer
+            guard isSynchronousVoidRoute
+                    || isAsyncIntegerVoidRoute else {
                 return false
             }
             return target.isolation == .executor(.actor(actorID))

@@ -1356,8 +1356,9 @@ carries only the existing Sendable command; confined re-entry restores
 the source task context and uses normal suspending invocation to acquire the
 actor mailbox. The exact completion proves that the actor's result method
 released its mailbox at `Task.yield`, allowing the unretained initializer task
-to enter instead of self-deadlocking. A retained negative control keeps async
-and argument-bearing actor methods cooperative. Custom executors,
+to enter instead of self-deadlocking. A retained negative control keeps
+zero-argument async and synchronous argument-bearing actor methods cooperative.
+Custom executors,
 String-returning or nonisolated actor methods, ambiguity, throwing calls, and
 richer results also remain outside the admitted subset.
 
@@ -1370,6 +1371,36 @@ focused board passed 65 tests in six suites plus all forty-three methodology
 checks and three isolated gate-contract checks. The rebuilt scoped TSan board
 passed native overlap 20/20 and all 51 driver/kernel/source-call tests in three
 suites on four workers in 25 seconds without a race or interceptor diagnostic.
+
+The fifty-second M9 slice is a gap closure for Planet's exact
+`Task.detached { await self.asyncActorMethod(label: capturedInt) }` family.
+The semantic question is whether a copied immutable integer can enter an async
+method on the exact receiver actor, remain actor-isolated before suspension,
+release the mailbox at `Task.yield`, and reacquire it before the continuation.
+The bounded same-source fixture asserts only the causally fixed trace
+`start:17|done:17`. Apple Swift 6.3.3 complete-strict compilation with warnings
+as errors and the interpreter returned that trace in twenty runs; every
+five-run native shard retained canonical SHA-256
+`b2ba89617abb88d104c2131843423923d4bbf7b369d08f05192dd8985b01325a`.
+No thread identity or unrelated scheduler order is asserted.
+
+Behavior was already GREEN, while the receipt RED observed zero physical
+submissions/executions instead of one. Admission reuses the existing integer
+snapshot and labeled source-call command, but permits the actor route only for
+one `Int`/`Int64` argument, an async nonthrowing Void own method, and the exact
+default receiver actor ID. Confined re-entry uses the ordinary suspending
+evaluator; therefore actor ownership before and after the yield is proved by
+the same mailbox state machine as cooperative execution. An async actor Void
+method taking a Boolean literal remains cooperative as the nearest negative
+control; String, multiple/defaulted, mutable, expression, throwing, and custom
+executor forms remain outside this slice.
+
+The canonical focused board passed 66 tests in six suites plus all forty-three
+methodology checks and three isolated gate-contract checks; focused parity
+completed all twenty repetitions on four workers in two seconds. The rebuilt
+scoped TSan board passed native overlap 20/20 and all 52
+driver/kernel/source-call tests in three suites on four workers in 25 seconds
+without a race or interceptor diagnostic.
 
 ## Process and liveness isolation
 

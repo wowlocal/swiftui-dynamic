@@ -276,6 +276,34 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func asynchronousActorSourceCallCopiesIntegerAndReentersMailbox()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-async-actor-int-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedAsyncActorIntegerSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "start:17|done:17")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func unsupportedIsolationAndResultFamiliesStayCooperative()
         async throws
     {
@@ -326,11 +354,18 @@ struct RuntimeSourceCallTargetTests {
         }
 
         actor ActorProbe {
+            var booleanObservation = ""
+
             func value() async -> String { "actor" }
 
             func labeled(_ value: Int) -> String { "\\(value)" }
 
             func synchronousString() -> String { "sync" }
+
+            func asynchronousBoolean(_ value: Bool) async {
+                await Task.yield()
+                booleanObservation = value ? "true" : "false"
+            }
 
             func run() async -> String {
                 let asynchronous = await Task.detached {
@@ -342,7 +377,10 @@ struct RuntimeSourceCallTargetTests {
                 let unsupportedResult = await Task.detached {
                     await self.synchronousString()
                 }.value
-                return "\\(asynchronous):\\(argumentBearing):\\(unsupportedResult)"
+                await Task.detached {
+                    await self.asynchronousBoolean(true)
+                }.value
+                return "\\(asynchronous):\\(argumentBearing):\\(unsupportedResult):\\(booleanObservation)"
             }
         }
 
@@ -356,7 +394,8 @@ struct RuntimeSourceCallTargetTests {
         await probe()
         """)
 
-        #expect(value.stringValue == "nonisolated:7:5:3:text:true:actor:7:sync")
+        #expect(value.stringValue
+            == "nonisolated:7:5:3:text:true:actor:7:sync:true")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime
