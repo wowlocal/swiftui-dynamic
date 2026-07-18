@@ -3687,14 +3687,39 @@ three suites, all forty-three methodology checks plus three isolated
 gate-contract checks, and all twenty parity repetitions on four workers in two
 seconds.
 
+The forty-fourth prerequisite applies the same boundary to the compound
+CotEditor `selectedStrings.map(\.count).reduce(0, +)` kernel. A more-specific
+same-module `Array.map` overload for `Element == Substring` returns `[41]`;
+Apple Swift 6.3.3 selected it inside `Task.detached` and produced exact `41` in
+twenty complete-strict Swift 6 runs. Every native five-run shard reported
+SHA-256
+`06012cab1f7bd007fb1ad3ff15d7822d89b450f3ea30814bf7d8f27b8d2687bb`.
+Before the fix, both interpreter modes ignored the source overload and returned
+the stdlib result `3`; parallel mode additionally recorded one physical
+submission/execution.
+
+Core `Array` values now dispatch source extensions before imported native
+members. The count-reduction lowerer also requires the origin program's typed
+`.arrayMap` proof; every same-base source overload keeps the expression
+cooperative until exact overload resolution is available. The retained two-run
+regression returns `41` with zero receipts, while the positive stdlib reduction
+retains its physical path. This does not claim the `reduce` target or element
+`count` key-path target; those remain separate fail-closed prerequisites. The
+scoped TSan board passed twenty native overlap iterations plus all thirty-eight
+driver/source-kernel tests on four workers in 25 seconds. The canonical focused
+iteration completed 67 runtime/metadata/worker tests in three suites, all
+forty-three methodology checks plus three isolated gate-contract checks, and
+all twenty parity repetitions on four workers in one second.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
 source/actor/host/standard-library target identities beyond normalized callee
 shape, the core-Task proof, the `String.count` property proof, and the
 conservative `String.distance` method proof remain incomplete, as does compiler
-metadata
-indexing; mutable symbol materialization plus evaluator state must move fully
+metadata indexing; the compound count-reduction kernel still lacks independent
+`reduce` and element-property target proofs. Mutable symbol materialization
+plus evaluator state must move fully
 behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped

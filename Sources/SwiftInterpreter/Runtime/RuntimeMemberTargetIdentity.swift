@@ -35,16 +35,19 @@ nonisolated enum RuntimePropertyTargetIdentity: Sendable, Equatable {
 /// generics, and parameter types also participate.
 nonisolated enum RuntimeStandardLibraryMethodIdentity: Sendable, Equatable {
     case stringDistanceFromTo
+    case arrayMap
 
     fileprivate var sourceTypeName: String {
         switch self {
         case .stringDistanceFromTo: "String"
+        case .arrayMap: "Array"
         }
     }
 
     fileprivate var sourceMemberName: String {
         switch self {
         case .stringDistanceFromTo: "distance"
+        case .arrayMap: "map"
         }
     }
 }

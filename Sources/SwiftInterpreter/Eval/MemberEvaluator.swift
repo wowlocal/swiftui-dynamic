@@ -1743,6 +1743,10 @@ extension Interpreter {
             if any is String, !extensionCandidates.contains("String") {
                 extensionCandidates.append("String")
             }
+            if any is [RuntimeValue],
+               !extensionCandidates.contains("Array") {
+                extensionCandidates.append("Array")
+            }
             if any is BindingStub { extensionCandidates.append("Binding") }
             if !extensionCandidates.isEmpty,
                let value = try hostExtensionMember(

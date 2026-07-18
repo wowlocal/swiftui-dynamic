@@ -345,7 +345,10 @@ extension Interpreter {
               mapMember.declName.argumentNames == nil,
               let reference = mapMember.base?
                 .as(DeclReferenceExprSyntax.self),
-              reference.argumentNames == nil else {
+              reference.argumentNames == nil,
+              let programState = closure.programState,
+              programState.methodTargetProof(for: .arrayMap)
+                == .standardLibrary(.arrayMap) else {
             return nil
         }
 
