@@ -2666,3 +2666,12 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   fa74535 still pending steward action (posted 03:55Z + superseded
   04:45Z; MERGE-LOCK fallback arms ~06:45Z if the steward stays
   silent).
+- 2026-07-18 STACK LANDED; i67 RECEIPT POSTED (worktree iteration 68):
+  the steward merged the i37-i66 stack into main at 04:52Z — "FOODTRUCK
+  R2 COMPLETE — ALL 18 screens AE=0, content-row converged 0.000; R3
+  10/10, R4 13/13. Pixel- and function-identical to native." Main
+  absorbed back; the i67 parity-pin commit re-verified clean-detached
+  on the exact tip (GATE GREEN 1147s, full corpus) and MERGE-READY
+  6f26353 posted. Open queue: live-twin method for the rename-retitle
+  question (titled= reported-only), london diag tripwire (armed),
+  oss:Mythic corpus backstop failure, R4-sweep menu/city deepening.
