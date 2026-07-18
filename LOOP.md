@@ -2932,3 +2932,7 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   vendor missing package deps into the corpus checkouts (bounded
   fetch, faithful to native builds) or ledger the dependent suites
   FreeChat-style. GATE GREEN 1112s.
+- 2026-07-18 i84-i86 RECEIPTED (worktree iteration 87): clean-detached
+  gate GREEN 1147s on exact tip ccdf521; MERGE-READY posted (the
+  makeStream M1 opener + self-diagnosing tuple errors + the
+  absent-dependency re-classification).
