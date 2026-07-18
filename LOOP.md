@@ -2874,3 +2874,22 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (the wall-clock probe, honestly volatile) of 362. GATE GREEN 1100s
   (the parity contract pattern-matches on 0-diverge, no churn).
   PARITY_LIST_UNSTABLE env stays as the instrument.
+- 2026-07-18 i79-i81 RECEIPTED (worktree iteration 82): clean-detached
+  gate GREEN 1144s on exact tip e86b276; MERGE-READY posted (the
+  parity 345->361 jump + the menu-driver search space + receipts).
+- 2026-07-18 M3 DOCTRINE COMPLETE: @Query RE-RENDERS ON STORE WRITES
+  (worktree iteration 83): the mission ladder's remaining named class
+  closed. refreshQueries already filled @Query boxes per body
+  evaluation; the missing half was the WRITE-driven re-render.
+  LiveModelStore gains a ChangeSignal fired on insert/delete;
+  StateStore.wireQuerySubscription subscribes any view with .query
+  storage using the self-healing send. New probe surfaces:
+  InterpreterHost.lastInterpreter (drive a hosted render's store from
+  tests) and InterpretedView.bodyEvaluationCount (idle-flat /
+  advance-on-signal causality). Pins: QueryRefreshOnWriteTests —
+  signal-on-insert, and the causality pin (settled=1, idle=1 FLAT,
+  after-insert=2, zero diagnostics). Instrument lessons en route:
+  re-bitmapping rootView re-runs onAppear (double insert), and
+  cacheDisplay is blank for an already-shown hosting — the counter
+  causality replaced pixels. Boards R4 13/13, R2 18/18; GATE GREEN
+  1102s.
