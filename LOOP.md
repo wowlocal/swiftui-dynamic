@@ -2803,3 +2803,44 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   meet the quarantine bar — that is for third-party-internals
   dependencies). The --window/--then bisect instrument + fixed cache
   guard stay landed for future pollution hunts.
+- 2026-07-18 RECEIPT LANDED — THE ABORT IS A LOAD FLAKE (worktree
+  iteration 76): the cold-detached worker abort did NOT reproduce on
+  an idle machine — clean main 8097881 went GREEN cold with every
+  worker exit 0, and the lane tip 6e03323 followed: GATE GREEN 1142s
+  on a clean detached checkout of the exact sha. The morning's three
+  cold REDs vs these two GREENs bound the abort as LOAD-DEPENDENT
+  (concurrent gates/boards were running then; both data points filed
+  for lane-concurrency). MERGE-READY 6e03323 upgraded from qualified
+  to full doctrine compliance — the i71-i75 stack (self-healing send,
+  rename-retitle closed with titled= asserted, corpus at honest
+  ceiling, bisect instrument) awaits the steward.
+- 2026-07-18 R4 DEEPENS: THE ORDER DRILL — navigationDestination
+  EXECUTES; MENU-LINK WIRING IS THE OPEN CLASS (worktree iteration
+  77): new sweep phase orders-drill fires the SAME Details menu's
+  "View Details" NavigationLink and expects the push (window retitles
+  to the order id). TWO layers surfaced: (1) navigationDestination was
+  INERT — now it EXECUTES: the real modifier registers for String
+  (every bridged value-link pushes its stable tag; ONE String-keyed
+  destination catches all), and the interpreted builder receives the
+  ORIGINAL value from the registry — the documented NavigationLink
+  identity design, destination side. (2) The remaining gap: the fired
+  menu item's action is INERT for the AnyView-ERASED link — SwiftUI
+  wires TYPED links into menu items, not erased ones; the destination
+  closure never runs. The drill is reported-only (pushed=) until the
+  wiring class closes; candidate approaches: a typed link carrier for
+  menu content, or driving the link's AX press instead of the item
+  action. Boards R4 13/13, R2 18/18. GATE GREEN 1103s. MERGE-READY
+  6e03323 still pending steward action.
+- 2026-07-18 MENU-LINK "GAP" IS NATIVE PARITY (worktree iteration 78):
+  the steward merged i71-i75 (0b5f487) and WITHDREW the cold-build
+  receipt bar per the lane's flake data. The i77 menu-link wiring
+  class dissolved under a native control probe
+  (Scripts/probes/menu-link-probe.swift): performActionForItem does
+  not fire a menu-hosted NavigationLink NATIVELY either — TYPED or
+  AnyView-ERASED both stay unpushed while menu Buttons fire fine. The
+  interpreted app is in PARITY under the only driver we have; the
+  drill's pushed= is a DRIVER limitation (the i67 offscreen-harness
+  genre), and the erased-vs-typed hypothesis was wrong on both counts.
+  The executing navigationDestination bridge stays landed and ready
+  for a future real menu-tracking click driver. Boards unchanged
+  (comment-only delta since the i77 gate GREEN 1103s).

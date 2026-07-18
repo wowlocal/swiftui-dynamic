@@ -421,12 +421,27 @@ extension ViewRegistry {
             }
             return AnyView(view.navigationTitle(args.positional(0)?.stringValue ?? ""))
         }
-        register("navigationDestination") { view, _, _ in
-            // The destination's interpreted data type cannot satisfy
-            // SwiftUI's static Hashable generic at the gateway boundary.
-            // Keep the current navigation content intact; trace mode still
-            // deep-renders the deferred destination for coverage.
-            view
+        register("navigationDestination") { view, args, ctx in
+            // Value-based navigation EXECUTES through the shared String
+            // identity: every bridged NavigationLink(value:) pushes its
+            // stable tag, so ONE String-keyed real destination catches all
+            // of them; the interpreted builder receives the ORIGINAL
+            // runtime value from the registry (interpreted types cannot
+            // satisfy the static Hashable generic — the documented
+            // NavigationLink identity design, destination side).
+            guard let closure = args.firstUnlabeledClosure,
+                  let interpreter = ctx as? Interpreter else {
+                return view
+            }
+            return AnyView(view.navigationDestination(for: String.self) { tag in
+                let value = NavigationSelectionValues.byTag[tag] ?? .native(tag)
+                let views = ((try? interpreter.callBuilderClosure(
+                    closure, arguments: [value])) ?? [])
+                    .compactMap { try? Self.anyView($0) }
+                return views.count == 1
+                    ? views[0]
+                    : AnyView(VStack { Self.indexed(views) })
+            })
         }
 
         // ChartContent and ChartProxy have static associated types that are
