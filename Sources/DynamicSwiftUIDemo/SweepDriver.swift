@@ -78,6 +78,15 @@ enum SweepDriver {
                 // Each step process STARTS on the truck panel: re-clicking
                 // the already-selected row changes nothing natively.
                 landed = sidebarAlive && !ordersTableVisible && freshDiagnostics == 0
+            case "cupertino", "london":
+                // The city panel's DetailedMapView EXECUTES (interpreted
+                // representable hosting a real MKMapView) — hierarchy truth,
+                // not just pixel churn.
+                let mapPresent = viewPresent(in: window) {
+                    String(describing: type(of: $0)).contains("MKMapView")
+                }
+                landed = sidebarAlive && !ordersTableVisible && changed > 5000
+                    && mapPresent && freshDiagnostics == 0
             default:
                 landed = sidebarAlive && !ordersTableVisible && changed > 5000
                     && freshDiagnostics == 0
@@ -175,8 +184,16 @@ enum SweepDriver {
                     // the COMMITTED value survived the re-render plus a
                     // visible repaint.
                     let committed = firstTextField(in: window)?.stringValue == expected
+                    // KNOWN GAP (reported, not asserted): natively the
+                    // DETAIL column's .navigationTitle(donut.name) drives
+                    // the macOS titlebar; the interpreted split's HStack
+                    // fallback lets the SIDEBAR's "Food Truck" preference
+                    // win. Rides the real-NavigationSplitView arc (content
+                    // row artifact) — flip `titled` into the verdict when
+                    // that lands.
+                    let titled = window.title == expected
                     let mutatedLanded = committed && mutatedChanged > 300
-                    print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) sent=\(sent) committed=\(committed) landed=\(mutatedLanded)")
+                    print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) sent=\(sent) committed=\(committed) titled=\(titled) title=\"\(window.title)\" landed=\(mutatedLanded)")
                     for entry in RenderDiagnostics.errors.dropFirst(reportedDiagnostics).prefix(4) {
                         print("SWEEP-DIAG \(step.name)-mutate \(entry.view): \(entry.error.message.prefix(110))")
                     }
@@ -292,6 +309,16 @@ enum SweepDriver {
 
     final class MenuDriveState {
         var didFire = false
+    }
+
+    static func viewPresent(
+        in window: NSWindow, where predicate: (NSView) -> Bool
+    ) -> Bool {
+        func walk(_ view: NSView) -> Bool {
+            if predicate(view) { return true }
+            return view.subviews.contains(where: walk)
+        }
+        return window.contentView.map(walk) ?? false
     }
 
     static func firstTextField(in window: NSWindow) -> NSTextField? {

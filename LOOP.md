@@ -2560,3 +2560,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   17/18 screens AE=0 — every screen pixel-perfect except the
   user-gated content artifact. Gate RED with main's known
   parallel-worker signature — lane still gate-blocked, exonerated.
+- 2026-07-18 R4 INSTRUMENT HARDENED: LIVE MAP ASSERTED; TITLE GAP
+  DOCUMENTED (worktree iteration 63): with all capturable screens at
+  AE=0, the class was the R4 sweep's thinnest evidence. City steps now
+  REQUIRE a live MKMapView in the window hierarchy (hierarchy truth,
+  not churn) — both cities pass, live changed-pixels grew ~50k with the
+  map executing interactively. The new checks CAUGHT two things:
+  (1) a one-off 606-diagnostic flood on london (not reproducible in
+  three follow-up runs; the diag=0 assertion stays armed as the tripwire);
+  (2) a REAL deterministic gap — natively the DETAIL column's
+  .navigationTitle(donut.name) drives the macOS titlebar, but the
+  interpreted split's HStack fallback lets the SIDEBAR's "Food Truck"
+  preference win, so the rename never retitles the window. A hosting-
+  boundary barrier would sever the environment from the sidebar — the
+  title rides the real-NavigationSplitView arc (same root as the
+  content-row artifact); reported per capture (titled=/title=) and
+  flips into the verdict when that arc lands. Board: R4 GREEN under
+  the stricter instrument. Gate RED with main's known parallel-worker
+  signature — still gate-blocked, exonerated.
