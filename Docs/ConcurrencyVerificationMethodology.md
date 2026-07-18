@@ -1433,6 +1433,36 @@ second. The rebuilt scoped TSan board passed native overlap 20/20 and all 53
 driver/kernel/source-call tests in three suites on four workers in 23 seconds
 without a race or interceptor diagnostic.
 
+The fifty-fourth M9 slice is a gap closure for Provenance's exact
+`Task.detached { await self.customGlobalActorMethod() }` family. The semantic
+question is whether an unretained physical wrapper can preserve a canonical
+user global actor across a real suspension without resolving `static shared`
+during admission. The same-source probe waits on the same actor and asserts
+only `same|same`: `#isolation` matches canonical `shared` before and after
+`Task.yield`. Apple Swift 6.3.3 complete-strict compilation with warnings as
+errors and interpreted execution returned that trace in twenty bounded runs;
+every native five-run shard retained canonical SHA-256
+`fcb1cc9c933c78c04ad6becc131ea2f7d8ca50a23b090f5336dbcb64c0be6261`.
+No physical thread or unrelated scheduler order is asserted.
+
+Behavior was already GREEN, while the deterministic receipt RED observed
+zero physical submissions/executions instead of one. Admission now proves a
+unique source global-actor declaration from immutable candidate names and
+confined symbol metadata, restricted to an actor nominal with the default
+executor. It intentionally does not materialize `static shared`; normal
+confined invocation retains responsibility for canonical actor resolution,
+mailbox acquisition, release at suspension, and reacquisition. The retained
+negative board keeps argument-bearing and String-returning methods plus
+struct/enum-backed global actors cooperative; custom executors, throwing
+calls, and richer results remain outside the slice.
+
+The canonical focused board passed 69 tests in six suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers in one
+second. The rebuilt scoped TSan board passed native overlap 20/20 and all 55
+driver/kernel/source-call tests in three suites on four workers in 20 seconds
+without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

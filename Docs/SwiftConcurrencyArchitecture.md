@@ -4015,12 +4015,48 @@ passed native overlap 20/20 plus all 53 driver/kernel/source-call tests in
 three suites on four workers in 23 seconds without a race or interceptor
 diagnostic.
 
+The fifty-fourth prerequisite adds a two-phase custom-global-actor route.
+`RuntimeSourceFunctionTargetDescriptor` deliberately retains lazy global-actor
+candidate names: eagerly reading `static shared` while deciding whether to
+launch a physical wrapper could run a source initializer before native Swift
+would enter the detached body. Admission therefore remains effect-free. It
+uses the originating confined symbol table only to prove that exactly one
+candidate names a source nominal that is itself an `@globalActor actor`, uses
+the default executor, and selects an argument-free async nonthrowing Void
+source-class method.
+
+The worker command carries the unchanged declaration descriptor and no actor
+identity. After MainActor-confined re-entry restores the logical
+`EvaluationTaskContext`, ordinary invocation resolves canonical `static
+shared` exactly where cooperative execution would, acquires its mailbox, and
+runs the source method. The method observes the same actor before
+`Task.yield`; canonical suspension releases that lease so the waiting result
+method can progress, then reacquires it before continuation. This preserves
+both initialization timing and executor identity without sending an actor or
+evaluator capability across the worker boundary.
+
+Apple Swift 6.3.3 and interpreted execution returned exact `same|same` in
+twenty bounded runs; all native five-run shards retained canonical SHA-256
+`fcb1cc9c933c78c04ad6becc131ea2f7d8ca50a23b090f5336dbcb64c0be6261`.
+The receipt RED moved from zero to one physical execution. The canonical
+global actor remains retained by source `static shared`; focused evidence
+therefore requires one idle actor record rather than falsely requiring zero,
+along with no owner, mailbox waiter, or runtime task record. Argument-bearing
+or String-returning methods, struct/enum global-actor wrappers, custom
+executors, throwing calls, and richer results remain cooperative. The focused
+board passed 69 tests in six suites, all 46 methodology/gate checks, and
+twenty parity repetitions on four workers in one second. The rebuilt scoped
+TSan board passed native overlap 20/20 plus all 55
+driver/kernel/source-call tests in three suites on four workers in 20 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
 source class/actor/host/standard-library target identities beyond the unique
 own reference-method descriptor, the exact default-actor synchronous and async
-single-Int plus explicit-single-defaulted-Bool routes, normalized callee shape,
+single-Int plus explicit-single-defaulted-Bool routes, the exact actor-declared
+custom-global-actor argument-free async Void route, normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
@@ -4030,7 +4066,7 @@ behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
-MainActor-Boolean/concurrent-integer/default-actor-source-call
+MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor-source-call
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

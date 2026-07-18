@@ -364,8 +364,22 @@ extension Interpreter {
                   parameters.allSatisfy({ $0.defaultValue == nil }) else {
                 return false
             }
-            return target.isolation == .executor(.mainActor)
-                || target.isolation == .executor(.cooperativeDefault)
+            switch target.isolation {
+            case .executor(.mainActor),
+                 .executor(.cooperativeDefault):
+                return true
+            case .lazyGlobalActorCandidates(let candidates):
+                return parameters.isEmpty
+                    && arguments.isEmpty
+                    && RuntimePhysicalSourceCallResultKind(
+                        returnTypeName: target.returnTypeName) == .void
+                    && hasUniqueDefaultSourceGlobalActorCandidate(candidates)
+            case .inherited,
+                 .explicitlyNonisolated,
+                 .executor(.detached),
+                 .executor(.actor):
+                return false
+            }
 
         case .lexicalType(_, isTypeMember: false, isActor: true):
             guard instance.symbol.isActor,
@@ -398,6 +412,28 @@ extension Interpreter {
              .lexicalType(_, isTypeMember: true, isActor: _):
             return false
         }
+    }
+
+    /// Prove declaration provenance without touching `static shared` during
+    /// physical admission. Resolving that member can initialize source state,
+    /// so ordinary confined invocation remains the only place that may do it.
+    /// The first demand-backed route accepts only a source global actor whose
+    /// nominal is itself a default-executor actor; struct/enum wrappers and
+    /// custom executors remain cooperative until separately evidenced.
+    private func hasUniqueDefaultSourceGlobalActorCandidate(
+        _ candidates: [String]
+    ) -> Bool {
+        var matchedSymbols: Set<ObjectIdentifier> = []
+        for candidate in Set(candidates) {
+            guard case .type(let symbol) = globals.lookup(candidate),
+                  symbol.attributeNames.contains("globalActor"),
+                  symbol.isActor,
+                  !symbol.requiresCustomExecutorDispatch else {
+                continue
+            }
+            matchedSymbols.insert(ObjectIdentifier(symbol))
+        }
+        return matchedSymbols.count == 1
     }
 
     /// Evaluate no source effects while admitting a physical wrapper. An

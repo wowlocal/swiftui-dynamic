@@ -2727,6 +2727,21 @@
     "notes": "Planet demand-cites Task.detached(priority: .utility) { await self.setupIPFS(andLaunch: true) } in IPFSDaemon.swift:335-337; setupIPFS(andLaunch:) is an async, nonthrowing, Void-returning actor method whose Bool parameter defaults to false but is explicitly supplied at this call site. The bounded same-source probe records start:true before Task.yield and done:true only after actor-mailbox reacquisition. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact start:true|done:true in twenty bounded runs; every native five-run shard reported canonical SHA-256 1b0355375aa6a812ce51840fb7f3c38c1c21320283d5e013d0cd27e5c30e1abe. The receipt RED already returned the exact value through cooperative fallback but recorded zero physical submissions/executions instead of one. Admission is signature-shaped: one explicitly supplied Boolean literal may target one defaulted Bool parameter of an async Void method on the exact default actor. Omitted defaults, captured Bool, defaulted integer parameters, nondefaulted Boolean parameters, String, multiple, mutable, expression, throwing, custom-executor, and richer-result actor calls remain cooperative."
   },
   {
+    "id": "parallel-detached-custom-global-actor-source-call",
+    "fixture": "Fixtures/parallel-detached-custom-global-actor-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedCustomGlobalActorSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "An unretained detached task may invoke an argument-free async Void method on a source class through a user-defined global actor; the method has that exact canonical actor isolation before suspension and after reacquiring it following Task.yield.",
+    "notes": "Provenance demand-cites Task.detached(priority: .utility) { await self.createSystemDirectories() } at BIOSDirectoryWatcher.swift:79-80; the selected source-class method is argument-free, async, nonthrowing, Void-returning, and annotated with the actor-declared FileSystemActor at lines 109-110. The bounded same-source probe makes its result method wait on the same global actor, requiring mailbox release for the unretained wrapper, and returns exact same|same from #isolation identity checks before and after Task.yield. Apple Swift 6.3.3 complete-strict compilation with warnings as errors and interpreted execution returned that value in twenty bounded runs. Every native five-run shard reported canonical SHA-256 fcb1cc9c933c78c04ad6becc131ea2f7d8ca50a23b090f5336dbcb64c0be6261. The receipt RED already returned the exact value through cooperative fallback but recorded zero physical submissions/executions instead of one. Admission performs only declaration lookup for one uniquely matching source @globalActor actor with the default executor; it does not read static shared or initialize source state. Ordinary confined invocation resolves the canonical shared actor and owns its mailbox. Argument-bearing or String-returning custom-global-actor methods, struct/enum-backed global actors, custom executors, throwing calls, and richer results remain cooperative."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

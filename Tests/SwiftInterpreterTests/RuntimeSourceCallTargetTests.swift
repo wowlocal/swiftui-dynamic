@@ -332,6 +332,106 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func customGlobalActorSourceCallPreservesExecutorAndReentersMailbox()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-custom-global-actor-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedCustomGlobalActorSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        interpreter.globals.define(
+            "parityCurrentIsolationMatches",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationMatches"
+            ) { arguments, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                guard case .instance(let expected)? = arguments.positional(0),
+                      case .instance(let actual)? =
+                        isolation.unwrappedOptionalOrSelf,
+                      let expectedID = expected.actorID,
+                      let actualID = actual.actorID else {
+                    return .native("other")
+                }
+                return .native(expectedID == actualID ? "same" : "other")
+            }))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "same|same")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 1)
+        #expect(interpreter.concurrencyRuntime.actors.values.allSatisfy {
+            $0.executorOwnerTaskID == nil && $0.mailboxTaskIDs.isEmpty
+        })
+    }
+
+    @Test
+    func customExecutorGlobalActorSourceCallStaysCooperative() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            @globalActor
+            actor UnsupportedCustomExecutorGlobalActor {
+                static let shared = UnsupportedCustomExecutorGlobalActor()
+
+                nonisolated var unownedExecutor: UnownedSerialExecutor {
+                    fatalError("must not evaluate custom executor")
+                }
+            }
+
+            final class UnsupportedCustomExecutorGlobalActorProbe:
+                @unchecked Sendable
+            {
+                @UnsupportedCustomExecutorGlobalActor
+                func update() async {
+                    await Task.yield()
+                }
+
+                func run() async {
+                    await Task.detached {
+                        await self.update()
+                    }.value
+                }
+            }
+
+            await UnsupportedCustomExecutorGlobalActorProbe().run()
+            """)
+            Issue.record("custom global-actor executor was physically admitted")
+        } catch let thrown as InterpretedThrow {
+            let error = try #require(
+                thrown.value.hostPayload as? RuntimeError)
+            #expect(error.fatal)
+            #expect(error.message.contains("custom actor executor"))
+            #expect(error.message.contains(
+                "UnsupportedCustomExecutorGlobalActor"))
+        } catch {
+            Issue.record("unexpected custom-executor failure: \(error)")
+        }
+
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func unsupportedIsolationAndResultFamiliesStayCooperative()
         async throws
     {
@@ -434,18 +534,115 @@ struct RuntimeSourceCallTargetTests {
             }
         }
 
+        @globalActor
+        actor UnsupportedNominalGlobalActor {
+            static let shared = UnsupportedNominalGlobalActor()
+        }
+
+        actor UnsupportedWrappedGlobalActorExecutor {}
+
+        @globalActor
+        struct UnsupportedWrappedGlobalActor {
+            static let shared = UnsupportedWrappedGlobalActorExecutor()
+        }
+
+        @globalActor
+        enum UnsupportedEnumGlobalActor {
+            static let shared = UnsupportedWrappedGlobalActorExecutor()
+        }
+
+        final class UnsupportedNominalGlobalActorProbe:
+            @unchecked Sendable
+        {
+            var observation = ""
+
+            @UnsupportedNominalGlobalActor
+            func argumentBearing(_ value: Int) async {
+                await Task.yield()
+                observation = "\\(value)"
+            }
+
+            @UnsupportedNominalGlobalActor
+            func stringResult() async -> String {
+                await Task.yield()
+                return "global"
+            }
+
+            func run() async -> String {
+                await Task.detached {
+                    await self.argumentBearing(12)
+                }.value
+                let text = await Task.detached {
+                    await self.stringResult()
+                }.value
+                return await output(text)
+            }
+
+            @UnsupportedNominalGlobalActor
+            func output(_ text: String) -> String {
+                "\\(observation):\\(text)"
+            }
+        }
+
+        final class UnsupportedWrappedGlobalActorProbe:
+            @unchecked Sendable
+        {
+            var observation = ""
+
+            @UnsupportedWrappedGlobalActor
+            func update() async {
+                await Task.yield()
+                observation = "wrapped"
+            }
+
+            func run() async -> String {
+                await Task.detached {
+                    await self.update()
+                }.value
+                return await output()
+            }
+
+            @UnsupportedWrappedGlobalActor
+            func output() -> String { observation }
+        }
+
+        final class UnsupportedEnumGlobalActorProbe:
+            @unchecked Sendable
+        {
+            var observation = ""
+
+            @UnsupportedEnumGlobalActor
+            func update() async {
+                await Task.yield()
+                observation = "enumerated"
+            }
+
+            func run() async -> String {
+                await Task.detached {
+                    await self.update()
+                }.value
+                return await output()
+            }
+
+            @UnsupportedEnumGlobalActor
+            func output() -> String { observation }
+        }
+
         @MainActor
         func probe() async -> String {
             let isolated = await IsolationProbe().run()
             let actor = await ActorProbe().run()
-            return "\\(isolated):\\(actor)"
+            let nominal = await UnsupportedNominalGlobalActorProbe().run()
+            let wrapped = await UnsupportedWrappedGlobalActorProbe().run()
+            let enumerated = await UnsupportedEnumGlobalActorProbe().run()
+            return "\\(isolated):\\(actor):\\(nominal):\\(wrapped):\\(enumerated)"
         }
 
         await probe()
         """)
 
         #expect(value.stringValue
-            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9")
+            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9:12:global:wrapped:enumerated")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime
