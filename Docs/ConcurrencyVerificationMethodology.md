@@ -826,6 +826,42 @@ ownership/capture/worker suites, all forty-three methodology checks, and all
 twenty parity repetitions in nineteen seconds; its post-build lanes each took
 about two seconds.
 
+Its thirty-sixth prerequisite is a gap closure for CotEditor's next
+demand-cited captured scalar expression. `EditorCounter.swift:176` executes
+`await Task.detached { selectedStrings.map(\.count).reduce(0, +) }.value`,
+where `selectedStrings` is a local immutable `[Substring]`. The exact semantic
+question is whether explicit parallel mode may publish the sum of Swift
+grapheme counts while only a recursive value snapshot and typed IR cross the
+worker boundary. Worker start and completion order are not asserted.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete strict Swift 6
+mode with warnings as errors and returned exact `6:10` in twenty bounded runs.
+Each native five-repetition shard reported SHA-256
+`ddbe36d8251c2e1a3d3d558a0e0796e114031f85a98cde26c8536d13562ab0ed`.
+The captured RED was receipt-based: interpreted behavior already returned
+`6:10` through cooperative fallback, but explicit parallel mode recorded zero
+physical source executions instead of two.
+
+MainActor lowering admits only the exact `map(\.count).reduce(0, +)` syntax, a
+capture box owned directly by the closure environment, an immutable source
+binding, and an array whose recursively copied elements are String snapshots.
+It emits one executor-neutral String-count-sum node. The worker performs Swift
+grapheme counts and checked integer addition only. Mutable bindings, globals,
+alternate seeds, authored signatures, alternate map spellings, and every
+non-String element remain cooperative before any worker evaluation occurs.
+
+Twenty paired cooperative/parallel runs preserve exact `6:10`, empty task
+registries, and zero/two receipts. The dedicated TSan runner rebuilt its cache
+and passed the twenty-iteration native overlap probe plus all twenty
+driver/source-kernel tests on four workers, with no interceptor or race
+diagnostic. The complete sanitized board took 146 seconds, including a
+137-second rebuild. This extends the claim only to the exact immutable
+Substring-array count reduction; every future physical kernel must extend both
+the mode differential and sanitizer board again. The canonical prebuilt
+focused iteration completed 57 tests in nine ownership/worker suites, all
+forty-three methodology checks, and all twenty parity repetitions on four
+workers in five seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

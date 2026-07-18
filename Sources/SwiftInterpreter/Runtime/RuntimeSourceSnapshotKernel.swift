@@ -8,6 +8,7 @@ nonisolated indirect enum RuntimeSourceSnapshotExpression:
 {
     case binding(String)
     case stringCount(RuntimeSourceSnapshotExpression)
+    case stringCountSum(RuntimeSourceSnapshotExpression)
 
     func execute(
         with capability: RuntimeWorkerCapability
@@ -28,6 +29,26 @@ nonisolated indirect enum RuntimeSourceSnapshotExpression:
                     "physical String.count kernel received a non-String snapshot")
             }
             return .int(value.count)
+        case .stringCountSum(let base):
+            guard case .array(let values) = try base.execute(
+                with: capability) else {
+                throw RuntimeError(message:
+                    "physical String-count reduction received a non-array snapshot")
+            }
+            var total = 0
+            for value in values {
+                guard case .string(let string) = value else {
+                    throw RuntimeError(message:
+                        "physical String-count reduction received a non-String element")
+                }
+                let addition = total.addingReportingOverflow(string.count)
+                guard !addition.overflow else {
+                    throw RuntimeError(message:
+                        "physical String-count reduction overflowed Int")
+                }
+                total = addition.partialValue
+            }
+            return .int(total)
         }
     }
 }
@@ -87,6 +108,10 @@ extension Interpreter {
             expression, closure: closure, entry: entry) {
             capability = lowered.capability
             kernel = lowered.kernel
+        } else if let lowered = try capturedImmutableStringArrayCountKernel(
+            expression, closure: closure, entry: entry) {
+            capability = lowered.capability
+            kernel = lowered.kernel
         } else {
             return nil
         }
@@ -136,6 +161,83 @@ extension Interpreter {
         return (
             capability,
             .expression(.stringCount(.binding(name))))
+    }
+
+    /// CotEditor's selection counter executes
+    /// `Task.detached { selectedStrings.map(\.count).reduce(0, +) }` over a
+    /// local immutable array. Lower that exact demand-cited spelling to a
+    /// recursively copied array snapshot and typed reduction node. Alternate
+    /// map/reduce spellings and every mutable/global binding remain confined.
+    private func capturedImmutableStringArrayCountKernel(
+        _ expression: ExprSyntax,
+        closure: ClosureValue,
+        entry: RuntimeEntry
+    ) throws -> (
+        capability: RuntimeWorkerCapability,
+        kernel: RuntimeSourceSnapshotKernel
+    )? {
+        guard let reduceCall = expression.as(FunctionCallExprSyntax.self),
+              reduceCall.trailingClosure == nil,
+              reduceCall.additionalTrailingClosures.isEmpty,
+              let reduceMember = reduceCall.calledExpression
+                .as(MemberAccessExprSyntax.self),
+              reduceMember.declName.baseName.text == "reduce",
+              reduceMember.declName.argumentNames == nil,
+              let mapCall = reduceMember.base?
+                .as(FunctionCallExprSyntax.self),
+              mapCall.trailingClosure == nil,
+              mapCall.additionalTrailingClosures.isEmpty,
+              let mapMember = mapCall.calledExpression
+                .as(MemberAccessExprSyntax.self),
+              mapMember.declName.baseName.text == "map",
+              mapMember.declName.argumentNames == nil,
+              let reference = mapMember.base?
+                .as(DeclReferenceExprSyntax.self),
+              reference.argumentNames == nil else {
+            return nil
+        }
+
+        let reduceArguments = Array(reduceCall.arguments)
+        let mapArguments = Array(mapCall.arguments)
+        guard reduceArguments.count == 2,
+              reduceArguments.allSatisfy({ $0.label == nil }),
+              reduceArguments[0].expression.trimmedDescription == "0",
+              reduceArguments[1].expression.trimmedDescription == "+",
+              mapArguments.count == 1,
+              mapArguments[0].label == nil,
+              let keyPath = mapArguments[0].expression
+                .as(KeyPathExprSyntax.self),
+              keyPath.trimmedDescription == #"\.count"# else {
+            return nil
+        }
+
+        let name = reference.baseName.text
+        guard let box = closure.captured.locallyOwnedBox(for: name),
+              !box.isMutableBinding,
+              case .array(let values) = try box.load(),
+              values.allSatisfy({
+                  if case .string = $0 { return true }
+                  return false
+              }) else {
+            return nil
+        }
+
+        let capability = try entry.makeWorkerCapability(copying: [
+            RuntimeWorkerSourceBinding(name: name, value: .array(values)),
+        ])
+        guard capability.bindings.count == 1,
+              capability.bindings[0].name == name,
+              case .array(let copiedValues) = capability.bindings[0].value,
+              copiedValues.allSatisfy({
+                  if case .string = $0 { return true }
+                  return false
+              }) else {
+            throw RuntimeError(message:
+                "physical String-count reduction produced an invalid snapshot")
+        }
+        return (
+            capability,
+            .expression(.stringCountSum(.binding(name))))
     }
 
     private static func singleExpression(

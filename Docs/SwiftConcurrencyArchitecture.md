@@ -1275,6 +1275,14 @@ binding-plus-String-count IR. Mutable/global captures and every other shape
 retain cooperative evaluation; only copied Sendable values and typed IR cross
 to the driver, and MainActor materializes the result.
 
+The second corpus-demanded scalar expression is CotEditor's
+`Task.detached { selectedStrings.map(\.count).reduce(0, +) }`, where the local
+immutable value is `[Substring]`. Admission requires that exact zero-seed
+key-path/reduction spelling and a directly owned immutable array whose runtime
+elements all copy as String snapshots. MainActor recursively copies the array
+and emits one typed String-count-sum node. Mutable bindings, globals, alternate
+seeds, closure-map spellings, and non-String elements remain cooperative.
+
 Scoped sanitizer stage (2026-07-18): `run-concurrency-tsan.sh` owns a separate
 sanitized build cache. Its native checked-Atomic overlap executable performs
 twenty bounded repetitions in one process, and its prebuilt test bundle runs
@@ -1284,9 +1292,11 @@ otherwise-zero-exit "interceptors not installed" diagnostic. A twenty-pair
 same-source test requires cooperative and parallel modes to return the same
 `atlas:42`, with zero versus two physical receipts and empty task registries.
 A second twenty-pair test requires exact `5:9` and the same zero/two receipt
-split for the immutable-String-count kernel. All seventeen driver/source-kernel
-tests run under TSan. This receipt covers only the checked driver, constant
-snapshot kernel, and typed immutable-String-count kernel; future value shapes,
+split for the immutable-String-count kernel. A third requires exact `6:10` and
+the same receipt split for the immutable-Substring-array count reduction. All
+twenty driver/source-kernel tests run under TSan. This receipt covers only the
+checked driver, constant snapshot kernel, typed immutable-String-count kernel,
+and typed immutable-Substring-array reduction; future value shapes,
 suspending, actor, host, or heap-capable kernels require their own expanded
 differential and sanitizer evidence.
 
@@ -2941,10 +2951,12 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Two narrow physical paths now exist behind a validated explicit
+  covered. Three narrow physical paths now exist behind a validated explicit
   mode: a signature-free, argument-free, single-literal `Task.detached`
-  closure, and the CotEditor-cited `string.count` spelling when `string` is a
-  locally captured immutable String. Both lower to checked snapshot kernels
+  closure; the CotEditor-cited `string.count` spelling when `string` is a
+  locally captured immutable String; and CotEditor's
+  `selectedStrings.map(\.count).reduce(0, +)` spelling over a local immutable
+  `[Substring]`. All three lower to checked snapshot kernels
   and have paired cooperative/parallel plus TSan evidence. The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
@@ -3430,13 +3442,24 @@ bindings, globals, authored signatures, and other expressions stay
 cooperative. Same-source mode parity and the scoped TSan board cover this new
 kernel alongside the literal kernel.
 
+The third source-kernel stage (2026-07-18) is demand-cited by CotEditor's
+`EditorCounter.swift:176`. Explicit parallel mode may lower
+`Task.detached { selectedStrings.map(\.count).reduce(0, +) }` only when the
+capture environment directly owns `selectedStrings`, its source binding is
+immutable, and every `[Substring]` runtime element is representable as a copied
+String snapshot. MainActor emits typed String-count-sum IR; the worker performs
+only grapheme counts and checked integer addition. Mutable/global bindings,
+alternate seeds, authored signatures, and alternate map/reduce spellings stay
+cooperative. Same-source parity and the scoped TSan board cover this kernel.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families, call-site
 and compiler metadata indexing remain incomplete, mutable symbol
 materialization plus evaluator state must move fully behind the session, and
 demand-cited value, richer scalar-expression, and suspending kernels still need
-safe lowering. The scoped literal/String-count differential and TSan board is
+safe lowering. The scoped literal/String-count/Substring-reduction differential
+and TSan board is
 green, but the board must expand with every future worker kernel before M9 can
 close.
 
