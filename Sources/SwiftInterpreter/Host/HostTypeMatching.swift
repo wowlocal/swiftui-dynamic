@@ -2,6 +2,7 @@ import Foundation
 
 // MARK: - Type matching
 
+@MainActor
 extension HostSignature {
     static func matchType(
         _ value: RuntimeValue,
@@ -450,6 +451,7 @@ extension HostSignature {
 /// concrete `Interpreter` augments named-type checks with interpreted symbols
 /// and `HostRegistry.hostTypeName`, but test embedders do not need to implement
 /// those hooks merely to use typed primitive gateways.
+@MainActor
 enum HostRuntimeTypeSystem {
     static func typeName(of value: RuntimeValue) -> String {
         switch value {

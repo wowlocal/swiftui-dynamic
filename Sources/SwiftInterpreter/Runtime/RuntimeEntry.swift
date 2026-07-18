@@ -11,7 +11,7 @@
 /// this type does not make `Environment`, `Box`, or `Instance` worker-safe.
 @MainActor
 final class RuntimeEntry {
-    enum Kind: Sendable, Equatable {
+    nonisolated enum Kind: Sendable, Equatable {
         case program
         case hostCallback
         case swiftUITask

@@ -40,6 +40,9 @@ private struct ConcurrencyParityCase: Decodable {
     let nativeWarningContains: [String]?
     let interpreterWarningContains: [String]?
     let interpreterCompletionPolicy: String?
+    let interpreterExecutionMode: String?
+    let interpreterMaximumParallelism: Int?
+    let expectedPhysicalSourceKernelExecutions: Int?
     let diagnosticContains: [String]?
     let diagnosticLine: Int?
     let interpreterDiagnosticContains: [String]?
@@ -586,8 +589,26 @@ private enum ConcurrencyParityHarness {
         let fixture = parityRoot.appendingPathComponent(parityCase.fixture)
         let source = try String(contentsOf: fixture, encoding: .utf8)
             + "\n" + entry + "\n"
+        let executionMode: RuntimeExecutionMode
+        switch parityCase.interpreterExecutionMode {
+        case nil, "cooperative":
+            executionMode = .cooperative
+        case "parallel":
+            guard let maximum = parityCase.interpreterMaximumParallelism else {
+                throw RuntimeError(message:
+                    "parallel parity case '\(parityCase.id)' needs a worker bound")
+            }
+            executionMode = .parallel(try RuntimeParallelismConfiguration(
+                maximumParallelism: maximum))
+        case .some(let unknown):
+            throw RuntimeError(message:
+                "unknown interpreter execution mode '\(unknown)' "
+                    + "for '\(parityCase.id)'")
+        }
         let hostSequenceRegistry = try ParityHostAsyncSequenceRegistry()
-        let interpreter = Interpreter(registry: hostSequenceRegistry)
+        let interpreter = Interpreter(
+            registry: hostSequenceRegistry,
+            executionMode: executionMode)
         hostSequenceRegistry.interpreter = interpreter
         var waitStarted = false
         var expectedDetachedContextID: UInt64?
@@ -1135,6 +1156,16 @@ private enum ConcurrencyParityHarness {
         else {
             throw RuntimeError(message:
                 "case '\(parityCase.id)' leaked task/scope/group/stream/host runtime ownership")
+        }
+
+        if let expected = parityCase
+                .expectedPhysicalSourceKernelExecutions,
+           interpreter.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions != expected {
+            throw RuntimeError(message:
+                "case '\(parityCase.id)' expected \(expected) physical "
+                    + "source kernels but observed "
+                    + "\(interpreter.concurrencyRuntime.totalPhysicalSourceKernelExecutions)")
         }
 
         if hostSequenceRegistry.nextCallCount > 0 {

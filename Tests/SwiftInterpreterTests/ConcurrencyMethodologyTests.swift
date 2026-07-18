@@ -2974,6 +2974,95 @@ struct ConcurrencyMethodologyTests {
                     + "of a user-configured external diff or text conversion"))
     }
 
+    @Test func physicalWorkerDriverProbesStayOffTheDefaultMainActor() throws {
+        let source = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Tests/SwiftInterpreterTests/RuntimePhysicalWorkerDriverTests.swift"),
+            encoding: .utf8)
+
+        #expect(source.contains(
+            "@Suite(\"Runtime physical worker driver\")\n"
+                + "nonisolated struct RuntimePhysicalWorkerDriverTests"),
+            Comment(rawValue:
+                "physical worker probes must not yield behind the package's "
+                    + "process-wide MainActor test queue while detached jobs "
+                    + "are holding bounded-worker deadlines"))
+        #expect(source.contains("await MainActor.run"),
+            Comment(rawValue:
+                "only MainActor-confined capability projection should hop "
+                    + "back to MainActor; worker orchestration must remain "
+                    + "nonisolated"))
+    }
+
+    @Test func closingGateUsesOneXcodeToolchainForBuildAndOracle() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+
+        for required in [
+            "swift_driver_path=$(xcrun --find swift",
+            "\"$swift_driver_path\" build --build-tests",
+            "\"$swift_driver_path\" test list --skip-build",
+            "toolchain_policy=xcrun-pinned",
+        ] {
+            #expect(script.contains(required),
+                Comment(rawValue:
+                    "closing gate lost its single-toolchain contract: "
+                        + required))
+        }
+        #expect(!script.contains("\nswift build"))
+        #expect(!script.contains("\nswift test"))
+    }
+
+    @Test func closingGatePinsTheCurrentProjectCorpusCensus() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+        let loop = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent("LOOP.md"),
+            encoding: .utf8)
+
+        #expect(loop.contains("ZERO absorptions across 586\n  projects"))
+        #expect(script.contains(
+            "corpus:*\"586/586 projects pass\"*)"),
+            Comment(rawValue:
+                "the closing gate must fail closed on the current 586-project "
+                    + "census instead of parsing the retired 680-project "
+                    + "denominator"))
+        #expect(!script.contains("678/680"))
+    }
+
+    @Test func physicalParallelismTSanBoardIsSourceBound() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/run-concurrency-tsan.sh"),
+            encoding: .utf8)
+
+        for required in [
+            "--scratch-path \"$scratch_path\"",
+            "--sanitize thread",
+            "-sanitize=thread",
+            "TSAN_OPTIONS='halt_on_error=1:exitcode=66'",
+            "PREBUILT_TEST_DYLD_INSERT_LIBRARIES=\"$inserted_libraries\"",
+            "Tests/RuntimeIsolation/NativeDetachedOverlap.swift",
+            "\"$native_dir/overlap\" 20",
+            "PREBUILT_TEST_SCRATCH_PATH=\"$scratch_path\"",
+            "RuntimePhysicalWorkerDriverTests|RuntimeParallelSourceKernelTests",
+            "Interceptors are not working|interceptors not installed",
+            "run_with_deadline 60",
+            "run_with_deadline 600",
+            "-MPOSIX=setsid",
+            "kill -KILL -- \"-$pid\"",
+        ] {
+            #expect(script.contains(required),
+                Comment(rawValue: "TSan board lost required contract: \(required)"))
+        }
+        #expect(!script.contains("swift test"),
+            "cached TSan execution must bypass SwiftPM planning")
+    }
+
     @Test func gateReceiptContractIsSourceBoundAndActionable() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(

@@ -275,6 +275,7 @@ extension Interpreter {
         case writeOnly
     }
 
+    @MainActor
     enum DictionaryDefault {
         case resolved(RuntimeValue)
         case deferred(ExprSyntax, Environment)
@@ -289,6 +290,7 @@ extension Interpreter {
         }
     }
 
+    @MainActor
     indirect enum LValue {
         case box(Box)
         case instanceProperty(Instance, String)

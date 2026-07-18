@@ -1,7 +1,9 @@
 import Foundation
 
 /// A located evaluation or parse error, surfaced verbatim in the demo's error bar.
-public struct RuntimeError: Error, CustomStringConvertible {
+public nonisolated struct RuntimeError:
+    Error, CustomStringConvertible, Sendable
+{
     public let message: String
     public let line: Int
     public let column: Int
@@ -26,6 +28,7 @@ public struct RuntimeError: Error, CustomStringConvertible {
 
 /// A value thrown by interpreted `throw` — caught by interpreted `catch`,
 /// where the binding sees the original value (enum case, instance, …).
+@MainActor
 public struct InterpretedThrow: Error {
     public let value: RuntimeValue
 
@@ -36,7 +39,7 @@ public struct InterpretedThrow: Error {
 
 /// An error thrown where no syntax node is at hand (e.g. inside the operator
 /// table); the evaluator catches it and re-throws with a source location.
-struct EvalMessage: Error {
+nonisolated struct EvalMessage: Error, Sendable {
     let text: String
 }
 

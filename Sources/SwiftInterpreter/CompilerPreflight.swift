@@ -942,6 +942,7 @@ struct CompilerPreflightModuleImport {
     let searchPath: String
 }
 
+@MainActor
 final class CompilerPreflightCache {
     private let capacity: Int
     private var values: [String: CompilerPreflightResult] = [:]
@@ -968,6 +969,7 @@ final class CompilerPreflightCache {
     }
 }
 
+@MainActor
 final class CompilerPreflightHostModuleBuild {
     let module: CompilerPreflightHostModule
     private var artifactDirectory: URL?
@@ -1061,6 +1063,7 @@ final class CompilerPreflightHostModuleBuild {
 
 /// A bounded, compiler-backed semantic check. Compiler failures are returned
 /// as data; only discovery, launch, and deadline failures throw.
+@MainActor
 public final class SwiftCompilerPreflight {
     public static let emptyGatewayManifestSHA256 =
         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"

@@ -4,6 +4,7 @@ import SwiftSyntax
 /// environment captured at creation. Methods are represented as closures whose
 /// captured environment has `self` bound. `isBuilder` marks `@ViewBuilder`
 /// functions and `some View` returns — their bodies evaluate in builder mode.
+@MainActor
 public final class ClosureValue {
     public nonisolated struct Parameter: Sendable {
         public let name: String
@@ -130,6 +131,11 @@ public final class ClosureValue {
     /// which a nonisolated factory happened to run. APIs whose parameters
     /// inherit actor context use it independently from task lineage/locals.
     public var lexicalExecutor: RuntimeExecutorKind?
+    /// True only for a source closure expression with no authored signature.
+    /// Explicit attributes, captures, effects, parameters, or return clauses
+    /// remain on the cooperative evaluator until their transfer semantics are
+    /// modeled rather than inferred from a literal body.
+    var isPhysicalSnapshotKernelCandidate = false
     /// Immutable source-program capability retained by escaped callbacks. A
     /// fresh host/runtime entry can therefore recover every indexed
     /// declaration fact without consulting whichever program the facade ran
@@ -169,7 +175,7 @@ public final class ClosureValue {
 }
 
 /// Identity of a host-extension method execution (type + member).
-public struct ExtensionFrame: Hashable {
+public nonisolated struct ExtensionFrame: Hashable, Sendable {
     public let typeName: String
     public let member: String
 }

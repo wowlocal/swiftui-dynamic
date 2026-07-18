@@ -2,6 +2,7 @@ import SwiftSyntax
 
 /// A computed property's accessors. `isBuilder` marks `@ViewBuilder`
 /// members and `some View` return types — those evaluate in builder mode.
+@MainActor
 public struct ComputedProperty {
     public struct Setter {
         public let body: CodeBlockItemListSyntax
@@ -55,6 +56,7 @@ public struct ComputedProperty {
 /// A user-defined struct collected from source: stored properties (with their
 /// initializer syntax and property-wrapper kind), computed properties, methods,
 /// custom initializers, statics, and whether the inheritance clause mentions `View`.
+@MainActor
 public final class StructSymbol {
     public enum Wrapper: Equatable {
         case none

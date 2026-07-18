@@ -4,7 +4,8 @@ import Foundation
 /// interpreter supports. A missing bound represents a partial range; Swift's
 /// range operators always include the lower bound, so only the upper edge
 /// needs an inclusivity bit.
-public struct RuntimeRangeValue: CustomStringConvertible {
+@MainActor
+public struct RuntimeRangeValue: @preconcurrency CustomStringConvertible {
     public let lowerBound: RuntimeValue?
     public let upperBound: RuntimeValue?
     public let includesUpperBound: Bool

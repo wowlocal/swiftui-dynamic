@@ -5,7 +5,7 @@ import SwiftSyntax
 /// interpreter facade or a Swift task. A source task may resume on another
 /// pthread after suspension, so every cached value records the thread that
 /// supplied it.
-struct EvaluationStackBounds {
+nonisolated struct EvaluationStackBounds: Sendable {
     let threadID: UInt64
     let lowerBound: UInt
     let size: UInt
@@ -23,6 +23,7 @@ struct EvaluationStackBounds {
 /// interleave at any host suspension. Keeping their dynamic stacks in this
 /// object makes that ownership explicit and removes the need to park shared
 /// fields on `Interpreter` around every await.
+@MainActor
 final class EvaluationTaskContext {
     @TaskLocal static var current: EvaluationTaskContext?
 

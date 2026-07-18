@@ -2,6 +2,7 @@ import Foundation
 
 /// Task-owned lexical frame. It is cheap until the first structured child is
 /// declared; only then does it acquire a runtime scope record.
+@MainActor
 final class RuntimeStructuredScopeFrame {
     let ownerTaskID: RuntimeTaskID?
     var runtimeScope: RuntimeStructuredScopeRecord?
@@ -15,6 +16,7 @@ final class RuntimeStructuredScopeFrame {
 /// Cleanup registrations preserve source order so `defer` and structured
 /// child teardown unwind together in LIFO order. The evaluator owns deferred
 /// syntax bodies by integer slot; the runtime frame owns async-let groups.
+@MainActor
 enum RuntimeLexicalCleanupRegistration {
     case deferredBody(Int)
     case asyncLet(RuntimeAsyncLetCleanupGroup)
@@ -23,6 +25,7 @@ enum RuntimeLexicalCleanupRegistration {
 /// One `async let` declaration registers one cleanup even when it declares
 /// several independent bindings. All children in that declaration are
 /// cancelled first and then joined before the next outer cleanup runs.
+@MainActor
 final class RuntimeAsyncLetCleanupGroup {
     var children: [RuntimeAsyncLetChild] = []
 }
@@ -30,6 +33,7 @@ final class RuntimeAsyncLetCleanupGroup {
 /// One structured initializer child. A tuple pattern creates several source
 /// bindings that project this same immutable outcome, while scope ownership,
 /// cancellation, joining, and record release happen exactly once per child.
+@MainActor
 final class RuntimeAsyncLetChild {
     let handle: RuntimeTaskHandle
     private(set) var wasExplicitlyAwaited = false
@@ -64,6 +68,7 @@ final class RuntimeAsyncLetChild {
 /// carrier hides the child and selects one projection of its stored outcome.
 /// An empty path is the ordinary identifier binding; tuple destructuring adds
 /// one zero-based index for each nested tuple level.
+@MainActor
 final class RuntimeAsyncLetBinding {
     let name: String
     let child: RuntimeAsyncLetChild

@@ -64,6 +64,7 @@ enum RuntimeTaskGroupKind: CaseIterable, Equatable, Sendable {
 /// Source-facing capability for one active task-group scope.
 /// Swift prevents this value from escaping through `inout`; runtime checks
 /// retain the same lifetime boundary for dynamically invoked source.
+@MainActor
 final class RuntimeTaskGroup {
     let record: RuntimeTaskGroupRecord
     private(set) var childHandles: [RuntimeTaskHandle] = []
@@ -141,6 +142,7 @@ final class RuntimeTaskGroup {
 /// It intentionally shares the owning group's completion queue while retaining
 /// a distinct member surface; returning the group itself would incorrectly
 /// expose child creation and cancellation through an iterator value.
+@MainActor
 final class RuntimeTaskGroupIterator: HostValueSemantic {
     let group: RuntimeTaskGroup
     private(set) var isFinished: Bool

@@ -4,6 +4,7 @@ import SwiftSyntax
 /// Hosts may retain it and re-enter from a newly-created native task; every
 /// callback is rebound to the original evaluator context instead of relying
 /// on ambient native TaskLocal inheritance.
+@MainActor
 final class TaskBoundEvalContext: EvalContext {
     let interpreter: Interpreter
     let evaluationContext: EvaluationTaskContext
@@ -797,6 +798,18 @@ extension Interpreter: EvalContext {
             operationExecutor: operationExecutor)
         let handle = pending.handle
         let arguments = arguments
+        let physicalKernelJob: RuntimePhysicalWorkerJob?
+        if evaluationTaskContext.isAsyncSession,
+           kind == .detached,
+           startPolicy == .enqueued {
+            physicalKernelJob = try makePhysicalSourceKernelJob(
+                closure: closure,
+                arguments: arguments,
+                entry: pending.entry,
+                priority: pending.priority)
+        } else {
+            physicalKernelJob = nil
+        }
 
         // Existing synchronous clients cannot suspend to await child work.
         // Preserve their deterministic contract while returning the same
@@ -832,6 +845,14 @@ extension Interpreter: EvalContext {
                     guard let self else {
                         throw RuntimeError(message:
                             "interpreter was released during source task")
+                    }
+                    if let physicalKernelJob,
+                       let driver = self.physicalWorkerDriver {
+                        let snapshot = try await driver.executeSourceKernel(
+                            physicalKernelJob)
+                        self.concurrencyRuntime
+                            .recordPhysicalSourceKernelExecution()
+                        return snapshot.materializedRuntimeValue()
                     }
                     return try await self.callBackgroundClosureSuspending(
                         closure, arguments: arguments)

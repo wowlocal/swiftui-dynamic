@@ -2,6 +2,7 @@
 /// the state's Box. The bridge coerces it into a real `Binding<Bool/Double/
 /// String>` whose setter writes the box — which fires `onChange` and therefore
 /// re-renders, the same path Button actions use.
+@MainActor
 public final class BindingStub {
     public let box: Box
 

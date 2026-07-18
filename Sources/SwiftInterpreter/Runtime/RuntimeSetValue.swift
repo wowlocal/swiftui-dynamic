@@ -5,7 +5,8 @@
 /// accept an equality operation for construction and algebra. The order is an
 /// implementation detail used only for deterministic iteration/description;
 /// equality and set operations remain order-independent.
-public struct RuntimeSetValue: CustomStringConvertible {
+@MainActor
+public struct RuntimeSetValue: @preconcurrency CustomStringConvertible {
     public typealias Equality = (RuntimeValue, RuntimeValue) throws -> Bool
 
     public private(set) var elements: [RuntimeValue]
