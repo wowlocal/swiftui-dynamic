@@ -2831,3 +2831,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   menu content, or driving the link's AX press instead of the item
   action. Boards R4 13/13, R2 18/18. GATE GREEN 1103s. MERGE-READY
   6e03323 still pending steward action.
+- 2026-07-18 MENU-LINK "GAP" IS NATIVE PARITY (worktree iteration 78):
+  the steward merged i71-i75 (0b5f487) and WITHDREW the cold-build
+  receipt bar per the lane's flake data. The i77 menu-link wiring
+  class dissolved under a native control probe
+  (Scripts/probes/menu-link-probe.swift): performActionForItem does
+  not fire a menu-hosted NavigationLink NATIVELY either — TYPED or
+  AnyView-ERASED both stay unpushed while menu Buttons fire fine. The
+  interpreted app is in PARITY under the only driver we have; the
+  drill's pushed= is a DRIVER limitation (the i67 offscreen-harness
+  genre), and the erased-vs-typed hypothesis was wrong on both counts.
+  The executing navigationDestination bridge stays landed and ready
+  for a future real menu-tracking click driver. Boards unchanged
+  (comment-only delta since the i77 gate GREEN 1103s).

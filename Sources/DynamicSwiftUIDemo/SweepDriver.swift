@@ -200,13 +200,14 @@ enum SweepDriver {
                     let drillCounts = tableRowCounts(in: window)
                     let pushed = window.title.hasPrefix("Order#")
                     let tableGone = !drillCounts.contains { $0 >= 20 }
-                    // KNOWN GAP (reported, not asserted): the fired menu
-                    // item's action is inert for the AnyView-erased
-                    // NavigationLink — SwiftUI wires typed links into menu
-                    // items, not erased ones. The executing
-                    // navigationDestination bridge is landed; the item
-                    // wiring is the open class (i77). Flip into the verdict
-                    // when it closes.
+                    // PARITY, not a gap (native probe
+                    // Scripts/probes/menu-link-probe.swift, i78):
+                    // performActionForItem does not fire menu-hosted
+                    // NavigationLinks NATIVELY either — typed or erased —
+                    // while menu Buttons fire fine. pushed= stays reported
+                    // until the sweep gains a real menu-tracking click
+                    // driver; the executing navigationDestination bridge is
+                    // landed and ready for it.
                     let drillLanded = drill.didFire && pushed && tableGone
                     print("SWEEP \(step.name)-drill fired=\(drill.didFire) title=\"\(window.title)\" tables=\(drillCounts) pushed=\(drillLanded)")
                     previous = capture(
