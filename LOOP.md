@@ -2752,3 +2752,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   content). 4th-round attribution filed; i71+i72 exonerated and
   waiting. The abort is now COLD-BUILD conditional — the receipt
   standard itself (clean-detached) exposes it.
+- 2026-07-18 oss:Mythic INVESTIGATED — RELEASE-SEMANTICS EXPERIMENT
+  RUN AND ROLLED BACK (worktree iteration 73): the Mythic failure is
+  the APP'S OWN precondition — a #if DEBUG-only "Back (DEBUG)" button
+  with no guard traps BY DESIGN when clicked at stage 0; even a native
+  debug build crashes on that click. The experiment: a new
+  Interpreter.interpretsWithCompilationConditions knob (the
+  interpretsAsPlatform idea for #if DEBUG-family gates) let the corpus
+  driver run RELEASE semantics — Mythic passed (9 clean actions), but
+  the trade surfaced iina (its Logger's DEBUG-only `guard enabled`
+  compiles out in release, unconditional logging blows the evaluation
+  budget) plus a third sharded-run regression: corpus 678 -> 677.
+  Boards never regress: the DRIVER DEFAULT reverted to DEBUG-active
+  (matching `swift build` twins); the KNOB stays, pinned by
+  ReleaseDriverSemanticsTests (knob-scoped: DEBUG-only actions
+  excluded under release conditions). The palette #if pin now uses a
+  condition-agnostic gate (canImport(SwiftUI)) — same machinery
+  coverage, no build-config coupling. Mythic re-classified: an
+  app-authored debug trap, not an interpreter divergence — candidates
+  for closure: driver-level disabled/guard awareness, or upstream
+  quarantine with reason. GATE GREEN 1101s (corpus 678/680 restored).
