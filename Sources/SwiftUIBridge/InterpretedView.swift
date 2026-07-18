@@ -85,6 +85,10 @@ public enum RenderDiagnostics {
 /// deliberately resets state — the old program's state may not even fit the
 /// new program.
 final class StateStore: ObservableObject {
+    /// Bumped on every body evaluation — the self-healing resend proves a
+    /// sync objectWillChange actually re-rendered before skipping the
+    /// deferred one (split islands drop synchronous sends; i70/i71).
+    var renderTick: UInt64 = 0
     private var boxes: [String: Box] = [:]
 
     /// Idempotent and cheap — runs on every body evaluation.
@@ -111,11 +115,29 @@ final class StateStore: ObservableObject {
         where property.wrapper == .stateObject || property.wrapper == .observedObject
             || property.wrapper == .environmentObject {
             guard case .instance(let model)? = instance.box(for: property.name)?.value else { continue }
+            if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
+                print("TRACE-BINDING subscribe \(instance.symbol.name) store=\(ObjectIdentifier(self))")
+            }
             model.changeSignal.subscribe(ObjectIdentifier(self)) { [weak self, viewName = instance.symbol.name] in
                 if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
-                    print("TRACE-BINDING signal -> \(viewName) store \(self == nil ? "DEAD" : "live")")
+                    print("TRACE-BINDING signal -> \(viewName) store=\(self.map { String(describing: ObjectIdentifier($0)) } ?? "DEAD")")
                 }
-                self?.objectWillChange.send()
+                // Sync send first (headless probes and the HStack hosting
+                // re-render on it, and pins encode that contract) — then a
+                // SELF-HEALING resend: a synchronous send during AppKit
+                // action dispatch inside a NavigationSplitView column's
+                // hosting island is DROPPED by SwiftUI (A/B body-eval
+                // traces, i70/i71). If this store's render tick has not
+                // advanced by the next runloop turn, the send is re-issued;
+                // when the sync send worked, the tick advanced and no
+                // second render happens.
+                guard let store = self else { return }
+                let tick = store.renderTick
+                store.objectWillChange.send()
+                DispatchQueue.main.async { [weak store] in
+                    guard let store, store.renderTick == tick else { return }
+                    store.objectWillChange.send()
+                }
             }
         }
     }
@@ -140,6 +162,7 @@ public struct InterpretedView: View {
     }
 
     public var body: some View {
+        store.renderTick &+= 1
         if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
             print("TRACE-BINDING body-eval \(instance.symbol.name)")
         }

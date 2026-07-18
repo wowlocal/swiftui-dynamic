@@ -4691,14 +4691,17 @@ enum Corpus {
         }
         enum NavigationTarget: String, CaseIterable {
             case general
-            #if DEBUG
+            // canImport(SwiftUI) is active under BOTH debug and the
+            // corpus driver's RELEASE semantics — the pin covers #if
+            // MEMBERS in enum bodies/switch arms, not build-config policy.
+            #if canImport(SwiftUI)
             case developer = "developer"
             #endif
 
             var title: String {
                 switch self {
                 case .general: "General"
-                #if DEBUG
+                #if canImport(SwiftUI)
                 case .developer: "Developer"
                 #endif
                 }

@@ -2712,3 +2712,94 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (subscription keyed per store; the ACTIVE island store may never be
   the one subscribed), or the send arriving outside the island's
   update cycle. titled= stays reported-only.
+- 2026-07-18 SPLIT-ISLAND RE-RENDERS HEALED: THE SELF-HEALING SEND
+  (worktree iteration 71): store-identity tracing killed the
+  stale-subscription theory (ONE DetailColumn store, subscribed and
+  delivered), and the deferred-send experiment proved the mechanism —
+  a SYNCHRONOUS objectWillChange during AppKit action dispatch inside
+  a NavigationSplitView column's hosting island is DROPPED by SwiftUI;
+  one runloop turn later the same send re-renders. An unconditional
+  defer broke two pins that encode the synchronous contract
+  (stateObjectPersists renders==1; homeAssistant root chain), so the
+  landed design is the SELF-HEALING SEND: sync send first, then a
+  deferred resend ONLY if the store's render tick (bumped per body
+  evaluation) has not advanced — no double render when sync works, the
+  island heals when it drops. Verified: 10 island body-evals on the
+  editor mutate under the real split; both pins green; R4 13/13, R2
+  18/18, R3 all-ok. GATE GREEN 1108s. Remaining title layer: bodies
+  re-evaluate and navigationTitle re-applies, but the island's
+  titlebar bridge still shows the old name — next iteration.
+- 2026-07-18 RENAME-RETITLE CLOSED: titled= ASSERTED (worktree
+  iteration 72): the title trace exposed the FINAL twist — the
+  re-applied navigationTitle carried the OLD name because the sweep's
+  rename NEVER RENAMED: a programmatic stringValue set never reaches
+  the SwiftUI field coordinator's editing buffer (it listens via
+  controlTextDidChange), so sendAction committed the STALE buffer and
+  committed= was reading back our own set. The sweep now posts
+  controlTextDidChange before committing — and the WHOLE chain lights
+  up: real edit -> nested-field publish (i69) -> self-healing send
+  (i71) -> island re-render -> navigationTitle re-apply -> titlebar
+  "New Donut X", matching TwinRetitleApp's native truth exactly.
+  titled= GRADUATED into the hard R4 verdict (the i63 promise).
+  Boards: R4 13/13 with the assertion, R2 18/18, gate GREEN 1113s.
+  The 2026-07-16 RUN-THE-APP directive's checklist is now fully
+  asserted end to end: navigation, order completion via real menu,
+  both picker mutations, editor rename INCLUDING the native titlebar
+  behavior, live map, all screens AE=0.
+- 2026-07-18 i72 ADDENDUM: MERGE-BLOCKED — main's worker abort is BACK
+  under cold-detached conditions (clean main 8097881 RED, kept logs;
+  my tip same signature twice; warm worktree gates GREEN on identical
+  content). 4th-round attribution filed; i71+i72 exonerated and
+  waiting. The abort is now COLD-BUILD conditional — the receipt
+  standard itself (clean-detached) exposes it.
+- 2026-07-18 oss:Mythic INVESTIGATED — RELEASE-SEMANTICS EXPERIMENT
+  RUN AND ROLLED BACK (worktree iteration 73): the Mythic failure is
+  the APP'S OWN precondition — a #if DEBUG-only "Back (DEBUG)" button
+  with no guard traps BY DESIGN when clicked at stage 0; even a native
+  debug build crashes on that click. The experiment: a new
+  Interpreter.interpretsWithCompilationConditions knob (the
+  interpretsAsPlatform idea for #if DEBUG-family gates) let the corpus
+  driver run RELEASE semantics — Mythic passed (9 clean actions), but
+  the trade surfaced iina (its Logger's DEBUG-only `guard enabled`
+  compiles out in release, unconditional logging blows the evaluation
+  budget) plus a third sharded-run regression: corpus 678 -> 677.
+  Boards never regress: the DRIVER DEFAULT reverted to DEBUG-active
+  (matching `swift build` twins); the KNOB stays, pinned by
+  ReleaseDriverSemanticsTests (knob-scoped: DEBUG-only actions
+  excluded under release conditions). The palette #if pin now uses a
+  condition-agnostic gate (canImport(SwiftUI)) — same machinery
+  coverage, no build-config coupling. Mythic re-classified: an
+  app-authored debug trap, not an interpreter divergence — candidates
+  for closure: driver-level disabled/guard awareness, or upstream
+  quarantine with reason. GATE GREEN 1101s (corpus 678/680 restored).
+- 2026-07-18 apple-browsers POLLUTION HUNT: OSS HALF EXONERATED
+  (worktree iteration 74): the second corpus backstop failure
+  ("subscripting is only supported on arrays and dictionaries, got ''"
+  at request.allHTTPHeaderFields?[...]) is CROSS-UNIT POLLUTION — the
+  project passes SOLO and fails only after other units run in-process;
+  the empty-stringified receiver is the fresh-string doctrine's ""
+  (member resolution flipped to absorbed under pollution). Bisect
+  progress: pair runs (firefox-ios/RedditOS/Mythic/iina -> browsers)
+  clean; the FULL 93-unit oss chain in one process -> browsers CLEAN —
+  the polluter is in the ~586-unit ZIP half. A --window lo:hi --then
+  <name> bisect flag landed in ProjectCheck but its first run sliced
+  25 units instead of 341 (zip-unit enumeration interacts with the
+  slice — instrument bug, fix first next iteration). NOTE: the
+  sharded gate corpus reports 678/680 with this failure INCLUDED —
+  the baseline is unchanged; this is queue work, not a regression.
+- 2026-07-18 apple-browsers EXONERATED — CORPUS AT ITS HONEST CEILING
+  (worktree iteration 75): the i74 "25 units" instrument mystery was
+  ProjectCheck's DEFAULT limit=25 (and `--filter` was never a flag —
+  unknown args become the corpus ROOT; the confusing "from Mythic"
+  header). With the cache guard extended to window/then runs, four
+  bisect rounds settled it: [0:293], [293:486], [486:679], AND the
+  full [0:679] chain each leave apple-browsers GREEN — its subscript
+  failure existed ONLY under the i73 release-semantics experiment
+  (its request setup differs under #if DEBUG), never in the baseline.
+  The last green gate's corpus log confirms: 678/680 = ONE real
+  failure (oss:Mythic, the app-authored debug trap) + ONE census skip
+  (oss:MonitorControl, no View structs). The corpus backstop is at its
+  honest ceiling; Mythic stays the documented single red (it does not
+  meet the quarantine bar — that is for third-party-internals
+  dependencies). The --window/--then bisect instrument + fixed cache
+  guard stay landed for future pollution hunts.
