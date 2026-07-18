@@ -1,6 +1,260 @@
 {
   "declarations" : [
     {
+      "attributes" : [
+        "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
+        "@_alwaysEmitIntoClient",
+        "@_unavailableFromAsync(message: \"await the call to the @MainActor closure directly\")"
+      ],
+      "container" : "MainActor",
+      "declaration" : "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)\n  @_alwaysEmitIntoClient @_unavailableFromAsync(message: \"await the call to the @MainActor closure directly\") public static func assumeIsolated<T>(_ operation: @_Concurrency.MainActor () throws -> T, file: Swift.StaticString = #fileID, line: Swift.UInt = #line) rethrows -> T where T : Swift.Sendable",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "rethrowing"
+      },
+      "id" : "swift-concurrency-api-v1:552c828c1fac0e6a837d1e6c0d8600350ba401c7c3f00a76bc280a519099444b",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "assumeIsolated",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "modifiers" : [
+
+          ],
+          "name" : "operation",
+          "sendableFunction" : false,
+          "type" : "@_Concurrency.MainActor () throws -> T"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "#fileID",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "file",
+          "modifiers" : [
+
+          ],
+          "name" : "file",
+          "sendableFunction" : false,
+          "type" : "Swift.StaticString"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "#line",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "line",
+          "modifiers" : [
+
+          ],
+          "name" : "line",
+          "sendableFunction" : false,
+          "type" : "Swift.UInt"
+        }
+      ],
+      "returnType" : "T"
+    },
+    {
+      "attributes" : [
+        "@inlinable"
+      ],
+      "container" : "MainActor",
+      "declaration" : "@inlinable nonisolated final public func enqueue(_ job: _Concurrency.UnownedJob)",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:584e872051a6b607e2c4d59f6fb0aad89c46b6df63a2197d8ded43eef0fba063",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : true
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "nonisolated",
+        "final",
+        "public"
+      ],
+      "name" : "enqueue",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "modifiers" : [
+
+          ],
+          "name" : "job",
+          "sendableFunction" : false,
+          "type" : "_Concurrency.UnownedJob"
+        }
+      ]
+    },
+    {
+      "adapterIntrinsic" : "mainActorRun",
+      "attributes" : [
+        "@_alwaysEmitIntoClient"
+      ],
+      "container" : "MainActor",
+      "declaration" : "@_alwaysEmitIntoClient public static func run<T>(resultType: T.Type = T.self, body: @_Concurrency.MainActor @Sendable () throws -> T) async rethrows -> T where T : Swift.Sendable",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : true,
+        "throwsKind" : "rethrowing"
+      },
+      "id" : "swift-concurrency-api-v1:660039d579edc3f53940329eb72b5087780e6a55275c4d8c83a3240c3692dc26",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "run",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "T.self",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "resultType",
+          "modifiers" : [
+
+          ],
+          "name" : "resultType",
+          "sendableFunction" : false,
+          "type" : "T.Type"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "body",
+          "modifiers" : [
+
+          ],
+          "name" : "body",
+          "sendableFunction" : true,
+          "type" : "@_Concurrency.MainActor @Sendable () throws -> T"
+        }
+      ],
+      "returnType" : "T"
+    },
+    {
+      "attributes" : [
+
+      ],
+      "container" : "MainActor",
+      "declaration" : "public static let shared: _Concurrency.MainActor",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:97537a8eaf32698d75b71f71f63f3fe1f54a823acddf577f57f70e84d9d7112c",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "variable",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "shared",
+      "parameters" : [
+
+      ],
+      "returnType" : "_Concurrency.MainActor"
+    },
+    {
+      "attributes" : [
+        "@inlinable"
+      ],
+      "container" : "MainActor",
+      "declaration" : "@inlinable public static var sharedUnownedExecutor: _Concurrency.UnownedSerialExecutor {\n    get {\n    return UnownedSerialExecutor(Builtin.buildMainActorExecutorRef())\n  }\n  }",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:0a627c47d2d6baaf9e637c902ccc458adf037074207546a9a3e3ea0595ba5ee1",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "variable",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "sharedUnownedExecutor",
+      "parameters" : [
+
+      ],
+      "returnType" : "_Concurrency.UnownedSerialExecutor"
+    },
+    {
+      "attributes" : [
+        "@inlinable"
+      ],
+      "container" : "MainActor",
+      "declaration" : "@inlinable nonisolated final public var unownedExecutor: _Concurrency.UnownedSerialExecutor {\n    get {\n    return UnownedSerialExecutor(Builtin.buildMainActorExecutorRef())\n  }\n  }",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:d1e8503be214a029392b7dd3065a2924fd5c3adb70f90bca9930116a9edb26cf",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : true
+      },
+      "kind" : "variable",
+      "modifiers" : [
+        "nonisolated",
+        "final",
+        "public"
+      ],
+      "name" : "unownedExecutor",
+      "parameters" : [
+
+      ],
+      "returnType" : "_Concurrency.UnownedSerialExecutor"
+    },
+    {
       "adapterIntrinsic" : "currentTaskIdentityEquals",
       "attributes" : [
 
@@ -9469,11 +9723,11 @@
       "availability evaluation and non-identifier variable bindings",
       "enclosing extension attributes, conformances, generic constraints, and duplicate declarations collapsed by canonical declaration text"
     ],
-    "id" : "top-level-functions-and-task-family-members-v4",
+    "id" : "top-level-functions-and-task-family-members-v5",
     "included" : [
       "public top-level function overloads",
       "public static and instance Task function/variable declarations",
-      "public function/variable declarations on selected nominal concurrency families (currently UnsafeCurrentTask)",
+      "public function/variable declarations on selected nominal concurrency families (currently MainActor and UnsafeCurrentTask)",
       "declarations selected by active compiler conditional-compilation regions",
       "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
       "public function/variable declarations on directly nested TaskGroup.Iterator and ThrowingTaskGroup.Iterator types"
@@ -9488,10 +9742,10 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 127,
-    "declarationCount" : 171,
+    "adapterRoutedDeclarationCount" : 128,
+    "declarationCount" : 177,
     "declarationsByDomain" : {
-      "selected-nominal-member" : 9,
+      "selected-nominal-member" : 15,
       "task-group-iterator-member" : 6,
       "task-group-member" : 71,
       "task-instance-member" : 11,

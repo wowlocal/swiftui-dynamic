@@ -3026,8 +3026,8 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Six narrow snapshot-kernel paths, one demand-cited physical sleep
-  prefix, and five demand-cited physical source-call-wrapper paths now exist
+  covered. Six narrow snapshot-kernel paths, two demand-cited physical sleep-
+  prefix spellings, and five demand-cited physical source-call-wrapper paths now exist
   behind a validated explicit mode. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
@@ -3065,7 +3065,12 @@ Each milestone is independently gated through
   the stable registered core-Task identity; lexically shadowed source calls
   remain cooperative. FreeChat's exact signature-free two-item body may also
   run its `try?` sleep prefix physically, then hand a Sendable identity token
-  to a confined suffix/outcome record before ordinary evaluation resumes. The general
+  to a confined suffix/outcome record before ordinary evaluation resumes.
+  Provenance's exact capture-only weak-self spelling reuses that boundary for
+  `Task.sleep(nanoseconds:)`, then enters imported `MainActor.run(body:)`
+  through a selected-nominal intrinsic generated from the active
+  `_Concurrency.swiftinterface`; a same-named source type cannot borrow it.
+  The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
 
@@ -4687,6 +4692,43 @@ containment. The exact-tip physical board passed all 78 tests in one second;
 the rebuilt scoped TSan board passed native overlap 20/20 plus all 78 tests in
 60 seconds without a race or interceptor diagnostic.
 
+The seventy-fourth prerequisite adds Provenance's exact capture-only
+`[weak self]` variant of that two-item continuation shape. Its first item must
+be `try? await Task.sleep(nanoseconds: <nonnegative integer literal>)` resolved
+to the registered core `Task`; its second item is one awaited expression. The
+worker command carries only the checked `UInt64` literal and executes native
+`Task.sleep(nanoseconds:)`. Captured/computed nanoseconds, other labels,
+unlabeled overloads, richer bodies, and non-weak capture shapes remain
+cooperative.
+
+The confined suffix enters `MainActor.run(body:)` through a selected-nominal
+intrinsic generated from the active `_Concurrency.swiftinterface`. Selected
+nominal collection covers actor-body declarations as well as extensions, so
+all six active `MainActor` members enter the reviewed 177-row denominator.
+The runtime dispatch therefore requires the imported `HostTypeMarker` identity;
+a same-named source `MainActor.run` retains source precedence. The demand-
+cited omitted-`resultType` trailing body executes under the logical MainActor,
+while an explicit `resultType:` and generated-but-unrouted `assumeIsolated`,
+`enqueue`, and executor members fail closed with named diagnostics. This prevents
+the former silent implicit-member no-op without pretending the complete
+generic declaration is implemented.
+
+Strict native and interpreted execution returned exact
+`completed:false,cancelled:true|false:true` in twenty runs. The standalone
+native observation digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`;
+every five-run focused shard retained
+`432229c2edb0bd47e62066c636a5d17499311877f8ea718aa1af5c2ddd3f0263`.
+Before the fix, parallel mode recorded zero physical receipts and both
+interpreter modes returned `|false:true` because the imported run body was
+discarded. Focused parity passed 20/20 on four workers, and all 39 parallel
+source-kernel regressions passed, including target-shadow and fail-closed
+controls. The exact-tip physical board passed all 82 tests in three suites in
+one second; a fresh TSan build passed native overlap 20/20 plus all 82 tests in
+32 seconds without a race or interceptor diagnostic. The canonical prebuilt
+iteration completed 45 targeted tests in two suites, all 46 methodology/gate
+checks, and all 20 parity repetitions in 13 seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4707,7 +4749,7 @@ behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
-try-optional-sleep-prefix/
+try-optional-sleep-prefixes/
 MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor/
 inherited-source-call
 and strong-self-capture-source-call
@@ -4718,6 +4760,7 @@ and parallel-detached-weak-inherited-captured-string-source-call
 and parallel-detached-weak-inherited-string-array-source-call
 and parallel-detached-inherited-try-optional-source-call
 and parallel-detached-try-optional-sleep-prefix
+and parallel-detached-try-optional-nanoseconds-sleep-prefix
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension

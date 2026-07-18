@@ -883,6 +883,42 @@ extension Interpreter {
             }
             let baseValue = evaluatedBase
 
+            // Provenance uses `_Concurrency.MainActor.run(body:)` after a
+            // detached sleep. Admit that API only through the intrinsic
+            // generated from the active _Concurrency.swiftinterface. A bare
+            // host-type marker is the imported nominal identity; same-named
+            // source types resolve to source symbols before reaching this
+            // branch. Execute the synchronous trailing body under the logical
+            // MainActor executor and return its value instead of degrading the
+            // static member to an inert implicit-member marker.
+            if case .host(let payload) = baseValue,
+               let marker = payload as? HostTypeMarker,
+               GeneratedConcurrencySurface.nominalMemberIntrinsic(
+                typeName: marker.name, memberName: name) == .mainActorRun {
+                guard call.arguments.isEmpty,
+                      call.trailingClosure != nil,
+                      call.additionalTrailingClosures.isEmpty else {
+                    throw error(
+                        call,
+                        "MainActor.run(resultType:body:) is unsupported; "
+                            + "only the demand-backed MainActor.run(body:) "
+                            + "spelling is supported")
+                }
+                let arguments = try await collectArgumentsSuspending(
+                    of: call, in: env)
+                guard arguments.arguments.count == 1,
+                      let body = arguments.lastUnlabeledClosure else {
+                    throw error(
+                        call,
+                        "MainActor.run(body:) requires one trailing closure")
+                }
+                return try await callWithArgumentsSuspending(
+                    body,
+                    args: CallArguments(),
+                    node: Syntax(call),
+                    contextualExecutor: .mainActor)
+            }
+
             if let target = try? resolveLValue(baseExpression, in: env),
                let current = try? target.read(self),
                case .instance(let receiver) = current,

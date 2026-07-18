@@ -444,6 +444,102 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func tryOptionalNanosecondsSleepPrefixReentersMainActorContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-try-optional-nanoseconds-sleep-prefix.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedTryOptionalNanosecondsSleepPrefixProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test func explicitMainActorRunResultTypeFailsClosed() async throws {
+        let interpreter = Interpreter()
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            await MainActor.run(resultType: String.self) {
+                "unsupported"
+            }
+            """)
+            Issue.record("expected explicit-result MainActor.run diagnostic")
+        } catch let runtime as RuntimeError {
+            #expect(runtime.message.contains(
+                "MainActor.run(resultType:body:) is unsupported"))
+        } catch {
+            Issue.record("unexpected MainActor.run failure: \(error)")
+        }
+    }
+
+    @Test func generatedMainActorRunIdentityDoesNotCaptureSourceShadow()
+        async throws
+    {
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: """
+        struct MainActor {
+            static func run(body: () -> String) -> String {
+                "source:" + body()
+            }
+        }
+        MainActor.run { "body" }
+        """)
+
+        #expect(value.stringValue == "source:body")
+    }
+
+    @Test func generatedMainActorUnroutedMemberFailsClosed() async throws {
+        let probes = [
+            ("MainActor.assumeIsolated { \"unsupported\" }",
+             "MainActor.assumeIsolated"),
+            ("MainActor.sharedUnownedExecutor",
+             "MainActor.sharedUnownedExecutor"),
+            ("MainActor.shared.unownedExecutor",
+             "MainActor.unownedExecutor"),
+            ("MainActor.shared.enqueue", "MainActor.enqueue"),
+        ]
+
+        for (source, expectedMember) in probes {
+            let interpreter = Interpreter()
+            do {
+                _ = try await interpreter.runAsync(source: source)
+                Issue.record(
+                    "expected generated \(expectedMember) diagnostic")
+            } catch let runtime as RuntimeError {
+                #expect(runtime.message.contains(expectedMember))
+                #expect(runtime.message.contains(
+                    "declared by the active _Concurrency.swiftinterface"))
+            } catch {
+                Issue.record(
+                    "unexpected \(expectedMember) failure: \(error)")
+            }
+        }
+    }
+
+    @Test
     func confinedSleepContinuationReleasesPermitBeforeNestedPhysicalWork()
         async throws
     {
@@ -499,11 +595,12 @@ struct RuntimeParallelSourceKernelTests {
         }
         await forcedTry.value
 
-        let alternateOverload = Task.detached {
-            try? await Task.sleep(nanoseconds: 0)
+        let nanoseconds = 0
+        let capturedNanoseconds = Task.detached {
+            try? await Task.sleep(nanoseconds: nanoseconds)
             await mark()
         }
-        await alternateOverload.value
+        await capturedNanoseconds.value
 
         let unsupportedUnit = Task.detached {
             try? await Task.sleep(for: .microseconds(0))

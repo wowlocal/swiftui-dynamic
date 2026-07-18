@@ -2059,6 +2059,43 @@ on four workers in one second; the exact-tip physical board passed all 78
 tests in one second. The rebuilt scoped TSan board passed native overlap 20/20
 plus all 78 tests in 60 seconds without a race or interceptor diagnostic.
 
+The seventy-fourth M9 slice asks whether Provenance's exact capture-only
+weak-self detached body preserves Swift's cancellation and MainActor
+continuation semantics when it uses deprecated
+`Task.sleep(nanoseconds:)`. The cited spelling is
+`Task.detached(priority: .utility) { [weak self] in try? await
+Task.sleep(nanoseconds: 100_000_000); await MainActor.run {
+self?.setupPrimarySubscriptions() } }` at
+`ImportProgressViewModel.swift:132-136`.
+
+Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
+concurrency checking and warnings as errors. Native and interpreted execution
+returned exact `completed:false,cancelled:true|false:true` in twenty bounded
+repetitions. The standalone native observation digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`;
+every five-run focused shard retained
+`432229c2edb0bd47e62066c636a5d17499311877f8ea718aa1af5c2ddd3f0263`.
+
+The deterministic RED had two independent parts. Parallel execution recorded
+zero physical submissions/executions instead of two, and both interpreter
+modes returned `|false:true`: imported `MainActor.run` had degraded into an
+implicit-member marker whose trailing body was silently discarded. The
+repair admits only a nonnegative nanoseconds integer literal in the exact
+two-item weak-self shape and reuses the confined continuation/outcome token.
+It also extends the active-interface generator's selected nominal inventory
+to actor-body declarations as well as extensions, bringing the reviewed
+denominator to 177/177, and dispatches `MainActor.run` through that generated
+intrinsic rather than a raw source name. A same-named source type remains
+source-resolved; explicit `resultType:` and generated-but-unrouted
+`assumeIsolated`, `enqueue`, and executor members fail closed.
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 39/39. The exact-tip physical board passed
+82/82 in three suites in one second; a fresh TSan build passed native overlap
+20/20 plus all 82 tests in 32 seconds without a race or interceptor
+diagnostic. The canonical prebuilt iteration completed 45 targeted tests in
+two suites, all 46 methodology/gate checks, and all 20 parity repetitions in
+13 seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

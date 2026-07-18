@@ -1803,6 +1803,14 @@ extension Interpreter {
                 return value
             }
             if let marker = any as? HostTypeMarker {
+                if GeneratedConcurrencySurface.knowsNominalMember(
+                    typeName: marker.name, memberName: name
+                ) {
+                    throw RuntimeError(message:
+                        "\(marker.name).\(name) is declared by the active "
+                            + "_Concurrency.swiftinterface but is not "
+                            + "supported in this call path")
+                }
                 // MODULE-qualified globals (`Swift.max`, `Foundation.pow`)
                 // strip the qualifier — the merge has no modules. DECLARED
                 // types never answer: `SwiftUI.Tab` explicitly bypasses the

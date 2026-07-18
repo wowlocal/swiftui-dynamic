@@ -123,12 +123,13 @@ nonisolated enum RuntimeSourceSnapshotKernel: Sendable, Equatable {
     case expression(RuntimeSourceSnapshotExpression)
     case taskYield
     case taskSleep(RuntimeSourceSnapshotDurationExpression)
+    case taskSleepNanoseconds(UInt64)
 
     var cancellationBehavior: RuntimeSourceKernelCancellationBehavior {
         switch self {
         case .constant, .expression, .taskYield:
             return .unobserved
-        case .taskSleep:
+        case .taskSleep, .taskSleepNanoseconds:
             return .observed
         }
     }
@@ -151,6 +152,9 @@ nonisolated enum RuntimeSourceSnapshotKernel: Sendable, Equatable {
         case .taskSleep(let durationExpression):
             let duration = try durationExpression.execute(with: capability)
             try await Task.sleep(for: .nanoseconds(duration.nanoseconds))
+            return .void
+        case .taskSleepNanoseconds(let nanoseconds):
+            try await Task.sleep(nanoseconds: nanoseconds)
             return .void
         }
     }
@@ -271,20 +275,20 @@ extension Interpreter {
             permitLifetime: .operation)
     }
 
-    /// FreeChat uses a detached body whose first statement is a contained
-    /// throwing sleep and whose second statement re-enters application code.
-    /// Execute only that proven core-Task sleep on a worker. The suffix remains
-    /// a MainActor-confined closure owned by RuntimeTaskRecord, and its complete
-    /// RuntimeValue/Error outcome is redeemed by the logical task after the
-    /// worker returns a Sendable completion token.
+    /// FreeChat and Provenance use detached bodies whose first statement is a
+    /// contained throwing sleep and whose second statement re-enters
+    /// application code. Execute only the exact demand-proven core-Task sleep
+    /// on a worker. The suffix remains a MainActor-confined closure owned by
+    /// RuntimeTaskRecord, and its complete RuntimeValue/Error outcome is
+    /// redeemed by the logical task after the worker returns a Sendable
+    /// completion token.
     private func physicalTryOptionalSleepPrefixJob(
         closure: ClosureValue,
         entry: RuntimeEntry,
         record: RuntimeTaskRecord,
         priority: RuntimeTaskPriority
     ) throws -> RuntimePhysicalSourceKernelJob? {
-        guard closure.isPhysicalSnapshotKernelCandidate,
-              closure.body.count == 2,
+        guard closure.body.count == 2,
               let first = closure.body.first,
               let firstExpression = Self.singleExpression(in: first),
               let attempt = firstExpression.as(TryExprSyntax.self),
@@ -298,9 +302,7 @@ extension Interpreter {
               resolvesCoreTaskCall(
                 sleepCall, named: "sleep", closure: closure),
               Array(sleepCall.arguments).count == 1,
-              sleepCall.arguments.first?.label?.text == "for",
-              let durationExpression = sleepCall.arguments.first?.expression,
-              let duration = sourceSnapshotSleepDuration(durationExpression),
+              let sleepArgument = sleepCall.arguments.first,
               let suffixItem = closure.body.last,
               case .expr(let suffixExpression) = suffixItem.item,
               suffixExpression.is(AwaitExprSyntax.self),
@@ -308,6 +310,21 @@ extension Interpreter {
               record.physicalSourceCall == nil,
               record.physicalSourceContinuation == nil,
               closure.programPlan === entry.programPlan else {
+            return nil
+        }
+
+        let sleepKernel: RuntimeSourceSnapshotKernel
+        if closure.isPhysicalSnapshotKernelCandidate,
+           sleepArgument.label?.text == "for",
+           let duration = sourceSnapshotSleepDuration(
+               sleepArgument.expression) {
+            sleepKernel = .taskSleep(.constant(duration))
+        } else if closure.isPhysicalWeakSelfSourceCallCandidate,
+                  sleepArgument.label?.text == "nanoseconds",
+                  let nanoseconds = sourceSnapshotNanosecondsLiteral(
+                      sleepArgument.expression) {
+            sleepKernel = .taskSleepNanoseconds(nanoseconds)
+        } else {
             return nil
         }
 
@@ -343,8 +360,6 @@ extension Interpreter {
             taskID: record.id)
         let handoff = RuntimePhysicalSourceExecutorHandoff()
         let relay = concurrencyRuntime.sourceContinuationReentryRelay
-        let sleepKernel = RuntimeSourceSnapshotKernel.taskSleep(
-            .constant(duration))
         record.physicalSourceContinuation =
             RuntimeRegisteredPhysicalSourceContinuation(
                 command: command,
@@ -1197,6 +1212,21 @@ extension Interpreter {
         let product = amount.multipliedReportingOverflow(by: scale)
         guard !product.overflow else { return nil }
         return .nanoseconds(product.partialValue)
+    }
+
+    /// Provenance's exact deprecated-era spelling supplies one nonnegative
+    /// UInt64-compatible integer literal to `Task.sleep(nanoseconds:)`.
+    /// Captured/computed values and the unlabeled deprecated overload remain
+    /// cooperative until separately demand-cited.
+    private func sourceSnapshotNanosecondsLiteral(
+        _ expression: ExprSyntax
+    ) -> UInt64? {
+        guard let literal = expression.as(IntegerLiteralExprSyntax.self),
+              let parsed = try? integerValue(of: literal),
+              parsed >= 0 else {
+            return nil
+        }
+        return UInt64(parsed)
     }
 
     private static func singleExpression(

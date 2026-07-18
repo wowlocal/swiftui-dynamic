@@ -2847,6 +2847,21 @@
     "notes": "FreeChat demand-cites `Task.detached(priority: .userInitiated) { try? await Task.sleep(for: .seconds(1)); await submit(input) }` at ConversationView.swift:228-231. The bounded same-source fixture executes a zero-duration success branch and immediately cancels a 30-second branch, so cancellation rather than elapsed time opens the second continuation. Apple Swift 6.3.3 compiled it in complete-strict Swift 6 mode with warnings as errors and returned exact completed:false,cancelled:true|false:true in twenty bounded native/interpreter runs; every five-run native shard retained SHA-256 0a5b2906a7b66290e031388b4917c98fc54cbd9670544a3d5a05930982e24523, and the standalone twenty-line observation had SHA-256 21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e. The deterministic receipt RED already returned the exact value through cooperative fallback but recorded zero physical submissions/executions instead of two. Admission is capped to an exact signature-free two-item body whose first item is a registered core-Task `try?` sleep over a nonnegative integer-literal seconds/milliseconds duration and whose second item is one awaited expression. The worker executes only the sleep. RuntimeTaskRecord retains the suffix and its complete RuntimeValue/Error outcome behind a Sendable entry/task token; cancellation reaches the actual worker sleep, and the bounded permit is released before confined re-entry under the originating EvaluationTaskContext. Plain try, try!, alternate overloads/units, three-item/reversed bodies, and authored signatures remain cooperative. Four focused regressions cover parity, nested-work liveness, negative admission, and fatal-trap containment; the exact-tip physical board passed 78 tests in three suites in one second, and the rebuilt scoped TSan board passed native overlap 20/20 plus all 78 tests in 60 seconds without a race or interceptor diagnostic."
   },
   {
+    "id": "parallel-detached-try-optional-nanoseconds-sleep-prefix",
+    "fixture": "Fixtures/parallel-detached-try-optional-nanoseconds-sleep-prefix.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedTryOptionalNanosecondsSleepPrefixProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A detached task whose `try? await Task.sleep(nanoseconds:)` is followed by `MainActor.run` suppresses sleep cancellation and executes the MainActor continuation in the same cancelled task; the continuation observes the cancellation bit and the handle completes successfully.",
+    "notes": "Provenance demand-cites `Task.detached(priority: .utility) { [weak self] in try? await Task.sleep(nanoseconds: 100_000_000); await MainActor.run { self?.setupPrimarySubscriptions() } }` at ImportProgressViewModel.swift:132-136. The bounded same-source fixture retains that weak-capture, literal-nanoseconds, and MainActor-run shape with zero-duration success and immediately cancelled 30-second branches. Strict Apple Swift 6.3.3 returned exact `completed:false,cancelled:true|false:true` in twenty bounded runs; the standalone observation digest was 21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e and every five-run focused shard retained 432229c2edb0bd47e62066c636a5d17499311877f8ea718aa1af5c2ddd3f0263. Before the fix, parallel mode recorded zero physical receipts and both interpreter modes returned `|false:true` because imported MainActor.run degraded to an inert member marker. The active _Concurrency.swiftinterface now generates an exact MainActor.run intrinsic; same-named source types retain source precedence, explicit resultType plus generated-but-unrouted MainActor members fail closed, and only a nonnegative nanoseconds integer literal in the cited two-item weak-self closure is physically admitted. The exact-tip physical board passed 82/82 in three suites; a fresh TSan build passed native overlap 20/20 plus all 82 tests in 32 seconds without a race or interceptor diagnostic."
+  },
+  {
     "id": "parallel-detached-weak-concurrent-string-source-call",
     "fixture": "Fixtures/parallel-detached-weak-concurrent-string-source-call.swift",
     "mode": "runtime",

@@ -203,6 +203,15 @@ extension Interpreter {
         if let iterator = any as? RuntimeTaskGroupIterator {
             return try sourceTaskGroupIteratorMember(name, on: iterator)
         }
+        if any is RuntimeActorIsolationValue,
+           GeneratedConcurrencySurface.knowsNominalMember(
+            typeName: "MainActor", memberName: name
+           ) {
+            throw RuntimeError(message:
+                "MainActor.\(name) is declared by the active "
+                    + "_Concurrency.swiftinterface but is not supported "
+                    + "on the runtime MainActor isolation value")
+        }
         if let task = any as? RuntimeUnsafeCurrentTask {
             switch GeneratedConcurrencySurface.nominalMemberIntrinsic(
                 typeName: "UnsafeCurrentTask", memberName: name
@@ -225,6 +234,13 @@ extension Interpreter {
                 // RuntimeUnsafeCurrentTask consults this generated route from
                 // its HostRuntimeEquatable implementation.
                 return nil
+            case .mainActorRun:
+                // Intrinsics are nominal-scoped; this branch handles only a
+                // RuntimeUnsafeCurrentTask receiver. Generator/runtime drift
+                // must fail closed rather than degrade to dynamic lookup.
+                throw RuntimeError(message:
+                    "generated MainActor.run intrinsic was selected for "
+                        + "UnsafeCurrentTask")
             case nil:
                 if GeneratedConcurrencySurface.knowsNominalMember(
                     typeName: "UnsafeCurrentTask", memberName: name
