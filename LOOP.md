@@ -2514,3 +2514,25 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   guard-cast accessor + update, ink-verified, zero diags) +
   mapKitSurfaceConstructsAndConfigures. Gate RED with main's known
   parallel-worker signature — still gate-blocked, exonerated.
+- 2026-07-18 CITY ARC SLICE 3: FROZEN TIMELINE — city rows 0.214%
+  (worktree iteration 61): the map-camera residue was PROVEN
+  nondeterminism, not geometry — native TimelineView(.animation)
+  context.date is SwiftUI-internal WALL TIME ticking at ~120Hz (probe:
+  two runs, different dates), immune to the Date.now shadow; every
+  launch captured a different camera phase (the historical 54.060
+  "stability" was grid-vs-white, rotation-invariant by ink count). Fix
+  per the frozen-clock doctrine: a module-scoped TimelineView shadow in
+  the harness shims (sync.sh, BOTH twin targets — FoodTruckKit's
+  BrandHeader animates on it too; app-only left the twin Kit on wall
+  time — and the SAME text in FoodTruckCheck's merge shim) pins
+  context.date to the shadowed Date.now under FOODTRUCK_FROZEN_NOW and
+  defers to the real TimelineView otherwise. The live demo merges
+  WITHOUT harness shims — bridge TimelineView still animates it.
+  CITY ROWS: 39.792/38.978 -> 0.214/0.214, residue = ONE 115x43 box:
+  the Measurement weather label (next class, BridgeGen Foundation arc).
+  SECOND CLASS same iteration: R3's orders rows phantom-regressed to
+  3.567% — the twin R3 cache is DAY-STALE ("Yesterday" anchors to the
+  system's real today; stale twin vs fresh interp diffs on rollover);
+  foodtruck-r3.sh now refreshes twin captures on calendar-day change.
+  R3 back to ten/ten 0.000 fresh-vs-fresh. Gate RED with main's known
+  parallel-worker signature — still gate-blocked, exonerated.

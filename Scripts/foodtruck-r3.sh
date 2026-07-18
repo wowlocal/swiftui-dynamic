@@ -14,7 +14,13 @@ export FOODTRUCK_FROZEN_NOW=${FOODTRUCK_FROZEN_NOW:-1784228400}
 TWIN=${1:-/tmp/foodtruck-twin-r3}
 INTERP=${2:-/tmp/foodtruck-interp-r3}
 
-if [ ! -f "$TWIN/donuts-after-rename.png" ]; then
+# Twin captures reuse only WITHIN a calendar day: relative date text
+# ("Yesterday" in the orders table) anchors to the system's REAL today,
+# so a stale twin vs a fresh interpreter capture diffs on day rollover
+# (phantom 3.567% on every orders row, 2026-07-18).
+if [ ! -f "$TWIN/donuts-after-rename.png" ] \
+   || [ "$(date -r "$TWIN/donuts-after-rename.png" +%Y-%m-%d)" != "$(date +%Y-%m-%d)" ]; then
+  rm -rf "$TWIN"
   (cd "$ROOT/Examples/FoodTruckNativeTwin" && swift run FoodTruckNativeTwin --out "$TWIN" --scenario all)
 fi
 (cd "$ROOT" && swift build && .build/debug/FoodTruckCheck --capture "$INTERP" --scenario all)

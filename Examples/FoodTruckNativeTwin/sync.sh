@@ -64,4 +64,56 @@ extension Double {
 }
 SHIM
 done
+for target in Sources/FoodTruckKit Sources/FoodTruckNativeTwin; do
+# TimelineView's animation clock is SwiftUI-internal WALL TIME even under
+# the Date.now shadow — frozen runs captured a different map-camera phase
+# every launch (proven: context.date ticks at ~120Hz of real now). The
+# module-scoped shadow pins context.date to the shadowed Date.now under
+# the env var and defers to the real TimelineView otherwise. BOTH
+# targets: FoodTruckKit's BrandHeader animates on it too, and an
+# app-only shadow left the twin Kit on wall time (orders rows drifted).
+cat > "$target/HarnessFrozenTimeline.swift" << 'SHIM'
+import SwiftUI
+
+// HARNESS-GENERATED (sync.sh) — not app source. See sync.sh for why.
+struct HarnessTimelineContext {
+    var date: Date
+}
+
+struct HarnessTimelineSchedule {
+    var paused: Bool
+
+    static var animation: HarnessTimelineSchedule {
+        HarnessTimelineSchedule(paused: false)
+    }
+
+    static func animation(paused: Bool) -> HarnessTimelineSchedule {
+        HarnessTimelineSchedule(paused: paused)
+    }
+}
+
+struct TimelineView<Content: View>: View {
+    var schedule: HarnessTimelineSchedule
+    var content: (HarnessTimelineContext) -> Content
+
+    init(
+        _ schedule: HarnessTimelineSchedule,
+        @ViewBuilder content: @escaping (HarnessTimelineContext) -> Content
+    ) {
+        self.schedule = schedule
+        self.content = content
+    }
+
+    var body: some View {
+        if ProcessInfo.processInfo.environment["FOODTRUCK_FROZEN_NOW"] != nil {
+            content(HarnessTimelineContext(date: Date.now))
+        } else {
+            SwiftUI.TimelineView(.animation(paused: schedule.paused)) { context in
+                content(HarnessTimelineContext(date: context.date))
+            }
+        }
+    }
+}
+SHIM
+done
 echo "synced kit=$(find Sources/FoodTruckKit -name '*.swift' | wc -l | tr -d ' ') app=$(find Sources/FoodTruckNativeTwin/App -name '*.swift' | wc -l | tr -d ' ')"
