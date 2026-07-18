@@ -1391,15 +1391,46 @@ one `Int`/`Int64` argument, an async nonthrowing Void own method, and the exact
 default receiver actor ID. Confined re-entry uses the ordinary suspending
 evaluator; therefore actor ownership before and after the yield is proved by
 the same mailbox state machine as cooperative execution. An async actor Void
-method taking a Boolean literal remains cooperative as the nearest negative
-control; String, multiple/defaulted, mutable, expression, throwing, and custom
-executor forms remain outside this slice.
+method taking a Boolean literal through a nondefaulted parameter remains
+cooperative as the nearest negative control; String, multiple/defaulted,
+mutable, expression, throwing, and custom executor forms remain outside this
+slice.
 
 The canonical focused board passed 66 tests in six suites plus all forty-three
 methodology checks and three isolated gate-contract checks; focused parity
 completed all twenty repetitions on four workers in two seconds. The rebuilt
 scoped TSan board passed native overlap 20/20 and all 52
 driver/kernel/source-call tests in three suites on four workers in 25 seconds
+without a race or interceptor diagnostic.
+
+The fifty-third M9 slice is a gap closure for Planet's exact
+`Task.detached { await self.asyncActorMethod(defaultedBool: true) }` family.
+The semantic question is whether an explicitly supplied Boolean literal can
+be copied into a defaulted Bool parameter, enter the exact receiver actor,
+release that actor at `Task.yield`, and reacquire it before continuation. The
+bounded same-source fixture asserts only the causal trace
+`start:true|done:true`. Apple Swift 6.3.3 complete-strict compilation with
+warnings as errors and interpreted execution returned that trace in twenty
+runs; every five-run native shard retained canonical SHA-256
+`1b0355375aa6a812ce51840fb7f3c38c1c21320283d5e013d0cd27e5c30e1abe`.
+No thread identity or unrelated scheduler order is asserted.
+
+Behavior was already GREEN, while the deterministic receipt RED observed
+zero physical submissions/executions instead of one. The general route table
+now distinguishes an explicitly supplied defaulted Bool parameter from both
+an omitted default and a required Boolean parameter. It reuses the checked
+Boolean snapshot, origin-bound source target, confined task-context relay,
+and ordinary suspending actor invocation. Negative controls keep omitted
+defaults, captured Bool, defaulted integer parameters, and nondefaulted
+Boolean parameters cooperative with zero receipts; String, multiple,
+mutable, expression, throwing, and custom-executor forms remain outside the
+slice.
+
+The canonical focused board passed 67 tests in six suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers in one
+second. The rebuilt scoped TSan board passed native overlap 20/20 and all 53
+driver/kernel/source-call tests in three suites on four workers in 23 seconds
 without a race or interceptor diagnostic.
 
 ## Process and liveness isolation

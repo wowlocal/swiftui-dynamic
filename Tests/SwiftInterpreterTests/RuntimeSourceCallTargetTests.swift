@@ -304,6 +304,34 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func asynchronousDefaultedActorSourceCallCopiesBooleanAndReentersMailbox()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-async-defaulted-actor-bool-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedAsyncDefaultedActorBooleanSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "start:true|done:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func unsupportedIsolationAndResultFamiliesStayCooperative()
         async throws
     {
@@ -355,6 +383,8 @@ struct RuntimeSourceCallTargetTests {
 
         actor ActorProbe {
             var booleanObservation = ""
+            var defaultedBooleanObservation = ""
+            var defaultedIntegerObservation = ""
 
             func value() async -> String { "actor" }
 
@@ -365,6 +395,16 @@ struct RuntimeSourceCallTargetTests {
             func asynchronousBoolean(_ value: Bool) async {
                 await Task.yield()
                 booleanObservation = value ? "true" : "false"
+            }
+
+            func defaultedBoolean(_ value: Bool = false) async {
+                await Task.yield()
+                defaultedBooleanObservation += value ? "T" : "F"
+            }
+
+            func defaultedInteger(_ value: Int = 0) async {
+                await Task.yield()
+                defaultedIntegerObservation = "\\(value)"
             }
 
             func run() async -> String {
@@ -380,7 +420,17 @@ struct RuntimeSourceCallTargetTests {
                 await Task.detached {
                     await self.asynchronousBoolean(true)
                 }.value
-                return "\\(asynchronous):\\(argumentBearing):\\(unsupportedResult):\\(booleanObservation)"
+                await Task.detached {
+                    await self.defaultedBoolean()
+                }.value
+                let capturedBoolean = true
+                await Task.detached {
+                    await self.defaultedBoolean(capturedBoolean)
+                }.value
+                await Task.detached {
+                    await self.defaultedInteger(9)
+                }.value
+                return "\\(asynchronous):\\(argumentBearing):\\(unsupportedResult):\\(booleanObservation):\\(defaultedBooleanObservation):\\(defaultedIntegerObservation)"
             }
         }
 
@@ -395,7 +445,7 @@ struct RuntimeSourceCallTargetTests {
         """)
 
         #expect(value.stringValue
-            == "nonisolated:7:5:3:text:true:actor:7:sync:true")
+            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime

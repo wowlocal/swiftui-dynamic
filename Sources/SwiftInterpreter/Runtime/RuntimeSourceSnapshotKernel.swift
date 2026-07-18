@@ -245,12 +245,10 @@ extension Interpreter {
             permitLifetime: .operation)
     }
 
-    /// FoodTruck, TaskObservatory, and Session-iOS create detached wrappers
-    /// whose complete body is `await self.method(...)`. Admit only direct-self
-    /// calls
-    /// after runtime resolution proves one exact supported declaration route:
-    /// an async source-class method on MainActor/@concurrent, or an
-    /// argument-free synchronous method on the receiver actor's own mailbox.
+    /// A detached wrapper may have the complete body `await self.method(...)`.
+    /// Admit only direct-self calls after runtime resolution proves one exact
+    /// supported declaration route: an async source-class method on
+    /// MainActor/@concurrent, or one of the checked default-actor shapes below.
     /// The physical worker carries only a command and checked argument
     /// snapshots; RuntimeTaskRecord retains the selected receiver closure on
     /// MainActor.
@@ -297,8 +295,7 @@ extension Interpreter {
                 target.closure.parameters,
                 loweredArguments.commandArguments
               ).allSatisfy({ parameter, argument in
-                  parameter.defaultValue == nil
-                    && !parameter.isVariadic
+                  !parameter.isVariadic
                     && !parameter.isBuilderAttributed
                     && !parameter.isIsolated
                     && argument.valueKind.accepts(
@@ -309,6 +306,7 @@ extension Interpreter {
               isSupportedPhysicalSourceCallRoute(
                 target.descriptor,
                 on: instance,
+                parameters: target.closure.parameters,
                 arguments: loweredArguments.commandArguments),
               let resultKind = RuntimePhysicalSourceCallResultKind(
                 returnTypeName: target.descriptor.returnTypeName) else {
@@ -349,17 +347,21 @@ extension Interpreter {
     /// actor's synchronous method is still an asynchronous cross-actor call:
     /// confined re-entry invokes it through the ordinary suspending evaluator,
     /// which acquires that exact actor mailbox before touching actor storage.
-    /// The only async actor route owns one copied integer argument;
-    /// other argument families, String results, explicitly nonisolated methods,
-    /// and custom actor executors remain cooperative until separately proven.
+    /// Async actor routes own either one required integer argument or one
+    /// explicitly supplied Boolean for a defaulted parameter. Other argument
+    /// families, String results, explicitly nonisolated methods, and custom
+    /// actor executors remain cooperative until separately proven.
     private func isSupportedPhysicalSourceCallRoute(
         _ target: RuntimeSourceFunctionTargetDescriptor,
         on instance: Instance,
+        parameters: [ClosureValue.Parameter],
         arguments: [RuntimePhysicalSourceCallArgument]
     ) -> Bool {
         switch target.lexicalPlacement {
         case .lexicalType(_, isTypeMember: false, isActor: false):
-            guard !instance.symbol.isActor, target.isAsync else {
+            guard !instance.symbol.isActor,
+                  target.isAsync,
+                  parameters.allSatisfy({ $0.defaultValue == nil }) else {
                 return false
             }
             return target.isolation == .executor(.mainActor)
@@ -374,12 +376,20 @@ extension Interpreter {
                 return false
             }
             let isSynchronousVoidRoute = !target.isAsync
+                && parameters.isEmpty
                 && arguments.isEmpty
             let isAsyncIntegerVoidRoute = target.isAsync
+                && parameters.allSatisfy({ $0.defaultValue == nil })
                 && arguments.count == 1
                 && arguments[0].valueKind == .integer
+            let isAsyncDefaultedBooleanVoidRoute = target.isAsync
+                && parameters.count == 1
+                && parameters[0].defaultValue != nil
+                && arguments.count == 1
+                && arguments[0].valueKind == .boolean
             guard isSynchronousVoidRoute
-                    || isAsyncIntegerVoidRoute else {
+                    || isAsyncIntegerVoidRoute
+                    || isAsyncDefaultedBooleanVoidRoute else {
                 return false
             }
             return target.isolation == .executor(.actor(actorID))

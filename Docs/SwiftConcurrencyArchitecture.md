@@ -3974,8 +3974,8 @@ Apple Swift 6.3.3 and interpreted execution returned exact
 `start:17|done:17` in twenty bounded runs; all native five-run shards retained
 canonical SHA-256
 `b2ba89617abb88d104c2131843423923d4bbf7b369d08f05192dd8985b01325a`.
-The receipt RED moved from zero to one physical execution. A Boolean-argument
-async actor control remains cooperative, as do zero-argument async,
+The receipt RED moved from zero to one physical execution. A nondefaulted
+Boolean-argument async actor control remains cooperative, as do zero-argument async,
 String/multiple/defaulted/mutable/expression arguments, throwing methods, and
 custom executors. The focused board passed 66 tests in six suites, all 46
 methodology/gate checks, and twenty parity repetitions on four workers in two
@@ -3983,12 +3983,45 @@ seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 52
 driver/kernel/source-call tests in three suites on four workers in 25 seconds
 without a race or interceptor diagnostic.
 
+The fifty-third prerequisite extends that route for Planet's explicitly
+supplied defaulted Boolean call. Default expressions remain declaration
+metadata on `ClosureValue.Parameter`; they are not evaluated during physical
+admission. Admission first requires the call to supply exactly as many
+arguments as the selected declaration has parameters, then checks one copied
+Boolean literal against one `Bool` parameter that has a default expression.
+This admits `method(flag: true)` without admitting `method()`. Required Bool,
+defaulted integer, captured Bool, expression, and multiple-argument forms
+remain distinct fail-closed capabilities.
+
+The actor route still consumes the same origin-bound method descriptor and
+Sendable source-call command. The physical wrapper carries the Boolean
+snapshot; the confined relay restores the logical `EvaluationTaskContext` and
+materializes ordinary `CallArguments` only after re-entry. Canonical actor
+invocation owns the mailbox while recording `start:true`, releases the full
+lease at `Task.yield`, and reacquires it before recording `done:true`. No
+default expression, actor, receiver, closure, environment, program state,
+heap, or evaluator is evaluated or transferred by the worker.
+
+Apple Swift 6.3.3 and interpreted execution returned exact
+`start:true|done:true` in twenty bounded runs; all native five-run shards
+retained canonical SHA-256
+`1b0355375aa6a812ce51840fb7f3c38c1c21320283d5e013d0cd27e5c30e1abe`.
+The receipt RED moved from zero to one physical execution. Focused negative
+evidence keeps omitted defaults, captured Bool, defaulted integers, and
+nondefaulted Boolean parameters cooperative. The focused board passed 67
+tests in six suites, all 46 methodology/gate checks, and twenty parity
+repetitions on four workers in one second. The rebuilt scoped TSan board
+passed native overlap 20/20 plus all 53 driver/kernel/source-call tests in
+three suites on four workers in 23 seconds without a race or interceptor
+diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
 source class/actor/host/standard-library target identities beyond the unique
 own reference-method descriptor, the exact default-actor synchronous and async
-single-Int routes, normalized callee shape, and the existing core-Task, `String.count`,
+single-Int plus explicit-single-defaulted-Bool routes, normalized callee shape,
+and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
 indexing. Mutable symbol materialization
