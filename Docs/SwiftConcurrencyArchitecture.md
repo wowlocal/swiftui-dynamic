@@ -3044,7 +3044,7 @@ Each milestone is independently gated through
   source-call bodies are signature-free except for Provenance's exact
   capture-only `{ [self] in await self.registerDefaults() }` spelling and the
   exact capture-only weak-self forms for its inherited argument-free or
-  single-String-literal calls and Amperfy's `@concurrent`
+  single-literal/captured-String calls and Amperfy's `@concurrent`
   single-captured-String call. The strong-capture proof cannot
   fall through to a snapshot kernel. No weak reference crosses a physical
   boundary: the runtime record retains the confined weak box and reloads it
@@ -4553,6 +4553,34 @@ the physical receipt RED moved from zero to one. The focused regressions passed
 rebuilt TSan twin passed native overlap 20/20 plus all 68 tests in 69 seconds
 without a race or interceptor diagnostic.
 
+The seventieth prerequisite adds Session-iOS's repeated weak inherited
+captured-String shape. Its admitted body is exactly one
+`await self?.method(label: value)` expression in an exact capture-only
+`[weak self]` detached closure. `value` must resolve to a directly owned
+immutable String, and the uniquely resolved own source-class method must
+inherit caller isolation, be async and nonthrowing, return Void, and declare
+one matching String parameter.
+
+This is a route-table extension, not a new transport. The argument lowerer
+already copies the immutable String into a checked worker snapshot and records
+`.capturedImmutable`; the weak command still transports no receiver, weak box,
+closure, environment, `RuntimeValue`, program state, heap, or evaluator.
+Confined re-entry reloads the weak receiver, materializes the copied argument,
+re-resolves the exact descriptor, and temporarily strengthens only a live
+receiver for invocation under the original nil-isolation task context.
+
+The weak inherited route now accepts both `.literal` and
+`.capturedImmutable`. The direct inherited and weak `@concurrent` routes keep
+their existing captured-only proofs. Mutable or expression Strings,
+MainActor/actor methods, multiple arguments, throwing effects, and richer
+results remain cooperative. Strict native and interpreted execution returned
+exact `session-message:none|none#some` in twenty runs, with five-run digest
+`d12895520e72e0f0c35194394fa4cc6fe01f5cf0bba7f133fc04e8fe06994403`;
+the physical receipt RED moved from zero to one. The focused board passed six
+tests, the exact-tip physical board passed 69 tests in one second, and the
+rebuilt TSan twin passed native overlap 20/20 plus all 69 tests in 25 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4561,7 +4589,7 @@ own reference-method descriptor, the exact default-actor synchronous and async
 single-Int plus explicit-single-defaulted-Bool routes, the exact actor-declared
 custom-global-actor argument-free async Void route, the exact inherited-caller
 argument-free or direct captured-String async Void routes, the exact weak-self
-inherited argument-free/String-literal and `@concurrent` captured-String async
+inherited argument-free/literal-or-captured-String and `@concurrent` captured-String async
 Void routes, normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
@@ -4578,6 +4606,7 @@ and strong-self-capture-source-call
 and parallel-detached-weak-self-source-call
 and parallel-detached-weak-concurrent-string-source-call
 and parallel-detached-weak-inherited-string-literal-source-call
+and parallel-detached-weak-inherited-captured-string-source-call
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension

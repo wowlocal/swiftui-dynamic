@@ -1952,6 +1952,31 @@ physical board passed all 68 tests in one second; and the rebuilt TSan board
 passed native overlap 20/20 plus all 68 tests in 69 seconds without a race or
 interceptor diagnostic.
 
+The seventieth M9 slice asks whether Session-iOS's repeated weak-self call may
+pass one immutable String capture to an inherited-isolation async Void method.
+The exact spelling appears at `ConversationVC+Interaction.swift:1016-1018`
+and `AttachmentApprovalViewController.swift:860-862`; both selected methods
+are named `updateMentions(for:)`.
+
+Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
+concurrency checking and warnings as errors. Native and interpreted execution
+returned exact `session-message:none|none#some` in twenty bounded repetitions;
+every five-run shard retained canonical digest
+`d12895520e72e0f0c35194394fa4cc6fe01f5cf0bba7f133fc04e8fe06994403`.
+The deterministic receipt RED already returned the exact value but observed
+zero physical submissions/executions instead of one.
+
+The positive regression requires one physical wrapper and empty runtime
+registries. The adjacent controls retain the literal weak inherited route,
+the captured weak `@concurrent` route, and the direct inherited capture route,
+while a mutable weak inherited String remains cooperative with zero receipts.
+This proves that admission consumes the existing typed
+`.capturedImmutable` provenance rather than treating every identifier as a
+safe snapshot. The focused board passed six tests; the four-worker same-source
+board passed 20/20 in two seconds; the exact-tip physical board passed all 69
+tests in one second; and the rebuilt TSan board passed native overlap 20/20
+plus all 69 tests in 25 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

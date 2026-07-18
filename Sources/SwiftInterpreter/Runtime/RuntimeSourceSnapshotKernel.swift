@@ -489,10 +489,11 @@ extension Interpreter {
     }
 
     /// Weak optional-self admission is deliberately separate from direct-self
-    /// routing. Provenance owns the inherited argument-free form; Amperfy adds
-    /// exactly one immutable String capture to an `@concurrent` async Void
-    /// source-class method. No weak receiver or source argument crosses the
-    /// worker boundary: only the copied String snapshot does.
+    /// routing. Provenance owns the inherited argument-free and String-literal
+    /// forms; Session adds one immutable String capture to that same inherited
+    /// route, while Amperfy owns the captured-String `@concurrent` form. No
+    /// weak receiver or source argument crosses the worker boundary: only the
+    /// copied String snapshot does.
     private func isSupportedPhysicalWeakSourceCallRoute(
         _ target: RuntimeSourceFunctionTargetDescriptor,
         on instance: Instance,
@@ -512,11 +513,14 @@ extension Interpreter {
         switch target.isolation {
         case .inherited:
             let isArgumentFreeRoute = parameters.isEmpty && arguments.isEmpty
-            let isStringLiteralRoute = parameters.count == 1
+            let hasSupportedStringOrigin = arguments.count == 1
+                && (arguments[0].origin == .literal
+                    || arguments[0].origin == .capturedImmutable)
+            let isSingleStringRoute = parameters.count == 1
                 && arguments.count == 1
                 && arguments[0].valueKind == .string
-                && arguments[0].origin == .literal
-            return isArgumentFreeRoute || isStringLiteralRoute
+                && hasSupportedStringOrigin
+            return isArgumentFreeRoute || isSingleStringRoute
         case .executor(.cooperativeDefault):
             return parameters.count == 1
                 && arguments.count == 1

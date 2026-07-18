@@ -2847,6 +2847,21 @@
     "notes": "Provenance demand-cites `Task.detached { [weak self] in await self?.restartProcessingIfQueueHasPendingWork(context: \"timeout\") }` at GameImporter.swift:1297-1299; the selected own source-class method begins at line 1092 and is inherited-isolation, async, nonthrowing, Void-returning, with one labeled String parameter. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact timeout:none|none#some in twenty bounded native/interpreter runs; every native five-run shard retained canonical SHA-256 fc29406e305e33efd900981045bd11728b7edc7f352ec5dd5f3dac67a99ee469. The deterministic interpreter RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. Typed argument provenance distinguishes the side-effect-free String literal from an immutable capture without relying on a synthetic binding name: only this weak inherited literal route is added, while the Planet direct inherited route remains capture-only and the Amperfy weak @concurrent route remains capture-only. Mutable or captured String arguments on this route, String literals on those routes, MainActor/actor targets, multiple arguments, throwing methods, and richer results remain cooperative."
   },
   {
+    "id": "parallel-detached-weak-inherited-captured-string-source-call",
+    "fixture": "Fixtures/parallel-detached-weak-inherited-captured-string-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedWeakInheritedCapturedStringSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "A live weak optional-self detached operation may pass one labeled immutable String capture to an inherited-isolation async nonthrowing Void source-class method; the copied value arrives exactly and the method retains nil actor isolation across suspension.",
+    "notes": "Session-iOS repeats `Task.detached(priority: .userInitiated) { [weak self] in await self?.updateMentions(for: newText) }` at ConversationVC+Interaction.swift:1016-1018 and AttachmentApprovalViewController.swift:860-862; each selected own source-class method is inherited-isolation, async, nonthrowing, Void-returning, and accepts one labeled String. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact session-message:none|none#some in twenty bounded native/interpreter runs; every native five-run shard retained canonical SHA-256 d12895520e72e0f0c35194394fa4cc6fe01f5cf0bba7f133fc04e8fe06994403. The deterministic interpreter RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. The weak inherited route now accepts its existing typed capturedImmutable String origin as well as the separately proved literal origin; confined re-entry still reloads the genuine weak receiver and materializes only the checked snapshot. Mutable or expression Strings, MainActor/actor methods, multiple arguments, throwing methods, and richer results remain cooperative."
+  },
+  {
     "id": "parallel-detached-strong-self-capture-source-call",
     "fixture": "Fixtures/parallel-detached-strong-self-capture-source-call.swift",
     "mode": "runtime",

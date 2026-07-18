@@ -653,7 +653,7 @@ struct RuntimeSourceCallTargetTests {
                     await self?.concurrent(mutable)
                 }.value
 
-                let inherited = "inherited"
+                var inherited = "inherited"
                 await Task.detached { [weak self] in
                     await self?.inherited(inherited)
                 }.value
@@ -703,6 +703,32 @@ struct RuntimeSourceCallTargetTests {
         let value = try await interpreter.runAsync(source: source)
 
         #expect(value.stringValue == "timeout:none|none#some")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func weakInheritedCapturedStringSourceCallUsesPhysicalWrapper() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-weak-inherited-captured-string-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedWeakInheritedCapturedStringSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "session-message:none|none#some")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 1)
         #expect(interpreter.concurrencyRuntime
