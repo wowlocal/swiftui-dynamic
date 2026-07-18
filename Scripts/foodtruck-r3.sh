@@ -21,12 +21,12 @@ INTERP=${2:-/tmp/foodtruck-interp-r3}
 if [ ! -f "$TWIN/donuts-after-rename.png" ] \
    || [ "$(date -r "$TWIN/donuts-after-rename.png" +%Y-%m-%d)" != "$(date +%Y-%m-%d)" ]; then
   rm -rf "$TWIN"
-  (cd "$ROOT/Examples/FoodTruckNativeTwin" && swift run FoodTruckNativeTwin --out "$TWIN" --scenario all)
+  (cd "$ROOT/Examples/FoodTruckNativeTwin" && xcrun swift run FoodTruckNativeTwin --out "$TWIN" --scenario all)
 fi
-(cd "$ROOT" && swift build && .build/debug/FoodTruckCheck --capture "$INTERP" --scenario all)
+(cd "$ROOT" && xcrun swift build && .build/debug/FoodTruckCheck --capture "$INTERP" --scenario all)
 
 percent() {
-  swift "$ROOT/Scripts/pixel-ae.swift" "$1" "$2" 2>/dev/null | tail -1 \
+  xcrun swift "$ROOT/Scripts/pixel-ae.swift" "$1" "$2" 2>/dev/null | tail -1 \
     | sed -E 's/.*\(([0-9.]+)%\).*/\1/'
 }
 

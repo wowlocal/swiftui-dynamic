@@ -13,16 +13,20 @@ enum SweepDriver {
     /// Sidebar outline rows (headers are rows too): 0 Truck, 1 Orders,
     /// 2 Social Feed, 3 Sales History, 4 "Donuts" header, 5 Donuts,
     /// 6 Donut Editor, 7 Top 5, 8 "Cities" header, 9-11 cities.
-    static let steps: [(name: String, row: Int)] = [
-        ("orders", 1),
-        ("socialfeed", 2),
-        ("saleshistory", 3),
-        ("donuts", 5),
-        ("donuteditor", 6),
-        ("topfive", 7),
-        ("cupertino", 9),
-        ("london", 11),
-        ("truck", 0),
+    /// Each step's expected DETAIL navigationTitle — under the real
+    /// NavigationSplitView the macOS titlebar mirrors it, which is the
+    /// native per-panel evidence a person sees (captures are island-blind
+    /// behind the split's per-column hosting).
+    static let steps: [(name: String, row: Int, title: String)] = [
+        ("orders", 1, "Orders"),
+        ("socialfeed", 2, "Social Feed"),
+        ("saleshistory", 3, "Sales History"),
+        ("donuts", 5, "Donuts"),
+        ("donuteditor", 6, "New Donut"),
+        ("topfive", 7, "Top 5 Donuts"),
+        ("cupertino", 9, "Cupertino"),
+        ("london", 11, "London"),
+        ("truck", 0, "Truck"),
     ]
 
     static func run(outDirectory: String) async {
@@ -50,9 +54,11 @@ enum SweepDriver {
         var allGreen = previous != nil
         var reportedDiagnostics = RenderDiagnostics.errors.count
         let plan = selected.map { name in steps.filter { $0.name == name } } ?? steps
+        let settleMs = ProcessInfo.processInfo.environment["DEMO_SWEEP_WAIT_MS"]
+            .flatMap(UInt64.init) ?? 1_500
         for (index, step) in plan.enumerated() {
             click(window: window, row: step.row)
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            try? await Task.sleep(nanoseconds: settleMs * 1_000_000)
             // Re-renders can grow the window; captures must stay comparable.
             window.setContentSize(NSSize(width: 1000, height: 832))
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -67,31 +73,40 @@ enum SweepDriver {
             let sidebarAlive = rowCounts.contains(12)
             let ordersTableVisible = rowCounts.contains { $0 >= 20 }
             let freshDiagnostics = RenderDiagnostics.errors.count - reportedDiagnostics
-            let landed: Bool
+            // The TITLE is the primary landing evidence (the detail's own
+            // navigationTitle reaching the titlebar); hierarchy markers add
+            // panel-specific truth; `changed` is REPORTED only — captures
+            // cannot see across the split's per-column hosting islands.
+            let titled = window.title == step.title
+            let panelMarker: Bool
             switch step.name {
             case "orders":
-                landed = sidebarAlive && ordersTableVisible && changed > 100_000
+                panelMarker = ordersTableVisible
             case "socialfeed":
-                // The feed replaces the orders table with its own list.
-                landed = sidebarAlive && changed > 100_000
-            case "truck":
-                // Each step process STARTS on the truck panel: re-clicking
-                // the already-selected row changes nothing natively.
-                landed = sidebarAlive && !ordersTableVisible && freshDiagnostics == 0
+                // The feed's own list replaces the orders table.
+                panelMarker = rowCounts.contains { $0 >= 5 && $0 < 20 }
             case "cupertino", "london":
-                // The city panel's DetailedMapView EXECUTES (interpreted
-                // representable hosting a real MKMapView) — hierarchy truth,
-                // not just pixel churn.
-                let mapPresent = viewPresent(in: window) {
+                // DetailedMapView EXECUTES: a real MKMapView in the island.
+                panelMarker = viewPresent(in: window) {
                     String(describing: type(of: $0)).contains("MKMapView")
                 }
-                landed = sidebarAlive && !ordersTableVisible && changed > 5000
-                    && mapPresent && freshDiagnostics == 0
             default:
-                landed = sidebarAlive && !ordersTableVisible && changed > 5000
-                    && freshDiagnostics == 0
+                panelMarker = true
             }
-            print("SWEEP \(step.name) changed=\(changed) tables=\(rowCounts) diag=\(RenderDiagnostics.errors.count) landed=\(landed)")
+            let landed = sidebarAlive && titled && panelMarker
+                && freshDiagnostics == 0
+            print("SWEEP \(step.name) changed=\(changed) tables=\(rowCounts) diag=\(RenderDiagnostics.errors.count) title=\"\(window.title)\" marker=\(panelMarker) landed=\(landed)")
+            if ProcessInfo.processInfo.environment["DEMO_SWEEP_TREE"] != nil,
+               let content = window.contentView {
+                func walkTree(_ view: NSView, _ depth: Int) {
+                    let name = String(describing: type(of: view))
+                    if depth < 24 {
+                        print("SWEEP-TREE \(String(repeating: "  ", count: depth))\(name) \(Int(view.frame.width))x\(Int(view.frame.height))")
+                    }
+                    view.subviews.forEach { walkTree($0, depth + 1) }
+                }
+                walkTree(content, 0)
+            }
             if ProcessInfo.processInfo.environment["DEMO_SWEEP_CONTROLS"] != nil,
                let content = window.contentView {
                 var controls: [String] = []
@@ -224,8 +239,15 @@ enum SweepDriver {
                         "sweep-\(index + 1)-\(step.name)-mutated", window: window,
                         outDirectory: outDirectory)
                     let mutatedChanged = changedPixels(previous, mutated)
-                    let mutatedLanded = mutatedChanged > 20000
-                    print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) landed=\(mutatedLanded)")
+                    // The write-back proves through the RE-RENDERED control:
+                    // a rejected binding write snaps the segment back on the
+                    // next render pass (pixels are island-blind under the
+                    // real split; the R3 board pins the chart AE-exactly).
+                    let held = firstSegmentedControl(in: window)?
+                        .selectedSegment == target
+                    let mutateDiags = RenderDiagnostics.errors.count - reportedDiagnostics
+                    let mutatedLanded = held && mutateDiags == 0
+                    print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) held=\(held) landed=\(mutatedLanded)")
                     for entry in RenderDiagnostics.errors.dropFirst(reportedDiagnostics).prefix(4) {
                         print("SWEEP-DIAG \(step.name)-mutate \(entry.view): \(entry.error.message.prefix(110))")
                     }
@@ -264,6 +286,9 @@ enum SweepDriver {
         }
         print("SWEEP-CLICK row=\(row) rows=\(table.numberOfRows)")
         table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        if ProcessInfo.processInfo.environment["DEMO_SWEEP_SELDEBUG"] != nil {
+            print("SWEEP-SEL after=\(table.selectedRow)")
+        }
     }
 
     /// 1x contentView bitmap (the shared capture technique) written to

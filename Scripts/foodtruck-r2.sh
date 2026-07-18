@@ -15,10 +15,10 @@ INTERP_DIR=/tmp/foodtruck-interp
 mkdir -p "$TWIN_DIR" "$INTERP_DIR"
 
 echo "── native twin ──"
-( cd Examples/FoodTruckNativeTwin && swift run -q FoodTruckNativeTwin --out "$TWIN_DIR" 2>/dev/null )
+( cd Examples/FoodTruckNativeTwin && xcrun swift run -q FoodTruckNativeTwin --out "$TWIN_DIR" 2>/dev/null )
 
 echo "── interpreter ──"
-swift build > /dev/null 2>&1
+xcrun swift build > /dev/null 2>&1
 # All ids via FoodTruckCheck's capture mode (same technique both sides).
 .build/debug/FoodTruckCheck --capture "$INTERP_DIR" 2>/dev/null | tail -8
 
@@ -28,7 +28,7 @@ for twin_png in "$TWIN_DIR"/*.png; do
     id=$(basename "$twin_png" .png)
     interp_png="$INTERP_DIR/$id.png"
     if [ -f "$interp_png" ]; then
-        line=$(swift Scripts/pixel-ae.swift "$twin_png" "$interp_png" 2>/dev/null)
+        line=$(xcrun swift Scripts/pixel-ae.swift "$twin_png" "$interp_png" 2>/dev/null)
         echo "$id: $line"
         compared=$((compared+1))
     else

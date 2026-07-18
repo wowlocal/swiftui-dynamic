@@ -2623,3 +2623,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   claims. CLOSING GATE: **GREEN 887s** — 1240 tests (6 shards), corpus
   678/680, live 5/5, parity 345/0/0. First green gate since i36;
   clean-detached re-verification + MERGE-READY next.
+- 2026-07-18 REAL NavigationSplitView IS THE DEFAULT — ALL 18 SCREENS
+  AE=0 (worktree iteration 66): the live-verification arc closed the
+  i64 experiment. Diagnosis: the split hosts columns in separate
+  NSHostingView islands (tree dump), so offscreen captures are
+  island-blind — but WINDOW-TITLE evidence (each panel's own
+  navigationTitle reaching the titlebar) proved EVERY sidebar row lands
+  its panel, and the MKMapView lives in the city island (767x350). The
+  R4 sweep verdicts now rest on native evidence: expected title +
+  panel hierarchy markers (orders table / feed list / map) + zero
+  fresh diagnostics; changed-pixels is reported-only. Segmented-picker
+  mutations verify by the RE-RENDERED control holding its segment (a
+  rejected binding write snaps back) + no diagnostics; the R3 board
+  pins the chart pixels exactly. Foodtruck scripts pinned to xcrun
+  (bare `swift` hit Swiftly 6.2.3 vs the gate's 6.3.3 and died
+  silently). BOARDS: R2 18/18 AE=0 (content 26.778 -> 0.000 — the
+  artifact CONVERGED), R3 ten/ten, R4 all thirteen verdicts green
+  under the real split. The window-title gap from i63 is closed
+  structurally (titles follow the detail); the rename-retitle lag
+  stays reported (titled=). GATE GREEN 1123s (1245 tests, corpus
+  678/680, live 5/5, parity 345/0/0). MERGE-READY updated.
