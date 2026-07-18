@@ -410,9 +410,10 @@ extension Interpreter {
     /// explicitly supplied Boolean for a defaulted parameter. Other argument
     /// families, String results, explicitly nonisolated methods, and custom
     /// actor executors remain cooperative until separately proven. A plain
-    /// async source-class method may inherit the detached caller only for the
-    /// demand-backed argument-free Void route; explicit nonisolated methods
-    /// and richer inherited signatures remain cooperative.
+    /// async source-class method may inherit the detached caller for the
+    /// demand-backed argument-free Void route or Planet's single immutable
+    /// String-capture Void route; explicit nonisolated methods and richer
+    /// inherited signatures remain cooperative.
     private func isSupportedPhysicalSourceCallRoute(
         _ target: RuntimeSourceFunctionTargetDescriptor,
         on instance: Instance,
@@ -429,7 +430,10 @@ extension Interpreter {
             switch target.isolation {
             case .executor(.mainActor),
                  .executor(.cooperativeDefault):
-                return true
+                // String arguments are demand-scoped to the inherited Planet
+                // route below. Existing MainActor/@concurrent routes retain
+                // their integer/Boolean argument surface.
+                return !arguments.contains { $0.valueKind == .string }
             case .lazyGlobalActorCandidates(let candidates):
                 return parameters.isEmpty
                     && arguments.isEmpty
@@ -437,10 +441,16 @@ extension Interpreter {
                         returnTypeName: target.returnTypeName) == .void
                     && hasUniqueDefaultSourceGlobalActorCandidate(candidates)
             case .inherited:
-                return parameters.isEmpty
+                guard RuntimePhysicalSourceCallResultKind(
+                    returnTypeName: target.returnTypeName) == .void else {
+                    return false
+                }
+                let isArgumentFreeRoute = parameters.isEmpty
                     && arguments.isEmpty
-                    && RuntimePhysicalSourceCallResultKind(
-                        returnTypeName: target.returnTypeName) == .void
+                let isSingleStringRoute = parameters.count == 1
+                    && arguments.count == 1
+                    && arguments[0].valueKind == .string
+                return isArgumentFreeRoute || isSingleStringRoute
             case .explicitlyNonisolated,
                  .executor(.detached),
                  .executor(.actor):
@@ -504,8 +514,9 @@ extension Interpreter {
 
     /// Evaluate no source effects while admitting a physical wrapper. An
     /// integer or Boolean literal is already a value, and a direct immutable
-    /// Int/Int64 capture has fixed value semantics for this closure. Every
-    /// other argument spelling and type stays on the cooperative evaluator.
+    /// Int/Int64 or demand-cited String capture has fixed value semantics for
+    /// this closure. Every other argument spelling and type stays on the
+    /// cooperative evaluator.
     /// The checked capability performs the structural Sendable copy; the
     /// command retains labels, binding IDs, and the expected scalar kind.
     private func physicalSourceCallArguments(
@@ -550,11 +561,17 @@ extension Interpreter {
                 value = try box.load()
                 guard let snapshot = try? RuntimeWorkerValueSnapshot.copying(
                     value,
-                    path: "argument[\(index)]"),
-                      case .int = snapshot else {
+                    path: "argument[\(index)]") else {
                     return nil
                 }
-                valueKind = .integer
+                switch snapshot {
+                case .int:
+                    valueKind = .integer
+                case .string:
+                    valueKind = .string
+                default:
+                    return nil
+                }
             } else {
                 return nil
             }

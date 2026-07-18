@@ -406,6 +406,110 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func inheritedStringSourceCallCopiesArgumentAndUsesPhysicalWrapper()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-inherited-string-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedInheritedStringSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "bafy-planet:none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func unsupportedStringSourceCallArgumentsStayCooperative() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        final class StringSourceCallRouteControl: @unchecked Sendable {
+            private var observation = ""
+
+            @MainActor
+            private func record(_ value: String) {
+                if !observation.isEmpty { observation += "|" }
+                observation += value
+            }
+
+            func inherited(_ value: String) async {
+                await Task.yield()
+                await record("inherited:\\(value)")
+            }
+
+            @MainActor
+            func mainActor(_ value: String) async {
+                await Task.yield()
+                record("main:\\(value)")
+            }
+
+            @concurrent
+            nonisolated func concurrent(_ value: String) async {
+                await Task.yield()
+                await record("concurrent:\\(value)")
+            }
+
+            func run() async -> String {
+                await Task.detached {
+                    await self.inherited("literal")
+                }.value
+
+                var mutable = "mutable"
+                await Task.detached {
+                    await self.inherited(mutable)
+                }.value
+
+                let main = "main"
+                await Task.detached {
+                    await self.mainActor(main)
+                }.value
+
+                let worker = "worker"
+                await Task.detached {
+                    await self.concurrent(worker)
+                }.value
+
+                return await result()
+            }
+
+            @MainActor
+            private func result() -> String {
+                observation
+            }
+        }
+
+        await StringSourceCallRouteControl().run()
+        """)
+
+        #expect(value.stringValue ==
+            "inherited:literal|inherited:mutable|main:main|concurrent:worker")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func strongSelfCaptureSourceCallUsesPhysicalWrapper() async throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

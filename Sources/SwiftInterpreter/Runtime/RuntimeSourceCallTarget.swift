@@ -105,10 +105,11 @@ nonisolated enum RuntimePhysicalSourceCallResultKind: Sendable, Equatable {
 nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
     case integer
     case boolean
+    case string
 
     func accepts(_ snapshot: RuntimeWorkerValueSnapshot) -> Bool {
         switch (self, snapshot) {
-        case (.integer, .int), (.boolean, .bool):
+        case (.integer, .int), (.boolean, .bool), (.string, .string):
             true
         default:
             false
@@ -117,7 +118,8 @@ nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
 
     func accepts(parameterTypeName: String?) -> Bool {
         switch (self, RuntimeDeclaredType.nominalTypeName(parameterTypeName)) {
-        case (.integer, "Int"), (.integer, "Int64"), (.boolean, "Bool"):
+        case (.integer, "Int"), (.integer, "Int64"), (.boolean, "Bool"),
+             (.string, "String"):
             true
         default:
             false

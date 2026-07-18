@@ -2802,6 +2802,21 @@
     "notes": "iTorrent demand-cites the one-expression Task.detached(priority: .utility) { await self.refreshWebServerState() } and refreshWebDavServerState() spellings in WebServerService.swift:120 and 128; WebServerService is @unchecked Sendable and both selected own source-class methods are plain async, nonthrowing, argument-free, and Void-returning at lines 198 and 222. The bounded same-source probe launches an unretained wrapper and reports #isolation before and after Task.yield without asserting a thread or scheduler order. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact none|none in twenty bounded runs; every native five-run shard reported canonical SHA-256 dc022b9fd32ef23613a6bf01ee0af601d88cf1f8fce887c8924f7047de1bd4b4. The receipt RED already returned that exact value through cooperative fallback but recorded zero physical submissions/executions instead of one. Admission is capped to an argument-free async nonthrowing Void own source-class method with inherited caller isolation; synchronous, argument-bearing, String-returning, explicitly nonisolated, throwing, ambiguous, and richer-result forms remain cooperative."
   },
   {
+    "id": "parallel-detached-inherited-string-source-call",
+    "fixture": "Fixtures/parallel-detached-inherited-string-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedInheritedStringSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "A detached wrapper may pass one labeled immutable String capture to an inherited-isolation async nonthrowing Void source method; the copied value is exact and the method retains nil actor isolation across suspension.",
+    "notes": "Planet demand-cites `Task.detached(priority: .background) { await self.sendNotificationForNewCID(cid: cid) }` at MyPlanetModel.swift:2948-2950; the optional-binding `cid` is immutable and the selected own method takes one labeled String, is async/nonthrowing/Void, and has inherited isolation at line 3850. The strict same-source probe uses an @unchecked Sendable receiver, returns exact bafy-planet:none|none in twenty bounded native/interpreter runs, and every focused five-run shard retains canonical SHA-256 2e15021f8c242902f4ed71d5b4dd1a16a4cc66ec7ca6135550bd1b58782e99a0. The deterministic receipt RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. The general checked source-call argument schema now carries a string kind, recursively copies only a directly owned immutable String capture, validates the selected String parameter and worker snapshot, and materializes the argument only after confined re-entry. Admission is capped to one inherited-isolation async nonthrowing Void method; String literals, mutable captures, MainActor/@concurrent/actor routes, multiple arguments, throwing methods, and richer results remain cooperative."
+  },
+  {
     "id": "parallel-detached-strong-self-capture-source-call",
     "fixture": "Fixtures/parallel-detached-strong-self-capture-source-call.swift",
     "mode": "runtime",

@@ -1866,6 +1866,33 @@ workers in two seconds. The exact-tip async, generated Task-surface, and
 parallel-kernel board passed 139 tests in three suites on four workers in two
 seconds.
 
+The sixty-seventh M9 slice asks whether Planet's labeled immutable `String`
+capture can use the existing physical-wrapper/confined-reentry architecture
+without widening source evaluation onto a worker. The exact demand spelling
+is `Task.detached { await self.sendNotificationForNewCID(cid: cid) }` in
+`MyPlanetModel.swift:2948-2950`.
+
+Strict Apple Swift 6.3.3 and interpreted execution returned exact
+`bafy-planet:none|none` in twenty bounded runs; all four five-run native shards
+retained digest
+`2e15021f8c242902f4ed71d5b4dd1a16a4cc66ec7ca6135550bd1b58782e99a0`.
+The captured RED was receipt-only: the source value and nil isolation were
+already correct, but parallel mode reported zero submissions/executions
+instead of one.
+
+Evidence requires one typed String command argument, one structural worker
+snapshot, exact String-parameter validation, confined materialization, one
+physical receipt, and complete cleanup. A negative control requires String
+literals, mutable String captures, and identical immutable captures routed to
+MainActor or `@concurrent` methods to remain cooperative. Thus the new scalar
+kind cannot silently broaden other route families.
+The focused iteration passed both regressions, all forty-three methodology
+checks plus three isolated gate-contract checks, and twenty parity repetitions
+on four workers in two seconds. The exact-tip physical board passed 64 tests
+in three suites in one second. Its rebuilt TSan twin passed native overlap
+20/20 plus all 64 tests in 33 seconds without a race or interceptor
+diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

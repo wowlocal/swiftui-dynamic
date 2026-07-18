@@ -4455,6 +4455,32 @@ repetitions in two seconds. The exact-tip async, generated Task-surface, and
 parallel-kernel board passed 139 tests in three suites on four workers in two
 seconds.
 
+The sixty-seventh prerequisite adds Planet's first String-bearing inherited
+source-call command. The source body is exactly one `await self.method(label:
+value)` expression; `value` must name a directly owned immutable String, and
+the uniquely resolved own method must be inherited-isolation, async,
+nonthrowing, Void-returning, and declare exactly one matching String
+parameter.
+
+The checked boundary does not widen beyond value schema. MainActor copies the
+String into `RuntimeWorkerValueSnapshot.string`; the Sendable command carries
+only its label, binding ID, and `.string` kind. Confined re-entry validates the
+snapshot against the command, materializes ordinary `CallArguments`, restores
+the original logical detached context, and invokes the retained origin-bound
+source target. No receiver, source box, `RuntimeValue`, environment, program
+state, heap, or evaluator crosses the worker boundary.
+
+Strict native and interpreted execution returned exact
+`bafy-planet:none|none` in twenty runs, with five-run digest
+`2e15021f8c242902f4ed71d5b4dd1a16a4cc66ec7ca6135550bd1b58782e99a0`;
+the physical receipt RED moved from zero to one. Route checks keep String
+literals, mutable captures, MainActor/`@concurrent`/actor methods, multiple
+arguments, throwing effects, and richer results cooperative. The focused
+iteration passed two regressions, all 46 methodology/gate checks, and twenty
+parity repetitions in two seconds. The exact-tip physical board passed 64
+tests in one second; its rebuilt TSan twin passed native overlap 20/20 plus all
+64 tests in 33 seconds without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4462,7 +4488,7 @@ source class/actor/host/standard-library target identities beyond the unique
 own reference-method descriptor, the exact default-actor synchronous and async
 single-Int plus explicit-single-defaulted-Bool routes, the exact actor-declared
 custom-global-actor argument-free async Void route, the exact inherited-caller
-argument-free async Void route, normalized callee shape,
+argument-free or single-String async Void routes, normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
