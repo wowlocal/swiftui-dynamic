@@ -221,6 +221,15 @@ extension Interpreter {
             return nil
         }
 
+        if let mainActorRun = try physicalMainActorRunContinuationJob(
+            expression,
+            closure: closure,
+            entry: entry,
+            record: record,
+            priority: priority) {
+            return mainActorRun
+        }
+
         if let sourceCall = try physicalConfinedSourceCallJob(
             expression,
             closure: closure,
@@ -387,6 +396,95 @@ extension Interpreter {
             cancellationBehavior: .observed,
             permitLifetime: .untilConfinedExecutorEntry(handoff),
             confinedContinuationCommand: command)
+    }
+
+    /// Planet repeatedly launches a signature-free detached operation whose
+    /// complete body is imported `MainActor.run(body:)`. The worker performs
+    /// only the physical launch and executor handoff. The source closure,
+    /// captures, MainActor body, and complete outcome remain in the same
+    /// confined continuation record used by sleep-prefix jobs.
+    private func physicalMainActorRunContinuationJob(
+        _ expression: ExprSyntax,
+        closure: ClosureValue,
+        entry: RuntimeEntry,
+        record: RuntimeTaskRecord,
+        priority: RuntimeTaskPriority
+    ) throws -> RuntimePhysicalSourceKernelJob? {
+        guard closure.isPhysicalSnapshotKernelCandidate,
+              isImportedMainActorRun(expression, closure: closure),
+              record.entry === entry,
+              record.physicalSourceCall == nil,
+              record.physicalSourceContinuation == nil,
+              closure.programPlan === entry.programPlan else {
+            return nil
+        }
+
+        let capability = try entry.makeWorkerCapability(copying: [])
+        let command = RuntimePhysicalSourceContinuationCommand(
+            entryID: entry.id,
+            taskID: record.id)
+        let handoff = RuntimePhysicalSourceExecutorHandoff()
+        let relay = concurrencyRuntime.sourceContinuationReentryRelay
+        record.physicalSourceContinuation =
+            RuntimeRegisteredPhysicalSourceContinuation(
+                command: command,
+                suffix: closure)
+
+        return RuntimePhysicalSourceKernelJob(
+            workerJob: RuntimePhysicalWorkerJob(
+                capability: capability,
+                priority: priority
+            ) { capability in
+                try await relay.invoke(
+                    command,
+                    capability: capability,
+                    handoff: handoff)
+            },
+            // MainActor.run itself does not observe cancellation. Preserve the
+            // source task's logical bit without cancelling the infrastructure
+            // wrapper before its confined body can enter.
+            cancellationBehavior: .unobserved,
+            permitLifetime: .untilConfinedExecutorEntry(handoff),
+            confinedContinuationCommand: command)
+    }
+
+    /// Imported nominal identity, not the source spelling, admits the worker
+    /// wrapper. An active source/local `MainActor` binding therefore keeps the
+    /// same call on the cooperative evaluator.
+    private func isImportedMainActorRun(
+        _ expression: ExprSyntax,
+        closure: ClosureValue
+    ) -> Bool {
+        guard let awaitExpression = expression.as(AwaitExprSyntax.self),
+              let call = awaitExpression.expression
+                .as(FunctionCallExprSyntax.self),
+              call.arguments.isEmpty,
+              call.trailingClosure != nil,
+              call.additionalTrailingClosures.isEmpty,
+              let member = call.calledExpression
+                .as(MemberAccessExprSyntax.self),
+              member.declName.baseName.text == "run",
+              member.declName.argumentNames == nil,
+              let reference = member.base?
+                .as(DeclReferenceExprSyntax.self),
+              reference.baseName.text == "MainActor",
+              reference.argumentNames == nil,
+              GeneratedConcurrencySurface.nominalMemberIntrinsic(
+                typeName: "MainActor",
+                memberName: "run") == .mainActorRun else {
+            return false
+        }
+
+        guard let selected = closure.captured.lookup("MainActor") else {
+            // Imported nominals are materialized lazily as HostTypeMarker;
+            // absence here proves no lexical/source binding shadows it.
+            return true
+        }
+        guard case .host(let payload) = selected,
+              let marker = payload as? HostTypeMarker else {
+            return false
+        }
+        return marker.name == "MainActor"
     }
 
     /// A detached wrapper may have the complete body `await self.method(...)`

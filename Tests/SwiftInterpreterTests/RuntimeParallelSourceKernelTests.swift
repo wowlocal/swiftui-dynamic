@@ -560,6 +560,71 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func detachedMainActorRunUsesPhysicalWrapperAndConfinedContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-mainactor-run-continuation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedMainActorRunContinuationProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func sourceShadowedMainActorRunStaysOnTheCooperativeEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        struct MainActor {
+            static func run(body: () -> String) async -> String {
+                "source:" + body()
+            }
+        }
+
+        func probe() async -> String {
+            await Task.detached {
+                await MainActor.run { "body" }
+            }.value
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "source:body")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func weakTryOptionalDurationSleepPrefixReentersActorContinuation()
         async throws
     {

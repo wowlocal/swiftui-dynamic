@@ -3027,7 +3027,8 @@ Each milestone is independently gated through
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
   covered. Six narrow snapshot-kernel paths, four demand-cited physical sleep-
-  prefix spellings, and five demand-cited physical source-call-wrapper paths now exist
+  prefix spellings, one demand-cited signature-free MainActor-run continuation
+  wrapper, and five demand-cited physical source-call-wrapper paths now exist
   behind a validated explicit mode. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
@@ -3073,6 +3074,10 @@ Each milestone is independently gated through
   Session-iOS's exact capture-only weak-self `Task.sleep(for:)` spelling also
   reuses the boundary before an actor-isolated optional-self call with one
   captured immutable String; the actor, weak box, String, and suffix stay
+  confined.
+  Planet's complete signature-free `MainActor.run(body:)` body uses an empty
+  physical wrapper and the same confined continuation/outcome token; imported
+  nominal identity is required before launch, and the receiver and body stay
   confined.
   The general
   evaluator, mutable/global captures, heap, source closures, environments,
@@ -4800,6 +4805,37 @@ diagnostic. The canonical prebuilt iteration passed 49 targeted tests in two
 suites, all 46 methodology/gate checks, and all 20 parity repetitions in 10
 seconds.
 
+The seventy-seventh prerequisite admits Planet's complete signature-free
+`await MainActor.run(body:)` detached operation. The worker capability is
+empty and the Sendable command contains only entry/task identity. The worker
+reaches the globally isolated relay, releases its bounded permit, and asks the
+originating `EvaluationTaskContext` to invoke the retained source closure.
+
+This is the same continuation/outcome boundary used after physical sleeps,
+but with no prefix command. It intentionally preserves arbitrary confined
+body values and errors rather than copying them. Logical cancellation is not
+forwarded as infrastructure cancellation because `MainActor.run` does not
+check it automatically; the body enters, observes the task bit, and may still
+complete successfully. Imported target identity is proven before launch, so a
+source or local type named `MainActor` stays cooperative.
+
+Strict native/interpreted execution returned exact
+`completed:false,cancelled:true|false:true` in twenty runs. The raw native
+digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`;
+every five-run focused shard retained
+`1e980421bc83665ffaf6eaeac708ecf26e9e12520d4fa90e200ded68e5802c8f`.
+The receipt RED moved from zero to two physical wrappers. The source-shadowed
+control returns its source value with zero physical receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 45/45. The canonical prebuilt iteration
+passed 51 implementation tests in two suites, all 46 methodology/gate checks,
+and all 20 parity repetitions in nine seconds. The exact-tip physical board
+passed 88/88 tests in three suites in one second; a fresh TSan build passed
+native overlap 20/20 plus all 88 tests in 27 seconds without a race or
+interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4833,6 +4869,7 @@ and parallel-detached-inherited-try-optional-source-call
 and parallel-detached-try-optional-sleep-prefix
 and parallel-detached-try-optional-nanoseconds-sleep-prefix
 and parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix
+and parallel-detached-mainactor-run-continuation
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension

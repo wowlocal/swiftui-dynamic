@@ -2877,6 +2877,21 @@
     "notes": "Planet demand-cites the exact signature-free `Task.detached(priority: .utility) { try? await Task.sleep(nanoseconds: 200_000_000); await MainActor.run { self.isOperating = false } }` spelling at PlanetAPIController.swift:70-75 and 101-106. The bounded same-source fixture retains the implicit strong receiver, literal nanoseconds, MainActor suffix, zero-duration success, and immediately cancelled 30-second branch. Strict Apple Swift 6.3.3 compiled it with complete concurrency checking and warnings as errors and returned exact `completed:false,cancelled:true|false:true` in twenty runs; the standalone twenty-line output had SHA-256 21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e, and every five-run focused shard retained 128279d479fdb8fdc315653b76f48229b0d39d7a7b39b551b6c12b11056708cb. Before the fix, cooperative and parallel interpreter modes already returned the exact value, but parallel mode recorded zero physical submissions/executions instead of two. The existing confined continuation command now admits only a nonnegative literal nanoseconds argument for the signature-free two-item route; only the sleep crosses the worker boundary, while the receiver, suffix closure, MainActor invocation, and complete RuntimeValue/Error outcome remain confined. Captured/computed nanoseconds and source-shadowed Task.sleep remain cooperative. Focused parity passed 20/20, the physical board passed 86/86, and a fresh TSan build passed native overlap 20/20 plus all 86 tests without diagnostics."
   },
   {
+    "id": "parallel-detached-mainactor-run-continuation",
+    "fixture": "Fixtures/parallel-detached-mainactor-run-continuation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedMainActorRunContinuationProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A signature-free detached task whose complete body is imported `MainActor.run(body:)` enters that body even when already cancelled; the body observes the same task's cancellation bit, and the handle completes successfully while retaining that bit.",
+    "notes": "Planet demand-cites the exact signature-free `Task.detached(priority: .utility) { await MainActor.run { self.isOperating = true } }` spelling at PlanetAPIController.swift:64-68 and 95-99. The bounded same-source fixture forms both tasks on MainActor, so cancelling the second handle before yielding causally precedes its MainActor body without relying on scheduler order. Strict Apple Swift 6.3.3 compiled it with complete concurrency checking and warnings as errors and returned exact `completed:false,cancelled:true|false:true` in twenty runs; the standalone twenty-line output had SHA-256 21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e, and every five-run focused shard retained 1e980421bc83665ffaf6eaeac708ecf26e9e12520d4fa90e200ded68e5802c8f. Before the fix, cooperative and parallel interpreter modes already returned the exact value, but parallel mode recorded zero physical submissions/executions instead of two. A real detached wrapper now carries only an empty checked worker capability and entry/task continuation token, releases its permit at MainActor handoff, and invokes the complete original source closure through confined re-entry. The receiver, closure, MainActor body, and RuntimeValue/Error outcome never cross the worker boundary. Admission requires the generated imported MainActor.run identity; a same-named source type stays cooperative. Focused parity passed 20/20 on four workers in one second, and the complete parallel source-kernel suite passed 45/45. The canonical prebuilt iteration passed 51 implementation tests in two suites, all 46 methodology/gate checks, and all 20 parity repetitions in nine seconds. The exact-tip physical board passed 88/88 tests in three suites in one second; a fresh TSan build passed native overlap 20/20 plus all 88 tests in 27 seconds without a race or interceptor diagnostic."
+  },
+  {
     "id": "parallel-detached-weak-try-optional-sleep-prefix",
     "fixture": "Fixtures/parallel-detached-weak-try-optional-sleep-prefix.swift",
     "mode": "runtime",

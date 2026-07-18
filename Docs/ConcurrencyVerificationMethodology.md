@@ -2160,6 +2160,36 @@ seconds. The exact-tip physical board passed 86/86 tests in three suites in
 one second; a fresh TSan build passed native overlap 20/20 plus all 86 tests
 in 25 seconds without a race or interceptor diagnostic.
 
+The seventy-seventh M9 slice asks whether Planet's complete signature-free
+`await MainActor.run { ... }` detached body still enters after immediate
+cancellation. Both fixture tasks are formed on MainActor; cancelling the
+second handle synchronously before awaiting it causally precedes body entry,
+so the assertion does not depend on detached-task start order.
+
+Strict Apple Swift 6.3.3 returned exact
+`completed:false,cancelled:true|false:true` in twenty runs. The raw output
+digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`,
+and all four five-run focused shards reported
+`1e980421bc83665ffaf6eaeac708ecf26e9e12520d4fa90e200ded68e5802c8f`.
+The successful cancelled handle proves cancellation is a task state bit, not
+an implicit body-suppression policy.
+
+The receipt-only RED already returned the exact value through cooperative
+evaluation. The repair reuses the confined continuation/outcome token with no
+worker prefix: the physical wrapper performs only entry and executor handoff.
+A focused same-name source target proves imported nominal identity gates this
+route, while existing continuation trap and liveness tests cover its shared
+outcome and permit machinery.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 45/45. The canonical prebuilt iteration
+passed 51 implementation tests in two suites, all 46 methodology/gate checks,
+and all 20 parity repetitions in nine seconds. The exact-tip physical board
+passed 88/88 tests in three suites in one second; a fresh TSan build passed
+native overlap 20/20 plus all 88 tests in 27 seconds without a race or
+interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
