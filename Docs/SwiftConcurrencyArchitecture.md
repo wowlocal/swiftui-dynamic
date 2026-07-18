@@ -5169,6 +5169,51 @@ three suites in 1.17 seconds. The exact-tip Swift 6.3.3 TSan re-gate passed
 native overlap 20/20 plus all 103 tests in 26 seconds without a race or
 interceptor diagnostic.
 
+The eighty-eighth prerequisite closes Damus's repeated
+`Task.detached { self.loadPlayerItem(url: self.url) }` form at
+`DamusVideoPlayer.swift:141-144`. The exact semantic question is whether a
+detached operation may read one immutable stored `Foundation.URL` through
+`self` on a MainActor-owned class and pass it synchronously to the same own,
+explicitly nonisolated, nonthrowing Void method. This is distinct from
+running that method's body on a worker.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. The selected method preconditions both stored
+URL path components. Twenty bounded native/interpreter runs returned exact
+`loaded:first-member.mp4,second-member.mp4`; the raw native SHA-256 was
+`a8824bb4d6fec8040cf1bbffaf5f6bad570be9c3bb4b2e77f5435db7244581b3`,
+and every focused five-run shard retained canonical SHA-256
+`7af5a771984f4d99a81b213ee5d397a2e7d54f7c80bb9baf66b78b1478169421`.
+Before the fix, interpreted execution already returned the exact value and
+drained all runtime state, but explicit parallel mode recorded zero physical
+submissions/executions instead of two.
+
+Physical argument lowering now recognizes a direct `self.member` expression
+only after exact receiver and declaration proof. `StructSymbol.StoredProperty`
+retains source attribute names so an unknown macro or wrapper cannot masquerade
+as plain storage. The admitted declaration must belong directly to the same
+nonactor source type, be an unattributed/unwrapped, non-lazy, observer-free,
+strong stored `let`, and already have an initialized box. Admission reads that
+box while confined, structurally copies a typed URL snapshot, and records the
+distinct `storedImmutableMember` provenance; it never evaluates a getter.
+Only the existing synchronous explicitly-nonisolated single-URL Void route
+accepts that provenance. Mutable, computed, lazy, attributed or wrapped,
+inherited, and nested member expressions remain cooperative.
+
+The physical receipt still proves only the real detached wrapper and checked
+URL handoff. The receiver, source method body, evaluator, host calls, and
+result remain behind MainActor-confined re-entry. Arbitrary nonisolated source
+execution, Damus's `AVPlayerItem` construction, `DispatchQueue` behavior,
+thread identity, and native background-performance parity therefore remain
+open.
+
+The exact-tip prebuilt iteration passed 44/44 worker-boundary/source-call
+tests, all 46 methodology/gate checks, and 20/20 parity repetitions on four
+workers in ten seconds. The exact-tip physical board passed 104/104 tests in
+three suites in 1.18 seconds. The Swift 6.3.3 TSan re-gate rebuilt in 20
+seconds and passed native overlap 20/20 plus all 104 tests in 37 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -5202,6 +5247,7 @@ and parallel-detached-weak-inherited-captured-string-source-call
 and parallel-detached-weak-inherited-string-array-source-call
 and parallel-detached-inherited-try-optional-source-call
 and parallel-detached-nonisolated-url-source-call
+and parallel-detached-nonisolated-url-member-source-call
 and parallel-detached-try-optional-sleep-prefix
 and parallel-detached-try-optional-nanoseconds-sleep-prefix
 and parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix

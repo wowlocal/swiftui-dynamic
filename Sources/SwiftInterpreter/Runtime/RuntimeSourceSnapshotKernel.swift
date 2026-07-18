@@ -610,7 +610,8 @@ extension Interpreter {
               closure.programPlan === entry.programPlan,
               let loweredArguments = try physicalSourceCallArguments(
                 metadata.arguments,
-                closure: closure),
+                closure: closure,
+                receiver: instance),
               let target = resolveOwnSourceInstanceMethodCallTarget(
                 named: name,
                 on: instance,
@@ -776,13 +777,16 @@ extension Interpreter {
                     && arguments[0].origin == .capturedImmutable
                 return isArgumentFreeRoute || isSingleStringRoute
             case .explicitlyNonisolated:
+                let hasSupportedURLOrigin = arguments.count == 1
+                    && (arguments[0].origin == .capturedImmutable
+                        || arguments[0].origin == .storedImmutableMember)
                 return !target.isAsync
                     && RuntimePhysicalSourceCallResultKind(
                         returnTypeName: target.returnTypeName) == .void
                     && parameters.count == 1
                     && arguments.count == 1
                     && arguments[0].valueKind == .url
-                    && arguments[0].origin == .capturedImmutable
+                    && hasSupportedURLOrigin
             case .executor(.detached),
                  .executor(.actor):
                 return false
@@ -925,13 +929,17 @@ extension Interpreter {
     /// Evaluate no source effects while admitting a physical wrapper. An
     /// integer, Boolean, or demand-cited String literal is already a value,
     /// and a direct immutable Int/Int64, String, URL, or demand-cited
-    /// `[String]` capture has fixed value semantics for this closure. Every other
+    /// `[String]` capture has fixed value semantics for this closure. Damus's
+    /// repeated URL form may also read one direct `self.member` only after the
+    /// declaration proves it is a plain, non-lazy stored `let` on the exact
+    /// source receiver. No getter executes during admission. Every other
     /// argument spelling and type stays on the cooperative evaluator.
     /// The checked capability performs the structural Sendable copy; the
     /// command retains labels, binding IDs, and the expected value kind.
     private func physicalSourceCallArguments(
         _ metadata: [ParsedCallArgumentMetadata],
-        closure: ClosureValue
+        closure: ClosureValue,
+        receiver: Instance
     ) throws -> (
         callArguments: CallArguments,
         sourceBindings: [RuntimeWorkerSourceBinding],
@@ -994,6 +1002,34 @@ extension Interpreter {
                     return nil
                 }
                 origin = .capturedImmutable
+            } else if let member = argument.expression
+                .as(MemberAccessExprSyntax.self),
+                      member.declName.argumentNames == nil,
+                      let base = member.base?
+                        .as(DeclReferenceExprSyntax.self),
+                      base.baseName.text == "self",
+                      base.argumentNames == nil,
+                      !receiver.symbol.isActor,
+                      let property = receiver.symbol.storedProperty(
+                        named: member.declName.baseName.text),
+                      property.wrapper == .none,
+                      property.attributeNames.isEmpty,
+                      !property.isMutable,
+                      !property.isLazy,
+                      !property.isBuilderClosure,
+                      property.referenceOwnership == .strong,
+                      property.willSetBody == nil,
+                      property.didSetBody == nil,
+                      let box = receiver.box(for: property.name) {
+                value = try box.load()
+                guard let snapshot = try? RuntimeWorkerValueSnapshot.copying(
+                    value,
+                    path: "argument[\(index)].self.\(property.name)"),
+                      case .url = snapshot else {
+                    return nil
+                }
+                valueKind = .url
+                origin = .storedImmutableMember
             } else {
                 return nil
             }

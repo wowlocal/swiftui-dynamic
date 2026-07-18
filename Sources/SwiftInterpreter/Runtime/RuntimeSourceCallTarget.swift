@@ -149,6 +149,10 @@ nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
 nonisolated enum RuntimePhysicalSourceCallArgumentOrigin: Sendable, Equatable {
     case literal
     case capturedImmutable
+    /// A direct `self.member` read proven to select one plain, non-lazy,
+    /// immutable stored property on the same source instance. Admission reads
+    /// the initialized box while confined and never executes a getter.
+    case storedImmutableMember
 }
 
 nonisolated struct RuntimePhysicalSourceCallArgument: Sendable, Equatable {

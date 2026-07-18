@@ -636,6 +636,7 @@ extension Interpreter {
                         initializer: nil,
                         typeAnnotation: element.typeAnnotation,
                         isBuilderClosure: false,
+                        attributeNames: declarationMetadata.attributeNames,
                         isMutable: declarationMetadata.isMutable,
                         isNonisolated: declarationMetadata.isNonisolated
                     ))
@@ -738,6 +739,7 @@ extension Interpreter {
                     initializer: bindingMetadata.initializer ?? queryDefault ?? stateLikeDefault,
                     typeAnnotation: bindingMetadata.typeAnnotation ?? syntheticAnnotation,
                     isBuilderClosure: hasBuilderAttribute,
+                    attributeNames: declarationMetadata.attributeNames,
                     isMutable: declarationMetadata.isMutable,
                     isNonisolated: declarationMetadata.isNonisolated
                 )

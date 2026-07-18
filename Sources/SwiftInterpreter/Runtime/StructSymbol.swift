@@ -80,6 +80,10 @@ public final class StructSymbol {
         /// `@ViewBuilder var content: Content` — memberwise init takes a
         /// trailing closure and stores the BUILT view.
         public let isBuilderClosure: Bool
+        /// Source attributes remain explicit even when the bridge does not
+        /// recognize them as one of its modeled wrappers. Physical lowering
+        /// must not equate an unknown macro/wrapper with plain storage.
+        public let attributeNames: [String]
         /// Mutable actor storage is confined to an owned executor segment.
         /// Immutable actor `let` storage remains directly readable, matching
         /// the Swift 6 compiler rule established by the native probe.

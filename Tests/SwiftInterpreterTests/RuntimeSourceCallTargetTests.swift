@@ -462,6 +462,34 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func nonisolatedSynchronousURLStoredLetSourceCallCopiesArgumentAndUsesPhysicalWrapper()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-nonisolated-url-member-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedNonisolatedURLMemberSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "loaded:first-member.mp4,second-member.mp4")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func richerNonisolatedURLSourceCallShapesStayCooperative() async throws {
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 1)
@@ -470,8 +498,25 @@ struct RuntimeSourceCallTargetTests {
         let value = try await interpreter.runAsync(source: """
         import Foundation
 
+        struct UnsupportedURLContainer {
+            let url: URL
+        }
+
         @MainActor
         final class UnsupportedNonisolatedURLRoutes {
+            nonisolated(unsafe) var mutableMemberURL = URL(
+                fileURLWithPath: "/tmp/mutable-member.mp4")
+            nonisolated var computedMemberURL: URL {
+                URL(fileURLWithPath: "/tmp/computed-member.mp4")
+            }
+            nonisolated(unsafe) lazy var lazyMemberURL = URL(
+                fileURLWithPath: "/tmp/lazy-member.mp4")
+            @available(*, deprecated)
+            let attributedMemberURL = URL(
+                fileURLWithPath: "/tmp/attributed-member.mp4")
+            let nestedMemberURL = UnsupportedURLContainer(
+                url: URL(fileURLWithPath: "/tmp/nested-member.mp4"))
+
             nonisolated func consume(url: URL) {
                 precondition(url.lastPathComponent.hasSuffix(".mp4"))
             }
@@ -520,14 +565,34 @@ struct RuntimeSourceCallTargetTests {
                 let projected = await Task.detached {
                     self.project(url: projectedURL)
                 }.value
-                return "\\(mutableURL.lastPathComponent):\\(projected)"
+                await Task.detached {
+                    self.consume(url: self.mutableMemberURL)
+                }.value
+                await Task.detached {
+                    self.consume(url: self.computedMemberURL)
+                }.value
+                await Task.detached {
+                    self.consume(url: self.lazyMemberURL)
+                }.value
+                await Task.detached {
+                    self.consume(url: self.attributedMemberURL)
+                }.value
+                await Task.detached {
+                    self.consume(url: self.nestedMemberURL.url)
+                }.value
+                return "\\(mutableURL.lastPathComponent):\\(projected):"
+                    + "\\(mutableMemberURL.lastPathComponent):"
+                    + "\\(computedMemberURL.lastPathComponent):"
+                    + "\\(lazyMemberURL.lastPathComponent):"
+                    + "\\(attributedMemberURL.lastPathComponent):"
+                    + "\\(nestedMemberURL.url.lastPathComponent)"
             }
         }
 
         await UnsupportedNonisolatedURLRoutes().run()
         """)
 
-        #expect(value.stringValue == "mutable.mp4:value.mp4")
+        #expect(value.stringValue == "mutable.mp4:value.mp4:mutable-member.mp4:computed-member.mp4:lazy-member.mp4:attributed-member.mp4:nested-member.mp4")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime
