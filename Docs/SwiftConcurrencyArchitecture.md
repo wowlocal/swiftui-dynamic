@@ -3026,8 +3026,9 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Six narrow snapshot-kernel paths and five demand-cited physical
-  source-call-wrapper paths now exist behind a validated explicit mode. The
+  covered. Six narrow snapshot-kernel paths, one demand-cited physical sleep
+  prefix, and five demand-cited physical source-call-wrapper paths now exist
+  behind a validated explicit mode. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
@@ -3062,7 +3063,9 @@ Each milestone is independently gated through
   to a physical worker.
   Physical Task-yield/sleep admission combines immutable callee shape with
   the stable registered core-Task identity; lexically shadowed source calls
-  remain cooperative. The general
+  remain cooperative. FreeChat's exact signature-free two-item body may also
+  run its `try?` sleep prefix physically, then hand a Sendable identity token
+  to a confined suffix/outcome record before ordinary evaluation resumes. The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
 
@@ -4650,6 +4653,40 @@ bundle plus a retained confirmation passed native overlap 20/20 and all 74
 tests, with the confirmation completing in 14 seconds without a race or
 interceptor diagnostic.
 
+The seventy-third prerequisite adds the first physically executed prefix of a
+multi-item source task. FreeChat's cited body contains exactly `try? await
+Task.sleep(for: .seconds(1))` followed by `await submit(input)`. Admission is
+limited to a signature-free two-item closure whose first item resolves to the
+registered core-Task throwing `sleep(for:)` declaration with a nonnegative
+integer-literal seconds or milliseconds duration and whose second item is one
+awaited expression. Other error markers, overloads, duration units, statement
+counts, item orderings, and authored signatures remain cooperative.
+
+The worker executes only typed sleep IR over an empty checked capability. The
+remaining expression is rebuilt as a MainActor-confined suffix closure and
+retained by the matching `RuntimeTaskRecord`. A Sendable continuation command
+contains only session and task identity. At the handoff, a dedicated relay
+reinstalls the originating `EvaluationTaskContext`, runs the suffix through the
+ordinary suspension-aware evaluator, and stores its complete `RuntimeValue` or
+`Error` in the task record. It returns only a Void snapshot; the owning logical
+task redeems the confined outcome after worker completion. Thus even an
+interpreted trap or source-thrown value never enters the detached worker.
+
+Cancellation forwarding and permit lifetime are independent policies. The
+logical cancellation request attaches to the actual native task running the
+sleep; authored `try?` catches its `CancellationError`, and the suffix still
+observes the task's cancellation bit. A one-shot handoff releases the bounded
+worker permit before confined re-entry, so a suffix can await another physical
+task even at maximum parallelism one. Strict native/interpreted execution
+returned exact `completed:false,cancelled:true|false:true` in twenty runs, with
+five-run digest
+`0a5b2906a7b66290e031388b4917c98fc54cbd9670544a3d5a05930982e24523`;
+the receipt RED moved from zero to two. Four focused regressions cover exact
+cancellation, nested-work liveness, fail-closed admission, and trap
+containment. The exact-tip physical board passed all 78 tests in one second;
+the rebuilt scoped TSan board passed native overlap 20/20 plus all 78 tests in
+60 seconds without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4670,6 +4707,7 @@ behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
+try-optional-sleep-prefix/
 MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor/
 inherited-source-call
 and strong-self-capture-source-call
@@ -4679,6 +4717,7 @@ and parallel-detached-weak-inherited-string-literal-source-call
 and parallel-detached-weak-inherited-captured-string-source-call
 and parallel-detached-weak-inherited-string-array-source-call
 and parallel-detached-inherited-try-optional-source-call
+and parallel-detached-try-optional-sleep-prefix
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension

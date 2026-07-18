@@ -855,6 +855,11 @@ extension Interpreter: EvalContext {
                             physicalKernelJob)
                         self.concurrencyRuntime
                             .recordPhysicalSourceKernelExecution()
+                        if let command = physicalKernelJob
+                            .confinedContinuationCommand {
+                            return try self.concurrencyRuntime
+                                .takePhysicalSourceContinuationOutcome(command)
+                        }
                         return snapshot.materializedRuntimeValue()
                     }
                     return try await self.callBackgroundClosureSuspending(

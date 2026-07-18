@@ -163,15 +163,20 @@ nonisolated struct RuntimePhysicalSourceKernelJob: Sendable {
     let workerJob: RuntimePhysicalWorkerJob
     let cancellationBehavior: RuntimeSourceKernelCancellationBehavior
     let permitLifetime: RuntimePhysicalSourcePermitLifetime
+    let confinedContinuationCommand:
+        RuntimePhysicalSourceContinuationCommand?
 
     init(
         workerJob: RuntimePhysicalWorkerJob,
         cancellationBehavior: RuntimeSourceKernelCancellationBehavior,
-        permitLifetime: RuntimePhysicalSourcePermitLifetime = .operation
+        permitLifetime: RuntimePhysicalSourcePermitLifetime = .operation,
+        confinedContinuationCommand:
+            RuntimePhysicalSourceContinuationCommand? = nil
     ) {
         self.workerJob = workerJob
         self.cancellationBehavior = cancellationBehavior
         self.permitLifetime = permitLifetime
+        self.confinedContinuationCommand = confinedContinuationCommand
     }
 }
 
@@ -193,7 +198,19 @@ extension Interpreter {
               !closure.isBuilder,
               (closure.isPhysicalSnapshotKernelCandidate
                 || closure.isPhysicalStrongSelfSourceCallCandidate
-                || closure.isPhysicalWeakSelfSourceCallCandidate),
+                || closure.isPhysicalWeakSelfSourceCallCandidate) else {
+            return nil
+        }
+
+        if let prefix = try physicalTryOptionalSleepPrefixJob(
+            closure: closure,
+            entry: entry,
+            record: record,
+            priority: priority) {
+            return prefix
+        }
+
+        guard
               closure.body.count == 1,
               let item = closure.body.first,
               let expression = Self.singleExpression(in: item) else {
@@ -252,6 +269,107 @@ extension Interpreter {
             },
             cancellationBehavior: kernel.cancellationBehavior,
             permitLifetime: .operation)
+    }
+
+    /// FreeChat uses a detached body whose first statement is a contained
+    /// throwing sleep and whose second statement re-enters application code.
+    /// Execute only that proven core-Task sleep on a worker. The suffix remains
+    /// a MainActor-confined closure owned by RuntimeTaskRecord, and its complete
+    /// RuntimeValue/Error outcome is redeemed by the logical task after the
+    /// worker returns a Sendable completion token.
+    private func physicalTryOptionalSleepPrefixJob(
+        closure: ClosureValue,
+        entry: RuntimeEntry,
+        record: RuntimeTaskRecord,
+        priority: RuntimeTaskPriority
+    ) throws -> RuntimePhysicalSourceKernelJob? {
+        guard closure.isPhysicalSnapshotKernelCandidate,
+              closure.body.count == 2,
+              let first = closure.body.first,
+              let firstExpression = Self.singleExpression(in: first),
+              let attempt = firstExpression.as(TryExprSyntax.self),
+              attempt.questionOrExclamationMark?.text == "?",
+              let awaitExpression = attempt.expression
+                .as(AwaitExprSyntax.self),
+              let sleepCall = awaitExpression.expression
+                .as(FunctionCallExprSyntax.self),
+              sleepCall.trailingClosure == nil,
+              sleepCall.additionalTrailingClosures.isEmpty,
+              resolvesCoreTaskCall(
+                sleepCall, named: "sleep", closure: closure),
+              Array(sleepCall.arguments).count == 1,
+              sleepCall.arguments.first?.label?.text == "for",
+              let durationExpression = sleepCall.arguments.first?.expression,
+              let duration = sourceSnapshotSleepDuration(durationExpression),
+              let suffixItem = closure.body.last,
+              case .expr(let suffixExpression) = suffixItem.item,
+              suffixExpression.is(AwaitExprSyntax.self),
+              record.entry === entry,
+              record.physicalSourceCall == nil,
+              record.physicalSourceContinuation == nil,
+              closure.programPlan === entry.programPlan else {
+            return nil
+        }
+
+        let suffix = ClosureValue(
+            parameters: [],
+            body: CodeBlockItemListSyntax(Array(closure.body.dropFirst())),
+            captured: closure.captured,
+            isBuilder: false,
+            returnType: closure.returnType,
+            returnTypeName: closure.returnTypeName,
+            programMetadata: closure.programMetadata,
+            programPlan: closure.programPlan)
+        suffix.extensionFrame = closure.extensionFrame
+        suffix.functionDeclID = closure.functionDeclID
+        suffix.lexicalOwner = closure.lexicalOwner
+        suffix.genericParameters = closure.genericParameters
+        suffix.debugName = closure.debugName.map {
+            "\($0) [physical sleep continuation]"
+        }
+        suffix.sourceFunctionName = closure.sourceFunctionName
+        suffix.executorPreference = closure.executorPreference
+        suffix.globalActorAttributeCandidates =
+            closure.globalActorAttributeCandidates
+        suffix.isExplicitlyNonisolated = closure.isExplicitlyNonisolated
+        suffix.lexicalExecutor = closure.lexicalExecutor
+        suffix.programState = closure.programState
+        suffix.sourceFunctionTargetDescriptor =
+            closure.sourceFunctionTargetDescriptor
+
+        let capability = try entry.makeWorkerCapability(copying: [])
+        let command = RuntimePhysicalSourceContinuationCommand(
+            entryID: entry.id,
+            taskID: record.id)
+        let handoff = RuntimePhysicalSourceExecutorHandoff()
+        let relay = concurrencyRuntime.sourceContinuationReentryRelay
+        let sleepKernel = RuntimeSourceSnapshotKernel.taskSleep(
+            .constant(duration))
+        record.physicalSourceContinuation =
+            RuntimeRegisteredPhysicalSourceContinuation(
+                command: command,
+                suffix: suffix)
+
+        return RuntimePhysicalSourceKernelJob(
+            workerJob: RuntimePhysicalWorkerJob(
+                capability: capability,
+                priority: priority
+            ) { capability in
+                do {
+                    _ = try await sleepKernel.execute(with: capability)
+                } catch is CancellationError {
+                    // This is the exact authored `try?` boundary. Cancellation
+                    // remains visible to the confined suffix through the
+                    // logical EvaluationTaskContext and native source task.
+                }
+                return try await relay.invoke(
+                    command,
+                    capability: capability,
+                    handoff: handoff)
+            },
+            cancellationBehavior: .observed,
+            permitLifetime: .untilConfinedExecutorEntry(handoff),
+            confinedContinuationCommand: command)
     }
 
     /// A detached wrapper may have the complete body `await self.method(...)`

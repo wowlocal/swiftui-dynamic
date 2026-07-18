@@ -474,6 +474,11 @@ final class RuntimeTaskRecord {
     /// starts. The worker owns only the matching Sendable command; task
     /// completion clears this receiver/closure edge before record release.
     var physicalSourceCall: RuntimeRegisteredPhysicalSourceCall?
+    /// MainActor-confined suffix and outcome for a detached body whose exact
+    /// safe prefix executes physically. The worker sees only the matching
+    /// Sendable command and returns a Void completion token.
+    var physicalSourceContinuation:
+        RuntimeRegisteredPhysicalSourceContinuation?
 
     init(
         id: RuntimeTaskID,
@@ -683,6 +688,8 @@ final class CooperativeConcurrencyRuntime {
     let diagnostics: RuntimeDiagnosticSink
     lazy var sourceCallReentryRelay = RuntimeSourceCallReentryRelay(
         runtime: self)
+    lazy var sourceContinuationReentryRelay =
+        RuntimeSourceContinuationReentryRelay(runtime: self)
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
     private var nextEvaluationTaskContextID: UInt64 = 1
@@ -1628,6 +1635,7 @@ final class CooperativeConcurrencyRuntime {
         record.suspension = nil
         record.evaluationContext = nil
         record.physicalSourceCall = nil
+        record.physicalSourceContinuation = nil
         publishTaskGroupCompletion(record)
     }
 
@@ -1650,6 +1658,7 @@ final class CooperativeConcurrencyRuntime {
         record.suspension = nil
         record.evaluationContext = nil
         record.physicalSourceCall = nil
+        record.physicalSourceContinuation = nil
         publishTaskGroupCompletion(record)
     }
 
@@ -1768,6 +1777,7 @@ final class CooperativeConcurrencyRuntime {
         record.suspension = nil
         record.evaluationContext = nil
         record.physicalSourceCall = nil
+        record.physicalSourceContinuation = nil
         publishTaskGroupCompletion(record)
     }
 
@@ -1840,6 +1850,7 @@ final class CooperativeConcurrencyRuntime {
         record.nativeDriver = nil
         record.sourceHandle = nil
         record.physicalSourceCall = nil
+        record.physicalSourceContinuation = nil
         records.removeValue(forKey: id)
     }
 

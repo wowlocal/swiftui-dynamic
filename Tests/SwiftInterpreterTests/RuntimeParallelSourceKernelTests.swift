@@ -416,6 +416,169 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelSubmissions == 1)
     }
 
+    @Test
+    func tryOptionalSleepPrefixReentersConfinedContinuation() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-try-optional-sleep-prefix.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedTryOptionalSleepPrefixProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func confinedSleepContinuationReleasesPermitBeforeNestedPhysicalWork()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        func nestedPhysicalWork() async -> String {
+            await Task.detached { "nested" }.value
+        }
+
+        let outer = Task.detached {
+            try? await Task.sleep(for: .milliseconds(0))
+            await nestedPhysicalWork()
+        }
+        await outer.value
+        """)
+
+        #expect(value.stringValue == "nested")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unsupportedSleepPrefixShapesStayOnCooperativeEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        func mark() async {
+            await Task.yield()
+        }
+
+        let plainTry = Task.detached {
+            try await Task.sleep(for: .milliseconds(0))
+            await mark()
+        }
+        _ = try? await plainTry.value
+
+        let forcedTry = Task.detached {
+            try! await Task.sleep(for: .milliseconds(0))
+            await mark()
+        }
+        await forcedTry.value
+
+        let alternateOverload = Task.detached {
+            try? await Task.sleep(nanoseconds: 0)
+            await mark()
+        }
+        await alternateOverload.value
+
+        let unsupportedUnit = Task.detached {
+            try? await Task.sleep(for: .microseconds(0))
+            await mark()
+        }
+        await unsupportedUnit.value
+
+        let threeItems = Task.detached {
+            try? await Task.sleep(for: .milliseconds(0))
+            await mark()
+            await mark()
+        }
+        await threeItems.value
+
+        let reversed = Task.detached {
+            await mark()
+            try? await Task.sleep(for: .milliseconds(0))
+        }
+        await reversed.value
+
+        let authored = Task.detached { () async -> Void in
+            try? await Task.sleep(for: .milliseconds(0))
+            await mark()
+        }
+        await authored.value
+        "completed"
+        """)
+
+        #expect(value.stringValue == "completed")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func interpretedTrapInConfinedSleepContinuationRemainsContained()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            @MainActor
+            func crashAfterPhysicalSleep() async -> String {
+                fatalError("contained physical sleep continuation")
+            }
+
+            await Task.detached {
+                try? await Task.sleep(for: .milliseconds(0))
+                await crashAfterPhysicalSleep()
+            }.value
+            """)
+            Issue.record("expected interpreted sleep-continuation trap")
+        } catch let thrown as InterpretedThrow {
+            let error = try #require(
+                thrown.value.hostPayload as? RuntimeError)
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "contained physical sleep continuation"))
+        } catch {
+            Issue.record("unexpected sleep-continuation failure: \(error)")
+        }
+
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func capturedStringIndexDistanceUsesPhysicalExpressionKernel()
         async throws
     {

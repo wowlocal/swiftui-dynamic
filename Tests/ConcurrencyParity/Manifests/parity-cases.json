@@ -2832,6 +2832,21 @@
     "notes": "Meshtastic-Apple demand-cites the exact nested `Task.detached(priority: .utility) { try? await self.refreshDevicesAPIData() }` spelling at MeshtasticAPI.swift:136-138; MeshtasticAPI is an @unchecked Sendable source class and the selected own method at line 199 is inherited-isolation, async, throwing, argument-free, and Void-returning. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact success:none|none#some|failure:none|none#nil in twenty bounded native/interpreter runs; every native five-run shard retained canonical SHA-256 bea8145a5762b64cfca390d6d8247e3f3c6d695e8d6a1a7d22bc294251068b9e, and the standalone twenty-line native output had SHA-256 99d9d9b6aa87c21d6bf64a993ab7eb29a2969a115f8210328f4073dc8e9b64d9. The deterministic receipt RED already returned the exact value through cooperative fallback but recorded zero physical submissions/executions instead of two. A typed suppress-to-optional command disposition catches ordinary errors during MainActor-confined re-entry, so InterpretedThrow.value never crosses the worker boundary and only Optional<Void> snapshots return. Fatal RuntimeError and InterpreterSessionAbort remain unsuppressed. Admission is capped to the exact direct-self argument-free inherited-isolation async throwing Void route; plain try, try!, arguments, richer results, MainActor, @concurrent, and weak-self variants remain cooperative."
   },
   {
+    "id": "parallel-detached-try-optional-sleep-prefix",
+    "fixture": "Fixtures/parallel-detached-try-optional-sleep-prefix.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedTryOptionalSleepPrefixProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A detached task that contains `try? await Task.sleep(for:)` followed by another statement suppresses sleep cancellation and executes that continuation in the same cancelled task; the continuation observes `Task.isCancelled == true`, and the handle completes successfully while retaining its cancellation bit.",
+    "notes": "FreeChat demand-cites `Task.detached(priority: .userInitiated) { try? await Task.sleep(for: .seconds(1)); await submit(input) }` at ConversationView.swift:228-231. The bounded same-source fixture executes a zero-duration success branch and immediately cancels a 30-second branch, so cancellation rather than elapsed time opens the second continuation. Apple Swift 6.3.3 compiled it in complete-strict Swift 6 mode with warnings as errors and returned exact completed:false,cancelled:true|false:true in twenty bounded native/interpreter runs; every five-run native shard retained SHA-256 0a5b2906a7b66290e031388b4917c98fc54cbd9670544a3d5a05930982e24523, and the standalone twenty-line observation had SHA-256 21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e. The deterministic receipt RED already returned the exact value through cooperative fallback but recorded zero physical submissions/executions instead of two. Admission is capped to an exact signature-free two-item body whose first item is a registered core-Task `try?` sleep over a nonnegative integer-literal seconds/milliseconds duration and whose second item is one awaited expression. The worker executes only the sleep. RuntimeTaskRecord retains the suffix and its complete RuntimeValue/Error outcome behind a Sendable entry/task token; cancellation reaches the actual worker sleep, and the bounded permit is released before confined re-entry under the originating EvaluationTaskContext. Plain try, try!, alternate overloads/units, three-item/reversed bodies, and authored signatures remain cooperative. Four focused regressions cover parity, nested-work liveness, negative admission, and fatal-trap containment; the exact-tip physical board passed 78 tests in three suites in one second, and the rebuilt scoped TSan board passed native overlap 20/20 plus all 78 tests in 60 seconds without a race or interceptor diagnostic."
+  },
+  {
     "id": "parallel-detached-weak-concurrent-string-source-call",
     "fixture": "Fixtures/parallel-detached-weak-concurrent-string-source-call.swift",
     "mode": "runtime",

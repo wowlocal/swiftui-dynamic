@@ -2031,6 +2031,34 @@ TSan bundle plus a retained confirmation passed native overlap 20/20 plus all
 74 tests, with the confirmation completing in 14 seconds without a race or
 interceptor diagnostic.
 
+The seventy-third M9 slice asks whether FreeChat's exact two-item detached
+body may execute its contained throwing sleep physically and then resume the
+remaining source expression without transporting confined evaluator state.
+The cited spelling is `Task.detached(priority: .userInitiated) { try? await
+Task.sleep(for: .seconds(1)); await submit(input) }` at
+`ConversationView.swift:228-231`.
+
+Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
+concurrency checking and warnings as errors. Native and interpreted execution
+returned exact `completed:false,cancelled:true|false:true` in twenty bounded
+repetitions. Every five-run native shard retained canonical digest
+`0a5b2906a7b66290e031388b4917c98fc54cbd9670544a3d5a05930982e24523`;
+the deterministic receipt RED returned the same value but observed zero
+physical submissions/executions instead of two.
+
+The positive regression requires both worker sleeps, including a pre-cancelled
+30-second sleep whose `CancellationError` is suppressed before the suffix
+observes `Task.isCancelled == true`. A confined outcome token proves that the
+suffix closure, captured environment, `RuntimeValue`, and `Error` never cross
+the worker boundary. A maximum-parallelism-one regression requires executor
+handoff before a nested physical task can finish, a trap regression requires
+fatal errors to remain host-contained, and zero-receipt controls retain plain
+`try`, `try!`, nanoseconds/microseconds, three-item, reversed, and authored-
+signature forms on the cooperative evaluator. Same-source parity passed 20/20
+on four workers in one second; the exact-tip physical board passed all 78
+tests in one second. The rebuilt scoped TSan board passed native overlap 20/20
+plus all 78 tests in 60 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

@@ -154,9 +154,17 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
     ) async throws -> RuntimeWorkerValueSnapshot {
         if case .untilConfinedExecutorEntry(let handoff) =
             sourceJob.permitLifetime {
-            return try await executeConfinedReentrySourceKernel(
-                sourceJob.workerJob,
-                handoff: handoff)
+            switch sourceJob.cancellationBehavior {
+            case .unobserved:
+                return try await executeConfinedReentrySourceKernel(
+                    sourceJob.workerJob,
+                    handoff: handoff)
+            case .observed:
+                return try await
+                    executeCancellationObservingConfinedReentrySourceKernel(
+                        sourceJob.workerJob,
+                        handoff: handoff)
+            }
         }
         switch sourceJob.cancellationBehavior {
         case .unobserved:
@@ -211,6 +219,64 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         await handoff.waitUntilPermitMayBeReleased()
         await permits.release()
         return try await sourceTask.value
+    }
+
+    /// A physical suspension prefix needs both source-cancellation forwarding
+    /// and early permit release when its continuation reaches the confined
+    /// evaluator. Keep those two policies orthogonal: cancellation attaches to
+    /// the actual detached source task, while the one-shot handoff owns only
+    /// bounded-worker capacity.
+    private func executeCancellationObservingConfinedReentrySourceKernel(
+        _ job: RuntimePhysicalWorkerJob,
+        handoff: RuntimePhysicalSourceExecutorHandoff
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        let cancellation = RuntimePhysicalSourceCancellationRelay()
+        let execution = Task.detached(priority: job.priority.nativePriority) {
+            try await Self
+                .executeCancellationObservingConfinedReentryDetached(
+                    job,
+                    permits: permits,
+                    handoff: handoff,
+                    cancellation: cancellation)
+        }
+        return try await withTaskCancellationHandler {
+            if Task.isCancelled {
+                await cancellation.requestCancellation()
+            }
+            return try await execution.value
+        } onCancel: {
+            Task { await cancellation.requestCancellation() }
+        }
+    }
+
+    private static func executeCancellationObservingConfinedReentryDetached(
+        _ job: RuntimePhysicalWorkerJob,
+        permits: RuntimePhysicalWorkerPermitPool,
+        handoff: RuntimePhysicalSourceExecutorHandoff,
+        cancellation: RuntimePhysicalSourceCancellationRelay
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        try await permits.acquire()
+        let sourceTask = Task.detached(priority: job.priority.nativePriority) {
+            do {
+                let value = try await job.operation(job.capability)
+                await handoff.completed()
+                return value
+            } catch {
+                await handoff.completed()
+                throw error
+            }
+        }
+        await cancellation.attach(sourceTask)
+        await handoff.waitUntilPermitMayBeReleased()
+        await permits.release()
+        do {
+            let value = try await sourceTask.value
+            await cancellation.finish()
+            return value
+        } catch {
+            await cancellation.finish()
+            throw error
+        }
     }
 
     /// Infrastructure acquires capacity independently from source
