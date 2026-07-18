@@ -2772,3 +2772,18 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   app-authored debug trap, not an interpreter divergence — candidates
   for closure: driver-level disabled/guard awareness, or upstream
   quarantine with reason. GATE GREEN 1101s (corpus 678/680 restored).
+- 2026-07-18 apple-browsers POLLUTION HUNT: OSS HALF EXONERATED
+  (worktree iteration 74): the second corpus backstop failure
+  ("subscripting is only supported on arrays and dictionaries, got ''"
+  at request.allHTTPHeaderFields?[...]) is CROSS-UNIT POLLUTION — the
+  project passes SOLO and fails only after other units run in-process;
+  the empty-stringified receiver is the fresh-string doctrine's ""
+  (member resolution flipped to absorbed under pollution). Bisect
+  progress: pair runs (firefox-ios/RedditOS/Mythic/iina -> browsers)
+  clean; the FULL 93-unit oss chain in one process -> browsers CLEAN —
+  the polluter is in the ~586-unit ZIP half. A --window lo:hi --then
+  <name> bisect flag landed in ProjectCheck but its first run sliced
+  25 units instead of 341 (zip-unit enumeration interacts with the
+  slice — instrument bug, fix first next iteration). NOTE: the
+  sharded gate corpus reports 678/680 with this failure INCLUDED —
+  the baseline is unchanged; this is queue work, not a regression.
