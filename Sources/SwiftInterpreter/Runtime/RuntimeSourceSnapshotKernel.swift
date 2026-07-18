@@ -203,6 +203,8 @@ extension Interpreter {
               (closure.isPhysicalSnapshotKernelCandidate
                 || closure
                     .isPhysicalExplicitMainActorContinuationCandidate
+                || closure
+                    .isPhysicalExplicitMainActorWeakSelfContinuationCandidate
                 || closure.isPhysicalStrongSelfSourceCallCandidate
                 || closure.isPhysicalWeakSelfSourceCallCandidate) else {
             return nil
@@ -214,6 +216,18 @@ extension Interpreter {
             record: record,
             priority: priority) {
             return prefix
+        }
+
+        // The explicit-MainActor weak-self route transfers no body syntax or
+        // capture. Its complete authored closure stays in the confined record,
+        // so body length is not a worker-admission dimension.
+        if closure.isPhysicalExplicitMainActorWeakSelfContinuationCandidate {
+            return try physicalMainActorContinuationJob(
+                nil,
+                closure: closure,
+                entry: entry,
+                record: record,
+                priority: priority)
         }
 
         guard
@@ -235,7 +249,9 @@ extension Interpreter {
         // The exact explicit-MainActor signature may unlock only the complete
         // confined continuation above. It must not borrow source-call or
         // snapshot-kernel routes when imported identity is absent.
-        guard !closure.isPhysicalExplicitMainActorContinuationCandidate else {
+        guard !closure.isPhysicalExplicitMainActorContinuationCandidate,
+              !closure
+                .isPhysicalExplicitMainActorWeakSelfContinuationCandidate else {
             return nil
         }
 
@@ -407,22 +423,27 @@ extension Interpreter {
             confinedContinuationCommand: command)
     }
 
-    /// Planet launches detached operations that either contain one imported
-    /// `MainActor.run(body:)` expression or carry the exact `@MainActor in`
-    /// signature. The worker performs only physical launch and executor
-    /// handoff. The source closure, captures, MainActor body, and complete
-    /// outcome remain in the continuation record used by sleep-prefix jobs.
+    /// Planet and Provenance launch detached operations that either contain
+    /// one imported `MainActor.run(body:)` expression or carry one of the
+    /// exact explicit-MainActor signatures admitted at closure formation. The
+    /// worker performs only physical launch and executor handoff. The source
+    /// closure, captures, MainActor body, and complete outcome remain in the
+    /// continuation record used by sleep-prefix jobs.
     private func physicalMainActorContinuationJob(
-        _ expression: ExprSyntax,
+        _ expression: ExprSyntax?,
         closure: ClosureValue,
         entry: RuntimeEntry,
         record: RuntimeTaskRecord,
         priority: RuntimeTaskPriority
     ) throws -> RuntimePhysicalSourceKernelJob? {
-        let isSignatureFreeRun = closure.isPhysicalSnapshotKernelCandidate
-            && isImportedMainActorRun(expression, closure: closure)
-        let isExplicitMainActorClosure = closure
+        let isSignatureFreeRun = expression.map {
+            closure.isPhysicalSnapshotKernelCandidate
+                && isImportedMainActorRun($0, closure: closure)
+        } ?? false
+        let isExplicitMainActorClosure = (closure
             .isPhysicalExplicitMainActorContinuationCandidate
+            || closure
+                .isPhysicalExplicitMainActorWeakSelfContinuationCandidate)
             && hasImportedMainActorIdentity(closure)
         guard isSignatureFreeRun || isExplicitMainActorClosure,
               record.entry === entry,

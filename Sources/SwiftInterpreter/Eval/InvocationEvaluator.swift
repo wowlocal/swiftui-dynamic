@@ -637,7 +637,16 @@ extension Interpreter {
               signature.parameterClause == nil,
               signature.effectSpecifiers == nil,
               signature.returnClause == nil,
-              let captures = signature.capture?.items,
+              hasExactWeakSelfCapture(signature) else {
+            return false
+        }
+        return true
+    }
+
+    private func hasExactWeakSelfCapture(
+        _ signature: ClosureSignatureSyntax
+    ) -> Bool {
+        guard let captures = signature.capture?.items,
               captures.count == 1,
               let capture = captures.first,
               capture.specifier?.specifier.text == "weak",
@@ -670,6 +679,35 @@ extension Interpreter {
             return false
         }
         return true
+    }
+
+    /// Provenance repeatedly uses `{ @MainActor [weak self] in ... }`. Apple
+    /// Swift 6.3.3's strict region checker requires the executor-neutral
+    /// `@Sendable` workaround in the native oracle, so both exact attribute
+    /// sequences are admitted. No other capture or signature surface may use
+    /// the confined entry/handoff wrapper.
+    private func isPhysicalExplicitMainActorWeakSelfContinuationCandidate(
+        _ signature: ClosureSignatureSyntax?
+    ) -> Bool {
+        guard let signature,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil,
+              hasExactWeakSelfCapture(signature) else {
+            return false
+        }
+        let attributes = signature.attributes.compactMap {
+            $0.as(AttributeSyntax.self)
+        }
+        guard attributes.count == signature.attributes.count,
+              attributes.allSatisfy({ $0.arguments == nil }) else {
+            return false
+        }
+        let names = attributes.map {
+            $0.attributeName.trimmedDescription
+        }
+        return names == ["MainActor"]
+            || names == ["MainActor", "Sendable"]
     }
 
     func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) throws -> ClosureValue {
@@ -784,6 +822,9 @@ extension Interpreter {
         value.isPhysicalSnapshotKernelCandidate = closure.signature == nil
         value.isPhysicalExplicitMainActorContinuationCandidate =
             isPhysicalExplicitMainActorContinuationCandidate(
+                closure.signature)
+        value.isPhysicalExplicitMainActorWeakSelfContinuationCandidate =
+            isPhysicalExplicitMainActorWeakSelfContinuationCandidate(
                 closure.signature)
         value.isPhysicalStrongSelfSourceCallCandidate =
             isPhysicalStrongSelfSourceCallCandidate(closure.signature)

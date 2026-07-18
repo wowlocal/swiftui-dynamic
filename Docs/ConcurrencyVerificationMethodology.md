@@ -2221,6 +2221,37 @@ passed 90/90 tests in three suites in one second; a fresh TSan build passed
 native overlap 20/20 plus all 90 tests in 55 seconds without a race or
 interceptor diagnostic.
 
+The seventy-ninth M9 slice asks whether Provenance's exact
+`Task.detached { @MainActor [weak self] in ... }` operation remains isolated
+across suspension without retaining a receiver released through a causal actor
+gate. It also asks whether physical promotion can preserve that behavior while
+the weak box, receiver, closure, evaluator, and complete outcome stay confined.
+
+Apple Swift 6.3.3's complete-strict region checker diagnoses the exact corpus
+spelling internally, so the compiled same-source fixture adds executor-neutral
+`@Sendable` and treats the unmodified spelling as a separate interpreter
+admission probe. Twenty native runs returned exact
+`same|same:alive#same|same:released`; the raw digest was
+`8f8952506fd713e4c83ea12ceeb60b04bdca0851bde0d3068fb4e1bac0966d38`,
+and all four five-run shards retained
+`768eb94127084dde469655732899dc1af00bd57c0f04a710c4edbc8e939c46d6`.
+
+The deterministic receipt RED preserved the exact cooperative value but
+recorded zero physical submissions/executions instead of two. Admission now
+requires exact `[weak self]`, ordered `@MainActor` with only the optional
+`@Sendable` workaround, and no alias, initializer, extra capture, parameters,
+effects, return clause, or other attributes. The worker performs only entry
+and actor handoff through the existing confined continuation token. Extra
+captures, reversed attributes, and a source-shadowed MainActor are retained
+zero-receipt controls.
+
+Focused parity passed 20/20 on four workers in one second, the source-kernel
+suite passed 49/49, and the canonical prebuilt iteration passed those 49
+implementation tests, all 46 methodology/gate checks, and all 20 parity
+repetitions in two seconds. The exact-tip physical board passed 92/92 tests in
+three suites in one second. A fresh TSan build passed native overlap 20/20 plus
+all 92 tests in 47 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

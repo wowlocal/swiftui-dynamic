@@ -707,6 +707,153 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func explicitMainActorWeakSelfClosureUsesPhysicalWrapperWithoutStrengtheningCapture()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-self.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorWeakSelfProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+        let corpus = Interpreter(executionMode: .parallel(parallelism))
+        let corpusValue = try await corpus.runAsync(source: """
+        @MainActor
+        final class CorpusReceiver {
+            var observation = "missing"
+
+            func record() {
+                observation = "entered"
+            }
+
+            func probe() async -> String {
+                await Task.detached { @MainActor [weak self] in
+                    self?.record()
+                }.value
+                return observation
+            }
+        }
+        await CorpusReceiver().probe()
+        """)
+
+        #expect(cooperativeValue.stringValue
+            == "same|same:alive#same|same:released")
+        #expect(value.stringValue
+            == "same|same:alive#same|same:released")
+        #expect(corpusValue.stringValue == "entered")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(corpus.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unsupportedOrShadowedExplicitMainActorWeakSelfSignaturesStayCooperative()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let unsupported = Interpreter(
+            executionMode: .parallel(parallelism))
+        let shadowed = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let unsupportedValue = try await unsupported.runAsync(source: """
+        @MainActor
+        final class Receiver {
+            var observations: [String] = []
+
+            func record(_ value: String) {
+                observations.append(value)
+            }
+
+            func probe() async -> String {
+                let marker = "additional"
+                await Task.detached {
+                    @MainActor @Sendable [weak self, marker] in
+                    self?.record(marker)
+                }.value
+                await Task.detached {
+                    @Sendable @MainActor [weak self] in
+                    self?.record("reordered")
+                }.value
+                return observations.joined(separator: ",")
+            }
+        }
+        await Receiver().probe()
+        """)
+        let shadowedValue = try await shadowed.runAsync(source: """
+        actor SourceMainActor {}
+
+        @globalActor
+        struct MainActor {
+            static let shared = SourceMainActor()
+        }
+
+        final class Receiver {
+            func probe() async -> String {
+                await Task.detached { @MainActor [weak self] in
+                    self == nil ? "released" : "shadowed"
+                }.value
+            }
+        }
+        await Receiver().probe()
+        """)
+
+        #expect(unsupportedValue.stringValue == "additional,reordered")
+        #expect(shadowedValue.stringValue == "shadowed")
+        #expect(unsupported.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(unsupported.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(shadowed.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(shadowed.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(unsupported.concurrencyRuntime.activeRecordCount == 0)
+        #expect(shadowed.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func weakTryOptionalDurationSleepPrefixReentersActorContinuation()
         async throws
     {

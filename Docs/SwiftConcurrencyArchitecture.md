@@ -3027,11 +3027,12 @@ Each milestone is independently gated through
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
   covered. Six narrow snapshot-kernel paths, four demand-cited physical sleep-
-  prefix spellings, two demand-cited MainActor continuation wrappers, and five
+  prefix spellings, three demand-cited MainActor continuation wrappers, and five
   demand-cited physical source-call-wrapper paths now exist behind a validated
-  explicit mode. The two continuation forms are a complete signature-free
-  imported `MainActor.run(body:)` body and Planet's exact one-expression
-  `{ @MainActor in ... }` operation. The
+  explicit mode. The three continuation forms are a complete signature-free
+  imported `MainActor.run(body:)` body, Planet's exact one-expression
+  `{ @MainActor in ... }` operation, and Provenance's exact
+  `{ @MainActor [weak self] in ... }` operation. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
@@ -4873,6 +4874,38 @@ and all 20 parity repetitions in 15 seconds. The exact-tip physical board
 passed 90/90 tests in three suites in one second; a fresh TSan build passed
 native overlap 20/20 plus all 90 tests in 55 seconds without a race or
 interceptor diagnostic.
+
+The seventy-ninth prerequisite extends the same empty continuation wrapper to
+Provenance's exact `{ @MainActor [weak self] in ... }` operation. Closure
+formation records a dedicated admissibility fact only for exact weak self,
+ordered MainActor with the optional executor-neutral `@Sendable` workaround,
+and no alias, initializer, additional capture, parameters, effects, return
+clause, or other attributes. This fact can unlock only entry/handoff; it cannot
+fall through to source-call or snapshot-kernel routes.
+
+The Sendable worker capability remains empty. At MainActor handoff the wrapper
+releases its permit and the originating `EvaluationTaskContext` invokes the
+complete retained closure. The genuine weak box, receiver lookup, source body,
+evaluator, and `RuntimeValue`/`Error` outcome never cross the worker boundary,
+so physical promotion cannot strengthen the capture. The exact corpus spelling
+without `@Sendable` is admitted by the interpreter, while the workaround keeps
+the native oracle compilable under the active Swift 6.3.3 region checker.
+
+Strict native/interpreted execution returned exact
+`same|same:alive#same|same:released` in twenty runs. The raw native digest was
+`8f8952506fd713e4c83ea12ceeb60b04bdca0851bde0d3068fb4e1bac0966d38`;
+every five-run focused shard retained
+`768eb94127084dde469655732899dc1af00bd57c0f04a710c4edbc8e939c46d6`.
+The receipt RED moved from zero to two physical wrappers. Extra captures,
+reversed attributes, and source-shadowed MainActor retain zero receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 49/49. The canonical prebuilt iteration
+passed those 49 implementation tests, all 46 methodology/gate checks, and all
+20 parity repetitions in two seconds. The exact-tip physical board passed
+92/92 tests in three suites in one second; a fresh TSan build passed native
+overlap 20/20 plus all 92 tests in 47 seconds without a race or interceptor
+diagnostic.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
