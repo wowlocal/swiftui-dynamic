@@ -684,11 +684,14 @@ extension Interpreter {
     /// Suspension-aware call-site resolution. Ordinary calls still use the
     /// mature synchronous evaluator; this path is entered only beneath await
     /// (or when an argument itself suspends).
+    /// A supplied write-back transaction ends an enclosing storage borrow on
+    /// both normal and exceptional method completion, before an error escapes.
     func invokeMutatingInstanceMethodSuspending(
         named name: String,
         on current: RuntimeValue,
         arguments: CallArguments,
-        node: some SyntaxProtocol
+        node: some SyntaxProtocol,
+        writeBackOnExit: ((RuntimeValue) throws -> Void)? = nil
     ) async throws -> (result: RuntimeValue, receiver: RuntimeValue)? {
         guard case .instance(let receiver) = current,
               !receiver.symbol.isClass else { return nil }
@@ -703,12 +706,24 @@ extension Interpreter {
         let selfEnvironment = selfEnvironment(.instance(working))
         let closure = makeFunctionClosure(
             method, body: body, captured: selfEnvironment)
-        let result = try await callWithArgumentsSuspending(
-            closure, args: arguments, node: Syntax(node))
-        let finalSelf = selfEnvironment.lookup("self") ?? .instance(working)
-        return (
-            result,
-            try resolveAnnotated(finalSelf, typeName: receiver.symbol.name))
+        func finalReceiver() throws -> RuntimeValue {
+            let finalSelf = selfEnvironment.lookup("self") ?? .instance(working)
+            return try resolveAnnotated(
+                finalSelf, typeName: receiver.symbol.name)
+        }
+
+        let result: RuntimeValue
+        do {
+            result = try await callWithArgumentsSuspending(
+                closure, args: arguments, node: Syntax(node))
+        } catch {
+            let failure = error
+            try writeBackOnExit?(finalReceiver())
+            throw failure
+        }
+        let resolvedReceiver = try finalReceiver()
+        try writeBackOnExit?(resolvedReceiver)
+        return (result, resolvedReceiver)
     }
 
     /// The first optional async write-back slice admits a local binding or
@@ -814,11 +829,13 @@ extension Interpreter {
                                 named: name,
                                 on: wrapped,
                                 arguments: args,
-                                node: call) {
-                            try relocating(call) {
-                                try LValue.forceUnwrapped(storage).writeOwned(
-                                    invocation.receiver, self)
-                            }
+                                node: call,
+                                writeBackOnExit: { receiver in
+                                    try self.relocating(call) {
+                                        try LValue.forceUnwrapped(storage)
+                                            .writeOwned(receiver, self)
+                                    }
+                                }) {
                             return invocation.result.liftedToOptional()
                         }
                     }

@@ -2847,6 +2847,21 @@
     "notes": "The official swiftlang/swift test/IRGen/run-coroutine_accessors.swift at swift-6.3.3-RELEASE commit 064859e41d68596f486c5d724401cb370f260409, SHA-256 2fdae2aa9cd0153da1db13b5e227c6fe5a74112eda85b91795fad9554a80cc95, lines 259-270 and 368-386 requires await b.value?.mutate() to preserve nil and copy the mutated present payload back as hihi. This same-source distillation adds a real Task.yield plus direct and nested Optional lvalues. Apple Swift 6.3.3 complete-strict compilation with warnings as errors and interpreted execution returned exact direct-entered-resumed:direct-entered-resumed|nested-entered-resumed:nested-entered-resumed|nil:nil in twenty bounded runs; every native five-run shard retained canonical SHA-256 7b98f96ff0ce968ecede27d9907e5ae498748983dd442b768d9b47f5d171a234. The deterministic interpreter RED invoked the present mutating method through the synchronous optional-member path and failed at Task.yield with async host function 'yield' requires runAsync and await. Suspension-aware optional-member dispatch now borrows a writable Optional source-value payload through its existing LValue transaction, invokes the mutating method on an independent working copy, and commits the final receiver through the same direct or enclosing stored-property path before lifting the result once. Nil returns before arguments or invocation. The case remains cooperative with zero physical receipts; throwing/cancellation exits and coroutine/computed/subscript accessor families remain separately unclaimed."
   },
   {
+    "id": "optional-value-mutating-async-throwing-writeback",
+    "fixture": "Fixtures/optional-value-mutating-async-throwing-writeback.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await optionalValueMutatingAsyncThrowingWritebackProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "A present Optional source value borrowed for an async mutating call writes mutations performed before a throwing exit back to its storage; this unwind rule also applies when the thrown exit is the current task's CancellationError.",
+    "notes": "The official swiftlang/swift test/IRGen/run-coroutine_accessors.swift at swift-6.3.3-RELEASE commit 064859e41d68596f486c5d724401cb370f260409, SHA-256 2fdae2aa9cd0153da1db13b5e227c6fe5a74112eda85b91795fad9554a80cc95, lines 259-270 and 368-386 proves optional async mutation uses coroutine write-back. The same release's test/Interpreter/coroutine_accessors_old_abi_nounwind.swift, SHA-256 68f7dec3be698ae0010c9cf35b25bbc8c53e910e31d2cfd14a67145bb9fc2ce9, lines 9-41 proves the modify cleanup runs on a throwing unwind. This same-source distillation uses direct Optional storage for the typed source error and an enclosing source-value stored property for Task.checkCancellation after deterministic self-cancellation; both payloads mutate before and after Task.yield. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact threw:throw-entered-resumed|cancelled:cancel-entered-resumed in twenty bounded runs; every native five-run shard retained canonical SHA-256 a7e9b9c675182511ce7f0f538699d283c2b57d960f1a0c2b574c29e4e270f295. The deterministic interpreter RED caught both expected errors but returned threw:throw|cancelled:cancel, proving that exceptional exit discarded the working receiver. The ordinary suspending mutating-method helper now accepts a confined write-back-on-exit transaction, resolves final self after normal or exceptional body completion, commits through the Optional path's existing LValue, and only then returns or rethrows the original failure. The case remains cooperative with zero physical receipts; coroutine/computed/subscript accessor families remain separately unclaimed."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

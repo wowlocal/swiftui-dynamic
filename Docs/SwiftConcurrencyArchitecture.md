@@ -4296,6 +4296,41 @@ on four workers. The rebuilt scoped TSan board passed native overlap 20/20
 plus all 62 physical driver/kernel/source-call tests in 17 seconds without a
 race or interceptor diagnostic.
 
+The sixty-second prerequisite closes exceptional exits for that same admitted
+stored-lvalue subset. It composes two pinned upstream guarantees from
+`swift-6.3.3-RELEASE` commit
+`064859e41d68596f486c5d724401cb370f260409`: the optional async coroutine
+write-back oracle above and
+`test/Interpreter/coroutine_accessors_old_abi_nounwind.swift`, SHA-256
+`68f7dec3be698ae0010c9cf35b25bbc8c53e910e31d2cfd14a67145bb9fc2ce9`,
+whose modify cleanup runs after its yielded mutating operation throws.
+
+The 39-line same-source distillation uses direct Optional storage for a typed
+source error and an enclosing source-value property for cancellation. Each
+payload mutates before and after `Task.yield`; the second task then exits with
+`CancellationError` after deterministic self-cancellation. Strict Apple Swift
+6.3.3 and interpreted execution returned exact
+`threw:throw-entered-resumed|cancelled:cancel-entered-resumed` in twenty
+bounded runs. Every native five-run shard retained canonical SHA-256
+`a7e9b9c675182511ce7f0f538699d283c2b57d960f1a0c2b574c29e4e270f295`.
+The deterministic RED caught both expected errors but returned
+`threw:throw|cancelled:cancel`, proving that unwind discarded the independently
+mutated working receiver.
+
+The ordinary suspending mutating-method helper now accepts a confined
+write-back-on-exit transaction. After either normal completion or a thrown
+body exit it resolves final `self`, commits that receiver through the Optional
+call site's existing `LValue`, and only then returns or rethrows the original
+failure. This is one reusable copy-out mechanism, not a trap, cancellation,
+fixture, or API-name branch. It remains wholly cooperative and sends no lvalue,
+receiver, environment, or error through the physical worker boundary.
+Coroutine/computed/subscript accessor owners still require a true suspending
+access transaction and remain open. The focused board passed 76 tests in
+seven suites, all 46 methodology/gate checks, and twenty parity repetitions on
+four workers. The rebuilt scoped TSan board passed native overlap 20/20 plus
+all 62 physical driver/kernel/source-call tests in 24 seconds without a race
+or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4321,6 +4356,7 @@ and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension
 and optional-value-mutating-async-writeback
+and optional-value-mutating-async-throwing-writeback
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

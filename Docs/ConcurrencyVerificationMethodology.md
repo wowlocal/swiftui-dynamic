@@ -1697,6 +1697,43 @@ scoped TSan board passed native overlap 20/20 plus all 62 physical
 driver/kernel/source-call tests in 17 seconds without a race or interceptor
 diagnostic.
 
+The sixty-second M9 slice asks one exceptional-exit question: after a present
+Optional source value mutates across suspension, does Swift copy the receiver
+back when the mutating method throws? The primary optional async oracle remains
+the pinned `test/IRGen/run-coroutine_accessors.swift`. The independent upstream
+unwind oracle is
+`test/Interpreter/coroutine_accessors_old_abi_nounwind.swift` from the same
+`swift-6.3.3-RELEASE` commit, SHA-256
+`68f7dec3be698ae0010c9cf35b25bbc8c53e910e31d2cfd14a67145bb9fc2ce9`;
+its modify cleanup runs after the yielded mutating call throws.
+
+The 39-line differential uses direct Optional storage for a typed source error
+and an enclosing stored property for a real `CancellationError`. It
+self-cancels the second runtime task before
+`Task.checkCancellation`, so no scheduler order or elapsed-time assumption is
+part of the assertion. Strict Apple Swift 6.3.3 returned exact
+`threw:throw-entered-resumed|cancelled:cancel-entered-resumed` in twenty
+bounded runs, and every native five-run shard retained SHA-256
+`a7e9b9c675182511ce7f0f538699d283c2b57d960f1a0c2b574c29e4e270f295`.
+The retained RED returned `threw:throw|cancelled:cancel`: error identity and
+catch routing were already correct, while receiver copy-out on unwind was not.
+
+Focused evidence requires the same final receiver after source throw and
+cancellation, the original failure to remain catchable, complete task/scope/
+group cleanup, and zero physical receipts. The production change extends the
+ordinary suspending mutating-method helper with one confined
+write-back-on-exit callback used for normal and exceptional completion. It does
+not branch on the fixture, error kind, Task API, or method name. Computed,
+coroutine, and subscript owners remain outside the admitted stored-lvalue
+syntax and must receive their own suspension-safe access transaction.
+
+The canonical focused board passed 76 tests in seven suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers. The rebuilt
+scoped TSan board passed native overlap 20/20 plus all 62 physical
+driver/kernel/source-call tests in 24 seconds without a race or interceptor
+diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
