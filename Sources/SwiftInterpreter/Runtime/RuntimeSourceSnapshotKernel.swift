@@ -288,7 +288,10 @@ extension Interpreter {
               member.declName.baseName.text == "count",
               member.declName.argumentNames == nil,
               let reference = member.base?.as(DeclReferenceExprSyntax.self),
-              reference.argumentNames == nil else {
+              reference.argumentNames == nil,
+              let programState = closure.programState,
+              programState.propertyTargetIdentity(for: .stringCount)
+                == .standardLibrary(.stringCount) else {
             return nil
         }
         let name = reference.baseName.text

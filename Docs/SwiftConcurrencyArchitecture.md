@@ -3637,11 +3637,37 @@ focused iteration completed 64 runtime/metadata/worker tests in three suites,
 all forty-three methodology checks plus three isolated gate-contract checks,
 and all twenty parity repetitions on four workers in one second.
 
+The forty-second prerequisite closes the equivalent declaration-identity hole
+for the existing `String.count` kernel. A same-module
+`extension String { var count: Int { 41 } }` shadows the imported property,
+including inside `Task.detached`. Apple Swift 6.3.3 returned exact `41` in
+twenty complete-strict Swift 6 runs; every native five-run shard reported
+SHA-256
+`e195c78d2738596cc170bb3277a29bf2f181174109dcad6afec0ab1a95b0033a`.
+Before the fix, both interpreter modes selected the native grapheme count and
+returned `5`; parallel mode additionally recorded one physical execution.
+
+Ordinary member evaluation now considers a source extension of the concrete
+core `String` before its imported native members. Physical admission asks the
+originating closure's `RuntimeProgramState` for a typed property-target
+identity and admits only `.standardLibrary(.stringCount)`; a visible source
+computed-property declaration is represented by its `SyntaxIdentifier`, and
+missing state fails closed. A two-run regression proves a retained function
+uses its origin program's target, while the positive imported-property probe
+still takes the physical path. No source declaration or mutable state crosses
+the worker boundary, and no seventh kernel is introduced. The scoped TSan
+board passed twenty native overlap iterations plus all thirty-six
+driver/source-kernel tests on four workers in 55 seconds. The canonical
+focused iteration completed 65 runtime/metadata/worker tests in three suites,
+all forty-three methodology checks plus three isolated gate-contract checks,
+and all twenty parity repetitions on four workers in one second.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
 source/actor/host/standard-library target identities beyond normalized callee
-shape and the core-Task proof remain incomplete, as does compiler metadata
+shape, the core-Task proof, and the `String.count` property proof remain
+incomplete, as does compiler metadata
 indexing; mutable symbol materialization plus evaluator state must move fully
 behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending

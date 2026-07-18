@@ -2550,6 +2550,21 @@
     "notes": "CotEditor demand-cites this exact spelling in Sources/Scanners/EditorCounter.swift. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact 5:9 in twenty bounded runs; every five-repetition native shard reported SHA-256 056cf461832cc0054882f24a52cbebddce0d96374179c21cc2f13e22eea43f3e. The interpreter behavioral value was already correct through cooperative fallback, but the captured RED proved explicit parallel mode recorded zero physical source executions instead of two. The common lowering now retains source let/var mutability on each Box, admits only a locally owned immutable String binding, copies it into RuntimeWorkerCapability on MainActor, and executes typed String.count IR on the bounded worker. Mutable bindings, globals, authored closure signatures, and every other expression remain cooperative; no Box, Environment, syntax, heap, host value, or evaluator crosses the worker boundary."
   },
   {
+    "id": "parallel-shadowed-string-count",
+    "fixture": "Fixtures/parallel-shadowed-string-count.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelShadowedStringCountOutput()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "A same-module computed property declared in an extension of String shadows the standard-library count property, including inside a Task.detached operation, so the task publishes the source property's exact Int value.",
+    "notes": "CotEditor demand-cites detached String.count at Sources/Scanners/EditorCounter.swift:130. This gap-closure oracle proves that runtime String shape plus member spelling is not a declaration identity. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact 41 in twenty bounded runs; every five-repetition native shard reported SHA-256 e195c78d2738596cc170bb3277a29bf2f181174109dcad6afec0ab1a95b0033a. Before the fix, both cooperative and explicit-parallel interpretation incorrectly selected the standard-library grapheme-count property and returned 5; explicit parallel mode additionally recorded one physical execution. Core String source extensions now dispatch before imported native members. Physical lowering asks the originating RuntimeProgramState for a typed property-target identity and admits only the exact standard-library String.count target; source declarations and missing state fail closed. A retained two-run regression proves origin-state ownership while the positive stdlib probe retains its physical receipt. No worker identity or unrelated scheduler order is asserted."
+  },
+  {
     "id": "parallel-captured-string-array-count",
     "fixture": "Fixtures/parallel-captured-string-array-count.swift",
     "mode": "runtime",

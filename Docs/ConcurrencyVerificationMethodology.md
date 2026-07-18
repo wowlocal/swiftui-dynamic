@@ -1057,6 +1057,31 @@ selection only; it adds no seventh kernel and does not resolve other source,
 actor, host, or
 standard-library calls.
 
+Its forty-second prerequisite is a gap closure for standard-library property
+target identity. The exact question is whether a same-module computed property
+in `extension String` shadows the imported `String.count` inside a detached
+operation. Apple Swift 6.3.3 compiled the same-source fixture in complete
+strict Swift 6 mode with warnings as errors and returned exact `41` in twenty
+bounded runs. Every five-run native shard reported SHA-256
+`e195c78d2738596cc170bb3277a29bf2f181174109dcad6afec0ab1a95b0033a`.
+No worker identity or unrelated scheduler order is asserted.
+
+The deterministic RED compared both interpreter modes before production was
+changed. Both selected the native grapheme-count property and returned `5`;
+explicit parallel mode additionally recorded one physical source execution.
+Member evaluation now checks a concrete core `String` source extension before
+native members. Worker admission resolves a typed property identity through
+the closure's originating `RuntimeProgramState`, admits only the exact
+standard-library identity, and fails closed for a source declaration or
+missing state. A two-run regression pins origin-state ownership; a positive
+probe pins continued physical admission. The scoped TSan board passed twenty
+native overlap iterations plus all thirty-six driver/source-kernel tests on
+four workers in 55 seconds. The canonical focused iteration completed 65
+runtime/metadata/worker tests in three suites, all forty-three methodology
+checks plus three isolated gate-contract checks, and all twenty parity
+repetitions on four workers in one second. This adds no kernel and does not
+generalize target resolution to other properties or methods.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

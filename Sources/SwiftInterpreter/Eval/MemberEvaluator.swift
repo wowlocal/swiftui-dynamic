@@ -1735,6 +1735,14 @@ extension Interpreter {
             if let typeName = registry?.hostTypeName(of: any) {
                 extensionCandidates.append(typeName)
             }
+            // Core RuntimeValue payloads do not require a HostRegistry, but
+            // same-module extensions still shadow their imported members.
+            // Keep the concrete type ahead of nativeMember so ordinary
+            // evaluation and physical target admission select the same
+            // source declaration.
+            if any is String, !extensionCandidates.contains("String") {
+                extensionCandidates.append("String")
+            }
             if any is BindingStub { extensionCandidates.append("Binding") }
             if !extensionCandidates.isEmpty,
                let value = try hostExtensionMember(
