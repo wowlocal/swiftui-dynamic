@@ -2814,3 +2814,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   to full doctrine compliance — the i71-i75 stack (self-healing send,
   rename-retitle closed with titled= asserted, corpus at honest
   ceiling, bisect instrument) awaits the steward.
+- 2026-07-18 R4 DEEPENS: THE ORDER DRILL — navigationDestination
+  EXECUTES; MENU-LINK WIRING IS THE OPEN CLASS (worktree iteration
+  77): new sweep phase orders-drill fires the SAME Details menu's
+  "View Details" NavigationLink and expects the push (window retitles
+  to the order id). TWO layers surfaced: (1) navigationDestination was
+  INERT — now it EXECUTES: the real modifier registers for String
+  (every bridged value-link pushes its stable tag; ONE String-keyed
+  destination catches all), and the interpreted builder receives the
+  ORIGINAL value from the registry — the documented NavigationLink
+  identity design, destination side. (2) The remaining gap: the fired
+  menu item's action is INERT for the AnyView-ERASED link — SwiftUI
+  wires TYPED links into menu items, not erased ones; the destination
+  closure never runs. The drill is reported-only (pushed=) until the
+  wiring class closes; candidate approaches: a typed link carrier for
+  menu content, or driving the link's AX press instead of the item
+  action. Boards R4 13/13, R2 18/18. GATE GREEN 1103s. MERGE-READY
+  6e03323 still pending steward action.

@@ -176,6 +176,42 @@ enum SweepDriver {
                         print("SWEEP \(step.name)-mutate complete-item-not-fired")
                         allGreen = false
                     }
+                    // DRILL phase: the SAME Details menu holds the row's
+                    // NavigationLink ("View Details") — firing it must PUSH
+                    // OrderDetailView in the detail column, retitling the
+                    // window to the order id (navigationTitle(order.id)),
+                    // exactly as a person drilling into an order.
+                    let drill = MenuDriveState()
+                    let drillTimer = Timer(timeInterval: 0.6, repeats: false) { _ in
+                        MainActor.assumeIsolated {
+                            guard let menu = popup.menu else { return }
+                            if let detailsIndex = menu.items.firstIndex(where: {
+                                $0.title.contains("View Details")
+                            }) {
+                                menu.performActionForItem(at: detailsIndex)
+                                drill.didFire = true
+                            }
+                            menu.cancelTracking()
+                        }
+                    }
+                    RunLoop.main.add(drillTimer, forMode: .eventTracking)
+                    popup.performClick(nil)
+                    try? await Task.sleep(nanoseconds: settleMs * 1_000_000)
+                    let drillCounts = tableRowCounts(in: window)
+                    let pushed = window.title.hasPrefix("Order#")
+                    let tableGone = !drillCounts.contains { $0 >= 20 }
+                    // KNOWN GAP (reported, not asserted): the fired menu
+                    // item's action is inert for the AnyView-erased
+                    // NavigationLink — SwiftUI wires typed links into menu
+                    // items, not erased ones. The executing
+                    // navigationDestination bridge is landed; the item
+                    // wiring is the open class (i77). Flip into the verdict
+                    // when it closes.
+                    let drillLanded = drill.didFire && pushed && tableGone
+                    print("SWEEP \(step.name)-drill fired=\(drill.didFire) title=\"\(window.title)\" tables=\(drillCounts) pushed=\(drillLanded)")
+                    previous = capture(
+                        "sweep-\(index + 1)-\(step.name)-drilled", window: window,
+                        outDirectory: outDirectory)
                 } else {
                     print("SWEEP \(step.name)-mutate no-menu")
                     allGreen = false
