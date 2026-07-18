@@ -3044,8 +3044,11 @@ Each milestone is independently gated through
   source-call bodies are signature-free except for Provenance's exact
   capture-only `{ [self] in await self.registerDefaults() }` spelling; that
   strong-capture proof cannot fall through to any snapshot kernel. Physical
-  Task-yield/sleep admission combines immutable callee shape with the stable
-  registered core-Task identity; lexically shadowed source calls remain
+  weak-reference transfer remains forbidden. Repeated `[weak self]` optional
+  async member calls instead use one cooperative suspension-aware path that
+  evaluates the receiver once, skips nil arguments, and flattens the result.
+  Physical Task-yield/sleep admission combines immutable callee shape with
+  the stable registered core-Task identity; lexically shadowed source calls remain
   cooperative. The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
@@ -4116,11 +4119,43 @@ retained canonical SHA-256
 The receipt RED moved from zero to one physical execution. `unowned`, aliases,
 multiple captures, explicit parameter/effect/return signatures, and non-call
 bodies remain cooperative with zero receipts. Weak/optional-self async
-dispatch remains an unclaimed interpreter gap outside this route. The
+dispatch remains outside that physical route. The
 focused board passed 71 tests in six suites, all 46 methodology/gate checks,
 and twenty parity repetitions on four workers in one second. The rebuilt
 scoped TSan board passed native overlap 20/20 plus all 57
 driver/kernel/source-call tests in three suites on four workers in 49 seconds
+without a race or interceptor diagnostic.
+
+The fifty-seventh prerequisite closes cooperative optional async-member
+dispatch before any physical weak-reference design. Repeated corpus source
+uses `Task.detached { [weak self] in await self?.method(...) }`. Native Swift
+does not strengthen that capture: a present receiver invokes and suspends,
+while an absent receiver skips both argument evaluation and the call and
+produces nil.
+
+The async explicit-member evaluator now owns that control-flow boundary. It
+evaluates the optional-chain base once. `.none` returns before collecting
+arguments; `.some` is rebound to a temporary and the rewritten call re-enters
+the same suspension-aware declaration selection, executor routing, and
+invocation used by a nonoptional receiver only when the payload is a source
+class/actor reference. Optional value types keep their existing path until
+mutating write-back has its own native oracle. Existing Optional lifting
+flattens the result to one level. No weak box, receiver, closure, environment,
+runtime value, heap, or evaluator crosses a worker boundary, and the parity case
+requires zero physical receipts.
+
+Apple Swift 6.3.3 and interpreted execution returned exact
+`alive:none|none|nil` in twenty bounded runs; every native five-run shard
+retained canonical SHA-256
+`76d6367b231b0e0530517d36cac3c518d1d5eb029e181e53e7ac83722d93b2a7`.
+The RED was a synchronous `Task.yield` failure inside the alive receiver; a
+fatal nil-side argument trap additionally proves skipped evaluation. Optional
+async closure invocation, optional value-type async chains with mutating
+write-back, weak-receiver destruction races, and physical weak transfer remain
+open. The focused board passed 72 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in two
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 58
+driver/kernel/source-call tests in three suites on four workers in 24 seconds
 without a race or interceptor diagnostic.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
@@ -4143,6 +4178,7 @@ literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep
 MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor/
 inherited-source-call
 and strong-self-capture-source-call
+and weak-self-optional-async-source-call
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

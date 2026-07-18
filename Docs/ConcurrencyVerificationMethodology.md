@@ -1520,7 +1520,7 @@ only for the direct-self source-call attempt and then fails closed before the
 ordinary snapshot-kernel table. Controls keep `unowned`, alias, multi-capture,
 explicit parameter/effect/return, and non-call forms cooperative with zero
 receipts. Weak/optional-self async dispatch remains unclaimed outside this
-slice. The worker receives no source receiver,
+physical-route slice. The worker receives no source receiver,
 closure, environment, runtime value, heap, or evaluator.
 
 The canonical focused board passed 71 tests in six suites plus all
@@ -1528,6 +1528,41 @@ forty-three methodology checks and three isolated gate-contract checks;
 focused parity completed all twenty repetitions on four workers in one
 second. The rebuilt scoped TSan board passed native overlap 20/20 and all 57
 driver/kernel/source-call tests in three suites on four workers in 49 seconds
+without a race or interceptor diagnostic.
+
+The fifty-seventh M9 slice closes repeated weak-self optional async member
+dispatch such as `Task.detached { [weak self] in await self?.method(...) }`.
+The semantic question is cooperative: when the weak receiver is alive, does
+the selected source method use the suspension-aware evaluator; when it is
+nil, are argument evaluation and invocation both skipped? No physical weak
+reference is admitted.
+
+The same-source oracle retains one receiver through the awaited detached
+handle, samples nil actor isolation around `Task.yield`, and then calls a nil
+optional with a fatal argument expression. Apple Swift 6.3.3 complete-strict
+compilation with warnings as errors returned exact `alive:none|none|nil` in
+twenty bounded runs. Every native five-run shard retained SHA-256
+`76d6367b231b0e0530517d36cac3c518d1d5eb029e181e53e7ac83722d93b2a7`;
+no weak-destruction race, worker identity, or scheduler order is an oracle.
+The deterministic interpreter RED failed inside the alive method because the
+eager optional-member wrapper invoked `Task.yield` synchronously.
+
+The fix evaluates an explicit optional-chain base once in
+`evaluateCallSuspending`. Nil returns before argument collection. A present
+source class/actor reference is rebound to a temporary, dispatched recursively
+through ordinary suspension-aware member resolution, and lifted through the
+existing Optional flattening rule. Optional value types keep their prior path
+until mutating write-back is separately proven. The focused case requires zero
+physical receipts. Optional
+async closure calls, optional value-type async chains with mutating write-back,
+weak-destruction races, and worker-side weak references remain outside the
+slice.
+
+The canonical focused board passed 72 tests in six suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers in two
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 and all 58
+driver/kernel/source-call tests in three suites on four workers in 24 seconds
 without a race or interceptor diagnostic.
 
 ## Process and liveness isolation

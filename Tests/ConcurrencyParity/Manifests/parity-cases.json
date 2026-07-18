@@ -2772,6 +2772,21 @@
     "notes": "Provenance demand-cites the exact Task.detached(priority: .userInitiated) { [self] in await self.registerDefaults() } spelling in DiscSerialExtractorRegistry.swift:105-107; the registry is Sendable and registerDefaults() is an inherited-isolation, async, nonthrowing, argument-free, Void-returning own source-class method at lines 90-100. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact strong:none|none in twenty bounded runs; every native five-run shard retained canonical SHA-256 14c92e632cbf820172e940cbe85fb910e691b2b5a8e7ccd49b1a5f976660df9e. The deterministic interpreter RED returned the same value and drained its runtime state, but recorded zero physical submissions/executions instead of one. Admission recognizes only one ordinary strong self capture with no alias, ownership modifier, attributes, parameters, effects, return clause, additional capture, or trailing comma, and may use it only for a direct-self source-call wrapper. Unowned, alias, multi-capture, explicit-signature, and non-call forms stay cooperative; weak/optional-self async dispatch and richer closure forms remain unclaimed outside this slice."
   },
   {
+    "id": "weak-self-optional-async-source-call",
+    "fixture": "Fixtures/weak-self-optional-async-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await weakSelfOptionalAsyncSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "An alive receiver reached through await weakSelf?.method() executes its async method and suspends normally, while a nil optional receiver skips both argument evaluation and invocation and returns nil; optional chaining adds only one Optional result level.",
+    "notes": "Repeated corpus demand includes Session's Task.detached { [weak self] in await self?.loadAndCacheAlbumData(...) } calls at MediaGalleryViewModel.swift:477-484 and Provenance's no-argument processQueue wrapper at CloudKitDownloadQueue.swift:188-190. The same-source oracle retains one weak receiver through an awaited detached handle, observes nil actor isolation around Task.yield, then invokes a nil optional with a fatal argument trap that must not be evaluated. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact alive:none|none|nil in twenty bounded runs; every native five-run shard retained canonical SHA-256 76d6367b231b0e0530517d36cac3c518d1d5eb029e181e53e7ac83722d93b2a7. The interpreter RED entered the selected async method through synchronous optional-member invocation and failed when Task.yield required the suspension-aware runtime. Async explicit-member evaluation now evaluates the optional base exactly once, returns nil before collecting arguments when absent, or rewrites a present source class/actor reference into the ordinary suspension-aware call path and flattens its result. Optional value types keep their prior path until mutating write-back is separately proven. Weak/optional source calls remain cooperative with zero physical receipts; optional async closure invocation, weak receiver destruction races, and physical weak-reference transfer remain outside this slice."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

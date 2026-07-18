@@ -721,10 +721,48 @@ extension Interpreter {
            let member = calleeMetadata.member,
            let baseExpression = member.base {
             let name = member.declName.baseName.text
-            let baseValue = try await evaluateSuspending(
+            let evaluatedBase = try await evaluateSuspending(
                 baseExpression,
                 in: env,
                 forceInvocation: forceInvocation)
+
+            // Optional chaining controls the entire call: evaluate the base
+            // once, skip arguments and invocation for nil, or dispatch the
+            // wrapped source reference through this same suspension-aware
+            // call path before flattening the result back to one Optional
+            // level. Optional value types stay on their established path:
+            // rebinding one would lose mutating write-back provenance.
+            if baseExpression.is(OptionalChainingExprSyntax.self) {
+                switch evaluatedBase.optionalState {
+                case .none:
+                    return .none()
+                case .some(let wrapped, _):
+                    guard case .instance(let instance) = wrapped,
+                          instance.symbol.isClass || instance.symbol.isActor
+                    else {
+                        break
+                    }
+                    let child = Environment(parent: env)
+                    let temporary = temporaryName()
+                    child.define(temporary, wrapped)
+                    let replacement = ExprSyntax(
+                        DeclReferenceExprSyntax(
+                            baseName: .identifier(temporary)))
+                    let rewrittenMember = member.with(
+                        \.base, replacement)
+                    let rewrittenCall = call.with(
+                        \.calledExpression,
+                        ExprSyntax(rewrittenMember))
+                    return try await evaluateCallSuspending(
+                        rewrittenCall,
+                        in: child,
+                        forceInvocation: forceInvocation
+                    ).liftedToOptional()
+                case .notOptional:
+                    break
+                }
+            }
+            let baseValue = evaluatedBase
 
             if let target = try? resolveLValue(baseExpression, in: env),
                let current = try? target.read(self),
