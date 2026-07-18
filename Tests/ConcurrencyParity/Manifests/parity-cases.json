@@ -2566,5 +2566,20 @@
     "expectedPhysicalSourceKernelExecutions": 2,
     "nativeFact": "A background-priority Task.detached body may suspend at Task.yield and its awaited Void value completes; the result does not identify a worker thread or constrain unrelated ready-task ordering.",
     "notes": "swift-composable-architecture demand-cites this exact spelling in Sources/ComposableArchitecture/TestStore.swift:1856. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned exact yielded:2 in twenty bounded runs; every five-repetition native shard reported SHA-256 a8da6accf02cddfd0779ab299c9ccaf8f75d2092aa1704824745f6c197af7e8c. The interpreter value was already correct through cooperative fallback, but the captured RED proved explicit parallel mode recorded zero physical source executions instead of two. MainActor lowering admits only a signature-free, argument-free, single-expression detached body whose expression is the exact zero-argument await Task.yield() call. It emits a typed task-yield kernel with an empty checked capability; the real detached worker suspends at Swift Task.yield and publishes a Void snapshot. Authored signatures, multiple statements, alternate calls, and every captured value remain cooperative. Twenty paired cooperative/parallel runs preserve exact yielded:2, empty task registries, and zero/two receipts. The two calls are sequential; no worker thread identity or unrelated ready-task order is asserted."
+  },
+  {
+    "id": "parallel-captured-string-distance",
+    "fixture": "Fixtures/parallel-captured-string-distance.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelCapturedStringDistanceParityProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 2,
+    "expectedPhysicalSourceKernelExecutions": 3,
+    "nativeFact": "A Task.detached body may capture an immutable String and a String.Index derived from that same value, compute distance from startIndex, and publish the exact grapheme-step count through its awaited handle. Cancelling a non-checking task does not suppress that value, although its handle remains marked cancelled; no worker order is implied.",
+    "notes": "CotEditor demand-cites this standard-library expression at Sources/Scanners/EditorCounter.swift:191. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned exact 2:5|2:true in twenty bounded runs; every five-repetition native shard reported SHA-256 da866620191667df04f2901b8f5ca2478e97f730df4787c6d7c5b18260518f28. The fixture includes extended grapheme clusters, awaits two ordinary handles, and immediately cancels a third before awaiting its still-successful value. The value path was already behaviorally correct through cooperative fallback, but the captured receipt RED observed zero physical executions instead of two; after physical lowering, a second RED exposed infrastructure cancellation escaping into the non-checking source body as CancellationError. MainActor admission now requires the exact distance(from: string.startIndex, to: location) spelling over directly owned immutable String and String.Index captures derived by source code, copies only those typed snapshots, and emits typed startIndex/distance IR. A source-kernel execution policy isolates the finite native job from logical source cancellation, while the ordinary driver API still forwards infrastructure cancellation. Mutable bindings, globals, alternate from expressions, authored signatures, and all other shapes remain cooperative. Twenty paired cooperative/parallel runs preserve exact 2:5|2:true, empty registries, and zero/three receipts; no worker order, thread identity, or general Task.isCancelled kernel is claimed."
   }
 ]

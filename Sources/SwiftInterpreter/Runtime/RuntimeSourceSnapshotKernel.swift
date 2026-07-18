@@ -9,6 +9,11 @@ nonisolated indirect enum RuntimeSourceSnapshotExpression:
     case binding(String)
     case stringCount(RuntimeSourceSnapshotExpression)
     case stringCountSum(RuntimeSourceSnapshotExpression)
+    case stringStartIndex(RuntimeSourceSnapshotExpression)
+    case stringDistance(
+        RuntimeSourceSnapshotExpression,
+        from: RuntimeSourceSnapshotExpression,
+        to: RuntimeSourceSnapshotExpression)
 
     func execute(
         with capability: RuntimeWorkerCapability
@@ -49,6 +54,24 @@ nonisolated indirect enum RuntimeSourceSnapshotExpression:
                 total = addition.partialValue
             }
             return .int(total)
+        case .stringStartIndex(let base):
+            guard case .string(let value) = try base.execute(
+                with: capability) else {
+                throw RuntimeError(message:
+                    "physical String.startIndex kernel received a non-String snapshot")
+            }
+            return .stringIndex(value.startIndex)
+        case .stringDistance(let base, let from, let to):
+            guard case .string(let value) = try base.execute(
+                with: capability),
+                  case .stringIndex(let lower) = try from.execute(
+                    with: capability),
+                  case .stringIndex(let upper) = try to.execute(
+                    with: capability) else {
+                throw RuntimeError(message:
+                    "physical String.distance kernel received invalid snapshots")
+            }
+            return .int(value.distance(from: lower, to: upper))
         }
     }
 }
@@ -116,6 +139,10 @@ extension Interpreter {
             capability = lowered.capability
             kernel = lowered.kernel
         } else if let lowered = try capturedImmutableStringArrayCountKernel(
+            expression, closure: closure, entry: entry) {
+            capability = lowered.capability
+            kernel = lowered.kernel
+        } else if let lowered = try capturedImmutableStringDistanceKernel(
             expression, closure: closure, entry: entry) {
             capability = lowered.capability
             kernel = lowered.kernel
@@ -268,6 +295,88 @@ extension Interpreter {
         return (
             capability,
             .expression(.stringCountSum(.binding(name))))
+    }
+
+    /// CotEditor's selection counter executes
+    /// `string.distance(from: string.startIndex, to: location)` over a local
+    /// immutable String and an index derived from that value. Copy both
+    /// checked-Sendable values and lower only the exact standard-library
+    /// expression; alternate bounds or mutable/global bindings stay confined.
+    private func capturedImmutableStringDistanceKernel(
+        _ expression: ExprSyntax,
+        closure: ClosureValue,
+        entry: RuntimeEntry
+    ) throws -> (
+        capability: RuntimeWorkerCapability,
+        kernel: RuntimeSourceSnapshotKernel
+    )? {
+        guard let call = expression.as(FunctionCallExprSyntax.self),
+              call.trailingClosure == nil,
+              call.additionalTrailingClosures.isEmpty,
+              let member = call.calledExpression
+                .as(MemberAccessExprSyntax.self),
+              member.declName.baseName.text == "distance",
+              member.declName.argumentNames == nil,
+              let stringReference = member.base?
+                .as(DeclReferenceExprSyntax.self),
+              stringReference.argumentNames == nil else {
+            return nil
+        }
+
+        let arguments = Array(call.arguments)
+        guard arguments.count == 2,
+              arguments[0].label?.text == "from",
+              arguments[1].label?.text == "to",
+              let startIndex = arguments[0].expression
+                .as(MemberAccessExprSyntax.self),
+              startIndex.declName.baseName.text == "startIndex",
+              startIndex.declName.argumentNames == nil,
+              let startBase = startIndex.base?
+                .as(DeclReferenceExprSyntax.self),
+              startBase.argumentNames == nil,
+              startBase.baseName.text == stringReference.baseName.text,
+              let indexReference = arguments[1].expression
+                .as(DeclReferenceExprSyntax.self),
+              indexReference.argumentNames == nil else {
+            return nil
+        }
+
+        let stringName = stringReference.baseName.text
+        let indexName = indexReference.baseName.text
+        guard stringName != indexName,
+              let stringBox = closure.captured.locallyOwnedBox(
+                for: stringName),
+              !stringBox.isMutableBinding,
+              case .string(let string) = try stringBox.load(),
+              let indexBox = closure.captured.locallyOwnedBox(for: indexName),
+              !indexBox.isMutableBinding,
+              case .host(let payload) = try indexBox.load(),
+              let index = payload as? String.Index else {
+            return nil
+        }
+
+        let capability = try entry.makeWorkerCapability(copying: [
+            RuntimeWorkerSourceBinding(
+                name: stringName, value: .string(string)),
+            RuntimeWorkerSourceBinding(
+                name: indexName, value: .native(index)),
+        ])
+        guard capability.bindings.count == 2,
+              capability.bindings[0].name == stringName,
+              case .string = capability.bindings[0].value,
+              capability.bindings[1].name == indexName,
+              case .stringIndex = capability.bindings[1].value else {
+            throw RuntimeError(message:
+                "physical String.distance kernel produced invalid snapshots")
+        }
+        let stringExpression = RuntimeSourceSnapshotExpression.binding(
+            stringName)
+        return (
+            capability,
+            .expression(.stringDistance(
+                stringExpression,
+                from: .stringStartIndex(stringExpression),
+                to: .binding(indexName))))
     }
 
     private static func singleExpression(

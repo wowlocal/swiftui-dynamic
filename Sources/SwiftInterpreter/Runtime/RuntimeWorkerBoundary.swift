@@ -140,6 +140,7 @@ nonisolated indirect enum RuntimeWorkerValueSnapshot: Sendable, Equatable {
     case double(Double)
     case bool(Bool)
     case string(String)
+    case stringIndex(String.Index)
     case array([RuntimeWorkerValueSnapshot])
     case dictionary([DictionaryEntry])
     case tuple(labels: [String?], values: [RuntimeWorkerValueSnapshot])
@@ -173,6 +174,8 @@ nonisolated indirect enum RuntimeWorkerValueSnapshot: Sendable, Equatable {
             return .bool(value)
         case .string(let value):
             return .string(value)
+        case .stringIndex(let value):
+            return .native(value)
         case .array(let values):
             return .array(values.map { $0.materializedRuntimeValue() })
         case .dictionary(let entries):
@@ -335,7 +338,10 @@ private struct RuntimeWorkerValueCopier {
                 isImplicitlyUnwrapped: optional.isImplicitlyUnwrapped)
         case .implicitMember(let name):
             return .implicitMember(name)
-        case .host:
+        case .host(let value):
+            if let index = value as? String.Index {
+                return .stringIndex(index)
+            }
             throw rejection(
                 path: path, disposition: .rejectedNonSendable,
                 kind: "opaque host value")

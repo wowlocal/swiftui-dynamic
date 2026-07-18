@@ -848,13 +848,8 @@ extension Interpreter: EvalContext {
                     }
                     if let physicalKernelJob,
                        let driver = self.physicalWorkerDriver {
-                        let output = try await driver.execute([
-                            physicalKernelJob,
-                        ])
-                        guard let snapshot = output.first else {
-                            throw RuntimeError(message:
-                                "physical source kernel returned no result")
-                        }
+                        let snapshot = try await driver.executeSourceKernel(
+                            physicalKernelJob)
                         self.concurrencyRuntime
                             .recordPhysicalSourceKernelExecution()
                         return snapshot.materializedRuntimeValue()

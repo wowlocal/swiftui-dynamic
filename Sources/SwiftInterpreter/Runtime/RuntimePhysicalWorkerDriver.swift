@@ -104,6 +104,25 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         }
     }
 
+    /// Execute one finite source kernel without turning a source task's
+    /// cooperative cancellation bit into infrastructure cancellation of the
+    /// physical job. Swift still enters a cancelled non-checking task body and
+    /// permits it to return a value. The surrounding runtime separately
+    /// observes session/host abort after this bounded job completes.
+    func executeSourceKernel(
+        _ job: RuntimePhysicalWorkerJob
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        let execution = Task.detached(priority: job.priority.nativePriority) {
+            try await execute([job])
+        }
+        let output = try await execution.value
+        guard let snapshot = output.first else {
+            throw RuntimeError(message:
+                "physical source kernel returned no result")
+        }
+        return snapshot
+    }
+
     private func add(
         _ job: RuntimePhysicalWorkerJob,
         at index: Int,

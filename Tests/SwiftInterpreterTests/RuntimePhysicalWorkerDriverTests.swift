@@ -76,6 +76,35 @@ struct RuntimePhysicalWorkerDriverTests {
         })
     }
 
+    @Test func sourceKernelExecutionPreservesCooperativeCallerCancellation()
+        async throws
+    {
+        let interpreter = Interpreter()
+        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+        let capability = try entry.makeWorkerCapability(copying: [])
+        let gate = PhysicalWorkerSourceCancellationGate()
+        let job = RuntimePhysicalWorkerJob(capability: capability) { _ in
+            .int(23)
+        }
+        let driver = try RuntimePhysicalWorkerDriver(maximumParallelism: 1)
+        let execution = Task.detached {
+            gate.callerEntered.store(true, ordering: .releasing)
+            while !gate.releaseCaller.load(ordering: .acquiring) {
+                await Task.yield()
+            }
+            return try await driver.executeSourceKernel(job)
+        }
+
+        #expect(await waitUntil {
+            gate.callerEntered.load(ordering: .acquiring)
+        })
+        execution.cancel()
+        gate.releaseCaller.store(true, ordering: .releasing)
+
+        #expect(try await execution.value == .int(23))
+        #expect(execution.isCancelled)
+    }
+
     @Test func workerFailureCancelsSiblingAndDrainsTheBatch() async throws {
         let interpreter = Interpreter()
         let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
@@ -257,6 +286,11 @@ private nonisolated final class PhysicalWorkerBatchGate: Sendable {
 private nonisolated final class PhysicalWorkerCancellationProbe: Sendable {
     let started = Atomic<Bool>(false)
     let observedCancellation = Atomic<Bool>(false)
+}
+
+private nonisolated final class PhysicalWorkerSourceCancellationGate: Sendable {
+    let callerEntered = Atomic<Bool>(false)
+    let releaseCaller = Atomic<Bool>(false)
 }
 
 private nonisolated final class PhysicalWorkerFailureProbe: Sendable {

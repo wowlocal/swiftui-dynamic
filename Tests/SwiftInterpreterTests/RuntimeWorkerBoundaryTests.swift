@@ -108,6 +108,34 @@ struct RuntimeWorkerBoundaryTests {
         } == values.map(\.stringified))
     }
 
+    @Test func copiedStringIndexRemainsUsableWithItsStringSnapshot()
+        async throws
+    {
+        let interpreter = Interpreter()
+        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+        let text = "A🛰️BC"
+        let index = text.index(text.startIndex, offsetBy: 2)
+        let capability = try entry.makeWorkerCapability(copying: [
+            .init(name: "text", value: .native(text)),
+            .init(name: "index", value: .native(index)),
+        ])
+
+        let distance = try await Task.detached {
+            guard case .string(let copiedText) = capability.bindings[0].value,
+                  case .stringIndex(let copiedIndex) =
+                    capability.bindings[1].value else {
+                throw RuntimeError(message: "invalid copied index fixture")
+            }
+            return copiedText.distance(
+                from: copiedText.startIndex, to: copiedIndex)
+        }.value
+
+        #expect(distance == 2)
+        #expect(capability.accessManifest.copiedValuePaths
+            == ["input.text", "input.index"])
+        #expect(capability.accessManifest.isWorkerSafe)
+    }
+
     @Test func confinedAndOpaqueValuesFailClosedAtTheExactEdge() throws {
         let interpreter = Interpreter()
         let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)

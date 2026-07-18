@@ -137,6 +137,60 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelExecutions == 2)
     }
 
+    @Test func capturedStringIndexDistanceUsesPhysicalExpressionKernel()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        func probe() async -> String {
+            let atlas = "A🛰️BC"
+            let location = atlas.index(atlas.startIndex, offsetBy: 2)
+            let distance = Task.detached {
+                atlas.distance(from: atlas.startIndex, to: location)
+            }
+            return "\\(await distance.value)"
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "2")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+    }
+
+    @Test func cancelledPhysicalStringDistanceStillReturnsItsValue()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        func probe() async -> String {
+            let text = "A🛰️BC"
+            let location = text.index(text.startIndex, offsetBy: 2)
+            let task = Task.detached {
+                text.distance(from: text.startIndex, to: location)
+            }
+            task.cancel()
+            let distance = await task.value
+            return "\\(distance):\\(task.isCancelled)"
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "2:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+    }
+
     @Test func mutableAndGlobalStringCapturesStayOnTheConfinedEvaluator()
         async throws
     {
@@ -263,6 +317,53 @@ struct RuntimeParallelSourceKernelTests {
         """)
 
         #expect(value.stringValue == "fallback")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+    }
+
+    @Test func unsupportedStringDistancesStayOnTheCooperativeEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        let globalText = "A🛰️B"
+        let globalLocation = globalText.index(
+            globalText.startIndex, offsetBy: 2)
+
+        @MainActor
+        func probe() async -> String {
+            var mutableText = "A🛰️B"
+            let mutableLocation = mutableText.index(
+                mutableText.startIndex, offsetBy: 2)
+            let localText = "A🛰️B"
+            let alternateFrom = localText.index(
+                localText.startIndex, offsetBy: 1)
+            let localLocation = localText.index(
+                localText.startIndex, offsetBy: 2)
+            let mutable = Task.detached {
+                mutableText.distance(
+                    from: mutableText.startIndex, to: mutableLocation)
+            }
+            let global = Task.detached {
+                globalText.distance(
+                    from: globalText.startIndex, to: globalLocation)
+            }
+            let alternate = Task.detached {
+                localText.distance(from: alternateFrom, to: localLocation)
+            }
+            let first = await mutable.value
+            let second = await global.value
+            let third = await alternate.value
+            return "\\(first):\\(second):\\(third)"
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "2:2:1")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelExecutions == 0)
     }
@@ -408,6 +509,38 @@ struct RuntimeParallelSourceKernelTests {
                 .totalPhysicalSourceKernelExecutions == 0)
             #expect(parallel.concurrencyRuntime
                 .totalPhysicalSourceKernelExecutions == 2)
+            #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+            #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+        }
+    }
+
+    @Test func capturedStringDistanceModesRemainEquivalent() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-captured-string-distance.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelCapturedStringDistanceParityProbe()\n"
+        let configuration = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+
+        for _ in 0..<20 {
+            let cooperative = Interpreter()
+            let parallel = Interpreter(
+                executionMode: .parallel(configuration))
+            let cooperativeValue = try await cooperative.runAsync(
+                source: source)
+            let parallelValue = try await parallel.runAsync(source: source)
+
+            #expect(cooperativeValue.stringValue == "2:5|2:true")
+            #expect(parallelValue.stringValue
+                == cooperativeValue.stringValue)
+            #expect(cooperative.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions == 0)
+            #expect(parallel.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions == 3)
             #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
             #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
         }

@@ -898,6 +898,44 @@ yield command. Captured suspending bodies, richer async expressions, general
 evaluator work, actors, host calls, and heap access remain outside the worker
 boundary.
 
+Its thirty-eighth prerequisite is a gap closure for CotEditor's demand-cited
+`Task.detached { string.distance(from: string.startIndex, to: location) }`.
+The exact question is whether explicit parallel mode can copy an immutable
+String and a String.Index derived from it, execute Swift's grapheme-aware
+distance on a real worker, and publish the same value. The fixture also cancels
+a third non-checking task before awaiting it, pinning Swift's cooperative
+cancellation rule: the value still completes while the handle remains marked
+cancelled. Apple Swift 6.3.3 compiled the fixture in complete strict Swift 6
+mode with warnings as errors and returned exact `2:5|2:true` in twenty bounded
+runs. Every native five-repetition shard reported SHA-256
+`da866620191667df04f2901b8f5ca2478e97f730df4787c6d7c5b18260518f28`.
+
+The first RED was receipt-based: cooperative fallback already returned the
+correct distances, but explicit parallel mode recorded zero physical
+executions instead of two. The first production pass exposed a second RED:
+native-driver cancellation escaped into the finite worker operation and threw
+`CancellationError` instead of publishing `2`. The source-kernel path now
+isolates finite physical work from logical source cancellation, while the
+ordinary driver API continues to forward infrastructure cancellation.
+
+MainActor admission requires the exact `distance(from: string.startIndex,
+to: location)` shape, the same String reference for the receiver and
+`startIndex`, and directly owned immutable String and String.Index captures.
+Only typed copies enter the checked capability; the worker receives typed
+start-index/distance IR. Mutable bindings, globals, alternate `from:`
+expressions, authored signatures, and all other shapes remain cooperative.
+Twenty paired mode runs preserve exact `2:5|2:true`, empty registries, and
+zero/three receipts. The incremental scoped TSan board passed twenty native
+overlap iterations and all twenty-eight driver/source-kernel tests on four
+workers in fifty seconds without a race or interceptor diagnostic. The
+canonical focused iteration completed eighty-nine ownership/worker tests in
+nine suites, all forty-three methodology checks (the forty-test board plus
+three source-bound gate checks), and all twenty parity repetitions on four
+workers in two seconds. No
+String.Index provenance beyond Swift's own copied value semantics, native
+thread identity, unrelated scheduling order, or general cancellation-checking
+kernel is asserted.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
