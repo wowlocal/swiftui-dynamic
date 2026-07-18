@@ -1576,6 +1576,18 @@
     "notes": "The interpreter entry deliberately returns before the callback fires, matching a retained SwiftUI Button action. Exact output started,done-3 proves both synchronous callback semantics and independently scheduled concurrency-runtime work; no physical worker-thread identity is asserted."
   },
   {
+    "id": "host-callback-structured-composition",
+    "fixture": "Fixtures/host-callback-structured-composition.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "parityInterpreterHostCallbackStructuredComposition()",
+    "interpreterProjection": "host-callback-global-string:parityHostCallbackStructuredCompositionProbe:phase",
+    "nativeFact": "A retained synchronous MainActor callback returns after its inline mutation while independently scheduled work composes async let children, a shared detached task with two waiters, task-group children, and cancellation-handler observation.",
+    "notes": "Already-GREEN characterization motivated by TaskObservatory. Exact output must be started,async:5|shared:10:10|cancelled. The sums and cancellation result are deterministic; no sibling order, physical thread, or unrelated scheduler order is asserted."
+  },
+  {
     "id": "host-callback-overlap",
     "fixture": "Fixtures/host-callback-overlap.swift",
     "mode": "runtime",

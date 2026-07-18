@@ -1206,15 +1206,30 @@
           "owners": ["runtime", "integration"],
           "coverage": ["success", "cleanup", "ownership"],
           "ownedCaseIDs": [
-            "host-callback-task-runtime"
+            "host-callback-task-runtime",
+            "host-callback-structured-composition"
           ],
-          "testNames": [],
+          "testNames": [
+            "TaskObservatoryTests/hostedRunButtonCompletesItsConcurrencyTree"
+          ],
           "evidenceByCoverage": {
-            "success": ["case:host-callback-task-runtime"],
-            "cleanup": ["case:host-callback-task-runtime"],
-            "ownership": ["case:host-callback-task-runtime"]
+            "success": [
+              "case:host-callback-task-runtime",
+              "case:host-callback-structured-composition",
+              "test:TaskObservatoryTests/hostedRunButtonCompletesItsConcurrencyTree"
+            ],
+            "cleanup": [
+              "case:host-callback-task-runtime",
+              "case:host-callback-structured-composition",
+              "test:TaskObservatoryTests/hostedRunButtonCompletesItsConcurrencyTree"
+            ],
+            "ownership": [
+              "case:host-callback-task-runtime",
+              "case:host-callback-structured-composition",
+              "test:TaskObservatoryTests/hostedRunButtonCompletesItsConcurrencyTree"
+            ]
           },
-          "notes": "Retained synchronous host callbacks enter the canonical concurrency runtime."
+          "notes": "Retained synchronous host callbacks enter the canonical concurrency runtime. The TaskObservatory follow-up is an already-GREEN characterization rather than a fabricated gap: a real NSHostingView presses the unchanged project's actual Run experiment Button through ViewRegistry, after which both async-let children, the cancellation-handler worker, all four task-group children, and both shared-value waiters enter, finish, and drain every runtime registry. A same-source composition fixture returned exact started,async:5|shared:10:10|cancelled in twenty strict native/interpreter repetitions; every four-worker native shard reported SHA-256 c4c9895155080edb1fd1dcf9b0e887a6c057553fd836addef8bc94ff20a885f8. No total sibling order or physical-thread claim is made."
         },
         {
           "id": "view-owned-async-lifecycle",
