@@ -2844,3 +2844,10 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   The executing navigationDestination bridge stays landed and ready
   for a future real menu-tracking click driver. Boards unchanged
   (comment-only delta since the i77 gate GREEN 1103s).
+- 2026-07-18 i76-i78 RECEIPTED (worktree iteration 79): clean-detached
+  gate GREEN 1151s on exact tip 0251a20; MERGE-READY posted (the
+  drill + executing navigationDestination + parity probe stack).
+  Queue for future iterations: a real menu-tracking click driver
+  (would graduate pushed= and enable native-comparative menu-link
+  verification), the 17 unstable parity probes, the london diag
+  tripwire (quiet since i63), oss:Mythic driver-guard awareness.
