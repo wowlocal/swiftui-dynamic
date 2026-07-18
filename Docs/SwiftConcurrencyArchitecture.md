@@ -3045,10 +3045,13 @@ Each milestone is independently gated through
   `[Substring]`; swift-composable-architecture's exact no-capture
   `Task.detached(priority: .background) { await Task.yield() }` command; and
   CotEditor's exact immutable String/String.Index `distance(from:to:)`
-  spelling; plus Signal-iOS's conditional `Task.sleep(for:)` over an immutable
-  Bool and literal seconds/milliseconds. All six lower to checked snapshot
-  kernels and have paired cooperative/parallel plus TSan evidence. The five
-  source-call families launch only a checked wrapper command before confined
+spelling; plus Signal-iOS's conditional `Task.sleep(for:)` over an immutable
+Bool and literal seconds/milliseconds. All six lower to checked snapshot
+kernels and have paired cooperative/parallel plus TSan evidence. Damus's
+parenthesized `Task.detached(priority:operation:)` spelling is characterized
+through the same call-site metadata, generated Task gateway, signature-free
+`ClosureValue`, and typed yield kernel; it adds no worker capability. The five
+source-call families launch only a checked wrapper command before confined
   re-entry: MainActor, `@concurrent`, default source actor, actor-declared
   custom global actor, and inherited detached-caller isolation. Physical
   source-call bodies are signature-free except for Provenance's exact
@@ -5065,6 +5068,29 @@ focused source-kernel suite passed 56/56, all 46 methodology/gate checks
 passed, the exact-tip physical board passed 99/99 tests in three suites, and a
 fresh TSan build passed native overlap 20/20 plus all 99 tests in 24 seconds
 without a race or interceptor diagnostic.
+
+The eighty-fifth prerequisite is verification-only. It characterizes Damus's
+parenthesized `Task.detached(priority: .background, operation: { ... })`
+spelling and establishes that frontend syntax does not create a second runtime
+path. Immutable call-site metadata carries the `operation` label and closure
+expression; the generated Task gateway selects that labeled argument and hands
+the resulting signature-free `ClosureValue` to the existing typed
+`Task.yield` admission and physical kernel. No new lowering, worker command, or
+confined-runtime capability is introduced.
+
+Apple Swift 6.3.3 compiled the same-source fixture with complete strict
+concurrency and warnings as errors. Native and interpreted execution returned
+exact `yielded:2` in twenty bounded repetitions. The raw native digest was
+`1c83194c943a93d0f11bbfe107b23ec2fcdeda5e6efb7f78b0c31885f9eef549`,
+and every five-run focused shard retained
+`cbcb335f090be7e3b06e30b72823d6c25e0ec9a2ca2b77453fb4bfa1cd318115`.
+Cooperative/parallel receipts are zero/two and every task registry drains. The
+focused source-kernel suite passed 57/57, all 46 methodology/gate checks
+passed, the exact-tip physical board passed 100/100 tests in three suites, and
+a fresh TSan build passed native overlap 20/20 plus all 100 tests in 24 seconds
+without a race or interceptor diagnostic. The proof does not claim operation
+start/completion order, worker identity, arbitrary parenthesized bodies, or
+general captured Damus work.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change

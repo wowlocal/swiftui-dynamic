@@ -2400,6 +2400,31 @@ tests in 24 seconds without a race or interceptor diagnostic. Sequence timing,
 ready-task order, worker identity, and direct worker iteration remain outside
 the assertion.
 
+The eighty-fifth M9 slice is an already-GREEN frontend composition
+characterization, not a production gap closure. Damus demand-cites the
+parenthesized `Task.detached(priority:operation:)` spelling. The probe asks
+whether its labeled `operation:` closure reaches the same signature-free
+suspending operation path as trailing-closure syntax and can use the existing
+typed `Task.yield` physical kernel.
+
+Apple Swift 6.3.3 compiled the fixture with complete strict concurrency and
+warnings as errors. Twenty native/interpreted runs returned exact `yielded:2`;
+the raw native digest was
+`1c83194c943a93d0f11bbfe107b23ec2fcdeda5e6efb7f78b0c31885f9eef549`,
+and every focused shard retained
+`cbcb335f090be7e3b06e30b72823d6c25e0ec9a2ca2b77453fb4bfa1cd318115`.
+Call-site metadata materializes the labeled closure, the generated Task
+gateway selects it, and the existing yield kernel receives the same
+signature-free `ClosureValue`; no runtime mechanism changed. Cooperative and
+parallel modes record zero/two physical receipts and complete registry
+cleanup. The canonical iteration passed 57/57 source-kernel tests, all 46
+methodology/gate checks, and 20/20 parity repetitions in four seconds. The
+physical board passed 100/100 tests in three suites, and a fresh TSan build
+passed native overlap 20/20 plus all 100 tests in 24 seconds without a race or
+interceptor diagnostic. Source order constrains the two handle reads; operation
+start/completion order, worker identity, and arbitrary parenthesized bodies do
+not enter the claim.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

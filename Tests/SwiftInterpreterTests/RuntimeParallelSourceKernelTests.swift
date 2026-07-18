@@ -276,6 +276,36 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelExecutions == 2)
     }
 
+    @Test func detachedOperationArgumentUsesPhysicalYieldKernel() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-operation-argument.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedOperationArgumentProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "yielded:2")
+        #expect(value.stringValue == cooperativeValue.stringValue)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func shadowedTaskYieldStaysOnTheCooperativeEvaluator() async throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
