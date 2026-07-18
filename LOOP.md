@@ -2893,3 +2893,42 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   cacheDisplay is blank for an already-shown hosting — the counter
   causality replaced pixels. Boards R4 13/13, R2 18/18; GATE GREEN
   1102s.
+- 2026-07-18 i82-i83 RECEIPTED (worktree iteration 84): clean-detached
+  gate GREEN 1150s on exact tip 54bc613; MERGE-READY posted (the M3
+  doctrine completion — @Query re-renders on store writes). Every
+  board at ceiling; remaining queue is the two user-action gates
+  (Screen Recording, Accessibility) and the london tripwire.
+- 2026-07-18 M1 OPENS: AsyncStream.makeStream — THE 115-COUNT TUPLE
+  CLASS (worktree iteration 85): with FoodTruck and all backstops at
+  ceiling, milestone weighting points at M1 (TestCheck), whose biggest
+  class was 115x "tuple binding doesn't match the value shape" — every
+  element-x failure at ONE merged site: `let (stream, continuation) =
+  AsyncStream<P.Output>.makeStream()` (their deferFulfillment helper).
+  The runtime had the FULL stream machinery (storage/continuation/
+  sequence — the closure constructor composes them); only the
+  tuple-returning static was missing. sourceAsyncStreamMakeStream
+  Function composes the same primitives into the labeled
+  (stream, continuation) TupleValue; tolerant of unresolved generics
+  (element bookkeeping only); AsyncThrowingStream variant included.
+  Pins: AsyncStreamMakeStreamTests (destructure+yield+finish+for-await
+  = "12"; labeled member access on the made tuple; runtime records
+  drain to zero). element-x's tuple-binding count: MANY -> ZERO (its
+  histogram head is now "#require failed: found nil" 14x). Residual
+  tuple-binding instances hit a different site in the TCA-genre
+  projects — next iteration's histogram target. GATE GREEN 1108s.
+- 2026-07-18 TUPLE-CLASS RESIDUE RE-CLASSIFIED: ABSENT PACKAGE
+  DEPENDENCY (worktree iteration 86): the remaining ~44 TCA
+  tuple-binding failures decomposed via a five-rung repro ladder (all
+  interpreter tuple machinery GREEN: direct, closure-return, labeled-3,
+  arg+trailing, coalesced-closure, TCA-shape with local wrapper) plus a
+  now-self-diagnosing error — the binding site receives a
+  host(UIKitStub): the free `withDependencies` lives in the
+  swift-dependencies PACKAGE, absent from the corpus checkout (natively
+  SPM fetches it; only TestStore METHODS with that name are on disk).
+  The class is corpus-material completeness, not interpreter
+  semantics. Both tuple-binding throw sites now report wanted-vs-got
+  shape ("wanted 3 elements, got host(...UIKitStub)"), converting 100+
+  opaque failures into attributable evidence. Options recorded:
+  vendor missing package deps into the corpus checkouts (bounded
+  fetch, faithful to native builds) or ledger the dependent suites
+  FreeChat-style. GATE GREEN 1112s.

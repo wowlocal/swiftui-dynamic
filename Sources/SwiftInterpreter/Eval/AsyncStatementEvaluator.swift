@@ -211,7 +211,8 @@ extension Interpreter {
                 let value = try await evaluateSuspending(initializer, in: env)
                 guard let tuple = value.tupleValue,
                       tuple.values.count == tuplePattern.elements.count else {
-                    throw error(binding, "tuple binding doesn't match the value shape")
+                    throw error(binding, "tuple binding doesn't match the value shape "
+                            + "(wanted \(tuplePattern.elements.count) elements, got \(value.tupleValue.map { "a \($0.values.count)-tuple" } ?? String(describing: value).prefix(60)))")
                 }
                 for (element, elementValue) in zip(tuplePattern.elements, tuple.values) {
                     if let identifier = element.pattern.as(IdentifierPatternSyntax.self) {

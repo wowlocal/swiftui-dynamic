@@ -1357,6 +1357,11 @@ extension Interpreter {
             if name == "init" {
                 return baseValue // `NSNumber.init(value:)` ≡ `NSNumber(value:)`
             }
+            if function.name == "AsyncStream" || function.name == "AsyncThrowingStream",
+               name == "makeStream" {
+                return .hostFunction(sourceAsyncStreamMakeStreamFunction(
+                    throwing: function.name == "AsyncThrowingStream"))
+            }
             if function.name == "Task" {
                 switch GeneratedConcurrencySurface.taskStaticIntrinsic(
                     memberName: name
