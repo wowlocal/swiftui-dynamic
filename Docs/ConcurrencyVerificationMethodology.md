@@ -2314,6 +2314,33 @@ repetitions in two seconds. The exact-tip physical board passed 95/95 tests in
 three suites in one second. A fresh TSan build passed native overlap 20/20 plus
 all 95 tests in 56 seconds without a race or interceptor diagnostic.
 
+The eighty-second M9 slice isolates contextual static-member target resolution
+from Swiftfin's richer `.detached { @MainActor [weak self, key] in ... }`
+operation. The committed distillation keeps the exact contextual `.detached`
+target inside a function returning `Task<String, Never>`, then observes
+isolation before and after `Task.yield`.
+
+Strict Swift 6.3.3 returned exact `none|none` in twenty runs with raw digest
+`a659177e21f1577dd1f402a481e88a0cdc39546ca94bc7cbe6a56c48c39c43de`;
+all four five-run shards retained
+`0e8e7cc7779ed16ceef55632d5372244b64e74f7c12bae42e3c23cd8f055a0bb`.
+The fast RED projected nil instead of `launched`, proving that the contextual
+marker had not invoked the operation without relying on a timeout.
+
+Expected-type resolution now dispatches through the annotated imported
+nominal's existing generated static-member gateway. Source types and
+extensions are checked first, and unknown imported statics retain their marker
+fallback. The operation remains cooperative with zero receipts, so this slice
+claims target resolution and detached executor semantics rather than physical
+capture transport.
+
+Focused parity passed 20/20 on four workers in one second, the source-kernel
+suite passed 54/54, and the canonical prebuilt iteration passed those 54
+implementation tests, all 46 methodology/gate checks, and all 20 parity
+repetitions in two seconds. The exact-tip physical board passed 97/97 tests in
+three suites in one second. A fresh TSan build passed native overlap 20/20 plus
+all 97 tests in 27 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

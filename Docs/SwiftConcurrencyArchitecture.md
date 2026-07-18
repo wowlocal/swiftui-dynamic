@@ -4973,6 +4973,37 @@ passed those 52 implementation tests, all 46 methodology/gate checks, and all
 overlap 20/20 plus all 95 tests in 56 seconds without a race or interceptor
 diagnostic.
 
+The eighty-second prerequisite closes contextual imported-static dispatch
+before extending Swiftfin's weak/strong capture shape. Swift's
+`Task<Success, Failure>` return annotation gives `.detached` enough context
+to select `Task.detached`; the interpreter previously preserved only an
+inert `ImplicitMemberCall`, so the task operation never launched.
+
+Annotation resolution now recognizes a contextual call only when the resolved
+annotation head is an existing callable imported nominal. It asks the ordinary
+member evaluator for the static member and invokes the returned callable. That
+keeps API identity in the generated `Task` gateway rather than duplicating an
+API-name table in contextual resolution. Source enums/structs and host-type
+extensions are resolved first; an unknown imported member remains a marker for
+the established gateway fallback.
+
+This prerequisite does not create a worker capability. The same-source task
+has multiple expressions, remains on the cooperative evaluator, and records
+zero physical receipts in both runtime modes. Native and interpreted execution
+returned exact `none|none` across `Task.yield` in twenty repetitions. The
+raw native digest was
+`a659177e21f1577dd1f402a481e88a0cdc39546ca94bc7cbe6a56c48c39c43de`;
+every focused shard retained
+`0e8e7cc7779ed16ceef55632d5372244b64e74f7c12bae42e3c23cd8f055a0bb`.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 54/54. The canonical prebuilt iteration
+passed those 54 implementation tests, all 46 methodology/gate checks, and all
+20 parity repetitions in two seconds. The exact-tip physical board passed
+97/97 tests in three suites in one second; a fresh TSan build passed native
+overlap 20/20 plus all 97 tests in 27 seconds without a race or interceptor
+diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and

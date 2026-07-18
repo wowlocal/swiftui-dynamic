@@ -960,6 +960,76 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
+    func contextualTaskDetachedStaticMemberExecutesOperation() async throws {
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: """
+        func launch() -> Task<String, Never> {
+            .detached(priority: .userInitiated) {
+                "launched"
+            }
+        }
+        await launch().value
+        """)
+
+        #expect(value.stringValue == "launched")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func contextualTaskDetachedStaticMemberUsesExpectedTaskType() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-contextual-task-static-member.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedContextualTaskStaticMemberProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf else {
+                        return .native("none")
+                    }
+                    guard case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "none|none")
+        #expect(value.stringValue == "none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func unsupportedExplicitMainActorMixedCaptureShapesStayCooperative()
         async throws
     {
