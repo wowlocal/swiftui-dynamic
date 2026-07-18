@@ -2666,3 +2666,49 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   fa74535 still pending steward action (posted 03:55Z + superseded
   04:45Z; MERGE-LOCK fallback arms ~06:45Z if the steward stays
   silent).
+- 2026-07-18 STACK LANDED; i67 RECEIPT POSTED (worktree iteration 68):
+  the steward merged the i37-i66 stack into main at 04:52Z — "FOODTRUCK
+  R2 COMPLETE — ALL 18 screens AE=0, content-row converged 0.000; R3
+  10/10, R4 13/13. Pixel- and function-identical to native." Main
+  absorbed back; the i67 parity-pin commit re-verified clean-detached
+  on the exact tip (GATE GREEN 1147s, full corpus) and MERGE-READY
+  6f26353 posted. Open queue: live-twin method for the rename-retitle
+  question (titled= reported-only), london diag tripwire (armed),
+  oss:Mythic corpus backstop failure, R4-sweep menu/city deepening.
+- 2026-07-18 RENAME-RETITLE: NATIVE TRUTH ESTABLISHED, NOTIFICATION
+  LANDED, ONE HOP REMAINS (worktree iteration 69): built the live-twin
+  instrument the question needed — TwinRetitleApp, a REAL SwiftUI App
+  (WindowGroup scene machinery) launched from the twin CLI via
+  App.main(), hosting the same split+editor and driving the rename.
+  VERDICT: the native app RETITLES (before="New Donut" after="New
+  Donut X"); the hand-made NSHostingController rig shows "Untitled"
+  both sides (no scene bridge) — i67's offscreen-parity result was
+  measuring that rig, not the app. So the divergence is REAL, and the
+  cause decomposes: (a) nested-field binding writes ($model.newDonut
+  .name) mutate the reference-backed instance IN PLACE — the model's
+  @Published box never fires. FIXED: the nested projection returns a
+  derived write-through box that bubbles through the parent binding
+  box's @Published wiring (trace-proven live: nested write ->
+  DetailColumn + ContentView stores receive objectWillChange). (b) The
+  REMAINING hop: the stores receive the send yet the split's detail
+  island does not visibly re-render/retitle — next iteration probes
+  whether the InterpretedView body re-evaluates and where the title
+  preference stalls. Boards: R4 13/13, R2 18/18 after the fix. GATE
+  GREEN 1103s. titled= stays reported-only until the hop closes.
+- 2026-07-18 THE HOP ISOLATED: SPLIT ISLANDS SWALLOW MODEL RE-RENDERS
+  (worktree iteration 70): body-eval tracing (env-gated, permanent)
+  nailed the A/B — after the nested-field write, the HStack FALLBACK
+  cascades body re-evaluations (ContentView -> Sidebar -> DetailColumn
+  -> DonutEditor -> DonutView; the rename fully propagates), while
+  under the REAL NavigationSplitView the SAME sends deliver to the
+  SAME live stores and ZERO bodies re-evaluate. CLASS:
+  objectWillChange-driven re-renders do not propagate into the split's
+  per-column NSHostingView islands for interpreted content — which
+  also explains why the working live mutations ride other mechanisms
+  (sheet presentation, control-local state, view-@State adopt wiring).
+  A/B repro: env INTERP_TRACE_BINDING=1 [DEMO_SPLIT_FALLBACK=1]
+  DEMO_SWEEP_STEP=donuteditor ... --sweep. Suspects for next
+  iteration: stale-store subscriptions vs the island's active tree
+  (subscription keyed per store; the ACTIVE island store may never be
+  the one subscribed), or the send arriving outside the island's
+  update cycle. titled= stays reported-only.

@@ -1675,7 +1675,25 @@ extension Interpreter {
                     // the parent box; other members read through.
                     if case .instance(let inner) = stub.box.value,
                        let box = inner.box(for: inner.symbol.canonicalPropertyName(name)) {
-                        return .native(BindingStub(box: box))
+                        // Nested-field binding writes ($model.newDonut.name)
+                        // mutate the reference-backed instance IN PLACE — the
+                        // model's @Published property box never sees a write,
+                        // so nothing publishes and live observers stay stale
+                        // (the donut rename retitles the NATIVE app's window;
+                        // the interpreted one froze). The derived write-through
+                        // box bubbles the write through the PARENT binding box,
+                        // whose own onChange carries the @Published wiring.
+                        let parent = stub.box
+                        let derived = Box(box.value)
+                        derived.onChange = { [weak box, weak parent] in
+                            guard let box else { return }
+                            if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
+                                print("TRACE-BINDING nested write; parentWired=\(parent?.onChange != nil)")
+                            }
+                            box.value = derived.value
+                            parent?.onChange?()
+                        }
+                        return .native(BindingStub(box: derived))
                     }
                     if let tuple = stub.box.value.tupleValue {
                         let index = Int(name) ?? tuple.labels.firstIndex(of: name) ?? -1
