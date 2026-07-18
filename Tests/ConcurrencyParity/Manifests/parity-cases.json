@@ -2580,6 +2580,21 @@
     "notes": "swift-composable-architecture demand-cites this exact spelling in Sources/ComposableArchitecture/TestStore.swift:1856. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned exact yielded:2 in twenty bounded runs; every five-repetition native shard reported SHA-256 a8da6accf02cddfd0779ab299c9ccaf8f75d2092aa1704824745f6c197af7e8c. The interpreter value was already correct through cooperative fallback, but the captured RED proved explicit parallel mode recorded zero physical source executions instead of two. MainActor lowering admits only a signature-free, argument-free, single-expression detached body whose expression is the exact zero-argument await Task.yield() call. It emits a typed task-yield kernel with an empty checked capability; the real detached worker suspends at Swift Task.yield and publishes a Void snapshot. Authored signatures, multiple statements, alternate calls, and every captured value remain cooperative. Twenty paired cooperative/parallel runs preserve exact yielded:2, empty task registries, and zero/two receipts. The two calls are sequential; no worker thread identity or unrelated ready-task order is asserted."
   },
   {
+    "id": "parallel-shadowed-task-yield",
+    "fixture": "Fixtures/parallel-shadowed-task-yield.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelShadowedTaskYieldProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "A local value named Task shadows the standard-library Task type inside its lexical scope, so `await Task.yield()` invokes that value's source method and returns its exact String result even when the enclosing operation was launched by Task.detached.",
+    "notes": "This gap-closure oracle protects every spelling-based physical kernel from confusing a source call with a standard-library intrinsic. The local detached-operation factory is formed outside the shadowing scope, so the same source still launches a real native Task.detached operation. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned exact source in twenty bounded runs; every five-repetition native shard reported SHA-256 5f56add95e0689069a663ad8f90d7ec54eb7305fc06e321ef8ca348d55017328. No worker identity or unrelated scheduler order is asserted. Before the fix, cooperative interpretation returned source while explicit parallel mode admitted the inner call by raw AST spelling, returned Void, and recorded one physical execution. After the fix, parallel interpretation also returns source and records zero physical submissions or executions."
+  },
+  {
     "id": "parallel-detached-conditional-sleep",
     "fixture": "Fixtures/parallel-detached-conditional-sleep.swift",
     "mode": "runtime",

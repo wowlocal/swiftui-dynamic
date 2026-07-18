@@ -188,7 +188,7 @@ extension Interpreter {
 
         let capability: RuntimeWorkerCapability
         let kernel: RuntimeSourceSnapshotKernel
-        if Self.isTaskYield(expression) {
+        if isTaskYield(expression, closure: closure) {
             capability = try entry.makeWorkerCapability(copying: [])
             kernel = .taskYield
         } else if let value = literalWorkerSnapshot(expression) {
@@ -227,20 +227,46 @@ extension Interpreter {
     /// `Task.detached(priority: .background) { await Task.yield() }.value`.
     /// Admit only the zero-argument standard-library call. The worker receives
     /// a typed command and an empty capability, never this syntax tree.
-    private static func isTaskYield(_ expression: ExprSyntax) -> Bool {
+    private func isTaskYield(
+        _ expression: ExprSyntax,
+        closure: ClosureValue
+    ) -> Bool {
         guard let awaitExpression = expression.as(AwaitExprSyntax.self),
               let call = awaitExpression.expression
                 .as(FunctionCallExprSyntax.self),
               call.arguments.isEmpty,
               call.trailingClosure == nil,
               call.additionalTrailingClosures.isEmpty,
-              let member = call.calledExpression
-                .as(MemberAccessExprSyntax.self),
-              member.declName.baseName.text == "yield",
+              resolvesCoreTaskCall(
+                call, named: "yield", closure: closure) else {
+            return false
+        }
+        return true
+    }
+
+    /// Raw spelling is not a call target. A source value or type named
+    /// `Task` may legally shadow the standard-library type, so physical
+    /// lowering requires the exact registered builtin capability reachable
+    /// from the closure's lexical environment. The immutable call-site index
+    /// supplies syntax shape; runtime identity supplies the selected value.
+    private func resolvesCoreTaskCall(
+        _ call: FunctionCallExprSyntax,
+        named expectedName: String,
+        closure: ClosureValue
+    ) -> Bool {
+        let metadata = closure.programMetadata?.callSiteMetadataIndex
+            .metadata(for: call) ?? ParsedCallSiteMetadata(call)
+        guard metadata.callee.shape == .explicitMember,
+              metadata.callee.name == expectedName,
+              let member = metadata.callee.member,
               member.declName.argumentNames == nil,
-              let base = member.base?.as(DeclReferenceExprSyntax.self),
-              base.baseName.text == "Task",
-              base.argumentNames == nil else {
+              let reference = member.base?
+                .as(DeclReferenceExprSyntax.self),
+              reference.baseName.text == "Task",
+              reference.argumentNames == nil,
+              case .hostFunction(let function)? =
+                closure.captured.lookup(reference.baseName.text),
+              coreFunctionIntrinsic(for: function) == .taskType else {
             return false
         }
         return true
@@ -466,14 +492,8 @@ extension Interpreter {
                 .as(FunctionCallExprSyntax.self),
               sleepCall.trailingClosure == nil,
               sleepCall.additionalTrailingClosures.isEmpty,
-              let sleepMember = sleepCall.calledExpression
-                .as(MemberAccessExprSyntax.self),
-              sleepMember.declName.baseName.text == "sleep",
-              sleepMember.declName.argumentNames == nil,
-              let taskReference = sleepMember.base?
-                .as(DeclReferenceExprSyntax.self),
-              taskReference.baseName.text == "Task",
-              taskReference.argumentNames == nil else {
+              resolvesCoreTaskCall(
+                sleepCall, named: "sleep", closure: closure) else {
             return nil
         }
 

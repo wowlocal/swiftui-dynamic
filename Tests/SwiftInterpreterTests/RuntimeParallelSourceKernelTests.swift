@@ -141,6 +141,71 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelExecutions == 2)
     }
 
+    @Test func shadowedTaskYieldStaysOnTheCooperativeEvaluator() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-task-yield.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelShadowedTaskYieldProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "source")
+        #expect(parallelValue.stringValue == cooperativeValue.stringValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
+    @Test func shadowedTaskSleepStaysOnTheCooperativeEvaluator() async throws {
+        let source = """
+        struct ShadowTaskSleepReceiver: Sendable {
+            func sleep(for duration: Duration) async throws -> String {
+                "source"
+            }
+        }
+
+        @MainActor
+        func probe() async throws -> String {
+            let spawn = {
+                (operation: @escaping @Sendable () async throws -> String) in
+                Task.detached(operation: operation)
+            }
+            return try await {
+                let Task = ShadowTaskSleepReceiver()
+                let slow = false
+                return try await spawn {
+                    try await Task.sleep(
+                        for: slow ? .seconds(0) : .milliseconds(0))
+                }.value
+            }()
+        }
+        try await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "source")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
     @Test
     func immutableBooleanParameterConditionalSleepUsesPhysicalSuspendingKernel()
         async throws

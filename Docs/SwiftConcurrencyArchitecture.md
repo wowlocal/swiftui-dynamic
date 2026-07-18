@@ -1290,6 +1290,10 @@ The first corpus-demanded suspending command is
 swift-composable-architecture's
 `Task.detached(priority: .background) { await Task.yield() }`. Admission
 requires one signature-free zero-argument `await Task.yield()` expression.
+That shape is necessary but not sufficient: lowering also resolves the `Task`
+base through the originating closure's lexical environment and requires the
+exact registered core-Task host-function identity. A source value or type that
+shadows `Task` therefore stays on the cooperative evaluator.
 MainActor emits typed `taskYield` IR and an empty checked capability; the real
 detached worker invokes native `Task.yield()` and returns a `Void` snapshot.
 Authored signatures, multiple statements, captures, and alternate calls remain
@@ -1317,7 +1321,9 @@ capacity independently, attaches the logical request to the actual detached
 source worker, and remembers a request that wins the attachment race. Thus a
 pre-cancelled task still enters and its throwing sleep observes cancellation,
 while unsupported units, overloads, mutable/global conditions, and richer
-bodies remain cooperative.
+bodies remain cooperative. The same core-Task identity proof used by the yield
+kernel prevents a shadowed source `Task.sleep(for:)` method from entering this
+physical path.
 
 Scoped sanitizer stage (2026-07-18): `run-concurrency-tsan.sh` owns a separate
 sanitized build cache. Its native checked-Atomic overlap executable performs
@@ -1337,7 +1343,9 @@ kernel including immediate cooperative cancellation. A sixth requires exact
 `slow:fast|cancelled:true`: parallel mode records two successful executions
 from three submissions, while cooperative mode records neither, and the
 pre-cancelled throwing sleep must enter before producing `CancellationError`.
-All thirty-three
+Two direct fallback regressions additionally require lexically shadowed
+`Task.yield()` and `Task.sleep(for:)` calls to return their source values with
+zero physical submissions or executions. All thirty-five
 driver/source-kernel tests run under TSan. This receipt covers only the
 checked driver, constant snapshot kernel, typed immutable-String-count kernel,
 typed immutable-Substring-array reduction, exact no-capture `Task.yield`, and
@@ -3027,8 +3035,11 @@ Each milestone is independently gated through
   `Task.detached(priority: .background) { await Task.yield() }` command; and
   CotEditor's exact immutable String/String.Index `distance(from:to:)`
   spelling; plus Signal-iOS's conditional `Task.sleep(for:)` over an immutable
-  Bool and literal seconds/milliseconds. All six lower to checked snapshot kernels
-  and have paired cooperative/parallel plus TSan evidence. The general
+  Bool and literal seconds/milliseconds. All six lower to checked snapshot
+  kernels and have paired cooperative/parallel plus TSan evidence. Physical
+  Task-yield/sleep admission combines immutable callee shape with the stable
+  registered core-Task identity; lexically shadowed source calls remain
+  cooperative. The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
 
@@ -3600,11 +3611,39 @@ in six suites, all forty-three methodology checks plus the three separately
 isolated gate-contract checks, and all twenty parity repetitions on four
 workers in two seconds.
 
+The forty-first prerequisite closes the first semantic call-target hole in
+physical admission. Raw syntax previously treated any zero-argument
+`await Task.yield()` spelling as the standard-library intrinsic. A same-source
+probe forms a real detached-operation factory before introducing a local value
+named `Task`; native Swift therefore launches a detached operation but invokes
+the local async `yield()` method and returns exact `source`. Apple Swift 6.3.3
+returned that value in twenty strict Swift 6 runs, and every five-run native
+shard reported SHA-256
+`5f56add95e0689069a663ad8f90d7ec54eb7305fc06e321ef8ca348d55017328`.
+
+The deterministic interpreter RED was specific to explicit parallel mode:
+cooperative evaluation returned `source`, while worker admission returned
+`Void` and recorded one physical execution. Core builtins now carry stable
+object-identity registrations. Yield and conditional-sleep lowering combine
+the immutable explicit-member call-site shape with lookup through the
+originating closure's lexical environment, and require that exact registered
+core-Task value. The shadowed yield and sleep regressions now return their
+source values with zero submissions/executions, while the positive builtin
+yield/sleep cases still record physical receipts. No seventh worker kernel is
+introduced and no name alone is treated as an API identity. The scoped TSan
+board passed twenty native overlap iterations plus all thirty-five
+driver/source-kernel tests on four workers in 53 seconds. The canonical
+focused iteration completed 64 runtime/metadata/worker tests in three suites,
+all forty-three methodology checks plus three isolated gate-contract checks,
+and all twenty parity repetitions on four workers in one second.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
-scheduling only for their admitted subsets. Remaining member families, call-site
-target resolution and compiler metadata indexing remain incomplete, mutable symbol
-materialization plus evaluator state must move fully behind the session, and
+scheduling only for their admitted subsets. Remaining member families and
+source/actor/host/standard-library target identities beyond normalized callee
+shape and the core-Task proof remain incomplete, as does compiler metadata
+indexing; mutable symbol materialization plus evaluator state must move fully
+behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep

@@ -1026,6 +1026,37 @@ in six suites, all forty-three methodology checks plus three isolated
 gate-contract checks, and all twenty parity repetitions on four workers in two
 seconds.
 
+Its forty-first prerequisite is a gap closure for physical call-target
+identity. The exact question is whether a local value named `Task` shadows the
+standard-library Task type inside an operation launched by a real
+`Task.detached`, so `await Task.yield()` must invoke the source method and
+return its String value. The detached-operation factory is formed outside the
+shadowing scope; this isolates inner call selection from task creation. Apple
+Swift 6.3.3 compiled the same-source fixture in complete strict Swift 6 mode
+with warnings as errors and returned exact `source` in twenty bounded runs.
+Every five-run native shard reported SHA-256
+`5f56add95e0689069a663ad8f90d7ec54eb7305fc06e321ef8ca348d55017328`.
+No physical-worker identity or unrelated scheduler order is asserted.
+
+The deterministic RED compared both interpreter modes before production was
+changed. Cooperative evaluation returned `source`; explicit parallel mode
+matched the raw AST spelling, returned `Void`, and recorded one physical
+source execution. The runtime now registers the builtin Task host function as
+a stable core intrinsic. Yield and conditional-sleep admission require both
+the immutable explicit-member callee shape and that exact runtime identity
+resolved through the originating closure's lexical environment. Shadowed
+yield and sleep calls return their source values with zero physical
+submissions/executions; existing builtin yield and sleep probes continue to
+record their positive receipts. The scoped TSan board passed twenty native
+overlap iterations and all thirty-five driver/source-kernel tests on four
+workers in 53 seconds. The canonical focused iteration completed 64
+runtime/metadata/worker tests in three suites, all forty-three methodology
+checks plus three isolated gate-contract checks, and all twenty parity
+repetitions on four workers in one second. This proves fail-closed target
+selection only; it adds no seventh kernel and does not resolve other source,
+actor, host, or
+standard-library calls.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
