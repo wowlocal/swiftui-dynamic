@@ -468,6 +468,38 @@ extension Interpreter {
         }
     }
 
+    /// `AsyncStream.makeStream()` — the tuple-returning factory: the SAME
+    /// storage/continuation/sequence primitives as the closure constructor,
+    /// composed into the labeled tuple the caller destructures
+    /// (`let (stream, continuation) = AsyncStream<T>.makeStream()`).
+    /// Element bookkeeping tolerates an unresolved generic — values are
+    /// RuntimeValues regardless.
+    func sourceAsyncStreamMakeStreamFunction(throwing: Bool) -> HostFunction {
+        HostFunction(name: "makeStream") { [weak self] args, _ in
+            guard let self else {
+                throw RuntimeError(message: "interpreter released in makeStream")
+            }
+            let element = args.labeled("__genericArguments")?.stringValue
+                .flatMap { Self.splitTopLevel($0).first } ?? "Any"
+            let policy = try Self.runtimeAsyncStreamBufferingPolicy(
+                args.labeled("bufferingPolicy"))
+            let storage = RuntimeAsyncStreamStorage(
+                runtime: self.concurrencyRuntime,
+                callbackOwner: self,
+                flavor: throwing
+                    ? .throwing(failureTypeName: "Error")
+                    : .nonthrowing,
+                bufferingPolicy: policy,
+                elementTypeName: element)
+            return .tuple(TupleValue(
+                labels: ["stream", "continuation"],
+                values: [
+                    .native(RuntimeAsyncStreamSequence(storage: storage)),
+                    .native(RuntimeAsyncStreamContinuation(storage: storage)),
+                ]))
+        }
+    }
+
     func sourceAsyncThrowingStreamFunction() -> HostFunction {
         HostFunction(name: "AsyncThrowingStream") {
             [weak self] arguments, context in
