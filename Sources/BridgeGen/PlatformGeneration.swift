@@ -32,6 +32,10 @@ private struct PlatformFrameworkSpec {
     /// availability domains from one metadata sweep.
     let deployments: [String: (major: Int, minor: Int)]
     let roots: Set<String>
+    /// The module the symbol graph is extracted from, when the public
+    /// framework re-exports an underlying module (CoreLocation's CLLocation
+    /// lives in _LocationEssentials). Emitted code still imports `name`.
+    var extractionModule: String?
 }
 
 /// Type-level policy, not a member allowlist: once a type is selected, every
@@ -64,6 +68,25 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
             "UIButton", "UIImageView", "UILabel", "UIScrollView",
             "UITableView", "UICollectionView", "UITextField", "UITextView",
         ]),
+    .init(
+        // The FoodTruck city screen's DetailedMapView builds a real
+        // MKMapView inside its representable controller — the map surface
+        // interpreted apps configure directly.
+        name: "MapKit", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0)],
+        roots: [
+            "MKMapView", "MKMapCamera", "MKMapConfiguration",
+            "MKStandardMapConfiguration", "MKPointOfInterestFilter",
+        ]),
+    .init(
+        name: "CoreLocation", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0)],
+        roots: [
+            "CLLocation", "CLLocationCoordinate2D",
+        ],
+        extractionModule: "_LocationEssentials"),
     .init(
         // Generate the common Metal surface from the more restrictive iOS
         // SDK; the same emitted calls then compile for both package targets.
@@ -255,7 +278,27 @@ private struct ParsedPlatformFramework {
     let blockers: [String: Int]
 }
 
+/// Union of every sweep's root-selected nominal names, computed by a light
+/// pre-pass so each framework's parameter acceptance can reference the
+/// others' types (graphs are disk-cached; the decode is cheap).
+private var platformCrossFrameworkSelectedTypes: Set<String> = []
+
 func generatePlatformBridge() throws -> PlatformGenerationResult {
+    platformCrossFrameworkSelectedTypes = Set(
+        try platformFrameworkSpecs.flatMap { spec -> [String] in
+            let graph = try JSONDecoder().decode(
+                SymbolGraph.self,
+                from: Data(contentsOf: platformSymbolGraphURL(for: spec)))
+            return graph.symbols.compactMap { symbol in
+                guard symbol.kind.identifier.hasPrefix("swift."),
+                      ["swift.class", "swift.struct", "swift.enum"]
+                          .contains(symbol.kind.identifier),
+                      let first = symbol.pathComponents.first,
+                      spec.roots.contains(first),
+                      platformSymbolIsAvailable(symbol, for: spec) else { return nil }
+                return symbol.pathComponents.joined(separator: ".")
+            }
+        })
     let parsed = try platformFrameworkSpecs.map(parsePlatformFramework)
     let output = emitPlatformBridge(parsed)
     var coverage: [String: PlatformCoverageSection] = [:]
@@ -332,7 +375,12 @@ private func parsePlatformFramework(
     }
 
     let selected = allNominals.filter { spec.roots.contains($0.value.root) }
+    // Cross-framework references bridge when the referenced type is selected
+    // by ANY sweep (MKMapCamera's initializer takes CoreLocation's
+    // CLLocationCoordinate2D); the runtime unwraps platform values by
+    // dynamic cast, so acceptance is framework-agnostic.
     let selectedTypes = Set(selected.values.map(\.type))
+        .union(platformCrossFrameworkSelectedTypes)
     var parentByMember: [String: String] = [:]
     for relationship in graph.relationships
         where relationship.kind == "memberOf" || relationship.kind == "requirementOf"
@@ -649,11 +697,12 @@ private func platformSymbolGraphURL(
         .appendingPathComponent(spec.name)
     try FileManager.default.createDirectory(
         at: output, withIntermediateDirectories: true)
-    let graph = output.appendingPathComponent("\(spec.name).symbols.json")
+    let module = spec.extractionModule ?? spec.name
+    let graph = output.appendingPathComponent("\(module).symbols.json")
     if FileManager.default.fileExists(atPath: graph.path) { return graph }
     _ = try runPlatformTool("/usr/bin/xcrun", [
         "swift-symbolgraph-extract",
-        "-module-name", spec.name,
+        "-module-name", module,
         "-minimum-access-level", "public",
         "-sdk", sdkPath,
         "-target", spec.target,
@@ -835,6 +884,12 @@ private let platformContractAliases: [String: String] = [
     "NSPoint": "CGPoint",
     "NSSize": "CGSize",
     "NSNotification.Name": "Notification.Name",
+    // CoreLocation's scalar measures are true Double typealiases.
+    "CLLocationDistance": "Double",
+    "CLLocationDirection": "Double",
+    "CLLocationDegrees": "Double",
+    "CLLocationAccuracy": "Double",
+    "CLLocationSpeed": "Double",
 ]
 
 private func platformContractType(_ type: String) -> String {
@@ -1041,7 +1096,7 @@ private func emitPlatformBridge(
     _ frameworks: [ParsedPlatformFramework]
 ) -> String {
     var output = """
-    // GENERATED by BridgeGen from AppKit/UIKit/Metal SDK symbol graphs.
+    // GENERATED by BridgeGen from AppKit/UIKit/Metal/MapKit/CoreLocation SDK symbol graphs.
     // Do not edit. Regenerate: swift run BridgeGen --emit
     import Foundation
     import SwiftInterpreter
@@ -1052,6 +1107,12 @@ private func emitPlatformBridge(
     #endif
     #if canImport(Metal)
     import Metal
+    #endif
+    #if canImport(MapKit)
+    import MapKit
+    #endif
+    #if canImport(CoreLocation)
+    import CoreLocation
     #endif
 
     extension GeneratedPlatformBridge {

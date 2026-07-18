@@ -343,6 +343,18 @@ enum GeneratedPlatformBridge {
 #else
             false
 #endif
+        case "MapKit":
+#if canImport(MapKit)
+            true
+#else
+            false
+#endif
+        case "CoreLocation":
+#if canImport(CoreLocation)
+            true
+#else
+            false
+#endif
         default:
             false
         }
@@ -350,11 +362,11 @@ enum GeneratedPlatformBridge {
 
     private static var frameworkPreference: [String] {
 #if canImport(AppKit)
-        ["AppKit", "Metal", "UIKit"]
+        ["AppKit", "Metal", "MapKit", "CoreLocation", "UIKit"]
 #elseif canImport(UIKit)
-        ["UIKit", "Metal", "AppKit"]
+        ["UIKit", "Metal", "MapKit", "CoreLocation", "AppKit"]
 #else
-        ["Metal", "UIKit", "AppKit"]
+        ["Metal", "MapKit", "CoreLocation", "UIKit", "AppKit"]
 #endif
     }
 
@@ -536,13 +548,25 @@ enum GeneratedPlatformBridge {
         return nil
     }
 
+    /// A value minted by one framework's sweep can be a type OWNED by
+    /// another (MKMapCamera.centerCoordinate returns CoreLocation's
+    /// CLLocationCoordinate2D) — member lookup searches the owning
+    /// framework first, then every other swept framework.
+    private static func memberSearchFrameworks(
+        for base: GeneratedPlatformValue
+    ) -> [String] {
+        [base.framework] + frameworkPreference.filter { $0 != base.framework }
+    }
+
     static func member(_ name: String, on base: GeneratedPlatformValue) -> RuntimeValue? {
         if let stored = base.config[name] { return stored }
-        let entries = typeCandidates(
-            framework: base.framework, type: base.typeName)
-            .compactMap {
-                methods[GeneratedPlatformMemberKey(
-                    framework: base.framework, type: $0, member: name)]
+        let entries = memberSearchFrameworks(for: base).lazy
+            .flatMap { framework in
+                typeCandidates(framework: framework, type: base.typeName)
+                    .compactMap {
+                        methods[GeneratedPlatformMemberKey(
+                            framework: framework, type: $0, member: name)]
+                    }
             }.first { !$0.isEmpty }
         guard let entries else {
             return unresolvedKnownMember(name, on: base)
@@ -558,11 +582,13 @@ enum GeneratedPlatformBridge {
     }
 
     static func method(_ name: String, on base: GeneratedPlatformValue) -> RuntimeValue? {
-        let entries = typeCandidates(
-            framework: base.framework, type: base.typeName)
-            .compactMap {
-                methods[GeneratedPlatformMemberKey(
-                    framework: base.framework, type: $0, member: name)]
+        let entries = memberSearchFrameworks(for: base).lazy
+            .flatMap { framework in
+                typeCandidates(framework: framework, type: base.typeName)
+                    .compactMap {
+                        methods[GeneratedPlatformMemberKey(
+                            framework: framework, type: $0, member: name)]
+                    }
             }.first { !$0.isEmpty }
         guard let entries else {
             return unresolvedKnownMember(name, on: base, callableOnly: true)
@@ -578,12 +604,12 @@ enum GeneratedPlatformBridge {
     }
 
     static func property(_ name: String, on base: GeneratedPlatformValue) -> HostProperty? {
-        for type in typeCandidates(
-            framework: base.framework, type: base.typeName)
-        {
-            if let property = properties[GeneratedPlatformMemberKey(
-                framework: base.framework, type: type, member: name)] {
-                return property.contract
+        for framework in memberSearchFrameworks(for: base) {
+            for type in typeCandidates(framework: framework, type: base.typeName) {
+                if let property = properties[GeneratedPlatformMemberKey(
+                    framework: framework, type: type, member: name)] {
+                    return property.contract
+                }
             }
         }
         return nil
@@ -594,16 +620,17 @@ enum GeneratedPlatformBridge {
         on base: GeneratedPlatformValue,
         callableOnly: Bool = false
     ) -> RuntimeValue? {
-        for type in typeCandidates(
-            framework: base.framework, type: base.typeName)
+        for framework in memberSearchFrameworks(for: base) {
+        for type in typeCandidates(framework: framework, type: base.typeName)
         {
             let key = GeneratedPlatformMemberKey(
-                framework: base.framework, type: type, member: name)
+                framework: framework, type: type, member: name)
             guard let isCallable = knownMembers[key],
                   !callableOnly || isCallable else { continue }
             return .native(ChainedImplicitCall(
                 base: .native(base), member: name,
                 arguments: CallArguments()))
+        }
         }
         return nil
     }
@@ -664,11 +691,29 @@ enum GeneratedPlatformBridge {
     }
 
     static func isValueType(framework: String, type: String) -> Bool {
-        nominalKinds[GeneratedPlatformTypeKey(framework: framework, type: type)] ?? true
+        guard let owner = owningFramework(ofType: type, preferring: framework) else {
+            return true
+        }
+        return nominalKinds[GeneratedPlatformTypeKey(framework: owner, type: type)] ?? true
     }
 
     static func isPlatformNominal(framework: String, type: String) -> Bool {
-        nominalKinds[GeneratedPlatformTypeKey(framework: framework, type: type)] != nil
+        owningFramework(ofType: type, preferring: framework) != nil
+    }
+
+    /// The framework whose sweep DECLARED a type. A member of one framework
+    /// can return a type owned by another (MKMapCamera.centerCoordinate is
+    /// CoreLocation's CLLocationCoordinate2D) — results are minted under the
+    /// owning framework so member lookup finds the type's surface.
+    static func owningFramework(
+        ofType type: String, preferring framework: String
+    ) -> String? {
+        if nominalKinds[GeneratedPlatformTypeKey(framework: framework, type: type)] != nil {
+            return framework
+        }
+        return frameworkPreference.first {
+            nominalKinds[GeneratedPlatformTypeKey(framework: $0, type: type)] != nil
+        }
     }
 
     static func typeCandidates(framework: String, type: String) -> [String] {
@@ -1220,14 +1265,14 @@ func generatedPlatformResult<T>(
             })
         }
     }
-    if GeneratedPlatformBridge.isPlatformNominal(
-        framework: framework, type: type)
+    if let owner = GeneratedPlatformBridge.owningFramework(
+        ofType: type, preferring: framework)
     {
         return .native(GeneratedPlatformValue(
-            framework: framework,
+            framework: owner,
             typeName: type,
             isValueType: GeneratedPlatformBridge.isValueType(
-                framework: framework, type: type),
+                framework: owner, type: type),
             payload: value))
     }
     if let amount = any as? CGFloat { return .native(Double(amount)) }

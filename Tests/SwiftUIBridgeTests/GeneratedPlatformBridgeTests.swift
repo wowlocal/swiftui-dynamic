@@ -431,4 +431,42 @@ import AppKit
         #expect(result.boolValue == true)
     }
 #endif
+
+    // The DetailedMapView surface (FoodTruck city screen): the generated
+    // MapKit/CoreLocation platform tier must construct and configure the
+    // exact objects the representable controller builds.
+    @MainActor
+    @Test func mapKitSurfaceConstructsAndConfigures() throws {
+        let source = """
+        import MapKit
+        import CoreLocation
+
+        let location = CLLocation(latitude: 37.335_690, longitude: -122.013_330)
+        let mapView = MKMapView()
+        let configuration = MKStandardMapConfiguration(elevationStyle: .realistic, emphasisStyle: .default)
+        configuration.showsTraffic = false
+        mapView.preferredConfiguration = configuration
+        mapView.isZoomEnabled = false
+        mapView.isPitchEnabled = false
+        mapView.isScrollEnabled = false
+        mapView.isRotateEnabled = false
+        mapView.showsCompass = false
+        let camera = MKMapCamera(
+            lookingAtCenter: location.coordinate,
+            fromDistance: 1000.0,
+            pitch: 55.0,
+            heading: 120.0
+        )
+        mapView.camera = camera
+        String(Int(camera.centerCoordinateDistance.rounded())) + "," +
+            String(Int(camera.pitch.rounded())) + "," +
+            String(Int(camera.heading.rounded())) + "," +
+            String(Int(camera.centerCoordinate.latitude.rounded())) + "," +
+            String(mapView.isZoomEnabled)
+        """
+        // Construction semantics read from the CAMERA object — an
+        // unattached MKMapView normalizes its camera copy natively too.
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.stringValue == "1000,55,120,37,false")
+    }
 }

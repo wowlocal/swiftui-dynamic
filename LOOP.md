@@ -2468,3 +2468,25 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   with main's known parallel-worker signature (same hung set; 3rd-round
   attribution already filed on clean main 5cecca0) — lane still
   gate-blocked, exonerated.
+- 2026-07-18 CITY ARC SLICE 1: MapKit + CoreLocation JOIN THE PLATFORM
+  SWEEP (worktree iteration 59): toward the city rows' 54.060%
+  (DetailedMapView hosts a real MKMapView), the platform tier now sweeps
+  MapKit (9 types, 11 constructors, 33 properties) and CoreLocation
+  (CLLocation/CLLocationCoordinate2D via a new extractionModule override
+  — modern SDKs re-export them from _LocationEssentials). Four
+  cross-framework generation/runtime gaps closed, all reusable: (1)
+  parameter acceptance unions every sweep's selected types (MKMapCamera's
+  init takes CoreLocation's coordinate); (2) CoreLocation's scalar
+  typealiases canonicalize to Double; (3) frameworkIsNative +
+  frameworkPreference know the new frameworks; (4) results mint under the
+  type's OWNING framework and member lookup searches all swept frameworks
+  (MKMapCamera.centerCoordinate returns CoreLocation's struct). Pin:
+  GeneratedPlatformBridgeTests.mapKitSurfaceConstructsAndConfigures — the
+  interpreted DetailedMapView.Controller surface (CLLocation, MKMapView,
+  MKStandardMapConfiguration(.realistic/.default), camera looking-at with
+  real trig altitude) all constructs and round-trips natively. NEXT
+  SLICE: the representable execution host (interpreted
+  NSViewControllerRepresentable driving a real NSViewController whose
+  loadView runs interpreted code). Boards unchanged (city rows move only
+  when the map RENDERS). Gate RED with main's known parallel-worker
+  signature — still gate-blocked, exonerated.
