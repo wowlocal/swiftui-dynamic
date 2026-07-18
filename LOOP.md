@@ -2643,3 +2643,26 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   structurally (titles follow the detail); the rename-retitle lag
   stays reported (titled=). GATE GREEN 1123s (1245 tests, corpus
   678/680, live 5/5, parity 345/0/0). MERGE-READY updated.
+- 2026-07-18 RENAME-RETITLE INVESTIGATION: NOT A DIVERGENCE — PARITY
+  PINNED (worktree iteration 67): chased the last reported-only R4
+  metric (the rename not retitling the window) down to a decisive
+  control experiment. The suspected class — binding writes to
+  ObservableObject properties never re-rendering observers — REPRODUCED
+  interpreted (witness probe RED, full notification chain traced live:
+  @Published boxes already fire the change signal, the store's
+  objectWillChange sends to a live subscriber)... and then PURE NATIVE
+  SwiftUI showed the IDENTICAL stale witness in the same offscreen
+  borderless-window harness. The harness does not deliver binding-write
+  re-renders for anyone; the interpreter matches native exactly,
+  including this edge. Unproven notifying-projection machinery REVERTED
+  (the @Published box wiring at instantiation already covers
+  notification); the probes rewrote into
+  BindingWritePropagationParity.publishedFieldBindingWriteMatches
+  NativeHarnessBehavior — interp and native drive the SAME harness and
+  must agree (both "Alpha" today; the pin flips if either side
+  changes). The live rename-retitle question stays open pending a
+  live-twin comparison method; R4's titled= stays reported-only.
+  Boards: R4 13/13 green post-revert. GATE GREEN 1100s. MERGE-READY
+  fa74535 still pending steward action (posted 03:55Z + superseded
+  04:45Z; MERGE-LOCK fallback arms ~06:45Z if the steward stays
+  silent).
