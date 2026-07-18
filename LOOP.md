@@ -2729,3 +2729,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   18/18, R3 all-ok. GATE GREEN 1108s. Remaining title layer: bodies
   re-evaluate and navigationTitle re-applies, but the island's
   titlebar bridge still shows the old name — next iteration.
+- 2026-07-18 RENAME-RETITLE CLOSED: titled= ASSERTED (worktree
+  iteration 72): the title trace exposed the FINAL twist — the
+  re-applied navigationTitle carried the OLD name because the sweep's
+  rename NEVER RENAMED: a programmatic stringValue set never reaches
+  the SwiftUI field coordinator's editing buffer (it listens via
+  controlTextDidChange), so sendAction committed the STALE buffer and
+  committed= was reading back our own set. The sweep now posts
+  controlTextDidChange before committing — and the WHOLE chain lights
+  up: real edit -> nested-field publish (i69) -> self-healing send
+  (i71) -> island re-render -> navigationTitle re-apply -> titlebar
+  "New Donut X", matching TwinRetitleApp's native truth exactly.
+  titled= GRADUATED into the hard R4 verdict (the i63 promise).
+  Boards: R4 13/13 with the assertion, R2 18/18, gate GREEN 1113s.
+  The 2026-07-16 RUN-THE-APP directive's checklist is now fully
+  asserted end to end: navigation, order completion via real menu,
+  both picker mutations, editor rename INCLUDING the native titlebar
+  behavior, live map, all screens AE=0.

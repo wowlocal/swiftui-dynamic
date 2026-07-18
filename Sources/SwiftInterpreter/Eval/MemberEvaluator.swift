@@ -1687,10 +1687,15 @@ extension Interpreter {
                         let derived = Box(box.value)
                         derived.onChange = { [weak box, weak parent] in
                             guard let box else { return }
-                            if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
-                                print("TRACE-BINDING nested write; parentWired=\(parent?.onChange != nil)")
-                            }
                             box.value = derived.value
+                            if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
+                                var parentField = "?"
+                                if case .instance(let parentInstance)? = parent?.value {
+                                    parentField = parentInstance.box(for: "name")?.value.stringValue ?? "?"
+                                    parentField += " inst=\(ObjectIdentifier(parentInstance))"
+                                }
+                                print("TRACE-BINDING nested write -> \(derived.value.stringValue ?? "?"); parentInstance name=\(parentField)")
+                            }
                             parent?.onChange?()
                         }
                         return .native(BindingStub(box: derived))
