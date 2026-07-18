@@ -26,6 +26,14 @@ let only = argument("--panel")
 let screenSize = NSSize(width: 1000, height: 650)
 let cardSize = NSSize(width: 400, height: 300)
 
+if arguments.contains("--app-retitle-probe") {
+    // The REAL App scene runtime — WindowGroup machinery bridges
+    // navigationTitle to the titlebar; a hand-made NSHostingController
+    // window does NOT (probed: "Untitled"). Must own the process from
+    // the top; the driver task prints the verdict and exits.
+    TwinRetitleApp.main()
+}
+
 /// Own-window probe: order a REAL titled window front, let the runloop
 /// settle so AppKit-backed containers (NavigationSplitView) install, then
 /// screenshot OUR OWN window via CGWindowListCreateImage — own-window
@@ -154,6 +162,32 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
         if arguments.contains("--own-window-probe") {
             captureOwnWindow("content-window", size: screenSize,
                              ContentView(model: model, accountStore: accountStore))
+        }
+        if arguments.contains("--retitle-probe") {
+            // The NATIVE answer to the R4 titled= question: in a real
+            // titled window hosting the editor inside a NavigationSplitView,
+            // does renaming the donut retitle the window? (SwiftUI bridges
+            // navigationTitle to the titlebar through NSHostingController.)
+            NSApplication.shared.setActivationPolicy(.accessory)
+            let controller = NSHostingController(rootView: AnyView(
+                NavigationSplitView {
+                    Text("Sidebar")
+                } detail: {
+                    DonutEditor(donut: Binding(
+                        get: { model.newDonut },
+                        set: { model.newDonut = $0 }))
+                }
+                .frame(width: 1000, height: 650)))
+            let window = NSWindow(contentViewController: controller)
+            window.styleMask = [.titled]
+            window.setContentSize(NSSize(width: 1000, height: 650))
+            window.makeKeyAndOrderFront(nil)
+            for _ in 0..<40 { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            let before = window.title
+            model.newDonut.name = model.newDonut.name + " X"
+            for _ in 0..<40 { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            print("RETITLE-PROBE before=\"\(before)\" after=\"\(window.title)\" expected=\"\(model.newDonut.name)\"")
+            window.orderOut(nil)
         }
 
         // Leaf content cards — the pixel currency while container chrome
@@ -317,5 +351,36 @@ struct MimicGrid: View {
             }
         }
         .padding()
+    }
+}
+
+/// The live-twin instrument for scene-level behavior questions: a REAL
+/// SwiftUI App (WindowGroup scene machinery) hosting the same split+editor
+/// the interpreted app runs, with a driver that mutates the model and
+/// reports the titlebar. CLI-launched via TwinRetitleApp.main().
+struct TwinRetitleApp: App {
+    @StateObject private var model = FoodTruckModel.preview
+
+    var body: some Scene {
+        WindowGroup("Food Truck") {
+            NavigationSplitView {
+                Text("Sidebar")
+            } detail: {
+                DonutEditor(donut: $model.newDonut)
+            }
+            .frame(minWidth: 900, minHeight: 600)
+            .task {
+                NSApp.setActivationPolicy(.regular)
+                NSApp.activate(ignoringOtherApps: true)
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                let window = NSApp.windows.first { $0.isVisible }
+                let before = window?.title ?? "?"
+                model.newDonut.name += " X"
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                let after = window?.title ?? "?"
+                print("APP-RETITLE-PROBE before=\"\(before)\" after=\"\(after)\" expected=\"\(model.newDonut.name)\"")
+                exit(0)
+            }
+        }
     }
 }
