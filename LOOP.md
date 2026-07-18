@@ -2712,3 +2712,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (subscription keyed per store; the ACTIVE island store may never be
   the one subscribed), or the send arriving outside the island's
   update cycle. titled= stays reported-only.
+- 2026-07-18 SPLIT-ISLAND RE-RENDERS HEALED: THE SELF-HEALING SEND
+  (worktree iteration 71): store-identity tracing killed the
+  stale-subscription theory (ONE DetailColumn store, subscribed and
+  delivered), and the deferred-send experiment proved the mechanism —
+  a SYNCHRONOUS objectWillChange during AppKit action dispatch inside
+  a NavigationSplitView column's hosting island is DROPPED by SwiftUI;
+  one runloop turn later the same send re-renders. An unconditional
+  defer broke two pins that encode the synchronous contract
+  (stateObjectPersists renders==1; homeAssistant root chain), so the
+  landed design is the SELF-HEALING SEND: sync send first, then a
+  deferred resend ONLY if the store's render tick (bumped per body
+  evaluation) has not advanced — no double render when sync works, the
+  island heals when it drops. Verified: 10 island body-evals on the
+  editor mutate under the real split; both pins green; R4 13/13, R2
+  18/18, R3 all-ok. GATE GREEN 1108s. Remaining title layer: bodies
+  re-evaluate and navigationTitle re-applies, but the island's
+  titlebar bridge still shows the old name — next iteration.
