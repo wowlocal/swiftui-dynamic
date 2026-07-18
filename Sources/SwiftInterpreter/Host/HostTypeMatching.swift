@@ -566,8 +566,21 @@ enum HostRuntimeTypeSystem {
                 return HostSignature.equivalentTypeName(marker.name, type)
                     || HostSignature.equivalentTypeName(marker.name + ".Type", type)
             }
-            return HostSignature.equivalentTypeName(
-                String(describing: Swift.type(of: any)), type)
+            if HostSignature.equivalentTypeName(
+                String(describing: Swift.type(of: any)), type) {
+                return true
+            }
+            // Class contracts accept SUBCLASS instances: Foundation's unit
+            // family hands out private _NSStatic subclasses of NSDimension,
+            // and the Swift name (Dimension) reaches ObjC as NS-prefixed.
+            if let object = any as? NSObject {
+                let unqualified = HostSignature.unqualified(type)
+                if let expected = NSClassFromString(unqualified)
+                    ?? NSClassFromString("NS" + unqualified) {
+                    return object.isKind(of: expected)
+                }
+            }
+            return false
         case .closure, .hostFunction:
             return type == "Function" || type.contains("->")
         case .type(let symbol):

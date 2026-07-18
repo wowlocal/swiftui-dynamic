@@ -32,6 +32,10 @@ private struct PlatformFrameworkSpec {
     /// availability domains from one metadata sweep.
     let deployments: [String: (major: Int, minor: Int)]
     let roots: Set<String>
+    /// The module the symbol graph is extracted from, when the public
+    /// framework re-exports an underlying module (CoreLocation's CLLocation
+    /// lives in _LocationEssentials). Emitted code still imports `name`.
+    var extractionModule: String?
 }
 
 /// Type-level policy, not a member allowlist: once a type is selected, every
@@ -65,6 +69,25 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
             "UITableView", "UICollectionView", "UITextField", "UITextView",
         ]),
     .init(
+        // The FoodTruck city screen's DetailedMapView builds a real
+        // MKMapView inside its representable controller — the map surface
+        // interpreted apps configure directly.
+        name: "MapKit", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0)],
+        roots: [
+            "MKMapView", "MKMapCamera", "MKMapConfiguration",
+            "MKStandardMapConfiguration", "MKPointOfInterestFilter",
+        ]),
+    .init(
+        name: "CoreLocation", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0)],
+        roots: [
+            "CLLocation", "CLLocationCoordinate2D",
+        ],
+        extractionModule: "_LocationEssentials"),
+    .init(
         // Generate the common Metal surface from the more restrictive iOS
         // SDK; the same emitted calls then compile for both package targets.
         name: "Metal", sdkName: "iphoneos",
@@ -77,6 +100,12 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
             "MTLResource", "MTLBuffer", "MTLCommandBuffer",
             "MTLCommandEncoder", "MTLComputeCommandEncoder",
         ]),
+]
+
+/// Classes whose synthesized no-argument constructor does not compile
+/// (unavailable/abstract plain initializers) — grown from build failures.
+private let platformNoArgInitDeny: Set<String> = [
+    "MKMapConfiguration", // abstract base: init() unavailable
 ]
 
 private struct SymbolGraph: Decodable {
@@ -255,7 +284,27 @@ private struct ParsedPlatformFramework {
     let blockers: [String: Int]
 }
 
+/// Union of every sweep's root-selected nominal names, computed by a light
+/// pre-pass so each framework's parameter acceptance can reference the
+/// others' types (graphs are disk-cached; the decode is cheap).
+private var platformCrossFrameworkSelectedTypes: Set<String> = []
+
 func generatePlatformBridge() throws -> PlatformGenerationResult {
+    platformCrossFrameworkSelectedTypes = Set(
+        try platformFrameworkSpecs.flatMap { spec -> [String] in
+            let graph = try JSONDecoder().decode(
+                SymbolGraph.self,
+                from: Data(contentsOf: platformSymbolGraphURL(for: spec)))
+            return graph.symbols.compactMap { symbol in
+                guard symbol.kind.identifier.hasPrefix("swift."),
+                      ["swift.class", "swift.struct", "swift.enum"]
+                          .contains(symbol.kind.identifier),
+                      let first = symbol.pathComponents.first,
+                      spec.roots.contains(first),
+                      platformSymbolIsAvailable(symbol, for: spec) else { return nil }
+                return symbol.pathComponents.joined(separator: ".")
+            }
+        })
     let parsed = try platformFrameworkSpecs.map(parsePlatformFramework)
     let output = emitPlatformBridge(parsed)
     var coverage: [String: PlatformCoverageSection] = [:]
@@ -332,7 +381,12 @@ private func parsePlatformFramework(
     }
 
     let selected = allNominals.filter { spec.roots.contains($0.value.root) }
+    // Cross-framework references bridge when the referenced type is selected
+    // by ANY sweep (MKMapCamera's initializer takes CoreLocation's
+    // CLLocationCoordinate2D); the runtime unwraps platform values by
+    // dynamic cast, so acceptance is framework-agnostic.
     let selectedTypes = Set(selected.values.map(\.type))
+        .union(platformCrossFrameworkSelectedTypes)
     var parentByMember: [String: String] = [:]
     for relationship in graph.relationships
         where relationship.kind == "memberOf" || relationship.kind == "requirementOf"
@@ -610,6 +664,31 @@ private func parsePlatformFramework(
         }
     }
 
+    // ObjC classes inherit NSObject's plain initializer, which symbol
+    // graphs omit (-skip-synthesized-members). A selected class that swept
+    // NO initializer still constructs natively via `Type()` — synthesize
+    // that variant so inherited-init-only subclasses (MKMapView) are
+    // constructible. A synthesis that does not compile joins the deny set.
+    let constructedTypes = Set(constructors.map(\.receiverType))
+    for nominal in selected.values.sorted(by: { $0.type < $1.type })
+    where nominal.kind == .class
+        && !constructedTypes.contains(nominal.type)
+        && !platformNoArgInitDeny.contains(nominal.type)
+    {
+        constructors.append(PlatformCallable(
+            framework: spec.name, kind: .constructor,
+            receiverType: nominal.type,
+            nativeReceiverType: nominal.type,
+            receiverIsValueType: false,
+            name: nominal.type,
+            resultType: nominal.type,
+            nativeResultType: nominal.type,
+            resultPointerKind: nil,
+            params: [],
+            isThrowing: false,
+            isFailable: false))
+    }
+
     return ParsedPlatformFramework(
         spec: spec, graph: graph, nominals: selected,
         supertypesByType: supertypesByType.mapValues { $0.sorted() },
@@ -649,11 +728,12 @@ private func platformSymbolGraphURL(
         .appendingPathComponent(spec.name)
     try FileManager.default.createDirectory(
         at: output, withIntermediateDirectories: true)
-    let graph = output.appendingPathComponent("\(spec.name).symbols.json")
+    let module = spec.extractionModule ?? spec.name
+    let graph = output.appendingPathComponent("\(module).symbols.json")
     if FileManager.default.fileExists(atPath: graph.path) { return graph }
     _ = try runPlatformTool("/usr/bin/xcrun", [
         "swift-symbolgraph-extract",
-        "-module-name", spec.name,
+        "-module-name", module,
         "-minimum-access-level", "public",
         "-sdk", sdkPath,
         "-target", spec.target,
@@ -835,6 +915,12 @@ private let platformContractAliases: [String: String] = [
     "NSPoint": "CGPoint",
     "NSSize": "CGSize",
     "NSNotification.Name": "Notification.Name",
+    // CoreLocation's scalar measures are true Double typealiases.
+    "CLLocationDistance": "Double",
+    "CLLocationDirection": "Double",
+    "CLLocationDegrees": "Double",
+    "CLLocationAccuracy": "Double",
+    "CLLocationSpeed": "Double",
 ]
 
 private func platformContractType(_ type: String) -> String {
@@ -1041,7 +1127,7 @@ private func emitPlatformBridge(
     _ frameworks: [ParsedPlatformFramework]
 ) -> String {
     var output = """
-    // GENERATED by BridgeGen from AppKit/UIKit/Metal SDK symbol graphs.
+    // GENERATED by BridgeGen from AppKit/UIKit/Metal/MapKit/CoreLocation SDK symbol graphs.
     // Do not edit. Regenerate: swift run BridgeGen --emit
     import Foundation
     import SwiftInterpreter
@@ -1052,6 +1138,12 @@ private func emitPlatformBridge(
     #endif
     #if canImport(Metal)
     import Metal
+    #endif
+    #if canImport(MapKit)
+    import MapKit
+    #endif
+    #if canImport(CoreLocation)
+    import CoreLocation
     #endif
 
     extension GeneratedPlatformBridge {
@@ -1463,4 +1555,56 @@ private func platformSymbolBaseName(
     let name = platformIdentifier(raw)
     guard name.first?.isLetter == true, !name.hasPrefix("_") else { return nil }
     return name
+}
+
+/// Foundation's unit-system statics from the Foundation SYMBOL GRAPH — the
+/// NSUnit family is Clang-imported and absent from the textual
+/// swiftinterface. Returns (container, name) pairs for every `class var`
+/// on a Dimension subclass whose type is the class itself.
+func sweptFoundationDimensionStatics() -> [(container: String, name: String)] {
+    let spec = PlatformFrameworkSpec(
+        name: "Foundation", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0)],
+        roots: [])
+    guard let graphURL = try? platformSymbolGraphURL(for: spec),
+          let graph = try? JSONDecoder().decode(
+              SymbolGraph.self, from: Data(contentsOf: graphURL)) else {
+        print("warning: no Foundation symbol graph for the unit sweep")
+        return []
+    }
+    var classByID: [String: String] = [:]
+    for symbol in graph.symbols where symbol.kind.identifier == "swift.class" {
+        guard symbol.pathComponents.count == 1 else { continue }
+        classByID[symbol.identifier.precise] = symbol.pathComponents[0]
+    }
+    // Dimension subclasses: walk inheritsFrom up to "Dimension".
+    var parentOf: [String: String] = [:]
+    for relationship in graph.relationships where relationship.kind == "inheritsFrom" {
+        guard let child = classByID[relationship.source],
+              let parent = classByID[relationship.target] else { continue }
+        parentOf[child] = parent
+    }
+    func descendsFromDimension(_ name: String) -> Bool {
+        var current: String? = name
+        var hops = 0
+        while let value = current, hops < 8 {
+            if value == "Dimension" { return true }
+            current = parentOf[value]
+            hops += 1
+        }
+        return false
+    }
+    var result: [(container: String, name: String)] = []
+    for symbol in graph.symbols where symbol.kind.identifier == "swift.type.property" {
+        guard symbol.pathComponents.count == 2 else { continue }
+        let container = symbol.pathComponents[0]
+        let name = symbol.pathComponents[1]
+        guard descendsFromDimension(container),
+              platformSymbolIsAvailable(symbol, for: spec),
+              symbol.declaration.contains(": \(container)")
+                || symbol.declaration.contains("-> \(container)") else { continue }
+        result.append((container: container, name: name))
+    }
+    return result
 }

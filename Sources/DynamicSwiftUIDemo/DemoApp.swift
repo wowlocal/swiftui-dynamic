@@ -7,10 +7,30 @@ import SwiftUIBridge
 struct DemoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    init() {
+        // Interpreter build configurations SNAPSHOT the platform at
+        // interpreter init — the flags must be applied before ANY scene
+        // construction can create one (didFinishLaunching is too late for
+        // instances created during scene setup; the frozen iOS default
+        // made #if os(iOS) blocks active in the live window only).
+        DemoApp.applyPlatformFlag()
+        DemoApp.applyNetworkFlag()
+    }
+
     /// `swift run DynamicSwiftUIDemo --project External/oss/IceCubesApp`
     /// renders a whole checked-out project live instead of the editor demo.
     static var projectDirectory: String? {
         CommandLine.arguments.firstIndex(of: "--project").flatMap { index in
+            CommandLine.arguments.indices.contains(index + 1)
+                ? CommandLine.arguments[index + 1] : nil
+        }
+    }
+
+    /// `--sweep <outDir>` (with --project): drive the LIVE window with real
+    /// NSEvents after the project renders — the R4 "a person can use it"
+    /// check. Captures land in outDir; the process exits with the verdict.
+    static var sweepDirectory: String? {
+        CommandLine.arguments.firstIndex(of: "--sweep").flatMap { index in
             CommandLine.arguments.indices.contains(index + 1)
                 ? CommandLine.arguments[index + 1] : nil
         }
@@ -119,6 +139,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first?.makeKeyAndOrderFront(nil)
+        if let sweepDirectory = DemoApp.sweepDirectory {
+            Task { await SweepDriver.run(outDirectory: sweepDirectory) }
+        }
         // Self-capture evidence for headless verification sessions that
         // lack screen-recording access: after the LIVE interactive window
         // settles, write its contentView bitmap and keep running.

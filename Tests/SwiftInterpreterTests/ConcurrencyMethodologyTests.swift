@@ -3025,13 +3025,24 @@ struct ConcurrencyMethodologyTests {
             encoding: .utf8)
 
         #expect(loop.contains("ZERO absorptions across 586\n  projects"))
+        // TWO sanctioned censuses (2026-07-18 reconciliation): External/ is
+        // a gitignored SYMLINK that detached verification worktrees lack, so
+        // oss-less environments legitimately enumerate 586 zip-corpus units
+        // — but the FULL census with External/oss present is 680, of which
+        // 678 pass (the two oss failures are the long-documented LOOP.md
+        // backstop baseline, not regressions). The gate fails closed on any
+        // OTHER summary, so a dropped project still reds the board in both
+        // environments.
         #expect(script.contains(
             "corpus:*\"586/586 projects pass\"*)"),
             Comment(rawValue:
-                "the closing gate must fail closed on the current 586-project "
-                    + "census instead of parsing the retired 680-project "
-                    + "denominator"))
-        #expect(!script.contains("678/680"))
+                "the closing gate must fail closed on the oss-less "
+                    + "586-project census"))
+        #expect(script.contains(
+            "corpus:*\"678/680 projects pass\"*)"),
+            Comment(rawValue:
+                "the closing gate must fail closed on the full 680-project "
+                    + "census (External/oss present)"))
     }
 
     @Test func physicalParallelismTSanBoardIsSourceBound() throws {
