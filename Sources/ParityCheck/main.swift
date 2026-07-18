@@ -17,6 +17,22 @@ do {
     exit(2)
 }
 
+// Deterministic hashing on BOTH sides: hashValue probes were 16 of the 17
+// "unstable" drops — per-process hash seeds, not real instability. The
+// FoodTruckCheck re-exec pattern pins the interp side; runTwin passes the
+// same env to the twin.
+if ProcessInfo.processInfo.environment["SWIFT_DETERMINISTIC_HASHING"] == nil {
+    var environment = ProcessInfo.processInfo.environment
+    environment["SWIFT_DETERMINISTIC_HASHING"] = "1"
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+    process.arguments = Array(CommandLine.arguments.dropFirst())
+    process.environment = environment
+    try? process.run()
+    process.waitUntilExit()
+    exit(process.terminationStatus)
+}
+
 func runTwin() -> [String: String]? {
     let selfPath = URL(fileURLWithPath: CommandLine.arguments[0])
     let twin = selfPath.deletingLastPathComponent().appendingPathComponent("ParityTwin")
@@ -113,6 +129,9 @@ let stable = first.filter { second[$0.key] == $0.value }
 let unstable = selectedProbes.reduce(into: 0) { count, probe in
     if let firstValue = first[probe.id], second[probe.id] != firstValue {
         count += 1
+        if ProcessInfo.processInfo.environment["PARITY_LIST_UNSTABLE"] != nil {
+            print("UNSTABLE \(probe.id): \(firstValue.prefix(40)) vs \(second[probe.id]?.prefix(40) ?? "?")")
+        }
     }
 }
 
