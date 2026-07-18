@@ -2861,3 +2861,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   graduation is now a USER-ACTION GATE (Accessibility grant), filed in
   claims alongside the Screen Recording note — with the grant, HID
   driving unlocks the whole i37 wishlist. Parity stands.
+- 2026-07-18 PARITY: 345 -> 361 MATCH — HASHING WAS THE INSTABILITY
+  (worktree iteration 81): the 17 "unstable" parity probes decomposed
+  as 16 hashValue probes + 1 honest wall-clock
+  (Date.timeIntervalSinceNow). The hashValues varied because the
+  parity TWIN ran without SWIFT_DETERMINISTIC_HASHING (per-process
+  hash seeds — the FoodTruckCheck re-exec precedent never reached
+  ParityCheck). ParityCheck now re-execs with deterministic hashing;
+  the twin inherits the env. All 16 graduate to MATCH — the
+  interpreter's hashValue bridging is native-EXACT under the shared
+  seed. Board: 361 match / 0 diverge / 0 interp-error / 1 unstable
+  (the wall-clock probe, honestly volatile) of 362. GATE GREEN 1100s
+  (the parity contract pattern-matches on 0-diverge, no churn).
+  PARITY_LIST_UNSTABLE env stays as the instrument.
