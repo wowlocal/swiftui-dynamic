@@ -483,35 +483,31 @@ extension ViewRegistry {
             let detailContent = detail.count == 1
                 ? detail[0]
                 : AnyView(VStack(alignment: .leading) { Self.indexed(detail) })
-            // REAL NavigationSplitView (2026-07-18 experiment, DEMO_SPLIT_REAL
-            // opt-in): the real split RENDERS — the full R2 board hit 18/18
-            // AE=0 (the content row's headless sidebar blank converges with
-            // the twin's identical artifact) and LIVE the orders + editor
-            // panels work end-to-end with the window title finally following
-            // the detail's navigationTitle. BUT six live sweep steps show
-            // changed=0 under it — the offscreen CALayer.render cannot see
-            // most re-created detail subtrees behind the split's own
-            // compositing (socialfeed's feed table IS in the hierarchy while
-            // its capture shows nothing). Until the live-capture arc closes,
-            // the split-shaped HStack fallback stays the default so the R4
-            // board keeps its honest verdicts.
-            if ProcessInfo.processInfo.environment["DEMO_SPLIT_REAL"] != nil {
-                return .native(AnyView(NavigationSplitView {
-                    sidebarContent
-                } detail: {
-                    detailContent
+            // REAL NavigationSplitView (default since 2026-07-18): native
+            // sidebar material, detail-driven window titles, twin-matching
+            // structure — the full R2 board is AE=0 under it and every live
+            // panel lands (window-title evidence). The split hosts columns
+            // in separate NSHostingView islands, so offscreen captures are
+            // island-blind — the R4 sweep verdicts use title + hierarchy
+            // markers instead of changed-pixels. DEMO_SPLIT_FALLBACK flips
+            // to the split-shaped HStack for A/B diagnosis.
+            if ProcessInfo.processInfo.environment["DEMO_SPLIT_FALLBACK"] != nil {
+                return .native(AnyView(HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        sidebarContent
+                    }
+                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 280, maxHeight: .infinity)
+                    Divider()
+                    VStack(alignment: .leading, spacing: 0) {
+                        detailContent
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }))
             }
-            return .native(AnyView(HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    sidebarContent
-                }
-                .frame(minWidth: 180, idealWidth: 220, maxWidth: 280, maxHeight: .infinity)
-                Divider()
-                VStack(alignment: .leading, spacing: 0) {
-                    detailContent
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            return .native(AnyView(NavigationSplitView {
+                sidebarContent
+            } detail: {
+                detailContent
             }))
         }
 
