@@ -434,6 +434,132 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func inheritedTryOptionalSourceCallContainsThrowAndUsesPhysicalWrapper()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-inherited-try-optional-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedInheritedTryOptionalSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue ==
+            "success:none|none#some|failure:none|none#nil")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func unsupportedTryOptionalSourceCallRoutesStayCooperative() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        final class TryOptionalRouteControl: @unchecked Sendable {
+            private var observation = ""
+
+            @MainActor
+            private func record(_ value: String) {
+                if !observation.isEmpty { observation += "|" }
+                observation += value
+            }
+
+            func plainTry() async throws {
+                await Task.yield()
+                await record("plain")
+            }
+
+            func forcedTry() async throws {
+                await Task.yield()
+                await record("force")
+            }
+
+            func argument(_ value: String) async throws {
+                await Task.yield()
+                await record(value)
+            }
+
+            func richerResult() async throws -> String {
+                await Task.yield()
+                await record("richer")
+                return "value"
+            }
+
+            @MainActor
+            func mainActor() async throws {
+                await Task.yield()
+                record("main")
+            }
+
+            @concurrent
+            nonisolated func concurrent() async throws {
+                await Task.yield()
+                await record("concurrent")
+            }
+
+            func weakCall() async throws {
+                await Task.yield()
+                await record("weak")
+            }
+
+            func run() async -> String {
+                _ = try? await Task.detached {
+                    try await self.plainTry()
+                }.value
+                _ = await Task.detached {
+                    try! await self.forcedTry()
+                }.value
+                _ = await Task.detached {
+                    try? await self.argument("argument")
+                }.value
+                let richer = await Task.detached {
+                    try? await self.richerResult()
+                }.value
+                _ = await Task.detached {
+                    try? await self.mainActor()
+                }.value
+                _ = await Task.detached {
+                    try? await self.concurrent()
+                }.value
+                _ = await Task.detached { [weak self] in
+                    try? await self?.weakCall()
+                }.value
+                return await output() + ":" + (richer ?? "nil")
+            }
+
+            @MainActor
+            private func output() -> String { observation }
+        }
+
+        await TryOptionalRouteControl().run()
+        """)
+
+        #expect(value.stringValue ==
+            "plain|force|argument|richer|main|concurrent|weak:value")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func unsupportedStringSourceCallArgumentsStayCooperative() async throws {
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 1)
@@ -1432,6 +1558,51 @@ struct RuntimeSourceCallTargetTests {
             #expect(error.message.contains("contained physical source call"))
         } catch {
             Issue.record("unexpected source-call failure: \(error)")
+        }
+
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func tryOptionalPhysicalReentryDoesNotSuppressInterpretedTrap()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            final class TryOptionalCrashingReentryProbe:
+                @unchecked Sendable
+            {
+                func crash() async throws {
+                    fatalError("contained try-optional physical source call")
+                }
+
+                func run() async -> Void? {
+                    await Task.detached {
+                        try? await self.crash()
+                    }.value
+                }
+            }
+
+            await TryOptionalCrashingReentryProbe().run()
+            """)
+            Issue.record("expected interpreted try-optional source-call trap")
+        } catch let thrown as InterpretedThrow {
+            let error = try #require(
+                thrown.value.hostPayload as? RuntimeError)
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "contained try-optional physical source call"))
+        } catch {
+            Issue.record("unexpected try-optional source-call failure: \(error)")
         }
 
         #expect(interpreter.concurrencyRuntime

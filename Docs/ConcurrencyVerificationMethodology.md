@@ -2002,6 +2002,35 @@ passed 20/20 in two seconds; the exact-tip physical board passed all 71 tests
 in one second; and the rebuilt TSan board passed native overlap 20/20 plus all
 71 tests in 29 seconds without a race or interceptor diagnostic.
 
+The seventy-second M9 slice asks whether Meshtastic-Apple's exact
+`Task.detached(priority: .utility) { try? await
+self.refreshDevicesAPIData() }` wrapper may run physically without sending an
+interpreted thrown value across a worker boundary. The cited own source-class
+method at `MeshtasticAPI.swift:199` is inherited-isolation, async, throwing,
+argument-free, and Void-returning.
+
+Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
+concurrency checking and warnings as errors. Native and interpreted execution
+returned exact `success:none|none#some|failure:none|none#nil` in twenty bounded
+repetitions. Every five-run native shard retained canonical digest
+`bea8145a5762b64cfca390d6d8247e3f3c6d695e8d6a1a7d22bc294251068b9e`;
+the deterministic receipt RED returned the same value but observed zero
+physical submissions/executions instead of two.
+
+The positive regression requires physical receipts for both the successful
+and source-throwing calls. The error must be caught during confined MainActor
+re-entry, where `InterpretedThrow.value` remains owned, and only the resulting
+typed `Optional<Void>` snapshot may return to the worker. A trap regression
+requires fatal `RuntimeError` to escape authored `try?` while remaining
+contained by the runtime task and host process. A zero-receipt control keeps
+plain `try`, `try!`, argument-bearing, richer-result, MainActor,
+`@concurrent`, and weak-self variants cooperative. The focused route board
+passed three tests; the same-source board passed 20/20 in one second; the
+exact-tip physical board passed all 74 tests in one second; and the rebuilt
+TSan bundle plus a retained confirmation passed native overlap 20/20 plus all
+74 tests, with the confirmation completing in 14 seconds without a race or
+interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

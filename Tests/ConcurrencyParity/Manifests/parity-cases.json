@@ -2817,6 +2817,21 @@
     "notes": "Planet demand-cites `Task.detached(priority: .background) { await self.sendNotificationForNewCID(cid: cid) }` at MyPlanetModel.swift:2948-2950; the optional-binding `cid` is immutable and the selected own method takes one labeled String, is async/nonthrowing/Void, and has inherited isolation at line 3850. The strict same-source probe uses an @unchecked Sendable receiver, returns exact bafy-planet:none|none in twenty bounded native/interpreter runs, and every focused five-run shard retains canonical SHA-256 2e15021f8c242902f4ed71d5b4dd1a16a4cc66ec7ca6135550bd1b58782e99a0. The deterministic receipt RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. The general checked source-call argument schema now carries a string kind, recursively copies only a directly owned immutable String capture, validates the selected String parameter and worker snapshot, and materializes the argument only after confined re-entry. Admission is capped to one inherited-isolation async nonthrowing Void method; String literals, mutable captures, MainActor/@concurrent/actor routes, multiple arguments, throwing methods, and richer results remain cooperative."
   },
   {
+    "id": "parallel-detached-inherited-try-optional-source-call",
+    "fixture": "Fixtures/parallel-detached-inherited-try-optional-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedInheritedTryOptionalSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "An argument-free inherited-isolation async throwing Void source method called as try? from a detached wrapper keeps nil actor isolation across suspension; success becomes Optional.some(Void), while an ordinary source throw is contained as Optional.none.",
+    "notes": "Meshtastic-Apple demand-cites the exact nested `Task.detached(priority: .utility) { try? await self.refreshDevicesAPIData() }` spelling at MeshtasticAPI.swift:136-138; MeshtasticAPI is an @unchecked Sendable source class and the selected own method at line 199 is inherited-isolation, async, throwing, argument-free, and Void-returning. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact success:none|none#some|failure:none|none#nil in twenty bounded native/interpreter runs; every native five-run shard retained canonical SHA-256 bea8145a5762b64cfca390d6d8247e3f3c6d695e8d6a1a7d22bc294251068b9e, and the standalone twenty-line native output had SHA-256 99d9d9b6aa87c21d6bf64a993ab7eb29a2969a115f8210328f4073dc8e9b64d9. The deterministic receipt RED already returned the exact value through cooperative fallback but recorded zero physical submissions/executions instead of two. A typed suppress-to-optional command disposition catches ordinary errors during MainActor-confined re-entry, so InterpretedThrow.value never crosses the worker boundary and only Optional<Void> snapshots return. Fatal RuntimeError and InterpreterSessionAbort remain unsuppressed. Admission is capped to the exact direct-self argument-free inherited-isolation async throwing Void route; plain try, try!, arguments, richer results, MainActor, @concurrent, and weak-self variants remain cooperative."
+  },
+  {
     "id": "parallel-detached-weak-concurrent-string-source-call",
     "fixture": "Fixtures/parallel-detached-weak-concurrent-string-source-call.swift",
     "mode": "runtime",

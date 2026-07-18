@@ -160,6 +160,17 @@ nonisolated struct RuntimePhysicalSourceCallArgument: Sendable, Equatable {
     let origin: RuntimePhysicalSourceCallArgumentOrigin
 }
 
+/// How the authored source expression handles an error from the confined
+/// method invocation. The worker never receives an interpreted thrown value:
+/// `try?` containment happens while the evaluator is still on MainActor and
+/// only the resulting Optional snapshot crosses back to the worker.
+nonisolated enum RuntimePhysicalSourceCallErrorDisposition:
+    Sendable, Equatable
+{
+    case propagate
+    case suppressToOptional
+}
+
 /// The complete executor-neutral command carried by the physical detached
 /// wrapper. It identifies an already selected declaration and its owning
 /// logical task, but contains no receiver, closure, environment, program
@@ -170,6 +181,7 @@ nonisolated struct RuntimePhysicalSourceCallCommand: Sendable, Equatable {
     let target: RuntimeSourceFunctionTargetDescriptor
     let arguments: [RuntimePhysicalSourceCallArgument]
     let resultKind: RuntimePhysicalSourceCallResultKind
+    let errorDisposition: RuntimePhysicalSourceCallErrorDisposition
 }
 
 /// Confined invocation data selected for a physical source-call command. A
@@ -248,47 +260,75 @@ final class RuntimeSourceCallReentryRelay {
             }
             let callArguments = CallArguments(arguments: arguments)
             let value: RuntimeValue
-            switch registered.invocation {
-            case .resolved(let target):
-                guard target.descriptor == command.target else {
-                    throw failure(
-                        "source-call command changed its resolved target")
-                }
-                value = try await interpreter.callBackgroundClosureSuspending(
-                    target.closure,
-                    arguments: callArguments)
-
-            case .weakSelfOptional(let sourceClosure, let methodName):
-                guard command.resultKind == .optionalVoid,
-                      sourceClosure.isPhysicalWeakSelfSourceCallCandidate,
-                      let selfBox = sourceClosure.captured.box(
-                        for: "self", before: interpreter.globals),
-                      selfBox.referenceOwnership == .weak else {
-                    throw failure(
-                        "weak-self source-call registration is invalid")
-                }
-                switch try selfBox.load().optionalState {
-                case .none:
-                    value = .none()
-                case .some(.instance(let instance), _):
-                    guard let target = interpreter
-                        .resolveOwnSourceInstanceMethodCallTarget(
-                            named: methodName,
-                            on: instance,
-                            arguments: callArguments),
-                          target.descriptor == command.target else {
+            do {
+                let invokedValue: RuntimeValue
+                switch registered.invocation {
+                case .resolved(let target):
+                    guard target.descriptor == command.target else {
                         throw failure(
-                            "weak-self source-call target changed before re-entry")
+                            "source-call command changed its resolved target")
                     }
-                    let result = try await interpreter
+                    invokedValue = try await interpreter
                         .callBackgroundClosureSuspending(
                             target.closure,
                             arguments: callArguments)
-                    value = result.liftedToOptional()
-                case .some, .notOptional:
-                    throw failure(
-                        "weak-self source-call receiver has an invalid shape")
+
+                case .weakSelfOptional(let sourceClosure, let methodName):
+                    guard command.resultKind == .optionalVoid,
+                          command.errorDisposition == .propagate,
+                          sourceClosure.isPhysicalWeakSelfSourceCallCandidate,
+                          let selfBox = sourceClosure.captured.box(
+                            for: "self", before: interpreter.globals),
+                          selfBox.referenceOwnership == .weak else {
+                        throw failure(
+                            "weak-self source-call registration is invalid")
+                    }
+                    switch try selfBox.load().optionalState {
+                    case .none:
+                        invokedValue = .none()
+                    case .some(.instance(let instance), _):
+                        guard let target = interpreter
+                            .resolveOwnSourceInstanceMethodCallTarget(
+                                named: methodName,
+                                on: instance,
+                                arguments: callArguments),
+                              target.descriptor == command.target else {
+                            throw failure(
+                                "weak-self source-call target changed before re-entry")
+                        }
+                        let result = try await interpreter
+                            .callBackgroundClosureSuspending(
+                                target.closure,
+                                arguments: callArguments)
+                        invokedValue = result.liftedToOptional()
+                    case .some, .notOptional:
+                        throw failure(
+                            "weak-self source-call receiver has an invalid shape")
+                    }
                 }
+                switch command.errorDisposition {
+                case .propagate:
+                    value = invokedValue
+                case .suppressToOptional:
+                    value = invokedValue.liftedToOptional()
+                }
+            } catch is InterpreterSessionAbort {
+                // Session teardown is evaluator control flow, not a source
+                // Error value, and therefore remains uncatchable by try?.
+                throw InterpreterSessionAbort()
+            } catch let runtimeError as RuntimeError
+                where runtimeError.fatal
+            {
+                // Interpreted traps remain contained by the runtime task, but
+                // authored try? must not turn them into an ordinary nil.
+                throw runtimeError
+            } catch {
+                guard command.errorDisposition == .suppressToOptional else {
+                    throw error
+                }
+                // Includes InterpretedThrow while its RuntimeValue remains
+                // confined. Only Optional.none is materialized for the worker.
+                value = .none()
             }
             let snapshot = try RuntimeWorkerValueSnapshot.copying(value)
             guard command.resultKind.accepts(snapshot) else {

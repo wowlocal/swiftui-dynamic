@@ -254,8 +254,9 @@ extension Interpreter {
             permitLifetime: .operation)
     }
 
-    /// A detached wrapper may have the complete body `await self.method(...)`.
-    /// Admit only direct-self calls after runtime resolution proves one exact
+    /// A detached wrapper may have the complete body `await self.method(...)`
+    /// or the demand-backed `try? await self.throwingMethod()` spelling. Admit
+    /// only direct-self calls after runtime resolution proves one exact
     /// supported declaration route: an async source-class method on
     /// MainActor/@concurrent, or one of the checked default-actor shapes below.
     /// The physical worker carries only a command and checked argument
@@ -268,8 +269,21 @@ extension Interpreter {
         record: RuntimeTaskRecord,
         priority: RuntimeTaskPriority
     ) throws -> RuntimePhysicalSourceKernelJob? {
-        guard let awaitExpression = expression.as(AwaitExprSyntax.self),
-              let call = awaitExpression.expression
+        let awaitExpression: AwaitExprSyntax
+        let errorDisposition: RuntimePhysicalSourceCallErrorDisposition
+        if let directAwait = expression.as(AwaitExprSyntax.self) {
+            awaitExpression = directAwait
+            errorDisposition = .propagate
+        } else if let attempt = expression.as(TryExprSyntax.self),
+                  attempt.questionOrExclamationMark?.text == "?",
+                  let optionalAwait = attempt.expression
+                    .as(AwaitExprSyntax.self) {
+            awaitExpression = optionalAwait
+            errorDisposition = .suppressToOptional
+        } else {
+            return nil
+        }
+        guard let call = awaitExpression.expression
                 .as(FunctionCallExprSyntax.self),
               call.trailingClosure == nil,
               call.additionalTrailingClosures.isEmpty else {
@@ -332,25 +346,38 @@ extension Interpreter {
                     && argument.valueKind.accepts(
                         parameterTypeName: parameter.typeName)
               }),
-              target.descriptor.originProgramPlan === entry.programPlan,
-              !target.descriptor.isThrowing else {
+              target.descriptor.originProgramPlan === entry.programPlan else {
             return nil
         }
-        let isSupportedRoute = isWeakOptionalSelf
-            ? isSupportedPhysicalWeakSourceCallRoute(
+        let isSupportedRoute: Bool
+        switch errorDisposition {
+        case .propagate:
+            guard !target.descriptor.isThrowing else { return nil }
+            isSupportedRoute = isWeakOptionalSelf
+                ? isSupportedPhysicalWeakSourceCallRoute(
+                    target.descriptor,
+                    on: instance,
+                    parameters: target.closure.parameters,
+                    arguments: loweredArguments.commandArguments)
+                : isSupportedPhysicalSourceCallRoute(
+                    target.descriptor,
+                    on: instance,
+                    parameters: target.closure.parameters,
+                    arguments: loweredArguments.commandArguments)
+        case .suppressToOptional:
+            guard !isWeakOptionalSelf else { return nil }
+            isSupportedRoute = isSupportedPhysicalTryOptionalSourceCallRoute(
                 target.descriptor,
                 on: instance,
                 parameters: target.closure.parameters,
                 arguments: loweredArguments.commandArguments)
-            : isSupportedPhysicalSourceCallRoute(
-                target.descriptor,
-                on: instance,
-                parameters: target.closure.parameters,
-                arguments: loweredArguments.commandArguments)
+        }
         guard isSupportedRoute else { return nil }
 
         let resultKind: RuntimePhysicalSourceCallResultKind
-        if isWeakOptionalSelf {
+        if errorDisposition == .suppressToOptional {
+            resultKind = .optionalVoid
+        } else if isWeakOptionalSelf {
             // A weak wrapper always returns Void?. Its dedicated route proof
             // above owns the exact target/argument surface, while the receiver
             // is resolved again only after confined re-entry.
@@ -371,7 +398,8 @@ extension Interpreter {
             taskID: record.id,
             target: target.descriptor,
             arguments: loweredArguments.commandArguments,
-            resultKind: resultKind)
+            resultKind: resultKind,
+            errorDisposition: errorDisposition)
         let relay = concurrencyRuntime.sourceCallReentryRelay
         let invocation: RuntimeRegisteredPhysicalSourceCallInvocation =
             isWeakOptionalSelf
@@ -486,6 +514,31 @@ extension Interpreter {
              .lexicalType(_, isTypeMember: true, isActor: _):
             return false
         }
+    }
+
+    /// Meshtastic's exact argument-free `try? await self.method()` wrapper is
+    /// the first throwing source-call route. Containment is part of admission:
+    /// only an own inherited-isolation async throwing Void source-class method
+    /// may use it, and the relay optionalizes the outcome before any worker
+    /// boundary is crossed.
+    private func isSupportedPhysicalTryOptionalSourceCallRoute(
+        _ target: RuntimeSourceFunctionTargetDescriptor,
+        on instance: Instance,
+        parameters: [ClosureValue.Parameter],
+        arguments: [RuntimePhysicalSourceCallArgument]
+    ) -> Bool {
+        guard case .lexicalType(
+                _, isTypeMember: false, isActor: false
+              ) = target.lexicalPlacement,
+              !instance.symbol.isActor,
+              target.isAsync,
+              target.isThrowing,
+              target.isolation == .inherited,
+              RuntimePhysicalSourceCallResultKind(
+                returnTypeName: target.returnTypeName) == .void else {
+            return false
+        }
+        return parameters.isEmpty && arguments.isEmpty
     }
 
     /// Weak optional-self admission is deliberately separate from direct-self

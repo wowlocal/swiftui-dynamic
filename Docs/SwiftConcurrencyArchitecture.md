@@ -3045,8 +3045,10 @@ Each milestone is independently gated through
   capture-only `{ [self] in await self.registerDefaults() }` spelling and the
   exact capture-only weak-self forms for its inherited argument-free or
   single-literal/captured-String or single-captured-`[String]` calls and
-  Amperfy's `@concurrent` single-captured-String call. The strong-capture proof cannot
-  fall through to a snapshot kernel. No weak reference crosses a physical
+  Amperfy's `@concurrent` single-captured-String call. Meshtastic-Apple's
+  signature-free direct-self `try? await` form is the sole throwing route: it
+  optionalizes ordinary failure during confined re-entry. The strong-capture
+  proof cannot fall through to a snapshot kernel. No weak reference crosses a physical
   boundary: the runtime record retains the confined weak box and reloads it
   only after re-entry. All other `[weak self]` optional async member calls use
   the cooperative suspension-aware path that evaluates the receiver once,
@@ -4611,6 +4613,43 @@ eight tests, the exact-tip physical board passed 71 tests in one second, and the
 rebuilt TSan twin passed native overlap 20/20 plus all 71 tests in 29 seconds
 without a race or interceptor diagnostic.
 
+The seventy-second prerequisite adds Meshtastic-Apple's exact direct-self
+`try? await` source-call shape. The admitted detached body is one optional-try
+expression around one awaited explicit-member call. The uniquely resolved own
+source-class target must inherit caller isolation, be async and throwing,
+accept no arguments, and return Void. Plain `try`, `try!`, weak optional-self,
+argument-bearing, richer-result, actor, MainActor, and `@concurrent` variants
+do not borrow this route.
+
+`RuntimePhysicalSourceCallErrorDisposition` makes expression-level error
+handling part of the Sendable command rather than an inference on a worker.
+The existing `.propagate` disposition preserves all nonthrowing routes. The
+new `.suppressToOptional` disposition is admitted only by the exact throwing
+route above. After the physical wrapper hands off its permit, the MainActor
+relay reinstalls the originating evaluation-task context, invokes the selected
+source closure, and applies Swift's `try?` flattening while every
+`InterpretedThrow` and its `RuntimeValue` are still confined. Only a checked
+`Optional<Void>` snapshot returns across the boundary.
+
+Containment is deliberately two-tiered. An ordinary source throw, host error,
+or cancellation becomes `Optional.none`; successful Void becomes
+`Optional.some(Void)`. `InterpreterSessionAbort` remains evaluator control
+flow and a fatal `RuntimeError` remains unsuppressible, so the runtime task can
+contain the interpreted trap without letting authored `try?` disguise it as
+an ordinary nil. The command still contains no receiver, source closure,
+environment, source error, runtime value, program state, heap, or evaluator.
+
+Strict native and interpreted execution returned exact
+`success:none|none#some|failure:none|none#nil` in twenty runs, with five-run
+digest
+`bea8145a5762b64cfca390d6d8247e3f3c6d695e8d6a1a7d22bc294251068b9e`;
+the physical receipt RED moved from zero to two. Three focused regressions
+cover the positive pair, unsupported route controls, and fatal containment.
+The exact-tip physical board passed 74 tests in one second. The rebuilt TSan
+bundle plus a retained confirmation passed native overlap 20/20 and all 74
+tests, with the confirmation completing in 14 seconds without a race or
+interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4618,7 +4657,8 @@ source class/actor/host/standard-library target identities beyond the unique
 own reference-method descriptor, the exact default-actor synchronous and async
 single-Int plus explicit-single-defaulted-Bool routes, the exact actor-declared
 custom-global-actor argument-free async Void route, the exact inherited-caller
-argument-free or direct captured-String async Void routes, the exact weak-self
+argument-free, direct captured-String, or direct argument-free
+`try?`-contained throwing Void routes, the exact weak-self
 inherited argument-free/literal-or-captured-String/captured-`[String]` and
 `@concurrent` captured-String async Void routes, normalized callee shape,
 and the existing core-Task, `String.count`,
@@ -4638,6 +4678,7 @@ and parallel-detached-weak-concurrent-string-source-call
 and parallel-detached-weak-inherited-string-literal-source-call
 and parallel-detached-weak-inherited-captured-string-source-call
 and parallel-detached-weak-inherited-string-array-source-call
+and parallel-detached-inherited-try-optional-source-call
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension
