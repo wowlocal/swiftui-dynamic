@@ -3885,6 +3885,33 @@ board passed native overlap 20/20 plus all 49 driver/kernel/source-call tests
 in three suites on four workers in 87 seconds without a race or interceptor
 diagnostic.
 
+The fiftieth prerequisite extends the checked source-call argument schema for
+iTorrent's exact MainActor calls with `true` and `false` literals. Every
+`RuntimePhysicalSourceCallArgument` now carries a value kind in addition to its
+label and binding ID. The lowerer admits integer literals as `.integer`,
+Boolean literals as `.boolean`, and directly owned immutable Int/Int64 captures
+as `.integer`. It then pairs each kind with the selected declaration's
+nondefaulted, nonvariadic, non-builder, nonisolated `Int`, `Int64`, or `Bool`
+parameter. Captured Bool remains outside the cited depth cap.
+
+The confined relay validates the command kind against the actual copied
+snapshot before materializing any argument. This keeps declaration selection,
+worker copying, and re-entry binding mutually consistent even as the scalar
+surface grows. The command remains Sendable and contains no receiver, source
+box, `RuntimeValue`, environment, program state, heap, or evaluator; only the
+detached wrapper and handoff execute physically.
+
+The bounded strict Swift 6 probe sequentially awaited both wrappers and
+returned exact `on:off|TF` in twenty native/interpreted repetitions; all four
+native five-run shards retained canonical SHA-256
+`ec0dfbfcbd3bbeab6dd3c5728b5da0face87e81f2b3be963f6d9d1acfa617bf6`.
+The receipt RED moved from zero to two physical executions. The canonical
+focused iteration completed 63 tests in six suites, all 46 methodology/gate
+checks, and twenty parity repetitions on four workers in two seconds. The
+rebuilt scoped TSan board passed native overlap 20/20 plus all 50 driver/kernel/
+source-call tests in three suites on four workers in 68 seconds without a race
+or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -3899,7 +3926,7 @@ behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
-MainActor-and-concurrent-integer-source-call
+MainActor-Boolean-and-concurrent-integer-source-call
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

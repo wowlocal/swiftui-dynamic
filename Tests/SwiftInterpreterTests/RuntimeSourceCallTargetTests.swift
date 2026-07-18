@@ -223,6 +223,31 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func booleanLiteralMainActorSourceCallUsesPhysicalWrapper() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-mainactor-bool-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedMainActorBooleanSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "on:off|TF")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func unsupportedIsolationAndResultFamiliesStayCooperative()
         async throws
     {
@@ -243,6 +268,10 @@ struct RuntimeSourceCallTargetTests {
 
             func echoString(_ value: String) async -> String { value }
 
+            func echoBool(_ value: Bool) async -> String {
+                value ? "true" : "false"
+            }
+
             func run() async -> String {
                 let first = await Task.detached {
                     await self.detachedValue()
@@ -260,7 +289,11 @@ struct RuntimeSourceCallTargetTests {
                 let unsupportedScalar = await Task.detached {
                     await self.echoString("text")
                 }.value
-                return "\\(first):\\(second):\\(mutableArgument):\\(expressionArgument):\\(unsupportedScalar)"
+                let capturedBool = true
+                let unsupportedBooleanCapture = await Task.detached {
+                    await self.echoBool(capturedBool)
+                }.value
+                return "\\(first):\\(second):\\(mutableArgument):\\(expressionArgument):\\(unsupportedScalar):\\(unsupportedBooleanCapture)"
             }
         }
 
@@ -284,7 +317,7 @@ struct RuntimeSourceCallTargetTests {
         await probe()
         """)
 
-        #expect(value.stringValue == "nonisolated:7:5:3:text:actor")
+        #expect(value.stringValue == "nonisolated:7:5:3:text:true:actor")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime

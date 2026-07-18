@@ -1303,6 +1303,38 @@ rebuilt scoped TSan board passed native overlap 20/20 and all 49 driver/kernel/
 source-call tests in three suites on four workers in 87 seconds without a race
 or interceptor diagnostic.
 
+The fiftieth M9 slice is a gap closure for iTorrent's exact
+`Task.detached(priority: .utility) { await self.method(true/false) }` family.
+The semantic question is whether two sequentially awaited detached wrappers
+may pass Boolean literals to a uniquely selected MainActor async source method,
+preserve that actor's exact mutation order, and return both values through the
+checked worker/confined-reentry boundary. The bounded same-source fixture
+yields inside the method and returns exact `on:off|TF`. Apple Swift 6.3.3
+complete-strict compilation and the interpreter returned that value in twenty
+runs; every five-run native shard retained canonical SHA-256
+`ec0dfbfcbd3bbeab6dd3c5728b5da0face87e81f2b3be963f6d9d1acfa617bf6`.
+Only sequential awaits and isolated state are asserted; worker identity and
+unrelated scheduler order are not.
+
+Behavior was already GREEN, while the deterministic receipt RED observed zero
+physical submissions/executions instead of two. Each source-call command
+argument now includes an integer-or-Boolean value kind. Admission checks that
+kind against the selected declaration's `Int`, `Int64`, or `Bool` parameter,
+and the confined relay independently checks it against the copied worker
+snapshot before reconstructing `CallArguments`. Boolean depth is limited to
+literal `true`/`false`, matching the cited iTorrent spelling; captured Bool,
+Boolean expressions, String, mutable captures, ambiguity, actors, throwing
+calls, and richer results stay cooperative.
+
+The canonical focused iteration completed 63 tests in six suites, all
+forty-three methodology checks plus three isolated gate-contract checks, and
+all twenty parity repetitions on four workers in two seconds. The rebuilt
+scoped TSan board passed native overlap 20/20 and all 50 driver/kernel/
+source-call tests in three suites on four workers in 68 seconds without a race
+or interceptor diagnostic. No receiver, source box, environment, program
+state, heap, `RuntimeValue`, `CallArguments`, or evaluator entered the worker
+capability.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

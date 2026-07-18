@@ -93,9 +93,33 @@ nonisolated enum RuntimePhysicalSourceCallResultKind: Sendable, Equatable {
 /// One evaluated source argument carried by name through the checked worker
 /// capability. Labels remain in the command so confined re-entry can bind the
 /// exact selected declaration without sending a CallArguments value.
+nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
+    case integer
+    case boolean
+
+    func accepts(_ snapshot: RuntimeWorkerValueSnapshot) -> Bool {
+        switch (self, snapshot) {
+        case (.integer, .int), (.boolean, .bool):
+            true
+        default:
+            false
+        }
+    }
+
+    func accepts(parameterTypeName: String?) -> Bool {
+        switch (self, RuntimeDeclaredType.nominalTypeName(parameterTypeName)) {
+        case (.integer, "Int"), (.integer, "Int64"), (.boolean, "Bool"):
+            true
+        default:
+            false
+        }
+    }
+}
+
 nonisolated struct RuntimePhysicalSourceCallArgument: Sendable, Equatable {
     let label: String?
     let bindingName: String
+    let valueKind: RuntimePhysicalSourceCallValueKind
 }
 
 /// The complete executor-neutral command carried by the physical detached
@@ -165,7 +189,8 @@ final class RuntimeSourceCallReentryRelay {
             for (argument, binding) in zip(
                 command.arguments, capability.bindings
             ) {
-                guard argument.bindingName == binding.name else {
+                guard argument.bindingName == binding.name,
+                      argument.valueKind.accepts(binding.value) else {
                     throw failure(
                         "source-call command has mismatched argument provenance")
                 }

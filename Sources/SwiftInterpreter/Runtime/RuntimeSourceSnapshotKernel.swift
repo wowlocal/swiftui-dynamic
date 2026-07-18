@@ -292,14 +292,16 @@ extension Interpreter {
                 arguments: loweredArguments.callArguments),
               target.closure.parameters.count
                 == loweredArguments.commandArguments.count,
-              target.closure.parameters.allSatisfy({ parameter in
+              zip(
+                target.closure.parameters,
+                loweredArguments.commandArguments
+              ).allSatisfy({ parameter, argument in
                   parameter.defaultValue == nil
                     && !parameter.isVariadic
                     && !parameter.isBuilderAttributed
                     && !parameter.isIsolated
-                    && ["Int", "Int64"].contains(
-                        RuntimeDeclaredType.nominalTypeName(
-                            parameter.typeName))
+                    && argument.valueKind.accepts(
+                        parameterTypeName: parameter.typeName)
               }),
               target.descriptor.originProgramPlan === entry.programPlan,
               target.descriptor.isAsync,
@@ -346,11 +348,11 @@ extension Interpreter {
     }
 
     /// Evaluate no source effects while admitting a physical wrapper. An
-    /// integer literal is already a value, and a direct immutable Int/Int64
-    /// capture has fixed value semantics for this closure. Every other
-    /// argument spelling and type stays on the cooperative evaluator. The
-    /// checked capability performs the structural Sendable copy; the command
-    /// retains labels and binding IDs.
+    /// integer or Boolean literal is already a value, and a direct immutable
+    /// Int/Int64 capture has fixed value semantics for this closure. Every
+    /// other argument spelling and type stays on the cooperative evaluator.
+    /// The checked capability performs the structural Sendable copy; the
+    /// command retains labels, binding IDs, and the expected scalar kind.
     private func physicalSourceCallArguments(
         _ metadata: [ParsedCallArgumentMetadata],
         closure: ClosureValue
@@ -373,8 +375,16 @@ extension Interpreter {
             }
 
             let value: RuntimeValue
+            let valueKind: RuntimePhysicalSourceCallValueKind
             if let snapshot = literalWorkerSnapshot(argument.expression) {
-                guard case .int = snapshot else { return nil }
+                switch snapshot {
+                case .int:
+                    valueKind = .integer
+                case .bool:
+                    valueKind = .boolean
+                default:
+                    return nil
+                }
                 value = snapshot.materializedRuntimeValue()
             } else if let reference = argument.expression
                 .as(DeclReferenceExprSyntax.self),
@@ -389,6 +399,7 @@ extension Interpreter {
                       case .int = snapshot else {
                     return nil
                 }
+                valueKind = .integer
             } else {
                 return nil
             }
@@ -402,7 +413,8 @@ extension Interpreter {
                 value: value))
             commandArguments.append(RuntimePhysicalSourceCallArgument(
                 label: argument.label,
-                bindingName: bindingName))
+                bindingName: bindingName,
+                valueKind: valueKind))
         }
 
         return (
