@@ -10,10 +10,18 @@ extension Interpreter {
     /// Typed entry point for standard-library member dispatch. Keeping this
     /// separate from the host-`Any` fallback lets core values migrate to
     /// dedicated RuntimeValue storage without changing framework gateways.
-    func nativeMember(_ name: String, on value: RuntimeValue) throws -> RuntimeValue? {
+    func nativeMember(
+        _ name: String,
+        on value: RuntimeValue,
+        declaredTypeName: String? = nil
+    ) throws -> RuntimeValue? {
         switch value.payload {
         case .array(let array):
-            return try arrayMember(name, array)
+            return try arrayMember(
+                name,
+                array,
+                elementTypeName: RuntimeDeclaredType.arrayElementTypeName(
+                    in: declaredTypeName))
         case .set(let set):
             return try setMember(name, set)
         case .optional(let optional):
@@ -473,7 +481,8 @@ extension Interpreter {
                     for (key, value) in zip(dict.keys, dict.values) {
                         let element = RuntimeValue.native(
                             TupleValue(labels: ["key", "value"], values: [key, value]))
-                        let mapped = try Self.mapStep(args, name, element, self, ctx)
+                        let mapped = try Self.mapStep(
+                            args, name, element, nil, self, ctx)
                         if let unwrapped = mapped.unwrappedOptionalOrSelf {
                             out.append(unwrapped)
                         }
@@ -486,7 +495,8 @@ extension Interpreter {
                 return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                     .native(try zip(dict.keys, dict.values).map { key, value in
                         try Self.mapStep(args, name, .native(
-                            TupleValue(labels: ["key", "value"], values: [key, value])), self, ctx)
+                            TupleValue(labels: ["key", "value"], values: [key, value])),
+                            nil, self, ctx)
                     })
                 })
             case "sorted":
@@ -593,7 +603,11 @@ extension Interpreter {
         return nil
     }
 
-    private func arrayMember(_ name: String, _ array: [RuntimeValue]) throws -> RuntimeValue? {
+    private func arrayMember(
+        _ name: String,
+        _ array: [RuntimeValue],
+        elementTypeName: String? = nil
+    ) throws -> RuntimeValue? {
         switch name {
         case "count": return .native(array.count)
         case "isEmpty": return .native(array.isEmpty)
@@ -633,7 +647,8 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 var out: [RuntimeValue] = []
                 for element in array {
-                    let mapped = try Self.mapStep(args, name, element, self, ctx)
+                    let mapped = try Self.mapStep(
+                        args, name, element, elementTypeName, self, ctx)
                     if let nested = mapped.arrayValue {
                         out.append(contentsOf: nested)
                     } else if !mapped.isNil {
@@ -646,7 +661,8 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 var out: [RuntimeValue] = []
                 for element in array {
-                    let mapped = try Self.mapStep(args, name, element, self, ctx)
+                    let mapped = try Self.mapStep(
+                        args, name, element, elementTypeName, self, ctx)
                     if name == "compactMap" {
                         guard let unwrapped = mapped.unwrappedOptionalOrSelf else { continue }
                         out.append(unwrapped)
@@ -660,7 +676,9 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 var out: [RuntimeValue] = []
                 for element in array
-                where try Self.mapStep(args, name, element, self, ctx).boolValue == true {
+                where try Self.mapStep(
+                    args, name, element, elementTypeName, self, ctx
+                ).boolValue == true {
                     out.append(element)
                 }
                 return .native(out)
@@ -668,7 +686,9 @@ extension Interpreter {
         case "allSatisfy":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 for element in array
-                where try Self.mapStep(args, name, element, self, ctx).boolValue != true {
+                where try Self.mapStep(
+                    args, name, element, elementTypeName, self, ctx
+                ).boolValue != true {
                     return .native(false)
                 }
                 return .native(true)
@@ -676,7 +696,9 @@ extension Interpreter {
         case "allSatisfy":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 for element in array
-                where try Self.mapStep(args, name, element, self, ctx).boolValue != true {
+                where try Self.mapStep(
+                    args, name, element, elementTypeName, self, ctx
+                ).boolValue != true {
                     return .native(false)
                 }
                 return .native(true)
@@ -895,6 +917,7 @@ extension Interpreter {
     /// (`.flatMap(\\.windows)`) walks its components.
     private static func mapStep(
         _ args: CallArguments, _ name: String, _ element: RuntimeValue,
+        _ elementTypeName: String?,
         _ interpreter: Interpreter?, _ ctx: EvalContext
     ) throws -> RuntimeValue {
         if let closure = (args.closure(labeled: "transform") ?? args.firstUnlabeledClosure
@@ -903,7 +926,8 @@ extension Interpreter {
         }
         if case .host(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
            let interpreter {
-            return try interpreter.applyKeyPath(path, to: element)
+            return try interpreter.applyKeyPath(
+                path, to: element, rootTypeName: elementTypeName)
         }
         // Unapplied function references: `.flatMap(URL.init(string:))`.
         if case .hostFunction(let fn)? = args.positional(0) {
@@ -922,10 +946,26 @@ extension Interpreter {
 
     /// Walk a key path's components off a value: instance properties,
     /// native members, host members; unknown hops become chains (absorb).
-    func applyKeyPath(_ path: KeyPathStub, to start: RuntimeValue) throws -> RuntimeValue {
+    func applyKeyPath(
+        _ path: KeyPathStub,
+        to start: RuntimeValue,
+        rootTypeName: String? = nil
+    ) throws -> RuntimeValue {
         var current = start
+        var isRoot = true
         for component in path.components where component != "self" {
             if current.isNil { return .none() }
+            if isRoot,
+               let rootTypeName = RuntimeDeclaredType.nominalTypeName(
+                   rootTypeName),
+               let value = try hostExtensionMember(
+                   component,
+                   candidates: [rootTypeName],
+                   selfValue: current) {
+                current = value
+                isRoot = false
+                continue
+            }
             switch current {
             case .instance(let instance):
                 guard let value = try instanceMember(component, on: instance) else {
@@ -962,6 +1002,7 @@ extension Interpreter {
                 current = .native(ChainedImplicitCall(
                     base: current, member: component, arguments: CallArguments()))
             }
+            isRoot = false
         }
         return current
     }

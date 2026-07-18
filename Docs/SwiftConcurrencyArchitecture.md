@@ -3733,14 +3733,43 @@ iteration completed 68 runtime/metadata/worker tests in three suites, all
 forty-three methodology checks plus three isolated gate-contract checks, and
 all twenty parity repetitions on four workers in one second.
 
+The forty-sixth prerequisite closes the final target inside the compound
+count-reduction kernel. A same-module `Substring.count` computed property
+returns `89`; Apple Swift 6.3.3 selected it through the context-inferred
+`\.count` key path over an explicitly typed `[Substring]`, while the same key
+path over `[String]` still selected `String.count`. Twenty complete-strict
+Swift 6 runs returned exact `178:3`; every native five-run shard reported
+SHA-256
+`6c177a2ff65fa47eaf04034c87bd3446d3047a1267fb98e302d5634fb93cb2a5`.
+Before the fix, both interpreter modes returned `3` for the Substring branch;
+parallel mode also recorded one physical submission/execution.
+
+`RuntimeValue` intentionally stores both String and Substring values as String
+snapshots, so payload shape cannot select this declaration. The ordinary
+Array/key-path path now carries the source binding's retained static element
+type into root-property dispatch. Physical admission independently requires
+that same static type to be `Substring` and asks the closure's originating
+`RuntimeProgramState` for a typed `.substringCount` target identity. A source
+extension therefore executes on the confined evaluator; an untyped or
+different element type fails closed. The retained two-run regression returns
+exact `178` and `3` with zero receipts, while the positive stdlib Substring
+reduction retains its physical path. This adds no kernel and completes the
+map, element-property, and reduce target chain for this exact compound
+expression. The scoped TSan board passed twenty native overlap iterations plus
+all forty driver/source-kernel tests on four workers in 20 seconds. The
+canonical focused iteration completed 69 runtime/metadata/worker tests in
+three suites, all forty-three methodology checks plus three isolated
+gate-contract checks, and all twenty parity repetitions on four workers in two
+seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
 source/actor/host/standard-library target identities beyond normalized callee
-shape, the core-Task proof, the `String.count` property proof, and the
-conservative `String.distance` method proof remain incomplete, as does compiler
-metadata indexing; the compound count-reduction kernel still lacks independent
-element-property target proof. Mutable symbol materialization
+shape and the existing core-Task, `String.count`, conservative
+`String.distance`, `Array.map`, `Array.reduce`, and `Substring.count` proofs
+remain incomplete, as does compiler metadata
+indexing. Mutable symbol materialization
 plus evaluator state must move fully
 behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending

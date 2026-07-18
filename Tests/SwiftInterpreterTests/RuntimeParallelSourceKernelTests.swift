@@ -212,6 +212,45 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelSubmissions == 0)
     }
 
+    @Test
+    func sourceShadowedSubstringCountUsesOriginTargetAndStaysCooperative()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-substring-count.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        _ = try await cooperative.runAsync(source: source)
+        _ = try await parallel.runAsync(source: source)
+        let invocation = "await parallelShadowedSubstringCountProbe()"
+        let cooperativeValue = try await cooperative.runAsync(
+            source: invocation)
+        let parallelValue = try await parallel.runAsync(source: invocation)
+        let controlInvocation = "await parallelStringCountControlProbe()"
+        let cooperativeControl = try await cooperative.runAsync(
+            source: controlInvocation)
+        let parallelControl = try await parallel.runAsync(
+            source: controlInvocation)
+
+        #expect(cooperativeValue.intValue == 178)
+        #expect(parallelValue.intValue == cooperativeValue.intValue)
+        #expect(cooperativeControl.intValue == 3)
+        #expect(parallelControl.intValue == cooperativeControl.intValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
     @Test func detachedYieldUsesPhysicalSuspendingKernel() async throws {
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 2)

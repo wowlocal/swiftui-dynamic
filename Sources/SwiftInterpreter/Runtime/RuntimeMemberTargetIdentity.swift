@@ -1,4 +1,37 @@
+import Foundation
 import SwiftSyntax
+
+/// Source type spelling retained at an evaluator storage edge. RuntimeValue
+/// intentionally erases String versus Substring, so consumers that resolve a
+/// context-inferred key path must use this static fact instead of guessing
+/// from the payload shape.
+nonisolated enum RuntimeDeclaredType {
+    static func arrayElementTypeName(
+        in declaredTypeName: String?
+    ) -> String? {
+        guard let declaredTypeName else { return nil }
+        let text = declaredTypeName.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        if text.hasPrefix("["), text.hasSuffix("]"),
+           !text.contains(":") {
+            return String(text.dropFirst().dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        for prefix in ["Array<", "Swift.Array<"]
+        where text.hasPrefix(prefix) && text.hasSuffix(">") {
+            return String(text.dropFirst(prefix.count).dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return nil
+    }
+
+    static func nominalTypeName(_ typeName: String?) -> String? {
+        guard let typeName else { return nil }
+        let text = typeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        return text.split(separator: ".").last.map(String.init)
+    }
+}
 
 /// Stable identities for standard-library properties that a physical source
 /// kernel may execute. A source spelling is never sufficient proof: the
@@ -6,16 +39,18 @@ import SwiftSyntax
 /// imported member.
 nonisolated enum RuntimeStandardLibraryPropertyIdentity: Sendable, Equatable {
     case stringCount
+    case substringCount
 
     fileprivate var sourceTypeName: String {
         switch self {
         case .stringCount: "String"
+        case .substringCount: "Substring"
         }
     }
 
     fileprivate var sourceMemberName: String {
         switch self {
-        case .stringCount: "count"
+        case .stringCount, .substringCount: "count"
         }
     }
 }

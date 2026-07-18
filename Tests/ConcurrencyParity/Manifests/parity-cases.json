@@ -2695,5 +2695,20 @@
     "expectedPhysicalSourceKernelExecutions": 0,
     "nativeFact": "A more-specific same-module Array.reduce overload for Element == Int is selected after map(\\.count) inside Task.detached, so the task publishes the source method's exact result.",
     "notes": "CotEditor demand-cites selectedStrings.map(\\.count).reduce(0, +) at Sources/Scanners/EditorCounter.swift:176. This gap-closure oracle isolates declaration selection for reduce; the element count key path and unrelated overload families remain separate target proofs. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact 73 in twenty bounded runs; every five-repetition native shard reported SHA-256 510c4b8fd1343251f41b2cfbed0f4b84e7517a95b4603e64a96e98284898f67e. Before the fix, cooperative interpretation selected the source overload and returned 73, while explicit parallel mode executed the standard-library reduction, returned 3, and recorded one physical submission/execution. The count-reduction lowerer now requires a typed standard-library Array.reduce proof from the originating RuntimeProgramState in addition to its Array.map proof; any same-base source overload fails closed. A retained two-run regression proves origin-state ownership while the positive stdlib reduction retains its physical receipt. No worker identity or scheduler order is asserted."
+  },
+  {
+    "id": "parallel-shadowed-substring-count",
+    "fixture": "Fixtures/parallel-shadowed-substring-count.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelShadowedSubstringCountOutput()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "A same-module Substring.count computed property is selected by a context-inferred \\.count key path over an explicitly typed [Substring] inside Task.detached, while the identical key path over [String] still selects String.count; the exact combined result is 178:3.",
+    "notes": "CotEditor demand-cites selectedStrings.map(\\.count).reduce(0, +) at Sources/Scanners/EditorCounter.swift:176. This oracle isolates the key-path element property after the Array.map and Array.reduce target proofs. The explicit [Substring] versus [String] annotations are semantic evidence for each key path's inferred root; their shared runtime String storage is not a declaration identity. Apple Swift 6.3.3 compiled the same-source fixture in complete strict Swift 6 mode with warnings as errors and returned exact 178:3 in twenty bounded runs; all four five-run native shards reported SHA-256 6c177a2ff65fa47eaf04034c87bd3446d3047a1267fb98e302d5634fb93cb2a5. Before the fix, both interpreter modes returned 3 for the Substring branch and explicit parallel mode recorded one physical submission/execution. Array key-path application now carries the source binding's static element type into root-property dispatch, so Substring and String remain distinct even though RuntimeValue stores both as String snapshots. Physical admission separately requires an explicit Substring array annotation and a typed standard-library Substring.count target identity from the closure's originating RuntimeProgramState; a source extension fails closed. The retained two-run regression returns exact 178 and 3 with zero receipts, while the positive stdlib Substring reduction keeps its physical path. No worker identity or scheduler order is asserted."
   }
 ]

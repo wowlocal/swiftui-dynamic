@@ -350,7 +350,9 @@ extension Interpreter {
               programState.methodTargetProof(for: .arrayMap)
                 == .standardLibrary(.arrayMap),
               programState.methodTargetProof(for: .arrayReduce)
-                == .standardLibrary(.arrayReduce) else {
+                == .standardLibrary(.arrayReduce),
+              programState.propertyTargetIdentity(for: .substringCount)
+                == .standardLibrary(.substringCount) else {
             return nil
         }
 
@@ -371,6 +373,9 @@ extension Interpreter {
         let name = reference.baseName.text
         guard let box = closure.captured.locallyOwnedBox(for: name),
               !box.isMutableBinding,
+              RuntimeDeclaredType.nominalTypeName(
+                RuntimeDeclaredType.arrayElementTypeName(
+                    in: box.declaredTypeName)) == "Substring",
               case .array(let values) = try box.load(),
               values.allSatisfy({
                   if case .string = $0 { return true }

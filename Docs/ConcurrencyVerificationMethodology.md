@@ -1154,6 +1154,33 @@ forty-three methodology checks plus three isolated gate-contract checks, and
 all twenty parity repetitions on four workers in one second. Only the element
 `count` key-path target remains open inside this compound kernel.
 
+Its forty-sixth prerequisite closes that element-property target. The exact
+question is whether a same-module `Substring.count` computed property is
+selected through a context-inferred `\.count` key path over `[Substring]`,
+without also being selected over `[String]`, inside a detached operation.
+Apple Swift 6.3.3 compiled the same-source fixture in complete strict Swift 6
+mode with warnings as errors and returned exact `178:3` in twenty bounded
+runs. Every native five-run shard reported SHA-256
+`6c177a2ff65fa47eaf04034c87bd3446d3047a1267fb98e302d5634fb93cb2a5`.
+
+The deterministic RED showed both interpreter modes returning `3` for the
+Substring branch; explicit parallel mode additionally recorded one physical
+submission/execution. Runtime String storage cannot distinguish String from
+Substring, so ordinary Array key-path application now consumes the binding's
+retained static element type for root-property dispatch. Worker admission
+separately requires the static `Substring` element type and a typed
+`.substringCount` proof from the closure's originating `RuntimeProgramState`;
+a source extension or missing static fact fails closed. The retained two-run
+regression returns `178` and the String control `3` with zero receipts, while
+the positive stdlib reduction keeps its physical path. The scoped TSan board
+passed twenty native overlap iterations plus all forty driver/source-kernel
+tests on four workers in 20 seconds. The canonical focused iteration completed
+69 runtime/metadata/worker tests in three suites, all forty-three methodology
+checks plus three isolated gate-contract checks, and all twenty parity
+repetitions on four workers in two seconds. The exact compound kernel's map, element-property,
+and reduce target chain is now closed; unrelated key-path inference and member
+families remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

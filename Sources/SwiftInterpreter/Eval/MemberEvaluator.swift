@@ -1838,7 +1838,20 @@ extension Interpreter {
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
                 return value
             }
-            if let value = try nativeMember(name, on: baseValue) {
+            let declaredBaseTypeName: String? = {
+                guard let member = Syntax(node).as(
+                    MemberAccessExprSyntax.self),
+                      let reference = member.base?.as(
+                        DeclReferenceExprSyntax.self) else {
+                    return nil
+                }
+                return env.box(for: reference.baseName.text)?
+                    .declaredTypeName
+            }()
+            if let value = try nativeMember(
+                name,
+                on: baseValue,
+                declaredTypeName: declaredBaseTypeName) {
                 return value
             }
             if let value = try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: baseValue) {
