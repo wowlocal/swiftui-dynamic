@@ -470,6 +470,10 @@ final class RuntimeTaskRecord {
     weak var sourceHandle: RuntimeTaskHandle?
     var nativeDriver: RuntimeNativeTaskDriver?
     var evaluationContext: EvaluationTaskContext?
+    /// MainActor-confined payload selected before a physical detached wrapper
+    /// starts. The worker owns only the matching Sendable command; task
+    /// completion clears this receiver/closure edge before record release.
+    var physicalSourceCall: RuntimeRegisteredPhysicalSourceCall?
 
     init(
         id: RuntimeTaskID,
@@ -677,6 +681,8 @@ final class CooperativeConcurrencyRuntime {
 
     let clock: any RuntimeClock
     let diagnostics: RuntimeDiagnosticSink
+    lazy var sourceCallReentryRelay = RuntimeSourceCallReentryRelay(
+        runtime: self)
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
     private var nextEvaluationTaskContextID: UInt64 = 1
@@ -1621,6 +1627,7 @@ final class CooperativeConcurrencyRuntime {
         record.state = .succeeded
         record.suspension = nil
         record.evaluationContext = nil
+        record.physicalSourceCall = nil
         publishTaskGroupCompletion(record)
     }
 
@@ -1642,6 +1649,7 @@ final class CooperativeConcurrencyRuntime {
         record.state = .failed
         record.suspension = nil
         record.evaluationContext = nil
+        record.physicalSourceCall = nil
         publishTaskGroupCompletion(record)
     }
 
@@ -1759,6 +1767,7 @@ final class CooperativeConcurrencyRuntime {
         record.state = .cancelled
         record.suspension = nil
         record.evaluationContext = nil
+        record.physicalSourceCall = nil
         publishTaskGroupCompletion(record)
     }
 
@@ -1830,6 +1839,7 @@ final class CooperativeConcurrencyRuntime {
         }
         record.nativeDriver = nil
         record.sourceHandle = nil
+        record.physicalSourceCall = nil
         records.removeValue(forKey: id)
     }
 

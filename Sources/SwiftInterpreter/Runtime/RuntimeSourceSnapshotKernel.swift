@@ -162,6 +162,17 @@ nonisolated enum RuntimeSourceSnapshotKernel: Sendable, Equatable {
 nonisolated struct RuntimePhysicalSourceKernelJob: Sendable {
     let workerJob: RuntimePhysicalWorkerJob
     let cancellationBehavior: RuntimeSourceKernelCancellationBehavior
+    let permitLifetime: RuntimePhysicalSourcePermitLifetime
+
+    init(
+        workerJob: RuntimePhysicalWorkerJob,
+        cancellationBehavior: RuntimeSourceKernelCancellationBehavior,
+        permitLifetime: RuntimePhysicalSourcePermitLifetime = .operation
+    ) {
+        self.workerJob = workerJob
+        self.cancellationBehavior = cancellationBehavior
+        self.permitLifetime = permitLifetime
+    }
 }
 
 extension Interpreter {
@@ -173,6 +184,7 @@ extension Interpreter {
         closure: ClosureValue,
         arguments: [RuntimeValue],
         entry: RuntimeEntry,
+        record: RuntimeTaskRecord,
         priority: RuntimeTaskPriority
     ) throws -> RuntimePhysicalSourceKernelJob? {
         guard physicalWorkerDriver != nil,
@@ -184,6 +196,15 @@ extension Interpreter {
               let item = closure.body.first,
               let expression = Self.singleExpression(in: item) else {
             return nil
+        }
+
+        if let sourceCall = try physicalMainActorSourceCallJob(
+            expression,
+            closure: closure,
+            entry: entry,
+            record: record,
+            priority: priority) {
+            return sourceCall
         }
 
         let capability: RuntimeWorkerCapability
@@ -220,7 +241,91 @@ extension Interpreter {
             ) { capability in
                 try await kernel.execute(with: capability)
             },
-            cancellationBehavior: kernel.cancellationBehavior)
+            cancellationBehavior: kernel.cancellationBehavior,
+            permitLifetime: .operation)
+    }
+
+    /// FoodTruck creates a detached wrapper whose complete body is
+    /// `await self.updatesLoop()`. Admit only that argument-free direct-self
+    /// shape after runtime resolution proves one exact, async, nonthrowing,
+    /// MainActor-isolated source-class method with a Void or String result.
+    /// The physical worker carries a command and an empty checked capability;
+    /// RuntimeTaskRecord retains the selected receiver closure on MainActor.
+    private func physicalMainActorSourceCallJob(
+        _ expression: ExprSyntax,
+        closure: ClosureValue,
+        entry: RuntimeEntry,
+        record: RuntimeTaskRecord,
+        priority: RuntimeTaskPriority
+    ) throws -> RuntimePhysicalSourceKernelJob? {
+        guard let awaitExpression = expression.as(AwaitExprSyntax.self),
+              let call = awaitExpression.expression
+                .as(FunctionCallExprSyntax.self),
+              call.arguments.isEmpty,
+              call.trailingClosure == nil,
+              call.additionalTrailingClosures.isEmpty else {
+            return nil
+        }
+        let metadata = closure.programMetadata?.callSiteMetadataIndex
+            .metadata(for: call) ?? ParsedCallSiteMetadata(call)
+        guard metadata.arguments.isEmpty,
+              metadata.callee.shape == .explicitMember,
+              let name = metadata.callee.name,
+              let member = metadata.callee.member,
+              member.declName.argumentNames == nil,
+              let receiver = member.base?
+                .as(DeclReferenceExprSyntax.self),
+              receiver.baseName.text == "self",
+              receiver.argumentNames == nil,
+              let selfBox = closure.captured.box(
+                for: "self", before: globals),
+              case .instance(let instance) = selfBox.value,
+              !instance.symbol.isActor,
+              record.entry === entry,
+              record.physicalSourceCall == nil,
+              closure.programPlan === entry.programPlan,
+              let target = resolveOwnSourceInstanceMethodCallTarget(
+                named: name,
+                on: instance,
+                arguments: CallArguments()),
+              target.descriptor.originProgramPlan === entry.programPlan,
+              target.descriptor.isAsync,
+              !target.descriptor.isThrowing,
+              case .lexicalType(
+                _, isTypeMember: false, isActor: false
+              ) = target.descriptor.lexicalPlacement,
+              target.descriptor.isolation == .executor(.mainActor),
+              let resultKind = RuntimePhysicalSourceCallResultKind(
+                returnTypeName: target.descriptor.returnTypeName) else {
+            return nil
+        }
+
+        let capability = try entry.makeWorkerCapability(copying: [])
+        let handoff = RuntimePhysicalSourceExecutorHandoff()
+        let command = RuntimePhysicalSourceCallCommand(
+            entryID: entry.id,
+            taskID: record.id,
+            target: target.descriptor,
+            resultKind: resultKind)
+        let relay = concurrencyRuntime.sourceCallReentryRelay
+        record.physicalSourceCall = RuntimeRegisteredPhysicalSourceCall(
+            command: command,
+            target: target)
+        return RuntimePhysicalSourceKernelJob(
+            workerJob: RuntimePhysicalWorkerJob(
+                capability: capability,
+                priority: priority
+            ) { capability in
+                try await relay.invoke(
+                    command,
+                    capability: capability,
+                    handoff: handoff)
+            },
+            // Source cancellation remains a logical runtime fact observed by
+            // the reinstated EvaluationTaskContext. It must not become an
+            // infrastructure cancellation that suppresses method entry.
+            cancellationBehavior: .unobserved,
+            permitLifetime: .untilConfinedExecutorEntry(handoff))
     }
 
     /// TCA's TestStore uses exactly

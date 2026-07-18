@@ -4,6 +4,46 @@ nonisolated enum RuntimePhysicalWorkerDriverError: Error, Sendable, Equatable {
     case invalidParallelism(Int)
 }
 
+/// A finite snapshot kernel owns one worker permit until completion. A source
+/// call that immediately hops to a confined executor relinquishes the permit
+/// at that hop so an indefinitely suspended MainActor method (FoodTruck's
+/// updates loop) cannot starve unrelated physical kernels.
+nonisolated enum RuntimePhysicalSourcePermitLifetime: Sendable {
+    case operation
+    case untilConfinedExecutorEntry(RuntimePhysicalSourceExecutorHandoff)
+}
+
+/// One-shot synchronization between the detached wrapper, its confined
+/// executor relay, and the bounded worker driver. Completion also opens the
+/// gate so a validation failure before executor entry cannot leak a permit.
+actor RuntimePhysicalSourceExecutorHandoff {
+    private var mayReleasePermit = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func reachedConfinedExecutor() {
+        open()
+    }
+
+    func completed() {
+        open()
+    }
+
+    func waitUntilPermitMayBeReleased() async {
+        guard !mayReleasePermit else { return }
+        await withCheckedContinuation { continuation in
+            precondition(waiter == nil)
+            waiter = continuation
+        }
+    }
+
+    private func open() {
+        guard !mayReleasePermit else { return }
+        mayReleasePermit = true
+        waiter?.resume()
+        waiter = nil
+    }
+}
+
 /// One pure job accepted by the physical-worker boundary.
 ///
 /// Both input and output use checked-Sendable snapshots. The operation may
@@ -112,6 +152,12 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
     func executeSourceKernel(
         _ sourceJob: RuntimePhysicalSourceKernelJob
     ) async throws -> RuntimeWorkerValueSnapshot {
+        if case .untilConfinedExecutorEntry(let handoff) =
+            sourceJob.permitLifetime {
+            return try await executeConfinedReentrySourceKernel(
+                sourceJob.workerJob,
+                handoff: handoff)
+        }
         switch sourceJob.cancellationBehavior {
         case .unobserved:
             let job = sourceJob.workerJob
@@ -126,6 +172,45 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
             return try await executeCancellationObservingSourceKernel(
                 sourceJob.workerJob)
         }
+    }
+
+    /// Launch the source wrapper from an uncancelled infrastructure task,
+    /// hold one worker permit only through its physical prefix, then release
+    /// that permit as soon as the operation reaches its confined executor.
+    /// The detached task itself remains alive and publishes the copied result
+    /// after the MainActor method completes.
+    private func executeConfinedReentrySourceKernel(
+        _ job: RuntimePhysicalWorkerJob,
+        handoff: RuntimePhysicalSourceExecutorHandoff
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        let execution = Task.detached(priority: job.priority.nativePriority) {
+            try await Self.executeConfinedReentryDetached(
+                job,
+                permits: permits,
+                handoff: handoff)
+        }
+        return try await execution.value
+    }
+
+    private static func executeConfinedReentryDetached(
+        _ job: RuntimePhysicalWorkerJob,
+        permits: RuntimePhysicalWorkerPermitPool,
+        handoff: RuntimePhysicalSourceExecutorHandoff
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        try await permits.acquire()
+        let sourceTask = Task.detached(priority: job.priority.nativePriority) {
+            do {
+                let value = try await job.operation(job.capability)
+                await handoff.completed()
+                return value
+            } catch {
+                await handoff.completed()
+                throw error
+            }
+        }
+        await handoff.waitUntilPermitMayBeReleased()
+        await permits.release()
+        return try await sourceTask.value
     }
 
     /// Infrastructure acquires capacity independently from source

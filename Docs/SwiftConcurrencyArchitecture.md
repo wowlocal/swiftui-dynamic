@@ -3802,6 +3802,54 @@ that re-enters the owning source executor; it must not send the evaluator or
 instance to a worker. Inherited/protocol witnesses, same-shape type overloads,
 actor/host target routing, and that re-entry command remain open.
 
+The forty-eighth prerequisite implements that re-entry command for the first
+demand-cited subset. In explicit parallel mode, a signature-free detached body
+whose only expression is `await self.method()` may be lowered only after the
+MainActor resolver publishes one origin-plan-matched own source-class target.
+The method must be async, nonthrowing, MainActor-isolated, argument-free, and
+Void- or String-returning. Actor targets, inherited/nonisolated isolation,
+alternate receivers, same-shape ambiguity, arguments, throwing effects,
+foreign origins, and richer result types remain cooperative.
+
+The boundary is split deliberately:
+
+- `RuntimePhysicalSourceCallCommand` is Sendable and contains only the
+  `RuntimeSessionID`, `RuntimeTaskID`, exact
+  `RuntimeSourceFunctionTargetDescriptor`, and expected result kind;
+- `RuntimeTaskRecord` owns the matching confined
+  `RuntimeResolvedSourceFunctionCall`, so receiver identity, captured
+  environment, source closure, mutable program state, and evaluator never
+  enter the command or worker capability;
+- a purpose-built MainActor relay validates command/capability/plan identity,
+  recovers the task record, reinstalls its `EvaluationTaskContext`, invokes the
+  selected closure, and structurally copies the result into
+  `RuntimeWorkerValueSnapshot` before returning to the worker.
+
+This preserves logical source cancellation independently from the native
+wrapper task. The bounded native probe requests cancellation before yielding
+MainActor; the re-entered Void method still starts and records
+`Task.isCancelled == true`. A separate regression proves an interpreted trap
+crosses the wrapper as a contained runtime-task failure rather than aborting
+the host process.
+
+Permit lifetime ends at executor handoff, not method completion. The detached
+wrapper acquires a global physical permit for its worker prefix; a one-shot
+handoff opens when the MainActor relay begins, releasing that permit while the
+source method may remain suspended. With maximum parallelism one, a parked
+MainActor call therefore cannot starve a subsequent finite kernel. This is a
+semantic requirement for FoodTruck's long-lived `updatesLoop()`, not merely a
+throughput optimization.
+
+Apple Swift 6 complete-strict compilation and the interpreter returned exact
+`1:true` in twenty bounded runs with four identical five-run digests
+`5a14c888baeb47a0a83163bf1680a3fdcc9a508e7b5aa5bf4191aad7390e1d3a`.
+The deterministic receipt RED moved from zero to two physical executions. The
+canonical focused iteration completed 58 tests in five suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in two
+seconds. The expanded scoped TSan board passed native overlap 20/20 plus all
+48 driver/kernel/source-call tests in three suites on four workers in 66
+seconds without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -3815,7 +3863,8 @@ plus evaluator state must move fully
 behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
-literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep
+literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
+MainActor-source-call
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

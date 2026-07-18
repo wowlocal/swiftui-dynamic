@@ -157,6 +157,19 @@ nonisolated indirect enum RuntimeWorkerValueSnapshot: Sendable, Equatable {
         isImplicitlyUnwrapped: Bool)
     case implicitMember(String)
 
+    /// Copy a result while still on the evaluator's owning actor. Physical
+    /// source-call re-entry uses the same structural boundary as captured
+    /// worker inputs; an interpreted reference, closure, symbol, or opaque
+    /// host value therefore fails closed before control returns to a worker.
+    @MainActor
+    static func copying(
+        _ value: RuntimeValue,
+        path: String = "output"
+    ) throws -> RuntimeWorkerValueSnapshot {
+        var copier = RuntimeWorkerValueCopier()
+        return try copier.copy(value, path: path)
+    }
+
     /// Re-enter the interpreter only on its owning actor. This is the inverse
     /// boundary needed when a future pure worker kernel returns a snapshot.
     @MainActor

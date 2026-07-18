@@ -1220,6 +1220,50 @@ overlap iterations and all forty driver/source-kernel tests on four workers in
 protocol-witness targets, host routing, actor re-entry from a physical worker,
 or physical execution of the source method.
 
+The forty-eighth M9 slice is a gap closure for FoodTruck's exact
+`Task.detached { await self.updatesLoop() }` shape. The semantic question is
+whether explicit parallel mode may launch the detached wrapper physically,
+then re-enter the uniquely selected MainActor source method with the original
+logical runtime-task context, without transferring its receiver or evaluator.
+A bounded Swift 6 complete-strict probe uses two Void-returning methods: one
+mutates MainActor state after `Task.yield()`, and one records cancellation that
+the caller requests before yielding MainActor. Apple Swift returned exact
+`1:true` in twenty runs; every five-run shard retained SHA-256
+`5a14c888baeb47a0a83163bf1680a3fdcc9a508e7b5aa5bf4191aad7390e1d3a`.
+
+Behavior was already GREEN, while the deterministic receipt RED observed zero
+physical submissions/executions instead of two. Admission now requires the
+signature-free one-expression direct-self spelling plus an origin-plan-matched,
+uniquely shape-resolved own source-class method that is async, nonthrowing,
+MainActor-isolated, and Void- or String-returning. The Sendable command contains
+only entry/task IDs, the exact target descriptor, and the expected result kind.
+Its confined half remains on `RuntimeTaskRecord`; a purpose-built MainActor
+relay validates provenance, reinstalls the task's `EvaluationTaskContext`,
+invokes the selected closure, and copies the result through the existing
+worker-snapshot boundary.
+
+The physical wrapper releases its bounded-worker permit when it reaches the
+confined executor rather than when the source method returns. A maximum-one
+regression parks a MainActor method, runs a finite literal kernel, and only
+then releases the method; this prevents FoodTruck's long-lived updates loop
+from starving later physical work. Logical cancellation remains visible after
+re-entry, an interpreted fatal trap remains contained in the task outcome, and
+actor, inherited/nonisolated, non-self, argument-bearing, throwing,
+foreign-origin, ambiguous, and richer-result families remain cooperative.
+The command, capability, and copied result cross the worker boundary; no
+`Instance`, `ClosureValue`, `Environment`, `RuntimeProgramState`, heap, symbol,
+or evaluator does.
+
+The canonical focused iteration completed 58 ownership/target/driver/worker
+tests in five suites, all forty-three methodology checks plus three isolated
+gate-contract checks, and all twenty parity repetitions on four workers in two
+seconds. The expanded scoped TSan board passed twenty native overlap
+iterations and all 48 driver/kernel/source-call tests in three suites on four
+workers in 66 seconds without a race or interceptor diagnostic. This slice
+does not claim actor/host call routing, inherited/protocol-witness resolution,
+typed arguments, throwing source calls, richer results, or general evaluator
+parallelism.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

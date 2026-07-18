@@ -2637,6 +2637,21 @@
     "notes": "FoodTruck demand-cites the exact Task.detached { await self.updatesLoop() } shape in StoreMessagesManager.swift:33-35. The exact output is target:member; worker identity and unrelated scheduler order are not asserted. This already-GREEN behavior first anchored immutable callee-shape metadata and now anchors an origin-bound Sendable descriptor for the uniquely shape-resolved own reference method. Same-shape overloads remain unresolved, the source method stays on the confined evaluator with zero physical receipts, and no Instance, RuntimeProgramState, closure, environment, or evaluator crosses a worker boundary."
   },
   {
+    "id": "parallel-detached-mainactor-source-call",
+    "fixture": "Fixtures/parallel-detached-mainactor-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedMainActorSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A detached task whose complete body awaits an argument-free MainActor-isolated method on captured self hops to MainActor, preserves mutations of that isolated receiver, and observes a cancellation request made before the hop without suppressing method entry.",
+    "notes": "FoodTruck demand-cites `Task.detached { await self.updatesLoop() }` at StoreMessagesManager.swift:33-35. Both source methods in this bounded probe return Void, yield once on MainActor, and publish only causally controlled state: the first increments an isolated counter, while the second is cancelled before the caller yields MainActor and therefore records Task.isCancelled as true. Apple Swift 6 complete-strict compilation with warnings as errors and the interpreter returned exact 1:true in twenty bounded runs; every five-run native shard reported SHA-256 5a14c888baeb47a0a83163bf1680a3fdcc9a508e7b5aa5bf4191aad7390e1d3a. The receipt RED already returned that value through cooperative fallback but explicit parallel mode recorded zero physical source executions instead of two. Physical lowering admits only a signature-free one-expression direct-self call whose runtime-selected own source-class method is uniquely shape-resolved, async, nonthrowing, MainActor-isolated, origin-plan matched, and Void- or String-returning. A typed Sendable command carries only entry/task IDs, exact target descriptor, and result kind; the physical wrapper calls a purpose-built MainActor relay that recovers the confined closure from RuntimeTaskRecord and reinstalls its EvaluationTaskContext. The wrapper releases its worker permit at confined-executor entry, so FoodTruck's long-lived updates loop cannot starve later finite kernels. Instance, closure, Environment, RuntimeProgramState, heap, and evaluator never enter the worker capability. Actor, inherited/nonisolated, non-self, throwing, argument-bearing, ambiguous, foreign-origin, and richer-result calls remain cooperative. The expanded TSan board passed native overlap 20/20 and all 48 driver/kernel/source-call tests in 66 seconds without a race or interceptor diagnostic."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

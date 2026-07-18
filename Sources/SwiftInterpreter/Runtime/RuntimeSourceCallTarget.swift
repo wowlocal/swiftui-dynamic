@@ -1,3 +1,4 @@
+import Foundation
 import SwiftSyntax
 
 /// Immutable lexical placement of one selected source function declaration.
@@ -57,6 +58,113 @@ nonisolated struct RuntimeSourceFunctionTargetDescriptor:
 struct RuntimeResolvedSourceFunctionCall {
     let descriptor: RuntimeSourceFunctionTargetDescriptor
     let closure: ClosureValue
+}
+
+/// Result subset admitted by the first physical source-call command. The
+/// FoodTruck method returns Void while the bounded parity oracle returns a
+/// String; richer result types stay on the cooperative evaluator until they
+/// receive their own demand-backed slice.
+nonisolated enum RuntimePhysicalSourceCallResultKind: Sendable, Equatable {
+    case void
+    case string
+
+    init?(returnTypeName: String?) {
+        switch returnTypeName?.trimmingCharacters(
+            in: .whitespacesAndNewlines) {
+        case nil, "", "Void", "()":
+            self = .void
+        case "String":
+            self = .string
+        default:
+            return nil
+        }
+    }
+
+    func accepts(_ snapshot: RuntimeWorkerValueSnapshot) -> Bool {
+        switch (self, snapshot) {
+        case (.void, .void), (.string, .string):
+            true
+        default:
+            false
+        }
+    }
+}
+
+/// The complete executor-neutral command carried by the physical detached
+/// wrapper. It identifies an already selected declaration and its owning
+/// logical task, but contains no receiver, closure, environment, program
+/// state, heap, or evaluator capability.
+nonisolated struct RuntimePhysicalSourceCallCommand: Sendable, Equatable {
+    let entryID: RuntimeSessionID
+    let taskID: RuntimeTaskID
+    let target: RuntimeSourceFunctionTargetDescriptor
+    let resultKind: RuntimePhysicalSourceCallResultKind
+}
+
+/// Confined half of a physical source-call command. RuntimeTaskRecord owns it
+/// for exactly the source task lifetime; only the matching Sendable command
+/// can ask the MainActor relay to use it.
+@MainActor
+struct RuntimeRegisteredPhysicalSourceCall {
+    let command: RuntimePhysicalSourceCallCommand
+    let target: RuntimeResolvedSourceFunctionCall
+}
+
+/// Purpose-built executor gateway for a physical detached wrapper. A worker
+/// may retain this globally isolated reference and a typed command, but the
+/// selected closure and evaluator state never leave MainActor. Re-entry
+/// reinstalls the original source task context before invoking the method.
+@MainActor
+final class RuntimeSourceCallReentryRelay {
+    private weak var runtime: CooperativeConcurrencyRuntime?
+
+    init(runtime: CooperativeConcurrencyRuntime) {
+        self.runtime = runtime
+    }
+
+    func invoke(
+        _ command: RuntimePhysicalSourceCallCommand,
+        capability: RuntimeWorkerCapability,
+        handoff: RuntimePhysicalSourceExecutorHandoff
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        // This method is MainActor-isolated. Opening the one-shot handoff here
+        // proves the detached wrapper has relinquished its physical executor;
+        // an indefinitely suspended source method must not own a worker slot.
+        await handoff.reachedConfinedExecutor()
+        guard capability.accessManifest.isWorkerSafe,
+              capability.entryID == command.entryID,
+              capability.programPlan === command.target.originProgramPlan
+        else {
+            throw failure("source-call command has mismatched worker provenance")
+        }
+        guard let runtime,
+              let record = runtime.records[command.taskID],
+              record.entry.id == command.entryID,
+              record.state == .running,
+              let registered = record.physicalSourceCall,
+              registered.command == command,
+              registered.target.descriptor == command.target,
+              let context = record.evaluationContext,
+              let interpreter = record.entry.interpreter else {
+            throw failure("source-call command lost its confined runtime entry")
+        }
+
+        return try await EvaluationTaskContext.$current.withValue(context) {
+            let value = try await interpreter.callBackgroundClosureSuspending(
+                registered.target.closure,
+                arguments: [])
+            let snapshot = try RuntimeWorkerValueSnapshot.copying(value)
+            guard command.resultKind.accepts(snapshot) else {
+                throw failure(
+                    "source-call command produced an unsupported result shape")
+            }
+            return snapshot
+        }
+    }
+
+    private func failure(_ message: String) -> RuntimeError {
+        RuntimeError(message: "physical \(message)", fatal: true)
+    }
 }
 
 extension Interpreter {

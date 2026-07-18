@@ -119,7 +119,7 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
-    func selectedSourceMemberCallStaysOnTheConfinedEvaluator()
+    func selectedMainActorSourceCallUsesAPhysicalWrapperAndConfinedReentry()
         async throws
     {
         let root = URL(fileURLWithPath: #filePath)
@@ -129,20 +129,20 @@ struct RuntimeSourceCallTargetTests {
         let fixture = root.appendingPathComponent(
             "Tests/ConcurrencyParity/Fixtures/detached-source-member-call-target.swift")
         let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedSourceMemberCallTargetProbe()\n"
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 1)
         let interpreter = Interpreter(
             executionMode: .parallel(parallelism))
 
-        _ = try await interpreter.runAsync(source: source)
-        let value = try await interpreter.runAsync(
-            source: "await detachedSourceMemberCallTargetProbe()")
+        let value = try await interpreter.runAsync(source: source)
 
         #expect(value.stringValue == "target:member")
         #expect(interpreter.concurrencyRuntime
-            .totalPhysicalSourceKernelSubmissions == 0)
+            .totalPhysicalSourceKernelSubmissions == 1)
         #expect(interpreter.concurrencyRuntime
-            .totalPhysicalSourceKernelExecutions == 0)
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
     @Test
@@ -166,5 +166,178 @@ struct RuntimeSourceCallTargetTests {
         #expect(copy !== value)
         #expect(copy.programState === value.programState)
         #expect(copy.programState?.programPlan === value.programState?.programPlan)
+    }
+
+    @Test
+    func physicalVoidReentryPreservesStateAndLogicalCancellation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-mainactor-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedMainActorSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "1:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unsupportedIsolationAndResultFamiliesStayCooperative()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        final class IsolationProbe {
+            nonisolated func detachedValue() async -> String {
+                "nonisolated"
+            }
+
+            func integerValue() async -> Int { 7 }
+
+            func run() async -> String {
+                let first = await Task.detached {
+                    await self.detachedValue()
+                }.value
+                let second = await Task.detached {
+                    await self.integerValue()
+                }.value
+                return "\\(first):\\(second)"
+            }
+        }
+
+        actor ActorProbe {
+            func value() async -> String { "actor" }
+
+            func run() async -> String {
+                await Task.detached {
+                    await self.value()
+                }.value
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let isolated = await IsolationProbe().run()
+            let actor = await ActorProbe().run()
+            return "\\(isolated):\\(actor)"
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "nonisolated:7:actor")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func interpretedTrapDuringPhysicalReentryRemainsContained()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            @MainActor
+            final class CrashingReentryProbe {
+                func crash() async -> String {
+                    fatalError("contained physical source call")
+                }
+
+                func run() async -> String {
+                    await Task.detached {
+                        await self.crash()
+                    }.value
+                }
+            }
+
+            await CrashingReentryProbe().run()
+            """)
+            Issue.record("expected interpreted source-call trap")
+        } catch let thrown as InterpretedThrow {
+            let error = try #require(
+                thrown.value.hostPayload as? RuntimeError)
+            #expect(error.fatal)
+            #expect(error.message.contains("contained physical source call"))
+        } catch {
+            Issue.record("unexpected source-call failure: \(error)")
+        }
+
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func suspendedConfinedReentryRelinquishesItsWorkerPermit()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        final class PermitHandoffProbe {
+            var started = false
+            var mayFinish = false
+
+            func waitOnMainActor() async {
+                started = true
+                while !mayFinish {
+                    await Task.yield()
+                }
+            }
+
+            func run() async -> Int {
+                let suspended = Task.detached {
+                    await self.waitOnMainActor()
+                }
+                while !started {
+                    await Task.yield()
+                }
+                let finite = Task.detached { 42 }
+                let result = await finite.value
+                mayFinish = true
+                await suspended.value
+                return result
+            }
+        }
+
+        await PermitHandoffProbe().run()
+        """)
+
+        #expect(value.intValue == 42)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 }

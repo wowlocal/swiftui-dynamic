@@ -806,6 +806,7 @@ extension Interpreter: EvalContext {
                 closure: closure,
                 arguments: arguments,
                 entry: pending.entry,
+                record: pending.record,
                 priority: pending.priority)
         } else {
             physicalKernelJob = nil
