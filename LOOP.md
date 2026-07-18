@@ -2578,3 +2578,27 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   flips into the verdict when that arc lands. Board: R4 GREEN under
   the stricter instrument. Gate RED with main's known parallel-worker
   signature — still gate-blocked, exonerated.
+- 2026-07-18 REAL NavigationSplitView EXPERIMENT: 18/18 AE=0 within
+  reach (worktree iteration 64): retried the real split (the
+  blank-columns finding predates the selection registry / fan / env
+  work). CAPTURES: the ENTIRE R2 board hit 18/18 AE=0 — the content
+  row's 26.778% artifact CONVERGES because the interpreted real split
+  blanks its headless sidebar exactly like the twin's. LIVE: orders +
+  donut editor work end-to-end under the real split (sidebar click,
+  detail swap, mutation), and the WINDOW TITLE finally follows the
+  detail's navigationTitle natively (title="New Donut" — the i63 gap
+  closes structurally). BUT six sweep steps report changed=0: the
+  offscreen CALayer.render cannot see most re-created detail subtrees
+  behind the split's own compositing — socialfeed's 10-row feed table
+  IS in the hierarchy while its capture shows nothing (instrument
+  limitation, not app failure — but four steps lack hierarchy markers
+  too, so live verification needs a dedicated arc). DECISION: real
+  split behind DEMO_SPLIT_REAL until the live-capture arc closes; the
+  HStack fallback stays default so R4 keeps honest verdicts. Boards
+  confirmed at baseline after the flip (R2 17+content-artifact, R3
+  untouched, R4 all thirteen verdicts green). NEXT ARC: live
+  verification under the real split (hierarchy-marker verdicts per
+  panel + capture technique that sees through the split's compositing)
+  — landing it flips DEMO_SPLIT_REAL default, closes content to 0.000
+  AND the window-title gap in one move. Gate expectation unchanged
+  (main still red).
