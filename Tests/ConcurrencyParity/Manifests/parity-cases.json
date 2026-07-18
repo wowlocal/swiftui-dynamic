@@ -2682,6 +2682,21 @@
     "notes": "iTorrent demand-cites the exact one-line `Task.detached(priority: .utility) { await self.invalidateBackgroundState(true/false) }` spellings at WebServerService.swift:133 and 138. The bounded probe awaits the true and false calls sequentially, yields inside the selected MainActor method, records isolated state, and returns exact on:off|TF without asserting worker identity or unrelated scheduler order. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned that value in twenty bounded runs; every five-run native shard reported canonical SHA-256 ec0dfbfcbd3bbeab6dd3c5728b5da0face87e81f2b3be963f6d9d1acfa617bf6. The receipt RED already returned the exact value through cooperative fallback but recorded zero physical submissions/executions instead of two. The common source-call command now carries an explicit integer-or-Boolean value kind, the relay verifies it against each copied snapshot, and admission verifies the corresponding Int/Int64/Bool parameter type before confined re-entry. Boolean support is depth-capped to literals; captured Bool, expression, String, mutable, ambiguous, actor, throwing, and richer-result forms remain cooperative."
   },
   {
+    "id": "parallel-detached-actor-source-call",
+    "fixture": "Fixtures/parallel-detached-actor-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedActorSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "An actor initializer may launch a detached task that awaits a synchronous Void method on the captured actor; a later actor method that yields while waiting releases the mailbox, the detached call enters that mutually exclusive executor, and its exact mutation becomes visible on resumption.",
+    "notes": "Session-iOS demand-cites `Task.detached(priority: .utility) { await self.loadExtensionLogsAndResumeLogging() }` in SessionUtilitiesKit/General/Logging.swift:638, directly from the Logger actor initializer; the selected method is synchronous, actor-isolated, argument-free, and Void-returning, and the handle is not retained. The bounded same-source probe preserves that launch shape. Its result method causally waits with Task.yield until the detached wrapper re-enters the actor and returns exact actor|R. Apple Swift 6.3.3 compiled it in complete-strict Swift 6 mode with warnings as errors and returned that exact value in twenty bounded runs; every native five-run shard reported canonical SHA-256 ee46339758b9bf4f9030cfb7cc9db448e6b2c961004386a9c262fe21f5ce57cc. The receipt RED already returned the correct value through cooperative fallback but recorded zero physical submissions/executions instead of one. Admission is limited to a uniquely resolved, argument-free, synchronous, nonthrowing, Void-returning own method isolated to the exact receiver actor and using the default actor executor. The worker carries no actor, instance, closure, environment, heap, or evaluator: the confined relay restores the logical task context and ordinary suspending invocation acquires the exact actor mailbox. Async actor methods, argument-bearing actor calls, String-returning actor methods, nonisolated methods, custom actor executors, ambiguity, throwing calls, and richer results remain cooperative."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

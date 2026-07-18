@@ -1335,6 +1335,42 @@ or interceptor diagnostic. No receiver, source box, environment, program
 state, heap, `RuntimeValue`, `CallArguments`, or evaluator entered the worker
 capability.
 
+The fifty-first M9 slice is a gap closure for Session-iOS's exact
+`Task.detached { await self.synchronousActorMethod() }` family. The semantic
+question is whether an unretained detached wrapper launched by an actor
+initializer routes its synchronous cross-actor method through that same
+actor's mutually exclusive executor while a later actor method yields waiting
+for its mutation. The bounded same-source fixture preserves this launch shape,
+mutates actor storage, and returns exact `actor|R`.
+Apple Swift 6.3.3 complete-strict compilation with warnings as errors and the
+interpreter returned that value in twenty runs; every five-run native shard
+retained canonical SHA-256
+`ee46339758b9bf4f9030cfb7cc9db448e6b2c961004386a9c262fe21f5ce57cc`.
+No worker identity or unrelated scheduler order is asserted.
+
+Behavior was already GREEN, while the deterministic receipt RED observed zero
+physical submissions/executions instead of one. Admission is demand-capped to
+a uniquely selected, argument-free, synchronous, nonthrowing, Void-returning
+own method on the exact receiver actor with its default executor. The worker
+carries only the existing Sendable command; confined re-entry restores
+the source task context and uses normal suspending invocation to acquire the
+actor mailbox. The exact completion proves that the actor's result method
+released its mailbox at `Task.yield`, allowing the unretained initializer task
+to enter instead of self-deadlocking. A retained negative control keeps async
+and argument-bearing actor methods cooperative. Custom executors,
+String-returning or nonisolated actor methods, ambiguity, throwing calls, and
+richer results also remain outside the admitted subset.
+
+This slice proves a physical detached wrapper plus logical actor routing, not
+physical actor-method evaluation. No actor, receiver, source box,
+`RuntimeValue`, `CallArguments`, environment, program state, heap, or evaluator
+enters the worker capability. The focused parity board completed all twenty
+native/interpreted repetitions on four workers in two seconds. The canonical
+focused board passed 65 tests in six suites plus all forty-three methodology
+checks and three isolated gate-contract checks. The rebuilt scoped TSan board
+passed native overlap 20/20 and all 51 driver/kernel/source-call tests in three
+suites on four workers in 25 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

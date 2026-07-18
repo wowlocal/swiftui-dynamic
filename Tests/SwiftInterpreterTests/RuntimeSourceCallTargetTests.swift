@@ -248,6 +248,34 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func synchronousActorSourceCallUsesPhysicalWrapperAndMailbox()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-actor-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedActorSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "actor|R")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func unsupportedIsolationAndResultFamiliesStayCooperative()
         async throws
     {
@@ -300,10 +328,21 @@ struct RuntimeSourceCallTargetTests {
         actor ActorProbe {
             func value() async -> String { "actor" }
 
+            func labeled(_ value: Int) -> String { "\\(value)" }
+
+            func synchronousString() -> String { "sync" }
+
             func run() async -> String {
-                await Task.detached {
+                let asynchronous = await Task.detached {
                     await self.value()
                 }.value
+                let argumentBearing = await Task.detached {
+                    await self.labeled(7)
+                }.value
+                let unsupportedResult = await Task.detached {
+                    await self.synchronousString()
+                }.value
+                return "\\(asynchronous):\\(argumentBearing):\\(unsupportedResult)"
             }
         }
 
@@ -317,7 +356,7 @@ struct RuntimeSourceCallTargetTests {
         await probe()
         """)
 
-        #expect(value.stringValue == "nonisolated:7:5:3:text:true:actor")
+        #expect(value.stringValue == "nonisolated:7:5:3:text:true:actor:7:sync")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime

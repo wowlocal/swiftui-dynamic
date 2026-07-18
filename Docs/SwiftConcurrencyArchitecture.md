@@ -3912,21 +3912,60 @@ rebuilt scoped TSan board passed native overlap 20/20 plus all 50 driver/kernel/
 source-call tests in three suites on four workers in 68 seconds without a race
 or interceptor diagnostic.
 
+The fifty-first prerequisite adds the first checked source-actor route for
+Session-iOS's exact detached wrapper around a synchronous actor-isolated
+method. The origin-bound target descriptor already distinguishes lexical actor
+placement and carries the exact runtime actor executor selected while forming
+the receiver closure. Physical admission now treats that pair as a separate
+route from MainActor and `@concurrent` source-class methods: it requires an
+argument-free, synchronous, nonthrowing, Void-returning own method on the exact
+receiver actor and its default executor. Async actor methods, arguments,
+String-returning actor methods, custom actor executors, nonisolated methods,
+and richer effects or results stay cooperative.
+
+The checked worker boundary does not widen. The physical wrapper carries the
+same Sendable entry/task/descriptor/result command and reaches the confined
+relay without transferring an actor, `Instance`, closure, environment, heap,
+or evaluator. After reinstating the original `EvaluationTaskContext`, the
+relay calls the existing suspending evaluator. Its executor-hop protocol parks
+an owned caller actor, queues for the selected mailbox, depth-counts actor
+ownership during the synchronous body, releases it on return, and restores the
+caller actor before publishing the copied result. Thus actor routing is owned
+by the canonical logical runtime rather than inferred from the relay's native
+MainActor host.
+
+The same-source probe launches the unretained detached task directly from the
+actor initializer, matching Session-iOS. A later actor method yields while
+waiting and requires that task to re-enter the same actor to mutate state.
+Native and interpreted execution returned exact `actor|R` in twenty bounded
+runs; every native five-run shard retained canonical SHA-256
+`ee46339758b9bf4f9030cfb7cc9db448e6b2c961004386a9c262fe21f5ce57cc`.
+The receipt RED moved from zero to one physical execution, and the runtime
+regression also requires empty task and actor registries. This establishes a
+physical detached wrapper with actor-mailbox-confined source evaluation, not
+general parallel actor-body execution.
+
+The canonical focused board passed 65 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in two
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 51
+driver/kernel/source-call tests in three suites on four workers in 25 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
-source/actor/host/standard-library target identities beyond the unique own
-reference-method descriptor, normalized callee shape, and the existing
-core-Task, `String.count`, conservative
-`String.distance`, `Array.map`, `Array.reduce`, and `Substring.count` proofs
-remain incomplete, as does compiler metadata
+source class/actor/host/standard-library target identities beyond the unique
+own reference-method descriptor, the exact default-actor synchronous route,
+normalized callee shape, and the existing core-Task, `String.count`,
+conservative `String.distance`, `Array.map`, `Array.reduce`, and
+`Substring.count` proofs remain incomplete, as does compiler metadata
 indexing. Mutable symbol materialization
 plus evaluator state must move fully
 behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
-MainActor-Boolean-and-concurrent-integer-source-call
+MainActor-Boolean/concurrent-integer/default-actor-source-call
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

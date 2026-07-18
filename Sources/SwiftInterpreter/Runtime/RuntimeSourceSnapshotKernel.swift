@@ -245,13 +245,15 @@ extension Interpreter {
             permitLifetime: .operation)
     }
 
-    /// FoodTruck and TaskObservatory create detached wrappers whose complete
-    /// body is `await self.method(...)`. Admit only direct-self calls whose
-    /// arguments are literals or directly owned immutable captures, after
-    /// runtime resolution proves one exact async, nonthrowing source-class
-    /// method on MainActor or the @concurrent default executor. The physical
-    /// worker carries only a command and checked argument snapshots;
-    /// RuntimeTaskRecord retains the selected receiver closure on MainActor.
+    /// FoodTruck, TaskObservatory, and Session-iOS create detached wrappers
+    /// whose complete body is `await self.method(...)`. Admit only direct-self
+    /// calls
+    /// after runtime resolution proves one exact supported declaration route:
+    /// an async source-class method on MainActor/@concurrent, or an
+    /// argument-free synchronous method on the receiver actor's own mailbox.
+    /// The physical worker carries only a command and checked argument
+    /// snapshots; RuntimeTaskRecord retains the selected receiver closure on
+    /// MainActor.
     private func physicalConfinedSourceCallJob(
         _ expression: ExprSyntax,
         closure: ClosureValue,
@@ -279,7 +281,6 @@ extension Interpreter {
               let selfBox = closure.captured.box(
                 for: "self", before: globals),
               case .instance(let instance) = selfBox.value,
-              !instance.symbol.isActor,
               record.entry === entry,
               record.physicalSourceCall == nil,
               closure.programPlan === entry.programPlan,
@@ -304,14 +305,11 @@ extension Interpreter {
                         parameterTypeName: parameter.typeName)
               }),
               target.descriptor.originProgramPlan === entry.programPlan,
-              target.descriptor.isAsync,
               !target.descriptor.isThrowing,
-              case .lexicalType(
-                _, isTypeMember: false, isActor: false
-              ) = target.descriptor.lexicalPlacement,
-              target.descriptor.isolation == .executor(.mainActor)
-                || target.descriptor.isolation
-                    == .executor(.cooperativeDefault),
+              isSupportedPhysicalSourceCallRoute(
+                target.descriptor,
+                on: instance,
+                argumentCount: loweredArguments.commandArguments.count),
               let resultKind = RuntimePhysicalSourceCallResultKind(
                 returnTypeName: target.descriptor.returnTypeName) else {
             return nil
@@ -345,6 +343,44 @@ extension Interpreter {
             // infrastructure cancellation that suppresses method entry.
             cancellationBehavior: .unobserved,
             permitLifetime: .untilConfinedExecutorEntry(handoff))
+    }
+
+    /// Keep the physical route table demand-scoped and fail closed. A source
+    /// actor's synchronous method is still an asynchronous cross-actor call:
+    /// confined re-entry invokes it through the ordinary suspending evaluator,
+    /// which acquires that exact actor mailbox before touching actor storage.
+    /// Async, argument-bearing, String-returning, explicitly nonisolated, and
+    /// custom-executor actor methods remain cooperative until separately
+    /// proven.
+    private func isSupportedPhysicalSourceCallRoute(
+        _ target: RuntimeSourceFunctionTargetDescriptor,
+        on instance: Instance,
+        argumentCount: Int
+    ) -> Bool {
+        switch target.lexicalPlacement {
+        case .lexicalType(_, isTypeMember: false, isActor: false):
+            guard !instance.symbol.isActor, target.isAsync else {
+                return false
+            }
+            return target.isolation == .executor(.mainActor)
+                || target.isolation == .executor(.cooperativeDefault)
+
+        case .lexicalType(_, isTypeMember: false, isActor: true):
+            guard instance.symbol.isActor,
+                  !instance.symbol.requiresCustomExecutorDispatch,
+                  !target.isAsync,
+                  argumentCount == 0,
+                  RuntimePhysicalSourceCallResultKind(
+                    returnTypeName: target.returnTypeName) == .void,
+                  let actorID = instance.actorID else {
+                return false
+            }
+            return target.isolation == .executor(.actor(actorID))
+
+        case .global,
+             .lexicalType(_, isTypeMember: true, isActor: _):
+            return false
+        }
     }
 
     /// Evaluate no source effects while admitting a physical wrapper. An
