@@ -15,12 +15,13 @@ enum ParamTag: Hashable {
     case bindingBool, bindingString, bindingDouble
     case shapeStyle, anyView, shape
     case visibility, axisSet, edgeInsets, gradient, gridItems
-    case axis, colorArray
+    case axis, colorArray, annotationPosition
+    case dimension, measurement
     case builder, action, asyncAction, equatable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
     case decimal, characterSet, indexSet, dateComponents, dateInterval
-    case indexPath, intArray, intRange
+    case indexPath, intArray, intRange, doubleRange
     case calendarComponent, calendarComponentSet
     /// A concrete, payload-free enum collected from the SDK interface. The
     /// associated value is its normalized Swift type name.
@@ -268,6 +269,26 @@ enum GeneratedDispatch {
             if let range: Range<Int> = hostValue(value) { return range }
             if let closed: ClosedRange<Int> = hostValue(value) { return closed.lowerBound..<(closed.upperBound + 1) }
             throw RuntimeError(message: "expected a Range<Int>")
+        case .doubleRange:
+            // `in: 0...10` — interpreted ranges carry runtime bounds; Int
+            // bounds promote (Gauge/Slider ranges are written both ways).
+            if let runtime = value.rangeValue, runtime.includesUpperBound,
+               let lower = runtime.lowerBound?.doubleValue,
+               let upper = runtime.upperBound?.doubleValue {
+                return lower...upper
+            }
+            if let closed: ClosedRange<Double> = hostValue(value) { return closed }
+            throw RuntimeError(message: "expected a closed range (ClosedRange<Double>) like 0...1")
+        case .annotationPosition:
+            return Coerce.annotationPosition(value)
+        case .dimension:
+            return try Coerce.dimension(value)
+        case .measurement:
+            if case .host(let any) = value, let measurement = any as? Measurement<Dimension> {
+                return measurement
+            }
+            if let carrier = value.hostPayload as? Measurement<Dimension> { return carrier }
+            throw RuntimeError(message: "expected a Measurement value")
         case .calendarComponent:
             return try Coerce.calendarComponent(value)
         case .calendarComponentSet:
@@ -525,7 +546,11 @@ enum GeneratedMembers {
     /// runtime name, the table keys on the Swift one).
     static func keyTypeName(of value: Any) -> String {
         let name = String(describing: type(of: value))
-        return name == "NSDecimal" ? "Decimal" : name
+        if name == "NSDecimal" { return "Decimal" }
+        // Generic carriers key on the base name; the runtime prints the
+        // ObjC-renamed argument (Measurement<NSDimension>).
+        if name.hasPrefix("Measurement<") { return "Measurement" }
+        return name
     }
 
     static func member(_ name: String, on value: Any) -> RuntimeValue? {
@@ -842,7 +867,10 @@ func generatedBuilder(_ value: Any) throws -> AnyView {
     }
     let views = try builder.context.callBuilderClosure(closure, arguments: [])
         .map(ViewRegistry.anyView)
-    return views.count == 1 ? views[0] : AnyView(VStack { ViewRegistry.indexed(views) })
+    // NEUTRAL fan-out: the receiving container must see the children as
+    // ITS children (HSplitView panes, Group members...). A VStack wrap
+    // collapsed every multi-child generated container into one cell.
+    return views.count == 1 ? views[0] : AnyView(ViewRegistry.indexed(views))
 }
 
 // MARK: - Coercions added for generated surface
@@ -901,6 +929,17 @@ extension Coerce {
 
     static func edgeInsets(_ value: RuntimeValue) throws -> EdgeInsets {
         if case .host(let any) = value, let insets = any as? EdgeInsets { return insets }
+        // `.init()` / `.init(top:leading:bottom:trailing:)` — implicit
+        // member markers resolve against the expected type here, like every
+        // other expected-type-context coercion.
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+           call.name == "init" {
+            return EdgeInsets(
+                top: (try? cgFloat(call.arguments.labeled("top") ?? .native(0.0))) ?? 0,
+                leading: (try? cgFloat(call.arguments.labeled("leading") ?? .native(0.0))) ?? 0,
+                bottom: (try? cgFloat(call.arguments.labeled("bottom") ?? .native(0.0))) ?? 0,
+                trailing: (try? cgFloat(call.arguments.labeled("trailing") ?? .native(0.0))) ?? 0)
+        }
         throw RuntimeError(message: "expected EdgeInsets(top:leading:bottom:trailing:)")
     }
 
@@ -928,4 +967,39 @@ protocol GeneratedMemberCarrier {
 extension GeneratedMemberCarrier {
     func writeGeneratedMemberValue(_ value: Any) -> Bool { false }
     func replacingGeneratedMemberValue(_ value: Any) -> Any? { nil }
+}
+
+extension Coerce {
+    /// Foundation's unit system: `.fahrenheit`-style implicit members
+    /// resolve through the swept Dimension statics (unique bare names —
+    /// ambiguity throws, listing the candidate containers); qualified
+    /// spellings arrive as host values and pass through.
+    static func dimension(_ value: RuntimeValue) throws -> Dimension {
+        if case .host(let any) = value {
+            if let dimension = any as? Dimension { return dimension }
+            if let platform = any as? GeneratedPlatformValue,
+               let dimension = platform.payload as? Dimension {
+                return dimension
+            }
+        }
+        if let carrier = value.hostPayload as? Dimension { return carrier }
+        if case .implicitMember(let name) = value {
+            let containers = GeneratedMembers.dimensionContainersByBareName[name] ?? []
+            if containers.count == 1,
+               let unit = GeneratedMembers.dimensionStatics["\(containers[0]).\(name)"] {
+                return unit
+            }
+            if containers.count > 1 {
+                throw RuntimeError(message:
+                    "unit .\(name) is ambiguous across \(containers.joined(separator: ", ")) — spell the container")
+            }
+        }
+        // `UnitTemperature.fahrenheit` chained member (host type marker).
+        if case .host(let any) = value, let chain = any as? ChainedImplicitCall,
+           case .implicitMember(let container) = chain.base,
+           let unit = GeneratedMembers.dimensionStatics["\(container).\(chain.member)"] {
+            return unit
+        }
+        throw RuntimeError(message: "expected a Foundation unit (Dimension) like .fahrenheit")
+    }
 }

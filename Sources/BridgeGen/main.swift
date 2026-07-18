@@ -47,7 +47,7 @@ func interfacePath(framework: String) -> String? {
     return "\(moduleDir)/\(name)"
 }
 
-let interfaceFiles = ["SwiftUICore", "SwiftUI"].compactMap { framework -> SourceFileSyntax? in
+let interfaceFiles = ["SwiftUICore", "SwiftUI", "Charts"].compactMap { framework -> SourceFileSyntax? in
     guard let path = interfacePath(framework: framework),
           let source = try? String(contentsOfFile: path, encoding: .utf8) else {
         print("warning: no swiftinterface for \(framework)")
@@ -63,7 +63,7 @@ let interfaceFiles = ["SwiftUICore", "SwiftUI"].compactMap { framework -> Source
 // inside it (ditto SwiftUICore/SwiftUI).
 let modulePrefixes = [
     "UniformTypeIdentifiers.", "DeveloperToolsSupport.",
-    "CoreFoundation.", "CoreGraphics.",
+    "CoreFoundation.", "CoreGraphics.", "Charts.",
     "Observation.", "SwiftUICore.", "Foundation.", "CoreData.", "SwiftUI.",
     "AppKit.", "UIKit.", "Metal.", "QuartzCore.", "ObjectiveC.",
     "Combine.", "Swift.", "os.",
@@ -116,6 +116,7 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Int": return .init(tag: "int", cast: "%@ as! Int")
     case "Double": return .init(tag: "double", cast: "%@ as! Double")
     case "CGFloat": return .init(tag: "cgFloat", cast: "%@ as! CGFloat")
+    case "ClosedRange<Double>": return .init(tag: "doubleRange", cast: "%@ as! ClosedRange<Double>")
     case "Color": return .init(tag: "color", cast: "%@ as! Color")
     case "Font": return .init(tag: "font", cast: "%@ as! Font")
     case "Font.Weight": return .init(tag: "fontWeight", cast: "%@ as! Font.Weight")
@@ -137,6 +138,7 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "[GridItem]": return .init(tag: "gridItems", cast: "%@ as! [GridItem]")
     case "ButtonRole": return .init(tag: "buttonRole", cast: "%@ as! ButtonRole")
     case "Axis": return .init(tag: "axis", cast: "%@ as! Axis")
+    case "AnnotationPosition": return .init(tag: "annotationPosition", cast: "%@ as! AnnotationPosition")
     case "[Color]": return .init(tag: "colorArray", cast: "%@ as! [Color]")
     case "Binding<Bool>": return .init(tag: "bindingBool", cast: "%@ as! Binding<Bool>")
     case "Binding<String>": return .init(tag: "bindingString", cast: "%@ as! Binding<String>")
@@ -159,6 +161,18 @@ func directMapping(for normalized: String) -> TypeMapping? {
             tag: "sdkEnum(\"\(normalized)\")", cast: "%@ as! \(normalized)",
             requiredFramework: requirements.count == 1
                 ? requirements.first : nil)
+    }
+}
+
+/// The canonical concrete type a lone conformance constraint specializes
+/// to when it appears INSIDE a compound type (`ClosedRange<V>` with
+/// V: BinaryFloatingPoint → ClosedRange<Double>).
+func constraintConcreteType(for constraint: String) -> String? {
+    switch constraint {
+    case "BinaryFloatingPoint", "FloatingPoint": return "Double"
+    case "StringProtocol": return "String"
+    case "BinaryInteger": return "Int"
+    default: return nil
     }
 }
 
@@ -225,17 +239,22 @@ struct AnalyzedParam {
     let hasDefault: Bool
     let blocker: String?
     let usesGeneric: String?
+    /// The concrete type this parameter's mapping instantiates its generic
+    /// to — repeats of one generic are legal when they all agree.
+    let genericConcrete: String?
     let contractType: String?
 
     init(
         label: String?, mapping: TypeMapping?, hasDefault: Bool,
-        blocker: String?, usesGeneric: String?, contractType: String? = nil
+        blocker: String?, usesGeneric: String?, genericConcrete: String? = nil,
+        contractType: String? = nil
     ) {
         self.label = label
         self.mapping = mapping
         self.hasDefault = hasDefault
         self.blocker = blocker
         self.usesGeneric = usesGeneric
+        self.genericConcrete = genericConcrete
         self.contractType = contractType
     }
 }
@@ -353,12 +372,12 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         switch facts {
         case .concrete(let concrete):
             if let mapping = directMapping(for: concrete) {
-                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized)
+                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: concrete)
             }
             return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "== \(concrete)", usesGeneric: normalized)
         case .constraints(let set):
             if set.count == 1, let mapping = constraintMapping(for: set.first!) {
-                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized)
+                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: constraintConcreteType(for: set.first!))
             }
             return .init(label: label, mapping: nil, hasDefault: hasDefault,
                          blocker: "<\(set.sorted().joined(separator: "&"))>", usesGeneric: normalized)
@@ -366,6 +385,23 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
     }
     if let mapping = directMapping(for: normalized) {
         return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
+    }
+    // Compound types over constrained generics (`ClosedRange<V>` with
+    // V: BinaryFloatingPoint) specialize to their canonical concrete form
+    // and then map like any direct type.
+    for (name, facts) in generics where normalized.contains("<\(name)>") {
+        let concrete: String?
+        switch facts {
+        case .concrete(let c):
+            concrete = c
+        case .constraints(let set):
+            concrete = set.count == 1 ? constraintConcreteType(for: set.first!) : nil
+        }
+        if let concrete,
+           let mapping = directMapping(
+            for: normalized.replacingOccurrences(of: "<\(name)>", with: "<\(concrete)>")) {
+            return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: name, genericConcrete: concrete)
+        }
     }
     return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: normalized, usesGeneric: nil)
 }
@@ -660,10 +696,15 @@ func processModifier(
 
     // A generic used by more than one parameter can't be instantiated
     // independently per-argument — skip those signatures.
-    let genericUses = analyzed.compactMap(\.usesGeneric)
-    if Set(genericUses).count != genericUses.count {
-        modifierBlockers["<shared generic>", default: 0] += 1
-        return
+    // A generic used by more than one parameter is legal only when every
+    // use instantiates it to the SAME concrete type.
+    let byGeneric = Dictionary(grouping: analyzed.filter { $0.usesGeneric != nil }, by: { $0.usesGeneric! })
+    for (_, uses) in byGeneric where uses.count > 1 {
+        let concretes = Set(uses.map(\.genericConcrete))
+        if concretes.count != 1 || concretes.first == nil {
+            modifierBlockers["<shared generic>", default: 0] += 1
+            return
+        }
     }
 
     if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
@@ -739,10 +780,13 @@ func processInit(
         return
     }
     let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
-    let genericUses = analyzed.compactMap(\.usesGeneric)
-    if Set(genericUses).count != genericUses.count {
-        initBlockers["<shared generic>", default: 0] += 1
-        return
+    let byGenericInit = Dictionary(grouping: analyzed.filter { $0.usesGeneric != nil }, by: { $0.usesGeneric! })
+    for (_, uses) in byGenericInit where uses.count > 1 {
+        let concretes = Set(uses.map(\.genericConcrete))
+        if concretes.count != 1 || concretes.first == nil {
+            initBlockers["<shared generic>", default: 0] += 1
+            return
+        }
     }
     if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
         initBlockers[firstBlocked.blocker ?? "?", default: 0] += 1
@@ -905,6 +949,9 @@ let memberTypes: Set<String> = [
     "DateComponents", "DateInterval", "URLComponents", "URLQueryItem",
     "URLRequest", "CharacterSet", "IndexSet",
     "Decimal", "IndexPath", "PersonNameComponents",
+    // Generic value carrier (genericStructCarriers): swept with UnitType
+    // substituted to Dimension, constructed/cast as Measurement<Dimension>.
+    "Measurement",
     // Charts value-plane carrier (swept from the Charts swiftinterface):
     // interpreted axis builders hand its thresholds straight back to real
     // AxisMarks. NumberBins stays out — it is generic over Value.
@@ -927,9 +974,36 @@ let protocolReceivers: [String: [String]] = [
     "FloatingPoint": ["Double"],
 ]
 
+/// Generic value STRUCTS served through one concrete runtime carrier —
+/// the protocolReceivers idea applied to generic receivers. While
+/// sweeping the type, the generic parameter substitutes to the carrier
+/// argument, and emitted receiver casts use the full carrier spelling.
+struct GenericStructCarrier {
+    let generic: String        // "UnitType"
+    let substitute: String     // "Dimension"
+    let carrier: String        // "Measurement<Dimension>"
+}
+
+let genericStructCarriers: [String: GenericStructCarrier] = [
+    "Measurement": .init(
+        generic: "UnitType", substitute: "Dimension",
+        carrier: "Measurement<Dimension>"),
+]
+
+var currentGenericSubstitution: (from: String, to: String)?
+
+/// The Swift spelling emitted receiver casts use for a member-table type.
+func memberReceiverCast(for type: String) -> String {
+    genericStructCarriers[type]?.carrier ?? type
+}
+
 func memberMapping(for normalized: String) -> TypeMapping? {
     if normalized == "Self", let carrier = currentSelfCarrier {
         return memberMapping(for: carrier)
+    }
+    var normalized = normalized
+    if let sub = currentGenericSubstitution, normalized.contains(sub.from) {
+        normalized = normalized.replacingOccurrences(of: sub.from, with: sub.to)
     }
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
@@ -955,6 +1029,10 @@ func memberMapping(for normalized: String) -> TypeMapping? {
         return .init(tag: "intArray", cast: "%@ as! [Int]")
     case "Range<Int>", "Range<IndexSet.Element>", "Range<IndexPath.Element>":
         return .init(tag: "intRange", cast: "%@ as! Range<Int>")
+    case "Dimension":
+        return .init(tag: "dimension", cast: "%@ as! Dimension")
+    case "Measurement<Dimension>":
+        return .init(tag: "measurement", cast: "%@ as! Measurement<Dimension>")
     case "Calendar.Component":
         return .init(tag: "calendarComponent", cast: "%@ as! Calendar.Component")
     case "Set<Calendar.Component>":
@@ -968,6 +1046,10 @@ func memberMapping(for normalized: String) -> TypeMapping? {
 /// carries across the boundary while generated static code still compiles
 /// against the original declaration.
 func memberContractType(for normalized: String) -> String {
+    if let sub = currentGenericSubstitution, normalized.contains(sub.from) {
+        return memberContractType(
+            for: normalized.replacingOccurrences(of: sub.from, with: sub.to))
+    }
     if normalized.hasSuffix("?") {
         return memberContractType(for: String(normalized.dropLast())) + "?"
     }
@@ -1059,6 +1141,30 @@ func memberIsUsable(_ attributes: AttributeListSyntax) -> Bool {
         if attr.attributeName.trimmedDescription.hasSuffix("_spi") { return false }
     }
     return true
+}
+
+struct CarrierInit {
+    let type: String            // member-table key ("Measurement")
+    let params: [AnalyzedParam]
+}
+
+var carrierInits: [CarrierInit] = []
+
+/// Initializers of generic-struct carrier types: swept with the generic
+/// substituted, emitted as host constructors building the CARRIER spelling.
+func processCarrierInitializer(_ typeName: String, _ initDecl: InitializerDeclSyntax, guarded: Bool) {
+    guard hasModifier(initDecl.modifiers, "public"),
+          initDecl.optionalMark == nil,
+          initDecl.genericParameterClause == nil,
+          initDecl.genericWhereClause == nil,
+          initDecl.signature.effectSpecifiers == nil,
+          !initDecl.signature.parameterClause.parameters.contains(where: { $0.ellipsis != nil })
+    else { return }
+    if guarded || needsAvailabilityGuard(initDecl.attributes) { return }
+    let analyzed = initDecl.signature.parameterClause.parameters.map(analyzeMemberParameter)
+    guard analyzed.allSatisfy({ $0.mapping != nil }) else { return }
+    guard !analyzed.isEmpty else { return }
+    carrierInits.append(CarrierInit(type: typeName, params: analyzed))
 }
 
 func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, guarded: Bool) {
@@ -1192,13 +1298,32 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
             members = structDecl.memberBlock.members
             guarded = needsAvailabilityGuard(structDecl.attributes)
         } else if let ext = decl.as(ExtensionDeclSyntax.self),
-                  isUsable(ext.attributes), ext.genericWhereClause == nil {
+                  isUsable(ext.attributes) {
             let extended = normalize(ext.extendedType.trimmedDescription)
-            if memberTypes.contains(extended) {
-                typeNames = [extended]
-            } else if let carriers = protocolReceivers[extended] {
-                typeNames = carriers
-                isProtocolExpansion = true
+            // A where clause blocks the sweep UNLESS the extended type is a
+            // generic-struct carrier and the clause only re-states the
+            // carrier's own constraint (`where UnitType : Dimension` on
+            // Measurement — the Dimension carrier satisfies it).
+            let whereAllowed: Bool
+            if let clause = ext.genericWhereClause {
+                if let entry = genericStructCarriers[extended] {
+                    let normalizedClause = normalize(clause.trimmedDescription)
+                    whereAllowed = normalizedClause
+                        .replacingOccurrences(of: " ", with: "")
+                        == "where\(entry.generic):\(entry.substitute)"
+                } else {
+                    whereAllowed = false
+                }
+            } else {
+                whereAllowed = true
+            }
+            if whereAllowed {
+                if memberTypes.contains(extended) {
+                    typeNames = [extended]
+                } else if let carriers = protocolReceivers[extended] {
+                    typeNames = carriers
+                    isProtocolExpansion = true
+                }
             }
             if !typeNames.isEmpty {
                 members = ext.memberBlock.members
@@ -1208,14 +1333,22 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
         guard !typeNames.isEmpty, let members else { continue }
         for typeName in typeNames {
             currentSelfCarrier = isProtocolExpansion ? typeName : nil
+            if let entry = genericStructCarriers[typeName] {
+                currentGenericSubstitution = (entry.generic, entry.substitute)
+            }
             for member in members {
                 if let function = member.decl.as(FunctionDeclSyntax.self), memberIsUsable(function.attributes) {
                     processMemberFunction(typeName, function, guarded: guarded)
                 } else if let variable = member.decl.as(VariableDeclSyntax.self), memberIsUsable(variable.attributes) {
                     processMemberProperty(typeName, variable, guarded: guarded)
+                } else if let initDecl = member.decl.as(InitializerDeclSyntax.self),
+                          memberIsUsable(initDecl.attributes),
+                          genericStructCarriers[typeName] != nil {
+                    processCarrierInitializer(typeName, initDecl, guarded: guarded)
                 }
             }
             currentSelfCarrier = nil
+            currentGenericSubstitution = nil
         }
     }
 }
@@ -1223,6 +1356,20 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
 if let foundationFile {
     sweepMemberFile(foundationFile)
 }
+
+// Foundation's unit system: Dimension subclasses and their class-var unit
+// instances (UnitTemperature.fahrenheit, …). Swept for the shared
+// Coerce.dimension coercion so `Measurement(value:unit:)`'s bare
+// `.fahrenheit` resolves to the real unit — the same closed-SDK-set idea
+// as sdkEnum coercions, applied to a class hierarchy.
+struct SweptUnitStatic {
+    let container: String
+    let name: String
+}
+
+var unitStatics: [SweptUnitStatic] = sweptFoundationDimensionStatics()
+    .map { SweptUnitStatic(container: $0.container, name: $0.name) }
+print("Foundation units: \(Set(unitStatics.map(\.container)).count) Dimension classes, \(unitStatics.count) unit statics")
 
 // The STDLIB owns the numeric protocol surface (isMultiple(of:), …);
 // Foundation only ADDS formatted(). Same sweep, same receiver gates.
@@ -1432,9 +1579,10 @@ let chunks = stride(from: 0, to: sorted.count, by: chunkSize).map {
 }
 
 var output = """
-// GENERATED by BridgeGen from the SDK's SwiftUICore/SwiftUI swiftinterfaces.
+// GENERATED by BridgeGen from the SDK's SwiftUICore/SwiftUI/Charts swiftinterfaces.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(sorted.count) modifier overload variants across \(Set(sorted.map(\.name)).count) names.
+import Charts
 import SwiftUI
 import SwiftInterpreter
 #if canImport(AppKit)
@@ -1591,9 +1739,9 @@ func memberPropertyCode(_ property: MemberProperty) -> String {
     if property.isSettable {
         return """
             registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get set }", get: { base in
-                (base as? \(property.type)).map { \(memberResultCall(property.returnType))($0.\(property.name)) }
+                (base as? \(memberReceiverCast(for: property.type))).map { \(memberResultCall(property.returnType))($0.\(property.name)) }
             }, mutate: { base, newValue in
-                guard var copy = base as? \(property.type) else {
+                guard var copy = base as? \(memberReceiverCast(for: property.type)) else {
                     throw RuntimeError(message: "generated \(property.type).\(property.name) mutation received the wrong receiver", fatal: true)
                 }
                 copy.\(property.name) = try convertGeneratedPropertyValue(newValue, as: \(property.returnType).self)
@@ -1603,7 +1751,7 @@ func memberPropertyCode(_ property: MemberProperty) -> String {
     }
     return """
             registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get }", get: { base in
-                (base as? \(property.type)).map { \(memberResultCall(property.returnType))($0.\(property.name)) }
+                (base as? \(memberReceiverCast(for: property.type))).map { \(memberResultCall(property.returnType))($0.\(property.name)) }
             })
     """
 }
@@ -1623,9 +1771,16 @@ func memberMethodCode(_ variant: MemberVariant) -> String {
             (param.label.map { "\($0): " } ?? "") + param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
         }
         .joined(separator: ", ")
+    if variant.type == "Measurement", variant.name == "formatted", variant.params.isEmpty {
+        return """
+            registerMethod(&t, "\(declaration)", []) { base, v in
+                generatedMemberResult(GeneratedMembers.measurementFormatted(base as! Measurement<Dimension>))
+            }
+    """
+    }
     return """
             registerMethod(&t, "\(declaration)", [\(specs)]) { base, v in
-                \(memberResultCall(variant.returnType))((base as! \(variant.type)).\(variant.name)(\(argList)))
+                \(memberResultCall(variant.returnType))((base as! \(memberReceiverCast(for: variant.type))).\(variant.name)(\(argList)))
             }
     """
 }
@@ -1677,6 +1832,73 @@ for (index, chunk) in methodChunks.enumerated() {
     }
     membersOutput += "    }\n"
 }
+membersOutput += "}\n"
+
+// Units table + generic-carrier constructors (swept above) join the same
+// generated file: the Dimension statics serve Coerce.dimension, and the
+// carrier constructors register by member-table key.
+membersOutput += "\nextension GeneratedMembers {\n"
+if unitStatics.isEmpty {
+    membersOutput += "    static let dimensionStatics: [String: Dimension] = [:]\n\n"
+} else {
+    membersOutput += "    static let dimensionStatics: [String: Dimension] = [\n"
+    for entry in unitStatics.sorted(by: { ($0.container, $0.name) < ($1.container, $1.name) }) {
+        membersOutput += "        \"\(entry.container).\(entry.name)\": \(entry.container).\(entry.name),\n"
+    }
+    membersOutput += "    ]\n\n"
+}
+var bareNames: [String: [String]] = [:]
+for entry in unitStatics {
+    bareNames[entry.name, default: []].append(entry.container)
+}
+if bareNames.isEmpty {
+    membersOutput += "    static let dimensionContainersByBareName: [String: [String]] = [:]\n\n"
+} else {
+    membersOutput += "    static let dimensionContainersByBareName: [String: [String]] = [\n"
+    for (name, containers) in bareNames.sorted(by: { $0.key < $1.key }) {
+        let list = containers.sorted().map { "\"\($0)\"" }.joined(separator: ", ")
+        membersOutput += "        \"\(name)\": [\(list)],\n"
+    }
+    membersOutput += "    ]\n\n"
+}
+let unitClasses = Set(unitStatics.map(\.container)).sorted()
+if !unitClasses.isEmpty {
+    membersOutput += "    /// formatted() localizes THROUGH the concrete unit type (mph for\n"
+    membersOutput += "    /// a US locale's km/h) — the erased carrier re-specializes over\n"
+    membersOutput += "    /// every swept Dimension class before formatting.\n"
+    membersOutput += "    static func measurementFormatted(_ m: Measurement<Dimension>) -> String {\n"
+    membersOutput += "        switch m.unit {\n"
+    for unitClass in unitClasses {
+        membersOutput += "        case let unit as \(unitClass): return Measurement<\(unitClass)>(value: m.value, unit: unit).formatted()\n"
+    }
+    membersOutput += "        default: return m.formatted()\n"
+    membersOutput += "        }\n"
+    membersOutput += "    }\n\n"
+}
+membersOutput += carrierInits.isEmpty
+    ? "    @MainActor static let carrierConstructors: [String: HostFunction] = [:]\n"
+    : "    @MainActor static let carrierConstructors: [String: HostFunction] = [\n"
+for (type, inits) in Dictionary(grouping: carrierInits, by: \.type).sorted(by: { $0.key < $1.key }) {
+    guard let carrier = genericStructCarriers[type]?.carrier else { continue }
+    membersOutput += "        \"\(type)\": HostFunction(name: \"\(type)\") { args, ctx in\n"
+    for (index, entry) in inits.enumerated() {
+        let condition = entry.params
+            .map { "args.labeled(\"\($0.label ?? "")\") != nil" }
+            .joined(separator: " && ")
+        let argList = entry.params
+            .map { param -> String in
+                let coerced = "try GeneratedDispatch.coerce(.\(param.mapping!.tag), args.labeled(\"\(param.label ?? "")\")!, ctx)"
+                return "\(param.label!): " + param.mapping!.cast.replacingOccurrences(of: "%@", with: coerced)
+            }
+            .joined(separator: ", ")
+        membersOutput += "            \(index == 0 ? "if" : "} else if") \(condition) {\n"
+        membersOutput += "                return .native(\(carrier)(\(argList)))\n"
+    }
+    membersOutput += "            }\n"
+    membersOutput += "            throw RuntimeError(message: \"\(type) argument shape not bridged\")\n"
+    membersOutput += "        },\n"
+}
+if !carrierInits.isEmpty { membersOutput += "    ]\n" }
 membersOutput += "}\n"
 
 let membersPath = "Sources/SwiftUIBridge/Generated/GeneratedMembers.swift"
@@ -1786,6 +2008,7 @@ func probeArgument(for tag: String) -> String? {
     case "indexPath": return "seedIndexPath"
     case "intArray": return "[1, 2]"
     case "intRange": return "2..<5"
+    case "doubleRange": return "0.0...10.0"
     case "calendarComponent": return ".month"
     case "calendarComponentSet": return "[.year, .month]"
     default: return nil

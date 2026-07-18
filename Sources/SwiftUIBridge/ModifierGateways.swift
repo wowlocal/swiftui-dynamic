@@ -39,6 +39,8 @@ extension ViewRegistry {
             let height = try args.labeled("height").map(Coerce.cgFloat)
             let minWidth = try args.labeled("minWidth").map(Coerce.cgFloat)
             let minHeight = try args.labeled("minHeight").map(Coerce.cgFloat)
+            let idealWidth = try args.labeled("idealWidth").map(Coerce.cgFloat)
+            let idealHeight = try args.labeled("idealHeight").map(Coerce.cgFloat)
             let maxWidth = try args.labeled("maxWidth").map(Coerce.cgFloat)
             let maxHeight = try args.labeled("maxHeight").map(Coerce.cgFloat)
             let alignment = try args.labeled("alignment").map(Coerce.alignment) ?? .center
@@ -47,14 +49,16 @@ extension ViewRegistry {
             if width != nil || height != nil {
                 result = AnyView(result.frame(width: width, height: height, alignment: alignment))
             }
-            if minWidth != nil || minHeight != nil || maxWidth != nil || maxHeight != nil {
+            if minWidth != nil || minHeight != nil || idealWidth != nil || idealHeight != nil
+                || maxWidth != nil || maxHeight != nil {
                 result = AnyView(result.frame(
-                    minWidth: minWidth, maxWidth: maxWidth,
-                    minHeight: minHeight, maxHeight: maxHeight,
+                    minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
+                    minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
                     alignment: alignment
                 ))
             }
-            if width == nil && height == nil && minWidth == nil && minHeight == nil && maxWidth == nil && maxHeight == nil {
+            if width == nil && height == nil && minWidth == nil && minHeight == nil
+                && idealWidth == nil && idealHeight == nil && maxWidth == nil && maxHeight == nil {
                 throw RuntimeError(message: ".frame needs width/height/min/max arguments")
             }
             return result
@@ -425,8 +429,10 @@ extension ViewRegistry {
         // ChartContent and ChartProxy have static associated types that are
         // unavailable after interpretation. Preserve the chart surface and
         // accept its presentation/configuration modifiers inertly.
+        // chartLegend graduated to the generated tier (Charts joined the
+        // BridgeGen modifier sweep; AnnotationPosition coerces).
         for name in [
-            "chartLegend", "chartOverlay", "chartPlotStyle",
+            "chartOverlay", "chartPlotStyle",
             "chartXAxis", "chartYAxis", "chartYScale",
         ] {
             register(name) { view, _, _ in view }
@@ -565,7 +571,13 @@ extension ViewRegistry {
         }
         register("tag") { view, args, _ in
             let value = args.positional(0)
-            return AnyView(view.tag(value?.stringValue ?? value?.stringified ?? ""))
+            // Selection write-backs must hand the app its ORIGINAL value
+            // (enum cases switch-match again) — the same registry the
+            // NavigationLink rows use. Identities unwrap optional casts
+            // (`.tag(glaze as Donut.Glaze?)`) so tags match stored state.
+            let tag = value.map(NavigationSelectionValues.identity) ?? ""
+            if let value { NavigationSelectionValues.byTag[tag] = value }
+            return AnyView(view.tag(tag))
         }
         register("disabled") { view, args, _ in
             AnyView(view.disabled(args.positional(0)?.boolValue ?? false))
@@ -651,6 +663,16 @@ extension ViewRegistry {
                 return AnyView(view.menuStyle(.borderlessButton))
             case "button": return AnyView(view.menuStyle(.button))
             default: return AnyView(view.menuStyle(.automatic))
+            }
+        }
+        register("formStyle") { view, args, _ in
+            // Closed-set style params are interface-inexpressible (generic
+            // style protocols) — the sanctioned handwritten switch tier.
+            guard case .implicitMember(let name)? = args.positional(0) else { return view }
+            switch name {
+            case "grouped": return AnyView(view.formStyle(.grouped))
+            case "columns": return AnyView(view.formStyle(.columns))
+            default: return AnyView(view.formStyle(.automatic))
             }
         }
         register("pickerStyle") { view, args, _ in

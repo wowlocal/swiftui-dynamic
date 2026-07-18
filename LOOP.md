@@ -2044,6 +2044,393 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   ten scenarios 0.000% (detail-orders floor 0.039 -> 0.000).
   Pin: TableSortHeaderProbeTests.sortedColumnHeaderMatchesNative.
   Gate next.
+- 2026-07-17 R4 OPENS — live sidebar navigation works (worktree iteration
+  37): the R4 rung had NO live-window verification. New instrument:
+  `Scripts/foodtruck-r4.sh` runs the demo with `--sweep`, drives the REAL
+  interactive window (SweepDriver: AppKit row selection on the sidebar
+  outline — synthesized NSEvent pairs cannot aim or complete list
+  tracking without an accessibility grant) and verifies each navigation
+  lands its panel by changed-pixel floors. First sweep found the class:
+  the List gateway DROPPED `selection:` and NavigationLink rows had no
+  tags — clicks highlighted rows but never wrote interpreted state; the
+  detail froze. Fix (reusable): rows tag with their stringified identity,
+  NavigationSelectionValues maps tags back to the ORIGINAL runtime
+  values, and List(selection:) binds through Coerce.bindingBox — click →
+  state write → detail re-render now proven live (orders swap: 422k
+  pixels) and pinned headlessly. Boards unmoved: R2 unchanged (content
+  byte-identical 26.137%, rest 0), R3 ten scenarios 0.000. NEXT CLASS
+  (sweep finding): after an interactive re-render the sidebar comes back
+  blank/light — appearance context is lost on the re-rendered subtree
+  (sweep-2/3 captures in /tmp/foodtruck-r4). Twin-side note: content
+  pump probes (runloop + contentViewController) cannot make the REAL
+  NavigationSplitView paint headless — cacheDisplay misses window-server
+  material layers; the honest content row needs an own-window
+  ScreenCaptureKit/CGWindowList capture arc on BOTH sides.
+  Pin: NavigationSelectionProbeTests.sidebarSelectionWritesInterpretedStateAndSwapsDetail.
+  Gate next.
+- 2026-07-17 R4 SWEEP HARDENED — "blank sidebar" was the instrument, not
+  the app (worktree iteration 38): the i37 sweep's follow-up class
+  dissolved under instrumentation. SWEEP-TREE hierarchy walks show a
+  healthy 12-row sidebar outline (280x774, visible) after EVERY
+  navigation, plus the 26-row orders table appearing/disappearing
+  exactly on cue — the live interpreted app re-renders correctly; the
+  CALayer.render offscreen rasterization simply cannot see NSTableViews
+  re-created after initial compositing (CATransaction.flush does not
+  help; in-process AX traversal returns no children for hosted SwiftUI).
+  The sweep now verdicts on hierarchy markers + repaint magnitude
+  (orders: sidebar + >=20-row table + >100k changed; donuts: orders
+  table gone + >100k; truck: >5k) — SWEEP GREEN, diagnostics 0. Pin
+  strengthened: NavigationSelectionProbeTests also asserts the sidebar
+  survives the selection re-render (sidebar-ink > 200; headless capture
+  is not layer-partial). GATE NOTE: main is RED at 575d199 with
+  "parallel test workers failed" (lane-concurrency regression, three
+  reproductions, attribution in claims) — i37/i38 tips are gate-blocked
+  until main heals; MERGE-READY will cover both.
+- 2026-07-17 CITIES RENDER LIVE — full-sidebar R4 sweep, one process per
+  panel (worktree iteration 39): extending the sweep to all nine sidebar
+  navigations found the class chain in CityView — no bridge for
+  LinearGradient(stops:startPoint:endPoint:) and no builder-closure
+  gateway for AsyncImage(url:content:placeholder:); both city rows
+  failed hard (no repaint, hard diagnostics). Fixes (policy-compliant):
+  Coerce.gradientStop/gradientStops shared coercions (accepting
+  .init(color:location:) markers) + a stops: arm on the existing
+  LinearGradient gateway; a handwritten AsyncImage gateway (sanctioned
+  builder-closure tier) that defers interpreted content/placeholder
+  closures to PHASE time with the loaded image crossing as an ImageBox.
+  Sweep architecture: one PROCESS per panel (offscreen layer
+  rasterization is only trustworthy for the first re-render after
+  compositing), fresh-diagnostic gating per step. R4 board: 7/9 GREEN —
+  orders 422k, socialfeed 294k, donuts 810k, donuteditor 585k,
+  cupertino/london 305k repainted pixels, truck back-nav. Remaining 2:
+  saleshistory (43x "mark foregroundStyle shape not bridged") and
+  topfive (8x "AxisValueLabel format shape not bridged") — the Charts
+  bridge classes, next. R2 board intact (orders re-verified AE=0
+  fresh-vs-fresh; the 110px scare was a stale twin PNG's font-AA drift).
+  Pins: GradientStopsAndAsyncImageProbeTests (stops gradient AE=0,
+  AsyncImage placeholder AE=0). Gate still blocked by main-red
+  (lane-concurrency parallel-worker regression).
+- 2026-07-17 SALES HISTORY RENDERS LIVE — categorical mark styling
+  (worktree iteration 40): the 43-diagnostic class was the CATEGORICAL
+  series forms — `.foregroundStyle(by: .value("Location", name))`,
+  `.symbol(by: .value(...))`, and `.lineStyle(StrokeStyle(lineWidth:))`
+  had no mark-member arms; every mark fell to the default style. The by:
+  forms route through the existing shared plottable carrier
+  (PlottableSpec) and lineStyle takes the host StrokeStyle — series
+  colors, per-series point symbols, and the legend are the framework's
+  own. Live capture shows the full panel: three per-city series in
+  distinct colors with circle/square/triangle symbols, legend, cardinal
+  smoothing, timeframe picker. R4 board 8/9 GREEN (saleshistory 193k
+  repainted, 0 diagnostics); only topfive remains (8x AxisValueLabel
+  format — next). R2 spot-check: orders AE=0 fresh-vs-fresh (stale-PNG
+  font-AA drift is inter-session; the r2 script is immune).
+  Pin: InterpretedChartTests.seriesColoredMarksMatchNative (AE=0 vs
+  native). Gate still blocked by main-red; steward has made the
+  worker-isolation fix lane-concurrency's drop-everything priority.
+- 2026-07-17 R4 SWEEP BOARD FULLY GREEN — top-five axis labels (worktree
+  iteration 41): the last sweep class chained three gaps in
+  TopDonutSalesChart's axes — AxisValueLabel(format:
+  IntegerFormatStyle<Int>()) reached the bridge as an inert stub
+  (thrown), the AxisValueLabel { } content-closure form rendered empty
+  labels, and the closure content's .frame(idealWidth: 80) had no
+  gateway arm. Fixes: the integer look bridges through a fraction-0
+  FloatingPointFormatStyle<Double> (bridged plottables are
+  Double-backed — identical label strings, pixel-verified); closure
+  labels evaluate their interpreted builders through the standard
+  builder path; the frame gateway gains idealWidth/idealHeight in its
+  flexible arm. Top-five renders live: gradient bars, value
+  annotations, integer y-axis, per-donut x labels. ALL NINE sidebar
+  navigations land with 0 diagnostics — the R4 interactive sidebar
+  sweep is green end to end. Residue noted: DonutView thumbnails
+  inside axis labels look absent in the live capture (no diagnostics;
+  future pixel-row work). All 23 pins across 8 suites pass; fresh
+  R2 board intact (orders 0.000 fresh-vs-fresh). Pin:
+  InterpretedChartTests.integerAxisAndClosureLabelsMatchNative (AE=0).
+  Gate still blocked by main-red.
+- 2026-07-17 LIVE MUTATION LANDS — enum-tagged Picker selections
+  (worktree iteration 42): the sweep gained a MUTATION phase — after
+  landing saleshistory/topfive it drives the Timeframe segmented
+  control through the genuine AppKit action path and requires a chart
+  repaint. First run exposed the class: the Picker bound through a
+  plain string binding, so the segment write stored the tag STRING in
+  enum-typed state and the app's `switch timeframe` stopped matching
+  ("switch was not exhaustive for Timeframe.month"). Fix (the i37
+  registry doctrine, now shared): `.tag(...)` registers its ORIGINAL
+  runtime value in NavigationSelectionValues and Picker binds through
+  the new Coerce.selectionBinding — get reads the state's stringified
+  identity, set writes the registered original back. The Month
+  mutation now renders perfectly (segment highlighted, totals 7,983 →
+  17,351 donuts, a month of points per series, y-axis rescaled, 0
+  diagnostics). Headless note: SwiftUI's SegmentedControlCoordinator
+  accepts the segment but only writes its binding inside a RUNNING
+  app, so the end-to-end stays covered by the live r4 mutate step; the
+  pin covers the two mechanisms directly (registry keys are
+  type-prefixed stringified identities, e.g. "Timeframe.month"). All
+  19 neighbor pins pass; R2/R3 within floors (orders 0.017% = the
+  known ±1/255 AA flicker, floor 0.039). Pin:
+  PickerSelectionProbeTests. Gate still blocked by main-red.
+- 2026-07-17 DONUT EDITOR CLASS CHAIN — EdgeInsets markers + compound
+  generic specialization (worktree iteration 43): the sweep's planned
+  donut-editor rename mutation found the panel renders BLANK. New
+  permanent diag row (diag-donuteditor) reproduced headlessly and
+  attributed the chain: (1) `.listRowInsets(.init())` — the shared
+  .edgeInsets coercion could not resolve bare `.init(...)` markers
+  against the expected type; fixed in GeneratedSupport (benefits every
+  EdgeInsets-taking generated modifier). (2) `Gauge(value:in:_:)` — NO
+  range forms were ever emitted: ClosedRange<V> with
+  V: BinaryFloatingPoint hit two generator gaps. BridgeGen now
+  specializes compound types over constrained generics
+  (ClosedRange<V> -> ClosedRange<Double>, new doubleRange ParamTag +
+  coercion) and the <shared generic> rule allows repeats that agree on
+  ONE concrete type (value: V + in: ClosedRange<V> both Double).
+  Regenerated: 253 init variants (+22 new call shapes across the SDK).
+  Probes added (ObservableBindingProbeTests): $model.property
+  projection, struct-binding editors, HSplitView, harness control —
+  all render. RESIDUE: diag-donuteditor now renders EMPTY with ZERO
+  diagnostics (the silent-blank moved past bridging into layout/eval —
+  next iteration's hunt). 55 tests across 7 suites pass; R2 intact.
+  Gate still blocked by main-red.
+- 2026-07-17 SILENT-BLANK DOCTRINE + formStyle (worktree iteration 44):
+  the donut-editor hunt isolated the biggest silent absorber —
+  `.formStyle(.grouped)` was COMPLETELY unbridged and the unknown
+  modifier swallowed the whole Form with no diagnostic (unit bisect:
+  form ink 171 -> 0 under the modifier). formStyle joins the sanctioned
+  closed-set style switch tier (grouped/columns/automatic); grouped
+  forms render with their section chrome (ink 665). Doctrine
+  improvement: when a ChainedImplicitCall absorb at the anyView
+  boundary WRAPS a real view (walking nested chains to the root base),
+  it now records "unbridged view modifier chain '...' absorbed a
+  rendered view; renders EMPTY" — the class of bisect-hunts formStyle
+  cost becomes self-attributing. Bisection rows added
+  (diag-editorviewer/editorsplit probes, unit form-bisect probe).
+  RESIDUE: diag-donuteditor STILL renders empty with zero diagnostics
+  even past the absorb tracer — the blank draws through a "successful"
+  view; next iteration adds the TWIN-side editor row (native may
+  equally render the toolbar/HSplitView shell empty headless, which
+  would re-scope the class to live-only). model.newDonut reads
+  correctly ("NAME=New Donut" probe); the empty viewer pane is
+  asset-empty on BOTH sides by doctrine. 30 tests across 5 suites
+  pass; R2/R3 within floors. Gate still blocked by main-red.
+- 2026-07-17 EDITOR BLANK NARROWED TO A MINIMAL REPRO (worktree
+  iteration 45): the twin-side diag-donuteditor row now exists — NATIVE
+  renders the editor form fully headless (name field, six flavor
+  gauges with values, ingredient pickers; left viewer pane asset-empty
+  by doctrine), so the interp blank is a REAL class, not a live-only
+  artifact. Elimination matrix (all probes kept): editorContent in a
+  grouped Form standalone RENDERS through the interpreter (gauges from
+  i43's range forms working); donutViewer renders (asset-empty);
+  real-viewer + simple-right splits render; simple-left + REAL
+  form/editorContent inside the split = BLANK RIGHT PANE. A saturated
+  structural mimic (ZStack + #if-in-builder + #if-in-modifier-chain +
+  member composition + toolbar/ToolbarTitleMenu + navigationTitle +
+  formStyle(.grouped) + the exact frame chain) renders 1338 ink under
+  macOS platform — the app's SHAPE is fine; the delta is the REAL
+  sectioned editorContent volume inside the grouped (List-backed) Form
+  under HSplitView pane sizing. Next: bisect editorContent's sections
+  inside the split (suspect: NSTableView-backed grouped form collapsing
+  in the split pane headless while native negotiates minWidth).
+  Probes: memberComposedSplitBodyRenders (macOS-forced),
+  editorSplitShapeBisect, form-bisect, wrapper-bisect. Gate still
+  blocked by main-red.
+- 2026-07-17 THE EDITOR RENDERS — generatedBuilder pane collapse
+  (worktree iteration 46): the silent-blank root cause, found by an
+  elimination cascade (sections bisect -> pure shape blanks under the
+  probe env -> pure shape RENDERS in the unit harness -> merged-source
+  bisect renders -> the capture showed "LEFT" centered = ONE-pane
+  split): `generatedBuilder` wrapped multi-child builder content in a
+  VSTACK, so every multi-child GENERATED container collapsed its
+  children into one cell — HSplitView { viewer; form } became a
+  one-pane split (handwritten gateways were immune; they fan out with
+  indexed ForEach INSIDE the real container). Fix: generatedBuilder
+  returns the neutral indexed fan-out; the receiving container sees its
+  children as children. The donut editor NOW RENDERS through the
+  interpreter: split divider, name field, six flavor gauges,
+  ingredient pickers — diag-donuteditor 100%-blank -> 10.56% vs twin
+  (residues: section-header styling, optional-tag Glaze/Topping
+  labels, divider position). Probe adjustments: struct-binding probe
+  canvas 700x300 + constrained form pane (the old pass was an
+  artifact of the collapse; an UNCONSTRAINED pane collapsing a
+  headless split is a known edge, noted). Corpus backstop 678/680
+  (unchanged); full R2 board all-zero except content artifact; R3
+  green; all pin suites pass. Scratch bisect harness kept
+  (MergeBisectScratchTests) pending removal next close. Gate still
+  blocked by main-red.
+- 2026-07-17 OPTIONAL-CAST TAGS — Glaze/Topping pickers complete
+  (worktree iteration 47): the editor's biggest remaining functional
+  residue was `.tag(glaze as Donut.Glaze?)` / `.tag(nil as
+  Donut.Glaze?)` — optional-cast tag identities never matched the
+  non-optional stored state, so Glaze/Topping pickers showed no
+  selected label. Fix: NavigationSelectionValues.identity(_:) — the
+  ONE identity both `.tag(...)` and every selection binding use:
+  optional layers unwrap (nil -> "nil"), then stringValue/stringified.
+  Applied to the tag gateway, Picker selectionBinding, List selection,
+  and NavigationLink rows. Editor form now shows Glaze "Chocolate
+  Glaze" / Topping "Sprinkles" exactly like native. BOARD NOTE:
+  content 26.137% -> 26.778% — the sidebar List now correctly
+  HIGHLIGHTS the selected row (the identity get matches row tags), a
+  fidelity IMPROVEMENT measured against the documented-broken twin
+  content row (headless NavigationSplitView sidebar blank); the
+  sanctioned detail-truck proxy remains 0.000. Remaining editor class:
+  Sections flatten into ONE grouped box with centered inline headers
+  vs native's separate grouped boxes with outside headers (the
+  Section-in-grouped-Form structure) — next. 12 selection pins pass;
+  R2 main rows 0.000; R3 green. Gate still blocked by main-red
+  (steward's third escalation to lane-concurrency pending).
+- 2026-07-17 DONUT EDITOR PIXEL-PERFECT — Section structure survives to
+  containers (worktree iteration 48): three coordinated changes finish
+  the editor arc. (1) Section gateway returns a SectionSpec CARRIER
+  instead of an erased AnyView — Form/List grouped styling must SEE
+  section structure and AnyView hides it; anyView(SectionSpec) renders
+  a real Section for every other position. (2) The Form gateway
+  rebuilds sections UN-ERASED inside its own builder (ForEach of real
+  Sections; bare-row runs batch into anonymous groups like native),
+  unpacking @ViewBuilder-member fans. (3) makeGroup returns a
+  raw-carrying fan when the builder output contains sections
+  (conservative VStack otherwise — custom-Layout content splicing
+  consumes fans specially; the full TupleView sibling-semantics arc is
+  queued). Regression chase: socialfeed went 100% blank because
+  isViewValue did not recognize SectionSpec — builder statement
+  collection dropped sections; one-line fix restored it. BOARD:
+  diag-donuteditor AE=0 — the editor is PIXEL-IDENTICAL to native
+  (from 100% blank at i43). ALL rows 0.000 (content artifact aside):
+  truck, donuts, orders, socialfeed, cards, donut-grid/view, editor.
+  R3 green; 34 pins across 10 suites; corpus 678/680 unchanged.
+  Scratch bisect test + temp diag rows removed; diag-donuteditor is
+  the permanent row. Gate still blocked by main-red.
+- 2026-07-17 R4 MUTATIONS COMPLETE ON BOTH CHART PANELS (worktree
+  iteration 49): the board re-run after the editor arc exposed two
+  DRIVER bugs and one real class. Driver: (1) the mutate phase always
+  picked segment 1 — topfive's DEFAULT is its second segment
+  (Day/Week/Month/Year), so the mutation no-opped by index collision;
+  it now picks a segment differing from the current one
+  (topfive-mutate lands, 67,884 repainted pixels — the chart re-sorts
+  for Month). (2) truck's step re-clicks the already-selected row —
+  natively a no-op; its verdict now requires sidebar health + zero
+  fresh diagnostics instead of a repaint floor. Real class left:
+  donuteditor lands visually (591k repaint) but carries ONE live
+  diagnostic — the i44 absorb tracer reports the iOS-only chain
+  '.navigationBarTitleDisplayMode.toolbarRole.storeMessagesDeferred'
+  absorbing a rendered view under --platform macOS; either the
+  inactive-#if chain segment still evaluates in the live path or the
+  toolbar subtree absorbs — next iteration. NOTE main-red persists
+  (~3h): lane-concurrency unresponsive to three steward escalations;
+  their storm-board worker crash stays theirs (their unmerged branch
+  may hold the fix). Pins pass. R4 board: 8/9 GREEN + editor
+  diag-gated.
+- 2026-07-17 EDITOR LIVE-DIAG ELIMINATIONS (worktree iteration 50): the
+  one remaining R4 board RED — donuteditor lands visually (591k
+  repaint) but the absorb tracer fires on the iOS-only chain
+  '.navigationBarTitleDisplayMode.toolbarRole.storeMessagesDeferred'.
+  Eliminations this iteration: the tracer now leads with the platform
+  and proves platform=macOS AT FIRE TIME; the headless mimic saturated
+  further (app-extension member in the chain, the app's comment line
+  inside the #if block) and still renders 1338 ink with ZERO
+  diagnostics; only DonutEditor uses the chain and only under
+  #if os(iOS); the postfix-if evaluator returns the base for inactive
+  clauses. The diagnostic is LIVE-ONLY — remaining suspects: the
+  demo's whole-project merge (App.swift included; FoodTruckCheck
+  excludes it) and assumesCompiledImports-mode member resolution
+  interacting with the postfix-#if re-render path. The board stays
+  honestly RED on this step until attributed. Pins pass. Gate still
+  blocked by main-red.
+- 2026-07-17 LIVE-DIAG BOUNDARY PINNED TO WINDOW MATERIALIZATION
+  (worktree iteration 51): two new pins close the headless space
+  entirely. (1) reRenderKeepsInactivePlatformChainInert — a
+  selection-driven RE-RENDER of a body carrying the exact iOS-only
+  postfix-#if chain stays diagnostic-free under macOS. (2)
+  demoMergeEditorNavigationDiagnostics — the DEMO'S OWN whole-root
+  merge (App.swift included), rendered headless at 1000x650, sidebar
+  driven to the Donut Editor row: the editor LANDS (editable Name
+  field, NSLevelIndicator gauges, SwiftUIPopupButton pickers) with
+  ZERO fresh diagnostics. The absorb diag therefore requires a REAL
+  ordered-front window — the remaining suspect is live
+  toolbar/titlebar materialization (the .toolbar gateway's deferred
+  interpreted evaluation in window context re-touching the postfix
+  chain). Next: instrument the toolbar gateway's deferred path in the
+  live sweep. Gate still blocked by main-red.
+- 2026-07-17 R4 BOARD FULLY GREEN — platform snapshot ordering (worktree
+  iteration 52): the live-only diagnostic's root cause, caught by a
+  stack trace on ChainedImplicitCall construction: interpreter build
+  configurations SNAPSHOT Interpreter.interpretsAsPlatform at INIT, and
+  the demo applied its --platform flag in applicationDidFinishLaunching
+  — too late for interpreters created during scene construction, whose
+  configs froze the iOS default. The live window then evaluated
+  #if os(iOS) blocks as ACTIVE (building the absorbed
+  navigationBarTitleDisplayMode chain) while the static read macOS at
+  fire time — exactly the live-only signature. Fix: DemoApp.init()
+  applies the platform/network flags before any scene work. The fix
+  lifted live fidelity EVERYWHERE (panels had been rendering iOS-branch
+  variants: orders 422k -> 617k repaint, saleshistory 199k -> 343k).
+  The donut-editor rename mutation now lands with a committed-value
+  verdict (the typed name survives the re-render through interpreted
+  state; the 604px repaint is the field's own glyphs — the title lives
+  in the titlebar). R4 BOARD: ALL NINE navigations + ALL THREE
+  mutations land, zero diagnostics. Debug traces removed. R2/R3/pins
+  green. Gate still blocked by main-red.
+- 2026-07-17 GATE-RED FIXES: curated errors win the dispatch fallthrough
+  (worktree iteration 53): main healed (lane-concurrency's containment
+  merged, 47ee78e) and the first full-stack gate surfaced two failures.
+  (1) sliderRequiresClosedRange: i43's generated Slider range forms now
+  make Slider(value:in:) resolvable, and on a HALF-OPEN range the
+  constructor fallthrough replaced the handwritten "needs a closed
+  range" message with the generic no-matching-initializer report. Fix:
+  when BOTH tiers reject a call, the handwritten (curated) error wins —
+  better diagnostics everywhere, no test weakening (the half-open case
+  still fails, with the right message; the closed case works where it
+  used to error). The doubleRange coercion message also now says
+  "closed range". (2) interpretedSwiftUIStartsAsyncTaskBodyInCanonical-
+  AsyncContext passes isolated — a load flake alongside "parallel test
+  workers failed" appearing once in the suite tail; watching whether
+  the containment fully holds on the re-roll. Gate re-rolling.
+- 2026-07-17 ORDER COMPLETION LANDS LIVE — four mutations green
+  (worktree iteration 54): the orders step gains the R3 status flow
+  DRIVEN LIVE: the row's real Details menu (SwiftUIPopupButton) opens
+  under performClick tracking (SwiftUI populates bridged menus only
+  during REAL tracking — delegate menuNeedsUpdate/update() stay empty;
+  an .eventTracking-mode timer fires the item and dismisses), the
+  "Complete Order" item action runs the interpreted Button closure ->
+  model.markOrderAsCompleted -> published change -> table re-render:
+  Order#1215 visibly flips to "Completed" (668px = the one row's
+  status cell, native's exact visual scope; floor calibrated 300).
+  R4 BOARD: nine navigations + FOUR live mutations green (order
+  completion, both timeframe pickers, editor rename), zero
+  diagnostics. NOTE main still RED (47ee78e reproduces the
+  parallel-worker crash under gate load — 2nd attribution filed;
+  lane-concurrency owes the containment under the GATE's parallel
+  config). Lane remains gate-blocked; iterating continues.
+- 2026-07-17 CONTENT-ROW ARC: OWN-WINDOW CAPTURE BOUNDARY (worktree
+  iteration 55): the twin gains a flag-gated own-window probe
+  (--own-window-probe: real titled window, ordered front, runloop
+  settle, CALayer.render). Findings: CGWindowListCreateImage of one's
+  OWN window is permission-gated on modern macOS (returns blank);
+  layer-render of the ordered-front window rasterizes the DETAIL side
+  fully (truck dashboard renders correctly) but the real
+  NavigationSplitView SIDEBAR stays an empty material shell — the
+  NSVisualEffectView material and the lazily-installed outline are
+  WindowServer-composited and unreachable in-process. CONCLUSION: the
+  honest native content expectation requires ScreenCaptureKit, which
+  requires the USER to grant Screen Recording to the build terminal —
+  noted in claims as a user-action gate; until then the content row
+  remains the documented artifact (its function is fully covered by
+  detail-* rows + the live R4 board). Gate still blocked by main-red.
+- 2026-07-18 TUPLEVIEW SIBLING SEMANTICS: makeGroup fans ALWAYS (worktree
+  iteration 56): multi-view builder output (a custom View's multi-statement
+  body, a @ViewBuilder computed property) is a TupleView natively — its
+  members SPLICE as siblings of the enclosing container through the
+  variadic tree. makeGroup's conservative VStack wrapper collapsed them
+  into one vertical child (HStack laid an interpreted pair out
+  vertically, 1779 differing px in the probe). Now every multi-view
+  grouping returns the ForEachFan carrier: containers and custom Layouts
+  splice fan.views, Form unpacks rawValues, anyView degrades to an
+  indexed ForEach that SwiftUI expands exactly like a TupleView — probes
+  AE=0 vs compiled-native twins of both paths
+  (TupleViewSpliceProbeTests). Boards: R2 unchanged (all 0.000 + content
+  artifact), R3 ten/ten 0.000, full swift test green in isolation.
+  LESSON: never run the bitmap-probe test suite concurrently with the R2
+  capture board — GUI contention produced 13 phantom probe failures.
+  Gate RED with main's known parallel-worker signature (same hung set as
+  the two clean-main bisects; lane-concurrency owes the fix) — lane
+  stack remains gate-blocked, exonerated.
+||||||| 5cecca0
 - 2026-07-18 INDEPENDENT VERIFICATION: MAIN 5cecca0 STILL RED (worktree
   iteration 57): absorbed the steward's "parallel-worker fixed" merge
   (52165f8 per-session ownership) and re-gated — RED with the same
@@ -2057,3 +2444,182 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   fan-change tip: all nine navigations + four mutations GREEN, zero
   diagnostics — the TupleView splice fix is regression-clean on every
   board (R2, R3, R4, isolated full suite).
+- 2026-07-18 FIVE SCREENS JOIN THE BOARD; SALESHISTORY PIXEL-PERFECT
+  (worktree iteration 58): the R2 board grew from 13 to 18 rows —
+  saleshistory, topfive, city-cupertino, city-london, order-detail
+  (account/store screens are EXTENDED_ALL-excluded both sides by
+  doctrine). order-detail and topfive landed AE=0 immediately.
+  saleshistory measured 5.992% and closed to 0.000 in one iteration:
+  (1) Charts joined the BridgeGen MODIFIER sweep (interfaceFiles +
+  "Charts." prefix strip + AnnotationPosition mapping/ParamTag/coercion
+  shared with the mark-annotation arm) — .chartLegend graduated from the
+  inert list to 16 generated variants, restoring position: .top; (2) two
+  axis-glue fixes in the allowed Charts DSL tier: bare AxisValueLabel()
+  now renders the AUTOMATIC formatted value (empty-string title had
+  suppressed the "Jul 5" date label) and .automatic(...) keeps
+  roundUpperBound. Pin: InterpretedChartTests
+  .legendPositionAndBareAxisLabelsMatchNative (AE=0 vs native).
+  BOARD: 15/18 rows at 0.000; remaining: city-cupertino/london 54.060%
+  (NEW CLASS QUEUE: DetailedMapView is an NSViewControllerRepresentable
+  hosting a real MKMapView — representable execution is a major arc; and
+  Measurement(value:unit:) renders a stub description into the weather
+  label — BridgeGen Foundation arc: Unit->Dimension specialization +
+  swept units table), content 26.778% (documented artifact). Gate RED
+  with main's known parallel-worker signature (same hung set; 3rd-round
+  attribution already filed on clean main 5cecca0) — lane still
+  gate-blocked, exonerated.
+- 2026-07-18 CITY ARC SLICE 1: MapKit + CoreLocation JOIN THE PLATFORM
+  SWEEP (worktree iteration 59): toward the city rows' 54.060%
+  (DetailedMapView hosts a real MKMapView), the platform tier now sweeps
+  MapKit (9 types, 11 constructors, 33 properties) and CoreLocation
+  (CLLocation/CLLocationCoordinate2D via a new extractionModule override
+  — modern SDKs re-export them from _LocationEssentials). Four
+  cross-framework generation/runtime gaps closed, all reusable: (1)
+  parameter acceptance unions every sweep's selected types (MKMapCamera's
+  init takes CoreLocation's coordinate); (2) CoreLocation's scalar
+  typealiases canonicalize to Double; (3) frameworkIsNative +
+  frameworkPreference know the new frameworks; (4) results mint under the
+  type's OWNING framework and member lookup searches all swept frameworks
+  (MKMapCamera.centerCoordinate returns CoreLocation's struct). Pin:
+  GeneratedPlatformBridgeTests.mapKitSurfaceConstructsAndConfigures — the
+  interpreted DetailedMapView.Controller surface (CLLocation, MKMapView,
+  MKStandardMapConfiguration(.realistic/.default), camera looking-at with
+  real trig altitude) all constructs and round-trips natively. NEXT
+  SLICE: the representable execution host (interpreted
+  NSViewControllerRepresentable driving a real NSViewController whose
+  loadView runs interpreted code). Boards unchanged (city rows move only
+  when the map RENDERS). Gate RED with main's known parallel-worker
+  signature — still gate-blocked, exonerated.
+- 2026-07-18 CITY ARC SLICE 2: REPRESENTABLES EXECUTE — THE MAP RENDERS
+  (worktree iteration 60): interpreted NSViewControllerRepresentable
+  conformances now RUN. InterpretedControllerRepresentable (the
+  InterpretedLayout genre: protocol witnesses are the allowed
+  interface-inexpressible magic) drives interpreted
+  makeNSViewController/updateNSViewController from the real SwiftUI
+  lifecycle; InterpretedHostController (real NSViewController) runs the
+  interpreted controller subclass's loadView and adopts the real NSView
+  the interpreted code stored in `view` (the dynamic instance-property
+  bag IS the bridge; `as? MKMapView` passes through optimistically).
+  UIKit-only representables keep the inert degrade (Lottie precedent).
+  Also: the platform sweep now SYNTHESIZES no-arg constructors for
+  selected ObjC classes that swept no initializer (symbol graphs omit
+  inherited init(); MKMapView was unconstructible — the false-green
+  lesson: a stub bag echoes property writes back, so the surface pin
+  passed while MKMapView() was a stub; MKMapConfiguration joins the
+  deny set as an abstract base). CITY ROWS: 54.060 -> 39.792/38.978,
+  now city-DIFFERENTIATED — the interpreted map paints the same
+  tile-less perspective grid as the twin. Remaining city sub-classes
+  queued: TimelineView frozen-clock camera sync; Measurement stub in
+  the weather label. Pins: InterpretedRepresentableProbe (loadView +
+  guard-cast accessor + update, ink-verified, zero diags) +
+  mapKitSurfaceConstructsAndConfigures. Gate RED with main's known
+  parallel-worker signature — still gate-blocked, exonerated.
+- 2026-07-18 CITY ARC SLICE 3: FROZEN TIMELINE — city rows 0.214%
+  (worktree iteration 61): the map-camera residue was PROVEN
+  nondeterminism, not geometry — native TimelineView(.animation)
+  context.date is SwiftUI-internal WALL TIME ticking at ~120Hz (probe:
+  two runs, different dates), immune to the Date.now shadow; every
+  launch captured a different camera phase (the historical 54.060
+  "stability" was grid-vs-white, rotation-invariant by ink count). Fix
+  per the frozen-clock doctrine: a module-scoped TimelineView shadow in
+  the harness shims (sync.sh, BOTH twin targets — FoodTruckKit's
+  BrandHeader animates on it too; app-only left the twin Kit on wall
+  time — and the SAME text in FoodTruckCheck's merge shim) pins
+  context.date to the shadowed Date.now under FOODTRUCK_FROZEN_NOW and
+  defers to the real TimelineView otherwise. The live demo merges
+  WITHOUT harness shims — bridge TimelineView still animates it.
+  CITY ROWS: 39.792/38.978 -> 0.214/0.214, residue = ONE 115x43 box:
+  the Measurement weather label (next class, BridgeGen Foundation arc).
+  SECOND CLASS same iteration: R3's orders rows phantom-regressed to
+  3.567% — the twin R3 cache is DAY-STALE ("Yesterday" anchors to the
+  system's real today; stale twin vs fresh interp diffs on rollover);
+  foodtruck-r3.sh now refreshes twin captures on calendar-day change.
+  R3 back to ten/ten 0.000 fresh-vs-fresh. Gate RED with main's known
+  parallel-worker signature — still gate-blocked, exonerated.
+- 2026-07-18 CITY ARC COMPLETE: MEASUREMENT BRIDGED — ALL SCREENS AE=0
+  (worktree iteration 62): the weather-label residue closed with a new
+  BridgeGen tier: GENERIC-STRUCT CARRIERS (protocolReceivers applied to
+  generic receivers). Measurement sweeps as Measurement<Dimension> —
+  the generic parameter substitutes in mappings/contracts, receiver
+  casts use the carrier spelling, where-clause extensions matching the
+  carrier's own constraint sweep (formatted() lives in `extension
+  Measurement where UnitType: Dimension`), and carrier INITIALIZERS
+  emit as host constructors. The unit system sweeps from the Foundation
+  SYMBOL GRAPH (NSUnit family is Clang-imported, absent from the
+  textual interface): 203 class-var statics across 22 Dimension
+  classes feed the shared Coerce.dimension (bare `.fahrenheit` resolves
+  when unique; ambiguity throws). The pin caught a REAL divergence:
+  native formatted() locale-converts through the concrete unit type
+  (km/h -> mph under en_US) — the emitter now generates a
+  re-specialization switch over every swept unit class, so the erased
+  carrier formats native-identically. keyTypeName maps
+  Measurement<NSDimension> -> "Measurement" (the Decimal/NSDecimal
+  precedent). Pins: MeasurementBridgeTests (construct via bare +
+  qualified units, formatted parity vs native, converted(to:) values,
+  ambiguity fail-closed). CITY ROWS: 0.214 -> 0.000 BOTH. R2 BOARD:
+  17/18 screens AE=0 — every screen pixel-perfect except the
+  user-gated content artifact. Gate RED with main's known
+  parallel-worker signature — lane still gate-blocked, exonerated.
+- 2026-07-18 R4 INSTRUMENT HARDENED: LIVE MAP ASSERTED; TITLE GAP
+  DOCUMENTED (worktree iteration 63): with all capturable screens at
+  AE=0, the class was the R4 sweep's thinnest evidence. City steps now
+  REQUIRE a live MKMapView in the window hierarchy (hierarchy truth,
+  not churn) — both cities pass, live changed-pixels grew ~50k with the
+  map executing interactively. The new checks CAUGHT two things:
+  (1) a one-off 606-diagnostic flood on london (not reproducible in
+  three follow-up runs; the diag=0 assertion stays armed as the tripwire);
+  (2) a REAL deterministic gap — natively the DETAIL column's
+  .navigationTitle(donut.name) drives the macOS titlebar, but the
+  interpreted split's HStack fallback lets the SIDEBAR's "Food Truck"
+  preference win, so the rename never retitles the window. A hosting-
+  boundary barrier would sever the environment from the sidebar — the
+  title rides the real-NavigationSplitView arc (same root as the
+  content-row artifact); reported per capture (titled=/title=) and
+  flips into the verdict when that arc lands. Board: R4 GREEN under
+  the stricter instrument. Gate RED with main's known parallel-worker
+  signature — still gate-blocked, exonerated.
+- 2026-07-18 REAL NavigationSplitView EXPERIMENT: 18/18 AE=0 within
+  reach (worktree iteration 64): retried the real split (the
+  blank-columns finding predates the selection registry / fan / env
+  work). CAPTURES: the ENTIRE R2 board hit 18/18 AE=0 — the content
+  row's 26.778% artifact CONVERGES because the interpreted real split
+  blanks its headless sidebar exactly like the twin's. LIVE: orders +
+  donut editor work end-to-end under the real split (sidebar click,
+  detail swap, mutation), and the WINDOW TITLE finally follows the
+  detail's navigationTitle natively (title="New Donut" — the i63 gap
+  closes structurally). BUT six sweep steps report changed=0: the
+  offscreen CALayer.render cannot see most re-created detail subtrees
+  behind the split's own compositing — socialfeed's 10-row feed table
+  IS in the hierarchy while its capture shows nothing (instrument
+  limitation, not app failure — but four steps lack hierarchy markers
+  too, so live verification needs a dedicated arc). DECISION: real
+  split behind DEMO_SPLIT_REAL until the live-capture arc closes; the
+  HStack fallback stays default so R4 keeps honest verdicts. Boards
+  confirmed at baseline after the flip (R2 17+content-artifact, R3
+  untouched, R4 all thirteen verdicts green). NEXT ARC: live
+  verification under the real split (hierarchy-marker verdicts per
+  panel + capture technique that sees through the split's compositing)
+  — landing it flips DEMO_SPLIT_REAL default, closes content to 0.000
+  AND the window-title gap in one move. Gate expectation unchanged
+  (main still red).
+- 2026-07-18 GATE GREEN — LANDING PREP (worktree iteration 65): main
+  healed at b56e6b4 (parallel-worker fix verified clean-detached, the
+  lane's own oracle method + an xcrun toolchain pin). Absorb surfaced
+  three landing classes, all closed: (1) my i62 Measurement tier vs the
+  GeneratedMemberTests validation suite — receiver seed added, settable
+  count pins 68->69, and a REAL matcher gap: class-typed contracts now
+  accept SUBCLASS instances (Foundation's units arrive as private
+  _NSStatic subclasses of NSDimension; ObjC isKind(of:) with the
+  NS-renaming fallback in HostRuntimeTypeSystem.matches). (2) The
+  toolchain pin: this shell's Swiftly swift 6.2.3 vs the gate's xcrun
+  6.3.3 — all direct swift invocations now go through xcrun. (3) THE
+  CORPUS CENSUS DISCREPANCY: the merged contract pinned 586/586 and
+  "retired" 680 — root-caused to External/ being a gitignored SYMLINK
+  that detached verification worktrees LACK, so the clean gate that
+  pinned the census never saw External/oss (94 projects). The full
+  census is 680 with 678 passing (both failures the long-documented
+  backstop baseline). gate.sh + the census meta-test now sanction BOTH
+  censuses fail-closed, rationale inline, steward-reconcile noted in
+  claims. CLOSING GATE: **GREEN 887s** — 1240 tests (6 shards), corpus
+  678/680, live 5/5, parity 345/0/0. First green gate since i36;
+  clean-detached re-verification + MERGE-READY next.

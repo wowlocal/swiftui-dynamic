@@ -77,6 +77,37 @@ extension ViewRegistry {
             return .native(try self.anyViewResolving(value, ctx))
         }
 
+        constructors["AsyncImage"] = HostFunction(name: "AsyncImage") { args, ctx in
+            let url = args.labeled("url")?.hostPayload as? URL
+            let contentClosure = args.firstUnlabeledClosure
+            let placeholderClosure = args.closure(labeled: "placeholder")
+            guard let interpreter = ctx as? Interpreter,
+                  contentClosure != nil || placeholderClosure != nil else {
+                if let scale = try args.labeled("scale").map(Coerce.cgFloat) {
+                    return .native(AnyView(AsyncImage(url: url, scale: scale)))
+                }
+                return .native(AnyView(AsyncImage(url: url)))
+            }
+            // Builder closures evaluate at PHASE time — the image exists
+            // only after the load — via the deferred-invocation pattern
+            // Button actions use. The loaded image crosses as an ImageBox
+            // so interpreted modifiers (.resizable...) keep working.
+            @MainActor func evaluate(_ closure: ClosureValue?, _ argument: RuntimeValue?) -> AnyView {
+                guard let closure else { return AnyView(EmptyView()) }
+                let views = (try? interpreter.callBuilderClosure(
+                    closure, arguments: argument.map { [$0] } ?? [])) ?? []
+                let anyViews = views.compactMap { try? Self.anyView($0) }
+                if anyViews.count == 1 { return anyViews[0] }
+                if anyViews.isEmpty { return AnyView(EmptyView()) }
+                return AnyView(VStack { Self.indexed(anyViews) })
+            }
+            return .native(AnyView(AsyncImage(url: url) { image in
+                evaluate(contentClosure, .native(ImageBox(image)))
+            } placeholder: {
+                evaluate(placeholderClosure, nil)
+            }))
+        }
+
         constructors["Spacer"] = HostFunction(name: "Spacer") { _, _ in
             .native(AnyView(Spacer()))
         }
@@ -137,14 +168,18 @@ extension ViewRegistry {
         }
 
         constructors["LinearGradient"] = HostFunction(name: "LinearGradient") { args, _ in
-            guard let colorsArg = args.labeled("colors")?.arrayValue else {
-                throw RuntimeError(message: "LinearGradient needs colors: [...]")
-            }
-            let colors = try colorsArg.map(Coerce.color)
             let start = try Coerce.unitPoint(args.labeled("startPoint") ?? .implicitMember("top"))
             let end = try Coerce.unitPoint(args.labeled("endPoint") ?? .implicitMember("bottom"))
             // Raw, not AnyView-wrapped: it must stay usable as a ShapeStyle
             // (`.fill(...)`) and converts to a view lazily in anyView().
+            if let stopsArg = args.labeled("stops") {
+                let stops = try Coerce.gradientStops(stopsArg)
+                return .native(LinearGradient(stops: stops, startPoint: start, endPoint: end))
+            }
+            guard let colorsArg = args.labeled("colors")?.arrayValue else {
+                throw RuntimeError(message: "LinearGradient needs colors: [...] or stops: [...]")
+            }
+            let colors = try colorsArg.map(Coerce.color)
             return .native(LinearGradient(colors: colors, startPoint: start, endPoint: end))
         }
 
@@ -261,12 +296,73 @@ extension ViewRegistry {
 
         constructors["List"] = HostFunction(name: "List") { args, ctx in
             let content = try Self.dataOrPlainContent(args, ctx)
+            // Dynamic selection values cannot satisfy the static Hashable
+            // generic, so rows tag with their stable stringified identity
+            // and the binding hands the app back the ORIGINAL runtime value
+            // (NavigationSelectionValues) — a click then re-renders the
+            // detail exactly like a programmatic state write.
+            if let selectionArg = args.labeled("selection"),
+               let box = try? Coerce.bindingBox(selectionArg) {
+                let binding = Binding<String?>(
+                    get: {
+                        if box.value.isNil { return nil }
+                        return NavigationSelectionValues.identity(box.value)
+                    },
+                    set: { newTag in
+                        guard let newTag else {
+                            box.value = .nilValue
+                            return
+                        }
+                        box.value = NavigationSelectionValues.byTag[newTag] ?? .string(newTag)
+                    }
+                )
+                return .native(AnyView(List(selection: binding) { Self.indexed(content) }))
+            }
             return .native(AnyView(List { Self.indexed(content) }))
         }
 
         constructors["Form"] = HostFunction(name: "Form") { args, ctx in
-            let content = try Self.builderContent(args, ctx)
-            return .native(AnyView(Form { Self.indexed(content) }))
+            // Sections rebuild UN-ERASED inside the Form's own builder so
+            // grouped styling boxes them separately with outside headers;
+            // bare-row runs batch into anonymous groups like native.
+            guard let closure = args.closure(labeled: "content") ?? args.lastUnlabeledClosure else {
+                throw RuntimeError(message: "missing content closure")
+            }
+            let values = try ctx.callBuilderClosure(closure, arguments: [])
+            var specs: [SectionSpec] = []
+            var pendingRows: [AnyView] = []
+            @MainActor func collect(_ value: RuntimeValue) throws {
+                if case .host(let any) = value, let spec = any as? SectionSpec {
+                    if !pendingRows.isEmpty {
+                        specs.append(SectionSpec(header: nil, rows: pendingRows))
+                        pendingRows = []
+                    }
+                    specs.append(spec)
+                    return
+                }
+                // @ViewBuilder members arrive as fans — unpack the raw
+                // builder output so their sections stay sections.
+                if case .host(let any) = value, let fan = any as? ForEachFan,
+                   let raw = fan.rawValues {
+                    for element in raw { try collect(element) }
+                    return
+                }
+                pendingRows.append(try Self.anyView(value))
+            }
+            for value in values { try collect(value) }
+            if !pendingRows.isEmpty {
+                specs.append(SectionSpec(header: nil, rows: pendingRows))
+            }
+            let sections = specs
+            return .native(AnyView(Form {
+                ForEach(sections.indices, id: \.self) { index in
+                    Section {
+                        Self.indexed(sections[index].rows)
+                    } header: {
+                        sections[index].header ?? AnyView(EmptyView())
+                    }
+                }
+            }))
         }
 
         constructors["Grid"] = HostFunction(name: "Grid") { args, ctx in
@@ -300,10 +396,11 @@ extension ViewRegistry {
             } else if let title = args.positional(0)?.stringValue {
                 header = AnyView(Text(title))
             }
-            if let header {
-                return .native(AnyView(Section { Self.indexed(content) } header: { header }))
-            }
-            return .native(AnyView(Section { Self.indexed(content) }))
+            // A SPEC, not an AnyView: Form/List grouped styling must SEE
+            // Section structure, and AnyView erasure hides it. Containers
+            // that understand sections rebuild them un-erased; anyView()
+            // renders the spec as a real Section for every other position.
+            return .native(SectionSpec(header: header, rows: content))
         }
 
         constructors["LazyVGrid"] = HostFunction(name: "LazyVGrid") { args, ctx in
@@ -386,10 +483,25 @@ extension ViewRegistry {
             let detailContent = detail.count == 1
                 ? detail[0]
                 : AnyView(VStack(alignment: .leading) { Self.indexed(detail) })
-            // Native NavigationSplitView keeps its columns lazy and, when
-            // hosted outside the originating App scene, can leave dynamic
-            // AnyView columns undiscovered. A split-shaped host fallback
-            // keeps both interpreted branches alive and interactive.
+            // REAL NavigationSplitView (2026-07-18 experiment, DEMO_SPLIT_REAL
+            // opt-in): the real split RENDERS — the full R2 board hit 18/18
+            // AE=0 (the content row's headless sidebar blank converges with
+            // the twin's identical artifact) and LIVE the orders + editor
+            // panels work end-to-end with the window title finally following
+            // the detail's navigationTitle. BUT six live sweep steps show
+            // changed=0 under it — the offscreen CALayer.render cannot see
+            // most re-created detail subtrees behind the split's own
+            // compositing (socialfeed's feed table IS in the hierarchy while
+            // its capture shows nothing). Until the live-capture arc closes,
+            // the split-shaped HStack fallback stays the default so the R4
+            // board keeps its honest verdicts.
+            if ProcessInfo.processInfo.environment["DEMO_SPLIT_REAL"] != nil {
+                return .native(AnyView(NavigationSplitView {
+                    sidebarContent
+                } detail: {
+                    detailContent
+                }))
+            }
             return .native(AnyView(HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
                     sidebarContent
@@ -410,8 +522,12 @@ extension ViewRegistry {
                 let label = views.count == 1 ? views[0] : AnyView(HStack { Self.indexed(views) })
                 // Dynamic interpreted values cannot satisfy a static generic
                 // Hashable constraint. Their stable textual identity keeps the
-                // real NavigationLink behavior and rendering intact.
-                return .native(AnyView(NavigationLink(value: value.stringified) { label }))
+                // real NavigationLink behavior and rendering intact; the tag
+                // makes the row selectable in a List(selection:) and the
+                // registry preserves the original value for the write-back.
+                let tag = NavigationSelectionValues.identity(value)
+                NavigationSelectionValues.byTag[tag] = value
+                return .native(AnyView(NavigationLink(value: tag) { label }.tag(tag)))
             }
 
             let destination: AnyView
@@ -606,7 +722,7 @@ extension ViewRegistry {
             guard let selection = args.labeled("selection") else {
                 throw RuntimeError(message: "Picker needs a selection: binding")
             }
-            let binding = try Coerce.stringBinding(selection)
+            let binding = try Coerce.selectionBinding(selection)
             let content = try Self.builderContent(args, ctx)
             let title = args.positional(0)?.stringValue ?? ""
             return .native(AnyView(Picker(title, selection: binding) { Self.indexed(content) }))
@@ -775,6 +891,14 @@ private final class GeometryContentCarrier: @unchecked Sendable {
     }
 }
 
+/// Section carrier: Form/List grouped styling needs REAL Section structure
+/// in their builders; AnyView erasure flattens it (headers became centered
+/// inline rows in the donut editor).
+struct SectionSpec {
+    let header: AnyView?
+    let rows: [AnyView]
+}
+
 /// Column spec + rows collector for the Table gateway.
 struct TableColumnSpec {
     let title: String
@@ -812,6 +936,26 @@ func tableColumnSpecMember(_ name: String, on value: Any) -> RuntimeValue? {
 
 enum TableRowCollector {
     nonisolated(unsafe) static var active: [RuntimeValue]?
+}
+
+/// `NavigationLink(value:)` rows tag with their stable stringified identity;
+/// the ORIGINAL runtime values park here so a List selection write can hand
+/// the app back the exact value it navigated with.
+enum NavigationSelectionValues {
+    static var byTag: [String: RuntimeValue] = [:]
+
+    /// The stable identity BOTH `.tag(...)` and selection bindings use:
+    /// optional layers unwrap (nil -> "nil") so `.tag(x as T?)` rows match
+    /// non-optional state values and nil-tags match nil state.
+    static func identity(_ value: RuntimeValue) -> String {
+        var current = value
+        while case .optional(let optional) = current {
+            guard let wrapped = optional.wrapped else { return "nil" }
+            current = wrapped
+        }
+        if current.isNil { return "nil" }
+        return current.stringValue ?? current.stringified
+    }
 }
 
 extension ViewRegistry {

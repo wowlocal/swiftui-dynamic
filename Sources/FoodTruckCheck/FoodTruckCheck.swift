@@ -86,6 +86,48 @@ struct FoodTruckCheckMain {
                 return range.lowerBound + unit * (range.upperBound - range.lowerBound)
             }
         }
+
+        // TimelineView's animation clock is SwiftUI-internal WALL TIME even
+        // under the Date.now shadow — the map-camera phase differed every
+        // launch. Same shadow text as the twin's HarnessFrozenTimeline.
+        struct HarnessTimelineContext {
+            var date: Date
+        }
+
+        struct HarnessTimelineSchedule {
+            var paused: Bool
+
+            static var animation: HarnessTimelineSchedule {
+                HarnessTimelineSchedule(paused: false)
+            }
+
+            static func animation(paused: Bool) -> HarnessTimelineSchedule {
+                HarnessTimelineSchedule(paused: paused)
+            }
+        }
+
+        struct TimelineView<Content: View>: View {
+            var schedule: HarnessTimelineSchedule
+            var content: (HarnessTimelineContext) -> Content
+
+            init(
+                _ schedule: HarnessTimelineSchedule,
+                @ViewBuilder content: @escaping (HarnessTimelineContext) -> Content
+            ) {
+                self.schedule = schedule
+                self.content = content
+            }
+
+            var body: some View {
+                if ProcessInfo.processInfo.environment["FOODTRUCK_FROZEN_NOW"] != nil {
+                    content(HarnessTimelineContext(date: Date.now))
+                } else {
+                    SwiftUI.TimelineView(.animation(paused: schedule.paused)) { context in
+                        content(HarnessTimelineContext(date: context.date))
+                    }
+                }
+            }
+        }
         """
 
         // The app + Kit sources; Widgets/ is out of scope (extension process).
@@ -434,6 +476,18 @@ struct FoodTruckCheckMain {
                 "OrdersView(model: model)"), size: screenSize)
             capturePNG("socialfeed", source: probeMergeBase + probeApp(
                 "SocialFeedView()"), size: screenSize)
+            capturePNG("saleshistory", source: probeMergeBase + probeApp(
+                "SalesHistoryView(model: model)"), size: screenSize)
+            capturePNG("topfive", source: probeMergeBase + probeApp(
+                "TopFiveDonutsView(model: model)"), size: screenSize)
+            capturePNG("city-cupertino", source: probeMergeBase + probeApp(
+                "CityView(city: City.cupertino)"), size: screenSize)
+            capturePNG("city-london", source: probeMergeBase + probeApp(
+                "CityView(city: City.london)"), size: screenSize)
+            capturePNG("order-detail", source: probeMergeBase + probeApp(
+                "OrderDetailView(order: model.orderBinding(for: model.orders[0].id))"), size: screenSize)
+            capturePNG("diag-donuteditor", source: probeMergeBase + probeApp(
+                "DonutEditor(donut: $model.newDonut)"), size: screenSize)
             capturePNG("card-donuts", source: probeMergeBase + probeApp(
                 "TruckDonutsCard(donuts: Array(model.donuts.prefix(15))).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("card-orders", source: probeMergeBase + probeApp(

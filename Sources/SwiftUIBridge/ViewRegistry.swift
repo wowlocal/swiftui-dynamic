@@ -97,6 +97,12 @@ public final class ViewRegistry: HostRegistry {
         if let platform = GeneratedPlatformBridge.constructor(named: resolvedName) {
             return platform
         }
+        // Generic-carrier Foundation values (Measurement) construct from
+        // the swept table before any absorbing fallback.
+        if constructors[resolvedName] == nil,
+           let carrier = GeneratedMembers.carrierConstructors[resolvedName] {
+            return carrier
+        }
         let hand = constructors[resolvedName]
         let generated = GeneratedConstructors.table[resolvedName]
         if hand == nil && generated == nil {
@@ -127,8 +133,18 @@ public final class ViewRegistry: HostRegistry {
             if let hand {
                 do {
                     return try hand.invoke(args, ctx)
-                } catch where generated != nil {
-                    // fall through to generated overloads
+                } catch let handError where generated != nil {
+                    // Fall through to generated overloads; when BOTH tiers
+                    // reject, the handwritten error is the curated message
+                    // ("Slider(in:) needs a closed range ...") and wins over
+                    // the generic no-matching-initializer report.
+                    do {
+                        return .native(try GeneratedDispatch.construct(
+                            name: resolvedName, overloads: generated!,
+                            args: args, ctx: ctx))
+                    } catch {
+                        throw handError
+                    }
                 }
             }
             guard let generated else {
@@ -154,7 +170,7 @@ public final class ViewRegistry: HostRegistry {
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .host(let any) = value {
             if any is AnyView || any is TextBox || any is ImageBox || any is ShapeBox || any is LinearGradient
-                || any is PathDrawStub || any is ForEachFan {
+                || any is PathDrawStub || any is ForEachFan || any is SectionSpec {
                 return true
             }
         }
@@ -163,8 +179,18 @@ public final class ViewRegistry: HostRegistry {
 
     public func makeRenderable(instance: Instance, interpreter: Interpreter) -> RuntimeValue {
         if instance.symbol.isRepresentable {
-            // UIKit/AppKit representables embed host views we can't run —
-            // the honest stand-in is an inert empty view.
+#if canImport(AppKit)
+            // macOS controller representables EXECUTE — the interpreted
+            // make/update/loadView drive a real NSViewController host and
+            // the generated platform tier supplies what they construct.
+            if let representable = InterpretedControllerRepresentable.hosting(
+                instance: instance, interpreter: interpreter
+            ) {
+                return .native(AnyView(representable))
+            }
+#endif
+            // Other representables embed host views we can't run — the
+            // honest stand-in remains an inert empty view (Lottie precedent).
             return .native(AnyView(EmptyView()))
         }
         if instance.symbol.conformsToLayout {
@@ -206,7 +232,14 @@ public final class ViewRegistry: HostRegistry {
             return .native(marks)
         }
         let anyViews = try views.map(Self.anyView)
-        return .native(AnyView(VStack { Self.indexed(anyViews) }))
+        // Multi-view builder output is a TupleView in native SwiftUI: the
+        // members SPLICE as siblings of whatever container the value lands
+        // in (variadic-tree expansion reaches through custom view bodies).
+        // The fan carrier preserves that — containers and custom Layouts
+        // splice fan.views, section-aware containers (Form) unpack the raw
+        // values, and anyView degrades to an indexed ForEach, which SwiftUI
+        // expands into the enclosing container exactly like a TupleView.
+        return .native(ForEachFan(views: anyViews, rawValues: views))
     }
 
     // MARK: - Helpers shared by gateways
@@ -217,8 +250,41 @@ public final class ViewRegistry: HostRegistry {
             if let fan = any as? ForEachFan { return AnyView(Self.indexed(fan.views)) }
             if any is UIKitStub || any is ImplicitMemberCall || any is ChainedImplicitCall {
                 // Unknown SDK views render empty — the documented inert
-                // degrade (Lottie precedent), live-render edition.
+                // degrade (Lottie precedent), live-render edition. When the
+                // absorbed chain WRAPS a real view, an unbridged modifier
+                // just swallowed renderable content — every such blank cost
+                // a bisect hunt (formStyle) until this diagnostic.
+                if let chain = any as? ChainedImplicitCall {
+                    // Walk nested chains (`.toolbar{}.navigationTitle()`)
+                    // to the ROOT base.
+                    var members = [chain.member]
+                    var root = chain.base
+                    while case .host(let inner) = root, let next = inner as? ChainedImplicitCall {
+                        members.append(next.member)
+                        root = next.base
+                    }
+                    var wrapsView = false
+                    if case .host(let base) = root {
+                        wrapsView = base is AnyView || base is TextBox
+                            || base is ImageBox || base is ShapeBox
+                    }
+                    if case .instance = root { wrapsView = true }
+                    if wrapsView {
+                        var rootType = "?"
+                        if case .host(let base) = root { rootType = String(describing: type(of: base)) }
+                        if case .instance(let instance) = root { rootType = instance.symbol.name }
+                        RenderDiagnostics.record(
+                            RuntimeError(message: "[platform=\(Interpreter.interpretsAsPlatform) root=\(rootType)] unbridged view modifier chain '.\(members.reversed().joined(separator: "."))' absorbed a rendered view; renders EMPTY"),
+                            in: "anyView")
+                    }
+                }
                 return AnyView(EmptyView())
+            }
+            if let spec = any as? SectionSpec {
+                if let header = spec.header {
+                    return AnyView(Section { Self.indexed(spec.rows) } header: { header })
+                }
+                return AnyView(Section { Self.indexed(spec.rows) })
             }
             if let box = any as? TextBox { return AnyView(box.text) }
             if let box = any as? ImageBox { return AnyView(box.image) }

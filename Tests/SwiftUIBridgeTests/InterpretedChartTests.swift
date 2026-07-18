@@ -1,4 +1,5 @@
 import AppKit
+import Charts
 import SwiftUI
 import Testing
 @testable import SwiftInterpreter
@@ -200,5 +201,293 @@ import Testing
             }
         }
         #expect(inked > 3, "custom Y-axis labels did not paint (inked=\(inked))")
+    }
+}
+
+extension InterpretedChartTests {
+    // The salesHistory live class: `.foregroundStyle(by: .value(...))` /
+    // `.symbol(by:)` (categorical series) and `.lineStyle(StrokeStyle)`
+    // had no mark-member arms — every mark logged "shape not bridged" and
+    // painted the default style. The by: forms route through the shared
+    // plottable carrier now; series colors, symbols, and the legend are
+    // the framework's own.
+    @MainActor
+    @Test func seriesColoredMarksMatchNative() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    LineMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 5.0))
+                        .foregroundStyle(by: .value(String("City"), String("A")))
+                        .symbol(by: .value(String("City"), String("A")))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                    LineMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 9.0))
+                        .foregroundStyle(by: .value(String("City"), String("A")))
+                        .symbol(by: .value(String("City"), String("A")))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                    LineMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 2.0))
+                        .foregroundStyle(by: .value(String("City"), String("B")))
+                        .symbol(by: .value(String("City"), String("B")))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                    LineMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 4.0))
+                        .foregroundStyle(by: .value(String("City"), String("B")))
+                        .symbol(by: .value(String("City"), String("B")))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                }
+                .background(Color.white)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interp = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                LineMark(x: .value("X", 1.0), y: .value("Y", 5.0))
+                    .foregroundStyle(by: .value("City", "A"))
+                    .symbol(by: .value("City", "A"))
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                LineMark(x: .value("X", 2.0), y: .value("Y", 9.0))
+                    .foregroundStyle(by: .value("City", "A"))
+                    .symbol(by: .value("City", "A"))
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                LineMark(x: .value("X", 1.0), y: .value("Y", 2.0))
+                    .foregroundStyle(by: .value("City", "B"))
+                    .symbol(by: .value("City", "B"))
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                LineMark(x: .value("X", 2.0), y: .value("Y", 4.0))
+                    .foregroundStyle(by: .value("City", "B"))
+                    .symbol(by: .value("City", "B"))
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+            }
+            .background(Color.white)
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<300 {
+            for y in 0..<200 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.greenComponent - b.greenComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        print("PROBE series-colored-marks mismatched:", mismatched)
+        #expect(mismatched == 0)
+    }
+
+    @MainActor
+    static func chartBitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+            fatalError("no rep")
+        }
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        return rep
+    }
+}
+
+extension InterpretedChartTests {
+    // The topfive live class: AxisValueLabel(format: IntegerFormatStyle<Int>())
+    // reached the bridge as an inert stub (thrown), the content-closure form
+    // rendered empty, and the closure content's .frame(idealWidth:) had no
+    // gateway arm. The integer look bridges through a fraction-0 floating
+    // format (bridged plottables are Double-backed — same label strings),
+    // closure labels evaluate their interpreted builders, and frame gains
+    // ideal dimensions.
+    @MainActor
+    @Test func integerAxisAndClosureLabelsMatchNative() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    BarMark(x: .value(String("X"), String("A")), y: .value(String("Y"), 250.0))
+                    BarMark(x: .value(String("X"), String("B")), y: .value(String("Y"), 500.0))
+                }
+                .chartYAxis {
+                    AxisMarks { value in
+                        AxisGridLine()
+                        AxisTick()
+                        AxisValueLabel(format: IntegerFormatStyle<Int>())
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks { value in
+                        AxisValueLabel {
+                            Text(String("donut"))
+                                .frame(idealWidth: 80)
+                        }
+                    }
+                }
+                .background(Color.white)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interp = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                BarMark(x: .value("X", "A"), y: .value("Y", 250))
+                BarMark(x: .value("X", "B"), y: .value("Y", 500))
+            }
+            .chartYAxis {
+                AxisMarks { _ in
+                    AxisGridLine()
+                    AxisTick()
+                    AxisValueLabel(format: IntegerFormatStyle<Int>())
+                }
+            }
+            .chartXAxis {
+                AxisMarks { _ in
+                    AxisValueLabel {
+                        Text("donut")
+                            .frame(idealWidth: 80)
+                    }
+                }
+            }
+            .background(Color.white)
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<300 {
+            for y in 0..<200 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        print("PROBE integer-axis-closure-labels mismatched:", mismatched)
+        #expect(mismatched == 0)
+    }
+
+    // The saleshistory R2 class: `.chartLegend(position: .top)` (generated
+    // tier — Charts joined the BridgeGen modifier sweep) and the bare
+    // `AxisValueLabel()` inside a custom AxisMarks builder rendering the
+    // AUTOMATIC formatted value (an empty-string title suppressed it).
+    @MainActor
+    @Test func legendPositionAndBareAxisLabelsMatchNative() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    LineMark(x: .value(String("D"), 1.0), y: .value(String("S"), 100.0))
+                        .foregroundStyle(by: .value(String("City"), String("Cupertino")))
+                    LineMark(x: .value(String("D"), 2.0), y: .value(String("S"), 180.0))
+                        .foregroundStyle(by: .value(String("City"), String("Cupertino")))
+                    LineMark(x: .value(String("D"), 1.0), y: .value(String("S"), 60.0))
+                        .foregroundStyle(by: .value(String("City"), String("London")))
+                    LineMark(x: .value(String("D"), 2.0), y: .value(String("S"), 90.0))
+                        .foregroundStyle(by: .value(String("City"), String("London")))
+                }
+                .chartLegend(position: .top)
+                .chartXAxis {
+                    AxisMarks { value in
+                        if value.index < value.count - 1 {
+                            AxisValueLabel()
+                        }
+                        AxisTick()
+                        AxisGridLine()
+                    }
+                }
+                .background(Color.white)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interp = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                LineMark(x: .value("D", 1.0), y: .value("S", 100.0))
+                    .foregroundStyle(by: .value("City", "Cupertino"))
+                LineMark(x: .value("D", 2.0), y: .value("S", 180.0))
+                    .foregroundStyle(by: .value("City", "Cupertino"))
+                LineMark(x: .value("D", 1.0), y: .value("S", 60.0))
+                    .foregroundStyle(by: .value("City", "London"))
+                LineMark(x: .value("D", 2.0), y: .value("S", 90.0))
+                    .foregroundStyle(by: .value("City", "London"))
+            }
+            .chartLegend(position: .top)
+            .chartXAxis {
+                AxisMarks { value in
+                    if value.index < value.count - 1 {
+                        AxisValueLabel()
+                    }
+                    AxisTick()
+                    AxisGridLine()
+                }
+            }
+            .background(Color.white)), size: size)
+        var mismatched = 0
+        for x in 0..<300 {
+            for y in 0..<200 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.greenComponent - b.greenComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        print("PROBE legend-position-bare-axis-labels mismatched:", mismatched)
+        #expect(mismatched == 0)
     }
 }
