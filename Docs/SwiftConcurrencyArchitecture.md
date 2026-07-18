@@ -3026,7 +3026,7 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Six narrow snapshot-kernel paths, two demand-cited physical sleep-
+  covered. Six narrow snapshot-kernel paths, three demand-cited physical sleep-
   prefix spellings, and five demand-cited physical source-call-wrapper paths now exist
   behind a validated explicit mode. The
   snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
@@ -3070,6 +3070,10 @@ Each milestone is independently gated through
   `Task.sleep(nanoseconds:)`, then enters imported `MainActor.run(body:)`
   through a selected-nominal intrinsic generated from the active
   `_Concurrency.swiftinterface`; a same-named source type cannot borrow it.
+  Session-iOS's exact capture-only weak-self `Task.sleep(for:)` spelling also
+  reuses the boundary before an actor-isolated optional-self call with one
+  captured immutable String; the actor, weak box, String, and suffix stay
+  confined.
   The general
   evaluator, mutable/global captures, heap, source closures, environments,
   actors, and host gateways remain MainActor-confined.
@@ -4728,6 +4732,41 @@ one second; a fresh TSan build passed native overlap 20/20 plus all 82 tests in
 32 seconds without a race or interceptor diagnostic. The canonical prebuilt
 iteration completed 45 targeted tests in two suites, all 46 methodology/gate
 checks, and all 20 parity repetitions in 13 seconds.
+
+The seventy-fifth prerequisite extends that same confined continuation
+mechanism to Session-iOS's exact capture-only `[weak self]` literal-`Duration`
+form. The two cited actor jobs use a `.medium` detached task, `try? await
+Task.sleep(for: .seconds(3))`, then `await
+self?.sendFailureNotifications(groupId)`. The duration is a checked
+nonnegative seconds/milliseconds integer literal; the directly captured
+`groupId` remains in the confined suffix environment.
+
+The physical command still contains only an empty worker capability plus the
+typed sleep duration. `RuntimeTaskRecord` retains the suffix closure, genuine
+weak box, actor identity reachable through that box, captured `String`, and
+complete source outcome. Cancellation reaches native `Task.sleep`, authored
+`try?` suppresses only its ordinary error, executor handoff releases the
+permit, and the suffix resumes under the same cancelled logical task before
+the handle completes successfully. Thus the new route does not copy a weak
+reference, actor, source instance, `Environment`, `RuntimeValue`, or evaluator
+to a physical worker.
+
+Strict native/interpreted execution returned exact
+`group-a:false,group-b:true|false:true` in twenty runs. The raw native digest
+was `cb53afa4960d6525d08403b93ea3b837eebeca584367848c60be88d7adfdd712`;
+every five-run focused shard retained
+`cfd9ce47bbf230ed12dc5f7afa3a8f7734ca8f6b58f8153ca1e7f62263acb396`.
+The receipt RED moved from zero to two physical executions. Computed/captured
+durations, extra capture-list entries, alternate units, and richer bodies
+remain cooperative behind focused zero-receipt evidence.
+
+Focused parity passed 20/20 on four workers in one second, the parallel
+source-kernel suite passed 41/41, and the exact-tip physical board passed
+84/84 in three suites in one second. A fresh TSan build passed native overlap
+20/20 plus all 84 tests in 26 seconds without a race or interceptor
+diagnostic. The canonical prebuilt iteration passed 47 targeted tests in two
+suites, all 46 methodology/gate checks, and all 20 parity repetitions in 10
+seconds.
 
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change

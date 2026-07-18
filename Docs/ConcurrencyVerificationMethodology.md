@@ -2096,6 +2096,40 @@ diagnostic. The canonical prebuilt iteration completed 45 targeted tests in
 two suites, all 46 methodology/gate checks, and all 20 parity repetitions in
 13 seconds.
 
+The seventy-fifth M9 slice asks the same cancellation/continuation question
+for Session-iOS's capture-only weak-self literal-`Duration` spelling. Both
+`GroupPromoteMemberJob.swift:203-206` and
+`GroupInviteMemberJob.swift:207-210` run `try? await Task.sleep(for:
+.seconds(3))` before `await self?.sendFailureNotifications(groupId)` inside a
+`.medium` detached task. This citation specifically adds a weak actor receiver
+and directly captured immutable `String`; it does not admit general capture
+lists or computed durations.
+
+Strict Apple Swift 6.3.3 returned exact
+`group-a:false,group-b:true|false:true` in twenty runs. The raw output digest
+was `cb53afa4960d6525d08403b93ea3b837eebeca584367848c60be88d7adfdd712`,
+and all four five-run focused shards reported
+`cfd9ce47bbf230ed12dc5f7afa3a8f7734ca8f6b58f8153ca1e7f62263acb396`.
+The result establishes only causal cancellation semantics: authored `try?`
+suppresses the sleep error, the actor suffix observes the same task's
+cancellation bit, and the successful handle retains that bit.
+
+The gap-closure RED was receipt-only: cooperative and parallel interpretation
+already returned the exact value, while parallel execution reported zero
+physical submissions/executions instead of two. The repair reuses the existing
+confined continuation/outcome token and extends only its literal
+seconds/milliseconds admission to the exact `[weak self]` signature. A focused
+negative test retains computed duration and extra-capture shapes on the
+cooperative evaluator. No actor, weak reference, captured `String`, source
+closure, evaluator, or outcome crosses the physical boundary.
+
+The focused runner completed 20/20 parity repetitions on four workers in one
+second. The canonical prebuilt iteration passed 47 implementation tests in
+two suites, all 46 methodology/gate checks, and the focused parity case in 10
+seconds. The exact-tip physical board passed 84/84 tests in three suites in
+one second; a fresh TSan build passed native overlap 20/20 plus all 84 tests
+in 26 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

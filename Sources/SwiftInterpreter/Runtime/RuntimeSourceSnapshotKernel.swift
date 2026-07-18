@@ -314,7 +314,8 @@ extension Interpreter {
         }
 
         let sleepKernel: RuntimeSourceSnapshotKernel
-        if closure.isPhysicalSnapshotKernelCandidate,
+        if (closure.isPhysicalSnapshotKernelCandidate
+            || closure.isPhysicalWeakSelfSourceCallCandidate),
            sleepArgument.label?.text == "for",
            let duration = sourceSnapshotSleepDuration(
                sleepArgument.expression) {

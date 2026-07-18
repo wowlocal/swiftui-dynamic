@@ -627,7 +627,8 @@ extension Interpreter {
     /// The first weak-capture physical spelling is deliberately narrower than
     /// general capture-list support: exactly `[weak self] in`, with no alias,
     /// additional signature surface, or second capture. Admission later also
-    /// requires one argument-free optional-self source call returning Void.
+    /// requires either an exact optional-self source call or a demand-backed
+    /// checked sleep-prefix continuation; the signature alone is insufficient.
     private func isPhysicalWeakSelfSourceCallCandidate(
         _ signature: ClosureSignatureSyntax?
     ) -> Bool {

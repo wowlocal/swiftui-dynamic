@@ -476,6 +476,81 @@ struct RuntimeParallelSourceKernelTests {
         #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
     }
 
+    @Test
+    func weakTryOptionalDurationSleepPrefixReentersActorContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-weak-try-optional-sleep-prefix.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedWeakTryOptionalSleepPrefixProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "group-a:false,group-b:true|false:true")
+        #expect(value.stringValue
+            == "group-a:false,group-b:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func unsupportedWeakSleepPrefixShapesStayOnCooperativeEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        actor WeakPrefixNegativeProbe {
+            func mark(_ input: String) {}
+
+            func run() async {
+                let duration = Duration.milliseconds(0)
+                let capturedDuration = Task.detached { [weak self] in
+                    try? await Task.sleep(for: duration)
+                    await self?.mark("captured-duration")
+                }
+                await capturedDuration.value
+
+                let extraCapture = Task.detached { [weak self, duration] in
+                    try? await Task.sleep(for: .milliseconds(0))
+                    await self?.mark("extra-capture")
+                }
+                await extraCapture.value
+            }
+        }
+
+        let probe = WeakPrefixNegativeProbe()
+        await probe.run()
+        "completed"
+        """)
+
+        #expect(value.stringValue == "completed")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func explicitMainActorRunResultTypeFailsClosed() async throws {
         let interpreter = Interpreter()
 

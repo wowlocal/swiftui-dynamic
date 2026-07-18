@@ -2862,6 +2862,21 @@
     "notes": "Provenance demand-cites `Task.detached(priority: .utility) { [weak self] in try? await Task.sleep(nanoseconds: 100_000_000); await MainActor.run { self?.setupPrimarySubscriptions() } }` at ImportProgressViewModel.swift:132-136. The bounded same-source fixture retains that weak-capture, literal-nanoseconds, and MainActor-run shape with zero-duration success and immediately cancelled 30-second branches. Strict Apple Swift 6.3.3 returned exact `completed:false,cancelled:true|false:true` in twenty bounded runs; the standalone observation digest was 21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e and every five-run focused shard retained 432229c2edb0bd47e62066c636a5d17499311877f8ea718aa1af5c2ddd3f0263. Before the fix, parallel mode recorded zero physical receipts and both interpreter modes returned `|false:true` because imported MainActor.run degraded to an inert member marker. The active _Concurrency.swiftinterface now generates an exact MainActor.run intrinsic; same-named source types retain source precedence, explicit resultType plus generated-but-unrouted MainActor members fail closed, and only a nonnegative nanoseconds integer literal in the cited two-item weak-self closure is physically admitted. The exact-tip physical board passed 82/82 in three suites; a fresh TSan build passed native overlap 20/20 plus all 82 tests in 32 seconds without a race or interceptor diagnostic."
   },
   {
+    "id": "parallel-detached-weak-try-optional-sleep-prefix",
+    "fixture": "Fixtures/parallel-detached-weak-try-optional-sleep-prefix.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedWeakTryOptionalSleepPrefixProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A capture-only weak-self detached task that suppresses cancellation from literal-duration `Task.sleep(for:)` continues in the same cancelled task, passes its captured immutable String to the actor-isolated suffix, and completes successfully while its handle retains the cancellation bit.",
+    "notes": "Session-iOS demand-cites the exact `Task.detached(priority: .medium) { [weak self] in try? await Task.sleep(for: .seconds(3)); await self?.sendFailureNotifications(groupId) }` spelling in GroupPromoteMemberJob.swift:203-206 and GroupInviteMemberJob.swift:207-210. The bounded same-source fixture retains the weak-self actor receiver, directly captured immutable String, literal Duration, two-item body, and immediately cancelled 30-second branch. Strict Apple Swift 6.3.3 compiled it with complete concurrency checking and warnings as errors and returned exact `group-a:false,group-b:true|false:true` in twenty runs; the standalone twenty-line output had SHA-256 cb53afa4960d6525d08403b93ea3b837eebeca584367848c60be88d7adfdd712, and every five-run focused shard retained cfd9ce47bbf230ed12dc5f7afa3a8f7734ca8f6b58f8153ca1e7f62263acb396. Before the fix, cooperative and parallel interpreter modes already returned the exact value, but parallel mode recorded zero physical submissions/executions instead of two. The existing confined continuation command now admits literal seconds/milliseconds Duration for the exact capture-only weak-self signature; only the sleep crosses the worker boundary, while the actor, weak box, captured String, suffix closure, and complete RuntimeValue/Error outcome remain confined. Captured/computed durations and additional capture-list entries remain cooperative. Focused parity passed 20/20, the physical board passed 84/84, and a fresh TSan build passed native overlap 20/20 plus all 84 tests without diagnostics."
+  },
+  {
     "id": "parallel-detached-weak-concurrent-string-source-call",
     "fixture": "Fixtures/parallel-detached-weak-concurrent-string-source-call.swift",
     "mode": "runtime",

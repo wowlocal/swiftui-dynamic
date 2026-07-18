@@ -141,10 +141,11 @@ public final class ClosureValue {
     /// unlock a direct-self source-call wrapper whose confined registration
     /// already owns the strongly captured receiver for the source task.
     var isPhysicalStrongSelfSourceCallCandidate = false
-    /// True only for the demand-backed capture-only spelling
-    /// `{ [weak self] in await self?.method() }`. The weak box remains in this
-    /// MainActor-confined closure and is read only after the physical wrapper
-    /// reaches the confined relay; it is never copied to a worker capability.
+    /// True only for the demand-backed capture-only `[weak self]` signature.
+    /// It may unlock an exact optional-self source-call wrapper or a checked
+    /// sleep-prefix continuation. The weak box remains in this MainActor-
+    /// confined closure and is read only after the physical wrapper reaches
+    /// the confined relay; it is never copied to a worker capability.
     var isPhysicalWeakSelfSourceCallCandidate = false
     /// Immutable source-program capability retained by escaped callbacks. A
     /// fresh host/runtime entry can therefore recover every indexed
