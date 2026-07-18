@@ -378,6 +378,34 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func inheritedSourceCallUsesCallerExecutorAndPhysicalWrapper()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-inherited-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedInheritedSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func customExecutorGlobalActorSourceCallStaysCooperative() async throws {
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 1)
@@ -606,6 +634,40 @@ struct RuntimeSourceCallTargetTests {
             func output() -> String { observation }
         }
 
+        final class UnsupportedInheritedIsolationProbe:
+            @unchecked Sendable
+        {
+            var observation = ""
+
+            func argumentBearing(_ value: Int) async {
+                await Task.yield()
+                observation += "\\(value):"
+            }
+
+            func stringResult() async -> String {
+                await Task.yield()
+                return "text"
+            }
+
+            nonisolated func explicitlyNonisolated() async {
+                await Task.yield()
+                observation += "explicit"
+            }
+
+            func run() async -> String {
+                await Task.detached {
+                    await self.argumentBearing(15)
+                }.value
+                let text = await Task.detached {
+                    await self.stringResult()
+                }.value
+                await Task.detached {
+                    await self.explicitlyNonisolated()
+                }.value
+                return "\\(observation):\\(text)"
+            }
+        }
+
         final class UnsupportedEnumGlobalActorProbe:
             @unchecked Sendable
         {
@@ -635,14 +697,15 @@ struct RuntimeSourceCallTargetTests {
             let nominal = await UnsupportedNominalGlobalActorProbe().run()
             let wrapped = await UnsupportedWrappedGlobalActorProbe().run()
             let enumerated = await UnsupportedEnumGlobalActorProbe().run()
-            return "\\(isolated):\\(actor):\\(nominal):\\(wrapped):\\(enumerated)"
+            let inherited = await UnsupportedInheritedIsolationProbe().run()
+            return "\\(isolated):\\(actor):\\(nominal):\\(wrapped):\\(enumerated):\\(inherited)"
         }
 
         await probe()
         """)
 
         #expect(value.stringValue
-            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9:12:global:wrapped:enumerated")
+            == "nonisolated:7:5:3:text:true:actor:7:sync:true:FT:9:12:global:wrapped:enumerated:15:explicit:text")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 0)
         #expect(interpreter.concurrencyRuntime

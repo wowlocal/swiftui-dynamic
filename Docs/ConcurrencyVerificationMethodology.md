@@ -1460,6 +1460,41 @@ The canonical focused board passed 69 tests in six suites plus all
 forty-three methodology checks and three isolated gate-contract checks;
 focused parity completed all twenty repetitions on four workers in one
 second. The rebuilt scoped TSan board passed native overlap 20/20 and all 55
+driver/kernel/source-call tests in three suites on four workers in 24 seconds
+without a race or interceptor diagnostic.
+
+The fifty-fifth M9 slice is a gap closure for iTorrent's exact plain-async
+source-class family:
+`Task.detached(priority: .utility) { await self.refreshWebServerState() }`
+and its WebDAV counterpart. The semantic question is whether a real detached
+wrapper may invoke an argument-free async Void source method whose declaration
+inherits its caller's isolation, while preserving the detached caller's nil
+actor isolation across suspension.
+
+The same-source probe declares an `@unchecked Sendable` class, launches the
+wrapper without retaining its handle, samples defaulted `#isolation` before
+and after `Task.yield`, and waits causally through a MainActor result method.
+Apple Swift 6.3.3 compiled it in complete strict Swift 6 mode with warnings as
+errors and returned exact `none|none` in twenty bounded runs. Every native
+five-run shard retained SHA-256
+`dc022b9fd32ef23613a6bf01ee0af601d88cf1f8fce887c8924f7047de1bd4b4`;
+no physical thread, elapsed duration, or unrelated scheduler order is an
+oracle.
+
+The deterministic interpreter RED returned the same value and drained its
+runtime state, but recorded zero physical submissions/executions instead of
+one. The minimal route-table change admits `.inherited` only when the selected
+own source-class method is async, nonthrowing, argument-free, and
+Void-returning. The existing typed command and confined relay perform the
+physical wrapper plus executor handoff; ordinary invocation runs only after
+the logical detached `EvaluationTaskContext` is restored. Focused controls
+keep inherited arguments and String results plus explicit `nonisolated`
+methods cooperative with zero receipts.
+
+The canonical focused board passed 70 tests in six suites plus all
+forty-three methodology checks and three isolated gate-contract checks;
+focused parity completed all twenty repetitions on four workers in one
+second. The rebuilt scoped TSan board passed native overlap 20/20 and all 56
 driver/kernel/source-call tests in three suites on four workers in 20 seconds
 without a race or interceptor diagnostic.
 

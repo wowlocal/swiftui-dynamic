@@ -3026,8 +3026,9 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Six narrow physical paths now exist behind a validated explicit
-  mode: a signature-free, argument-free, single-literal `Task.detached`
+  covered. Six narrow snapshot-kernel paths and five demand-cited physical
+  source-call-wrapper paths now exist behind a validated explicit mode. The
+  snapshot kernels are a signature-free, argument-free, single-literal `Task.detached`
   closure; the CotEditor-cited `string.count` spelling when `string` is a
   locally captured immutable String; and CotEditor's
   `selectedStrings.map(\.count).reduce(0, +)` spelling over a local immutable
@@ -3036,7 +3037,10 @@ Each milestone is independently gated through
   CotEditor's exact immutable String/String.Index `distance(from:to:)`
   spelling; plus Signal-iOS's conditional `Task.sleep(for:)` over an immutable
   Bool and literal seconds/milliseconds. All six lower to checked snapshot
-  kernels and have paired cooperative/parallel plus TSan evidence. Physical
+  kernels and have paired cooperative/parallel plus TSan evidence. The five
+  source-call families launch only a checked wrapper command before confined
+  re-entry: MainActor, `@concurrent`, default source actor, actor-declared
+  custom global actor, and inherited detached-caller isolation. Physical
   Task-yield/sleep admission combines immutable callee shape with the stable
   registered core-Task identity; lexically shadowed source calls remain
   cooperative. The general
@@ -4050,13 +4054,44 @@ TSan board passed native overlap 20/20 plus all 55
 driver/kernel/source-call tests in three suites on four workers in 20 seconds
 without a race or interceptor diagnostic.
 
+The fifty-fifth prerequisite adds the first inherited-isolation source-class
+route. iTorrent's `WebServerService` is `@unchecked Sendable` and launches two
+one-expression detached wrappers around plain async, nonthrowing,
+argument-free, Void-returning own methods. Their declarations name no actor
+or `@concurrent` executor, so the target descriptor preserves `.inherited`
+instead of collapsing the call into cooperative-default metadata during
+selection.
+
+Physical admission is still a pure route-table decision over the already
+selected origin-bound descriptor. It accepts `.inherited` only for that exact
+async/no-argument/Void family. The worker carries the existing Sendable
+entry/task/target/result command and opens the confined-executor handoff; it
+does not carry the source instance, closure, environment, runtime value,
+program state, heap, actor, or evaluator. After relay re-entry reinstalls the
+detached source task's `EvaluationTaskContext`, ordinary invocation inherits
+that logical cooperative-default context. Consequently the method sees nil
+actor isolation before `Task.yield` and again after continuation, without
+fabricating either MainActor or a source actor.
+
+Apple Swift 6.3.3 and interpreted execution returned exact `none|none` in
+twenty bounded runs; all native five-run shards retained canonical SHA-256
+`dc022b9fd32ef23613a6bf01ee0af601d88cf1f8fce887c8924f7047de1bd4b4`.
+The receipt RED moved from zero to one physical execution. Argument-bearing
+and String-returning inherited methods plus explicit `nonisolated` methods
+remain cooperative with zero receipts. The focused board passed 70 tests in
+six suites, all 46 methodology/gate checks, and twenty parity repetitions on
+four workers in one second. The rebuilt scoped TSan board passed native
+overlap 20/20 plus all 56 driver/kernel/source-call tests in three suites on
+four workers in 24 seconds without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
 source class/actor/host/standard-library target identities beyond the unique
 own reference-method descriptor, the exact default-actor synchronous and async
 single-Int plus explicit-single-defaulted-Bool routes, the exact actor-declared
-custom-global-actor argument-free async Void route, normalized callee shape,
+custom-global-actor argument-free async Void route, the exact inherited-caller
+argument-free async Void route, normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
@@ -4066,7 +4101,8 @@ behind the session, and
 demand-cited value, richer scalar-expression, and captured or richer suspending
 kernels still need safe lowering. The scoped
 literal/String-count/Substring-reduction/yield/String-distance/conditional-sleep/
-MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor-source-call
+MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor/
+inherited-source-call
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

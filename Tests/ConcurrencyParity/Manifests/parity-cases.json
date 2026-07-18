@@ -2742,6 +2742,21 @@
     "notes": "Provenance demand-cites Task.detached(priority: .utility) { await self.createSystemDirectories() } at BIOSDirectoryWatcher.swift:79-80; the selected source-class method is argument-free, async, nonthrowing, Void-returning, and annotated with the actor-declared FileSystemActor at lines 109-110. The bounded same-source probe makes its result method wait on the same global actor, requiring mailbox release for the unretained wrapper, and returns exact same|same from #isolation identity checks before and after Task.yield. Apple Swift 6.3.3 complete-strict compilation with warnings as errors and interpreted execution returned that value in twenty bounded runs. Every native five-run shard reported canonical SHA-256 fcb1cc9c933c78c04ad6becc131ea2f7d8ca50a23b090f5336dbcb64c0be6261. The receipt RED already returned the exact value through cooperative fallback but recorded zero physical submissions/executions instead of one. Admission performs only declaration lookup for one uniquely matching source @globalActor actor with the default executor; it does not read static shared or initialize source state. Ordinary confined invocation resolves the canonical shared actor and owns its mailbox. Argument-bearing or String-returning custom-global-actor methods, struct/enum-backed global actors, custom executors, throwing calls, and richer results remain cooperative."
   },
   {
+    "id": "parallel-detached-inherited-source-call",
+    "fixture": "Fixtures/parallel-detached-inherited-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedInheritedSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "A plain async Void method on an @unchecked Sendable source class inherits the detached caller's nil actor isolation, retains nil isolation across Task.yield, and may complete an unretained detached wrapper without an actor hop.",
+    "notes": "iTorrent demand-cites the one-expression Task.detached(priority: .utility) { await self.refreshWebServerState() } and refreshWebDavServerState() spellings in WebServerService.swift:120 and 128; WebServerService is @unchecked Sendable and both selected own source-class methods are plain async, nonthrowing, argument-free, and Void-returning at lines 198 and 222. The bounded same-source probe launches an unretained wrapper and reports #isolation before and after Task.yield without asserting a thread or scheduler order. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact none|none in twenty bounded runs; every native five-run shard reported canonical SHA-256 dc022b9fd32ef23613a6bf01ee0af601d88cf1f8fce887c8924f7047de1bd4b4. The receipt RED already returned that exact value through cooperative fallback but recorded zero physical submissions/executions instead of one. Admission is capped to an argument-free async nonthrowing Void own source-class method with inherited caller isolation; synchronous, argument-bearing, String-returning, explicitly nonisolated, throwing, ambiguous, and richer-result forms remain cooperative."
+  },
+  {
     "id": "parallel-captured-string-distance",
     "fixture": "Fixtures/parallel-captured-string-distance.swift",
     "mode": "runtime",

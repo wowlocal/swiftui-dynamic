@@ -350,7 +350,10 @@ extension Interpreter {
     /// Async actor routes own either one required integer argument or one
     /// explicitly supplied Boolean for a defaulted parameter. Other argument
     /// families, String results, explicitly nonisolated methods, and custom
-    /// actor executors remain cooperative until separately proven.
+    /// actor executors remain cooperative until separately proven. A plain
+    /// async source-class method may inherit the detached caller only for the
+    /// demand-backed argument-free Void route; explicit nonisolated methods
+    /// and richer inherited signatures remain cooperative.
     private func isSupportedPhysicalSourceCallRoute(
         _ target: RuntimeSourceFunctionTargetDescriptor,
         on instance: Instance,
@@ -374,8 +377,12 @@ extension Interpreter {
                     && RuntimePhysicalSourceCallResultKind(
                         returnTypeName: target.returnTypeName) == .void
                     && hasUniqueDefaultSourceGlobalActorCandidate(candidates)
-            case .inherited,
-                 .explicitlyNonisolated,
+            case .inherited:
+                return parameters.isEmpty
+                    && arguments.isEmpty
+                    && RuntimePhysicalSourceCallResultKind(
+                        returnTypeName: target.returnTypeName) == .void
+            case .explicitlyNonisolated,
                  .executor(.detached),
                  .executor(.actor):
                 return false
