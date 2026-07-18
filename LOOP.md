@@ -2898,3 +2898,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   doctrine completion — @Query re-renders on store writes). Every
   board at ceiling; remaining queue is the two user-action gates
   (Screen Recording, Accessibility) and the london tripwire.
+- 2026-07-18 M1 OPENS: AsyncStream.makeStream — THE 115-COUNT TUPLE
+  CLASS (worktree iteration 85): with FoodTruck and all backstops at
+  ceiling, milestone weighting points at M1 (TestCheck), whose biggest
+  class was 115x "tuple binding doesn't match the value shape" — every
+  element-x failure at ONE merged site: `let (stream, continuation) =
+  AsyncStream<P.Output>.makeStream()` (their deferFulfillment helper).
+  The runtime had the FULL stream machinery (storage/continuation/
+  sequence — the closure constructor composes them); only the
+  tuple-returning static was missing. sourceAsyncStreamMakeStream
+  Function composes the same primitives into the labeled
+  (stream, continuation) TupleValue; tolerant of unresolved generics
+  (element bookkeeping only); AsyncThrowingStream variant included.
+  Pins: AsyncStreamMakeStreamTests (destructure+yield+finish+for-await
+  = "12"; labeled member access on the made tuple; runtime records
+  drain to zero). element-x's tuple-binding count: MANY -> ZERO (its
+  histogram head is now "#require failed: found nil" 14x). Residual
+  tuple-binding instances hit a different site in the TCA-genre
+  projects — next iteration's histogram target. GATE GREEN 1108s.
