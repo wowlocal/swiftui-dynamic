@@ -140,6 +140,9 @@ public struct InterpretedView: View {
     }
 
     public var body: some View {
+        if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
+            print("TRACE-BINDING body-eval \(instance.symbol.name)")
+        }
         do {
             try interpreter.injectEnvironmentObjects(into: instance, models: modelEnvironment.models)
         } catch let error as RuntimeError {

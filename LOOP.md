@@ -2695,3 +2695,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   whether the InterpretedView body re-evaluates and where the title
   preference stalls. Boards: R4 13/13, R2 18/18 after the fix. GATE
   GREEN 1103s. titled= stays reported-only until the hop closes.
+- 2026-07-18 THE HOP ISOLATED: SPLIT ISLANDS SWALLOW MODEL RE-RENDERS
+  (worktree iteration 70): body-eval tracing (env-gated, permanent)
+  nailed the A/B — after the nested-field write, the HStack FALLBACK
+  cascades body re-evaluations (ContentView -> Sidebar -> DetailColumn
+  -> DonutEditor -> DonutView; the rename fully propagates), while
+  under the REAL NavigationSplitView the SAME sends deliver to the
+  SAME live stores and ZERO bodies re-evaluate. CLASS:
+  objectWillChange-driven re-renders do not propagate into the split's
+  per-column NSHostingView islands for interpreted content — which
+  also explains why the working live mutations ride other mechanisms
+  (sheet presentation, control-local state, view-@State adopt wiring).
+  A/B repro: env INTERP_TRACE_BINDING=1 [DEMO_SPLIT_FALLBACK=1]
+  DEMO_SWEEP_STEP=donuteditor ... --sweep. Suspects for next
+  iteration: stale-store subscriptions vs the island's active tree
+  (subscription keyed per store; the ACTIVE island store may never be
+  the one subscribed), or the send arriving outside the island's
+  update cycle. titled= stays reported-only.
