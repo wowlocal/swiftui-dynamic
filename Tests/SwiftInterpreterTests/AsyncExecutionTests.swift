@@ -814,6 +814,53 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
     }
 
+    @Test func sendableAttributeDoesNotChangeTaskExecutorSelection()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-sendable-closure-isolation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedSendableClosureIsolationProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        interpreter.globals.define(
+            "parityCurrentIsolationMatches",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationMatches"
+            ) { arguments, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                guard case .host(let expected)? = arguments.positional(0),
+                      let expected = expected
+                        as? RuntimeActorIsolationValue,
+                      case .host(let actual)? =
+                        isolation.unwrappedOptionalOrSelf,
+                      let actual = actual
+                        as? RuntimeActorIsolationValue else {
+                    return .native("none")
+                }
+                return .native(
+                    expected.executor == actual.executor
+                        ? "same" : "other")
+            }))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "same|same#none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
     @Test func runtimeRecordsExplicitInheritedAndDetachedPriorities() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

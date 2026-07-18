@@ -1823,6 +1823,28 @@ seconds without a race or interceptor diagnostic. The exact-tip async,
 generated Task-surface, and parallel-kernel board passed 137 tests in three
 suites on four workers in two seconds.
 
+The sixty-fifth M9 slice is an already-GREEN characterization of
+closure-signature `@Sendable`. Two pinned corpus sites use the exact detached
+operation form: swift-composable-architecture
+`CurrentValueRelayTests.swift:38` and CotEditor `FileNode.swift:410`. The
+oracle compares `Task { @Sendable in ... }` with
+`Task.detached { @Sendable in ... }` from one MainActor function and samples
+source isolation on both sides of `Task.yield`.
+
+Apple Swift 6.3.3 compiled the same source in Swift 6 complete-strict mode
+with warnings as errors. Twenty bounded runs returned exact
+`same|same#none|none`; all four five-run shards retained digest
+`c1c7528bed014c8a1065d919d0b0813aad3cb8170d5d495fd0968c2812edeaa4`.
+The current interpreter returned the same observation before any production
+change, with zero physical submissions/executions and empty task, structured-
+scope, and task-group registries. Evidence therefore records characterization
+rather than inventing a RED: `@Sendable` is executor-neutral, while Task API
+selection still controls lexical actor inheritance. The focused iteration
+passed two regressions, all forty-three methodology checks plus three isolated
+gate-contract checks, and twenty parity repetitions in two seconds. The
+exact-tip async, generated Task-surface, and parallel-kernel board passed 138
+tests in three suites on four workers in two seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

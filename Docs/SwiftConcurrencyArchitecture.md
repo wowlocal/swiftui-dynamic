@@ -4419,6 +4419,24 @@ a race or interceptor diagnostic. The exact-tip async, generated Task-surface,
 and parallel-kernel board passed 137 tests in three suites on four workers in
 two seconds.
 
+The sixty-fifth prerequisite characterizes a runtime-inert closure attribute
+at the same boundary. swift-composable-architecture and CotEditor contain the
+exact `Task.detached { @Sendable in ... }` operation spelling. From one
+MainActor function, strict native Swift and interpreted execution returned
+exact `same|same#none|none` for ordinary and detached Task operations before
+and after `Task.yield`; all four native five-run shards retained SHA-256
+`c1c7528bed014c8a1065d919d0b0813aad3cb8170d5d495fd0968c2812edeaa4`.
+
+The existing runtime was already correct, so no new executor field or launch
+branch was added. `@Sendable` remains metadata with no source-executor effect;
+the consuming API alone selects whether the anonymous closure inherits its
+lexical MainActor, while an explicit actor attribute remains the separate
+closure executor described above. Both authored signatures stay cooperative
+with zero physical receipts. The focused iteration passed two regressions,
+all 46 methodology/gate checks, and twenty parity repetitions in two seconds.
+The exact-tip async, generated Task-surface, and parallel-kernel board passed
+138 tests in three suites on four workers in two seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and

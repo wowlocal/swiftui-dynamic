@@ -2652,6 +2652,21 @@
     "notes": "Planet demand-cites `Task.detached { @MainActor in ... }` at Planet/Entities/PlanetStore.swift:246, and the pinned external corpus contains 57 matching operation shapes across Planet, Provenance, and apple-browsers. Apple Swift 6.3.3's complete-strict region checker emits an internal checker diagnostic for that exact spelling; adding explicit `@Sendable`, which is already required semantically by Task.detached and has no executor effect, is the minimal native-oracle workaround. The strict fixture then returned exact same|same#none|none in twenty bounded runs; every focused five-run native-observation shard retained canonical SHA-256 032c610c796c0f579b3af0c81e114c283f50d2ce0e576bb16089ef843ef1da7a. The deterministic interpreter RED returned same|same#same|same: explicit isolation happened to look correct because every anonymous closure inherited its lexical MainActor, but the plain detached operation incorrectly kept that actor. Closure formation now records explicit MainActor or retains user-global-actor candidates for the existing lazy resolver independently from lexical inheritance. Ordinary detached task entry suppresses inherited anonymous-closure isolation while preserving an explicit closure executor; Task, Task.immediate, and Task.immediateDetached retain their separate inheritance rules. The authored signature remains cooperative with zero physical receipts. No worker identity or unrelated scheduler order is asserted."
   },
   {
+    "id": "detached-sendable-closure-isolation",
+    "fixture": "Fixtures/detached-sendable-closure-isolation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await detachedSendableClosureIsolationProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "A closure-signature @Sendable attribute does not select an executor: Task still inherits its MainActor formation context, while Task.detached remains nonisolated before and after suspension.",
+    "notes": "The pinned external corpus demand-cites the exact `Task.detached { @Sendable in ... }` spelling in swift-composable-architecture's CurrentValueRelayTests.swift:38 and the priority-bearing form in CotEditor's FileNode.swift:410. Apple Swift 6.3.3 compiled the same source in Swift 6 complete-strict mode with warnings as errors and returned exact same|same#none|none in twenty bounded runs; every focused five-run native-observation shard retained canonical SHA-256 c1c7528bed014c8a1065d919d0b0813aad3cb8170d5d495fd0968c2812edeaa4. The interpreter was already GREEN after the preceding closure-executor fix, so this is behavioral characterization with no production change. Runtime-inert `@Sendable` leaves API-selected executor policy intact: Task inherits the MainActor lexical context, while Task.detached suppresses it. Both authored signatures remain cooperative with zero physical receipts. No Sendable checking, worker identity, or unrelated scheduling order is asserted."
+  },
+  {
     "id": "parallel-detached-mainactor-source-call",
     "fixture": "Fixtures/parallel-detached-mainactor-source-call.swift",
     "mode": "runtime",
