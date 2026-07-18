@@ -1977,6 +1977,31 @@ board passed 20/20 in two seconds; the exact-tip physical board passed all 69
 tests in one second; and the rebuilt TSan board passed native overlap 20/20
 plus all 69 tests in 25 seconds without a race or interceptor diagnostic.
 
+The seventy-first M9 slice asks whether KeyboardCowboy's exact weak-self call
+may pass one immutable `[String]` capture to an inherited-isolation async Void
+method. The demand spelling is `Task.detached { [weak self] in await
+self?.reload(additionalPaths) }` at `ApplicationStore.swift:79-81`; the
+selected method begins at line 90.
+
+Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
+concurrency checking and warnings as errors. Native and interpreted execution
+returned exact `Applications,WebApps:none|none#some` in twenty bounded
+repetitions; every five-run shard retained canonical digest
+`1782ec2cb9384815bd4effeae9daa6f2521dc4064c23871eea026619d5184104`.
+The deterministic receipt RED already returned the exact value but observed
+zero physical submissions/executions instead of one.
+
+The positive regression requires both copied array elements, one physical
+wrapper, and empty registries. A separate zero-receipt control passes typed
+`[String]` parameters through direct inherited, weak `@concurrent`, and weak
+MainActor calls; all remain cooperative. The command kind also rejects any
+non-String snapshot element or non-`[String]` declared parameter. This proves
+that recursive Sendable copying is necessary but not sufficient for route
+admission. The focused route board passed eight tests; the same-source board
+passed 20/20 in two seconds; the exact-tip physical board passed all 71 tests
+in one second; and the rebuilt TSan board passed native overlap 20/20 plus all
+71 tests in 29 seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

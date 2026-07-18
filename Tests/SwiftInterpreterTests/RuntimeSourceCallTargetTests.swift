@@ -738,6 +738,106 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func weakInheritedStringArraySourceCallUsesPhysicalWrapper() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-weak-inherited-string-array-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedWeakInheritedStringArraySourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "Applications,WebApps:none|none#some")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func unsupportedStringArraySourceCallRoutesStayCooperative() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        final class StringArrayRouteControl: @unchecked Sendable {
+            private var observation = ""
+
+            @MainActor
+            private func record(_ value: String) {
+                if !observation.isEmpty { observation += "|" }
+                observation += value
+            }
+
+            func inherited(_ values: [String]) async {
+                await Task.yield()
+                await record("inherited:\\(values[0])")
+            }
+
+            @concurrent
+            nonisolated func concurrent(_ values: [String]) async {
+                await Task.yield()
+                await record("concurrent:\\(values[0])")
+            }
+
+            @MainActor
+            func mainActor(_ values: [String]) async {
+                await Task.yield()
+                record("main:\\(values[0])")
+            }
+
+            func launchDirect(_ values: [String]) -> Task<Void, Never> {
+                Task.detached { await self.inherited(values) }
+            }
+
+            func launchConcurrent(_ values: [String]) -> Task<Void?, Never> {
+                Task.detached { [weak self] in
+                    await self?.concurrent(values)
+                }
+            }
+
+            func launchMainActor(_ values: [String]) -> Task<Void?, Never> {
+                Task.detached { [weak self] in
+                    await self?.mainActor(values)
+                }
+            }
+
+            func run() async -> String {
+                await launchDirect(["direct"]).value
+                await launchConcurrent(["concurrent"]).value
+                await launchMainActor(["main"]).value
+                return await result()
+            }
+
+            @MainActor
+            private func result() -> String { observation }
+        }
+
+        await StringArrayRouteControl().run()
+        """)
+
+        #expect(value.stringValue ==
+            "inherited:direct|concurrent:concurrent|main:main")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func strongSelfCaptureSourceCallUsesPhysicalWrapper() async throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

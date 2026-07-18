@@ -2862,6 +2862,21 @@
     "notes": "Session-iOS repeats `Task.detached(priority: .userInitiated) { [weak self] in await self?.updateMentions(for: newText) }` at ConversationVC+Interaction.swift:1016-1018 and AttachmentApprovalViewController.swift:860-862; each selected own source-class method is inherited-isolation, async, nonthrowing, Void-returning, and accepts one labeled String. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact session-message:none|none#some in twenty bounded native/interpreter runs; every native five-run shard retained canonical SHA-256 d12895520e72e0f0c35194394fa4cc6fe01f5cf0bba7f133fc04e8fe06994403. The deterministic interpreter RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. The weak inherited route now accepts its existing typed capturedImmutable String origin as well as the separately proved literal origin; confined re-entry still reloads the genuine weak receiver and materializes only the checked snapshot. Mutable or expression Strings, MainActor/actor methods, multiple arguments, throwing methods, and richer results remain cooperative."
   },
   {
+    "id": "parallel-detached-weak-inherited-string-array-source-call",
+    "fixture": "Fixtures/parallel-detached-weak-inherited-string-array-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedWeakInheritedStringArraySourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "A live weak optional-self detached operation may pass one unlabeled immutable [String] capture to an inherited-isolation async nonthrowing Void source-class method; every copied element arrives exactly and the method retains nil actor isolation across suspension.",
+    "notes": "KeyboardCowboy demand-cites `Task.detached { [weak self] in await self?.reload(additionalPaths) }` at ApplicationStore.swift:79-81; `additionalPaths` is an immutable [String] and the selected own method at line 90 is inherited-isolation, async, nonthrowing, Void-returning, with one unlabeled [String] parameter. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact Applications,WebApps:none|none#some in twenty bounded native/interpreter runs; every native five-run shard retained canonical SHA-256 1782ec2cb9384815bd4effeae9daa6f2521dc4064c23871eea026619d5184104. The deterministic interpreter RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. A typed stringArray command kind verifies both the declared [String] element type and every recursively copied worker snapshot element; admission is limited to one directly owned immutable capture on the weak inherited route. Direct inherited, weak @concurrent, and weak MainActor [String] calls remain cooperative with zero receipts; mutable, literal/expression, other-element, multiple-argument, throwing, and richer-result forms remain outside the route."
+  },
+  {
     "id": "parallel-detached-strong-self-capture-source-call",
     "fixture": "Fixtures/parallel-detached-strong-self-capture-source-call.swift",
     "mode": "runtime",

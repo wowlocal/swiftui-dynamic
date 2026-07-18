@@ -427,10 +427,10 @@ extension Interpreter {
             switch target.isolation {
             case .executor(.mainActor),
                  .executor(.cooperativeDefault):
-                // String arguments are demand-scoped to the inherited Planet
-                // route below. Existing MainActor/@concurrent routes retain
-                // their integer/Boolean argument surface.
-                return !arguments.contains { $0.valueKind == .string }
+                // String-family arguments are demand-scoped to inherited
+                // routes below. Existing MainActor/@concurrent direct routes
+                // retain their integer/Boolean argument surface.
+                return !arguments.contains { $0.valueKind.isStringFamily }
             case .lazyGlobalActorCandidates(let candidates):
                 return parameters.isEmpty
                     && arguments.isEmpty
@@ -491,9 +491,10 @@ extension Interpreter {
     /// Weak optional-self admission is deliberately separate from direct-self
     /// routing. Provenance owns the inherited argument-free and String-literal
     /// forms; Session adds one immutable String capture to that same inherited
-    /// route, while Amperfy owns the captured-String `@concurrent` form. No
-    /// weak receiver or source argument crosses the worker boundary: only the
-    /// copied String snapshot does.
+    /// route, KeyboardCowboy adds one immutable `[String]` capture, and
+    /// Amperfy owns the captured-String `@concurrent` form. No weak receiver or
+    /// source argument crosses the worker boundary: only checked copied
+    /// snapshots do.
     private func isSupportedPhysicalWeakSourceCallRoute(
         _ target: RuntimeSourceFunctionTargetDescriptor,
         on instance: Instance,
@@ -520,7 +521,13 @@ extension Interpreter {
                 && arguments.count == 1
                 && arguments[0].valueKind == .string
                 && hasSupportedStringOrigin
-            return isArgumentFreeRoute || isSingleStringRoute
+            let isCapturedStringArrayRoute = parameters.count == 1
+                && arguments.count == 1
+                && arguments[0].valueKind == .stringArray
+                && arguments[0].origin == .capturedImmutable
+            return isArgumentFreeRoute
+                || isSingleStringRoute
+                || isCapturedStringArrayRoute
         case .executor(.cooperativeDefault):
             return parameters.count == 1
                 && arguments.count == 1
@@ -559,11 +566,11 @@ extension Interpreter {
 
     /// Evaluate no source effects while admitting a physical wrapper. An
     /// integer, Boolean, or demand-cited String literal is already a value,
-    /// and a direct immutable Int/Int64 or demand-cited String capture has
-    /// fixed value semantics for this closure. Every other argument spelling
-    /// and type stays on the cooperative evaluator.
+    /// and a direct immutable Int/Int64, String, or demand-cited `[String]`
+    /// capture has fixed value semantics for this closure. Every other
+    /// argument spelling and type stays on the cooperative evaluator.
     /// The checked capability performs the structural Sendable copy; the
-    /// command retains labels, binding IDs, and the expected scalar kind.
+    /// command retains labels, binding IDs, and the expected value kind.
     private func physicalSourceCallArguments(
         _ metadata: [ParsedCallArgumentMetadata],
         closure: ClosureValue
@@ -618,6 +625,11 @@ extension Interpreter {
                     valueKind = .integer
                 case .string:
                     valueKind = .string
+                case .array(let values) where values.allSatisfy({ value in
+                    if case .string = value { return true }
+                    return false
+                }):
+                    valueKind = .stringArray
                 default:
                     return nil
                 }

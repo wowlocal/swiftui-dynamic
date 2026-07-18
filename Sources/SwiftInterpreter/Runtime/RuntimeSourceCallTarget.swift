@@ -106,18 +106,31 @@ nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
     case integer
     case boolean
     case string
+    case stringArray
 
     func accepts(_ snapshot: RuntimeWorkerValueSnapshot) -> Bool {
         switch (self, snapshot) {
         case (.integer, .int), (.boolean, .bool), (.string, .string):
             true
+        case (.stringArray, .array(let values)):
+            values.allSatisfy { value in
+                if case .string = value { return true }
+                return false
+            }
         default:
             false
         }
     }
 
     func accepts(parameterTypeName: String?) -> Bool {
-        switch (self, RuntimeDeclaredType.nominalTypeName(parameterTypeName)) {
+        if self == .stringArray {
+            return RuntimeDeclaredType.arrayElementTypeName(
+                in: parameterTypeName) == "String"
+        }
+        return switch (
+            self,
+            RuntimeDeclaredType.nominalTypeName(parameterTypeName)
+        ) {
         case (.integer, "Int"), (.integer, "Int64"), (.boolean, "Bool"),
              (.string, "String"):
             true
@@ -125,12 +138,16 @@ nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
             false
         }
     }
+
+    var isStringFamily: Bool {
+        self == .string || self == .stringArray
+    }
 }
 
 /// Source provenance is part of physical admission rather than inferred from
 /// a synthetic binding name. Route proofs can therefore distinguish a
 /// side-effect-free literal from a directly owned immutable capture without
-/// widening every route that accepts the same scalar value kind.
+/// widening every route that accepts the same value kind.
 nonisolated enum RuntimePhysicalSourceCallArgumentOrigin: Sendable, Equatable {
     case literal
     case capturedImmutable

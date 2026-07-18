@@ -3044,8 +3044,8 @@ Each milestone is independently gated through
   source-call bodies are signature-free except for Provenance's exact
   capture-only `{ [self] in await self.registerDefaults() }` spelling and the
   exact capture-only weak-self forms for its inherited argument-free or
-  single-literal/captured-String calls and Amperfy's `@concurrent`
-  single-captured-String call. The strong-capture proof cannot
+  single-literal/captured-String or single-captured-`[String]` calls and
+  Amperfy's `@concurrent` single-captured-String call. The strong-capture proof cannot
   fall through to a snapshot kernel. No weak reference crosses a physical
   boundary: the runtime record retains the confined weak box and reloads it
   only after re-entry. All other `[weak self]` optional async member calls use
@@ -4581,6 +4581,36 @@ tests, the exact-tip physical board passed 69 tests in one second, and the
 rebuilt TSan twin passed native overlap 20/20 plus all 69 tests in 25 seconds
 without a race or interceptor diagnostic.
 
+The seventy-first prerequisite adds KeyboardCowboy's weak inherited
+captured-`[String]` shape. Its admitted body is exactly one
+`await self?.method(value)` expression in an exact capture-only `[weak self]`
+detached closure. `value` must resolve to a directly owned immutable
+`[String]`, and the uniquely resolved own source-class method must inherit
+caller isolation, be async and nonthrowing, return Void, and declare one
+matching array parameter.
+
+`RuntimePhysicalSourceCallValueKind.stringArray` is the typed transport proof.
+It accepts a worker snapshot only when the outer value is an array and every
+recursively copied element is String; declaration validation independently
+requires a `[String]` or `Array<String>` parameter spelling. The argument
+lowerer admits only a directly referenced immutable binding, so an array
+literal, expression, mutable binding, global, or other element type cannot
+borrow this route merely because it is recursively copyable.
+
+The weak command still contains no receiver, weak box, source closure,
+environment, `RuntimeValue`, program state, heap, or evaluator. Confined
+re-entry reloads the weak receiver, materializes the copied array, re-resolves
+the exact descriptor, and temporarily strengthens only a live receiver for
+invocation. A separate regression keeps direct inherited, weak
+`@concurrent`, and weak MainActor `[String]` calls cooperative with zero
+receipts. Strict native and interpreted execution returned exact
+`Applications,WebApps:none|none#some` in twenty runs, with five-run digest
+`1782ec2cb9384815bd4effeae9daa6f2521dc4064c23871eea026619d5184104`;
+the physical receipt RED moved from zero to one. The focused route board passed
+eight tests, the exact-tip physical board passed 71 tests in one second, and the
+rebuilt TSan twin passed native overlap 20/20 plus all 71 tests in 29 seconds
+without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4589,8 +4619,8 @@ own reference-method descriptor, the exact default-actor synchronous and async
 single-Int plus explicit-single-defaulted-Bool routes, the exact actor-declared
 custom-global-actor argument-free async Void route, the exact inherited-caller
 argument-free or direct captured-String async Void routes, the exact weak-self
-inherited argument-free/literal-or-captured-String and `@concurrent` captured-String async
-Void routes, normalized callee shape,
+inherited argument-free/literal-or-captured-String/captured-`[String]` and
+`@concurrent` captured-String async Void routes, normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
@@ -4607,6 +4637,7 @@ and parallel-detached-weak-self-source-call
 and parallel-detached-weak-concurrent-string-source-call
 and parallel-detached-weak-inherited-string-literal-source-call
 and parallel-detached-weak-inherited-captured-string-source-call
+and parallel-detached-weak-inherited-string-array-source-call
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension
