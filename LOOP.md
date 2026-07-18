@@ -2916,3 +2916,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   histogram head is now "#require failed: found nil" 14x). Residual
   tuple-binding instances hit a different site in the TCA-genre
   projects — next iteration's histogram target. GATE GREEN 1108s.
+- 2026-07-18 TUPLE-CLASS RESIDUE RE-CLASSIFIED: ABSENT PACKAGE
+  DEPENDENCY (worktree iteration 86): the remaining ~44 TCA
+  tuple-binding failures decomposed via a five-rung repro ladder (all
+  interpreter tuple machinery GREEN: direct, closure-return, labeled-3,
+  arg+trailing, coalesced-closure, TCA-shape with local wrapper) plus a
+  now-self-diagnosing error — the binding site receives a
+  host(UIKitStub): the free `withDependencies` lives in the
+  swift-dependencies PACKAGE, absent from the corpus checkout (natively
+  SPM fetches it; only TestStore METHODS with that name are on disk).
+  The class is corpus-material completeness, not interpreter
+  semantics. Both tuple-binding throw sites now report wanted-vs-got
+  shape ("wanted 3 elements, got host(...UIKitStub)"), converting 100+
+  opaque failures into attributable evidence. Options recorded:
+  vendor missing package deps into the corpus checkouts (bounded
+  fetch, faithful to native builds) or ledger the dependent suites
+  FreeChat-style. GATE GREEN 1112s.
