@@ -2874,3 +2874,6 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (the wall-clock probe, honestly volatile) of 362. GATE GREEN 1100s
   (the parity contract pattern-matches on 0-diverge, no churn).
   PARITY_LIST_UNSTABLE env stays as the instrument.
+- 2026-07-18 i79-i81 RECEIPTED (worktree iteration 82): clean-detached
+  gate GREEN 1144s on exact tip e86b276; MERGE-READY posted (the
+  parity 345->361 jump + the menu-driver search space + receipts).
