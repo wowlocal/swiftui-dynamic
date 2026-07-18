@@ -107,10 +107,12 @@ nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
     case boolean
     case string
     case stringArray
+    case url
 
     func accepts(_ snapshot: RuntimeWorkerValueSnapshot) -> Bool {
         switch (self, snapshot) {
-        case (.integer, .int), (.boolean, .bool), (.string, .string):
+        case (.integer, .int), (.boolean, .bool), (.string, .string),
+             (.url, .url):
             true
         case (.stringArray, .array(let values)):
             values.allSatisfy { value in
@@ -132,15 +134,11 @@ nonisolated enum RuntimePhysicalSourceCallValueKind: Sendable, Equatable {
             RuntimeDeclaredType.nominalTypeName(parameterTypeName)
         ) {
         case (.integer, "Int"), (.integer, "Int64"), (.boolean, "Bool"),
-             (.string, "String"):
+             (.string, "String"), (.url, "URL"):
             true
         default:
             false
         }
-    }
-
-    var isStringFamily: Bool {
-        self == .string || self == .stringArray
     }
 }
 

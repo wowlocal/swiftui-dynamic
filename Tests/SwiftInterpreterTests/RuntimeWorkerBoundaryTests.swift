@@ -136,6 +136,29 @@ struct RuntimeWorkerBoundaryTests {
         #expect(capability.accessManifest.isWorkerSafe)
     }
 
+    @Test func copiedURLRemainsTypedAcrossDetachedBoundary() async throws {
+        let interpreter = Interpreter()
+        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+        let url = URL(fileURLWithPath: "/tmp/worker-url.mp4")
+        let capability = try entry.makeWorkerCapability(copying: [
+            .init(name: "url", value: .native(url)),
+        ])
+
+        let observation = try await Task.detached {
+            guard case .url(let copiedURL) = capability.bindings[0].value else {
+                throw RuntimeError(message: "invalid copied URL fixture")
+            }
+            return copiedURL
+        }.value
+
+        #expect(observation == url)
+        #expect(observation.lastPathComponent == "worker-url.mp4")
+        #expect(capability.accessManifest.copiedValuePaths == ["input.url"])
+        #expect(capability.accessManifest.isWorkerSafe)
+        #expect(capability.bindings[0].value.materializedRuntimeValue()
+            .hostPayload as? URL == url)
+    }
+
     @Test func confinedAndOpaqueValuesFailClosedAtTheExactEdge() throws {
         let interpreter = Interpreter()
         let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)

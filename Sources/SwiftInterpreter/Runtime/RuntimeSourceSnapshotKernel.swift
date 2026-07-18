@@ -521,11 +521,13 @@ extension Interpreter {
         return marker.name == "MainActor"
     }
 
-    /// A detached wrapper may have the complete body `await self.method(...)`
-    /// or the demand-backed `try? await self.throwingMethod()` spelling. Admit
-    /// only direct-self calls after runtime resolution proves one exact
-    /// supported declaration route: an async source-class method on
-    /// MainActor/@concurrent, or one of the checked default-actor shapes below.
+    /// A detached wrapper may have the complete body `await self.method(...)`,
+    /// the demand-backed `try? await self.throwingMethod()` spelling, or the
+    /// exact synchronous `self.nonisolatedMethod(url:)` form. Admit only
+    /// direct-self calls after runtime resolution proves one exact supported
+    /// declaration route: an async source-class method on MainActor/
+    /// @concurrent, one of the checked default-actor shapes below, or the
+    /// synchronous explicitly-nonisolated URL route.
     /// The physical worker carries only a command and checked argument
     /// snapshots; RuntimeTaskRecord retains the selected receiver closure on
     /// MainActor.
@@ -536,23 +538,35 @@ extension Interpreter {
         record: RuntimeTaskRecord,
         priority: RuntimeTaskPriority
     ) throws -> RuntimePhysicalSourceKernelJob? {
-        let awaitExpression: AwaitExprSyntax
+        let call: FunctionCallExprSyntax
         let errorDisposition: RuntimePhysicalSourceCallErrorDisposition
+        let isDirectSynchronousCall: Bool
         if let directAwait = expression.as(AwaitExprSyntax.self) {
-            awaitExpression = directAwait
+            guard let awaitedCall = directAwait.expression
+                .as(FunctionCallExprSyntax.self) else {
+                return nil
+            }
+            call = awaitedCall
             errorDisposition = .propagate
+            isDirectSynchronousCall = false
         } else if let attempt = expression.as(TryExprSyntax.self),
                   attempt.questionOrExclamationMark?.text == "?",
                   let optionalAwait = attempt.expression
-                    .as(AwaitExprSyntax.self) {
-            awaitExpression = optionalAwait
+                    .as(AwaitExprSyntax.self),
+                  let awaitedCall = optionalAwait.expression
+                    .as(FunctionCallExprSyntax.self) {
+            call = awaitedCall
             errorDisposition = .suppressToOptional
+            isDirectSynchronousCall = false
+        } else if let synchronousCall = expression
+            .as(FunctionCallExprSyntax.self) {
+            call = synchronousCall
+            errorDisposition = .propagate
+            isDirectSynchronousCall = true
         } else {
             return nil
         }
-        guard let call = awaitExpression.expression
-                .as(FunctionCallExprSyntax.self),
-              call.trailingClosure == nil,
+        guard call.trailingClosure == nil,
               call.additionalTrailingClosures.isEmpty else {
             return nil
         }
@@ -615,6 +629,13 @@ extension Interpreter {
               }),
               target.descriptor.originProgramPlan === entry.programPlan else {
             return nil
+        }
+        if isDirectSynchronousCall {
+            guard !isWeakOptionalSelf,
+                  !target.descriptor.isAsync,
+                  target.descriptor.isolation == .explicitlyNonisolated else {
+                return nil
+            }
         }
         let isSupportedRoute: Bool
         switch errorDisposition {
@@ -700,12 +721,13 @@ extension Interpreter {
     /// which acquires that exact actor mailbox before touching actor storage.
     /// Async actor routes own either one required integer argument or one
     /// explicitly supplied Boolean for a defaulted parameter. Other argument
-    /// families, String results, explicitly nonisolated methods, and custom
-    /// actor executors remain cooperative until separately proven. A plain
+    /// families, String results, and custom actor executors remain cooperative
+    /// until separately proven. A plain
     /// async source-class method may inherit the detached caller for the
     /// demand-backed argument-free Void route or Planet's single immutable
-    /// String-capture Void route; explicit nonisolated methods and richer
-    /// inherited signatures remain cooperative.
+    /// String-capture Void route. Damus adds the exact direct synchronous
+    /// explicitly-nonisolated Void route with one immutable URL capture;
+    /// richer nonisolated and inherited signatures remain cooperative.
     private func isSupportedPhysicalSourceCallRoute(
         _ target: RuntimeSourceFunctionTargetDescriptor,
         on instance: Instance,
@@ -715,25 +737,34 @@ extension Interpreter {
         switch target.lexicalPlacement {
         case .lexicalType(_, isTypeMember: false, isActor: false):
             guard !instance.symbol.isActor,
-                  target.isAsync,
                   parameters.allSatisfy({ $0.defaultValue == nil }) else {
                 return false
             }
             switch target.isolation {
             case .executor(.mainActor),
                  .executor(.cooperativeDefault):
-                // String-family arguments are demand-scoped to inherited
-                // routes below. Existing MainActor/@concurrent direct routes
-                // retain their integer/Boolean argument surface.
-                return !arguments.contains { $0.valueKind.isStringFamily }
+                guard target.isAsync else { return false }
+                // Existing MainActor/@concurrent direct routes retain only
+                // their integer/Boolean argument surface. New snapshot kinds
+                // must fail closed until their own route proof is added.
+                return arguments.allSatisfy { argument in
+                    switch argument.valueKind {
+                    case .integer, .boolean:
+                        true
+                    case .string, .stringArray, .url:
+                        false
+                    }
+                }
             case .lazyGlobalActorCandidates(let candidates):
-                return parameters.isEmpty
+                return target.isAsync
+                    && parameters.isEmpty
                     && arguments.isEmpty
                     && RuntimePhysicalSourceCallResultKind(
                         returnTypeName: target.returnTypeName) == .void
                     && hasUniqueDefaultSourceGlobalActorCandidate(candidates)
             case .inherited:
-                guard RuntimePhysicalSourceCallResultKind(
+                guard target.isAsync,
+                      RuntimePhysicalSourceCallResultKind(
                     returnTypeName: target.returnTypeName) == .void else {
                     return false
                 }
@@ -744,8 +775,15 @@ extension Interpreter {
                     && arguments[0].valueKind == .string
                     && arguments[0].origin == .capturedImmutable
                 return isArgumentFreeRoute || isSingleStringRoute
-            case .explicitlyNonisolated,
-                 .executor(.detached),
+            case .explicitlyNonisolated:
+                return !target.isAsync
+                    && RuntimePhysicalSourceCallResultKind(
+                        returnTypeName: target.returnTypeName) == .void
+                    && parameters.count == 1
+                    && arguments.count == 1
+                    && arguments[0].valueKind == .url
+                    && arguments[0].origin == .capturedImmutable
+            case .executor(.detached),
                  .executor(.actor):
                 return false
             }
@@ -886,8 +924,8 @@ extension Interpreter {
 
     /// Evaluate no source effects while admitting a physical wrapper. An
     /// integer, Boolean, or demand-cited String literal is already a value,
-    /// and a direct immutable Int/Int64, String, or demand-cited `[String]`
-    /// capture has fixed value semantics for this closure. Every other
+    /// and a direct immutable Int/Int64, String, URL, or demand-cited
+    /// `[String]` capture has fixed value semantics for this closure. Every other
     /// argument spelling and type stays on the cooperative evaluator.
     /// The checked capability performs the structural Sendable copy; the
     /// command retains labels, binding IDs, and the expected value kind.
@@ -945,6 +983,8 @@ extension Interpreter {
                     valueKind = .integer
                 case .string:
                     valueKind = .string
+                case .url:
+                    valueKind = .url
                 case .array(let values) where values.allSatisfy({ value in
                     if case .string = value { return true }
                     return false

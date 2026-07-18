@@ -2922,6 +2922,21 @@
     "notes": "Planet demand-cites `Task.detached(priority: .background) { await self.sendNotificationForNewCID(cid: cid) }` at MyPlanetModel.swift:2948-2950; the optional-binding `cid` is immutable and the selected own method takes one labeled String, is async/nonthrowing/Void, and has inherited isolation at line 3850. The strict same-source probe uses an @unchecked Sendable receiver, returns exact bafy-planet:none|none in twenty bounded native/interpreter runs, and every focused five-run shard retains canonical SHA-256 2e15021f8c242902f4ed71d5b4dd1a16a4cc66ec7ca6135550bd1b58782e99a0. The deterministic receipt RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. The general checked source-call argument schema now carries a string kind, recursively copies only a directly owned immutable String capture, validates the selected String parameter and worker snapshot, and materializes the argument only after confined re-entry. Admission is capped to one inherited-isolation async nonthrowing Void method; String literals, mutable captures, MainActor/@concurrent/actor routes, multiple arguments, throwing methods, and richer results remain cooperative."
   },
   {
+    "id": "parallel-detached-nonisolated-url-source-call",
+    "fixture": "Fixtures/parallel-detached-nonisolated-url-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedNonisolatedURLSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A detached operation may synchronously call an explicitly nonisolated, nonthrowing Void method on its MainActor-owned class with one immutable Foundation.URL argument; strict Swift 6 accepts the call without await and the method observes the exact URL value.",
+    "notes": "Damus demand-cites Task.detached(priority: TaskPriority.userInitiated) { self.loadPlayerItem(url: url) } in DamusVideoPlayer.swift:115-121 and repeats the direct synchronous explicitly-nonisolated URL call with the member expression self.url at lines 141-144. This slice admits the first directly captured immutable parameter; the member-expression repetition remains cooperative. Apple Swift 6.3.3 complete-strict compilation with warnings as errors accepted the same-source probe, whose selected method preconditions both copied URL path components; twenty bounded native runs returned exact loaded:first.mp4,second.mp4 with SHA-256 26294b72992c9fd560343945e2aa77e12ea5b60ee2b33c581a348651f99e5fb8. The deterministic receipt RED already returned the exact value and drained all runtime state through cooperative fallback, but recorded zero physical submissions/executions instead of two. RuntimeWorkerValueSnapshot now has a checked Foundation.URL value case, and the typed source-call command admits only a directly captured immutable URL matched to one URL parameter on a synchronous explicitly-nonisolated, nonthrowing, Void-returning own source-class method. Mutable or expression arguments, async or richer-result nonisolated methods, throwing calls, weak receivers, multiple arguments, and every other direct synchronous call stay cooperative. The physical receipt covers the checked detached wrapper and URL handoff only: the interpreted source body still re-enters the MainActor-confined evaluator, so this case does not claim arbitrary source execution on a worker, AVPlayerItem construction, DispatchQueue behavior, thread identity, or native background-performance parity."
+  },
+  {
     "id": "parallel-detached-inherited-try-optional-source-call",
     "fixture": "Fixtures/parallel-detached-inherited-try-optional-source-call.swift",
     "mode": "runtime",

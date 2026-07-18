@@ -434,6 +434,109 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func nonisolatedSynchronousURLSourceCallCopiesArgumentAndUsesPhysicalWrapper()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-nonisolated-url-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedNonisolatedURLSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "loaded:first.mp4,second.mp4")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func richerNonisolatedURLSourceCallShapesStayCooperative() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        let value = try await interpreter.runAsync(source: """
+        import Foundation
+
+        @MainActor
+        final class UnsupportedNonisolatedURLRoutes {
+            nonisolated func consume(url: URL) {
+                precondition(url.lastPathComponent.hasSuffix(".mp4"))
+            }
+
+            nonisolated func consumeAsync(url: URL) async {
+                precondition(url.lastPathComponent.hasSuffix(".mp4"))
+            }
+
+            func mainActorAsync(url: URL) async {
+                precondition(url.lastPathComponent.hasSuffix(".mp4"))
+            }
+
+            @concurrent
+            func concurrentAsync(url: URL) async {
+                precondition(url.lastPathComponent.hasSuffix(".mp4"))
+            }
+
+            nonisolated func project(url: URL) -> String {
+                url.lastPathComponent
+            }
+
+            func run() async -> String {
+                var mutableURL = URL(fileURLWithPath: "/tmp/mutable.mp4")
+                await Task.detached {
+                    self.consume(url: mutableURL)
+                }.value
+                await Task.detached {
+                    self.consume(url: URL(
+                        fileURLWithPath: "/tmp/expression.mp4"))
+                }.value
+                let asyncURL = URL(fileURLWithPath: "/tmp/async.mp4")
+                await Task.detached {
+                    await self.consumeAsync(url: asyncURL)
+                }.value
+                let mainActorURL = URL(
+                    fileURLWithPath: "/tmp/main-actor.mp4")
+                await Task.detached {
+                    await self.mainActorAsync(url: mainActorURL)
+                }.value
+                let concurrentURL = URL(
+                    fileURLWithPath: "/tmp/concurrent.mp4")
+                await Task.detached {
+                    await self.concurrentAsync(url: concurrentURL)
+                }.value
+                let projectedURL = URL(fileURLWithPath: "/tmp/value.mp4")
+                let projected = await Task.detached {
+                    self.project(url: projectedURL)
+                }.value
+                return "\\(mutableURL.lastPathComponent):\\(projected)"
+            }
+        }
+
+        await UnsupportedNonisolatedURLRoutes().run()
+        """)
+
+        #expect(value.stringValue == "mutable.mp4:value.mp4")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func inheritedTryOptionalSourceCallContainsThrowAndUsesPhysicalWrapper()
         async throws
     {

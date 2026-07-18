@@ -3027,7 +3027,7 @@ Each milestone is independently gated through
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
   covered. Six narrow snapshot-kernel paths, four demand-cited physical sleep-
-  prefix spellings, five demand-cited MainActor continuation wrappers, and five
+  prefix spellings, five demand-cited MainActor continuation wrappers, and six
   demand-cited physical source-call-wrapper paths now exist behind a validated
   explicit mode. The five continuation forms are a complete signature-free
   imported `MainActor.run(body:)` body, Planet's exact one-expression
@@ -3053,10 +3053,14 @@ through the same call-site metadata, generated Task gateway, signature-free
 `ClosureValue`, and typed yield kernel; it adds no worker capability. Clop's
 parenthesized `Task.detached(operation:)` spelling additionally proves that
 the omitted defaulted priority reaches that gateway as `nil` without creating
-a second execution path or worker capability. The five
+a second execution path or worker capability. The six
 source-call families launch only a checked wrapper command before confined
   re-entry: MainActor, `@concurrent`, default source actor, actor-declared
-  custom global actor, and inherited detached-caller isolation. Physical
+  custom global actor, inherited detached-caller isolation, and the exact
+  direct synchronous explicitly-nonisolated immutable-`URL` Void route.
+  The last route adds an audited `Foundation.URL` snapshot but keeps the
+  source method body confined, so it does not claim Damus's expensive
+  `AVPlayerItem` construction executes on a worker. Physical
   source-call bodies are signature-free except for Provenance's exact
   capture-only `{ [self] in await self.registerDefaults() }` spelling and the
   exact capture-only weak-self forms for its inherited argument-free or
@@ -5118,6 +5122,53 @@ seconds without a race or interceptor diagnostic. The proof does not identify
 the runtime-selected priority, constrain operation order or worker identity,
 or admit arbitrary parenthesized bodies and Clop's captured Image construction.
 
+The eighty-seventh prerequisite is a demand-backed gap closure for Damus's
+direct synchronous
+`Task.detached { self.loadPlayerItem(url: url) }` call in
+`DamusVideoPlayer.swift:115-121`. Lines 141-144 repeat the call with
+the member expression `self.url`; that richer argument spelling remains
+cooperative in this slice.
+The exact semantic question is whether a detached operation may call one own
+synchronous, explicitly `nonisolated`, nonthrowing Void method on a
+MainActor-owned class without `await`, while passing one immutable
+`Foundation.URL` with its value intact.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. The selected method preconditions both URL path
+components, and twenty bounded native runs returned exact
+`loaded:first.mp4,second.mp4`; their raw SHA-256 was
+`26294b72992c9fd560343945e2aa77e12ea5b60ee2b33c581a348651f99e5fb8`.
+Every five-run focused shard retained
+`8bce6684db5df514b31973891d9d1e3c7657d5dd217b6395449543af0436e86b`.
+Before the fix, interpreted execution already returned the exact value and
+drained all state, but explicit parallel mode recorded zero physical
+submissions/executions instead of two.
+
+`RuntimeWorkerValueSnapshot` now has a checked `URL` value case. The
+source-call argument command has a corresponding typed kind and verifies both
+the copied snapshot and the selected `URL` parameter. Direct synchronous
+call syntax is admitted only after exact target resolution proves an own
+source-class method that is explicitly nonisolated, synchronous, nonthrowing,
+Void-returning, has exactly one required parameter, and receives one directly
+owned immutable URL capture. Mutable or expression arguments, async and
+richer-result nonisolated methods, throwing calls, weak receivers, multiple
+arguments, and every other direct synchronous call remain cooperative.
+
+The physical receipt proves the checked detached wrapper and value handoff,
+not arbitrary source-body execution on a worker. The source evaluator, method
+body, receiver, host calls, and result remain confined and re-enter through
+the MainActor relay. Consequently this prerequisite does not yet claim native
+background-performance parity for Damus's expensive `AVPlayerItem`
+construction, `DispatchQueue` behavior, physical thread identity, or general
+nonisolated source execution. That larger gap stays explicit.
+
+The exact-tip prebuilt iteration passed 43/43 worker-boundary/source-call
+tests, all 46 methodology/gate checks, and 20/20 parity repetitions on four
+workers in one second. The exact-tip physical board passed 103/103 tests in
+three suites in 1.17 seconds. The exact-tip Swift 6.3.3 TSan re-gate passed
+native overlap 20/20 plus all 103 tests in 26 seconds without a race or
+interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -5128,7 +5179,9 @@ custom-global-actor argument-free async Void route, the exact inherited-caller
 argument-free, direct captured-String, or direct argument-free
 `try?`-contained throwing Void routes, the exact weak-self
 inherited argument-free/literal-or-captured-String/captured-`[String]` and
-`@concurrent` captured-String async Void routes, normalized callee shape,
+`@concurrent` captured-String async Void routes, the exact direct
+synchronous explicitly-nonisolated immutable-`URL` Void route,
+normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
@@ -5148,6 +5201,7 @@ and parallel-detached-weak-inherited-string-literal-source-call
 and parallel-detached-weak-inherited-captured-string-source-call
 and parallel-detached-weak-inherited-string-array-source-call
 and parallel-detached-inherited-try-optional-source-call
+and parallel-detached-nonisolated-url-source-call
 and parallel-detached-try-optional-sleep-prefix
 and parallel-detached-try-optional-nanoseconds-sleep-prefix
 and parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix
