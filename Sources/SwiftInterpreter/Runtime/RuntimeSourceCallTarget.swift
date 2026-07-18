@@ -233,7 +233,6 @@ final class RuntimeSourceCallReentryRelay {
 
             case .weakSelfOptional(let sourceClosure, let methodName):
                 guard command.resultKind == .optionalVoid,
-                      command.arguments.isEmpty,
                       sourceClosure.isPhysicalWeakSelfSourceCallCandidate,
                       let selfBox = sourceClosure.captured.box(
                         for: "self", before: interpreter.globals),
@@ -249,7 +248,7 @@ final class RuntimeSourceCallReentryRelay {
                         .resolveOwnSourceInstanceMethodCallTarget(
                             named: methodName,
                             on: instance,
-                            arguments: CallArguments()),
+                            arguments: callArguments),
                           target.descriptor == command.target else {
                         throw failure(
                             "weak-self source-call target changed before re-entry")
@@ -257,7 +256,7 @@ final class RuntimeSourceCallReentryRelay {
                     let result = try await interpreter
                         .callBackgroundClosureSuspending(
                             target.closure,
-                            arguments: CallArguments())
+                            arguments: callArguments)
                     value = result.liftedToOptional()
                 case .some, .notOptional:
                     throw failure(

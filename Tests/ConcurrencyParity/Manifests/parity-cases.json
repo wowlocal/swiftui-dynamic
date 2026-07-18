@@ -2817,6 +2817,21 @@
     "notes": "Planet demand-cites `Task.detached(priority: .background) { await self.sendNotificationForNewCID(cid: cid) }` at MyPlanetModel.swift:2948-2950; the optional-binding `cid` is immutable and the selected own method takes one labeled String, is async/nonthrowing/Void, and has inherited isolation at line 3850. The strict same-source probe uses an @unchecked Sendable receiver, returns exact bafy-planet:none|none in twenty bounded native/interpreter runs, and every focused five-run shard retains canonical SHA-256 2e15021f8c242902f4ed71d5b4dd1a16a4cc66ec7ca6135550bd1b58782e99a0. The deterministic receipt RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. The general checked source-call argument schema now carries a string kind, recursively copies only a directly owned immutable String capture, validates the selected String parameter and worker snapshot, and materializes the argument only after confined re-entry. Admission is capped to one inherited-isolation async nonthrowing Void method; String literals, mutable captures, MainActor/@concurrent/actor routes, multiple arguments, throwing methods, and richer results remain cooperative."
   },
   {
+    "id": "parallel-detached-weak-concurrent-string-source-call",
+    "fixture": "Fixtures/parallel-detached-weak-concurrent-string-source-call.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedWeakConcurrentStringSourceCallProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "nativeFact": "A live weak optional-self detached operation may pass one labeled immutable String capture to an @concurrent async nonthrowing Void source-class method; the exact value arrives while the method retains nil actor isolation across suspension.",
+    "notes": "Amperfy demand-cites `Task.detached(priority: .high) { [weak self] in await self?.loadImageAndCacheIt(imagePath: imagePathToDisplay) }` at LibraryEntityImage.swift:171-173; the optional-binding String is immutable and the selected @concurrent source-class method takes one labeled String, is async/nonthrowing/Void, and begins at line 177. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact cover-cache:none|none#some in twenty bounded runs; every native five-run shard retained canonical SHA-256 048303aaf53c0ed1e6f9788bb5cf8564a63ad7b333f05addf7971bc5c510e699. The deterministic interpreter RED already returned that value through cooperative fallback but recorded zero physical submissions/executions instead of one. Weak admission is a separate route proof: the checked worker carries only the copied String snapshot, while confined re-entry reloads the genuinely weak receiver, re-resolves the exact target with the materialized argument, and temporarily strengthens only a live receiver for invocation. An occupied-permit regression proves the String-bearing command does not retain a receiver released before re-entry. String literals, mutable captures, inherited/MainActor/actor routes, multiple arguments, throwing methods, and richer results remain cooperative."
+  },
+  {
     "id": "parallel-detached-strong-self-capture-source-call",
     "fixture": "Fixtures/parallel-detached-strong-self-capture-source-call.swift",
     "mode": "runtime",

@@ -1893,6 +1893,38 @@ in three suites in one second. Its rebuilt TSan twin passed native overlap
 20/20 plus all 64 tests in 33 seconds without a race or interceptor
 diagnostic.
 
+The sixty-eighth M9 slice asks whether Amperfy's exact `[weak self]` optional
+call can copy one immutable String into an `@concurrent` async Void source
+method while retaining Swift's weak ownership and nil actor isolation. The
+demand spelling is `Task.detached(priority: .high) { [weak self] in await
+self?.loadImageAndCacheIt(imagePath: imagePathToDisplay) }` in
+`LibraryEntityImage.swift:171-173`; the selected method begins at line 177.
+
+Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
+concurrency checking and warnings as errors. Native and interpreted execution
+returned exact `cover-cache:none|none#some` in twenty bounded repetitions;
+every focused five-run shard retained canonical digest
+`048303aaf53c0ed1e6f9788bb5cf8564a63ad7b333f05addf7971bc5c510e699`.
+The receipt RED already returned the exact value but recorded zero physical
+submissions/executions instead of one.
+
+The weak route is reviewed separately from direct-self admission. It accepts
+only a source class, an exact capture-only weak self signature, an
+`@concurrent` async nonthrowing Void method, and one directly owned immutable
+String argument. The capability copies that String only. MainActor re-entry
+then reloads the weak box and re-resolves the same descriptor using the
+materialized argument. A worker permit is deliberately occupied in the
+lifetime regression; dropping the receiver before re-entry yields `released`,
+proving neither the command nor the copied argument retained it. Literal and
+mutable Strings, inherited/MainActor/actor routes, multiple arguments,
+throwing effects, and richer results remain cooperative with zero receipts.
+The focused iteration passed three regressions, all forty-three methodology
+checks plus three isolated gate-contract checks, and twenty parity repetitions
+on four workers in two seconds. The exact-tip physical board passed 67 tests
+in three suites in one second;
+the rebuilt TSan board passed native overlap 20/20 plus all 67 tests in 26
+seconds without a race or interceptor diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

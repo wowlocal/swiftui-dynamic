@@ -510,6 +510,182 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func weakConcurrentStringSourceCallCopiesArgumentAndUsesPhysicalWrapper()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-weak-concurrent-string-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedWeakConcurrentStringSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "cover-cache:none|none#some")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func queuedWeakConcurrentStringWrapperDoesNotRetainReceiver() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        let driver = try #require(interpreter.physicalWorkerDriver)
+        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+        let capability = try entry.makeWorkerCapability(copying: [])
+        let gate = DeferredWeakSourceCallPermitGate()
+        let blockingJob = RuntimePhysicalWorkerJob(
+            capability: capability
+        ) { _ in
+            await gate.block()
+            return .void
+        }
+        let blocker = Task.detached {
+            try await driver.execute([blockingJob])
+        }
+        await gate.waitUntilEntered()
+
+        let evaluation = Task { @MainActor in
+            try await interpreter.runAsync(source: """
+            final class QueuedWeakConcurrentStringProbe: @unchecked Sendable {
+                @concurrent
+                nonisolated func loadImageAndCacheIt(imagePath: String) async {}
+
+                func launch(imagePath: String) -> Task<Void?, Never> {
+                    Task.detached(priority: .high) { [weak self] in
+                        await self?.loadImageAndCacheIt(imagePath: imagePath)
+                    }
+                }
+            }
+
+            func queuedWeakConcurrentStringProbe() async -> String {
+                var receiver: QueuedWeakConcurrentStringProbe? =
+                    QueuedWeakConcurrentStringProbe()
+                let task = receiver!.launch(imagePath: "cover-cache")
+                receiver = nil
+                if let _ = await task.value {
+                    return "retained"
+                }
+                return "released"
+            }
+
+            await queuedWeakConcurrentStringProbe()
+            """)
+        }
+
+        var observedQueuedSubmission = false
+        for _ in 0..<10_000 {
+            if interpreter.concurrencyRuntime
+                .totalPhysicalSourceKernelSubmissions == 1 {
+                observedQueuedSubmission = true
+                break
+            }
+            await Task.yield()
+        }
+        #expect(observedQueuedSubmission,
+            "weak String wrapper never queued behind the occupied permit")
+        await gate.release()
+
+        #expect(try await blocker.value == [.void])
+        let value = try await evaluation.value
+        #expect(value.stringValue == "released")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unsupportedWeakStringSourceCallRoutesStayCooperative() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        final class WeakStringSourceCallRouteControl: @unchecked Sendable {
+            private var observation = ""
+
+            @MainActor
+            private func record(_ value: String) {
+                if !observation.isEmpty { observation += "|" }
+                observation += value
+            }
+
+            @concurrent
+            nonisolated func concurrent(_ value: String) async {
+                await Task.yield()
+                await record("concurrent:\\(value)")
+            }
+
+            func inherited(_ value: String) async {
+                await Task.yield()
+                await record("inherited:\\(value)")
+            }
+
+            @MainActor
+            func mainActor(_ value: String) async {
+                await Task.yield()
+                record("main:\\(value)")
+            }
+
+            func run() async -> String {
+                await Task.detached { [weak self] in
+                    await self?.concurrent("literal")
+                }.value
+
+                var mutable = "mutable"
+                await Task.detached { [weak self] in
+                    await self?.concurrent(mutable)
+                }.value
+
+                let inherited = "inherited"
+                await Task.detached { [weak self] in
+                    await self?.inherited(inherited)
+                }.value
+
+                let main = "main"
+                await Task.detached { [weak self] in
+                    await self?.mainActor(main)
+                }.value
+
+                return await result()
+            }
+
+            @MainActor
+            private func result() -> String {
+                observation
+            }
+        }
+
+        await WeakStringSourceCallRouteControl().run()
+        """)
+
+        #expect(value.stringValue ==
+            "concurrent:literal|concurrent:mutable|inherited:inherited|main:main")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func strongSelfCaptureSourceCallUsesPhysicalWrapper() async throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

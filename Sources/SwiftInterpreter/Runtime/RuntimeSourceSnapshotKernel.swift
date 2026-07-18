@@ -310,8 +310,7 @@ extension Interpreter {
             return nil
         }
 
-        guard (!isWeakOptionalSelf || metadata.arguments.isEmpty),
-              record.entry === entry,
+        guard record.entry === entry,
               record.physicalSourceCall == nil,
               closure.programPlan === entry.programPlan,
               let loweredArguments = try physicalSourceCallArguments(
@@ -334,29 +333,27 @@ extension Interpreter {
                         parameterTypeName: parameter.typeName)
               }),
               target.descriptor.originProgramPlan === entry.programPlan,
-              !target.descriptor.isThrowing,
-              isSupportedPhysicalSourceCallRoute(
+              !target.descriptor.isThrowing else {
+            return nil
+        }
+        let isSupportedRoute = isWeakOptionalSelf
+            ? isSupportedPhysicalWeakSourceCallRoute(
                 target.descriptor,
                 on: instance,
                 parameters: target.closure.parameters,
-                arguments: loweredArguments.commandArguments) else {
-            return nil
-        }
+                arguments: loweredArguments.commandArguments)
+            : isSupportedPhysicalSourceCallRoute(
+                target.descriptor,
+                on: instance,
+                parameters: target.closure.parameters,
+                arguments: loweredArguments.commandArguments)
+        guard isSupportedRoute else { return nil }
 
         let resultKind: RuntimePhysicalSourceCallResultKind
         if isWeakOptionalSelf {
-            // Provenance's first weak route is an inherited-isolation,
-            // argument-free async Void method. The wrapper itself returns
-            // Void?, and the receiver must be resolved again only on re-entry.
-            guard target.descriptor.isolation == .inherited,
-                  target.descriptor.isAsync,
-                  target.closure.parameters.isEmpty,
-                  loweredArguments.commandArguments.isEmpty,
-                  RuntimePhysicalSourceCallResultKind(
-                    returnTypeName: target.descriptor.returnTypeName) == .void
-            else {
-                return nil
-            }
+            // A weak wrapper always returns Void?. Its dedicated route proof
+            // above owns the exact target/argument surface, while the receiver
+            // is resolved again only after confined re-entry.
             resultKind = .optionalVoid
         } else {
             guard let directResultKind = RuntimePhysicalSourceCallResultKind(
@@ -486,6 +483,43 @@ extension Interpreter {
 
         case .global,
              .lexicalType(_, isTypeMember: true, isActor: _):
+            return false
+        }
+    }
+
+    /// Weak optional-self admission is deliberately separate from direct-self
+    /// routing. Provenance owns the inherited argument-free form; Amperfy adds
+    /// exactly one immutable String capture to an `@concurrent` async Void
+    /// source-class method. No weak receiver or source argument crosses the
+    /// worker boundary: only the copied String snapshot does.
+    private func isSupportedPhysicalWeakSourceCallRoute(
+        _ target: RuntimeSourceFunctionTargetDescriptor,
+        on instance: Instance,
+        parameters: [ClosureValue.Parameter],
+        arguments: [RuntimePhysicalSourceCallArgument]
+    ) -> Bool {
+        guard case .lexicalType(
+                _, isTypeMember: false, isActor: false
+              ) = target.lexicalPlacement,
+              !instance.symbol.isActor,
+              target.isAsync,
+              parameters.allSatisfy({ $0.defaultValue == nil }),
+              RuntimePhysicalSourceCallResultKind(
+                returnTypeName: target.returnTypeName) == .void else {
+            return false
+        }
+        switch target.isolation {
+        case .inherited:
+            return parameters.isEmpty && arguments.isEmpty
+        case .executor(.cooperativeDefault):
+            return parameters.count == 1
+                && arguments.count == 1
+                && arguments[0].valueKind == .string
+        case .explicitlyNonisolated,
+             .lazyGlobalActorCandidates,
+             .executor(.mainActor),
+             .executor(.detached),
+             .executor(.actor):
             return false
         }
     }

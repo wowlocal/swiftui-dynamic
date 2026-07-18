@@ -3042,11 +3042,14 @@ Each milestone is independently gated through
   re-entry: MainActor, `@concurrent`, default source actor, actor-declared
   custom global actor, and inherited detached-caller isolation. Physical
   source-call bodies are signature-free except for Provenance's exact
-  capture-only `{ [self] in await self.registerDefaults() }` spelling; that
-  strong-capture proof cannot fall through to any snapshot kernel. Physical
-  weak-reference transfer remains forbidden. Repeated `[weak self]` optional
-  async member calls instead use one cooperative suspension-aware path that
-  evaluates the receiver once, skips nil arguments, and flattens the result.
+  capture-only `{ [self] in await self.registerDefaults() }` spelling and the
+  exact capture-only weak-self forms for its inherited argument-free call and
+  Amperfy's `@concurrent` single-String call. The strong-capture proof cannot
+  fall through to a snapshot kernel. No weak reference crosses a physical
+  boundary: the runtime record retains the confined weak box and reloads it
+  only after re-entry. All other `[weak self]` optional async member calls use
+  the cooperative suspension-aware path that evaluates the receiver once,
+  skips nil arguments, and flattens the result.
   Demand-cited optional async closures use the analogous cooperative callable
   path: nil returns before argument collection, while a present closure enters
   ordinary suspension-aware invocation and flattens its result.
@@ -4481,6 +4484,41 @@ parity repetitions in two seconds. The exact-tip physical board passed 64
 tests in one second; its rebuilt TSan twin passed native overlap 20/20 plus all
 64 tests in 33 seconds without a race or interceptor diagnostic.
 
+The sixty-eighth prerequisite composes the copied String schema with the
+deferred weak-self invocation record. Amperfy's admitted body is exactly one
+`await self?.method(label: value)` expression in an exact capture-only
+`[weak self]` detached closure. `value` names a directly owned immutable
+String, and the uniquely resolved source-class method is `@concurrent`, async,
+nonthrowing, Void-returning, and declares one matching String parameter.
+
+This route has a distinct admission proof; it does not widen direct-self
+`@concurrent` String calls or the inherited weak route. MainActor initially
+resolves only a descriptor and copies the String snapshot. The registered
+invocation retains the source operation closure, whose self box remains weak,
+but does not retain the resolved receiver closure. The Sendable worker command
+contains the descriptor, label, binding ID, `.string` kind, and copied value —
+never the weak box, receiver, source closure, environment, `RuntimeValue`,
+program state, heap, or evaluator.
+
+After physical entry relinquishes its permit, confined re-entry materializes
+the String argument, reloads the weak box, and returns Optional.none if the
+receiver has gone away. A live receiver is temporarily strengthened only long
+enough to re-resolve the exact descriptor and invoke it under the original
+cooperative-default EvaluationTaskContext. An occupied-permit regression drops
+the last receiver before re-entry and returns `released`, proving the command
+does not accidentally strengthen the capture.
+
+Strict native and interpreted execution returned exact
+`cover-cache:none|none#some` in twenty runs, with five-run digest
+`048303aaf53c0ed1e6f9788bb5cf8564a63ad7b333f05addf7971bc5c510e699`;
+the physical receipt RED moved from zero to one. String literals, mutable
+captures, inherited/MainActor/actor methods, multiple arguments, throwing
+effects, and richer results remain cooperative. The focused iteration passed
+three regressions, all 46 methodology/gate checks, and twenty parity
+repetitions on four workers in two seconds. The exact-tip physical board passed
+67 tests in one second; its rebuilt TSan twin passed native overlap 20/20 plus
+all 67 tests in 26 seconds without a race or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -4488,7 +4526,8 @@ source class/actor/host/standard-library target identities beyond the unique
 own reference-method descriptor, the exact default-actor synchronous and async
 single-Int plus explicit-single-defaulted-Bool routes, the exact actor-declared
 custom-global-actor argument-free async Void route, the exact inherited-caller
-argument-free or single-String async Void routes, normalized callee shape,
+argument-free or single-String async Void routes, the exact weak-self
+`@concurrent` single-String async Void route, normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
 `Substring.count` proofs remain incomplete, as does compiler metadata
@@ -4502,6 +4541,7 @@ MainActor-Boolean/concurrent-integer/default-actor/custom-global-actor/
 inherited-source-call
 and strong-self-capture-source-call
 and parallel-detached-weak-self-source-call
+and parallel-detached-weak-concurrent-string-source-call
 and weak-self-optional-async-source-call
 and optional-async-closure-invocation
 and weak-receiver-release-across-suspension
