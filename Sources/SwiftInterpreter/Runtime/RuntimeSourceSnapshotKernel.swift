@@ -59,10 +59,11 @@ nonisolated indirect enum RuntimeSourceSnapshotExpression:
 nonisolated enum RuntimeSourceSnapshotKernel: Sendable, Equatable {
     case constant(RuntimeWorkerValueSnapshot)
     case expression(RuntimeSourceSnapshotExpression)
+    case taskYield
 
     func execute(
         with capability: RuntimeWorkerCapability
-    ) throws -> RuntimeWorkerValueSnapshot {
+    ) async throws -> RuntimeWorkerValueSnapshot {
         guard capability.accessManifest.isWorkerSafe else {
             throw RuntimeError(message:
                 "physical source kernel received an unsafe worker manifest")
@@ -73,6 +74,9 @@ nonisolated enum RuntimeSourceSnapshotKernel: Sendable, Equatable {
             return value
         case .expression(let expression):
             return try expression.execute(with: capability)
+        case .taskYield:
+            await Task.yield()
+            return .void
         }
     }
 }
@@ -101,7 +105,10 @@ extension Interpreter {
 
         let capability: RuntimeWorkerCapability
         let kernel: RuntimeSourceSnapshotKernel
-        if let value = literalWorkerSnapshot(expression) {
+        if Self.isTaskYield(expression) {
+            capability = try entry.makeWorkerCapability(copying: [])
+            kernel = .taskYield
+        } else if let value = literalWorkerSnapshot(expression) {
             capability = try entry.makeWorkerCapability(copying: [])
             kernel = .constant(value)
         } else if let lowered = try capturedImmutableStringCountKernel(
@@ -119,8 +126,31 @@ extension Interpreter {
             capability: capability,
             priority: priority
         ) { capability in
-            try kernel.execute(with: capability)
+            try await kernel.execute(with: capability)
         }
+    }
+
+    /// TCA's TestStore uses exactly
+    /// `Task.detached(priority: .background) { await Task.yield() }.value`.
+    /// Admit only the zero-argument standard-library call. The worker receives
+    /// a typed command and an empty capability, never this syntax tree.
+    private static func isTaskYield(_ expression: ExprSyntax) -> Bool {
+        guard let awaitExpression = expression.as(AwaitExprSyntax.self),
+              let call = awaitExpression.expression
+                .as(FunctionCallExprSyntax.self),
+              call.arguments.isEmpty,
+              call.trailingClosure == nil,
+              call.additionalTrailingClosures.isEmpty,
+              let member = call.calledExpression
+                .as(MemberAccessExprSyntax.self),
+              member.declName.baseName.text == "yield",
+              member.declName.argumentNames == nil,
+              let base = member.base?.as(DeclReferenceExprSyntax.self),
+              base.baseName.text == "Task",
+              base.argumentNames == nil else {
+            return false
+        }
+        return true
     }
 
     /// CotEditor's `EditorCounter` executes `Task.detached { string.count }`

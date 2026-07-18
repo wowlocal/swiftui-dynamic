@@ -2551,5 +2551,20 @@
     "expectedPhysicalSourceKernelExecutions": 2,
     "nativeFact": "A Task.detached operation may read an immutable captured array of Substrings, map each value to its Swift grapheme count, reduce those counts by addition, and publish the exact sum through the task handle; the result does not depend on worker start or completion order.",
     "notes": "CotEditor demand-cites the exact selectedStrings.map(\\.count).reduce(0, +) spelling at Sources/Scanners/EditorCounter.swift:176, where selectedStrings is [Substring]. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact 6:10 in twenty bounded runs; every five-repetition native shard reported SHA-256 ddbe36d8251c2e1a3d3d558a0e0796e114031f85a98cde26c8536d13562ab0ed. The interpreter behavioral value was already correct through cooperative fallback, but the captured RED proved explicit parallel mode recorded zero physical source executions instead of two. MainActor lowering admits only a locally owned immutable array whose recursively copied elements are String snapshots and only the exact map(\\.count).reduce(0, +) spelling. The worker executes typed String-count-sum IR; mutable bindings, globals, alternate seeds, authored signatures, and every other expression remain cooperative. No Box, Environment, syntax, RuntimeValue, heap, host value, or evaluator crosses the worker boundary."
+  },
+  {
+    "id": "parallel-detached-yield",
+    "fixture": "Fixtures/parallel-detached-yield.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedYieldProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 2,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A background-priority Task.detached body may suspend at Task.yield and its awaited Void value completes; the result does not identify a worker thread or constrain unrelated ready-task ordering.",
+    "notes": "swift-composable-architecture demand-cites this exact spelling in Sources/ComposableArchitecture/TestStore.swift:1856. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned exact yielded:2 in twenty bounded runs; every five-repetition native shard reported SHA-256 a8da6accf02cddfd0779ab299c9ccaf8f75d2092aa1704824745f6c197af7e8c. The interpreter value was already correct through cooperative fallback, but the captured RED proved explicit parallel mode recorded zero physical source executions instead of two. MainActor lowering admits only a signature-free, argument-free, single-expression detached body whose expression is the exact zero-argument await Task.yield() call. It emits a typed task-yield kernel with an empty checked capability; the real detached worker suspends at Swift Task.yield and publishes a Void snapshot. Authored signatures, multiple statements, alternate calls, and every captured value remain cooperative. Twenty paired cooperative/parallel runs preserve exact yielded:2, empty task registries, and zero/two receipts. The two calls are sequential; no worker thread identity or unrelated ready-task order is asserted."
   }
 ]

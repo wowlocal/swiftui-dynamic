@@ -112,6 +112,31 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelExecutions == 2)
     }
 
+    @Test func detachedYieldUsesPhysicalSuspendingKernel() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        func probe() async -> String {
+            await Task.detached(priority: .background) {
+                await Task.yield()
+            }.value
+            await Task.detached(priority: .background) {
+                await Task.yield()
+            }.value
+            return "yielded:2"
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "yielded:2")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+    }
+
     @Test func mutableAndGlobalStringCapturesStayOnTheConfinedEvaluator()
         async throws
     {
@@ -212,6 +237,32 @@ struct RuntimeParallelSourceKernelTests {
         """)
 
         #expect(value.stringValue == "typed")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+    }
+
+    @Test func unsupportedYieldClosuresStayOnTheCooperativeEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        let authored = Task.detached { () async -> Void in
+            await Task.yield()
+        }
+        let multiple = Task.detached {
+            await Task.yield()
+            await Task.yield()
+        }
+        await authored.value
+        await multiple.value
+        "fallback"
+        """)
+
+        #expect(value.stringValue == "fallback")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelExecutions == 0)
     }
@@ -319,6 +370,38 @@ struct RuntimeParallelSourceKernelTests {
             let parallelValue = try await parallel.runAsync(source: source)
 
             #expect(cooperativeValue.stringValue == "6:10")
+            #expect(parallelValue.stringValue
+                == cooperativeValue.stringValue)
+            #expect(cooperative.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions == 0)
+            #expect(parallel.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions == 2)
+            #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+            #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+        }
+    }
+
+    @Test func detachedYieldModesRemainEquivalent() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-yield.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedYieldProbe()\n"
+        let configuration = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+
+        for _ in 0..<20 {
+            let cooperative = Interpreter()
+            let parallel = Interpreter(
+                executionMode: .parallel(configuration))
+            let cooperativeValue = try await cooperative.runAsync(
+                source: source)
+            let parallelValue = try await parallel.runAsync(source: source)
+
+            #expect(cooperativeValue.stringValue == "yielded:2")
             #expect(parallelValue.stringValue
                 == cooperativeValue.stringValue)
             #expect(cooperative.concurrencyRuntime

@@ -862,6 +862,42 @@ focused iteration completed 57 tests in nine ownership/worker suites, all
 forty-three methodology checks, and all twenty parity repetitions on four
 workers in five seconds.
 
+Its thirty-seventh prerequisite is a gap closure for
+swift-composable-architecture's demand-cited
+`await Task.detached(priority: .background) { await Task.yield() }.value`.
+The exact semantic question is whether explicit parallel mode may execute that
+single suspending operation on a real detached worker and publish its awaited
+`Void`, while only an empty checked capability and typed yield command cross
+the worker boundary. Apple Swift 6.3.3 compiled the same-source fixture in
+complete strict Swift 6 mode with warnings as errors and returned exact
+`yielded:2` in twenty bounded runs. Each native five-repetition shard reported
+SHA-256
+`a8da6accf02cddfd0779ab299c9ccaf8f75d2092aa1704824745f6c197af7e8c`.
+The sequential calls prove completion only, not a worker thread or scheduler
+order.
+
+Both recorded REDs were receipt-based: the interpreter already returned the
+right value through cooperative fallback, while parity and a direct runtime
+test observed zero physical executions instead of two. Admission requires an
+ordinary signature-free, argument-free, single-expression detached closure and
+the exact zero-argument `await Task.yield()` syntax. MainActor emits a typed
+`taskYield` kernel and empty capability; the physical operation invokes native
+`Task.yield()` asynchronously and returns a `Void` snapshot. Authored async
+signatures, multiple statements, alternate calls, and captures fail closed to
+the unchanged cooperative evaluator before worker submission.
+
+Twenty paired mode runs require exact `yielded:2`, zero/two receipts, and empty
+registries. The scoped TSan runner rebuilt with the same Xcode toolchain in 97
+seconds, passed twenty native overlap iterations, and ran all twenty-three
+driver/source-kernel tests on four workers; the complete board took 106 seconds
+without a race or interceptor diagnostic. The canonical focused iteration
+completed eighty-three tests in nine ownership/worker suites, all forty-three
+methodology checks, and all twenty parity repetitions on four workers in four
+seconds. This is evidence for only the exact
+yield command. Captured suspending bodies, richer async expressions, general
+evaluator work, actors, host calls, and heap access remain outside the worker
+boundary.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
