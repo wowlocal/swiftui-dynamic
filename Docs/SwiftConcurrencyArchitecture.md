@@ -4390,6 +4390,35 @@ exact-tip AsyncExecutionTests plus RuntimeSourceCallTargetTests board passed
 20/20 plus all 62 physical driver/kernel/source-call tests in three suites on
 four workers in 31 seconds without a race or interceptor diagnostic.
 
+The sixty-fourth prerequisite separates closure-declared executor identity
+from API-selected lexical actor inheritance. A `ClosureValue` now carries an
+explicit executor derived from closure-signature attributes independently of
+the lexical executor captured at formation. `MainActor` resolves eagerly;
+user-declared global-actor names use the same lazy canonical `static shared`
+resolution as function declarations. Runtime-inert attributes such as
+`Sendable` never select an executor.
+
+Suspending invocation now accepts an anonymous-closure lexical-inheritance
+policy. Ordinary calls preserve the formation-site lexical executor.
+`Task.detached` disables that inheritance and uses only the closure's explicit
+resolved executor, if any. Immediate APIs keep their separately selected
+operation executor, so `Task.immediateDetached` can clear task lineage and
+task locals while retaining its inherited MainActor operation. This policy is
+call-scoped; launch never edits the shared closure object. Task lineage,
+task-local inheritance, start timing, record executor, declaration executor,
+and lexical closure isolation therefore remain orthogonal runtime facts.
+
+The native/interpreter oracle returns exact `same|same#none|none` before and
+after `Task.yield`; the pre-fix interpreter returned
+`same|same#same|same`. The authored signature stays cooperative with zero
+physical receipts. This closes explicit detached-operation actor isolation,
+not arbitrary `@isolated(any)` executor values or physical execution of
+authored closure signatures. The rebuilt scoped TSan board passed native
+overlap 20/20 plus all 62 physical tests on four workers in 40 seconds without
+a race or interceptor diagnostic. The exact-tip async, generated Task-surface,
+and parallel-kernel board passed 137 tests in three suites on four workers in
+two seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and

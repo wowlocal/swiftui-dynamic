@@ -2637,6 +2637,21 @@
     "notes": "FoodTruck demand-cites the exact Task.detached { await self.updatesLoop() } shape in StoreMessagesManager.swift:33-35. The exact output is target:member; worker identity and unrelated scheduler order are not asserted. This already-GREEN behavior first anchored immutable callee-shape metadata and now anchors an origin-bound Sendable descriptor for the uniquely shape-resolved own reference method. Same-shape overloads remain unresolved, the source method stays on the confined evaluator with zero physical receipts, and no Instance, RuntimeProgramState, closure, environment, or evaluator crosses a worker boundary."
   },
   {
+    "id": "detached-explicit-mainactor-closure",
+    "fixture": "Fixtures/detached-explicit-mainactor-closure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await detachedExplicitMainActorClosureProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "An explicit @MainActor detached-operation closure is MainActor-isolated before and after suspension, while a plain Task.detached operation formed in the same MainActor function remains nonisolated across the same suspension.",
+    "notes": "Planet demand-cites `Task.detached { @MainActor in ... }` at Planet/Entities/PlanetStore.swift:246, and the pinned external corpus contains 57 matching operation shapes across Planet, Provenance, and apple-browsers. Apple Swift 6.3.3's complete-strict region checker emits an internal checker diagnostic for that exact spelling; adding explicit `@Sendable`, which is already required semantically by Task.detached and has no executor effect, is the minimal native-oracle workaround. The strict fixture then returned exact same|same#none|none in twenty bounded runs; every focused five-run native-observation shard retained canonical SHA-256 032c610c796c0f579b3af0c81e114c283f50d2ce0e576bb16089ef843ef1da7a. The deterministic interpreter RED returned same|same#same|same: explicit isolation happened to look correct because every anonymous closure inherited its lexical MainActor, but the plain detached operation incorrectly kept that actor. Closure formation now records explicit MainActor or retains user-global-actor candidates for the existing lazy resolver independently from lexical inheritance. Ordinary detached task entry suppresses inherited anonymous-closure isolation while preserving an explicit closure executor; Task, Task.immediate, and Task.immediateDetached retain their separate inheritance rules. The authored signature remains cooperative with zero physical receipts. No worker identity or unrelated scheduler order is asserted."
+  },
+  {
     "id": "parallel-detached-mainactor-source-call",
     "fixture": "Fixtures/parallel-detached-mainactor-source-call.swift",
     "mode": "runtime",

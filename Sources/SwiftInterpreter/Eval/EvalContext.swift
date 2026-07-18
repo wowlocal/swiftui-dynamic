@@ -858,7 +858,12 @@ extension Interpreter: EvalContext {
                         return snapshot.materializedRuntimeValue()
                     }
                     return try await self.callBackgroundClosureSuspending(
-                        closure, arguments: arguments)
+                        closure,
+                        arguments: arguments,
+                        inheritsAnonymousClosureLexicalExecutor:
+                            kind != .detached
+                                || startPolicy != .enqueued
+                                || operationExecutor != nil)
                 })
         } catch {
             concurrencyRuntime.release(handle.id)
@@ -984,19 +989,25 @@ extension Interpreter: EvalContext {
     /// keep suspension propagation intact. Cancellation is polled before and
     /// after every host await and at every statement/loop boundary.
     func callBackgroundClosureSuspending(
-        _ closure: ClosureValue, arguments: [RuntimeValue]
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        inheritsAnonymousClosureLexicalExecutor: Bool = true
     ) async throws -> RuntimeValue {
         try await callBackgroundClosureSuspending(
             closure,
             arguments: CallArguments(arguments: arguments.map {
                 .init(label: nil, value: $0)
-            }))
+            }),
+            inheritsAnonymousClosureLexicalExecutor:
+                inheritsAnonymousClosureLexicalExecutor)
     }
 
     /// Label-preserving counterpart used by a checked physical source-call
     /// command after its copied arguments re-enter the confined evaluator.
     func callBackgroundClosureSuspending(
-        _ closure: ClosureValue, arguments: CallArguments
+        _ closure: ClosureValue,
+        arguments: CallArguments,
+        inheritsAnonymousClosureLexicalExecutor: Bool = true
     ) async throws -> RuntimeValue {
         let entrySteps = steps
         let slice = 20_000
@@ -1004,7 +1015,11 @@ extension Interpreter: EvalContext {
         defer { steps = entrySteps }
         do {
             return try await callWithArgumentsSuspending(
-                closure, args: arguments, node: nil)
+                closure,
+                args: arguments,
+                node: nil,
+                inheritsAnonymousClosureLexicalExecutor:
+                    inheritsAnonymousClosureLexicalExecutor)
         } catch let error as RuntimeError where error.budgetTrip {
             return .void
         }

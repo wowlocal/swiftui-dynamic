@@ -1793,6 +1793,36 @@ scoped TSan board passed native overlap 20/20 plus all 62 physical
 driver/kernel/source-call tests in 31 seconds without a race or interceptor
 diagnostic.
 
+The sixty-fourth M9 slice asks one executor-inheritance question: does an
+explicit `@MainActor` operation passed to `Task.detached` retain that actor
+across suspension while a plain operation formed at the same MainActor site
+remains nonisolated? Planet's `PlanetStore.swift:246` supplies the demand
+spelling, and the pinned corpus contains 57 matching operation shapes.
+
+The same fixture compares both closures before and after `Task.yield` and
+returns exact `same|same#none|none`; it does not observe task order or thread
+identity. Apple Swift 6.3.3's complete-strict region checker currently rejects
+the exact corpus spelling with an internal checker diagnostic, so the native
+fixture adds explicit `@Sendable`. That attribute is executor-neutral and the
+detached operation is already Sendable. Twenty bounded strict runs and four
+five-run focused shards agree; the focused native-observation digest is
+`032c610c796c0f579b3af0c81e114c283f50d2ce0e576bb16089ef843ef1da7a`.
+
+The retained RED `same|same#same|same` proves the interpreter conflated two
+independent facts: an anonymous closure's explicit executor and lexical actor
+inheritance selected by its consuming API. Evidence therefore requires the
+runtime change to represent explicit closure isolation at formation and to
+select lexical inheritance at task entry without mutating the shared closure.
+Focused regressions also require ordinary immediate-detached inheritance to
+remain MainActor and authored signatures to record zero physical receipts.
+The canonical focused iteration passed those regressions, all forty-three
+methodology checks plus three isolated gate-contract checks, and twenty parity
+repetitions on four workers in two seconds. The rebuilt scoped TSan board
+passed native overlap 20/20 plus all 62 physical tests on four workers in 40
+seconds without a race or interceptor diagnostic. The exact-tip async,
+generated Task-surface, and parallel-kernel board passed 137 tests in three
+suites on four workers in two seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

@@ -1155,7 +1155,8 @@ extension Interpreter {
         _ closure: ClosureValue,
         args: CallArguments,
         node: Syntax?,
-        contextualExecutor: RuntimeExecutorKind? = nil
+        contextualExecutor: RuntimeExecutorKind? = nil,
+        inheritsAnonymousClosureLexicalExecutor: Bool = true
     ) async throws -> RuntimeValue {
         let programState = closure.programState
         evaluationTaskContext.enterProgramState(programState)
@@ -1174,7 +1175,9 @@ extension Interpreter {
                 args: effectiveArguments,
                 node: node,
                 calleeExecutor: calleeExecutor,
-                contextualExecutor: contextualExecutor)
+                contextualExecutor: contextualExecutor,
+                inheritsAnonymousClosureLexicalExecutor:
+                    inheritsAnonymousClosureLexicalExecutor)
             if let suspendedCallerActor {
                 await concurrencyRuntime.resumeActorExecutor(
                     suspendedCallerActor)
@@ -1195,7 +1198,8 @@ extension Interpreter {
         args: CallArguments,
         node: Syntax?,
         calleeExecutor: RuntimeExecutorKind?,
-        contextualExecutor: RuntimeExecutorKind?
+        contextualExecutor: RuntimeExecutorKind?,
+        inheritsAnonymousClosureLexicalExecutor: Bool
     ) async throws -> RuntimeValue {
         let actorOwnership = try await enterActorInvocation(
             executor: calleeExecutor)
@@ -1209,7 +1213,9 @@ extension Interpreter {
         defer { evaluationTaskContext.currentExecutor = previousExecutor }
         lexicalExecutorFrames.append(
             closure.functionDeclID == nil
-                ? contextualExecutor ?? closure.lexicalExecutor
+                ? (inheritsAnonymousClosureLexicalExecutor
+                    ? contextualExecutor ?? closure.lexicalExecutor
+                    : calleeExecutor)
                 : calleeExecutor)
         defer { lexicalExecutorFrames.removeLast() }
         var insertedFrame: ExtensionFrame?

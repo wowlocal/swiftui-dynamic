@@ -744,6 +744,20 @@ extension Interpreter {
             programPlan: currentProgramPlan)
         value.programState = currentProgramState
         value.lexicalExecutor = currentLexicalExecutor
+        let closureAttributeNames = closure.signature?.attributes.compactMap {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+        } ?? []
+        if closureAttributeNames.contains(where: {
+            $0 == "MainActor" || $0 == "Swift.MainActor"
+        }) {
+            value.executorPreference = .mainActor
+        } else {
+            // Resolve user-defined global actors lazily, after all source
+            // declarations have been collected. Runtime-inert attributes
+            // such as @Sendable are harmless candidates and simply do not
+            // resolve to a type marked @globalActor.
+            value.globalActorAttributeCandidates = closureAttributeNames
+        }
         value.isPhysicalSnapshotKernelCandidate = closure.signature == nil
         value.isPhysicalStrongSelfSourceCallCandidate =
             isPhysicalStrongSelfSourceCallCandidate(closure.signature)
