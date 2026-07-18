@@ -2893,3 +2893,8 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   cacheDisplay is blank for an already-shown hosting — the counter
   causality replaced pixels. Boards R4 13/13, R2 18/18; GATE GREEN
   1102s.
+- 2026-07-18 i82-i83 RECEIPTED (worktree iteration 84): clean-detached
+  gate GREEN 1150s on exact tip 54bc613; MERGE-READY posted (the M3
+  doctrine completion — @Query re-renders on store writes). Every
+  board at ceiling; remaining queue is the two user-action gates
+  (Screen Recording, Accessibility) and the london tripwire.
