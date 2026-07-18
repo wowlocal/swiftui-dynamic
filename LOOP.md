@@ -2936,3 +2936,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   gate GREEN 1147s on exact tip ccdf521; MERGE-READY posted (the
   makeStream M1 opener + self-diagnosing tuple errors + the
   absent-dependency re-classification).
+- 2026-07-18 VENDORING DOCTRINE: TCA's TUPLE CLASS DISSOLVES (worktree
+  iteration 88): cloning the seven pointfreeco packages (Sources-only)
+  into the TCA checkout took its tuple-binding count 44 -> ZERO — the
+  free withDependencies now interprets for real, and the histogram
+  head drops to 3-count singleton classes. Two lessons encoded in
+  Scripts/vendor-corpus-deps.sh (the reproducibility instrument for
+  the gitignored External cache): vendor SOURCES ONLY (the unpruned
+  clones' own Tests ballooned the merge ~5x — the first run had to be
+  killed), and the vendoring doctrine generalizes to any corpus
+  project whose absent deps make API families absorb (the
+  self-diagnosing binding error is the detector). TestCheck moves
+  without touching any gate contract (the gate's corpus board is
+  ProjectCheck's). GATE next.
