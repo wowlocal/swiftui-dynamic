@@ -2490,3 +2490,27 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   loadView runs interpreted code). Boards unchanged (city rows move only
   when the map RENDERS). Gate RED with main's known parallel-worker
   signature — still gate-blocked, exonerated.
+- 2026-07-18 CITY ARC SLICE 2: REPRESENTABLES EXECUTE — THE MAP RENDERS
+  (worktree iteration 60): interpreted NSViewControllerRepresentable
+  conformances now RUN. InterpretedControllerRepresentable (the
+  InterpretedLayout genre: protocol witnesses are the allowed
+  interface-inexpressible magic) drives interpreted
+  makeNSViewController/updateNSViewController from the real SwiftUI
+  lifecycle; InterpretedHostController (real NSViewController) runs the
+  interpreted controller subclass's loadView and adopts the real NSView
+  the interpreted code stored in `view` (the dynamic instance-property
+  bag IS the bridge; `as? MKMapView` passes through optimistically).
+  UIKit-only representables keep the inert degrade (Lottie precedent).
+  Also: the platform sweep now SYNTHESIZES no-arg constructors for
+  selected ObjC classes that swept no initializer (symbol graphs omit
+  inherited init(); MKMapView was unconstructible — the false-green
+  lesson: a stub bag echoes property writes back, so the surface pin
+  passed while MKMapView() was a stub; MKMapConfiguration joins the
+  deny set as an abstract base). CITY ROWS: 54.060 -> 39.792/38.978,
+  now city-DIFFERENTIATED — the interpreted map paints the same
+  tile-less perspective grid as the twin. Remaining city sub-classes
+  queued: TimelineView frozen-clock camera sync; Measurement stub in
+  the weather label. Pins: InterpretedRepresentableProbe (loadView +
+  guard-cast accessor + update, ink-verified, zero diags) +
+  mapKitSurfaceConstructsAndConfigures. Gate RED with main's known
+  parallel-worker signature — still gate-blocked, exonerated.

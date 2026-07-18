@@ -102,6 +102,12 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         ]),
 ]
 
+/// Classes whose synthesized no-argument constructor does not compile
+/// (unavailable/abstract plain initializers) — grown from build failures.
+private let platformNoArgInitDeny: Set<String> = [
+    "MKMapConfiguration", // abstract base: init() unavailable
+]
+
 private struct SymbolGraph: Decodable {
     let symbols: [Symbol]
     let relationships: [Relationship]
@@ -656,6 +662,31 @@ private func parsePlatformFramework(
         default:
             continue
         }
+    }
+
+    // ObjC classes inherit NSObject's plain initializer, which symbol
+    // graphs omit (-skip-synthesized-members). A selected class that swept
+    // NO initializer still constructs natively via `Type()` — synthesize
+    // that variant so inherited-init-only subclasses (MKMapView) are
+    // constructible. A synthesis that does not compile joins the deny set.
+    let constructedTypes = Set(constructors.map(\.receiverType))
+    for nominal in selected.values.sorted(by: { $0.type < $1.type })
+    where nominal.kind == .class
+        && !constructedTypes.contains(nominal.type)
+        && !platformNoArgInitDeny.contains(nominal.type)
+    {
+        constructors.append(PlatformCallable(
+            framework: spec.name, kind: .constructor,
+            receiverType: nominal.type,
+            nativeReceiverType: nominal.type,
+            receiverIsValueType: false,
+            name: nominal.type,
+            resultType: nominal.type,
+            nativeResultType: nominal.type,
+            resultPointerKind: nil,
+            params: [],
+            isThrowing: false,
+            isFailable: false))
     }
 
     return ParsedPlatformFramework(

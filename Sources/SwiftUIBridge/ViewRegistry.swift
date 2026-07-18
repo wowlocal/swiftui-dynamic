@@ -173,8 +173,18 @@ public final class ViewRegistry: HostRegistry {
 
     public func makeRenderable(instance: Instance, interpreter: Interpreter) -> RuntimeValue {
         if instance.symbol.isRepresentable {
-            // UIKit/AppKit representables embed host views we can't run —
-            // the honest stand-in is an inert empty view.
+#if canImport(AppKit)
+            // macOS controller representables EXECUTE — the interpreted
+            // make/update/loadView drive a real NSViewController host and
+            // the generated platform tier supplies what they construct.
+            if let representable = InterpretedControllerRepresentable.hosting(
+                instance: instance, interpreter: interpreter
+            ) {
+                return .native(AnyView(representable))
+            }
+#endif
+            // Other representables embed host views we can't run — the
+            // honest stand-in remains an inert empty view (Lottie precedent).
             return .native(AnyView(EmptyView()))
         }
         if instance.symbol.conformsToLayout {

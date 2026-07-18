@@ -30,6 +30,7 @@ extension GeneratedPlatformBridge {
         buildConstructorsUIKit1(&t)
         buildConstructorsUIKit2(&t)
         buildConstructorsUIKit3(&t)
+        buildConstructorsUIKit4(&t)
         buildConstructorsMapKit0(&t)
         buildConstructorsCoreLocation0(&t)
         buildConstructorsMetal0(&t)
@@ -53,6 +54,16 @@ extension GeneratedPlatformBridge {
             resultType: "NSAppearance.Name") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSAppearance.Name(rawValue: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSAppearance.Name")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSApplication()",
+            resultType: "NSApplication") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSApplication(), framework: "AppKit", declaredType: "NSApplication")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -219,6 +230,26 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init NSButton()",
+            resultType: "NSButton") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSButton(), framework: "AppKit", declaredType: "NSButton")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSCollectionView()",
+            resultType: "NSCollectionView") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSCollectionView(), framework: "AppKit", declaredType: "NSCollectionView")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSCollectionView.ScrollPosition(rawValue p0: UInt)",
             resultType: "NSCollectionView.ScrollPosition") { v, ctx in
 #if canImport(AppKit)
@@ -357,6 +388,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsAppKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSColor(red p0: CGFloat, green p1: CGFloat, blue p2: CGFloat, alpha p3: CGFloat)",
@@ -387,9 +421,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsAppKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSColorSpaceName(rawValue p0: String)",
@@ -662,6 +693,16 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init NSScreen()",
+            resultType: "NSScreen") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSScreen(), framework: "AppKit", declaredType: "NSScreen")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSScrollView(frame p0: CGRect)",
             resultType: "NSScrollView") { v, ctx in
 #if canImport(AppKit)
@@ -700,6 +741,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsAppKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSTextField(labelWithAttributedString p0: NSAttributedString)",
@@ -740,9 +784,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsAppKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSTextView(frame p0: CGRect)",
@@ -859,6 +900,16 @@ extension GeneratedPlatformBridge {
             resultType: "NSView.Invalidations.RestorableState") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSView.Invalidations.RestorableState(), framework: "AppKit", declaredType: "NSView.Invalidations.RestorableState")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSViewController()",
+            resultType: "NSViewController") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSViewController(), framework: "AppKit", declaredType: "NSViewController")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -1043,6 +1094,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsAppKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init? NSBezierPath.LineCapStyle(rawValue p0: UInt)",
@@ -1093,9 +1147,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsAppKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init? NSBitmapImageRep(data p0: Data)",
@@ -1396,6 +1447,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsAppKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init? NSImage.ResizingMode(rawValue p0: Int)",
@@ -1446,9 +1500,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsAppKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init? NSScrollView.Elasticity(rawValue p0: Int)",
@@ -1714,6 +1765,16 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init UIApplication()",
+            resultType: "UIApplication") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIApplication(), framework: "UIKit", declaredType: "UIApplication")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIApplication.ExtensionPointIdentifier(rawValue p0: String)",
             resultType: "UIApplication.ExtensionPointIdentifier") { v, ctx in
 #if canImport(UIKit)
@@ -1818,6 +1879,16 @@ extension GeneratedPlatformBridge {
             resultType: "UIButton") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIButton(type: try generatedPlatformArgument(v[0], as: UIButton.ButtonType.self, framework: "UIKit", typeName: "UIButton.ButtonType", context: ctx)), framework: "UIKit", declaredType: "UIButton")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UICollectionView()",
+            resultType: "UICollectionView") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UICollectionView(), framework: "UIKit", declaredType: "UICollectionView")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -2022,12 +2093,25 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIImage(imageLiteralResourceName p0: String)",
             resultType: "UIImage") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIImage(imageLiteralResourceName: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIImage.Configuration()",
+            resultType: "UIImage.Configuration") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage.Configuration(), framework: "UIKit", declaredType: "UIImage.Configuration")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -2042,9 +2126,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIImage.SymbolConfiguration(font p0: UIFont, scale p1: UIImage.SymbolScale)",
@@ -2167,6 +2248,16 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init UILabel()",
+            resultType: "UILabel") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UILabel(), framework: "UIKit", declaredType: "UILabel")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIOffset()",
             resultType: "UIOffset") { v, ctx in
 #if canImport(UIKit)
@@ -2187,6 +2278,36 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init UIResponder()",
+            resultType: "UIResponder") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIResponder(), framework: "UIKit", declaredType: "UIResponder")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIScreen()",
+            resultType: "UIScreen") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIScreen(), framework: "UIKit", declaredType: "UIScreen")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIScrollView()",
+            resultType: "UIScrollView") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIScrollView(), framework: "UIKit", declaredType: "UIScrollView")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIScrollView.DecelerationRate(rawValue p0: CGFloat)",
             resultType: "UIScrollView.DecelerationRate") { v, ctx in
 #if canImport(UIKit)
@@ -2201,6 +2322,16 @@ extension GeneratedPlatformBridge {
             resultType: "UITableView") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UITableView(frame: try generatedPlatformArgument(v[0], as: CGRect.self, framework: "UIKit", typeName: "CGRect", context: ctx), style: try generatedPlatformArgument(v[1], as: UITableView.Style.self, framework: "UIKit", typeName: "UITableView.Style", context: ctx)), framework: "UIKit", declaredType: "UITableView")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UITextField()",
+            resultType: "UITextField") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITextField(), framework: "UIKit", declaredType: "UITextField")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -2315,12 +2446,65 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIViewController(nibName p0: String?, bundle p1: Bundle?)",
             resultType: "UIViewController") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIViewController(nibName: try generatedPlatformArgument(v[0], as: String?.self, framework: "UIKit", typeName: "String?", context: ctx), bundle: try generatedPlatformArgument(v[1], as: Bundle?.self, framework: "UIKit", typeName: "Bundle?", context: ctx)), framework: "UIKit", declaredType: "UIViewController")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIViewController.Transition()",
+            resultType: "UIViewController.Transition") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIViewController.Transition(), framework: "UIKit", declaredType: "UIViewController.Transition")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIViewController.Transition.ZoomOptions()",
+            resultType: "UIViewController.Transition.ZoomOptions") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIViewController.Transition.ZoomOptions(), framework: "UIKit", declaredType: "UIViewController.Transition.ZoomOptions")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIViewController.Transition.ZoomOptions.AlignmentRectContext()",
+            resultType: "UIViewController.Transition.ZoomOptions.AlignmentRectContext") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIViewController.Transition.ZoomOptions.AlignmentRectContext(), framework: "UIKit", declaredType: "UIViewController.Transition.ZoomOptions.AlignmentRectContext")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIViewController.Transition.ZoomOptions.InteractionContext()",
+            resultType: "UIViewController.Transition.ZoomOptions.InteractionContext") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIViewController.Transition.ZoomOptions.InteractionContext(), framework: "UIKit", declaredType: "UIViewController.Transition.ZoomOptions.InteractionContext")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIViewController.Transition.ZoomSourceViewProviderContext()",
+            resultType: "UIViewController.Transition.ZoomSourceViewProviderContext") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIViewController.Transition.ZoomSourceViewProviderContext(), framework: "UIKit", declaredType: "UIViewController.Transition.ZoomSourceViewProviderContext")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -2377,6 +2561,76 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init UIWindowScene()",
+            resultType: "UIWindowScene") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIWindowScene(), framework: "UIKit", declaredType: "UIWindowScene")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIWindowScene.ActivationAction()",
+            resultType: "UIWindowScene.ActivationAction") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIWindowScene.ActivationAction(), framework: "UIKit", declaredType: "UIWindowScene.ActivationAction")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIWindowScene.ActivationConfiguration()",
+            resultType: "UIWindowScene.ActivationConfiguration") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIWindowScene.ActivationConfiguration(), framework: "UIKit", declaredType: "UIWindowScene.ActivationConfiguration")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIWindowScene.ActivationInteraction()",
+            resultType: "UIWindowScene.ActivationInteraction") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIWindowScene.ActivationInteraction(), framework: "UIKit", declaredType: "UIWindowScene.ActivationInteraction")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIWindowScene.ActivationRequestOptions()",
+            resultType: "UIWindowScene.ActivationRequestOptions") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIWindowScene.ActivationRequestOptions(), framework: "UIKit", declaredType: "UIWindowScene.ActivationRequestOptions")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIWindowScene.Geometry()",
+            resultType: "UIWindowScene.Geometry") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIWindowScene.Geometry(), framework: "UIKit", declaredType: "UIWindowScene.Geometry")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIWindowScene.GeometryPreferences()",
+            resultType: "UIWindowScene.GeometryPreferences") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIWindowScene.GeometryPreferences(), framework: "UIKit", declaredType: "UIWindowScene.GeometryPreferences")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIWindowScene.GeometryPreferences.Mac()",
             resultType: "UIWindowScene.GeometryPreferences.Mac") { v, ctx in
 #if canImport(UIKit)
@@ -2395,9 +2649,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIWindowScene.GeometryPreferences.iOS()",
@@ -2548,6 +2799,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIImage(data p0: Data, scale p1: CGFloat)",
@@ -2748,9 +3002,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIScrollView.IndexDisplayMode(rawValue p0: Int)",
@@ -2901,6 +3152,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIView.SystemAnimation(rawValue p0: UInt)",
@@ -2950,6 +3204,36 @@ extension GeneratedPlatformBridge {
             resultType: "MKMapCamera") { v, ctx in
 #if canImport(MapKit)
             return generatedPlatformResult(MKMapCamera(lookingAtCenter: try generatedPlatformArgument(v[0], as: CLLocationCoordinate2D.self, framework: "MapKit", typeName: "CLLocationCoordinate2D", context: ctx), fromEyeCoordinate: try generatedPlatformArgument(v[1], as: CLLocationCoordinate2D.self, framework: "MapKit", typeName: "CLLocationCoordinate2D", context: ctx), eyeAltitude: try generatedPlatformArgument(v[2], as: Double.self, framework: "MapKit", typeName: "Double", context: ctx)), framework: "MapKit", declaredType: "MKMapCamera")
+#else
+            preconditionFailure("MapKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "MapKit",
+            declaration: "init MKMapView()",
+            resultType: "MKMapView") { v, ctx in
+#if canImport(MapKit)
+            return generatedPlatformResult(MKMapView(), framework: "MapKit", declaredType: "MKMapView")
+#else
+            preconditionFailure("MapKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "MapKit",
+            declaration: "init MKMapView.CameraBoundary()",
+            resultType: "MKMapView.CameraBoundary") { v, ctx in
+#if canImport(MapKit)
+            return generatedPlatformResult(MKMapView.CameraBoundary(), framework: "MapKit", declaredType: "MKMapView.CameraBoundary")
+#else
+            preconditionFailure("MapKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "MapKit",
+            declaration: "init MKPointOfInterestFilter()",
+            resultType: "MKPointOfInterestFilter") { v, ctx in
+#if canImport(MapKit)
+            return generatedPlatformResult(MKPointOfInterestFilter(), framework: "MapKit", declaredType: "MKPointOfInterestFilter")
 #else
             preconditionFailure("MapKit gateway invoked off-platform")
 #endif
@@ -3100,6 +3384,16 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildConstructorsMetal0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+        registerConstructor(
+            &t, framework: "Metal",
+            declaration: "init MTLCompileOptions()",
+            resultType: "MTLCompileOptions") { v, ctx in
+#if canImport(Metal)
+            return generatedPlatformResult(MTLCompileOptions(), framework: "Metal", declaredType: "MTLCompileOptions")
+#else
+            preconditionFailure("Metal gateway invoked off-platform")
+#endif
+        }
         registerConstructor(
             &t, framework: "Metal",
             declaration: "init MTLResourceOptions(rawValue p0: UInt)",
