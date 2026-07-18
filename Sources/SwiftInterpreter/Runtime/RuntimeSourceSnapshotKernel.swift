@@ -348,7 +348,9 @@ extension Interpreter {
               reference.argumentNames == nil,
               let programState = closure.programState,
               programState.methodTargetProof(for: .arrayMap)
-                == .standardLibrary(.arrayMap) else {
+                == .standardLibrary(.arrayMap),
+              programState.methodTargetProof(for: .arrayReduce)
+                == .standardLibrary(.arrayReduce) else {
             return nil
         }
 

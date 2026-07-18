@@ -2680,5 +2680,20 @@
     "expectedPhysicalSourceKernelExecutions": 0,
     "nativeFact": "A more-specific same-module Array.map overload for Element == Substring is selected by map(\\.count) inside Task.detached, so the surrounding reduction publishes the source method's exact result.",
     "notes": "CotEditor demand-cites selectedStrings.map(\\.count).reduce(0, +) at Sources/Scanners/EditorCounter.swift:176. This gap-closure oracle isolates declaration selection for map; reduce, the element count key path, and unrelated overload families remain separate target proofs. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact 41 in twenty bounded runs; every five-repetition native shard reported SHA-256 06012cab1f7bd007fb1ad3ff15d7822d89b450f3ea30814bf7d8f27b8d2687bb. Before the fix, both cooperative and explicit-parallel interpretation ignored the more-specific source overload and returned the standard-library result 3; explicit parallel mode additionally recorded one physical submission/execution. Core Array source extensions now dispatch before imported native members. The count-reduction lowerer also requires a typed standard-library Array.map proof from the originating RuntimeProgramState; any same-base source overload fails closed. A retained two-run regression proves origin-state ownership while the positive stdlib map probe retains its physical receipt. No worker identity or scheduler order is asserted."
+  },
+  {
+    "id": "parallel-shadowed-array-reduce",
+    "fixture": "Fixtures/parallel-shadowed-array-reduce.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelShadowedArrayReduceOutput()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "nativeFact": "A more-specific same-module Array.reduce overload for Element == Int is selected after map(\\.count) inside Task.detached, so the task publishes the source method's exact result.",
+    "notes": "CotEditor demand-cites selectedStrings.map(\\.count).reduce(0, +) at Sources/Scanners/EditorCounter.swift:176. This gap-closure oracle isolates declaration selection for reduce; the element count key path and unrelated overload families remain separate target proofs. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact 73 in twenty bounded runs; every five-repetition native shard reported SHA-256 510c4b8fd1343251f41b2cfbed0f4b84e7517a95b4603e64a96e98284898f67e. Before the fix, cooperative interpretation selected the source overload and returned 73, while explicit parallel mode executed the standard-library reduction, returned 3, and recorded one physical submission/execution. The count-reduction lowerer now requires a typed standard-library Array.reduce proof from the originating RuntimeProgramState in addition to its Array.map proof; any same-base source overload fails closed. A retained two-run regression proves origin-state ownership while the positive stdlib reduction retains its physical receipt. No worker identity or scheduler order is asserted."
   }
 ]

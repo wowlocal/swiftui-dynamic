@@ -36,11 +36,12 @@ nonisolated enum RuntimePropertyTargetIdentity: Sendable, Equatable {
 nonisolated enum RuntimeStandardLibraryMethodIdentity: Sendable, Equatable {
     case stringDistanceFromTo
     case arrayMap
+    case arrayReduce
 
     fileprivate var sourceTypeName: String {
         switch self {
         case .stringDistanceFromTo: "String"
-        case .arrayMap: "Array"
+        case .arrayMap, .arrayReduce: "Array"
         }
     }
 
@@ -48,6 +49,7 @@ nonisolated enum RuntimeStandardLibraryMethodIdentity: Sendable, Equatable {
         switch self {
         case .stringDistanceFromTo: "distance"
         case .arrayMap: "map"
+        case .arrayReduce: "reduce"
         }
     }
 }

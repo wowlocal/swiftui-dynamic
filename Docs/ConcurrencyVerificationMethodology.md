@@ -1132,6 +1132,28 @@ checks plus three isolated gate-contract checks, and all twenty parity
 repetitions on four workers in one second. `reduce` and element `count` target
 proofs remain explicitly open.
 
+Its forty-fifth prerequisite is the matching gap closure for `Array.reduce`.
+The exact question is whether a more-specific same-module `reduce` overload for
+`Array where Element == Int` is selected after `map(\.count)` inside a detached
+operation. Apple Swift 6.3.3 compiled the same-source fixture in complete
+strict Swift 6 mode with warnings as errors and returned exact `73` in twenty
+bounded runs. Every native five-run shard reported SHA-256
+`510c4b8fd1343251f41b2cfbed0f4b84e7517a95b4603e64a96e98284898f67e`.
+
+The deterministic RED left cooperative evaluation correct at `73`, while
+explicit parallel mode executed the stdlib reduction, returned `3`, and
+recorded one physical submission/execution. Worker admission now requires a
+typed `.arrayReduce` proof from the closure's originating
+`RuntimeProgramState` in addition to `.arrayMap`; any same-base source overload
+leaves the proof unresolved. A retained two-run regression returns `73` with
+zero receipts, and the positive stdlib reduction keeps its physical path. The
+scoped TSan board passed twenty native overlap iterations plus all thirty-nine
+driver/source-kernel tests on four workers in 35 seconds. The canonical focused
+iteration completed 68 runtime/metadata/worker tests in three suites, all
+forty-three methodology checks plus three isolated gate-contract checks, and
+all twenty parity repetitions on four workers in one second. Only the element
+`count` key-path target remains open inside this compound kernel.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
