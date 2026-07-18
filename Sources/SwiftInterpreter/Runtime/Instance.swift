@@ -14,6 +14,8 @@ public final class ChangeSignal {
     public func fire() {
         for handler in observers.values { handler() }
     }
+
+    public var observerCount: Int { observers.count }
 }
 
 /// Storage for an interpreted nominal value. Source structs use this mutable
