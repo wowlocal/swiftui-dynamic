@@ -3144,7 +3144,10 @@
         "ParallelFileServiceGatewayTests/symlinkedParentCannotSmuggleMutationsOutside",
         "ParallelFileServiceGatewayTests/removingASymlinkInsideTheSandboxStaysLegal",
         "ParallelFileServiceGatewayTests/moveOntoExistingDestinationFailsAlikeOnBothFaces",
-        "ParallelFileServiceGatewayTests/emptyPathQueriesAnswerFalseOnBothFaces"
+        "ParallelFileServiceGatewayTests/emptyPathQueriesAnswerFalseOnBothFaces",
+        "ParallelFileServiceGatewayTests/existenceReadsFollowDanglingLinksLikeNative",
+        "ParallelFileServiceGatewayTests/unicodePathComponentsRoundTripThroughWorkers",
+        "ParallelFileServiceGatewayTests/relativePathMutationsAreRejectedOnBothFaces"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"

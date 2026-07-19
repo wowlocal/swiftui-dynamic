@@ -870,6 +870,139 @@ struct ParallelFileServiceGatewayTests {
     }
 
     @Test
+    func existenceReadsFollowDanglingLinksLikeNative() async throws {
+        // Native fileExists follows links: a dangling link answers false
+        // even though the link entry itself exists. The kernel calls the
+        // real API, so both faces inherit exactly that.
+        let registry = ViewRegistry()
+        let box = registry.fileManagerBox
+        try FileManager.default.createDirectory(
+            at: box.sandboxRoot, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: box.sandboxRoot.appendingPathComponent("dangling"),
+            withDestinationURL: box.sandboxRoot
+                .appendingPathComponent("never-created"))
+
+        let source = """
+        func probe() async -> String {
+            let link = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("dangling")
+            let exists = await Task.detached {
+                FileManager.default.fileExists(atPath: link.path)
+            }.value
+            return exists ? "true" : "false"
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let parallel = Interpreter(
+            registry: registry,
+            executionMode: .parallel(parallelism))
+
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(parallelValue.stringValue == "false")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 1)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 1)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unicodePathComponentsRoundTripThroughWorkers() async throws {
+        let source = """
+        func probe() async -> String {
+            let manager = FileManager.default
+            let root = manager.temporaryDirectory
+                .appendingPathComponent("üñïçødé-🚚", isDirectory: true)
+            do {
+                try await Task.detached {
+                    try FileManager.default.createDirectory(
+                        at: root.appendingPathComponent("ïnner-🍩", isDirectory: true),
+                        withIntermediateDirectories: true)
+                }.value
+                let names = try await Task.detached {
+                    try FileManager.default.contentsOfDirectory(atPath: root.path)
+                }.value
+                try await Task.detached {
+                    try FileManager.default.removeItem(at: root)
+                }.value
+                let gone = !manager.fileExists(atPath: root.path)
+                return "names:\\(names.joined(separator: ","))|gone:\\(gone)"
+            } catch {
+                return "threw"
+            }
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "names:ïnner-🍩|gone:true")
+        #expect(parallelValue.stringValue == "names:ïnner-🍩|gone:true")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 3)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 3)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func relativePathMutationsAreRejectedOnBothFaces() async throws {
+        // A relative path resolves against the process CWD — outside the
+        // container by construction. Admission rejects it identically on
+        // both faces before any submission.
+        let source = """
+        func probe() async -> String {
+            do {
+                try await Task.detached {
+                    try FileManager.default.removeItem(
+                        atPath: "relative/never-here")
+                }.value
+                return "accepted"
+            } catch {
+                let text = "\\(error)"
+                return text.contains("outside the app sandbox")
+                    ? "confined" : "other:" + text
+            }
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "confined")
+        #expect(parallelValue.stringValue == "confined")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func fileManagerSandboxIsOwnedByItsRegistry() throws {
         // The parallel-worker sandbox race: a process-global root let any
         // concurrent verification reset delete or redirect an in-flight
