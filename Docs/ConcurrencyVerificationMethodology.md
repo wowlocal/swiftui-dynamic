@@ -2541,6 +2541,37 @@ receipts for `fileExists(atPath:isDirectory:)`, a source-shadowed FileManager,
 and cooperative mode. The fresh TSan board passed native overlap 20/20 and
 123/123 tests in four suites in 74 seconds without diagnostics.
 
+The ninety-seventh M9 slice follows the refreshed corpus rather than the stale
+502-file detached snapshot. The current 94-project tree contains 515 Swift
+files with `Task.detached`; balanced closure-body scanning plus manual source
+inspection finds seven direct detached `createDirectory` calls across four
+projects. Clop and Provenance cite five `at: URL` calls, while session-ios and
+Whisky cite two `atPath: String` calls. All seven pass
+`withIntermediateDirectories: true` and omit `attributes`, which defines the
+slice's depth cap.
+
+Apple Swift 6.3.3 compiled the shared fixture with complete strict concurrency
+and warnings as errors. Twenty deadline-bounded runs returned exact
+`url:true|path:true`; the raw digest was
+`a808cb350d19c054f9c3cdd750100d0ad60a7f97c56e701313b590bc71cbaecf`,
+and each five-run focused shard retained
+`992b293dadc746303526219ec033bc9f15494b2ff891dcf97f7d5f4d8274fe04`.
+The deterministic RED preserved that visible result in both interpreter modes
+while recording zero/zero physical receipts instead of two/two.
+
+The repair adds no transport type. URL/path conversion and sandbox validation
+run before launch; one immutable URL enters the existing checked
+`HostWorkerOperation`, and successful native creation returns
+`HostWorkerValue.void`. Admission requires the direct imported static chain,
+exactly the two cited labels, an evaluated true flag, and no attributes. Tests
+require two parallel submissions/executions, zero cooperative receipts, zero
+source-shadow receipts, zero receipts for false or explicit-attributes calls,
+and empty runtime registries. The physical board and fresh TSan board passed
+126/126 tests in four suites; TSan also passed native overlap 20/20 and
+completed in 31 seconds without diagnostics. The canonical focused iteration
+passed the same 126 implementation tests, all 46 methodology/gate checks, and
+20/20 parity repetitions in seven seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

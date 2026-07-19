@@ -3436,5 +3436,22 @@
     "expectedPhysicalHostOperationExecutions": 2,
     "nativeFact": "Awaited Task.detached operations may synchronously query FileManager.default.fileExists(atPath:); Task.value publishes true for an existing path and false for a missing path after each read completes.",
     "notes": "A refreshed detached FileManager census finds eight fileExists occurrences across five corpus projects. Provenance demand-cites the direct priority-bearing awaited atPath spelling in PVImageFile+Artwork.swift:21-23 before image decoding. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact present:true|missing:false in twenty bounded runs; the raw twenty-line digest is e050daabe763c37563a8ac550e2ddf6db119107b60eba89ab5fb226577551ae4 and every focused five-run shard retained 25041a67d81db417c6c43723b7caeba9823d371eac8fef5d2c27d142583d150d. The deterministic receipt RED returned the exact source value in both interpreter modes but recorded zero physical submissions/executions instead of two/two. Only the direct one-argument atPath overload builds a checked String-only Bool operation. A general argument-sensitive builder decline keeps the isDirectory: overload on the confined implementation with zero receipts, and a source-shadowed FileManager also records zero. No mutable FileManagerBox, RuntimeValue, evaluator state, stable worker identity, or scheduler order crosses or enters the claim."
+  },
+  {
+    "id": "parallel-detached-file-manager-create-directory",
+    "fixture": "Fixtures/parallel-detached-file-manager-create-directory.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedFileManagerCreateDirectoryProbe()",
+    "interpreterProjection": "string",
+    "interpreterRegistry": "swiftUI",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "expectedPhysicalHostOperationExecutions": 2,
+    "nativeFact": "Awaited Task.detached operations may synchronously create Foundation URL and path String directories with intermediate directories enabled; Task.value returns only after each directory is visible.",
+    "notes": "The refreshed 94-project corpus contains seven direct FileManager.default.createDirectory calls inside Task.detached closures across Clop, Provenance, session-ios, and Whisky. Clop and Provenance cite the at: URL spelling five times; session-ios and Whisky cite atPath: String twice. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact url:true|path:true in twenty bounded runs; the raw twenty-line digest is a808cb350d19c054f9c3cdd750100d0ad60a7f97c56e701313b590bc71cbaecf and every focused five-run shard retained 992b293dadc746303526219ec033bc9f15494b2ff891dcf97f7d5f4d8274fe04. The retained receipt RED returns the exact value in both interpreter modes but records zero physical submissions/executions instead of two/two. Only the two cited direct spellings with withIntermediateDirectories: true and omitted attributes enter the claim; aliases, arbitrary receivers, false, and explicit attributes remain confined."
   }
 ]
