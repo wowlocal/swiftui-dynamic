@@ -312,17 +312,32 @@ extension Interpreter {
             // Dynamic casts: give the target type a chance to resolve markers,
             // bridge numerics, and otherwise pass the value through
             // (optimistic `as?` — documented divergence).
-            let value = try evaluate(asExpr.expression, in: env)
-            if asExpr.questionOrExclamationMark?.text == "?", value.isNil {
-                return .none(wrappedTypeName: asExpr.type.trimmedDescription)
-            }
+            var value = try evaluate(asExpr.expression, in: env)
             var typeName = asExpr.type.trimmedDescription
+            let isConditionalCast = asExpr.questionOrExclamationMark?.text == "?"
+            let targetIsOptional = RuntimeOptionalValue.wrappedType(
+                in: typeName) != nil
+            if isConditionalCast, !targetIsOptional {
+                peelSourceOptionals: while true {
+                    switch value.optionalState {
+                    case .some(let wrapped, _):
+                        value = wrapped
+                    case .none:
+                        return .none(wrappedTypeName: typeName)
+                    case .notOptional:
+                        break peelSourceOptionals
+                    }
+                }
+            }
+            if isConditionalCast, value.isNil {
+                return .none(wrappedTypeName: typeName)
+            }
             if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
             // A DEFINITE mismatch is nil when both sides are declared in
             // this merge (`action as? AsyncAction` over a plain Action —
             // the SwiftUIFlux dispatch genre); host values and unknown
             // types keep the optimistic pass-through divergence.
-            if asExpr.questionOrExclamationMark?.text == "?" {
+            if isConditionalCast {
                 let checkable: Bool
                 switch value {
                 case .instance, .enumCase: checkable = true
@@ -338,14 +353,14 @@ extension Interpreter {
             case "Double", "CGFloat", "TimeInterval":
                 if let d = value.doubleValue {
                     let converted = RuntimeValue.native(d)
-                    return asExpr.questionOrExclamationMark?.text == "?"
+                    return isConditionalCast
                         ? converted.liftedToOptional(wrappedTypeName: typeName)
                         : converted
                 }
             case "Int":
                 if let d = value.doubleValue {
                     let converted = RuntimeValue.native(Int(d))
-                    return asExpr.questionOrExclamationMark?.text == "?"
+                    return isConditionalCast
                         ? converted.liftedToOptional(wrappedTypeName: typeName)
                         : converted
                 }
@@ -353,7 +368,7 @@ extension Interpreter {
                 break
             }
             let casted = try resolveAnnotated(value, typeName: typeName)
-            if asExpr.questionOrExclamationMark?.text == "?" {
+            if isConditionalCast {
                 return casted.liftedToOptional(wrappedTypeName: typeName)
             }
             return casted
