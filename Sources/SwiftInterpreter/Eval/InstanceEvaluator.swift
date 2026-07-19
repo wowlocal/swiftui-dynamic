@@ -530,7 +530,7 @@ extension Interpreter {
     }
 
     /// Filters an overload family by call shape and positive runtime types.
-    private func callCandidatesByRuntimeTypes(
+    func functionsFittingCall(
         from candidates: [FunctionDeclSyntax],
         args: CallArguments
     ) -> [FunctionDeclSyntax] {
@@ -545,9 +545,7 @@ extension Interpreter {
                 args: args,
                 genericParameterNames: Set(metadata.genericParameters))
         }
-        return typed.isEmpty
-            ? (shaped.isEmpty ? candidates : shaped)
-            : typed
+        return typed.isEmpty ? shaped : typed
     }
 
     /// Selects a same-shaped overload using positive runtime argument types.
@@ -555,7 +553,7 @@ extension Interpreter {
         from candidates: [FunctionDeclSyntax],
         for args: CallArguments
     ) -> FunctionDeclSyntax? {
-        callCandidatesByRuntimeTypes(from: candidates, args: args).first
+        functionsFittingCall(from: candidates, args: args).first
     }
 
     /// Keeps ordinary recursion when only one declaration fits the call.
@@ -564,9 +562,80 @@ extension Interpreter {
         from candidates: [FunctionDeclSyntax],
         args: CallArguments
     ) -> [FunctionDeclSyntax] {
-        let pool = callCandidatesByRuntimeTypes(from: candidates, args: args)
+        let fitting = functionsFittingCall(from: candidates, args: args)
+        let pool = fitting.isEmpty ? candidates : fitting
         guard pool.count > 1 else { return pool }
         return pool.filter { !activeFunctionBodies.contains($0.id) }
+    }
+
+    /// Resolve an interpreted superclass for dispatch without treating an
+    /// unavailable host superclass as an interpreted declaration.
+    func interpretedSuperclassForDispatch(
+        of symbol: StructSymbol
+    ) -> StructSymbol? {
+        guard let name = symbol.superclassName,
+              case .type(let parent)? = globals.lookup(name) else {
+            return nil
+        }
+        return parent
+    }
+
+    /// A structural override signature. Subclasses replace only the inherited
+    /// declaration with the same labels, parameter types, generic arity, and
+    /// effects; differently shaped siblings remain in the overload family.
+    private func methodOverrideSignature(
+        _ declaration: FunctionDeclSyntax
+    ) -> String {
+        let metadata = functionMetadata(for: declaration)
+        let parameters = metadata.parameters.map { parameter in
+            let type = (parameter.typeName ?? "_").filter { !$0.isWhitespace }
+            return "\(parameter.label ?? "_"):\(type)"
+                + (parameter.isVariadic ? "..." : "")
+                + (parameter.isIsolated ? ":isolated" : "")
+        }.joined(separator: ",")
+        return "\(metadata.genericParameters.count)|\(parameters)"
+            + "|async:\(metadata.isAsync)|throws:\(metadata.isThrowing)"
+    }
+
+    /// Merge an inherited overload family from child to base. All declarations
+    /// at one level survive; a child level shadows only matching structural
+    /// override signatures in its ancestors.
+    private func inheritedMethodOverloads(
+        named name: String,
+        on symbol: StructSymbol,
+        table: KeyPath<StructSymbol, [String: [FunctionDeclSyntax]]>
+    ) -> [FunctionDeclSyntax]? {
+        var result: [FunctionDeclSyntax] = []
+        var shadowed = Set<String>()
+        var candidate: StructSymbol? = symbol
+        var walked = Set<ObjectIdentifier>()
+        while let owner = candidate,
+              walked.insert(ObjectIdentifier(owner)).inserted {
+            let level = owner[keyPath: table][name] ?? []
+            result.append(contentsOf: level.filter {
+                !shadowed.contains(methodOverrideSignature($0))
+            })
+            shadowed.formUnion(level.map(methodOverrideSignature))
+            candidate = interpretedSuperclassForDispatch(of: owner)
+        }
+        return result.isEmpty ? nil : result
+    }
+
+    /// Instance lookup retains inherited overload siblings while honoring
+    /// structural overrides from the most-derived declaration level.
+    func instanceMethodOverloads(
+        named name: String, on instance: Instance
+    ) -> [FunctionDeclSyntax]? {
+        inheritedMethodOverloads(
+            named: name, on: instance.symbol, table: \.methods)
+    }
+
+    /// Static lookup follows the same overload/override rule as instances.
+    func staticMethodOverloads(
+        named name: String, on symbol: StructSymbol
+    ) -> [FunctionDeclSyntax]? {
+        inheritedMethodOverloads(
+            named: name, on: symbol, table: \.staticMethods)
     }
 
     /// `init(from decoder:)` / `init(coder:)` — only decoders reach these.

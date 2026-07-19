@@ -1182,30 +1182,37 @@ extension Interpreter {
             }
 
             if case .instance(let instance) = baseValue,
-               let overloads = instance.symbol.methods[name],
+               let overloads = instanceMethodOverloads(
+                   named: name, on: instance),
                shouldDirectlyDispatchInstanceCall(
                    named: name, on: instance, overloads: overloads) {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
-                let available = overloads.count > 1
-                    ? overloads.filter { !activeFunctionBodies.contains($0.id) }
-                    : overloads
-                if available.isEmpty {
-                    return .native(ChainedImplicitCall(
-                        base: baseValue, member: name, arguments: args))
-                }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = functionMetadata(for: method).body {
-                    let closure = makeFunctionClosure(
-                        method, body: body,
-                        captured: instanceMethodEnvironment(instance))
-                    return try await invokeSuspending(
-                        .closure(closure), with: args, node: call)
+                let fitting = functionsFittingCall(
+                    from: overloads, args: args)
+                if !fitting.isEmpty {
+                    let available = functionsAvailableForCall(
+                        from: fitting, args: args)
+                    if available.isEmpty {
+                        return .native(ChainedImplicitCall(
+                            base: baseValue, member: name, arguments: args))
+                    }
+                    if let method = chooseFunction(
+                        from: available, for: args) ?? available.first,
+                       let body = functionMetadata(for: method).body {
+                        let closure = makeFunctionClosure(
+                            method, body: body,
+                            captured: instanceMethodEnvironment(instance))
+                        return try await invokeSuspending(
+                            .closure(closure), with: args, node: call)
+                    }
                 }
             }
             if case .type(let symbol) = baseValue,
-               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+               let overloads = staticMethodOverloads(
+                   named: name, on: symbol), overloads.count > 1 {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
@@ -1250,10 +1257,28 @@ extension Interpreter {
                     && (bindingError.message.hasPrefix("missing argument")
                         || bindingError.message.hasSuffix("is not callable")) {
                 if case .instance(let instance) = baseValue {
-                    let own = (instance.symbol.methods[name] ?? [])
-                        .filter { !activeFunctionBodies.contains($0.id) }
-                    if let method = chooseFunction(from: own, for: args),
+                    let family = functionsAvailableForCall(
+                        from: instanceMethodOverloads(
+                            named: name, on: instance) ?? [],
+                        args: args)
+                    if let method = chooseFunction(from: family, for: args),
                        let body = functionMetadata(for: method).body {
+                        let closure = makeFunctionClosure(
+                            method, body: body,
+                            captured: instanceMethodEnvironment(instance))
+                        return try await invokeSuspending(
+                            .closure(closure), with: args, node: call)
+                    }
+                    for conformance in transitiveConformances(of: instance.symbol) {
+                        guard let proto = hostExtensionSymbols[conformance],
+                              let overloads = proto.methods[name] else { continue }
+                        let available = functionsAvailableForCall(
+                            from: overloads, args: args)
+                        guard let method = chooseFunction(
+                            from: available, for: args),
+                              let body = functionMetadata(for: method).body else {
+                            continue
+                        }
                         let closure = makeFunctionClosure(
                             method, body: body,
                             captured: instanceMethodEnvironment(instance))
@@ -1287,13 +1312,13 @@ extension Interpreter {
                 }
             }
             if case .instance(let instance)? = env.lookup("self"),
-               let overloads = instance.symbol.methods[name],
+               let overloads = instanceMethodOverloads(
+                   named: name, on: instance),
                shouldDirectlyDispatchImplicitSelfCall(
                    named: name, on: instance, overloads: overloads) {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
-                let available = overloads.count > 1
-                    ? overloads.filter { !activeFunctionBodies.contains($0.id) }
-                    : overloads
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
                    let body = functionMetadata(for: function).body {
                     let methodEnvironment = methodIsMutating(function)

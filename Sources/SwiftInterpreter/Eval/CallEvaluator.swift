@@ -219,36 +219,42 @@ extension Interpreter {
             // overloads and a host-superclass property can coexist with a
             // same-named subclass method (`window` vs `window(_:)`).
             if case .instance(let instance) = baseValue,
-               let overloads = instance.symbol.methods[name],
+               let overloads = instanceMethodOverloads(
+                   named: name, on: instance),
                shouldDirectlyDispatchInstanceCall(
                    named: name, on: instance, overloads: overloads
                ) {
                 let args = try collectArguments(of: call, in: env)
-                // A single declaration may recurse legitimately. Running-
-                // body exclusion only disambiguates overload sets.
-                let available = overloads.count > 1
-                    ? overloads.filter { !activeFunctionBodies.contains($0.id) }
-                    : overloads
-                if available.isEmpty {
-                    // Every overload is already running (send#StoreTask ↔
-                    // send#Task mutual delegation): the device's return-type
-                    // dispatch found a runtime path we can't — absorb.
-                    return .native(ChainedImplicitCall(
-                        base: baseValue, member: name, arguments: args))
-                }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = functionMetadata(for: method).body {
-                    let closure = makeFunctionClosure(
-                        method, body: body, captured: instanceMethodEnvironment(instance))
-                    return try invoke(.closure(closure), with: args, node: call)
+                let fitting = functionsFittingCall(
+                    from: overloads, args: args)
+                if !fitting.isEmpty {
+                    let available = functionsAvailableForCall(
+                        from: fitting, args: args)
+                    if available.isEmpty {
+                        // Every fitting overload is already running; absorb
+                        // the return-type dispatch path we cannot observe.
+                        return .native(ChainedImplicitCall(
+                            base: baseValue, member: name, arguments: args))
+                    }
+                    if let method = chooseFunction(
+                        from: available, for: args) ?? available.first,
+                       let body = functionMetadata(for: method).body {
+                        let closure = makeFunctionClosure(
+                            method, body: body,
+                            captured: instanceMethodEnvironment(instance))
+                        return try invoke(
+                            .closure(closure), with: args, node: call)
+                    }
                 }
             }
             // STATIC overloads pick by call shape too:
             // KioskRow.label(_:systemSymbol:) vs label(_:icon:).
             if case .type(let symbol) = baseValue,
-               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+               let overloads = staticMethodOverloads(
+                   named: name, on: symbol), overloads.count > 1 {
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: baseValue, member: name, arguments: args))
@@ -304,9 +310,11 @@ extension Interpreter {
                 // SAME-SYMBOL form first: FoodTruckModel's stored dict
                 // `dailyOrderSummaries` beside `dailyOrderSummaries(cityID:)`.
                 if case .instance(let instance) = baseValue {
-                    let own = (instance.symbol.methods[name] ?? [])
-                        .filter { !activeFunctionBodies.contains($0.id) }
-                    if let method = chooseFunction(from: own, for: args),
+                    let family = functionsAvailableForCall(
+                        from: instanceMethodOverloads(
+                            named: name, on: instance) ?? [],
+                        args: args)
+                    if let method = chooseFunction(from: family, for: args),
                        let body = functionMetadata(for: method).body {
                         let closure = makeFunctionClosure(
                             method, body: body, captured: instanceMethodEnvironment(instance))
@@ -383,16 +391,14 @@ extension Interpreter {
                 }
             }
             if case .instance(let instance)? = env.lookup("self"),
-               let overloads = instance.symbol.methods[name],
+               let overloads = instanceMethodOverloads(
+                   named: name, on: instance),
                shouldDirectlyDispatchImplicitSelfCall(
                    named: name, on: instance, overloads: overloads
                ) {
                 let args = try collectArguments(of: call, in: env)
-                // Preserve recursion for a unique method; only overload sets
-                // route around the currently executing declaration.
-                let available = overloads.count > 1
-                    ? overloads.filter { !activeFunctionBodies.contains($0.id) }
-                    : overloads
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: .instance(instance), member: name, arguments: args))
@@ -408,9 +414,11 @@ extension Interpreter {
                 }
             }
             if case .type(let symbol)? = env.lookup("self"),
-               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+               let overloads = staticMethodOverloads(
+                   named: name, on: symbol), overloads.count > 1 {
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: .type(symbol), member: name, arguments: args))
@@ -483,7 +491,7 @@ extension Interpreter {
     func mutatingInstanceMethods(
         named name: String, on instance: Instance
     ) -> [FunctionDeclSyntax] {
-        var methods = instance.symbol.methods[name] ?? []
+        var methods = instanceMethodOverloads(named: name, on: instance) ?? []
         for conformance in transitiveConformances(of: instance.symbol) {
             if let defaults = hostExtensionSymbols[conformance]?.methods[name] {
                 methods.append(contentsOf: defaults)

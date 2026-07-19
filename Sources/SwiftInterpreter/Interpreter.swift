@@ -367,7 +367,14 @@ public final class Interpreter {
     /// declaration-first: direct conformances precede inherited ones).
     func transitiveConformances(of symbol: StructSymbol) -> [String] {
         var out: [String] = []
-        var queue = symbol.conformances
+        var queue: [String] = []
+        var current: StructSymbol? = symbol
+        var walked = Set<ObjectIdentifier>()
+        while let candidate = current,
+              walked.insert(ObjectIdentifier(candidate)).inserted {
+            queue.append(contentsOf: candidate.conformances)
+            current = interpretedSuperclassForDispatch(of: candidate)
+        }
         var seen = Set<String>()
         while !queue.isEmpty {
             let name = queue.removeFirst()
