@@ -2949,3 +2949,13 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   self-diagnosing binding error is the detector). TestCheck moves
   without touching any gate contract (the gate's corpus board is
   ProjectCheck's). GATE next.
+- 2026-07-19 ICECUBES BOOTSTRAP — FROZEN NATIVE BASELINE (worktree iteration
+  89): `IceCubesCheck` establishes R0/R1 at 1/6 in 29s; the real Catalyst
+  Timeline/Models/NetworkClient/StatusKit/DesignSystem/Env twin decodes 20
+  recorded statuses (2 media) and renders the 900x700 public timeline. One
+  reusable Date-construction interposer freezes both processes at the fixture
+  epoch; independent launches are AE=0 on each side. First cross-side R2 is
+  honestly AE 630000/630000 (100%): the interpreted capture is black. The R1
+  histogram localizes the leading class to absent external package sources
+  (SwiftSoup-backed HTMLString content is empty), not custom Codable decoding.
+  ProjectCheck backstop holds at 678/680 (known Mythic action-driver residue).
