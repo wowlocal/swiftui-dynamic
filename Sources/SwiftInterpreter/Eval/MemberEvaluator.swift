@@ -945,7 +945,7 @@ extension Interpreter {
         return nil
     }
 
-    /// Runs the best-matching user subscript getter (picked by arity).
+    /// Runs the best-matching user subscript getter.
     func callUserSubscriptGetter(on instance: Instance, with args: CallArguments) throws -> RuntimeValue {
         try runUserSubscriptGetter(instance.symbol, selfValue: .instance(instance), args: args)
     }
@@ -970,8 +970,11 @@ extension Interpreter {
               start <= end else {
             return nil
         }
+        let probe = CallArguments(arguments: [
+            .init(label: nil, value: .native(start)),
+        ])
         let member = try userSubscriptMember(
-            in: instance.symbol, argumentCount: 1)
+            in: instance.symbol, args: probe)
         var elements: [RuntimeValue] = []
         elements.reserveCapacity(end - start)
         for index in start..<end {
@@ -1008,7 +1011,7 @@ extension Interpreter {
         _ symbol: StructSymbol, selfValue: RuntimeValue, args: CallArguments
     ) throws -> RuntimeValue {
         let member = try userSubscriptMember(
-            in: symbol, argumentCount: args.arguments.count)
+            in: symbol, args: args)
         return try runUserSubscriptGetter(
             member,
             symbolName: symbol.name,
@@ -1017,11 +1020,16 @@ extension Interpreter {
     }
 
     func userSubscriptMember(
-        in symbol: StructSymbol, argumentCount: Int
+        in symbol: StructSymbol, args: CallArguments
     ) throws -> StructSymbol.SubscriptMember {
-        guard let member = symbol.subscripts.first(where: {
-            $0.parameters.count == argumentCount
-        }) ?? symbol.subscripts.first else {
+        let arityMatches = symbol.subscripts.filter {
+            $0.parameters.count == args.arguments.count
+        }
+        let shaped = arityMatches.isEmpty ? symbol.subscripts : arityMatches
+        let typed = shaped.filter {
+            runtimeArgumentsFitDeclaredTypes($0.parameters, args: args)
+        }
+        guard let member = typed.first ?? shaped.first else {
             throw RuntimeError(message: "'\(symbol.name)' has no subscript")
         }
         return member
@@ -1080,7 +1088,7 @@ extension Interpreter {
         _ symbol: StructSymbol, selfValue: RuntimeValue, args: CallArguments, newValue: RuntimeValue
     ) throws {
         let member = try userSubscriptMember(
-            in: symbol, argumentCount: args.arguments.count)
+            in: symbol, args: args)
         try runUserSubscriptSetter(
             member,
             symbolName: symbol.name,

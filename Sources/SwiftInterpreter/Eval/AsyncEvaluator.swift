@@ -431,9 +431,16 @@ extension Interpreter {
                 if let receiver,
                    let (symbol, selfValue) = userSubscriptOwner(
                     for: receiver.selfValue) {
+                    var arguments: [CallArguments.Argument] = []
+                    for argument in call.arguments {
+                        arguments.append(.init(
+                            label: argument.label?.text,
+                            value: try await evaluateSuspending(
+                                argument.expression, in: env)))
+                    }
+                    let callArguments = CallArguments(arguments: arguments)
                     let member = try userSubscriptMember(
-                        in: symbol,
-                        argumentCount: call.arguments.count)
+                        in: symbol, args: callArguments)
                     let executor: RuntimeExecutorKind?
                     if case .instance(let instance) = selfValue {
                         executor = try resolvedExecutor(
@@ -441,23 +448,23 @@ extension Interpreter {
                     } else {
                         executor = nil
                     }
+                    let result: RuntimeValue
                     if member.isAsync || executor != nil {
-                        var arguments: [CallArguments.Argument] = []
-                        for argument in call.arguments {
-                            arguments.append(.init(
-                                label: argument.label?.text,
-                                value: try await evaluateSuspending(
-                                    argument.expression, in: env)))
-                        }
-                        let result = try await evaluateUserSubscriptGetterSuspending(
+                        result = try await evaluateUserSubscriptGetterSuspending(
                             member,
                             symbolName: symbol.name,
                             selfValue: selfValue,
-                            args: CallArguments(arguments: arguments),
+                            args: callArguments,
                             executor: executor)
-                        return receiver.liftsResult
-                            ? result.liftedToOptional() : result
+                    } else {
+                        result = try runUserSubscriptGetter(
+                            member,
+                            symbolName: symbol.name,
+                            selfValue: selfValue,
+                            args: callArguments)
                     }
+                    return receiver.liftsResult
+                        ? result.liftedToOptional() : result
                 }
 
                 // The base has already been evaluated exactly once. Rebind it

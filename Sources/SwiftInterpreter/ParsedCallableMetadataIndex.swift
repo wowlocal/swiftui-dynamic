@@ -338,7 +338,8 @@ nonisolated struct ParsedSubscriptMetadata: Sendable {
             return ClosureValue.Parameter(
                 name: (parameter.secondName ?? parameter.firstName).text
                     .trimmingCharacters(in: backticks),
-                label: firstName == "_" ? nil : firstName,
+                label: parameter.secondName == nil || firstName == "_"
+                    ? nil : firstName,
                 defaultValue: parameter.defaultValue?.value,
                 typeAnnotation: parameter.type)
         }
