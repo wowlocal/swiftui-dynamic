@@ -109,7 +109,7 @@ run_with_deadline 60 env \
         --parallel \
         --num-workers "$jobs" \
         --filter \
-        '(RuntimePhysicalWorkerDriverTests|RuntimeParallelSourceKernelTests|RuntimeSourceCallTargetTests)' \
+        '(RuntimePhysicalWorkerDriverTests|RuntimeParallelSourceKernelTests|RuntimeSourceCallTargetTests|ParallelFileServiceGatewayTests)' \
         >"$test_log" 2>&1 || test_status=$?
 if (( test_status != 0 )) \
     || rg -q 'Interceptors are not working|interceptors not installed' "$test_log"; then

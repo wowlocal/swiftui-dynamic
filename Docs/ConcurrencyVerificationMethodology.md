@@ -2595,6 +2595,18 @@ actor, stream, or SwiftUI API. For SwiftUI, `AGENTS.md` remains binding: ordinar
 surface comes from BridgeGen, and only interface-inexpressible lifecycle/
 identity behavior may use a small documented SwiftUI-magic primitive.
 
+ObjC-imported host services (for example `FileManager`) do not appear in any
+`swiftinterface`, so their forwarded members use declarative gateway tables
+instead of per-member gateway code: one row states a member's
+interpreter-sandbox semantics next to a compiler-checked native kernel, and
+one shared engine builds the confined and the physical-worker face from the
+same row. The compiler is the interface authority — a row naming a
+nonexistent member, wrong label, or wrong type does not compile — native
+parity oracles pin the source-visible labels, and generated-from-table route
+metadata replaces hand-maintained routing lists. Never land a per-member
+worker gateway (builder, routing branch, or registry literal) for a service
+member; extend its table row or add one.
+
 ## Milestone closure review
 
 Before changing a milestone to `complete`:

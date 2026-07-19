@@ -72,12 +72,26 @@ public final class ViewRegistry: HostRegistry {
         }
     }
 
+    /// One registry owns one sandbox/blob container — the fresh-container
+    /// guarantee is per registry, never process-global.
+    let fileManagerBox = FileManagerBox()
+
     public func storeBlob(_ value: RuntimeValue, at path: String) {
-        FileManagerBox.blobStore[path] = value
+        fileManagerBox.blobStore[path] = value
     }
 
     public func hostObjectConstructor(named name: String) -> HostFunction? {
-        bridgeHostObjectConstructor(named: name)
+        bridgeHostObjectConstructor(named: name, fileManager: fileManagerBox)
+    }
+
+    public func hostMemberHasWorkerOperation(
+        _ name: String,
+        onStaticMember staticMember: String,
+        ofType typeName: String
+    ) -> Bool {
+        typeName == FileServiceRouting.serviceTypeName
+            && staticMember == FileServiceRouting.serviceAccessor
+            && FileServiceRouting.workerRoutedMembers.contains(name)
     }
 
     public func constructor(named name: String) -> HostFunction? {
@@ -90,7 +104,10 @@ public final class ViewRegistry: HostRegistry {
         ) {
             return nativePlatform
         }
-        if let hostObject = bridgeHostObjectConstructor(named: resolvedName) {
+        if let hostObject = bridgeHostObjectConstructor(
+            named: resolvedName,
+            fileManager: fileManagerBox
+        ) {
             return hostObject
         }
         if let task = interpretedTaskConstructor(named: resolvedName) { return task }
