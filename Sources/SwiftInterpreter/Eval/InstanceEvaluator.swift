@@ -529,6 +529,46 @@ extension Interpreter {
         return nil
     }
 
+    /// Filters an overload family by call shape and positive runtime types.
+    private func callCandidatesByRuntimeTypes(
+        from candidates: [FunctionDeclSyntax],
+        args: CallArguments
+    ) -> [FunctionDeclSyntax] {
+        let arguments = ArgumentShape(args)
+        let shaped = candidates.filter {
+            functionMetadata(for: $0).shape.matches(arguments)
+        }
+        let typed = shaped.filter {
+            let metadata = functionMetadata(for: $0)
+            return runtimeArgumentsFitDeclaredTypes(
+                metadata.parameters,
+                args: args,
+                genericParameterNames: Set(metadata.genericParameters))
+        }
+        return typed.isEmpty
+            ? (shaped.isEmpty ? candidates : shaped)
+            : typed
+    }
+
+    /// Selects a same-shaped overload using positive runtime argument types.
+    func chooseFunctionByRuntimeTypes(
+        from candidates: [FunctionDeclSyntax],
+        for args: CallArguments
+    ) -> FunctionDeclSyntax? {
+        callCandidatesByRuntimeTypes(from: candidates, args: args).first
+    }
+
+    /// Keeps ordinary recursion when only one declaration fits the call.
+    /// Active-body exclusion only disambiguates a competing overload family.
+    func functionsAvailableForCall(
+        from candidates: [FunctionDeclSyntax],
+        args: CallArguments
+    ) -> [FunctionDeclSyntax] {
+        let pool = callCandidatesByRuntimeTypes(from: candidates, args: args)
+        guard pool.count > 1 else { return pool }
+        return pool.filter { !activeFunctionBodies.contains($0.id) }
+    }
+
     /// `init(from decoder:)` / `init(coder:)` — only decoders reach these.
     func isCodableInitializer(_ initializer: InitializerDeclSyntax) -> Bool {
         initializerMetadata(for: initializer).isCodable

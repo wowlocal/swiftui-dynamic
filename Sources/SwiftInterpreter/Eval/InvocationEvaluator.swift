@@ -42,21 +42,46 @@ extension Interpreter {
         return .directGlobalAsyncFunctionDeclaration
     }
 
-    /// A host-extension init fits only when labels align AND every
-    /// argument's RUNTIME type satisfies the parameter annotation.
-    func extensionInitFits(_ decl: InitializerDeclSyntax, args: CallArguments) -> Bool {
-        let parameters = initializerMetadata(for: decl).parameters
+    /// Positive runtime type fitting for source overload candidates. Call
+    /// shape alone is insufficient when independently compiled source files
+    /// contribute same-shaped overloads; concrete parameter annotations must
+    /// accept the runtime values before the declaration can participate.
+    func runtimeArgumentsFitDeclaredTypes(
+        _ parameters: [ClosureValue.Parameter],
+        args: CallArguments,
+        genericParameterNames: Set<String> = []
+    ) -> Bool {
         var remaining = args.arguments
         for parameter in parameters {
             if let index = remaining.firstIndex(where: { $0.label == parameter.label }) {
                 let argument = remaining.remove(at: index)
-                guard let annotation = parameter.typeAnnotation?.trimmedDescription,
-                      valueIsType(argument.value, annotation) else { return false }
+                guard let annotation = parameter.typeName else { return false }
+                let identifiers = Set(annotation.split {
+                    !$0.isLetter && !$0.isNumber && $0 != "_"
+                }.map(String.init))
+                if !identifiers.isDisjoint(with: genericParameterNames) {
+                    continue
+                }
+                if valueIsType(argument.value, annotation) { continue }
+                guard let resolved = try? resolveAnnotated(
+                    argument.value, typeName: annotation),
+                    valueIsType(resolved, annotation)
+                else { return false }
             } else if parameter.defaultValue == nil {
                 return false
             }
         }
         return remaining.isEmpty
+    }
+
+    /// A host-extension init fits only when labels align AND every
+    /// argument's RUNTIME type satisfies the parameter annotation.
+    func extensionInitFits(_ decl: InitializerDeclSyntax, args: CallArguments) -> Bool {
+        runtimeArgumentsFitDeclaredTypes(
+            initializerMetadata(for: decl).parameters,
+            args: args,
+            genericParameterNames: Set(
+                decl.genericParameterClause?.parameters.map(\.name.text) ?? []))
     }
 
     func invoke(_ callee: RuntimeValue, with args: CallArguments, node: some SyntaxProtocol) throws -> RuntimeValue {
