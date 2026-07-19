@@ -26,14 +26,43 @@ they must never regress, but they no longer set direction.
   magic may be handwritten, under the allowlist rule.
 - **Iteration algorithm** (`LOOP.md`): health check → measure → pick the single
   biggest failure class → classify & fix properly → add regression coverage →
-  verify cheaply (one closing gate) → commit (class named) → log.
+  verify cheaply (one closing gate) → commit (class named) → log. Commit SMALL
+  and OFTEN along the way — see the binding cadence section below.
 - **Worktree protocol v2** (`LOOP.md`): work in `.claude/worktrees/lane-foodtruck-run`;
   merge main at iteration start; gate clean-detached inside the worktree; post
   `MERGE-READY <sha> <gate summary>` in `.claude/claims.md` for the steward to
-  serialize into main. Never build or edit in the main checkout.
+  serialize into main — with the self-merge fallback in the cadence section
+  below so gated work never queues unlanded. Never build or edit in the main
+  checkout.
 - **Native-baseline rule**: an interpreted failure is an interpreter bug ONLY if
   the same expectation holds under the real compiler / real recorded bytes.
   Expectations are captured from the twin and the fixtures, never hand-written.
+
+## Commit and landing cadence (binding — user directive 2026-07-19)
+
+- **Commit small, commit often.** Every green step is a commit: a distilled
+  repro turning green, a rung flipping, a capability slice passing its focused
+  tests, a twin capture landing. Never accumulate a multi-thousand-line
+  uncommitted working tree — an interrupted session must lose minutes of work,
+  not a day. Uncommitted state is invisible to the steward, unrecoverable on a
+  crash, and un-reviewable in the claims channel.
+- **Push the lane branch on every commit.** The remote ref
+  `origin/worktree-lane-foodtruck-run` went stale at the 2026-07-18 i80 tip
+  because plain post-commit pushes bounce non-fast-forward; heal it once with
+  `git push --force-with-lease origin worktree-lane-foodtruck-run` and keep
+  pushing on each commit. The remote branch is backup and visibility — never an
+  integration source; merges into main come only from local gated tips.
+- **Land on main every iteration.** An iteration is not closed until its gated
+  tip is ON main and pushed. The full loop: absorb main at iteration start →
+  work in small commits → clean-detached full gate at close → post
+  `MERGE-READY <sha> <gate summary>` in `.claude/claims.md` → if no steward
+  `MERGE-LOCK` responds within ~15 minutes (and no unreleased `MERGE-LOCK` from
+  anyone else is pending), self-merge the EXACT gated sha into main
+  (`--ff-only` when main has not moved, else `--no-ff` with the standard
+  "Merge lane-foodtruck-run (gated <sha>, clean full-corpus): <class>" subject),
+  push main, and post `MERGE-DONE`. Never merge anything that is not the exact
+  gated sha; never let gated work queue behind an absent steward; main stays
+  green — revert-first if a landing turns it red.
 
 ## The instrument: `swift run IceCubesCheck` — bootstrap it first
 
