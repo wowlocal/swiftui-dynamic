@@ -98,6 +98,43 @@ public enum ProjectBuildManifestError: Error, Equatable,
     }
 }
 
+/// Fail-closed diagnostics for projecting the source membership SwiftPM
+/// already resolved. The build description is compiler evidence: callers do
+/// not infer products, targets, checkout identities, or source layouts.
+public enum SwiftPMBuildDescriptionMaterialError: Error, Equatable,
+    CustomStringConvertible
+{
+    case unreadableDescription(String)
+    case invalidDescription(String)
+    case noSwiftCommands(String)
+    case missingCompilerInput(String)
+    case unreadableCompilerInput(String)
+
+    public var description: String {
+        switch self {
+        case let .unreadableDescription(path):
+            "SwiftPM build description could not be read: '\(path)'"
+        case let .invalidDescription(path):
+            "SwiftPM build description is invalid: '\(path)'"
+        case let .noSwiftCommands(path):
+            "SwiftPM build description has no Swift commands: '\(path)'"
+        case let .missingCompilerInput(path):
+            "SwiftPM build description names a missing source: '\(path)'"
+        case let .unreadableCompilerInput(path):
+            "SwiftPM compiler input could not be read: '\(path)'"
+        }
+    }
+}
+
+private struct SwiftPMBuildDescriptionMaterial: Decodable {
+    struct Command: Decodable {
+        let moduleName: String
+        let sources: [String]
+    }
+
+    let swiftCommands: [String: Command]
+}
+
 /// Shared source discovery + merge for whole projects (ProjectCheck and the
 /// demo's `--project` mode). Mirrors what the build system itself treats as
 /// compile sources: test targets, preview assets, build products, and DocC
@@ -128,6 +165,140 @@ public enum ProjectMaterial {
             files.append(directory + "/" + path)
         }
         return files.sorted()
+    }
+
+    /// Read the exact Swift compiler inputs from SwiftPM's build description.
+    /// This is the reusable external-dependency adapter for merged projects:
+    /// SwiftPM remains responsible for package resolution and target
+    /// membership, while the interpreter consumes the same source files.
+    public static func swiftFiles(
+        inSwiftPMBuildDescriptionAt path: String
+    ) throws -> [String] {
+        let files = try swiftPMBuildModules(at: path).flatMap(\.sources)
+        return Array(Set(files)).sorted()
+    }
+
+    /// Load the transitive source-module slice needed by qualified global
+    /// references in `rootFiles`. A module joins only when a root imports it,
+    /// spells `Module.member`, and the build description proves that `member`
+    /// is a top-level declaration of that module. This distinguishes a free
+    /// module global from a same-named namespace type and avoids flattening
+    /// every resolved checkout into one artificial module.
+    public static func swiftFiles(
+        inSwiftPMBuildDescriptionAt path: String,
+        requiredBy rootFiles: [String]
+    ) throws -> [String] {
+        let modules = try swiftPMBuildModules(at: path)
+        var sourcesByModule: [String: Set<String>] = [:]
+        for module in modules {
+            sourcesByModule[module.name, default: []]
+                .formUnion(module.sources)
+        }
+
+        let roots = Set(rootFiles.map {
+            URL(fileURLWithPath: $0).standardizedFileURL
+                .resolvingSymlinksInPath().path
+        })
+        var pending = Array(roots).sorted()
+        var scanned: Set<String> = []
+        var selectedModules: Set<String> = []
+        var selectedFiles: Set<String> = []
+        var declarationsByModule: [String: Set<String>] = [:]
+
+        func source(at sourcePath: String) throws -> String {
+            guard let source = try? String(
+                contentsOfFile: sourcePath, encoding: .utf8
+            ) else {
+                throw SwiftPMBuildDescriptionMaterialError
+                    .unreadableCompilerInput(sourcePath)
+            }
+            return source
+        }
+
+        while let sourcePath = pending.first {
+            pending.removeFirst()
+            guard scanned.insert(sourcePath).inserted else { continue }
+            let usage = Interpreter.sourceModuleUsage(
+                in: try source(at: sourcePath))
+            for reference in usage.qualifiedReferences.sorted(by: {
+                ($0.moduleName, $0.memberName)
+                    < ($1.moduleName, $1.memberName)
+            }) {
+                guard let moduleSources = sourcesByModule[reference.moduleName]
+                else { continue }
+                let declarations: Set<String>
+                if let cached = declarationsByModule[reference.moduleName] {
+                    declarations = cached
+                } else {
+                    var discovered: Set<String> = []
+                    for moduleSource in moduleSources.sorted() {
+                        discovered.formUnion(
+                            Interpreter.topLevelDeclarationNames(
+                                in: try source(at: moduleSource)))
+                    }
+                    declarationsByModule[reference.moduleName] = discovered
+                    declarations = discovered
+                }
+                guard declarations.contains(reference.memberName),
+                      selectedModules.insert(reference.moduleName).inserted
+                else { continue }
+                selectedFiles.formUnion(moduleSources)
+                pending.append(contentsOf: moduleSources.sorted())
+            }
+        }
+        return selectedFiles.subtracting(roots).sorted()
+    }
+
+    private struct SwiftPMBuildModule {
+        let name: String
+        let sources: [String]
+    }
+
+    private static func swiftPMBuildModules(
+        at path: String
+    ) throws -> [SwiftPMBuildModule] {
+        let descriptionURL = URL(fileURLWithPath: path)
+            .standardizedFileURL.resolvingSymlinksInPath()
+        guard let data = try? Data(contentsOf: descriptionURL) else {
+            throw SwiftPMBuildDescriptionMaterialError
+                .unreadableDescription(descriptionURL.path)
+        }
+        let description: SwiftPMBuildDescriptionMaterial
+        do {
+            description = try JSONDecoder().decode(
+                SwiftPMBuildDescriptionMaterial.self, from: data)
+        } catch {
+            throw SwiftPMBuildDescriptionMaterialError
+                .invalidDescription(descriptionURL.path)
+        }
+        guard !description.swiftCommands.isEmpty else {
+            throw SwiftPMBuildDescriptionMaterialError
+                .noSwiftCommands(descriptionURL.path)
+        }
+
+        var modules: [SwiftPMBuildModule] = []
+        for command in description.swiftCommands.values.sorted(by: {
+            if $0.moduleName != $1.moduleName {
+                return $0.moduleName < $1.moduleName
+            }
+            return $0.sources.joined(separator: "\u{0}")
+                < $1.sources.joined(separator: "\u{0}")
+        }) {
+            var files: Set<String> = []
+            for source in command.sources where source.hasSuffix(".swift") {
+                let sourceURL = URL(fileURLWithPath: source)
+                    .standardizedFileURL.resolvingSymlinksInPath()
+                guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                    throw SwiftPMBuildDescriptionMaterialError
+                        .missingCompilerInput(sourceURL.path)
+                }
+                files.insert(sourceURL.path)
+            }
+            modules.append(SwiftPMBuildModule(
+                name: command.moduleName,
+                sources: files.sorted()))
+        }
+        return modules
     }
 
     /// Build a manifest from source membership supplied by the caller. This
@@ -192,6 +363,7 @@ public enum ProjectMaterial {
             )
             merged += "\n// FILE: \(source.fileName)\n" + stripped + "\n"
         }
+        merged += moduleProvenance(for: imports)
         merged += LibraryShims.shims(importedIn: imports, mergedSource: merged)
         return merged
     }
@@ -227,10 +399,21 @@ public enum ProjectMaterial {
             )
             merged += "\n// FILE: \(URL(fileURLWithPath: path).lastPathComponent)\n" + stripped + "\n"
         }
+        merged += moduleProvenance(for: imports)
         // Source-distributed state libraries the app imports but doesn't
         // vendor get their distilled core appended (LibraryShims).
         merged += LibraryShims.shims(importedIn: imports, mergedSource: merged)
         return merged
+    }
+
+    /// Imports cannot remain as executable declarations in the flattened
+    /// projection, but their module-lookup semantics must. These inert,
+    /// deterministic directives are consumed by ParsedProgramMetadata.
+    private static func moduleProvenance(for imports: Set<String>) -> String {
+        guard !imports.isEmpty else { return "" }
+        return "\n" + imports.sorted().map {
+            "// swift-interpreter-module \($0)"
+        }.joined(separator: "\n") + "\n"
     }
 
     fileprivate static func isSafeProjectRelativeSwiftPath(

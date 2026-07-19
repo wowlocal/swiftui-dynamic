@@ -262,15 +262,33 @@ struct IceCubesCheckMain {
         let app = root + "/External/oss/IceCubesApp"
         let fixtures = root + "/Fixtures/mastodon-public-timeline"
         let packages = app + "/Packages"
+        let twinBuild = root + "/Examples/IceCubesNativeTwin/.build"
+        let buildDescription = twinBuild
+            + "/arm64-apple-ios-macabi/debug/description.json"
         guard FileManager.default.fileExists(atPath: app),
               FileManager.default.fileExists(atPath: fixtures),
               let packageNames = try? FileManager.default.contentsOfDirectory(atPath: packages)
         else {
             throw RuntimeError(message: "IceCubes sources or fixtures are missing under \(root)")
         }
-        let packageFiles = packageNames.sorted().flatMap {
+        let localPackageFiles = packageNames.sorted().flatMap {
             ProjectMaterial.swiftFiles(under: packages + "/\($0)/Sources")
         }
+        // SwiftPM's native build plan is the source-of-truth for remote
+        // dependency target membership. The shared adapter follows imported
+        // Module.freeGlobal references and verifies each member against that
+        // module's compiled source inventory; no package/API identity lives
+        // in this instrument.
+        let externalPackageFiles: [String]
+        if FileManager.default.fileExists(atPath: buildDescription) {
+            externalPackageFiles = try ProjectMaterial.swiftFiles(
+                inSwiftPMBuildDescriptionAt: buildDescription,
+                requiredBy: localPackageFiles)
+        } else {
+            externalPackageFiles = []
+        }
+        let packageFiles = Array(Set(
+            localPackageFiles + externalPackageFiles)).sorted()
         let appFiles = ProjectMaterial.swiftFiles(under: app + "/IceCubesApp")
             + ProjectMaterial.swiftFiles(under: app + "/IceCubesAppIntents")
         guard !packageFiles.isEmpty, !appFiles.isEmpty else {
