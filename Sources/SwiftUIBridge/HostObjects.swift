@@ -217,10 +217,18 @@ final class BundleBox {
     }
 
     let bundle: Foundation.Bundle
-    init(bundle: Foundation.Bundle) { self.bundle = bundle }
+    let fileManager: FileManagerBox
+
+    init(bundle: Foundation.Bundle, fileManager: FileManagerBox) {
+        self.bundle = bundle
+        self.fileManager = fileManager
+    }
 }
 
-func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
+func bridgeHostObjectConstructor(
+    named name: String,
+    fileManager: FileManagerBox
+) -> HostFunction? {
     if let network = networkHostObjectConstructor(named: name) { return network }
     switch name {
     case "UIGraphicsImageRenderer":
@@ -359,20 +367,26 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             // resolve against the actual filesystem; no argument = main.
             if case .host(let any)? = args.labeled("url"), let url = any as? URL {
                 return .optional(
-                    Foundation.Bundle(url: url).map { .native(BundleBox(bundle: $0)) },
+                    Foundation.Bundle(url: url).map {
+                        .native(BundleBox(bundle: $0, fileManager: fileManager))
+                    },
                     wrappedTypeName: "Bundle")
             }
             if let path = args.labeled("path")?.stringValue {
                 return .optional(
-                    Foundation.Bundle(path: path).map { .native(BundleBox(bundle: $0)) },
+                    Foundation.Bundle(path: path).map {
+                        .native(BundleBox(bundle: $0, fileManager: fileManager))
+                    },
                     wrappedTypeName: "Bundle")
             }
             if let identifier = args.labeled("identifier")?.stringValue {
                 return .optional(
-                    Foundation.Bundle(identifier: identifier).map { .native(BundleBox(bundle: $0)) },
+                    Foundation.Bundle(identifier: identifier).map {
+                        .native(BundleBox(bundle: $0, fileManager: fileManager))
+                    },
                     wrappedTypeName: "Bundle")
             }
-            return .native(BundleBox(bundle: .main))
+            return .native(BundleBox(bundle: .main, fileManager: fileManager))
         }
     case "DateFormatter":
         return dateFormatterConstructorGateway
@@ -383,9 +397,13 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             // Real semantics: reading a file that isn't there throws (a
             // fresh sandbox is empty), so `try?` honestly yields nil.
             if let value = args.labeled("contentsOf") {
-                if let stored = FileManagerBox.blobStore[value.stringified] { return stored }
+                if let stored = fileManager.blobStore[value.stringified] {
+                    return stored
+                }
                 if case .host(let any) = value, let url = any as? URL {
-                    if let stored = FileManagerBox.blobStore[url.path] { return stored }
+                    if let stored = fileManager.blobStore[url.path] {
+                        return stored
+                    }
                     do { return .native(try Data(contentsOf: url)) } catch {
                         throw RuntimeError(message: "Data(contentsOf:): \(error.localizedDescription)")
                     }
@@ -675,39 +693,36 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
 /// writes/copies/removals genuinely happen (inside the sandbox only).
 public final class FileManagerBox {
     /// In-run persistence for interpreted encode→write→read→decode cycles.
-    static var blobStore: [String: RuntimeValue] = [:]
+    var blobStore: [String: RuntimeValue] = [:]
 
-    private static var sandboxGeneration = 0
-
-    static var sandboxRoot: URL = FileManagerBox.freshSandboxRoot()
-
-    private static func freshSandboxRoot() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent(
-            "DynamicSwiftUI-Sandbox-\(ProcessInfo.processInfo.processIdentifier)-\(sandboxGeneration)",
+    /// One registry owns one app-container capability. A process-global root
+    /// lets an unrelated interpreter delete or redirect an in-flight task's
+    /// files while that task is suspended — the parallel-worker sandbox race.
+    /// Fresh-container determinism now comes from each verification building
+    /// a fresh registry, not from resetting shared state.
+    let sandboxRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "DynamicSwiftUI-Sandbox-\(UUID().uuidString)",
             isDirectory: true)
-    }
-
-    /// A fresh app container per VERIFICATION: without this, project N's
-    /// files and blobs leak into project N+1 within one corpus run —
-    /// order-dependent behavior that made full runs diverge from
-    /// standalone runs (the determinism class).
-    static func resetSandbox() {
-        try? FileManager.default.removeItem(at: sandboxRoot)
-        sandboxGeneration += 1
-        sandboxRoot = freshSandboxRoot()
-        blobStore.removeAll()
-    }
 
     let manager = FileManager.default
 
+    deinit {
+        try? FileManager.default.removeItem(at: sandboxRoot)
+    }
+
     func documentsDirectory() -> URL {
-        let documents = Self.sandboxRoot.appendingPathComponent("Documents", isDirectory: true)
+        let documents = sandboxRoot.appendingPathComponent(
+            "Documents", isDirectory: true)
         try? manager.createDirectory(at: documents, withIntermediateDirectories: true)
         return documents
     }
 
     func requireSandboxed(_ url: URL) throws {
-        guard url.standardizedFileURL.path.hasPrefix(Self.sandboxRoot.standardizedFileURL.path) else {
+        let rootPath = sandboxRoot.standardizedFileURL.path
+        let candidatePath = url.standardizedFileURL.path
+        guard candidatePath == rootPath
+                || candidatePath.hasPrefix(rootPath + "/") else {
             throw RuntimeError(message: "file operation outside the app sandbox: \(url.path)")
         }
     }
@@ -1119,9 +1134,11 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                         return .native(real)
                     }
                     if resource.contains("Info"), resource.hasSuffix(".plist") || ext == "plist" {
-                        let url = FileManagerBox.sandboxRoot.appendingPathComponent("Seeded-Info.plist")
+                        let url = box.fileManager.sandboxRoot
+                            .appendingPathComponent("Seeded-Info.plist")
                         try? FileManager.default.createDirectory(
-                            at: FileManagerBox.sandboxRoot, withIntermediateDirectories: true)
+                            at: box.fileManager.sandboxRoot,
+                            withIntermediateDirectories: true)
                         if !FileManager.default.fileExists(atPath: url.path) {
                             let seeded: [String: Any] = [
                                 "CFBundleShortVersionString": box.bundle
@@ -1277,14 +1294,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let marker = value as? HostTypeMarker, marker.name == "Calendar", name == "current" {
         return .native(CalendarBox())
     }
-    if let marker = value as? HostTypeMarker, marker.name == "FileManager", name == "default" {
-        return .native(FileManagerBox())
-    }
     if let box = value as? FileManagerBox {
-        func urlArg(_ value: RuntimeValue?) -> URL? {
-            guard case .host(let any)? = value else { return nil }
-            return any as? URL
-        }
         switch name {
         case "urls":
             // Any search path reads the sandbox documents dir — the
@@ -1305,74 +1315,21 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         case "homeDirectoryForCurrentUser":
             // The app's "home" is its container — the sandbox root.
-            return .native(FileManagerBox.sandboxRoot)
+            return .native(box.sandboxRoot)
         case "temporaryDirectory":
-            let tmp = FileManagerBox.sandboxRoot.appendingPathComponent("tmp", isDirectory: true)
+            let tmp = box.sandboxRoot.appendingPathComponent(
+                "tmp", isDirectory: true)
             try? box.manager.createDirectory(at: tmp, withIntermediateDirectories: true)
             return .native(tmp)
         case "startDownloadingUbiquitousItem", "setUbiquitous":
             return .hostFunction(HostFunction(name: name) { _, _ in .void })
-        case "fileExists":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                guard let path = args.labeled("atPath")?.stringValue else { return .native(false) }
-                return .native(box.manager.fileExists(atPath: path))
-            })
-        case "removeItem":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                let url = urlArg(args.labeled("at"))
-                    ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
-                guard let url else { throw RuntimeError(message: "removeItem needs a URL") }
-                try box.requireSandboxed(url)
-                do { try box.manager.removeItem(at: url) } catch {
-                    throw RuntimeError(message: "removeItem: \(error.localizedDescription)")
-                }
-                return .void
-            })
-        case "copyItem", "moveItem":
-            let move = name == "moveItem"
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                guard let from = urlArg(args.labeled("at")), let to = urlArg(args.labeled("to")) else {
-                    // Sources that never materialized (URLSession temp
-                    // markers) can't be copied — the honest throw lands in
-                    // the app's own catch.
-                    throw RuntimeError(message: "\(name) needs source and destination URLs")
-                }
-                try box.requireSandboxed(to)
-                try box.requireSandboxed(from)
-                do {
-                    if move { try box.manager.moveItem(at: from, to: to) }
-                    else { try box.manager.copyItem(at: from, to: to) }
-                } catch {
-                    throw RuntimeError(message: "\(name): \(error.localizedDescription)")
-                }
-                return .void
-            })
-        case "createDirectory":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                let url = urlArg(args.labeled("at"))
-                    ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
-                guard let url else {
-                    // An UNKNOWABLE location (a path built from unmerged
-                    // APIs): creating it is accepted inertly — the fresh
-                    // sandbox analog, so DB-bootstrap chains don't
-                    // fatalError where the device succeeds.
-                    return .void
-                }
-                try box.requireSandboxed(url)
-                try? box.manager.createDirectory(at: url, withIntermediateDirectories: true)
-                return .void
-            })
-        case "contentsOfDirectory":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                guard let url = urlArg(args.labeled("at")) else {
-                    throw RuntimeError(message: "contentsOfDirectory needs a URL")
-                }
-                try box.requireSandboxed(url)
-                let contents = (try? box.manager.contentsOfDirectory(
-                    at: url, includingPropertiesForKeys: nil)) ?? []
-                return .native(contents.map { RuntimeValue.native($0) })
-            })
-        default: return nil
+        default:
+            // Forwarded file operations live in the declarative
+            // FileServiceOperations table: one row per member states the
+            // sandbox-analog semantics, one engine builds the confined and
+            // the checked physical-worker face from the same row.
+            return FileServiceOperations.hostFunction(named: name, on: box)
+                .map { .hostFunction($0) }
         }
     }
     // `Locale.current` — the real host locale (a device runs with one too).

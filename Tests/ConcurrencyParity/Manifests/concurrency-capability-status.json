@@ -3029,7 +3029,12 @@
       "task-owned-evaluator-context",
       "task-context-cancellation",
       "detached-host-context-reentry",
-      "parallel-host-gateway-thread-lane"
+      "parallel-host-gateway-thread-lane",
+      "parallel-detached-file-manager-move",
+      "parallel-detached-file-manager-remove",
+      "parallel-detached-file-manager-exists",
+      "parallel-detached-file-manager-create-directory",
+      "parallel-detached-file-manager-list"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -3112,12 +3117,26 @@
         "RuntimeParallelSourceKernelTests/actorConfinedWorkerGatewayNeverIntroducesHiddenReentrancy",
         "RuntimeParallelSourceKernelTests/sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway",
         "RuntimeParallelSourceKernelTests/workerAdmissionNeverForcesComputedCallables",
-        "HostSignatureTests/workerGatewaysRequireSynchronousReadOnlyContracts"
+        "HostSignatureTests/workerGatewaysRequireSynchronousReadOnlyContracts",
+        "RuntimeParallelSourceKernelTests/workerGatewayCanDeclineAfterArgumentEvaluation",
+        "ParallelFileServiceGatewayTests/detachedFileManagerMoveUsesAWorkerAndPropagatesFailure",
+        "ParallelFileServiceGatewayTests/detachedFileManagerRemoveUsesAWorkerAndPropagatesFailure",
+        "ParallelFileServiceGatewayTests/detachedFileManagerExistsUsesAWorker",
+        "ParallelFileServiceGatewayTests/detachedFileManagerCreateDirectoryUsesAWorker",
+        "ParallelFileServiceGatewayTests/detachedFileManagerListUsesAWorker",
+        "ParallelFileServiceGatewayTests/sourceShadowedFileManagerStaysOnTheConfinedEvaluator",
+        "ParallelFileServiceGatewayTests/sourceShadowedFileManagerRemoveStaysOnTheConfinedEvaluator",
+        "ParallelFileServiceGatewayTests/sourceShadowedFileManagerExistsStaysOnTheConfinedEvaluator",
+        "ParallelFileServiceGatewayTests/sourceShadowedFileManagerCreateDirectoryStaysConfined",
+        "ParallelFileServiceGatewayTests/createDirectoryArgumentShapesShareTheRowSemantics",
+        "ParallelFileServiceGatewayTests/fileManagerExistsIsDirectoryShapeSharesTheRowSemantics",
+        "ParallelFileServiceGatewayTests/routeMetadataMirrorsTheOperationTable",
+        "ParallelFileServiceGatewayTests/fileManagerSandboxIsOwnedByItsRegistry"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "M9 remains partial. ParsedProgram and its declaration/call/member metadata are immutable Sendable capabilities; each session retains its exact resolved plan, MainActor-confined RuntimeProgramState, heap, registry, runtime entry, and task-owned evaluator context. Explicit parallel mode uses a bounded Task.detached driver with checked Sendable snapshots for the demand-scoped source kernels, sleep/continuation prefixes, and source-call wrappers listed in the M9 acceptance ledger; cooperative mode remains the default and unsupported shapes stay confined. The first native host-routing subset adds a checked source-synchronous HostWorkerOperation to typed HostFunction and read-only HostProperty gateways: only @Sendable closures with Bool/String results may cross, only cooperative-default/detached source executors are eligible, and MainActor/source actors keep the confined implementation so no hidden actor reentrancy is introduced. TaskObservatory's exact Thread.isMainThread helper has same-source parity with four physical host-operation receipts; source-shadowed Thread, cooperative mode, and actor-confined reads record zero. Worker-operation eligibility is decided before the builder runs, and admission never forces computed or lazy callable storage. Physical receipts, cooperative/parallel differential tests, bounded cleanup, interpreted-trap containment, and the source-bound TSan board cover only these admitted subsets. General evaluator/heap parallelism, richer host values/callbacks, transitive synchronous helper graphs, further host/member target resolution, custom executors, ExecutorJob scheduling, and full-mode TSan remain open."
+      "notes": "M9 remains partial. ParsedProgram and its declaration/call/member metadata are immutable Sendable capabilities; each session retains its exact resolved plan, MainActor-confined RuntimeProgramState, heap, registry, runtime entry, and task-owned evaluator context. Explicit parallel mode uses a bounded Task.detached driver with checked Sendable snapshots for the demand-scoped source kernels, sleep/continuation prefixes, and source-call wrappers listed in the M9 acceptance ledger; cooperative mode remains the default and unsupported shapes stay confined. The native host-routing subset adds a checked source-synchronous HostWorkerOperation to typed HostFunction and read-only HostProperty gateways: only @Sendable closures returning the checked value vocabulary (Void/Bool/Int/Double/String/URL and arrays of it) may cross, only cooperative-default/detached source executors are eligible, and MainActor/source actors keep the confined implementation so no hidden actor reentrancy is introduced. TaskObservatory's exact Thread.isMainThread helper has same-source parity with four physical host-operation receipts; source-shadowed Thread, cooperative mode, and actor-confined reads record zero. Worker-operation eligibility is decided before the builder runs, an argument-sensitive builder may decline back to the confined implementation after observing evaluated arguments, and admission never forces computed or lazy callable storage. FileManager.default's forwarded file operations are served by the declarative FileServiceOperations table: one row per member states the sandbox-analog semantics next to a compiler-checked kernel, one engine builds the confined and the physical face from the same row so the faces cannot diverge, route metadata mirrors the table, and no member owns hand-written concurrency machinery; members with interpreter-specific semantics (search paths, sandbox directories, ubiquitous no-ops) remain hand-served and never cross. Physical receipts, cooperative/parallel differential tests, bounded cleanup, interpreted-trap containment, and the source-bound TSan board cover only these admitted subsets. General evaluator/heap parallelism, richer host values/callbacks, transitive synchronous helper graphs, further host/member target resolution, custom executors, ExecutorJob scheduling, and full-mode TSan remain open."
     }
   ]
 }

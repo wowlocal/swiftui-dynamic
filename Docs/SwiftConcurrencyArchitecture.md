@@ -3480,6 +3480,33 @@ Proof:
 - parallel stress tests have no races or invariant violations;
 - semantic parity is unchanged between cooperative and parallel runtime modes.
 
+Descope and the declarative file-service tier (2026-07-19, steward): the four
+post-M9 per-method detached-FileManager gateway merges were reverted from main
+(user directive) — per-API special cases under the AGENTS.md bridge rule and
+scope drift for the concurrency mission; the milestone ladder M0–M9 stands
+complete without them, and detached host calls the router cannot prove fall
+back to confined evaluation. Physical host crossing for stateful sandboxed
+services returns as one reusable shape instead. `FileServiceOperations`
+declares one row per forwarded `FileManager` member — argument lenience,
+sandbox admission, failure treatment, and a compiler-checked `@Sendable`
+kernel — and one engine builds both execution faces from the row: the
+confined and physical implementations run the same prepared kernel and
+materialize results through the same worker-snapshot path, so they cannot
+diverge. `FileServiceRouting` mirrors the table as pure route metadata for
+pre-evaluation admission. No member owns hand-written concurrency machinery,
+and a future demand-cited member is one data row, not a slice. `FileManager`
+is ObjC-imported and absent from the Foundation `swiftinterface`, so the
+interface authority for each row is the Swift compiler itself — a kernel
+naming a nonexistent member, wrong label, or wrong type does not compile —
+with the native-parity oracles pinning source-visible labels. Members whose
+interpreter semantics are sandbox-specific (search-path redirects, sandbox
+directories, ubiquitous no-ops) remain hand-served and never cross. The
+sandbox policy is stated once: throwing filesystem verbs must stay inside
+the per-run container; non-throwing queries pass through. A kernel may
+return only the checked `HostWorkerValue` vocabulary (Void/Bool/Int/Double/
+String/URL and arrays of it); Data-bearing and inout members are therefore
+outside the physical face by construction and keep their confined behavior.
+
 Implemented prerequisite slices (2026-07-17): parsing, operator folding, and
 target-neutral top-level declaration discovery now produce a reusable immutable
 `ParsedProgram`. Its SwiftSyntax tree, location converter, and all-branch
