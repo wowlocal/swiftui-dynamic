@@ -5458,6 +5458,46 @@ iteration passed 83 implementation tests, all 46 methodology/gate checks, and
 20/20 parity repetitions; the physical and TSan boards passed 117/117, with
 native overlap 20/20 and no sanitizer diagnostics.
 
+The ninety-fifth prerequisite extends the checked Foundation boundary by one
+operation family rather than adding a new transport. The refreshed detached
+census finds eight `FileManager.default.removeItem` uses in seven projects.
+CodeEdit supplies the exact awaited priority-bearing URL spelling, while Clop
+supplies the path-String overload. The same-source oracle removes both kinds
+of argument, then repeats the URL removal so task-value completion and
+throwing behavior are causally observable.
+
+Strict Apple Swift 6.3.3 returned exact
+`url:true|path:true|missing:error` in twenty bounded runs. The raw digest was
+`7b9af5ded53d73eae182cb2491f19992dff6be838fe3ed7b7dd57b15a3595653`,
+and every five-run focused shard retained
+`643b574324feb690e6faf5e6aa8e665d64a2706b338a80aa6ce2b673b9041a04`.
+The retained URL-only receipt RED returned the exact semantic value but
+recorded zero physical submissions/executions instead of two/one.
+
+The target boundary remains unchanged:
+
+1. The confined gateway resolves either `at: URL` or `atPath: String`,
+   converts the latter to URL, and checks the registry-owned sandbox.
+2. The worker operation captures only that immutable Foundation URL and
+   returns the existing `HostWorkerValue.void`; no new result algebra is
+   introduced.
+3. Static imported `FileManager.default` identity is required before the
+   operation builder runs. A same-module FileManager remains source-resolved
+   with zero receipts.
+4. Foundation failure returns through the existing RuntimeError path, so
+   authored `do`/`catch` remains authoritative and the failed operation is a
+   submission but not a successful execution.
+
+Final evidence records three submissions, two successful executions, exact
+cleanup, and zero cooperative receipts. The four-suite physical board and a
+fresh TSan build passed 119/119 tests; TSan also passed native overlap 20/20
+and completed in 29 seconds without a race or interceptor diagnostic. The
+canonical focused iteration passed those 119 implementation tests, all
+46 methodology/gate checks, and 20/20 parity repetitions in six seconds.
+This does not admit FileManager aliases, arbitrary instance receivers, richer
+Foundation values, callback APIs, general synchronous host forwarding, or
+stable worker identity.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -5507,6 +5547,7 @@ and weak-receiver-release-across-suspension
 and optional-value-mutating-async-writeback
 and optional-value-mutating-async-throwing-writeback
 and parallel-detached-file-manager-move
+and parallel-detached-file-manager-remove
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

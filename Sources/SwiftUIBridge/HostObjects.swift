@@ -1331,16 +1331,39 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .native(box.manager.fileExists(atPath: path))
             })
         case "removeItem":
-            return .hostFunction(HostFunction(name: name) { args, _ in
+            let validatedURL: (CallArguments) throws -> URL = { args in
                 let url = urlArg(args.labeled("at"))
                     ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
                 guard let url else { throw RuntimeError(message: "removeItem needs a URL") }
                 try box.requireSandboxed(url)
-                do { try box.manager.removeItem(at: url) } catch {
-                    throw RuntimeError(message: "removeItem: \(error.localizedDescription)")
+                return url
+            }
+            return .hostFunction(HostFunction(
+                name: name,
+                invoke: { args, _ in
+                let url = try validatedURL(args)
+                do {
+                    try box.manager.removeItem(at: url)
+                } catch {
+                    throw RuntimeError(
+                        message: "removeItem: \(error.localizedDescription)")
                 }
                 return .void
-            })
+            }, workerOperation: { args, _ in
+                // RuntimeValue conversion and sandbox validation remain on
+                // the confined evaluator. Foundation.URL is the only source
+                // value captured by the compiler-checked worker closure.
+                let url = try validatedURL(args)
+                return HostWorkerOperation {
+                    do {
+                        try FileManager.default.removeItem(at: url)
+                    } catch {
+                        throw RuntimeError(
+                            message: "removeItem: \(error.localizedDescription)")
+                    }
+                    return .void
+                }
+            }))
         case "copyItem", "moveItem":
             let move = name == "moveItem"
             let validatedURLs: (CallArguments) throws -> (URL, URL) = { args in
