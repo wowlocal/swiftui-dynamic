@@ -1861,7 +1861,8 @@
             "parallel-shadowed-array-reduce",
             "parallel-shadowed-substring-count",
             "parallel-host-gateway-thread-lane",
-            "source-imported-string-overload"
+            "source-imported-string-overload",
+            "source-imported-array-filter-overload"
           ],
           "evidenceCaseIDs": [
             "extract-isolation-nonisolated",
@@ -1984,8 +1985,12 @@
             "RuntimeParallelSourceKernelTests/sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway",
             "RuntimeParallelSourceKernelTests/workerAdmissionNeverForcesComputedCallables",
             "HostSignatureTests/workerGatewaysRequireSynchronousReadOnlyContracts",
+            "HostSignatureTests/keyPathSatisfiesFunctionParameterLikeNativeSwift",
             "ExpressionTests/sourceAndImportedMemberOverloadsUseArgumentTypes",
             "ExpressionTests/sourceAndImportedMemberOverloadsMatchInAsyncSession",
+            "AsyncExecutionTests/unusedNativeCoroutineAccessorDeclarationDoesNotFailTheRun",
+            "AsyncExecutionTests/nativeCoroutineOptionalAccessorFailsClosedWhenUsed",
+            "AsyncExecutionTests/ordinaryGetterBesideModifyAccessorRemainsReadable",
             "RuntimeParallelSourceKernelTests/detachedYieldUsesPhysicalSuspendingKernel",
             "RuntimeParallelSourceKernelTests/detachedOperationArgumentUsesPhysicalYieldKernel",
             "RuntimeParallelSourceKernelTests/detachedOperationDefaultPriorityUsesPhysicalYieldKernel",

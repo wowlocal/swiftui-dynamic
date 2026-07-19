@@ -579,6 +579,10 @@ extension Interpreter {
                     return
                 }
                 if let computed = instance.symbol.computedProperties[name] {
+                    if let failure =
+                        computed.unsupportedCoroutineModifyError {
+                        throw failure
+                    }
                     guard computed.setter != nil else {
                         if interpreter.assumesCompiledImports {
                             // A get-only assignment can't compile natively —
@@ -1131,16 +1135,20 @@ extension Interpreter {
             // (`firstRunDate = Date()` inside a property-initializer
             // closure, the setter living in a private extension).
             if case .type(let symbol)? = env.lookup("self"),
-               let computed = symbol.staticComputedProperties[name],
-               let setter = computed.setter {
-                let box = Box(.void)
-                box.onChange = { [weak self] in
-                    guard let self else { return }
-                    let setterEnv = self.selfEnvironment(.type(symbol))
-                    setterEnv.define(setter.parameterName, box.value)
-                    _ = try? self.executeBlock(setter.body, in: setterEnv)
+               let computed = symbol.staticComputedProperties[name] {
+                if let failure = computed.unsupportedCoroutineModifyError {
+                    throw failure
                 }
-                return .box(box)
+                if let setter = computed.setter {
+                    let box = Box(.void)
+                    box.onChange = { [weak self] in
+                        guard let self else { return }
+                        let setterEnv = self.selfEnvironment(.type(symbol))
+                        setterEnv.define(setter.parameterName, box.value)
+                        _ = try? self.executeBlock(setter.body, in: setterEnv)
+                    }
+                    return .box(box)
+                }
             }
             // Enum namespaces hold mutable statics too (`storage.append(…)`
             // inside a static setter): writes land in the static cache.
@@ -1149,6 +1157,11 @@ extension Interpreter {
                 || symbol.staticUninitialized.contains(name)
                 || symbol.staticCache[name] != nil {
                 return .enumStaticProperty(symbol, name)
+            }
+            if case .enumType(let symbol)? = env.lookup("self"),
+               let computed = symbol.staticComputedProperties[name],
+               let failure = computed.unsupportedCoroutineModifyError {
+                throw failure
             }
             // Host-typed implicit self (extension-of-host-type bodies):
             // `wrappedValue = …` inside `extension Binding { func load }`
@@ -1205,22 +1218,30 @@ extension Interpreter {
                 // the setter — the computed-binding precedent.
                 var setterRun: ((RuntimeValue) -> Void)?
                 if let symbol = staticSymbol,
-                   let computed = symbol.staticComputedProperties[memberName],
-                   let setter = computed.setter {
-                    setterRun = { [weak self] value in
-                        guard let self else { return }
-                        let env = self.selfEnvironment(.type(symbol))
-                        env.define(setter.parameterName, value)
-                        _ = try? self.executeBlock(setter.body, in: env)
+                   let computed = symbol.staticComputedProperties[memberName] {
+                    if let failure = computed.unsupportedCoroutineModifyError {
+                        throw failure
+                    }
+                    if let setter = computed.setter {
+                        setterRun = { [weak self] value in
+                            guard let self else { return }
+                            let env = self.selfEnvironment(.type(symbol))
+                            env.define(setter.parameterName, value)
+                            _ = try? self.executeBlock(setter.body, in: env)
+                        }
                     }
                 } else if case .enumType(let symbol)? = typeValue,
-                          let computed = symbol.staticComputedProperties[memberName],
-                          let setter = computed.setter {
-                    setterRun = { [weak self] value in
-                        guard let self else { return }
-                        let env = self.selfEnvironment(.enumType(symbol))
-                        env.define(setter.parameterName, value)
-                        _ = try? self.executeBlock(setter.body, in: env)
+                          let computed = symbol.staticComputedProperties[memberName] {
+                    if let failure = computed.unsupportedCoroutineModifyError {
+                        throw failure
+                    }
+                    if let setter = computed.setter {
+                        setterRun = { [weak self] value in
+                            guard let self else { return }
+                            let env = self.selfEnvironment(.enumType(symbol))
+                            env.define(setter.parameterName, value)
+                            _ = try? self.executeBlock(setter.body, in: env)
+                        }
                     }
                 }
                 if let setterRun {

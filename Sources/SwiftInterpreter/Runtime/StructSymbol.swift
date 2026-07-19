@@ -23,6 +23,13 @@ public struct ComputedProperty {
     public let isThrowing: Bool
     public let isBuilder: Bool
     public let setter: Setter?
+    /// Native coroutine accessors require a borrow whose lifetime spans the
+    /// caller's use of the yielded storage. The interpreter does not model
+    /// that ownership yet. Retain a located demand-time failure instead of
+    /// rejecting an otherwise unused declaration during whole-project
+    /// collection or degrading it into ordinary get/set semantics.
+    public let unsupportedCoroutineReadError: RuntimeError?
+    public let unsupportedCoroutineModifyError: RuntimeError?
     /// Explicit `nonisolated` belongs to the accessor declaration. Actor
     /// receivers use this bit to distinguish a direct, caller-executor read
     /// from the default actor-isolated computed-property entry.
@@ -40,13 +47,19 @@ public struct ComputedProperty {
         declarationID: SyntaxIdentifier? = nil,
         isNonisolated: Bool = false,
         isAsync: Bool = false,
-        isThrowing: Bool = false
+        isThrowing: Bool = false,
+        unsupportedCoroutineReadError: RuntimeError? = nil,
+        unsupportedCoroutineModifyError: RuntimeError? = nil
     ) {
         self.accessor = accessor
         self.isAsync = isAsync
         self.isThrowing = isThrowing
         self.isBuilder = isBuilder
         self.setter = setter
+        self.unsupportedCoroutineReadError =
+            unsupportedCoroutineReadError
+        self.unsupportedCoroutineModifyError =
+            unsupportedCoroutineModifyError
         self.typeAnnotation = typeAnnotation
         self.declarationID = declarationID
         self.isNonisolated = isNonisolated

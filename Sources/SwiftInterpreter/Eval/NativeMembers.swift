@@ -7,6 +7,16 @@ import SwiftSyntax
 /// `names.map { … }` works like any other call; closure-taking methods call
 /// back through the `EvalContext`.
 extension Interpreter {
+    @MainActor private static let arrayFilterSignature: HostSignature = {
+        do {
+            return try HostSignature(parsing:
+                "func Array.filter(_ isIncluded: (Any) throws -> Bool) rethrows -> [Any]")
+        } catch {
+            preconditionFailure(
+                "invalid Array.filter host contract: \(error)")
+        }
+    }()
+
     @MainActor private static let stringAppendingSignature: HostSignature = {
         do {
             return try HostSignature(
@@ -699,16 +709,23 @@ extension Interpreter {
                 return .native(out)
             })
         case "filter":
-            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
-                var out: [RuntimeValue] = []
-                for element in array
-                where try Self.mapStep(
-                    args, name, element, elementTypeName, self, ctx
-                ).boolValue == true {
-                    out.append(element)
-                }
-                return .native(out)
-            })
+            do {
+                return .hostFunction(try HostFunction(
+                    signature: Self.arrayFilterSignature
+                ) { [weak self] args, ctx in
+                    var out: [RuntimeValue] = []
+                    for element in array
+                    where try Self.mapStep(
+                        args, name, element, elementTypeName, self, ctx
+                    ).boolValue == true {
+                        out.append(element)
+                    }
+                    return .native(out)
+                })
+            } catch {
+                preconditionFailure(
+                    "invalid Array.filter host gateway: \(error)")
+            }
         case "allSatisfy":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 for element in array

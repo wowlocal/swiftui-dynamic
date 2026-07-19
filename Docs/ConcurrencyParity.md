@@ -11097,3 +11097,60 @@ canonical iteration passed 38 target tests, all 46 methodology/gate checks,
 and 20/20 focused parity repetitions in two seconds. A current sanitized build
 passed native overlap 20/20 and all 114 TSan worker tests without a race or
 interceptor diagnostic.
+
+### Array.filter source/imported overload ranking
+
+The ninety-second M9 iteration applies the bounded overload mechanism to a
+second real standard-library family. MochiDiffusion declares
+`Array<SDImage>.filter([Filter])` and delegates its body to
+`self.filter { ... }`. The closing corpus board exhausted call depth because
+the untyped imported `Array.filter` gateway could not participate in
+argument-directed ranking, so the closure call re-entered the source method.
+
+The committed `source-imported-array-filter-overload.swift` fixture preserves
+that exact shape. It also exercises `filter(\.accepted)`, because Home
+Assistant showed that publishing a typed predicate contract must retain
+Swift's SE-0249 key-path-as-function conversion. Before the runtime fix the
+delegating closure failed at line 15 with call-depth exhaustion. Apple Swift
+6.3.3 complete-strict compilation and interpreted execution now return exact
+`6,12|2,6,12` in twenty bounded runs; all four five-run native shards retain
+SHA-256
+`f75b77e6084f128f18c40fac6ea83192fd9351f91186a361a3b879e9ade649e9`.
+
+`Array.filter` now publishes a synchronous throwing-predicate host signature.
+The existing source/imported resolver can therefore select the source method
+for `[FilterRule]` and the imported method for a closure. `HostSignature`
+recognizes a `KeyPathStub` as a function-convertible value at a score below an
+explicit closure, leaving concrete KeyPath overloads free to win. The exact
+MochiDiffusion project passes, Home Assistant passes without its former
+section retries, and the original session-script corpus regression remains
+green. This does not claim general standard-library interface import or full
+generic constraint solving.
+
+### Demand-time coroutine-accessor diagnostics
+
+The ninety-third M9 iteration repairs four whole-project corpus regressions in
+swift-composable-architecture, apple-browsers, isowords, and Home Assistant.
+All four contain legal `_read` or `_modify` declarations outside the rendered
+path. Rejecting them during declaration collection made unused library code
+fatal, unlike native Swift, and reduced the closing corpus board from its
+ledgered 678/680 baseline to 673/680.
+
+The existing native probe remains authoritative for the unsupported semantic
+depth. Apple Swift 6.3.3 compiles it with
+`-enable-experimental-feature CoroutineAccessors`, complete strict
+concurrency, and warnings as errors, and returned exact
+`seed-entered-resumed` in twenty runs (raw twenty-line SHA-256
+`5fedefa78d5e4732a798893fca0331e0c37144b514a0378e80e48211cacd3a51`).
+The interpreter still does not claim suspension-safe yielded-borrow
+ownership.
+
+Instead, collection now records located read and modify failures on the
+computed-property descriptor. An unused declaration is accepted; a `_read`
+use throws the named coroutine-ownership `RuntimeError`; a write requiring
+`_modify` throws its corresponding error. When an ordinary `get` coexists
+with `_modify`, reads continue through that getter while mutation remains
+fail-closed. This is explicit demand deferral, not a silent no-op or emulation
+of coroutine accessors. The three focused accessor tests, all 97 async tests,
+all 18 host-signature tests, and each of the five previously failing OSS
+projects pass.

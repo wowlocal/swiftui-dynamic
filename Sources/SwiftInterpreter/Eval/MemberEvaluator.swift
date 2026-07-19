@@ -1086,6 +1086,9 @@ extension Interpreter {
         selfValue: RuntimeValue,
         name: String
     ) throws -> RuntimeValue {
+        if let failure = computed.unsupportedCoroutineReadError {
+            throw failure
+        }
         if computed.isAsync && evaluationTaskContext.isAsyncSession {
             throw RuntimeError(
                 message: "async computed property '\(name)' requires an "
@@ -1131,7 +1134,10 @@ extension Interpreter {
         selfValue: RuntimeValue,
         name: String
     ) async throws -> RuntimeValue {
-        try await withComputedPropertyContextSuspending(
+        if let failure = computed.unsupportedCoroutineReadError {
+            throw failure
+        }
+        return try await withComputedPropertyContextSuspending(
             computed, selfValue: selfValue, name: name
         ) { env in
             guard !computed.isBuilder else {
@@ -1162,6 +1168,9 @@ extension Interpreter {
         name: String,
         value: RuntimeValue
     ) throws {
+        if let failure = computed.unsupportedCoroutineModifyError {
+            throw failure
+        }
         guard let setter = computed.setter else {
             throw EvalMessage(text:
                 "cannot assign to get-only property '\(name)'")

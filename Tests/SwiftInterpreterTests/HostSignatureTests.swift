@@ -171,6 +171,24 @@ struct HostSignatureTests {
         #expect(interpreted == native)
     }
 
+    @Test func keyPathSatisfiesFunctionParameterLikeNativeSwift() throws {
+        let interpreter = Interpreter()
+        let predicate = try HostFunction(
+            declaration:
+                "func accepts(_ predicate: (Any) throws -> Bool) rethrows -> Bool"
+        ) { _, _ in .native(true) }
+
+        let result = try predicate.invoke(
+            CallArguments(arguments: [
+                .init(
+                    label: nil,
+                    value: .native(KeyPathStub(components: ["accepted"])))
+            ]),
+            interpreter)
+
+        #expect(result.boolValue == true)
+    }
+
     @Test func validationRunsBeforeGatewayAndChecksReturnType() throws {
         let interpreter = Interpreter()
         var calls = 0

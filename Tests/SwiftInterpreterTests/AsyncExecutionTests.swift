@@ -195,7 +195,28 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
     }
 
-    @Test func nativeCoroutineOptionalAccessorFailsClosedAtDeclaration()
+    @Test func unusedNativeCoroutineAccessorDeclarationDoesNotFailTheRun()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let probe = root.appendingPathComponent(
+            "Tests/NativeProbes/Concurrency/optional-coroutine-accessor-async-writeback.swift")
+        let source = try String(contentsOf: probe, encoding: .utf8)
+            + "\n\"unrelated-result\"\n"
+        let interpreter = Interpreter()
+
+        let result = try await interpreter.runAsync(source: source)
+
+        #expect(result.stringValue == "unrelated-result")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func nativeCoroutineOptionalAccessorFailsClosedWhenUsed()
         async throws
     {
         let root = URL(fileURLWithPath: #filePath)
@@ -218,6 +239,38 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func ordinaryGetterBesideModifyAccessorRemainsReadable()
+        async throws
+    {
+        let declaration = #"""
+final class CoroutineReadableBox {
+    var storage = 7
+    var value: Int {
+        get { storage }
+        _modify { yield &storage }
+    }
+}
+"""#
+
+        let readable = Interpreter()
+        let value = try await readable.runAsync(
+            source: declaration + "\nCoroutineReadableBox().value\n")
+        #expect(value.intValue == 7)
+
+        let modifying = Interpreter()
+        do {
+            _ = try await modifying.runAsync(source:
+                declaration
+                    + "\nlet box = CoroutineReadableBox()\n"
+                    + "box.value += 1\n")
+            Issue.record("unsupported modify accessor was silently used")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("coroutine property accessor"))
+            #expect(error.message.contains("_modify"))
+            #expect(error.message.contains("unsupported"))
+        }
     }
 
     @Test func nestedAsyncMutatingMethodCopiesOutLikeNativeSwift() async throws {

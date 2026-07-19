@@ -5358,6 +5358,34 @@ The canonical focused iteration passed 38 target tests, all 46
 methodology/gate checks, and 20/20 parity repetitions; the current TSan board
 passed native overlap 20/20 plus all 114 worker tests without diagnostics.
 
+The ninety-second prerequisite extends that same bounded declaration decision
+to `Array.filter`. MochiDiffusion's source `filter([Filter])` delegates to the
+standard-library predicate overload; therefore a legacy untyped gateway makes
+correct target selection impossible and recursively re-enters the source
+method. The imported gateway now publishes the checked synchronous contract
+`(Any) throws -> Bool -> [Any]`, which is sufficient for runtime argument
+ranking and return validation without pretending to reify `Array.Element`.
+The shared matcher also treats a runtime key path as function-convertible, at
+a lower score than an explicit closure, preserving SE-0249 and concrete
+KeyPath overload precedence. The strict same-source oracle returns exact
+`6,12|2,6,12` in 20/20 native/interpreter repetitions with focused shard
+digest `f75b77e6084f128f18c40fac6ea83192fd9351f91186a361a3b879e9ade649e9`.
+
+The ninety-third prerequisite separates declaration legality from unsupported
+runtime ownership. A merged program may contain native coroutine property
+accessors that its selected roots never use; collecting such a program must
+not fail merely because the interpreter cannot yet hold a yielded borrow
+across suspension. `ComputedProperty` therefore retains independent located
+failures for coroutine read and modify requirements. Collection registers the
+member as computed, keeping root synthesis and lookup correct. Read and write
+funnels throw the matching failure only when that operation actually needs
+the unsupported accessor. An ordinary getter beside `_modify` remains usable;
+mutation still fails closed. The strict experimental-feature probe confirms
+native `read`/`modify` returns `seed-entered-resumed`, while the interpreter
+makes no coroutine-semantics claim. Full suspension-safe `_read`/`_modify`
+borrowing, coroutine subscripts, and synthesized setter composition remain
+demand-deferred.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
