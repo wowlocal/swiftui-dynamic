@@ -41,4 +41,30 @@ import Testing
         let result = try Interpreter().run(source: source)
         #expect(result.stringValue == "7 ab")
     }
+
+    /// Distilled from SwiftSoup's pointer arithmetic colliding with its
+    /// unrelated `StringBuilder + StringBuilder` declaration. Native Swift
+    /// selects the only overload whose parameter types accept both operands.
+    @Test func globalOperatorOverloadUsesRuntimeArgumentTypes() throws {
+        let source = """
+        struct Cursor {
+            let offset: Int
+        }
+
+        struct Builder {}
+
+        func +(lhs: Cursor, rhs: Int) -> Int {
+            lhs.offset + rhs
+        }
+
+        func +(lhs: Builder, rhs: Builder) -> Int {
+            -100
+        }
+
+        Cursor(offset: 40) + 2
+        """
+
+        let result = try Interpreter().run(source: source)
+        #expect(result.intValue == 42)
+    }
 }

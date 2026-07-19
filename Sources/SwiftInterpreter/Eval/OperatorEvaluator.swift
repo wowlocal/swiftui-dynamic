@@ -163,13 +163,33 @@ extension Interpreter {
                     return viaDeclared
                 }
                 // User-defined infix operators (`|>` pipe-forward, `~=`
-                // overloads) — top-level operator functions.
-                if case .closure(let closure)? = globals.lookup(op) {
+                // overloads) — top-level operator functions. Source
+                // declarations dispatch through their overload family so an
+                // unrelated same-shaped declaration cannot win merely
+                // because it was defined last.
+                let operatorArguments = CallArguments(arguments: [
+                    .init(label: nil, value: lhs),
+                    .init(label: nil, value: rhs),
+                ])
+                if let overloads = globalFunctionOverloads[op] {
+                    let fitting = operatorFunctionsFittingRuntimeTypes(
+                        from: overloads, args: operatorArguments)
+                    let available = fitting.count > 1
+                        ? fitting.filter {
+                            !activeFunctionBodies.contains($0.id)
+                        }
+                        : fitting
+                    if let method = available.first,
+                       let body = functionMetadata(for: method).body {
+                        let closure = makeFunctionClosure(
+                            method, body: body, captured: globals)
+                        return try callWithArguments(
+                            closure, args: operatorArguments, node: nil)
+                    }
+                } else if case .closure(let closure)? = globals.lookup(op) {
                     return try callWithArguments(
                         closure,
-                        args: CallArguments(arguments: [
-                            .init(label: nil, value: lhs), .init(label: nil, value: rhs),
-                        ]),
+                        args: operatorArguments,
                         node: nil)
                 }
                 // Ecosystem operators from EXTERNAL modules: `|>` is

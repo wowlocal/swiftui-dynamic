@@ -548,6 +548,31 @@ extension Interpreter {
         return typed.isEmpty ? shaped : typed
     }
 
+    /// Operator calls bind operands positionally even though their declaration
+    /// parameters are conventionally named `lhs` and `rhs`. They also have no
+    /// dynamically callable fallback: a concrete type mismatch rejects the
+    /// overload instead of selecting an arbitrary declaration of equal arity.
+    func operatorFunctionsFittingRuntimeTypes(
+        from candidates: [FunctionDeclSyntax],
+        args: CallArguments
+    ) -> [FunctionDeclSyntax] {
+        return candidates.filter { declaration in
+            let metadata = functionMetadata(for: declaration)
+            guard metadata.parameters.count == args.arguments.count else {
+                return false
+            }
+            let positional = CallArguments(arguments: zip(
+                metadata.parameters, args.arguments
+            ).map { parameter, argument in
+                .init(label: parameter.label, value: argument.value)
+            })
+            return runtimeArgumentsFitDeclaredTypes(
+                metadata.parameters,
+                args: positional,
+                genericParameterNames: Set(metadata.genericParameters))
+        }
+    }
+
     /// Selects a same-shaped overload using positive runtime argument types.
     func chooseFunctionByRuntimeTypes(
         from candidates: [FunctionDeclSyntax],
