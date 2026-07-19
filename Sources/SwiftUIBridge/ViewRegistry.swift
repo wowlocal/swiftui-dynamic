@@ -88,7 +88,9 @@ public final class ViewRegistry: HostRegistry {
     ) -> Bool {
         typeName == "FileManager"
             && staticMember == "default"
-            && (name == "copyItem" || name == "moveItem")
+            && (name == "copyItem"
+                || name == "moveItem"
+                || name == "removeItem")
     }
 
     public func constructor(named name: String) -> HostFunction? {

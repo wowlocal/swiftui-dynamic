@@ -3402,5 +3402,22 @@
     "expectedPhysicalHostOperationExecutions": 3,
     "nativeFact": "Awaited Task.detached operations may synchronously move and copy Foundation URLs with FileManager.default; Task.value returns only after each file-system effect is visible, and a subsequent move from the missing source throws into the caller's do/catch.",
     "notes": "UTM demand-cites the exact detached FileManager.default move spelling in UTMQemuConfiguration.swift:323-325 and 336-338, plus the corresponding detached copyItem spelling in UTMConfiguration.swift:191-193. The same-source probe also reads the physical lane through a synchronous helper. Its deterministic interpreter RED already returned the correct move/failure behavior, but parallel mode recorded only the existing Thread worker operation; FileManager still ran synchronously on the MainActor-hosted evaluator. The checked bridge route adds one successful move execution, one successful copy execution, and one throwing move submission without moving FileManagerBox, RuntimeValue, evaluator, or mutable sandbox state across the worker boundary. A focused source-shadow regression proves a same-module FileManager keeps source precedence and records no physical host operation. UTMVirtualMachine's distinct Self.fileManager receiver remains cooperative and is not claimed by this route. A closing full parallel-worker RED proved that process-global sandbox/blob state could be reset by an unrelated registry while this operation was suspended; FileManager, Bundle, and Data state is now owned by each ViewRegistry or TraceRegistry, and a nonserialized regression proves reset cannot erase another live registry."
+  },
+  {
+    "id": "parallel-detached-file-manager-remove",
+    "fixture": "Fixtures/parallel-detached-file-manager-remove.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedFileManagerRemoveProbe()",
+    "interpreterProjection": "string",
+    "interpreterRegistry": "swiftUI",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "expectedPhysicalHostOperationExecutions": 2,
+    "nativeFact": "Awaited Task.detached operations may synchronously remove Foundation URL and path String arguments with FileManager.default; Task.value returns only after each removal is visible, and removing the same missing URL throws into the caller's do/catch.",
+    "notes": "The 94-project corpus contains eight detached FileManager.default.removeItem occurrences across CodeEdit, Clop, CotEditor, Planet, Provenance, UTM, and Unwatched, making it the broadest remaining detached FileManager operation family. CodeEdit demand-cites the exact priority-bearing awaited URL spelling in RegistryManager.swift:96-98; Clop demand-cites removeItem(atPath:) in PipelineExecution.swift:1079, while UTM and the other projects cite additional conditional, loop, try?, and cleanup compositions. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact url:true|path:true|missing:error in twenty runs; the raw digest is 7b9af5ded53d73eae182cb2491f19992dff6be838fe3ed7b7dd57b15a3595653 and every focused five-run shard retained 643b574324feb690e6faf5e6aa8e665d64a2706b338a80aa6ce2b673b9041a04. The retained URL-only RED returned the correct source value but recorded zero physical submissions/executions instead of two/one. This bounded same-source case isolates both direct static overloads: the successful URL and path removals execute physically, the repeated URL attempt submits and rethrows its Foundation failure, and a source-shadowed FileManager remains confined. URL/path conversion, sandbox validation, mutable FileManagerBox state, RuntimeValue, and evaluator ownership remain outside the worker operation."
   }
 ]

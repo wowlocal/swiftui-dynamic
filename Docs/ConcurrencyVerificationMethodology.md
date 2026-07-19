@@ -2484,6 +2484,36 @@ exact-tip TSan bundle rebuilt in 11 seconds then completed native overlap 20/20
 plus all 114 tests in 29 seconds total without a race or interceptor
 diagnostic.
 
+The ninety-fifth M9 slice closes the highest-project-count remaining detached
+FileManager family: eight `FileManager.default.removeItem` occurrences across
+seven of the 94 corpus projects. CodeEdit cites the awaited priority-bearing
+`at: URL` form and Clop cites `atPath: String`. The semantic question is
+whether Task.value observes each completed removal and whether a repeated
+removal throws into the caller while the checked native operation, rather
+than the confined evaluator, performs the eligible effect.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. Twenty bounded runs returned exact
+`url:true|path:true|missing:error`; raw SHA-256 was
+`7b9af5ded53d73eae182cb2491f19992dff6be838fe3ed7b7dd57b15a3595653`,
+and every five-run focused shard retained
+`643b574324feb690e6faf5e6aa8e665d64a2706b338a80aa6ce2b673b9041a04`.
+The deterministic URL RED returned the right source value but observed zero
+physical submissions/executions instead of two/one.
+
+The repair reuses `HostWorkerOperation` and `HostWorkerValue.void`. URL/path
+conversion plus sandbox validation remain confined, and the compiler-checked
+worker closure captures one immutable Foundation URL. Final evidence requires
+zero cooperative receipts, three parallel submissions, two successful
+executions, the original thrown failure, a zero-receipt source-shadow control,
+and empty host/task registries. The exact-tip physical and fresh TSan boards
+passed 119/119 tests; TSan also passed native overlap 20/20 and completed in
+29 seconds without diagnostics. The canonical focused iteration passed the
+119 implementation tests, all 46 methodology/gate checks, and 20/20 parity
+repetitions in six seconds. FileManager aliases, arbitrary receivers,
+other operations, stable worker identity, and general host forwarding remain
+outside the slice.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
