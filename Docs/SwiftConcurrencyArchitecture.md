@@ -5498,6 +5498,39 @@ This does not admit FileManager aliases, arbitrary instance receivers, richer
 Foundation values, callback APIs, general synchronous host forwarding, or
 stable worker identity.
 
+The ninety-sixth prerequisite closes the next tied-highest detached
+FileManager receipt gap: eight `fileExists` occurrences across five corpus
+projects. Provenance supplies the direct awaited priority-bearing
+`FileManager.default.fileExists(atPath:)` spelling. The same-source oracle
+checks one existing directory and one missing path, so both Bool outcomes and
+both detached task completions are observable without relying on another
+unproved write gateway.
+
+Strict Apple Swift 6.3.3 returned exact `present:true|missing:false` in twenty
+bounded runs. The raw digest was
+`e050daabe763c37563a8ac550e2ddf6db119107b60eba89ab5fb226577551ae4`,
+and every focused five-run shard retained
+`25041a67d81db417c6c43723b7caeba9823d371eac8fef5d2c27d142583d150d`.
+Before the repair, both interpreter modes returned the exact value but the
+parallel run recorded zero physical submissions/executions instead of two/two.
+
+The direct one-argument `atPath: String -> Bool` gateway now builds the
+existing checked synchronous host operation. Only the immutable String and
+the Bool snapshot cross the worker boundary. The reusable operation builder
+may decline after arguments have been evaluated, but it is not consulted
+until physical eligibility is established. Consequently the
+`fileExists(atPath:isDirectory:)` inout overload, a same-module FileManager,
+cooperative execution, actor-confined work, and all other receivers remain on
+the confined evaluator with zero receipts. No mutable pointer or inout
+writeback crosses the worker boundary.
+
+Final focused evidence records two submissions and two executions, exact
+values, drained registries, and zero cooperative receipts. The four-suite
+physical board and a fresh TSan build passed 123/123 tests; TSan also passed
+native overlap 20/20 and completed in 74 seconds without a race or interceptor
+diagnostic. This is argument-sensitive checked admission, not general native
+forwarding.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -5548,6 +5581,7 @@ and optional-value-mutating-async-writeback
 and optional-value-mutating-async-throwing-writeback
 and parallel-detached-file-manager-move
 and parallel-detached-file-manager-remove
+and parallel-detached-file-manager-exists
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

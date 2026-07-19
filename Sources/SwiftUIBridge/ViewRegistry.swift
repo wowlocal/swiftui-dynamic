@@ -88,7 +88,8 @@ public final class ViewRegistry: HostRegistry {
     ) -> Bool {
         typeName == "FileManager"
             && staticMember == "default"
-            && (name == "copyItem"
+            && (name == "fileExists"
+                || name == "copyItem"
                 || name == "moveItem"
                 || name == "removeItem")
     }

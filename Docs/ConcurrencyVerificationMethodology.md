@@ -2514,6 +2514,33 @@ repetitions in six seconds. FileManager aliases, arbitrary receivers,
 other operations, stable worker identity, and general host forwarding remain
 outside the slice.
 
+The ninety-sixth M9 slice is a receipt gap closure for the next tied-highest
+detached FileManager family. A refreshed census finds eight `fileExists`
+occurrences across five projects; Provenance cites the direct awaited
+priority-bearing `atPath:` spelling at `PVImageFile+Artwork.swift:21-23`.
+The exact semantic question is whether awaited detached reads publish true for
+an existing path and false for a missing path, while explicit parallel mode
+runs the checked native operation rather than the confined evaluator.
+
+Apple Swift 6.3.3 compiled the minimal same-source fixture with complete
+strict concurrency and warnings as errors. Twenty bounded runs returned
+`present:true|missing:false`, with raw digest
+`e050daabe763c37563a8ac550e2ddf6db119107b60eba89ab5fb226577551ae4`;
+each focused five-run shard retained
+`25041a67d81db417c6c43723b7caeba9823d371eac8fef5d2c27d142583d150d`.
+The pre-fix interpreter value was already exact, but parallel receipts were
+zero/zero instead of two/two.
+
+The repair reuses the checked source-synchronous host-operation boundary and
+its Bool result snapshot. One immutable path String crosses. A reusable
+argument-sensitive builder-decline path preserves the ordinary confined
+implementation when a name identifies an overload family but the evaluated
+arguments are outside its worker-safe subset; builder construction remains
+lazy in cooperative or actor-confined contexts. Focused controls require zero
+receipts for `fileExists(atPath:isDirectory:)`, a source-shadowed FileManager,
+and cooperative mode. The fresh TSan board passed native overlap 20/20 and
+123/123 tests in four suites in 74 seconds without diagnostics.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

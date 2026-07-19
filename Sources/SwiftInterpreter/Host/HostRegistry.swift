@@ -140,8 +140,10 @@ public protocol EvalContext: AnyObject {
     /// confined implementation instead. The builder is deliberately lazy:
     /// actor-confined and cooperative fallbacks must not copy arguments,
     /// execute gateway code, or otherwise observe a worker-only path.
+    /// A builder may return `nil` after inspecting already-evaluated
+    /// arguments when only a subset of an overload family is worker-safe.
     func runHostWorkerOperation(
-        _ makeOperation: () throws -> HostWorkerOperation
+        _ makeOperation: () throws -> HostWorkerOperation?
     ) async throws -> RuntimeValue?
     /// Create an interpreted Task. Async interpreter sessions schedule it on
     /// a real Swift task; synchronous compatibility sessions execute it
@@ -263,7 +265,7 @@ extension EvalContext {
     }
 
     public func runHostWorkerOperation(
-        _ makeOperation: () throws -> HostWorkerOperation
+        _ makeOperation: () throws -> HostWorkerOperation?
     ) async throws -> RuntimeValue? {
         nil
     }

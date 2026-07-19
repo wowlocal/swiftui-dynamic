@@ -1326,10 +1326,29 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "startDownloadingUbiquitousItem", "setUbiquitous":
             return .hostFunction(HostFunction(name: name) { _, _ in .void })
         case "fileExists":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                guard let path = args.labeled("atPath")?.stringValue else { return .native(false) }
-                return .native(box.manager.fileExists(atPath: path))
-            })
+            let pathArgument: (CallArguments) -> String? = { args in
+                args.labeled("atPath")?.stringValue
+            }
+            return .hostFunction(HostFunction(
+                name: name,
+                invoke: { args, _ in
+                    guard let path = pathArgument(args) else {
+                        return .native(false)
+                    }
+                    return .native(box.manager.fileExists(atPath: path))
+                },
+                workerOperationIfSupported: { args, _ in
+                    // The inout `isDirectory:` overload has additional
+                    // write-back semantics and remains on the confined path.
+                    guard args.arguments.count == 1,
+                          args.arguments[0].label == "atPath",
+                          let path = pathArgument(args) else {
+                        return nil
+                    }
+                    return HostWorkerOperation {
+                        .bool(FileManager.default.fileExists(atPath: path))
+                    }
+                }))
         case "removeItem":
             let validatedURL: (CallArguments) throws -> URL = { args in
                 let url = urlArg(args.labeled("at"))

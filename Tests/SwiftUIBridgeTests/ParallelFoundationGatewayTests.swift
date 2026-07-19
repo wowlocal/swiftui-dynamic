@@ -79,6 +79,37 @@ struct ParallelFoundationGatewayTests {
     }
 
     @Test
+    func detachedFileManagerExistsUsesAWorker() async throws {
+        let fixture = repositoryRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-file-manager-exists.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedFileManagerExistsProbe()\n"
+        let expected = "present:true|missing:false"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == expected)
+        #expect(parallelValue.stringValue == expected)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 2)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 2)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func sourceShadowedFileManagerStaysOnTheConfinedEvaluator()
         async throws
     {
@@ -144,6 +175,75 @@ struct ParallelFoundationGatewayTests {
         """)
 
         #expect(value.stringValue == "removed:source")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func sourceShadowedFileManagerExistsStaysOnTheConfinedEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        struct FileManager {
+            static let `default` = FileManager()
+
+            func fileExists(atPath: String) -> String {
+                "source:" + atPath
+            }
+        }
+
+        func probe() async -> String {
+            await Task.detached {
+                FileManager.default.fileExists(atPath: "path")
+            }.value
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "source:path")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func fileManagerExistsInoutOverloadStaysOnTheConfinedEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        func probe() async -> String {
+            let path = FileManager.default.temporaryDirectory.path
+            let exists = await Task.detached {
+                FileManager.default.fileExists(
+                    atPath: path, isDirectory: nil)
+            }.value
+            return exists ? "exists" : "missing"
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "exists")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalHostOperationSubmissions == 0)
         #expect(interpreter.concurrencyRuntime
