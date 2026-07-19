@@ -36,6 +36,8 @@ final class RuntimeProgramState {
     var dependencyCache: [String: RuntimeValue] = [:]
     var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]
     var declarationLexicalOwners: [SyntaxIdentifier: AnyObject] = [:]
+    var preparedScalarFunctions:
+        [SyntaxIdentifier: PreparedScalarFunctionCache] = [:]
     var pendingDottedExtensions: [ExtensionDeclSyntax] = []
     var aliasHeads: [String: String] = [:]
     var pendingMemberAliases: [PendingMemberAlias] = []
@@ -100,6 +102,22 @@ final class RuntimeProgramState {
         while let state = cursor {
             if state.declarationLexicalOwners[declarationID] != nil {
                 return state
+            }
+            cursor = state.hostExtensionParent
+        }
+        return nil
+    }
+
+    /// Resolve one owner without materializing the merged declaration index.
+    /// Runtime accessor dispatch is a point lookup and can be substantially
+    /// hotter than compatibility code that snapshots the complete lineage.
+    func lexicalOwner(
+        of declarationID: SyntaxIdentifier
+    ) -> AnyObject? {
+        var cursor: RuntimeProgramState? = self
+        while let state = cursor {
+            if let owner = state.declarationLexicalOwners[declarationID] {
+                return owner
             }
             cursor = state.hostExtensionParent
         }

@@ -286,6 +286,14 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func withKnownFiniteHostIteration<T>(
+        _ operation: () throws -> T
+    ) throws -> T {
+        try bound {
+            try interpreter.withKnownFiniteHostIteration(operation)
+        }
+    }
+
     func sourceStaticMember(
         named member: String, ofType typeName: String
     ) throws -> RuntimeValue? {
@@ -1097,5 +1105,11 @@ extension Interpreter: EvalContext {
         let args = CallArguments(arguments: arguments.map { .init(label: nil, value: $0) })
         try bindParameters(of: closure, to: args, into: env, node: nil)
         return try collectBuilderViews(closure.body, in: env)
+    }
+
+    public func withKnownFiniteHostIteration<T>(
+        _ operation: () throws -> T
+    ) throws -> T {
+        try withFiniteIterationSlice(operation)
     }
 }

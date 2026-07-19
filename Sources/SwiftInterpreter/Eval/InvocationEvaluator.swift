@@ -84,6 +84,76 @@ extension Interpreter {
                 decl.genericParameterClause?.parameters.map(\.name.text) ?? []))
     }
 
+    /// All generated constructor adapters dispatch on the callee's runtime
+    /// constructor property. Keeping this extraction shared prevents each
+    /// semantic surface from growing its own host/type identity cases.
+    func runtimeConstructorName(
+        constructedBy callee: RuntimeValue
+    ) -> String? {
+        switch callee {
+        case .hostFunction(let function):
+            return function.name
+        case .host(let value) where value is HostTypeMarker:
+            return (value as! HostTypeMarker).name
+        default:
+            return nil
+        }
+    }
+
+    /// A type constructor fed a collection-backed `start` plus an integer
+    /// `count` is a read-only buffer window. The trace/live registries expose
+    /// catch-all constructors for unknown SDK types, so this structural
+    /// adapter must run before those recorders can erase the backing values.
+    /// Dispatch is on constructor shape and argument capabilities, never a
+    /// pointer type-name allowlist.
+    func collectionBackedBufferWindow(
+        constructedBy callee: RuntimeValue,
+        args: CallArguments
+    ) -> RuntimeValue? {
+        guard let constructorName = runtimeConstructorName(
+                constructedBy: callee),
+              GeneratedUnsafeMemorySurface.isBufferType(constructorName),
+              let count = args.labeled("count")?.intValue else {
+            return nil
+        }
+        guard let start = args.labeled("start")?.unwrappedOptionalOrSelf else {
+            return count == 0
+                ? .native(RuntimeCollectionBackedBuffer([])) : nil
+        }
+        if let elements = start.arrayValue {
+            return .native(RuntimeCollectionBackedBuffer(
+                Array(elements.prefix(max(0, count)))))
+        }
+        if case .host(let payload) = start,
+           let pointer = payload as? RuntimeCollectionBackedPointer {
+            guard let buffer = try? pointer.window(count: count) else {
+                return nil
+            }
+            return .native(buffer)
+        }
+        return nil
+    }
+
+    /// Pointer conversion is an unsafe-memory semantic, but eligibility is
+    /// generated from the stdlib interface's `_Pointer` metadata. A registry
+    /// catch-all can therefore never steal `UnsafeRawPointer(typedPointer)`,
+    /// while an unrelated one-argument host constructor remains untouched.
+    func collectionBackedRawPointerConversion(
+        constructedBy callee: RuntimeValue,
+        args: CallArguments
+    ) -> RuntimeValue? {
+        guard let constructorName = runtimeConstructorName(
+                constructedBy: callee),
+              GeneratedUnsafeMemorySurface.isRawPointerType(constructorName),
+              args.arguments.count == 1,
+              let source = args.arguments.first?.value.unwrappedOptionalOrSelf,
+              case .host(let payload) = source,
+              let cursor = payload as? any HostRawMemoryCursor,
+              let raw = try? cursor.advancedRawMemory(byByteOffset: 0)
+        else { return nil }
+        return .native(raw as Any)
+    }
+
     func invoke(_ callee: RuntimeValue, with args: CallArguments, node: some SyntaxProtocol) throws -> RuntimeValue {
         var args = args
         switch callee {
@@ -91,6 +161,14 @@ extension Interpreter {
             break // user code: `inout` slots flow through to bindParameters
         default:
             args = args.unwrappingInoutSlots()
+        }
+        if let pointer = collectionBackedRawPointerConversion(
+            constructedBy: callee, args: args) {
+            return pointer
+        }
+        if let buffer = collectionBackedBufferWindow(
+            constructedBy: callee, args: args) {
+            return buffer
         }
         switch callee {
         case .nilValue:
@@ -212,6 +290,12 @@ extension Interpreter {
                     }
                 }
             }
+            if let generated = try RuntimeUnicodeDecodingConstructor.invoke(
+                named: function.name,
+                arguments: args
+            ) {
+                return generated
+            }
             do {
                 return try function.invoke(args, self)
             } catch let e as RuntimeError where e.line == 0 {
@@ -301,6 +385,12 @@ extension Interpreter {
             return .native(ChainedImplicitCall(base: chained.base, member: chained.member, arguments: args))
         case .host(let any) where any is HostTypeMarker:
             let marker = any as! HostTypeMarker
+            if let generated = try RuntimeUnicodeDecodingConstructor.invoke(
+                named: marker.name,
+                arguments: args
+            ) {
+                return generated
+            }
             if assumesCompiledImports, marker.name.contains("."),
                let ctor = registry?.constructor(named: marker.name) {
                 // Macro-generated NESTED types called as constructors
@@ -597,10 +687,7 @@ extension Interpreter {
                 || current.methods[name] != nil {
                 return true
             }
-            symbol = current.superclassName.flatMap {
-                guard case .type(let parent)? = globals.lookup($0) else { return nil }
-                return parent
-            }
+            symbol = interpretedSuperclass(of: current)
         }
         for conformance in transitiveConformances(of: instance.symbol) {
             if let ext = hostExtensionSymbols[conformance],
@@ -972,6 +1059,21 @@ extension Interpreter {
         let effectiveArguments = invocation.arguments
         let calleeExecutor = contextualExecutor ?? invocation.executor
         try requireSynchronousActorInvocationAccess(to: calleeExecutor)
+        // Structurally prepared, side-effect-free scalar helpers need none of
+        // the mutable frame/environment machinery below. Labels and declared
+        // parameter coercions are still resolved through the shared binder.
+        if let prepared = preparedScalarFunction(for: closure),
+           let arguments = try preparedScalarArguments(
+                of: closure, from: effectiveArguments),
+           let value = try prepared.execute(
+                arguments: arguments,
+                receiver: closure.captured.lookup("self"),
+                interpreter: self) {
+            if let returnTypeName = closure.returnTypeName {
+                return try resolveAnnotated(value, typeName: returnTypeName)
+            }
+            return value
+        }
         callDepth += 1
         defer { callDepth -= 1 }
         let previousExecutor = evaluationTaskContext.currentExecutor

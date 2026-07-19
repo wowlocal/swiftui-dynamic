@@ -215,6 +215,35 @@ import SwiftInterpreter
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("loaded"), "the seeded VM must reach the body, got \(strings)")
     }
+
+    /// Distilled from IceCubes' `StatusRowView`, whose synthesized memberwise
+    /// initializer accepts a model through an `@State`-wrapped property.
+    @Test func synthesizedInitializerSeedsStateWrappedModel() throws {
+        let source = """
+        struct RowModel {
+            let title: String
+        }
+
+        struct RowView: View {
+            @State var model: RowModel
+            let context: String
+
+            var body: some View {
+                Text(context + ":" + model.title)
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                RowView(model: RowModel(title: "fixture"), context: "timeline")
+            }
+        }
+        """
+
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("timeline:fixture"), "the memberwise seed must reach the body, got \(strings)")
+    }
+
 }
 
 /// ForEach element-identity SALTING (iteration 194): sibling rows

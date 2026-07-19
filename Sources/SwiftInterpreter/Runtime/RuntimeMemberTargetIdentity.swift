@@ -27,8 +27,22 @@ nonisolated enum RuntimeDeclaredType {
 
     static func nominalTypeName(_ typeName: String?) -> String? {
         guard let typeName else { return nil }
-        let text = typeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = typeName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
+        while text.hasSuffix("?") || text.hasSuffix("!") {
+            text = String(text.dropLast()).trimmingCharacters(
+                in: .whitespacesAndNewlines)
+        }
+        while text.hasPrefix("Optional<"), text.hasSuffix(">") {
+            text = String(text.dropFirst("Optional<".count).dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if text.hasPrefix("["), text.hasSuffix("]") {
+            return text.contains(":") ? "Dictionary" : "Array"
+        }
+        if let generic = text.firstIndex(of: "<") {
+            text = String(text[..<generic])
+        }
         return text.split(separator: ".").last.map(String.init)
     }
 }

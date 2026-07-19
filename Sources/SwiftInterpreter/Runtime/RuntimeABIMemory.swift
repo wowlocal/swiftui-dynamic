@@ -3,9 +3,24 @@ import Foundation
 /// A retained host-memory region. Framework bridges use this instead of
 /// leaking an `UnsafePointer` into `RuntimeValue`: the owner remains alive and
 /// Foundation gateways can copy bytes without knowing the originating SDK.
+@MainActor
 public protocol HostRawMemory: AnyObject {
     func readBytes(count: Int) throws -> Data
     func writeBytes(_ data: Data, count: Int) throws
+}
+
+/// A retained position inside host-visible raw memory. The integer address is
+/// an interpreter address token, not necessarily a process address; derived
+/// cursors from one region preserve byte-distance arithmetic. Generated C
+/// adapters use `readBytes` for the native call and translate a returned
+/// offset back through `advancedRawMemory`, so no temporary machine pointer
+/// can escape its scoped allocation.
+@MainActor
+public protocol HostRawMemoryCursor: HostRawMemory {
+    var rawMemoryAddress: UInt { get }
+    var rawMemoryCount: Int { get }
+    func advancedRawMemory(byByteOffset offset: Int) throws
+        -> any HostRawMemoryCursor
 }
 
 public struct RuntimeABILayout: Equatable, Sendable {
@@ -64,6 +79,57 @@ public enum RuntimeABIMemory {
             throw unsupported("host value '\(type(of: value))'")
         default:
             throw unsupported("'\(value.stringified)'")
+        }
+    }
+
+    /// Encode one collection element according to its declared element type.
+    /// Runtime scalar storage intentionally erases fixed-width integer names;
+    /// an `[UInt8]` element is therefore an `.int` until this unsafe boundary
+    /// supplies the source annotation again.
+    static func encodedElement(
+        _ value: RuntimeValue, typeName: String?
+    ) throws -> (data: Data, layout: RuntimeABILayout) {
+        guard let typeName, !typeName.isEmpty else {
+            let layout = try layout(of: value)
+            var data = try data(from: value)
+            appendZeros(to: &data, until: layout.stride)
+            return (data, layout)
+        }
+        let layout = try layout(typeName: typeName, value: value)
+        var data = try encodeScalarOrStruct(value, typeName: typeName)
+        appendZeros(to: &data, until: layout.stride)
+        return (data, layout)
+    }
+
+    /// Decode a fixed-layout scalar loaded through an interpreted raw pointer.
+    /// The requested type comes from the source metatype passed to `load(as:)`;
+    /// this is one ABI rule over scalar layout, not a member/API-name table.
+    static func value(from data: Data, typeName rawName: String) throws
+        -> RuntimeValue
+    {
+        let name = canonicalTypeName(rawName)
+        guard let layout = scalarLayout(name), data.count >= layout.size else {
+            throw unsupported("raw load type '\(rawName)'")
+        }
+        func load<T>(_ type: T.Type) -> T {
+            data.withUnsafeBytes { $0.loadUnaligned(as: type) }
+        }
+        switch name {
+        case "Bool": return .native(load(Bool.self))
+        case "Int": return .native(load(Int.self))
+        case "Int8": return .native(Int(load(Int8.self)))
+        case "Int16": return .native(Int(load(Int16.self)))
+        case "Int32": return .native(Int(load(Int32.self)))
+        case "Int64": return .native(Int(truncatingIfNeeded: load(Int64.self)))
+        case "UInt": return .native(UInt64(load(UInt.self)) as Any)
+        case "UInt8": return .native(Int(load(UInt8.self)))
+        case "UInt16": return .native(Int(load(UInt16.self)))
+        case "UInt32": return .native(Int(load(UInt32.self)))
+        case "UInt64": return .native(load(UInt64.self) as Any)
+        case "Float": return .native(Double(load(Float.self)))
+        case "Double": return .native(load(Double.self))
+        case "CGFloat": return .native(Double(load(CGFloat.self)))
+        default: throw unsupported("raw load type '\(rawName)'")
         }
     }
 
@@ -141,7 +207,7 @@ public enum RuntimeABIMemory {
         return result
     }
 
-    private static func encodeScalarOrStruct(
+    static func encodeScalarOrStruct(
         _ value: RuntimeValue, typeName rawName: String
     ) throws -> Data {
         let name = canonicalTypeName(rawName)
@@ -169,7 +235,7 @@ public enum RuntimeABIMemory {
         }
     }
 
-    private static func canonicalTypeName(_ rawName: String) -> String {
+    static func canonicalTypeName(_ rawName: String) -> String {
         var name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         for prefix in ["Swift.", "Foundation.", "CoreGraphics."] {
             name = name.replacingOccurrences(of: prefix, with: "")

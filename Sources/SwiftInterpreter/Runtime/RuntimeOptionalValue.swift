@@ -125,6 +125,32 @@ extension RuntimeValue {
         }
     }
 
+    /// Payload used specifically by `if let` / `guard let`. An explicitly
+    /// present Optional keeps its wrapped value, including an opaque host
+    /// object. A bare absorbing marker is an unknown imported Optional whose
+    /// fresh deterministic state is absence; considering it known-present
+    /// incorrectly bypasses the source's declared fallback path.
+    public var optionalBindingPayload: RuntimeValue? {
+        switch optionalState {
+        case .some(let wrapped, _):
+            return wrapped
+        case .none:
+            return nil
+        case .notOptional:
+            switch self {
+            case .host(let value)
+                where value is InertCallable
+                    || value is ChainedImplicitCall
+                    || value is ImplicitMemberCall:
+                return nil
+            case .hostFunction, .implicitMember:
+                return nil
+            default:
+                return self
+            }
+        }
+    }
+
     public var isOptional: Bool {
         if case .optional = self { return true }
         return false

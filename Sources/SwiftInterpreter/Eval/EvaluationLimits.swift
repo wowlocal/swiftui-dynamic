@@ -32,11 +32,18 @@ extension Interpreter {
         // nodes; cancellation remains prompt without taxing every AST node.
         if steps & 63 == 1 { try checkRuntimeCancellation() }
         if steps > stepBudget {
-            let located = error(node, "evaluation budget exceeded (possible infinite loop)")
-            throw RuntimeError(
-                message: located.message, line: located.line, column: located.column,
-                fatal: true, budgetTrip: true)
+            throw evaluationBudgetExceeded(at: node)
         }
+    }
+
+    private func evaluationBudgetExceeded(
+        at node: some SyntaxProtocol
+    ) -> RuntimeError {
+        let located = error(
+            node, "evaluation budget exceeded (possible infinite loop)")
+        return RuntimeError(
+            message: located.message, line: located.line,
+            column: located.column, fatal: true, budgetTrip: true)
     }
 
     /// A `for-in` sequence is fully materialized before execution, so the
@@ -61,6 +68,41 @@ extension Interpreter {
     func withFiniteIterationSlice<T>(
         _ body: () async throws -> T
     ) async throws -> T {
+        let enclosingSteps = steps
+        steps = 0
+        defer { steps = enclosingSteps }
+        return try await body()
+    }
+
+    /// `while`/`repeat` cardinality is not known up front, so each loop keeps
+    /// an explicit iteration cap. Once that cap is enforced, cumulative tree-
+    /// walking cost across distinct iterations is not evidence of non-
+    /// termination: bound each condition/body attempt independently. A single
+    /// runaway attempt still exhausts the syntax budget, while `while true`
+    /// exhausts the iteration budget.
+    func withBoundedLoopIterationSlice<T>(
+        _ iteration: Int,
+        node: some SyntaxProtocol,
+        _ body: () throws -> T
+    ) throws -> T {
+        guard iteration <= stepBudget else {
+            throw evaluationBudgetExceeded(at: node)
+        }
+        let enclosingSteps = steps
+        steps = 0
+        defer { steps = enclosingSteps }
+        return try body()
+    }
+
+    /// Suspending counterpart of `withBoundedLoopIterationSlice`.
+    func withBoundedLoopIterationSlice<T>(
+        _ iteration: Int,
+        node: some SyntaxProtocol,
+        _ body: () async throws -> T
+    ) async throws -> T {
+        guard iteration <= stepBudget else {
+            throw evaluationBudgetExceeded(at: node)
+        }
         let enclosingSteps = steps
         steps = 0
         defer { steps = enclosingSteps }

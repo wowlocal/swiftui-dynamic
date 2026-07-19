@@ -113,6 +113,30 @@ private func rangeEval(_ source: String) throws -> RuntimeValue {
         #expect(try rangeEval(source).stringValue == "three")
     }
 
+    /// A dependency may declare a specialized pattern operator in one source
+    /// file. It is not a candidate for unrelated enum switches merely because
+    /// both calls have two unlabeled arguments; native overload resolution
+    /// first requires the runtime operands to satisfy the parameter types.
+    @Test func unrelatedCustomPatternOperatorDoesNotCaptureEnumSwitch() throws {
+        let source = """
+        enum LoadingState {
+            case loading
+            case display([Int])
+        }
+
+        fileprivate func ~= (_ pattern: [String], _ value: String) -> Bool {
+            pattern.contains(value)
+        }
+
+        let state = LoadingState.display([1, 2, 3])
+        switch state {
+        case .loading: "loading"
+        case .display: "display"
+        }
+        """
+        #expect(try rangeEval(source).stringValue == "display")
+    }
+
     @Test func integerRangesIterateAndSliceWithoutLosingClosedness() throws {
         let source = """
         var total = 0

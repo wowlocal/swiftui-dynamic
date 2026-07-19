@@ -51,6 +51,9 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func cFunction(named name: String) -> HostFunction? {
+        if let memory = GeneratedCMemoryBridge.function(named: name) {
+            return memory
+        }
         if let generated = GeneratedPlatformBridge.globalFunction(
             named: name,
             fallbackRuntime: generatedPlatformFallbacks
@@ -102,6 +105,29 @@ public final class TraceRegistry: HostRegistry {
         if let text = element.stringValue { return text }
         if let number = element.intValue { return String(number) }
         return String(index)
+    }
+
+    /// A host collection has already been materialized before this entry, so
+    /// every builder row is finite in cardinality while retaining its own
+    /// ordinary infinite-work guard. Identity salting and budget slicing are
+    /// applied uniformly to every registry constructor that expands data.
+    @MainActor
+    private static func finiteBuilderRows(
+        _ content: ClosureValue,
+        element: RuntimeValue,
+        salt: String,
+        context: EvalContext
+    ) throws -> [RuntimeValue] {
+        try context.withKnownFiniteHostIteration {
+            if let interpreter = context as? Interpreter {
+                return try interpreter.withViewIdentitySalt(salt) {
+                    try context.callBuilderClosure(
+                        content, arguments: [element])
+                }
+            }
+            return try context.callBuilderClosure(
+                content, arguments: [element])
+        }
     }
 
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? {
@@ -317,14 +343,8 @@ public final class TraceRegistry: HostRegistry {
                 }
                 for (index, element) in elements.enumerated() {
                     let salt = Self.identitySalt(of: element, index: index)
-                    let rows: [RuntimeValue]
-                    if let interpreter = ctx as? Interpreter {
-                        rows = try interpreter.withViewIdentitySalt(salt) {
-                            try ctx.callBuilderClosure(content, arguments: [element])
-                        }
-                    } else {
-                        rows = try ctx.callBuilderClosure(content, arguments: [element])
-                    }
+                    let rows = try Self.finiteBuilderRows(
+                        content, element: element, salt: salt, context: ctx)
                     node.children += try rows.map(Self.node)
                 }
                 return .native(node)
@@ -350,14 +370,9 @@ public final class TraceRegistry: HostRegistry {
                         if let data, let elements = try? Self.elements(of: data) {
                             for (index, element) in elements.enumerated() {
                                 let salt = Self.identitySalt(of: element, index: index)
-                                let rows: [RuntimeValue]
-                                if let interpreter = ctx as? Interpreter {
-                                    rows = try interpreter.withViewIdentitySalt(salt) {
-                                        try ctx.callBuilderClosure(closure, arguments: [element])
-                                    }
-                                } else {
-                                    rows = try ctx.callBuilderClosure(closure, arguments: [element])
-                                }
+                                let rows = try Self.finiteBuilderRows(
+                                    closure, element: element, salt: salt,
+                                    context: ctx)
                                 node.children += try rows.map(Self.node)
                             }
                         } else if closure.parameters.isEmpty {

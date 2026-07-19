@@ -233,6 +233,8 @@ struct IceCubesCheckMain {
         let paths = try paths()
         let oracle = try FixtureOracle(directory: paths.fixtures)
         Interpreter.interpretsAsPlatform = "iOS"
+        LiveCheckSupport.traceLifecycle =
+            ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1"
         NetworkBridge.policy = .replay(fixturesDirectory: paths.fixtures)
         NetworkBridge.requestLog = []
         defer { NetworkBridge.policy = .absorbed }
@@ -459,12 +461,118 @@ struct IceCubesCheckMain {
         }
 
         let __iceFetcher = __IceFixtureFetcher(statuses: __icePublicStatuses)
+        let __iceFirstRowModel = StatusRowViewModel(
+            status: __icePublicStatuses[0],
+            client: __iceClient,
+            routerPath: __iceRouter,
+            filterContext: .pub)
+
+        func __iceSoupPipeline(_ htmlValue: String) -> String {
+            var stage = "parse"
+            do {
+                let document = try SwiftSoup.parse(htmlValue)
+                stage = "settings"
+                document.outputSettings(
+                    OutputSettings().prettyPrint(pretty: false))
+                stage = "select-quote"
+                try document.select("p.quote-inline").remove()
+                stage = "select-br"
+                try document.select("br").after("\\n")
+                stage = "select-p"
+                try document.select("p").after("\\n\\n")
+                stage = "html"
+                let html = try document.html()
+                stage = "clean"
+                let text = try SwiftSoup.clean(
+                    html, "", Whitelist.none(),
+                    OutputSettings().prettyPrint(pretty: false)) ?? ""
+                stage = "unescape"
+                return (try? Entities.unescape(text)) ?? text
+            } catch {
+                return "__ice-pipeline-failed-" + stage + "-" + String(describing: error)
+            }
+        }
+
+        @MainActor
+        struct __IceRowModelProbe: View {
+            @State var viewModel: StatusRowViewModel
+
+            var body: some View {
+                Text("__ice-row-model-" + viewModel.finalStatus.account.username)
+                Text("__ice-row-name-" + viewModel.finalStatus.account.safeDisplayName)
+                Text("__ice-row-raw-" + viewModel.finalStatus.content.asRawText)
+                Text("__ice-row-markdown-" + viewModel.finalStatus.content.asMarkdown)
+                Text(__iceSoupPipeline(viewModel.finalStatus.content.htmlValue))
+            }
+        }
+
+        @MainActor
+        struct __IceFetcherStateProbe<Fetcher>: View where Fetcher: StatusesFetcher {
+            @State private var fetcher: Fetcher
+
+            init(fetcher: Fetcher) {
+                _fetcher = .init(initialValue: fetcher)
+            }
+
+            var body: some View {
+                switch fetcher.statusesState {
+                case .loading:
+                    Text("__ice-generic-state-loading")
+                case .display:
+                    Text("__ice-generic-state-display")
+                case .displayWithGaps:
+                    Text("__ice-generic-state-gaps")
+                case .error:
+                    Text("__ice-generic-state-error")
+                }
+            }
+        }
+
+        @MainActor
+        struct __IceFetcherRowsProbe<Fetcher>: View where Fetcher: StatusesFetcher {
+            @State private var fetcher: Fetcher
+
+            init(fetcher: Fetcher) {
+                _fetcher = .init(initialValue: fetcher)
+            }
+
+            var body: some View {
+                switch fetcher.statusesState {
+                case .loading:
+                    Text("__ice-rows-loading")
+                case .display(let statuses, _):
+                    Text("__ice-rows-display")
+                    ForEach(statuses) { status in
+                        Text("__ice-row-" + status.account.username)
+                    }
+                case .displayWithGaps:
+                    Text("__ice-rows-gaps")
+                case .error:
+                    Text("__ice-rows-error")
+                }
+            }
+        }
 
         @\u{6D}ain
         struct __IceCubesR1Probe: App {
             var body: some Scene {
                 WindowGroup {
                     VStack {
+                        switch __iceFetcher.statusesState {
+                        case .loading:
+                            Text("__ice-direct-state-loading")
+                        case .display:
+                            Text("__ice-direct-state-display")
+                        case .displayWithGaps:
+                            Text("__ice-direct-state-gaps")
+                        case .error:
+                            Text("__ice-direct-state-error")
+                        }
+                        __IceFetcherStateProbe(fetcher: __iceFetcher)
+                        __IceFetcherRowsProbe(fetcher: __iceFetcher)
+                        __IceRowModelProbe(viewModel: __iceFirstRowModel)
+                        StatusRowHeaderView(viewModel: __iceFirstRowModel)
+                        StatusRowContentView(viewModel: __iceFirstRowModel)
                         SwiftUI.List {
                             StatusesListView(
                                 fetcher: __iceFetcher,

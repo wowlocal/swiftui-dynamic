@@ -284,7 +284,11 @@ public enum LiveCheckSupport {
         environment: [String: Instance] = [:], depth: Int = 0
     ) throws {
         if let instance = node.instance {
-            if traceLifecycle, ["TimelineView", "TimelineListView", "StatusesListView"].contains(instance.symbol.name) {
+            if traceLifecycle, [
+                "TimelineView", "TimelineListView", "StatusesListView",
+                "StatusRowView", "StatusRowHeaderView", "StatusRowContentView",
+                "StatusRowTextView",
+            ].contains(instance.symbol.name) {
                 let vm = instance.box(for: "viewModel")?.value ?? instance.box(for: "fetcher")?.value ?? .void
                 var vmID = "-"
                 if case .instance(let model) = vm {

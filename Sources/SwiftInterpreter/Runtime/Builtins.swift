@@ -138,7 +138,68 @@ public enum Builtins {
         }
     }
 
+    private static func isUInt64Carrier(_ value: RuntimeValue) -> Bool {
+        if case .host(let payload) = value { return payload is UInt64 }
+        return false
+    }
+
+    private static func uint64Operand(_ value: RuntimeValue) -> UInt64? {
+        if case .host(let payload) = value, let integer = payload as? UInt64 {
+            return integer
+        }
+        if let integer = value.intValue, integer >= 0 {
+            return UInt64(integer)
+        }
+        return nil
+    }
+
+    /// UInt64 is retained as a host carrier because values above Int.max are
+    /// observable in hashes/RNGs. Once either operand has that carrier, keep
+    /// the entire fixed-width integer operation in the unsigned domain rather
+    /// than dropping into the Int-only operator table.
+    private static func uint64Binary(
+        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> RuntimeValue? {
+        guard isUInt64Carrier(lhs) || isUInt64Carrier(rhs) else { return nil }
+        guard let left = uint64Operand(lhs), let right = uint64Operand(rhs) else {
+            throw EvalMessage(text: "'\(op)' requires UInt64-compatible operands")
+        }
+        switch op {
+        case "+", "-", "*":
+            let result: (partialValue: UInt64, overflow: Bool)
+            switch op {
+            case "+": result = left.addingReportingOverflow(right)
+            case "-": result = left.subtractingReportingOverflow(right)
+            default: result = left.multipliedReportingOverflow(by: right)
+            }
+            guard !result.overflow else { throw EvalMessage(text: "integer overflow") }
+            return .native(result.partialValue)
+        case "/":
+            guard right != 0 else { throw EvalMessage(text: "division by zero") }
+            return .native(left / right)
+        case "%":
+            guard right != 0 else { throw EvalMessage(text: "division by zero") }
+            return .native(left % right)
+        case "&+": return .native(left &+ right)
+        case "&-": return .native(left &- right)
+        case "&*": return .native(left &* right)
+        case "&": return .native(left & right)
+        case "|": return .native(left | right)
+        case "^": return .native(left ^ right)
+        case "<<": return .native(right >= 64 ? 0 : left << right)
+        case ">>": return .native(right >= 64 ? 0 : left >> right)
+        case "==": return .native(left == right)
+        case "!=": return .native(left != right)
+        case "<": return .native(left < right)
+        case "<=": return .native(left <= right)
+        case ">": return .native(left > right)
+        case ">=": return .native(left >= right)
+        default: return nil
+        }
+    }
+
     static func binary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue {
+        if let unsigned = try uint64Binary(op, lhs, rhs) { return unsigned }
         let usesDecimal: Bool = {
             if case .host(let any) = lhs, any is Decimal { return true }
             if case .host(let any) = rhs, any is Decimal { return true }
@@ -273,6 +334,12 @@ public enum Builtins {
             // Hosted-object truths negate from their fresh-state reading.
             if let fresh = unknowableBool(value) { return .native(!fresh) }
             throw EvalMessage(text: "'!' requires a Bool operand, got \(value.stringified)")
+        case "~":
+            if case .host(let payload) = value, let integer = payload as? UInt64 {
+                return .native(~integer)
+            }
+            if let integer = value.intValue { return .native(~integer) }
+            throw EvalMessage(text: "'~' requires an integer operand")
         default:
             throw EvalMessage(text: "unsupported prefix operator '\(op)'")
         }
@@ -907,6 +974,19 @@ public enum Builtins {
         }
         if case .host(let ra) = rhs, let r = ra as? Date, let l = lhs.doubleValue {
             return try compare(op, .native(l), .native(r.timeIntervalSince1970))
+        }
+        // String.Index is a real Comparable host value. Swift may encode the
+        // start and end of the same bridged string in different internal
+        // domains (`0[any]`, `N[utf8/utf16]`), but native comparison still
+        // defines their collection order.
+        if case .host(let la) = lhs, let l = la as? String.Index,
+           case .host(let ra) = rhs, let r = ra as? String.Index {
+            switch op {
+            case "<": return l < r
+            case "<=": return l <= r
+            case ">": return l > r
+            default: return l >= r
+            }
         }
         if let l = lhs.stringValue, let r = rhs.stringValue {
             switch op {

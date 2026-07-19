@@ -69,11 +69,16 @@ extension Interpreter {
             return false
         }
         if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
+        if typeName.hasPrefix("Swift.") {
+            typeName.removeFirst("Swift.".count)
+        }
         if typeName == "Any" || typeName == "AnyObject" { return !value.isNil }
         if value.isOptional { return false }
         if value.isNil { return false }
         switch value {
-        case .int: return ["Int", "Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
+        case .int:
+            return Self.integerFamilyTypeNames.contains(typeName)
+                || ["Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
         case .double: return ["Double", "CGFloat", "TimeInterval", "Float", "NSNumber"].contains(typeName)
         case .bool: return typeName == "Bool" || typeName == "NSNumber"
         case .string: return ["String", "NSString"].contains(typeName)
@@ -97,8 +102,7 @@ extension Interpreter {
                     var seen = Set<String>()
                     return protocolReaches(conformance, target: typeName, seen: &seen)
                 }) { return true }
-                guard let superName = current.superclassName,
-                      case .type(let parent)? = globals.lookup(superName) else { break }
+                guard let parent = interpretedSuperclass(of: current) else { break }
                 symbol = parent
             }
             return false
@@ -154,7 +158,25 @@ extension Interpreter {
             node: node)
     }
 
-    func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
+    func evaluateCall(
+        _ call: FunctionCallExprSyntax,
+        in env: Environment,
+        contextualResultMember: String? = nil,
+        declaredResultType: ((String?) -> Void)? = nil
+    ) throws -> RuntimeValue {
+        func reportDeclaredResult(of callee: RuntimeValue) {
+            switch callee {
+            case .closure(let closure):
+                declaredResultType?(closure.returnTypeName)
+            case .type(let symbol):
+                declaredResultType?(symbol.name)
+            case .enumType(let symbol):
+                declaredResultType?(symbol.name)
+            default:
+                break
+            }
+        }
+
         let calleeMetadata = callSiteMetadata(for: call).callee
         // `ModifiedContent(content: self, modifier: TitleFont(size: 16))` —
         // the explicit ViewModifier application (MovieSwiftUI's titleStyle).
@@ -196,7 +218,19 @@ extension Interpreter {
             // Evaluate the receiver once, before arguments (native order).
             // Special mutation dispatch receives this value and only probes
             // an lvalue after confirming the receiver/method shape.
-            let baseValue = try evaluate(baseExpr, in: env)
+            var evaluatedBaseTypeName: String?
+            let baseValue: RuntimeValue
+            if let baseCall = baseExpr.as(FunctionCallExprSyntax.self) {
+                baseValue = try evaluateCall(
+                    baseCall,
+                    in: env,
+                    contextualResultMember: name,
+                    declaredResultType: { evaluatedBaseTypeName = $0 })
+            } else {
+                baseValue = try evaluate(baseExpr, in: env)
+            }
+            let declaredBaseTypeName = evaluatedBaseTypeName
+                ?? declaredMemberReceiverTypeName(for: baseExpr, in: env)
             // A call continuing an Optional chain dispatches the METHOD on
             // the payload, then lifts the result. This matters for names that
             // also have a property spelling (`array?.first(where:)`): member
@@ -212,7 +246,8 @@ extension Interpreter {
             }
             if let result = try specialMemberCall(
                 name, base: baseExpr, baseValue: specialBaseValue,
-                call: call, in: env) {
+                call: call, in: env,
+                declaredBaseTypeName: declaredBaseTypeName) {
                 return liftsSpecialResult ? result.liftedToOptional() : result
             }
             // Methods dispatch from call syntax, where labels disambiguate
@@ -231,13 +266,17 @@ extension Interpreter {
                     let available = functionsAvailableForCall(
                         from: fitting, args: args)
                     if available.isEmpty {
-                        // Every fitting overload is already running; absorb
-                        // the return-type dispatch path we cannot observe.
+                        // Every fitting overload is already running
+                        // (send#StoreTask ↔ send#Task mutual delegation):
+                        // absorb the return-type dispatch path we cannot see.
                         return .native(ChainedImplicitCall(
                             base: baseValue, member: name, arguments: args))
                     }
                     if let method = chooseFunction(
-                        from: available, for: args) ?? available.first,
+                        from: available,
+                        for: args,
+                        contextualResultMember: contextualResultMember
+                    ) ?? available.first,
                        let body = functionMetadata(for: method).body {
                         let closure = makeFunctionClosure(
                             method, body: body,
@@ -259,7 +298,11 @@ extension Interpreter {
                     return .native(ChainedImplicitCall(
                         base: baseValue, member: name, arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
@@ -274,19 +317,29 @@ extension Interpreter {
                 // `Sort.allCases(for:)` must not invoke the synthesized
                 // CaseIterable ARRAY (the collision rule at call sites).
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: baseValue, member: name, arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.enumType(symbol)))
                     return try invoke(.closure(closure), with: args, node: call)
                 }
             }
-            let callee = try accessMember(name, on: baseValue, node: member, env: env)
+            let callee = try accessMember(
+                name,
+                on: baseValue,
+                node: member,
+                env: env,
+                declaredTypeName: declaredBaseTypeName)
             let args = try collectArguments(of: call, in: env)
             // A nil PROPERTY at a call site never throws (nil-call absorbs),
             // so the collision rescue below can't fire — pre-check it. The
@@ -297,6 +350,7 @@ extension Interpreter {
                let method = registry?.hostMethod(name, on: any) {
                 return try invoke(method, with: args, node: call)
             }
+            reportDeclaredResult(of: callee)
             do {
                 return try invoke(callee, with: args, node: call)
             } catch let bindingError as RuntimeError
@@ -314,7 +368,10 @@ extension Interpreter {
                         from: instanceMethodOverloads(
                             named: name, on: instance) ?? [],
                         args: args)
-                    if let method = chooseFunction(from: family, for: args),
+                    if let method = chooseFunction(
+                        from: family,
+                        for: args,
+                        contextualResultMember: contextualResultMember),
                        let body = functionMetadata(for: method).body {
                         let closure = makeFunctionClosure(
                             method, body: body, captured: instanceMethodEnvironment(instance))
@@ -323,10 +380,14 @@ extension Interpreter {
                     for conformance in transitiveConformances(of: instance.symbol) {
                         guard let proto = hostExtensionSymbols[conformance],
                               let overloads = proto.methods[name] else { continue }
-                        let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                        let available = functionsAvailableForCall(
+                            from: overloads, args: args)
                         // Only a FITTING overload rescues — a wrong-shaped
                         // sibling must fall through to the modifier retry.
-                        guard let method = chooseFunction(from: available, for: args),
+                        guard let method = chooseFunction(
+                            from: available,
+                            for: args,
+                            contextualResultMember: contextualResultMember),
                               let body = functionMetadata(for: method).body else {
                             continue
                         }
@@ -379,12 +440,17 @@ extension Interpreter {
             if let overloads = globalFunctionOverloads[name], overloads.count > 1,
                env.box(for: name, before: globals) == nil {
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: .implicitMember(name), member: "call", arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunctionByRuntimeTypes(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(method, body: body, captured: globals)
                     return try invoke(.closure(closure), with: args, node: call)
@@ -403,7 +469,11 @@ extension Interpreter {
                     return .native(ChainedImplicitCall(
                         base: .instance(instance), member: name, arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let methodEnvironment = methodIsMutating(method)
                         ? selfEnvironment(.instance(instance))
@@ -423,7 +493,11 @@ extension Interpreter {
                     return .native(ChainedImplicitCall(
                         base: .type(symbol), member: name, arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
@@ -433,6 +507,7 @@ extension Interpreter {
         }
         let callee = try evaluate(calleeMetadata.expression, in: env)
         let args = try collectArguments(of: call, in: env)
+        reportDeclaredResult(of: callee)
         return try invoke(callee, with: args, node: call)
     }
 
@@ -449,8 +524,10 @@ extension Interpreter {
         if overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
             return true
         }
-        guard let superclassName = instance.symbol.superclassName,
-              !isInterpretedType(superclassName) else { return false }
+        guard instance.symbol.superclassName != nil,
+              interpretedSuperclass(of: instance.symbol) == nil else {
+            return false
+        }
         return overloads.allSatisfy { method in
             functionMetadata(for: method).parameters.contains {
                 $0.defaultValue == nil
@@ -508,7 +585,8 @@ extension Interpreter {
         base: ExprSyntax,
         baseValue: RuntimeValue,
         call: FunctionCallExprSyntax,
-        in env: Environment
+        in env: Environment,
+        declaredBaseTypeName: String? = nil
     ) throws -> RuntimeValue? {
         // `.modifier(TitleFont(size: 16))` — a custom ViewModifier applies
         // by RUNNING its body(content:), with the modifier's OWN
@@ -534,8 +612,8 @@ extension Interpreter {
         if let overloads = try typedHostExtensionMethodOverloads(
             named: name,
             on: baseValue,
-            declaredTypeName: declaredMemberReceiverTypeName(
-                for: base, in: env)
+            declaredTypeName: declaredBaseTypeName
+                ?? declaredMemberReceiverTypeName(for: base, in: env)
         ) {
             let args = try collectArguments(of: call, in: env)
             let target = try resolveTypedHostExtensionMethodTarget(
@@ -897,13 +975,37 @@ extension Interpreter {
                 }
                 return removed
             case "sort":
+                let comparatorClosure = args.closure(labeled: "by")
+                    ?? args.firstUnlabeledClosure
+                let comparatorValue = args.labeled("by")
+                    ?? args.positional(0)
                 var failure: Error?
                 array.sort { a, b in
                     if failure != nil { return false }
-                    // Declared `static func <` (Comparable) dispatches, like
-                    // infix and the XCTAssert gateways.
-                    do { return try evaluateBinary("<", a, b).boolValue == true }
-                    catch { failure = error; return false }
+                    do {
+                        if let comparatorClosure {
+                            return try callClosure(
+                                comparatorClosure,
+                                arguments: [a, b]).boolValue == true
+                        }
+                        if let comparatorValue {
+                            let comparison = try invoke(
+                                comparatorValue,
+                                with: CallArguments(arguments: [
+                                    .init(label: nil, value: a),
+                                    .init(label: nil, value: b),
+                                ]),
+                                node: call)
+                            return comparison.boolValue == true
+                        }
+                        // The argument-free Comparable form dispatches a
+                        // declared `static func <`, like infix expressions
+                        // and assertion gateways.
+                        return try evaluateBinary("<", a, b).boolValue == true
+                    } catch {
+                        failure = error
+                        return false
+                    }
                 }
                 if let failure { throw failure }
             default:

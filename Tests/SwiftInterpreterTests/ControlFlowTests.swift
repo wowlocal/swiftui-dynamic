@@ -130,6 +130,22 @@ private func eval(_ source: String) throws -> RuntimeValue {
         }
     }
 
+    @Test func finiteWhileIterationsHaveIndependentSyntaxSlices() throws {
+        let source = """
+        var cursor = 0
+        var checksum = 0
+        while cursor < 20_000 {
+            checksum += cursor & 7
+            cursor += 1
+        }
+        (cursor, checksum)
+        """
+
+        let tuple = try #require(try eval(source).tupleValue)
+        #expect(tuple.values[0].intValue == 20_000)
+        #expect(tuple.values[1].intValue == 70_000)
+    }
+
     @Test func nestedFiniteLoopsReceiveBoundedPerIterationSlices() throws {
         let source = """
         var count = 0

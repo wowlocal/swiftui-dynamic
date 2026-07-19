@@ -1233,7 +1233,8 @@ extension Interpreter {
                !call.arguments.isEmpty || call.trailingClosure != nil
                    || symbol.staticComputedProperties[name] == nil {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
@@ -1276,22 +1277,6 @@ extension Interpreter {
                         return try await invokeSuspending(
                             .closure(closure), with: args, node: call)
                     }
-                    for conformance in transitiveConformances(of: instance.symbol) {
-                        guard let proto = hostExtensionSymbols[conformance],
-                              let overloads = proto.methods[name] else { continue }
-                        let available = functionsAvailableForCall(
-                            from: overloads, args: args)
-                        guard let method = chooseFunction(
-                            from: available, for: args),
-                              let body = functionMetadata(for: method).body else {
-                            continue
-                        }
-                        let closure = makeFunctionClosure(
-                            method, body: body,
-                            captured: instanceMethodEnvironment(instance))
-                        return try await invokeSuspending(
-                            .closure(closure), with: args, node: call)
-                    }
                 }
                 if let any = baseValue.hostPayload,
                    let method = registry?.hostMethod(name, on: any) {
@@ -1310,7 +1295,8 @@ extension Interpreter {
            env.box(for: name, before: globals) == nil {
             if let overloads = globalFunctionOverloads[name], overloads.count > 1 {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
                    let body = functionMetadata(for: function).body {
                     let closure = makeFunctionClosure(function, body: body, captured: globals)
@@ -1436,6 +1422,12 @@ extension Interpreter {
                         return assigned
                     }
                 }
+            }
+            if let generated = try RuntimeUnicodeDecodingConstructor.invoke(
+                named: function.name,
+                arguments: arguments
+            ) {
+                return generated
             }
             do {
                 if function.canSuspend

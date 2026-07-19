@@ -212,6 +212,13 @@ public protocol EvalContext: AnyObject {
     /// on slice exhaustion, and never charges the caller's step budget.
     func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     func callBuilderClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> [RuntimeValue]
+    /// Bracket one element of a host-materialized, therefore known-finite,
+    /// iteration. Interpreter contexts give the element an independent
+    /// bounded budget; other embedders simply execute it. The element body
+    /// itself remains bounded, so this cannot hide an infinite callback.
+    func withKnownFiniteHostIteration<T>(
+        _ operation: () throws -> T
+    ) throws -> T
     /// Resolve a static member supplied by an interpreted extension while a
     /// host coercion is running. Interpreter-backed contexts bind this lookup
     /// to the current program entry; other embedders have no source extension
@@ -266,6 +273,12 @@ extension EvalContext {
         _ makeOperation: () throws -> HostWorkerOperation
     ) async throws -> RuntimeValue? {
         nil
+    }
+
+    public func withKnownFiniteHostIteration<T>(
+        _ operation: () throws -> T
+    ) throws -> T {
+        try operation()
     }
 
     public func sourceStaticMember(

@@ -56,6 +56,34 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         #expect(node.children.map(\.args) == [["x"], ["y"]])
     }
 
+    @Test func materializedForEachRowsHaveIndependentFiniteBudgets() throws {
+        let source = """
+        ForEach(0..<30) { row in
+            var cursor = 0
+            while cursor < 1_000 {
+                cursor += 1
+            }
+            Text("Row \\(row): \\(cursor)")
+        }
+        """
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.children.count == 30)
+        #expect(node.children.last?.args == ["Row 29: 1000"])
+    }
+
+    @Test func finiteHostIterationStillRejectsAnInfiniteElement() {
+        #expect(throws: RuntimeError.self) {
+            try traceRun("""
+            ForEach(0..<1) { _ in
+                while true {}
+                Text("unreachable")
+            }
+            """)
+        }
+    }
+
     @Test func builderIfIncludesOnlyTakenBranch() throws {
         let source = """
         VStack {

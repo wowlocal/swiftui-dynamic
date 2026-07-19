@@ -373,7 +373,7 @@ public final class Interpreter {
         while let candidate = current,
               walked.insert(ObjectIdentifier(candidate)).inserted {
             queue.append(contentsOf: candidate.conformances)
-            current = interpretedSuperclassForDispatch(of: candidate)
+            current = interpretedSuperclass(of: candidate)
         }
         var seen = Set<String>()
         while !queue.isEmpty {
@@ -645,6 +645,10 @@ public final class Interpreter {
         _modify { yield &activeProgramState.declarationLexicalOwners }
     }
 
+    func lexicalOwner(of declarationID: SyntaxIdentifier) -> AnyObject? {
+        activeProgramState.lexicalOwner(of: declarationID)
+    }
+
     func programStateOwningDeclaration(
         _ declarationID: SyntaxIdentifier?
     ) -> RuntimeProgramState? {
@@ -695,6 +699,96 @@ public final class Interpreter {
             }
         }
         return nil
+    }
+
+    /// Resolve a nominal name from a declaration's lexical type scopes before
+    /// consulting the merged global environment. Swift binds `EndTag: Tag`
+    /// inside `Token` to `Token.Tag`, even when another source file declares
+    /// an unrelated top-level `Tag`.
+    func lexicallyVisibleType(
+        named name: String, from owner: AnyObject?
+    ) -> RuntimeValue? {
+        let components = name.split(separator: ".").map(String.init)
+        guard let first = components.first else { return nil }
+
+        func nestedType(
+            named component: String, in value: RuntimeValue
+        ) -> RuntimeValue? {
+            switch value {
+            case .type(let symbol):
+                return symbol.nestedTypes[component]
+            case .enumType(let symbol):
+                return symbol.nestedTypes[component]
+            default:
+                return nil
+            }
+        }
+
+        var current = owner
+        var seen: Set<ObjectIdentifier> = []
+        var root: RuntimeValue?
+        while let scope = current,
+              seen.insert(ObjectIdentifier(scope)).inserted {
+            if let symbol = scope as? StructSymbol {
+                if let nested = symbol.nestedTypes[first] {
+                    root = nested
+                    break
+                }
+                current = symbol.lexicalTypeOwner
+            } else if let symbol = scope as? EnumSymbol {
+                if let nested = symbol.nestedTypes[first] {
+                    root = nested
+                    break
+                }
+                current = symbol.lexicalTypeOwner
+            } else {
+                current = nil
+            }
+        }
+        if root == nil {
+            root = typeValue(named: first)
+        }
+
+        var remaining = components.dropFirst()
+        if root == nil, components.count > 1,
+           first == "Swift"
+            || currentProgramMetadata?.importedModuleNames.contains(first)
+                == true {
+            root = typeValue(named: components[1])
+            remaining = components.dropFirst(2)
+        }
+        guard var resolved = root else { return nil }
+        for component in remaining {
+            guard let nested = nestedType(named: component, in: resolved)
+            else { return nil }
+            resolved = nested
+        }
+        return resolved
+    }
+
+    /// The identity-bound interpreted superclass, if one exists. Host
+    /// superclass names deliberately return nil and retain their inert host
+    /// behavior. The weak cache avoids repeating lexical lookup throughout
+    /// initialization, dispatch, casting, and teardown.
+    func interpretedSuperclass(of symbol: StructSymbol) -> StructSymbol? {
+        if let parent = symbol.superclassSymbol { return parent }
+        guard let name = symbol.superclassName,
+              case .type(let parent)? = lexicallyVisibleType(
+                named: name, from: symbol.lexicalTypeOwner) else {
+            return nil
+        }
+        symbol.superclassSymbol = parent
+        return parent
+    }
+
+    /// Bind superclass identities after all declarations and deferred
+    /// extensions are materialized, making forward sibling declarations
+    /// independent of source-file order.
+    func resolveInterpretedSuperclassSymbols() {
+        for symbol in structSymbols where symbol.superclassName != nil {
+            symbol.superclassSymbol = nil
+            _ = interpretedSuperclass(of: symbol)
+        }
     }
 
     /// Persistence is the LIVE-probe contract (LiveCheck's multi-pass render

@@ -205,6 +205,14 @@ extension Interpreter {
            let value = try selfMember(name, on: selfValue) {
             return value
         }
+        // A nested nominal remains in the lexical scope of every enclosing
+        // nominal. Swift therefore permits `Inner` bodies to refer to an
+        // outer static member without qualification. Runtime `self` only
+        // identifies `Inner`, so walk the declaration-owner chain before
+        // consulting module globals.
+        if let value = try lexicallyEnclosingTypeMember(name) {
+            return value
+        }
         if let box = globals.box(for: name) { return try force(box) }
         // Operator-function references (`reduce(0, +)`, `sorted(by: >)`) —
         // real Swift passes the global operator function; ours applies the
@@ -277,6 +285,34 @@ extension Interpreter {
             })
         }
         throw error(node, "unresolved identifier '\(name)'")
+    }
+
+    /// Finds static members in the current nominal's lexical namespace and
+    /// each enclosing nominal. The ownership links are collected from source
+    /// nesting, so this dispatch is structural rather than keyed to a type or
+    /// member identity.
+    private func lexicallyEnclosingTypeMember(
+        _ name: String
+    ) throws -> RuntimeValue? {
+        var owner = lexicalOwnerFrames.last
+        var visited: Set<ObjectIdentifier> = []
+        while let current = owner,
+              visited.insert(ObjectIdentifier(current)).inserted {
+            if let symbol = current as? StructSymbol {
+                if let value = try staticMember(name, of: symbol) {
+                    return value
+                }
+                owner = symbol.lexicalTypeOwner
+            } else if let symbol = current as? EnumSymbol {
+                if let value = try staticMember(name, of: symbol) {
+                    return value
+                }
+                owner = symbol.lexicalTypeOwner
+            } else {
+                break
+            }
+        }
+        return nil
     }
 
     /// Implicit-self member resolution (works for struct instances, enum
@@ -374,8 +410,8 @@ extension Interpreter {
             // directly by CallEvaluator. Carry the unavailable property as
             // an inert marker.
             if preferHostSuperclassProperty,
-               let superName = instance.symbol.superclassName,
-               !isInterpretedType(superName),
+               instance.symbol.superclassName != nil,
+               interpretedSuperclass(of: instance.symbol) == nil,
                overloads.allSatisfy({ method in
                    functionMetadata(for: method).parameters.contains {
                        $0.defaultValue == nil
@@ -406,10 +442,9 @@ extension Interpreter {
         if let computed = instance.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
         }
-        var parentName = instance.symbol.superclassName
-        while let superName = parentName {
-            guard case .type(let parent)? = globals.lookup(superName) else { break }
-            if let overloads = parent.methods[name], let firstMethod = overloads.first {
+        var parent = interpretedSuperclass(of: instance.symbol)
+        while let candidate = parent {
+            if let overloads = candidate.methods[name], let firstMethod = overloads.first {
                 let method = overloads.count > 1
                     ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? firstMethod)
                     : firstMethod
@@ -418,10 +453,10 @@ extension Interpreter {
                         method, body: body, captured: instanceMethodEnvironment(instance)))
                 }
             }
-            if let computed = parent.computedProperties[name] {
+            if let computed = candidate.computedProperties[name] {
                 return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
             }
-            parentName = parent.superclassName
+            parent = interpretedSuperclass(of: candidate)
         }
         if instance.symbol.conformsToView,
            let value = try hostExtensionMember(name, candidates: ["View"], selfValue: .instance(instance)) {
@@ -516,8 +551,8 @@ extension Interpreter {
               hostSymbol.staticCache[name] == nil,
               hostSymbol.staticReferenceBoxes[name] == nil else { return nil }
         return .hostFunction(HostFunction(name: name) { [unowned self] args, _ in
-            let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
-            let pool = available.isEmpty ? overloads : available
+            let pool = functionsAvailableForCall(
+                from: overloads, args: args)
             // A declared overload only competes when it accepts every label
             // the call passes — `using:` against an (in:)-only shadow is a
             // host call, not a shadow hit.
@@ -656,7 +691,6 @@ extension Interpreter {
 
         guard let imported = try nativeMember(name, on: receiver),
               case .hostFunction(let importedMethod) = imported,
-              !importedMethod.signatures.isEmpty,
               !importedMethod.canSuspend else {
             return nil
         }
@@ -705,6 +739,13 @@ extension Interpreter {
                        instance.symbol.canonicalPropertyName(name)) {
                     return box.value
                 }
+                if let box = globals.box(for: name) {
+                    if case .host(let payload) = box.value,
+                       payload is LazyGlobal {
+                        return nil
+                    }
+                    return box.value
+                }
                 return nil
             }
             guard let member = expression.as(MemberAccessExprSyntax.self),
@@ -716,6 +757,12 @@ extension Interpreter {
                 member.declName.baseName.text))?.value
         }
 
+        if let subscriptCall = expression.as(SubscriptCallExprSyntax.self),
+           let base = storedValue(for: subscriptCall.calledExpression),
+           case .host(let payload) = base,
+           let readable = payload as? any RuntimeIntegerSubscriptReadable {
+            return readable.runtimeElementTypeName
+        }
         if let call = expression.as(FunctionCallExprSyntax.self),
            let member = call.calledExpression.as(
                MemberAccessExprSyntax.self),
@@ -759,11 +806,8 @@ extension Interpreter {
         _ overloads: TypedHostExtensionMethodOverloads,
         arguments: CallArguments
     ) throws -> RuntimeValue {
-        let available = overloads.sourceMethods.count > 1
-            ? overloads.sourceMethods.filter {
-                !activeFunctionBodies.contains($0.id)
-            }
-            : overloads.sourceMethods
+        let available = functionsAvailableForCall(
+            from: overloads.sourceMethods, args: arguments)
 
         var bestSource: (declaration: FunctionDeclSyntax, score: Int)?
         for declaration in available {
@@ -805,7 +849,7 @@ extension Interpreter {
             closure.functionDeclID = declaration.id
             return .closure(closure)
         }
-        if importedScore != nil {
+        if importedScore != nil || overloads.importedMethod.signatures.isEmpty {
             return .hostFunction(overloads.importedMethod)
         }
         throw RuntimeError(
@@ -1171,7 +1215,9 @@ extension Interpreter {
         }
 
         var pushedLexicalOwner = false
-        if let declarationID, let owner = declLexicalOwners[declarationID] {
+        if let declarationID,
+           let owner = programState?.declarationLexicalOwners[declarationID]
+                ?? lexicalOwner(of: declarationID) {
             lexicalOwnerFrames.append(owner)
             pushedLexicalOwner = true
         }
@@ -1233,7 +1279,9 @@ extension Interpreter {
         }
 
         var pushedLexicalOwner = false
-        if let declarationID, let owner = declLexicalOwners[declarationID] {
+        if let declarationID,
+           let owner = programState?.declarationLexicalOwners[declarationID]
+                ?? lexicalOwner(of: declarationID) {
             lexicalOwnerFrames.append(owner)
             pushedLexicalOwner = true
         }
@@ -1322,6 +1370,17 @@ extension Interpreter {
             if computed.isBuilder {
                 let views = try collectBuilderViews(computed.accessor, in: env)
                 return try groupViews(views)
+            }
+            if let prepared = preparedScalarAccessor(
+                    computed, captured: env),
+               let value = try prepared.execute(
+                    arguments: [], receiver: selfValue,
+                    interpreter: self) {
+                if let typeName = computed.typeAnnotation?.trimmedDescription,
+                   RuntimeOptionalValue.wrappedType(in: typeName) != nil {
+                    return try resolveAnnotated(value, typeName: typeName)
+                }
+                return value
             }
             let result = try executeBlock(computed.accessor, in: env)
             switch result {
@@ -1417,8 +1476,13 @@ extension Interpreter {
         on baseValue: RuntimeValue,
         node: some SyntaxProtocol,
         env: Environment,
-        deferringAsyncHostProperty: Bool = false
+        deferringAsyncHostProperty: Bool = false,
+        declaredTypeName: String? = nil
     ) throws -> RuntimeValue {
+        let declaredBaseTypeName = declaredTypeName
+            ?? Syntax(node).as(MemberAccessExprSyntax.self)?.base.flatMap {
+                declaredMemberReceiverTypeName(for: $0, in: env)
+            }
         if name == "self" {
             return baseValue // `SizeKey.self`, `x.self` — the value itself
         }
@@ -1953,9 +2017,8 @@ extension Interpreter {
                 if tuple.values.indices.contains(idx) { return tuple.values[idx] }
             }
             if let superRef = any as? SuperReference {
-                let symbol = superRef.instance.symbol
-                if let parentName = symbol.superclassName,
-                   case .type(let parent)? = globals.lookup(parentName) {
+                let symbol = superRef.dispatchOwner
+                if let parent = interpretedSuperclass(of: symbol) {
                     if name == "init" {
                         return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
                             guard let self else {
@@ -2108,8 +2171,15 @@ extension Interpreter {
             // `extension UIColor { … }` on a recorded UIColor node).
             // Core stubs the bridge can't name map explicitly (Binding).
             var extensionCandidates: [String] = []
+            if let declaredNominal = RuntimeDeclaredType.nominalTypeName(
+                declaredBaseTypeName),
+               hostExtensionSymbols[declaredNominal] != nil {
+                extensionCandidates.append(declaredNominal)
+            }
             if let typeName = registry?.hostTypeName(of: any) {
-                extensionCandidates.append(typeName)
+                if !extensionCandidates.contains(typeName) {
+                    extensionCandidates.append(typeName)
+                }
             }
             // Core RuntimeValue payloads do not require a HostRegistry, but
             // same-module extensions still shadow their imported members.
@@ -2219,10 +2289,6 @@ extension Interpreter {
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
                 return value
             }
-            let declaredBaseTypeName = Syntax(node).as(
-                MemberAccessExprSyntax.self)?.base.flatMap {
-                    declaredMemberReceiverTypeName(for: $0, in: env)
-                }
             if let value = try nativeMember(
                 name,
                 on: baseValue,

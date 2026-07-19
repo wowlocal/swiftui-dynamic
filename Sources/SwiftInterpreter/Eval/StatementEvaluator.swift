@@ -362,7 +362,7 @@ extension Interpreter {
                         throw error(optionalBinding, "'let _' needs an initializer")
                     }
                     guard try evaluate(initializer, in: bindings)
-                        .unwrappedOptionalOrSelf != nil else { return false }
+                        .optionalBindingPayload != nil else { return false }
                     continue
                 }
                 // `if let (a, b) = pair` — tuple destructuring. The pattern
@@ -383,7 +383,7 @@ extension Interpreter {
                 }
                 if let names = tupleNames, let initializer = optionalBinding.initializer?.value {
                     let value = try evaluate(initializer, in: bindings)
-                    guard let unwrapped = value.unwrappedOptionalOrSelf,
+                    guard let unwrapped = value.optionalBindingPayload,
                           let tuple = unwrapped.tupleValue,
                           tuple.values.count == names.count else { return false }
                     for (name, elementValue) in zip(names, tuple.values) {
@@ -402,7 +402,7 @@ extension Interpreter {
                     // `if let x` shorthand
                     value = try resolveIdentifier(name, in: bindings, node: optionalBinding)
                 }
-                guard let unwrapped = value.unwrappedOptionalOrSelf else { return false }
+                guard let unwrapped = value.optionalBindingPayload else { return false }
                 bindings.define(name, unwrapped)
             case .matchingPattern(let matching):
                 // `if case .loading = state` — rides the switch matcher.
@@ -545,6 +545,8 @@ extension Interpreter {
             elements = array
         } else if let set = sequence.setValue {
             elements = set.elements
+        } else if let interpreted = try interpretedIntegerIndexedCollectionElements(sequence) {
+            elements = interpreted
         } else if case .host(let any) = sequence,
                   any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             // Unknowable host collections (Activity<T>.activities on a fresh
@@ -616,11 +618,21 @@ extension Interpreter {
     }
 
     private func executeWhile(_ whileStmt: WhileStmtSyntax, in env: Environment) throws -> StatementResult {
+        var iteration = 0
         while true {
-            try tick(whileStmt)
-            let child = Environment(parent: env)
-            guard try conditionsHold(whileStmt.conditions, in: env, bindingInto: child) else { break }
-            let result = try executeBlock(whileStmt.body.statements, in: child)
+            iteration += 1
+            let result: StatementResult? = try withBoundedLoopIterationSlice(
+                iteration, node: whileStmt
+            ) {
+                try tick(whileStmt)
+                let child = Environment(parent: env)
+                guard try conditionsHold(
+                    whileStmt.conditions, in: env,
+                    bindingInto: child) else { return nil }
+                return try executeBlock(
+                    whileStmt.body.statements, in: child)
+            }
+            guard let result else { break }
             switch result {
             case .normal, .continueLoop: continue
             case .breakLoop: return .normal(.void)
@@ -636,18 +648,35 @@ extension Interpreter {
     /// inside the body are not visible to it. `continue` falls through to the
     /// condition check, exactly as native `repeat`/`while` does.
     private func executeRepeat(_ repeatStmt: RepeatStmtSyntax, in env: Environment) throws -> StatementResult {
+        var iteration = 0
         while true {
-            try tick(repeatStmt)
-            let child = Environment(parent: env)
-            let result = try executeBlock(repeatStmt.body.statements, in: child)
+            iteration += 1
+            let outcome: (result: StatementResult, repeats: Bool) =
+                try withBoundedLoopIterationSlice(
+                    iteration, node: repeatStmt
+                ) {
+                    try tick(repeatStmt)
+                    let child = Environment(parent: env)
+                    let result = try executeBlock(
+                        repeatStmt.body.statements, in: child)
+                    switch result {
+                    case .normal, .continueLoop:
+                        let repeats = try evaluate(
+                            repeatStmt.condition, in: env).boolValue == true
+                        return (result, repeats)
+                    case .breakLoop, .returnValue:
+                        return (result, false)
+                    }
+                }
+            let result = outcome.result
             switch result {
-            case .normal, .continueLoop: break
+            case .normal, .continueLoop:
+                guard outcome.repeats else { return .normal(.void) }
+                continue
             case .breakLoop: return .normal(.void)
             case .returnValue: return result
             }
-            guard try evaluate(repeatStmt.condition, in: env).boolValue == true else { break }
         }
-        return .normal(.void)
     }
 
     // MARK: - ViewBuilder mode

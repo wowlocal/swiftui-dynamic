@@ -149,6 +149,13 @@ public final class StructSymbol {
     /// `class Recognizer: NSObject, …` — the (non-protocol) superclass name;
     /// host superclasses make `super.*` inert, interpreted ones dispatch.
     public internal(set) var superclassName: String?
+    /// The collected superclass identity. Names alone are insufficient for
+    /// nested declarations because a sibling nested type can share its
+    /// basename with an unrelated global nominal.
+    weak var superclassSymbol: StructSymbol?
+    /// The lexical nominal namespace that owns this nested declaration.
+    /// Weakness avoids an owner -> nestedTypes -> child -> owner cycle.
+    weak var lexicalTypeOwner: AnyObject?
     /// `<Content: View, Style>` → ["Content": "View", "Style": ""] — used
     /// so properties typed by a GENERIC PARAMETER never synthesize as a
     /// same-named concrete type from elsewhere in the merge.
@@ -302,6 +309,8 @@ public final class StructSymbol {
         copy.conformsToShape = conformsToShape
         copy.staticComputedProperties = staticComputedProperties
         copy.superclassName = superclassName
+        copy.superclassSymbol = superclassSymbol
+        copy.lexicalTypeOwner = lexicalTypeOwner
         copy.genericParameters = genericParameters
         copy.orderedGenericParameters = orderedGenericParameters
         copy.conformances = conformances

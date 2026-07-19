@@ -4,15 +4,35 @@ import SwiftSyntax
 extension Interpreter {
     // MARK: - Literals & helpers
 
-    func integerValue(of lit: IntegerLiteralExprSyntax) throws -> Int {
+    private func unsignedIntegerMagnitude(
+        of lit: IntegerLiteralExprSyntax
+    ) -> UInt64? {
         let text = lit.literal.text.filter { $0 != "_" }
-        let value: Int?
-        if text.hasPrefix("0x") { value = Int(text.dropFirst(2), radix: 16) }
-        else if text.hasPrefix("0b") { value = Int(text.dropFirst(2), radix: 2) }
-        else if text.hasPrefix("0o") { value = Int(text.dropFirst(2), radix: 8) }
-        else { value = Int(text) }
-        guard let value else { throw error(lit, "invalid integer literal") }
+        if text.hasPrefix("0x") { return UInt64(text.dropFirst(2), radix: 16) }
+        if text.hasPrefix("0b") { return UInt64(text.dropFirst(2), radix: 2) }
+        if text.hasPrefix("0o") { return UInt64(text.dropFirst(2), radix: 8) }
+        return UInt64(text, radix: 10)
+    }
+
+    func unsignedIntegerValue(of lit: IntegerLiteralExprSyntax) throws -> UInt64 {
+        guard let value = unsignedIntegerMagnitude(of: lit) else {
+            throw error(lit, "invalid integer literal")
+        }
         return value
+    }
+
+    func integerValue(of lit: IntegerLiteralExprSyntax) throws -> Int {
+        let magnitude = try unsignedIntegerValue(of: lit)
+        guard let value = Int(exactly: magnitude) else {
+            throw error(lit, "integer literal does not fit Int")
+        }
+        return value
+    }
+
+    func integerLiteralValue(of lit: IntegerLiteralExprSyntax) throws -> RuntimeValue {
+        let magnitude = try unsignedIntegerValue(of: lit)
+        if let value = Int(exactly: magnitude) { return .native(value) }
+        return .native(magnitude)
     }
 
     func stringLiteral(_ lit: StringLiteralExprSyntax, in env: Environment) throws -> String {
@@ -222,6 +242,16 @@ extension Interpreter {
             }
             return .nilValue // unknowable keypath: fresh read
         }
+        // Indexed carriers retain element type and can read without
+        // materializing their full collection view. Range subscripts still
+        // fall through to the ordinary collection path below.
+        if let position = index.intValue,
+           case .host(let payload) = base,
+           let readable = payload as? any RuntimeIntegerSubscriptReadable {
+            return chained(try relocating(call) {
+                try readable.runtimeElement(at: position)
+            })
+        }
         if let array = base.arrayValue {
             if let i = index.intValue, array.indices.contains(i) {
                 return chained(array[i])
@@ -288,6 +318,21 @@ extension Interpreter {
            let declared = try readHostMember("default", on: keyBag)
                ?? readHostMember("defaultValue", on: keyBag) {
             return chained(declared)
+        }
+        if case .hostFunction(let subscripting)? = try nativeMember(
+            "subscript", on: base) {
+            var arguments: [CallArguments.Argument] = [
+                .init(label: call.arguments.first?.label?.text, value: index),
+            ]
+            for argument in call.arguments.dropFirst() {
+                arguments.append(.init(
+                    label: argument.label?.text,
+                    value: try evaluate(argument.expression, in: env)))
+            }
+            return chained(try relocating(call) {
+                try subscripting.invoke(
+                    CallArguments(arguments: arguments), self)
+            })
         }
         if case .host(let any) = base,
            case .hostFunction(let subscripting)? = try readHostMember(

@@ -182,6 +182,7 @@ extension Interpreter {
                 }
                 for (name, nested) in stranded.nestedTypes
                 where symbol.nestedTypes[name] == nil {
+                    bindLexicalOwner(of: nested, to: symbol)
                     symbol.nestedTypes[name] = nested
                 }
                 for initializer in stranded.initializers {
@@ -222,6 +223,7 @@ extension Interpreter {
                 }
                 for (name, nested) in stranded.nestedTypes
                 where symbol.nestedTypes[name] == nil {
+                    bindLexicalOwner(of: nested, to: symbol)
                     symbol.nestedTypes[name] = nested
                 }
                 for initializer in stranded.initializers {
@@ -559,6 +561,7 @@ extension Interpreter {
                 // Nested types register under `Outer.Name` (for annotations)
                 // and the bare name when unclaimed (for in-scope references).
                 let nested = try makeEnumSymbol(nestedEnum)
+                nested.lexicalTypeOwner = symbol
                 symbol.nestedTypes[nested.name] = .enumType(nested)
                 enumSymbols["\(symbol.name).\(nested.name)"] = nested
                 // Bare-name registration is FIRST-WINS, never a union:
@@ -590,6 +593,32 @@ extension Interpreter {
     }
 
     private func registerNestedType(_ nestedSymbol: StructSymbol, in symbol: StructSymbol) {
+        nestedSymbol.lexicalTypeOwner = symbol
+        symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
+        structSymbols.append(nestedSymbol)
+        globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
+        if globals.lookup(nestedSymbol.name) == nil {
+            globals.define(nestedSymbol.name, .type(nestedSymbol))
+        }
+    }
+
+    private func bindLexicalOwner(
+        of nested: RuntimeValue, to owner: AnyObject
+    ) {
+        switch nested {
+        case .type(let symbol):
+            symbol.lexicalTypeOwner = owner
+        case .enumType(let symbol):
+            symbol.lexicalTypeOwner = owner
+        default:
+            break
+        }
+    }
+
+    private func registerNestedType(
+        _ nestedSymbol: StructSymbol, in symbol: EnumSymbol
+    ) {
+        nestedSymbol.lexicalTypeOwner = symbol
         symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
         structSymbols.append(nestedSymbol)
         globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
@@ -859,6 +888,7 @@ extension Interpreter {
         }
         for (name, nested) in symbol.nestedTypes
         where existing.nestedTypes[name] == nil {
+            bindLexicalOwner(of: nested, to: existing)
             existing.nestedTypes[name] = nested
         }
         for initializer in symbol.initializers {
@@ -1053,6 +1083,7 @@ extension Interpreter {
             // dotted name and the bare name when unclaimed, mirroring the
             // struct path.
             let nested = try makeEnumSymbol(nestedEnum)
+            nested.lexicalTypeOwner = symbol
             symbol.nestedTypes[nested.name] = .enumType(nested)
             enumSymbols["\(symbol.name).\(nested.name)"] = nested
             if enumSymbols[nested.name] == nil { enumSymbols[nested.name] = nested }
@@ -1062,20 +1093,10 @@ extension Interpreter {
             }
         case .structure(let nestedStruct):
             let nestedSymbol = try makeStructSymbol(nestedStruct)
-            symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
-            structSymbols.append(nestedSymbol)
-            globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
-            if globals.lookup(nestedSymbol.name) == nil {
-                globals.define(nestedSymbol.name, .type(nestedSymbol))
-            }
+            registerNestedType(nestedSymbol, in: symbol)
         case .classType(let nestedClass):
             let nestedSymbol = try makeClassLikeSymbol(nestedClass)
-            symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
-            structSymbols.append(nestedSymbol)
-            globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
-            if globals.lookup(nestedSymbol.name) == nil {
-                globals.define(nestedSymbol.name, .type(nestedSymbol))
-            }
+            registerNestedType(nestedSymbol, in: symbol)
         case .actor, .deinitializer, .subscriptDeclaration, .typeAlias,
              .enumCase, .protocolType, .other:
             return
@@ -1202,7 +1223,11 @@ extension Interpreter {
         closure.programState = programState
         closure.functionDeclID = node.id
         let lexicalOwner = programState?.declarationLexicalOwners[node.id]
-            ?? declLexicalOwners[node.id]
+            ?? lexicalOwner(of: node.id)
+            // Local declarations are not members in the program index, but
+            // they still inherit the nominal lexical context of the running
+            // source body (so `Self` keeps its declaration-site meaning).
+            ?? lexicalOwnerFrames.last
         closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
         closure.debugName = metadata.name
@@ -1257,7 +1282,7 @@ extension Interpreter {
             programPlan: programPlan)
         closure.programState = programState
         let lexicalOwner = programState?.declarationLexicalOwners[node.id]
-            ?? declLexicalOwners[node.id]
+            ?? lexicalOwner(of: node.id)
             ?? fallbackLexicalOwner
         let actorInitializer =
             (lexicalOwner as? StructSymbol)?.isActor == true

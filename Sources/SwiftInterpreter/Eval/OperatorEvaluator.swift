@@ -84,7 +84,8 @@ extension Interpreter {
             case .notOptional:
                 return lhs
             }
-        case "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=":
+        case "+=", "-=", "*=", "/=", "%=", "&+=", "&-=", "&*=",
+             "&=", "|=", "^=", "<<=", ">>=":
             let target = try resolveLValue(infix.leftOperand, in: env)
             var rhs = try evaluate(infix.rightOperand, in: env)
             let current = try target.read(self)
@@ -159,7 +160,14 @@ extension Interpreter {
             do {
                 return try relocating(infix) { try Builtins.binary(op, adoptedLhs, adoptedRhs) }
             } catch let builtinError as RuntimeError where !builtinError.fatal {
-                if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) {
+                if let viaDeclared = try declaredOperatorValue(
+                    op,
+                    lhs,
+                    rhs,
+                    lhsDeclaredTypeName: declaredMemberReceiverTypeName(
+                        for: infix.leftOperand, in: env),
+                    rhsDeclaredTypeName: declaredMemberReceiverTypeName(
+                        for: infix.rightOperand, in: env)) {
                     return viaDeclared
                 }
                 // User-defined infix operators (`|>` pipe-forward, `~=`
@@ -413,7 +421,7 @@ extension Interpreter {
                     return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
                 }
                 if let superName = instance.symbol.superclassName,
-                   !interpreter.isInterpretedType(superName) {
+                   interpreter.interpretedSuperclass(of: instance.symbol) == nil {
                     return .native(ChainedImplicitCall(
                         base: .implicitMember(superName), member: name, arguments: CallArguments()))
                 }
@@ -619,8 +627,8 @@ extension Interpreter {
                         value: value)
                     return
                 }
-                if let superName = instance.symbol.superclassName,
-                   !interpreter.isInterpretedType(superName) {
+                if instance.symbol.superclassName != nil,
+                   interpreter.interpretedSuperclass(of: instance.symbol) == nil {
                     // Inherited HOST-superclass properties (NSPanel.title):
                     // writes create the box, later reads see the value.
                     instance.properties[name] = Box(stored(value))
@@ -818,7 +826,11 @@ extension Interpreter {
     /// <=/>/>= from a declared `<`. nil when neither operand's type
     /// declares the operator.
     func declaredOperatorValue(
-        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+        _ op: String,
+        _ lhs: RuntimeValue,
+        _ rhs: RuntimeValue,
+        lhsDeclaredTypeName: String? = nil,
+        rhsDeclaredTypeName: String? = nil
     ) throws -> RuntimeValue? {
         func operatorHome(_ value: RuntimeValue) -> (StructSymbol?, EnumSymbol?) {
             if case .instance(let instance) = value { return (instance.symbol, nil) }
@@ -834,6 +846,37 @@ extension Interpreter {
                 if let method = enumSym?.staticMethods[name]?.first {
                     return (method, .enumType(enumSym!))
                 }
+            }
+            for declaredTypeName in [
+                lhsDeclaredTypeName, rhsDeclaredTypeName,
+            ] {
+                guard let nominal = RuntimeDeclaredType.nominalTypeName(
+                    declaredTypeName),
+                      let symbol = hostExtensionSymbols[nominal],
+                      let overloads = symbol.staticMethods[name] else {
+                    continue
+                }
+                let operandTypes = [
+                    lhsDeclaredTypeName, rhsDeclaredTypeName,
+                ]
+                let method = overloads.first(where: { declaration in
+                    let parameters = functionMetadata(
+                        for: declaration).parameters
+                    guard parameters.count == operandTypes.count else {
+                        return false
+                    }
+                    return zip(parameters, operandTypes).allSatisfy {
+                        parameter, operandType in
+                        guard let parameterType = parameter.typeName,
+                              let operandType else {
+                            return false
+                        }
+                        return HostSignature.equivalentTypeName(
+                            parameterType, operandType)
+                    }
+                }) ?? overloads.first
+                guard let method else { continue }
+                return (method, .type(symbol))
             }
             return nil
         }
@@ -1136,8 +1179,8 @@ extension Interpreter {
                 if instance.box(for: canonical) != nil || instance.symbol.computedProperties[canonical] != nil {
                     return .instanceProperty(instance, canonical)
                 }
-                if let superName = instance.symbol.superclassName,
-                   !isInterpretedType(superName) {
+                if instance.symbol.superclassName != nil,
+                   interpretedSuperclass(of: instance.symbol) == nil {
                     // Inherited host-superclass property (`title = …` in an
                     // NSPanel subclass) — the write absorbs into a box.
                     return .instanceProperty(instance, canonical)

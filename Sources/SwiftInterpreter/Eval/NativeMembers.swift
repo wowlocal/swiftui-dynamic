@@ -217,6 +217,62 @@ extension Interpreter {
     /// This is the compatibility path for opaque framework values. Swift-shaped
     /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
+        if let buffer = any as? RuntimeCollectionBackedBuffer {
+            switch name {
+            case "count":
+                return .native(buffer.elements.count)
+            case "isEmpty":
+                return .native(buffer.elements.isEmpty)
+            case "baseAddress":
+                return buffer.baseAddress.map {
+                    .some(.native($0), wrappedTypeName: "UnsafePointer")
+                } ?? .none(wrappedTypeName: "UnsafePointer")
+            default:
+                return try arrayMember(
+                    name, buffer.elements,
+                    elementTypeName: buffer.elementTypeName)
+            }
+        }
+        if let pointer = any as? RuntimeCollectionBackedPointer {
+            switch name {
+            case "advanced":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let distance = (args.labeled("by")
+                        ?? args.positional(0))?.intValue else {
+                        throw EvalMessage(text: "advanced(by:) needs an integer")
+                    }
+                    return .native(pointer.advanced(by: distance))
+                })
+            case "pointee":
+                return try pointer.element(atRelativeIndex: 0)
+            case "load":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let metatype = args.labeled("as") ?? args.positional(0)
+                    else {
+                        throw EvalMessage(text: "load(as:) needs a scalar metatype")
+                    }
+                    let typeName: String?
+                    switch metatype {
+                    case .host(let value) where value is HostTypeMarker:
+                        typeName = (value as! HostTypeMarker).name
+                    case .hostFunction(let function):
+                        typeName = function.name
+                    case .type(let symbol):
+                        typeName = symbol.name
+                    case .enumType(let symbol):
+                        typeName = symbol.name
+                    default:
+                        typeName = nil
+                    }
+                    guard let typeName else {
+                        throw EvalMessage(text: "load(as:) needs a scalar metatype")
+                    }
+                    return try pointer.loadedValue(typeName: typeName)
+                })
+            default:
+                return nil
+            }
+        }
         if let group = any as? RuntimeTaskGroup {
             return try sourceTaskGroupMember(name, on: group)
         }
@@ -678,6 +734,33 @@ extension Interpreter {
                 }
                 return .native(true)
             })
+        case "withContiguousStorageIfAvailable":
+            // The interpreter owns value arrays, not a stable addressable
+            // buffer. This API is explicitly a capability query: returning
+            // nil makes source execute its declared collection fallback
+            // instead of treating an absorbing pointer marker as success.
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .none()
+            })
+        case "withUnsafeBufferPointer":
+            // The immutable carrier retains both values and their declared
+            // element ABI, so a source buffer stored after this callback can
+            // keep safe collection-backed pointer semantics without leaking
+            // the callback's temporary machine address.
+            return .hostFunction(HostFunction(name: name) { args, context in
+                let body = try Self.requiredClosure(args, name)
+                return try context.callClosure(
+                    body, arguments: [
+                        .native(RuntimeCollectionBackedBuffer(
+                            array, elementTypeName: elementTypeName)),
+                    ])
+            })
+        case "baseAddress":
+            // A materialized read-only buffer intentionally exposes no raw
+            // address. Source pointer fast paths then execute their declared
+            // scalar fallback; only the scoped buffer proxy above can mint a
+            // collection-backed pointer during construction.
+            return .none(wrappedTypeName: "UnsafePointer")
 
         case "flatMap":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in

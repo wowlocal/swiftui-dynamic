@@ -39,6 +39,9 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func cFunction(named name: String) -> HostFunction? {
+        if let memory = GeneratedCMemoryBridge.function(named: name) {
+            return memory
+        }
         if let generated = GeneratedPlatformBridge.globalFunction(
             named: name,
             fallbackRuntime: generatedPlatformFallbacks

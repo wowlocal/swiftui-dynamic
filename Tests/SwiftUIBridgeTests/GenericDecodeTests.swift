@@ -193,6 +193,33 @@ import SwiftInterpreter
         #expect(tuple.values[1].stringValue == "Sun Dog")
         #expect(tuple.values[2].stringValue == "<p>hello</p>")
     }
+
+    @Test func materializedCustomDecodeElementsHaveIndependentFiniteBudgets() throws {
+        let payload = "[" + (0..<30).map { "\"\($0)\"" }.joined(separator: ",") + "]"
+        let source = """
+        struct ParsedValue: Decodable {
+            let value: String
+
+            init(from decoder: Decoder) {
+                let container = try! decoder.singleValueContainer()
+                value = try! container.decode(String.self)
+                var cursor = 0
+                while cursor < 1_000 {
+                    cursor += 1
+                }
+            }
+        }
+
+        let data = \(String(reflecting: payload)).data(using: .utf8)!
+        let values = try! JSONDecoder().decode([ParsedValue].self, from: data)
+        (values.count, values.last!.value)
+        """
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 30)
+        #expect(tuple.values[1].stringValue == "29")
+    }
 }
 
 /// Module-qualified extensions and shadowed stdlib statics (iteration 193):

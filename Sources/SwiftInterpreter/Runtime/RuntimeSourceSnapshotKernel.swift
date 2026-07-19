@@ -1538,11 +1538,10 @@ extension Interpreter {
         _ expression: ExprSyntax
     ) -> UInt64? {
         guard let literal = expression.as(IntegerLiteralExprSyntax.self),
-              let parsed = try? integerValue(of: literal),
-              parsed >= 0 else {
+              let parsed = try? unsignedIntegerValue(of: literal) else {
             return nil
         }
-        return UInt64(parsed)
+        return parsed
     }
 
     private static func singleExpression(

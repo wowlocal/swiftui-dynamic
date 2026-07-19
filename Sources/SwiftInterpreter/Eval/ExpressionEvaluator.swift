@@ -88,7 +88,7 @@ extension Interpreter {
         // evaluated node, so a ~25-deep `as()` chain was pure overhead.
         switch expr.kind {
         case .integerLiteralExpr:
-            return .native(try integerValue(of: expr.cast(IntegerLiteralExprSyntax.self)))
+            return try integerLiteralValue(of: expr.cast(IntegerLiteralExprSyntax.self))
         case .floatLiteralExpr:
             let lit = expr.cast(FloatLiteralExprSyntax.self)
             guard let d = Double(lit.literal.text.filter { $0 != "_" }) else {
@@ -125,9 +125,18 @@ extension Interpreter {
             guard let base = member.base else {
                 return .implicitMember(member.declName.baseName.text)
             }
-            let baseValue = try evaluate(base, in: env)
+            let memberName = member.declName.baseName.text
+            let baseValue: RuntimeValue
+            if let call = base.as(FunctionCallExprSyntax.self) {
+                baseValue = try evaluateCall(
+                    call,
+                    in: env,
+                    contextualResultMember: memberName)
+            } else {
+                baseValue = try evaluate(base, in: env)
+            }
             return try accessMember(
-                member.declName.baseName.text, on: baseValue, node: member, env: env)
+                memberName, on: baseValue, node: member, env: env)
         case .functionCallExpr:
             return try evaluateCall(expr.cast(FunctionCallExprSyntax.self), in: env)
         case .closureExpr:
@@ -246,14 +255,18 @@ extension Interpreter {
             return .native(KeyPathStub(components: components))
         case .superExpr:
             if case .instance(let instance)? = env.lookup("self") {
-                return .native(SuperReference(instance: instance))
+                let dispatchOwner = lexicalOwnerFrames.reversed()
+                    .compactMap { $0 as? StructSymbol }
+                    .first ?? instance.symbol
+                return .native(SuperReference(
+                    instance: instance, dispatchOwner: dispatchOwner))
             }
             // STATIC contexts (`static func fetchRequest() { super
             // .fetchRequest() }` on an NSManagedObject subclass): the host
             // superclass's statics absorb — a type marker carries the name.
             if case .type(let symbol)? = env.lookup("self"),
                let superName = symbol.superclassName {
-                if case .type(let parent)? = globals.lookup(superName) {
+                if let parent = interpretedSuperclass(of: symbol) {
                     return .type(parent)
                 }
                 return .native(HostTypeMarker(name: superName))

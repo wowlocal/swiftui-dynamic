@@ -172,6 +172,9 @@ extension RuntimeValue {
         case .array(let array): return array
         case .host(let any):
             if let array = any as? [RuntimeValue] { return array }
+            if let buffer = any as? RuntimeCollectionBackedBuffer {
+                return buffer.elements
+            }
             // Foundation.Data is a concrete RandomAccessCollection<UInt8>;
             // expose its elements to generic Sequence/Array construction
             // without requiring a Data-specific constructor overload.
@@ -200,6 +203,9 @@ extension RuntimeValue {
         case .set(let set): return set.elements
         case .host(let any):
             if let array = any as? [RuntimeValue] { return array }
+            if let buffer = any as? RuntimeCollectionBackedBuffer {
+                return buffer.elements
+            }
             if let set = any as? RuntimeSetValue { return set.elements }
             if let data = any as? Data {
                 return data.map { .native(Int($0)) }
@@ -405,9 +411,13 @@ public struct CasePathMarker: InertCallable {
 @MainActor
 public struct SuperReference {
     public let instance: Instance
+    /// The declaration containing the `super` expression. Dynamic self can
+    /// be a deeper subclass while inherited initializer/method bodies run.
+    public let dispatchOwner: StructSymbol
 
-    public init(instance: Instance) {
+    public init(instance: Instance, dispatchOwner: StructSymbol) {
         self.instance = instance
+        self.dispatchOwner = dispatchOwner
     }
 }
 
