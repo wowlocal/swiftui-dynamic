@@ -1427,9 +1427,15 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
             }))
         case "createDirectory":
-            return .hostFunction(HostFunction(name: name) { args, _ in
+            let directoryURL: (CallArguments) -> URL? = { args in
                 let url = urlArg(args.labeled("at"))
                     ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
+                return url
+            }
+            return .hostFunction(HostFunction(
+                name: name,
+                invoke: { args, _ in
+                let url = directoryURL(args)
                 guard let url else {
                     // An UNKNOWABLE location (a path built from unmerged
                     // APIs): creating it is accepted inertly — the fresh
@@ -1440,7 +1446,30 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 try box.requireSandboxed(url)
                 try? box.manager.createDirectory(at: url, withIntermediateDirectories: true)
                 return .void
-            })
+            }, workerOperationIfSupported: { args, _ in
+                // Demand currently proves only the direct URL/path overloads
+                // with intermediate creation enabled and attributes omitted.
+                // Richer argument shapes stay on the confined implementation.
+                guard args.arguments.count == 2,
+                      args.arguments[1].label == "withIntermediateDirectories",
+                      args.arguments[1].value.boolValue == true,
+                      let firstLabel = args.arguments[0].label,
+                      firstLabel == "at" || firstLabel == "atPath",
+                      let url = directoryURL(args) else {
+                    return nil
+                }
+                try box.requireSandboxed(url)
+                return HostWorkerOperation {
+                    do {
+                        try FileManager.default.createDirectory(
+                            at: url, withIntermediateDirectories: true)
+                    } catch {
+                        throw RuntimeError(
+                            message: "createDirectory: \(error.localizedDescription)")
+                    }
+                    return .void
+                }
+            }))
         case "contentsOfDirectory":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let url = urlArg(args.labeled("at")) else {

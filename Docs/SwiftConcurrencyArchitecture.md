@@ -5531,6 +5531,44 @@ native overlap 20/20 and completed in 74 seconds without a race or interceptor
 diagnostic. This is argument-sensitive checked admission, not general native
 forwarding.
 
+The ninety-seventh prerequisite extends that same checked boundary to the
+next current-corpus FileManager family. The refreshed 94-project tree now has
+515 Swift files containing `Task.detached`, rather than the earlier 502-file
+snapshot. A balanced closure-body census followed by source inspection finds
+seven direct `FileManager.default.createDirectory` calls inside detached
+operations across Clop, Provenance, session-ios, and Whisky. Five use
+`at: URL`; two use `atPath: String`; every cited call enables intermediate
+directories and omits `attributes`.
+
+Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
+concurrency checking and warnings as errors. Twenty bounded runs returned
+exact `url:true|path:true`; the raw twenty-line digest was
+`a808cb350d19c054f9c3cdd750100d0ad60a7f97c56e701313b590bc71cbaecf`,
+and every focused five-run shard retained
+`992b293dadc746303526219ec033bc9f15494b2ff891dcf97f7d5f4d8274fe04`.
+Before the repair, cooperative and parallel interpretation already returned
+the exact value, but parallel mode recorded zero physical
+submissions/executions instead of two/two.
+
+The route remains capability-based, not general native forwarding. The
+confined evaluator converts the cited URL or path argument, validates it
+against the registry-owned sandbox, and admits only an exact two-argument call
+whose second label is `withIntermediateDirectories`, whose evaluated value is
+true, and whose attributes argument is absent. The worker closure captures one
+immutable Foundation URL, invokes native FileManager, and returns the existing
+Void snapshot. A same-module FileManager, aliases, arbitrary receivers,
+`withIntermediateDirectories: false`, explicit attributes, cooperative mode,
+and actor-confined execution all stay on the ordinary evaluator and record
+zero receipts. Neither FileManagerBox, RuntimeValue, evaluator state, nor
+mutable sandbox ownership crosses the worker boundary.
+
+The exact-tip physical board and its fresh TSan twin passed 126/126 tests in
+four suites. TSan also passed the native-overlap probe 20/20 and completed in
+31 seconds without a race or interceptor diagnostic. The canonical focused
+iteration passed those 126 implementation tests, all 46 methodology/gate
+checks, and 20/20 parity repetitions in seven seconds. The gap remains open
+for the next demand-cited host family and for general evaluator parallelism.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and

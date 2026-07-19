@@ -110,6 +110,37 @@ struct ParallelFoundationGatewayTests {
     }
 
     @Test
+    func detachedFileManagerCreateDirectoryUsesAWorker() async throws {
+        let fixture = repositoryRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-file-manager-create-directory.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedFileManagerCreateDirectoryProbe()\n"
+        let expected = "url:true|path:true"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == expected)
+        #expect(parallelValue.stringValue == expected)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 2)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 2)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func sourceShadowedFileManagerStaysOnTheConfinedEvaluator()
         async throws
     {
@@ -212,6 +243,86 @@ struct ParallelFoundationGatewayTests {
         """)
 
         #expect(value.stringValue == "source:path")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func sourceShadowedFileManagerCreateDirectoryStaysConfined()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        struct FileManager {
+            static let `default` = FileManager()
+
+            func createDirectory(
+                at: String, withIntermediateDirectories: Bool
+            ) -> String {
+                "source:" + at
+            }
+        }
+
+        func probe() async -> String {
+            await Task.detached {
+                FileManager.default.createDirectory(
+                    at: "path", withIntermediateDirectories: true)
+            }.value
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "source:path")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func uncitedCreateDirectoryArgumentsStayOnConfinedEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        func probe() async -> String {
+            let root = FileManager.default.temporaryDirectory
+            let first = root.appendingPathComponent("without-intermediates")
+            let second = root.appendingPathComponent("with-attributes")
+            try? await Task.detached {
+                try FileManager.default.createDirectory(
+                    at: first, withIntermediateDirectories: false)
+            }.value
+            try? await Task.detached {
+                try FileManager.default.createDirectory(
+                    at: second,
+                    withIntermediateDirectories: true,
+                    attributes: nil)
+            }.value
+            return "finished"
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "finished")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalHostOperationSubmissions == 0)
         #expect(interpreter.concurrencyRuntime

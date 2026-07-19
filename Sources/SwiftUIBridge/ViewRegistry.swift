@@ -91,7 +91,8 @@ public final class ViewRegistry: HostRegistry {
             && (name == "fileExists"
                 || name == "copyItem"
                 || name == "moveItem"
-                || name == "removeItem")
+                || name == "removeItem"
+                || name == "createDirectory")
     }
 
     public func constructor(named name: String) -> HostFunction? {
