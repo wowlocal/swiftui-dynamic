@@ -3470,5 +3470,22 @@
     "expectedPhysicalHostOperationExecutions": 1,
     "nativeFact": "An awaited Task.detached operation may synchronously list a directory with FileManager.default.contentsOfDirectory(at:includingPropertiesForKeys:); Task.value publishes the child URLs after the read completes, and lastPathComponent projects their names.",
     "notes": "The generality witness: contentsOfDirectory never had a hand-written worker gateway in any prior slice. Its table row states the existing confined semantics (sandbox-admitted read, silent empty on failure) and the shared engine provides the physical face for free — the URL-array result crosses through the widened checked value vocabulary. No member-specific concurrency code exists for this case anywhere in the tree."
+  },
+  {
+    "id": "parallel-detached-file-manager-path-forms",
+    "fixture": "Fixtures/parallel-detached-file-manager-path-forms.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedFileManagerPathFormsProbe()",
+    "interpreterProjection": "string",
+    "interpreterRegistry": "swiftUI",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "expectedPhysicalHostOperationExecutions": 3,
+    "nativeFact": "Awaited Task.detached operations may synchronously copy and move items through FileManager.default's atPath:/toPath: String spellings and list child NAMES with contentsOfDirectory(atPath:); Task.value returns only after each effect is visible, and the atPath list overload returns String names rather than URLs.",
+    "notes": "ControlRoom (10 uses) and CodeEdit cite copyItem/moveItem atPath spellings; blink, CopilotForXcode, and Pearcleaner (19 uses) cite contentsOfDirectory(atPath:). The corner-case iteration extends three existing table rows with the String argument forms — pure row data merging onto the same URL kernels (transfer) or the native atPath call with String-array results (list); no new machinery, routing, or registry entries exist for these spellings, and the native names-not-URLs shape difference is part of the row."
   }
 ]

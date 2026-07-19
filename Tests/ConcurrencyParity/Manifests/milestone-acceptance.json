@@ -1866,6 +1866,7 @@
             "parallel-detached-file-manager-exists",
             "parallel-detached-file-manager-create-directory",
             "parallel-detached-file-manager-list",
+            "parallel-detached-file-manager-path-forms",
             "source-imported-string-overload",
             "source-imported-array-filter-overload"
           ],
@@ -2004,6 +2005,10 @@
             "ParallelFileServiceGatewayTests/fileManagerExistsIsDirectoryShapeSharesTheRowSemantics",
             "ParallelFileServiceGatewayTests/routeMetadataMirrorsTheOperationTable",
             "ParallelFileServiceGatewayTests/fileManagerSandboxIsOwnedByItsRegistry",
+            "ParallelFileServiceGatewayTests/detachedFileManagerPathFormsUseAWorker",
+            "ParallelFileServiceGatewayTests/sandboxEscapeIsRejectedIdenticallyOnBothFaces",
+            "ParallelFileServiceGatewayTests/mappedFailureDescriptionAgreesAcrossFaces",
+            "ParallelFileServiceGatewayTests/workerListedURLsBehaveAsOrdinaryArraysInSource",
             "HostSignatureTests/keyPathSatisfiesFunctionParameterLikeNativeSwift",
             "ExpressionTests/sourceAndImportedMemberOverloadsUseArgumentTypes",
             "ExpressionTests/sourceAndImportedMemberOverloadsMatchInAsyncSession",

@@ -3034,7 +3034,8 @@
       "parallel-detached-file-manager-remove",
       "parallel-detached-file-manager-exists",
       "parallel-detached-file-manager-create-directory",
-      "parallel-detached-file-manager-list"
+      "parallel-detached-file-manager-list",
+      "parallel-detached-file-manager-path-forms"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -3131,7 +3132,11 @@
         "ParallelFileServiceGatewayTests/createDirectoryArgumentShapesShareTheRowSemantics",
         "ParallelFileServiceGatewayTests/fileManagerExistsIsDirectoryShapeSharesTheRowSemantics",
         "ParallelFileServiceGatewayTests/routeMetadataMirrorsTheOperationTable",
-        "ParallelFileServiceGatewayTests/fileManagerSandboxIsOwnedByItsRegistry"
+        "ParallelFileServiceGatewayTests/fileManagerSandboxIsOwnedByItsRegistry",
+        "ParallelFileServiceGatewayTests/detachedFileManagerPathFormsUseAWorker",
+        "ParallelFileServiceGatewayTests/sandboxEscapeIsRejectedIdenticallyOnBothFaces",
+        "ParallelFileServiceGatewayTests/mappedFailureDescriptionAgreesAcrossFaces",
+        "ParallelFileServiceGatewayTests/workerListedURLsBehaveAsOrdinaryArraysInSource"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"

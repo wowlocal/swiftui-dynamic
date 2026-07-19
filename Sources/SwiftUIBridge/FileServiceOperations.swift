@@ -119,15 +119,27 @@ enum FileServiceOperations {
             }
         },
         Operation(member: "contentsOfDirectory") { args, box in
-            guard let url = urlArgument(args.labeled("at")) else {
-                throw RuntimeError(message: "contentsOfDirectory needs a URL")
+            if let url = urlArgument(args.labeled("at")) {
+                try box.requireSandboxed(url)
+                return .run {
+                    let contents = (try? FileManager.default
+                        .contentsOfDirectory(
+                            at: url, includingPropertiesForKeys: nil)) ?? []
+                    return .array(contents.map { .url($0) })
+                }
             }
-            try box.requireSandboxed(url)
-            return .run {
-                let contents = (try? FileManager.default.contentsOfDirectory(
-                    at: url, includingPropertiesForKeys: nil)) ?? []
-                return .array(contents.map { .url($0) })
+            // The atPath overload returns child NAMES, not URLs — the
+            // native shape difference is part of the row (blink,
+            // CopilotForXcode, and Pearcleaner cite it).
+            if let path = args.labeled("atPath")?.stringValue {
+                try box.requireSandboxed(URL(fileURLWithPath: path))
+                return .run {
+                    let names = (try? FileManager.default
+                        .contentsOfDirectory(atPath: path)) ?? []
+                    return .array(names.map { .string($0) })
+                }
             }
+            throw RuntimeError(message: "contentsOfDirectory needs a URL")
         },
     ]
 
@@ -137,8 +149,15 @@ enum FileServiceOperations {
         _ args: CallArguments,
         _ box: FileManagerBox
     ) throws -> Plan {
-        guard let from = urlArgument(args.labeled("at")),
-              let to = urlArgument(args.labeled("to")) else {
+        // ControlRoom and CodeEdit cite the atPath:/toPath: String
+        // spellings; both forms merge onto one URL kernel like removeItem.
+        let from = urlArgument(args.labeled("at"))
+            ?? args.labeled("atPath")?.stringValue
+                .map { URL(fileURLWithPath: $0) }
+        let to = urlArgument(args.labeled("to"))
+            ?? args.labeled("toPath")?.stringValue
+                .map { URL(fileURLWithPath: $0) }
+        guard let from, let to else {
             // Sources that never materialized (URLSession temp markers)
             // can't be copied — the honest throw lands in the app's own
             // catch.

@@ -370,6 +370,149 @@ struct ParallelFileServiceGatewayTests {
     }
 
     @Test
+    func detachedFileManagerPathFormsUseAWorker() async throws {
+        try await runFixture(
+            named: "parallel-detached-file-manager-path-forms",
+            entry: "await parallelDetachedFileManagerPathFormsProbe()",
+            expected: "copied:true|moved:true|names:inner",
+            parallelSubmissions: 3,
+            parallelExecutions: 3)
+    }
+
+    @Test
+    func sandboxEscapeIsRejectedIdenticallyOnBothFaces() async throws {
+        // The confinement policy is part of the row's prepare, so a
+        // detached escape attempt fails exactly like a cooperative one —
+        // before any job is submitted — and the mapped error is
+        // source-catchable.
+        let source = """
+        func probe() async -> String {
+            do {
+                try await Task.detached {
+                    try FileManager.default.removeItem(
+                        atPath: "/tmp/dynamic-swiftui-escape-probe")
+                }.value
+                return "accepted"
+            } catch {
+                let text = "\\(error)"
+                return text.contains("outside the app sandbox")
+                    ? "confined" : "other:" + text
+            }
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "confined")
+        #expect(parallelValue.stringValue == "confined")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func mappedFailureDescriptionAgreesAcrossFaces() async throws {
+        // A missing-item removal inside the sandbox fails during kernel
+        // execution: cooperatively on the owning actor, physically on a
+        // worker. The mapped error must read identically from source in
+        // both modes.
+        let source = """
+        func probe() async -> String {
+            let victim = FileManager.default.temporaryDirectory
+                .appendingPathComponent("never-created-item")
+            do {
+                try await Task.detached {
+                    try FileManager.default.removeItem(at: victim)
+                }.value
+                return "accepted"
+            } catch {
+                return error.localizedDescription
+            }
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        let cooperativeText = cooperativeValue.stringValue ?? ""
+        #expect(cooperativeText.hasPrefix("removeItem:"))
+        #expect(cooperativeValue.stringValue == parallelValue.stringValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 1)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func workerListedURLsBehaveAsOrdinaryArraysInSource() async throws {
+        // The widened value vocabulary must round-trip a URL array into an
+        // ordinary source array: count, iteration, and member projection.
+        let source = """
+        func probe() async -> String {
+            let manager = FileManager.default
+            let root = manager.temporaryDirectory
+                .appendingPathComponent("round-trip", isDirectory: true)
+            try? manager.createDirectory(
+                at: root.appendingPathComponent("a", isDirectory: true),
+                withIntermediateDirectories: true)
+            try? manager.createDirectory(
+                at: root.appendingPathComponent("b", isDirectory: true),
+                withIntermediateDirectories: true)
+            let listed = try! await Task.detached {
+                try FileManager.default.contentsOfDirectory(
+                    at: root, includingPropertiesForKeys: nil)
+            }.value
+            var names: [String] = []
+            for url in listed { names.append(url.lastPathComponent) }
+            let first = names.sorted().first ?? "none"
+            return "count:\\(listed.count)|first:\\(first)"
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "count:2|first:a")
+        #expect(parallelValue.stringValue == "count:2|first:a")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 1)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 1)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func fileManagerSandboxIsOwnedByItsRegistry() throws {
         // The parallel-worker sandbox race: a process-global root let any
         // concurrent verification reset delete or redirect an in-flight
