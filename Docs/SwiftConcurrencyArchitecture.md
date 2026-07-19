@@ -5440,6 +5440,24 @@ parity repetitions. The parallel board passed 116/116 tests in four suites in
 1.63 seconds. A fresh Swift 6.3.3 TSan build passed native overlap 20/20 and all
 116 tests without a race or interceptor diagnostic in 74 seconds total.
 
+The closing parallel-worker gate found that the original bridge sandbox did
+not satisfy the same ownership rule as the runtime: one process-global
+`FileManagerBox` root and blob store could be reset by an unrelated verifier
+while a detached gateway was suspended. That is a registry-lifetime defect,
+not worker scheduling. `ViewRegistry` and `TraceRegistry` now each own one
+`FileManagerBox`; FileManager, Bundle, and Data constructors and members are
+resolved against that same box. Its UUID root is cleaned up only with its
+owner, and `HeadlessVerifier.resetBridgeEnvironment()` no longer deletes live
+registry state. The worker boundary is unchanged: only checked immutable URLs
+and the operation enum cross it.
+
+A nonserialized regression proves separate roots and blob stores and calls the
+reset path while the first registry's sentinel is live. The formerly red full
+parallel-worker command passed 1353 tests in 210 suites. The updated canonical
+iteration passed 83 implementation tests, all 46 methodology/gate checks, and
+20/20 parity repetitions; the physical and TSan boards passed 117/117, with
+native overlap 20/20 and no sanitizer diagnostics.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and

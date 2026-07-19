@@ -11199,3 +11199,18 @@ three gate-contract checks, plus 20/20 focused parity on four workers in 15
 seconds. The parallel physical board passed 116/116 tests in four suites in
 1.63 seconds. A fresh TSan build passed native overlap 20/20 plus all 116 tests
 without a race or interceptor diagnostic in 74 seconds total.
+
+The first full parallel-worker gate exposed a separate ownership RED that the
+focused lane could not see: `FileManagerBox.sandboxRoot` and its blob store were
+process-global. While this fixture was suspended, an unrelated verifier reset
+could replace and delete its sandbox, producing `setup-error` and inconsistent
+worker receipts. File-manager bridge state is now owned by each `ViewRegistry`
+or `TraceRegistry`; Bundle and Data gateways receive that same registry-bound
+box, and verifier reset no longer mutates another interpreter's file system.
+The regression runs the Foundation gateway suite without serialization,
+proves two registry roots and blob stores are independent, and proves reset
+cannot erase a live registry's sentinel. The exact full parallel-worker command
+then passed 1353/1353 tests in 210 suites in 163 seconds. The refreshed focused
+iteration passed 83 targeted tests, 46 methodology/gate checks, and 20/20
+parity repetitions; the physical board and TSan board both passed 117/117,
+with the sanitized run completing in 54 seconds without diagnostics.

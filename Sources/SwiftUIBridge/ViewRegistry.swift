@@ -10,6 +10,7 @@ public final class ViewRegistry: HostRegistry {
     var constructors: [String: HostFunction] = [:]
     var modifiers: [String: HostModifier] = [:]
     let mainQueueDeliveryMode: MainQueueDeliveryMode
+    let fileManagerBox = FileManagerBox()
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
 
     public var compilerPreflightHostModule: CompilerPreflightHostModule? {
@@ -73,11 +74,11 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func storeBlob(_ value: RuntimeValue, at path: String) {
-        FileManagerBox.blobStore[path] = value
+        fileManagerBox.blobStore[path] = value
     }
 
     public func hostObjectConstructor(named name: String) -> HostFunction? {
-        bridgeHostObjectConstructor(named: name)
+        bridgeHostObjectConstructor(named: name, fileManager: fileManagerBox)
     }
 
     public func hostMemberHasWorkerOperation(
@@ -100,7 +101,10 @@ public final class ViewRegistry: HostRegistry {
         ) {
             return nativePlatform
         }
-        if let hostObject = bridgeHostObjectConstructor(named: resolvedName) {
+        if let hostObject = bridgeHostObjectConstructor(
+            named: resolvedName,
+            fileManager: fileManagerBox
+        ) {
             return hostObject
         }
         if let task = interpretedTaskConstructor(named: resolvedName) { return task }

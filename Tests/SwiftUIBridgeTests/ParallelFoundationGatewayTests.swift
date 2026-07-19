@@ -3,7 +3,7 @@ import Testing
 @testable import SwiftInterpreter
 @testable import SwiftUIBridge
 
-@Suite("Parallel Foundation gateways", .serialized)
+@Suite("Parallel Foundation gateways")
 struct ParallelFoundationGatewayTests {
     private var repositoryRoot: URL {
         URL(fileURLWithPath: #filePath)
@@ -80,5 +80,28 @@ struct ParallelFoundationGatewayTests {
             .totalPhysicalHostOperationExecutions == 0)
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func fileManagerSandboxIsOwnedByItsRegistry() throws {
+        let firstRegistry = ViewRegistry()
+        let secondRegistry = ViewRegistry()
+        let firstRoot = firstRegistry.fileManagerBox.sandboxRoot
+        let secondRoot = secondRegistry.fileManagerBox.sandboxRoot
+        let sentinel = firstRoot.appendingPathComponent("sentinel.txt")
+
+        #expect(firstRoot != secondRoot)
+        try FileManager.default.createDirectory(
+            at: firstRoot,
+            withIntermediateDirectories: true)
+        try Data("alive".utf8).write(to: sentinel)
+
+        secondRegistry.storeBlob(.native("other-registry"), at: sentinel.path)
+        HeadlessVerifier.resetBridgeEnvironment()
+
+        #expect(try String(contentsOf: sentinel, encoding: .utf8) == "alive")
+        #expect(firstRegistry.fileManagerBox.blobStore[sentinel.path] == nil)
+        #expect(secondRegistry.fileManagerBox.blobStore[sentinel.path]?.stringValue
+            == "other-registry")
     }
 }
