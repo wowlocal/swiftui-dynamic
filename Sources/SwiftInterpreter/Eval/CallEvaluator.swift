@@ -813,7 +813,11 @@ extension Interpreter {
             named: name)
         let optionallyRemovesLast = GeneratedCollectionDefaultSurface
             .optionallyRemovesLast(named: name)
-        if (mutating.contains(name) || removesRange || optionallyRemovesLast),
+        let nativeArrayCarrierIntegerVoidMutation =
+            GeneratedCollectionDefaultSurface
+                .isNativeArrayCarrierIntegerVoidMutation(named: name)
+        if (mutating.contains(name) || removesRange || optionallyRemovesLast
+                || nativeArrayCarrierIntegerVoidMutation),
            var array = baseValue.arrayValue,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
@@ -903,6 +907,12 @@ extension Interpreter {
                 }
                 if let failure { throw failure }
             default:
+                if nativeArrayCarrierIntegerVoidMutation,
+                   try GeneratedCollectionDefaultSurface
+                    .invokeNativeArrayCarrierIntegerVoidMutation(
+                        named: name, arguments: args, array: &array) {
+                    break
+                }
                 if optionallyRemovesLast {
                     guard args.arguments.isEmpty else {
                         throw error(

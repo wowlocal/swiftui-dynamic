@@ -28,6 +28,16 @@ struct OptionalLastRemovalCollectionDefault: Hashable {
     let memberName: String
 }
 
+/// A no-result mutation declared directly by the standard-library nominal
+/// that backs the interpreter's native array carrier. The supported argument
+/// shape is deliberately structural: BridgeGen can forward every public,
+/// synchronous, one-`Int` mutation with no return value without learning an
+/// SDK member name.
+struct NativeArrayCarrierIntegerVoidMutation: Hashable {
+    let memberName: String
+    let argumentLabel: String?
+}
+
 /// Builds the refinement closure for protocols declared in an interface. A
 /// default declared on a protocol is also eligible for every protocol that
 /// transitively refines it, even though interpreted conformers only carry the
@@ -433,5 +443,85 @@ func optionalLastRemovalCollectionDefaults(
 
     return defaults.sorted {
         ($0.protocolName, $0.memberName) < ($1.protocolName, $1.memberName)
+    }
+}
+
+/// Discovers native operations that can be emitted as direct calls on the
+/// interpreter's `[RuntimeValue]` carrier. The carrier nominal is derived
+/// from the host type itself; it is not an authored stdlib type-name branch.
+/// Generated calls are compiled against the active toolchain, so signature
+/// drift fails BridgeGen's build instead of surfacing in an app session.
+func nativeArrayCarrierIntegerVoidMutations(
+    in file: SourceFileSyntax?
+) -> [NativeArrayCarrierIntegerVoidMutation] {
+    guard let file else { return [] }
+
+    func canonical(_ raw: String) -> String {
+        normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func nominalName(_ raw: String) -> String {
+        var name = canonical(raw)
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return name.split(separator: ".").last.map(String.init) ?? name
+    }
+
+    let carrierNominal = nominalName(String(reflecting: [Never].self))
+    var mutations = Set<NativeArrayCarrierIntegerVoidMutation>()
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item else { continue }
+        let members: MemberBlockItemListSyntax
+        if let nominal = declaration.as(StructDeclSyntax.self),
+           nominal.name.text == carrierNominal {
+            members = nominal.memberBlock.members
+        } else if let extensionDeclaration = declaration.as(
+                    ExtensionDeclSyntax.self),
+                  nominalName(extensionDeclaration.extendedType
+                    .trimmedDescription) == carrierNominal {
+            members = extensionDeclaration.memberBlock.members
+        } else {
+            continue
+        }
+
+        for member in members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self)
+            else { continue }
+            let returnType = canonical(function.signature.returnClause?.type
+                .trimmedDescription ?? "Void")
+            guard
+                  function.modifiers.contains(where: {
+                      $0.name.text == "public"
+                  }),
+                  function.modifiers.contains(where: {
+                      $0.name.text == "mutating"
+                  }),
+                  !function.modifiers.contains(where: {
+                      $0.name.text == "static" || $0.name.text == "class"
+                  }),
+                  function.genericParameterClause == nil,
+                  function.genericWhereClause == nil,
+                  function.signature.effectSpecifiers == nil,
+                  returnType == "Void" || returnType == "()"
+            else { continue }
+
+            let parameters = Array(
+                function.signature.parameterClause.parameters)
+            guard parameters.count == 1,
+                  canonical(parameters[0].type.trimmedDescription) == "Int",
+                  parameters[0].defaultValue == nil
+            else { continue }
+
+            mutations.insert(NativeArrayCarrierIntegerVoidMutation(
+                memberName: function.name.text,
+                argumentLabel: parameters[0].firstName.text == "_"
+                    ? nil : parameters[0].firstName.text))
+        }
+    }
+
+    return mutations.sorted {
+        ($0.memberName, $0.argumentLabel ?? "")
+            < ($1.memberName, $1.argumentLabel ?? "")
     }
 }

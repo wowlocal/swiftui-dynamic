@@ -53,4 +53,33 @@ enum GeneratedCollectionDefaultSurface {
     static func optionallyRemovesLast(named memberName: String) -> Bool {
         optionalLastRemovalProtocols[memberName] != nil
     }
+
+    static let nativeArrayCarrierIntegerVoidMutationNames: Set<String> = Set([
+        "reserveCapacity"
+    ])
+
+    static func isNativeArrayCarrierIntegerVoidMutation(
+        named memberName: String
+    ) -> Bool {
+        nativeArrayCarrierIntegerVoidMutationNames.contains(memberName)
+    }
+
+    @MainActor
+    static func invokeNativeArrayCarrierIntegerVoidMutation(
+        named name: String,
+        arguments: CallArguments,
+        array: inout [RuntimeValue]
+    ) throws -> Bool {
+        if name == "reserveCapacity",
+           arguments.arguments.count == 1,
+           let value = arguments.positional(0)?.intValue {
+            array.reserveCapacity(value)
+            return true
+        }
+        if nativeArrayCarrierIntegerVoidMutationNames.contains(name) {
+            throw RuntimeError(
+                message: "generated native array mutation argument mismatch")
+        }
+        return false
+    }
 }

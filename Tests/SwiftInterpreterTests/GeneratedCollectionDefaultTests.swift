@@ -2,6 +2,20 @@ import Testing
 @testable import SwiftInterpreter
 
 @Suite struct GeneratedCollectionDefaultTests {
+    /// Distilled from SwiftSoup's UTF-8 parser buffer growth. Native Swift
+    /// prints `3`: reserving storage changes capacity, never logical contents.
+    @Test func generatedNativeArrayVoidMutationPreservesContents() throws {
+        let source = """
+        var values = [1, 2]
+        values.reserveCapacity(64)
+        values.append(3)
+        values.count
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.intValue == 3)
+    }
+
     @Test func generatedIndexMotionServesInterpretedCollection() throws {
         let source = """
         struct Bytes: RandomAccessCollection {

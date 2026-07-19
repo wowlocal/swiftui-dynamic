@@ -1398,6 +1398,8 @@ let generatedOptionalElementCollectionDefaults =
     optionalElementCollectionDefaults(in: stdlibFile)
 let generatedOptionalLastRemovalCollectionDefaults =
     optionalLastRemovalCollectionDefaults(in: stdlibFile)
+let generatedNativeArrayCarrierIntegerVoidMutations =
+    nativeArrayCarrierIntegerVoidMutations(in: stdlibFile)
 let generatedRangeRemovalMutations =
     rangeRemovalMutations(in: stdlibFile)
 
@@ -2019,6 +2021,48 @@ collectionDefaultsOutput += """
     static func optionallyRemovesLast(named memberName: String) -> Bool {
         optionalLastRemovalProtocols[memberName] != nil
     }
+
+    static let nativeArrayCarrierIntegerVoidMutationNames: Set<String> = Set([
+        \(Set(generatedNativeArrayCarrierIntegerVoidMutations.map(\.memberName))
+            .sorted().map(String.init(reflecting:)).joined(separator: ", "))
+    ])
+
+    static func isNativeArrayCarrierIntegerVoidMutation(
+        named memberName: String
+    ) -> Bool {
+        nativeArrayCarrierIntegerVoidMutationNames.contains(memberName)
+    }
+
+    @MainActor
+    static func invokeNativeArrayCarrierIntegerVoidMutation(
+        named name: String,
+        arguments: CallArguments,
+        array: inout [RuntimeValue]
+    ) throws -> Bool {
+""" + "\n"
+for mutation in generatedNativeArrayCarrierIntegerVoidMutations {
+    let argument = mutation.argumentLabel.map {
+        "arguments.labeled(\(String(reflecting: $0)))"
+    } ?? "arguments.positional(0)"
+    let invocationArgument = mutation.argumentLabel.map {
+        "\($0): value"
+    } ?? "value"
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: mutation.memberName)),
+           arguments.arguments.count == 1,
+           let value = \(argument)?.intValue {
+            array.\(mutation.memberName)(\(invocationArgument))
+            return true
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        if nativeArrayCarrierIntegerVoidMutationNames.contains(name) {
+            throw RuntimeError(
+                message: "generated native array mutation argument mismatch")
+        }
+        return false
+    }
 }
 """ + "\n"
 let collectionDefaultsPath =
@@ -2029,7 +2073,8 @@ print(
     "wrote \(collectionDefaultsPath) "
         + "(\(generatedIntegerIndexCollectionDefaults.count) methods, "
         + "\(generatedOptionalElementCollectionDefaults.count) properties, "
-        + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals)")
+        + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "
+        + "\(generatedNativeArrayCarrierIntegerVoidMutations.count) native array mutations)")
 
 let rangeRemovalMembers = Dictionary(
     grouping: generatedRangeRemovalMutations,
