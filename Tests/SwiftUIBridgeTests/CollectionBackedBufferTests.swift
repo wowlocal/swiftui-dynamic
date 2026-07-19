@@ -562,7 +562,29 @@ import Testing
         #expect(value.intValue == 42)
     }
 
-    @Test func diagnosticSwiftSoupParsesNonASCIIText() throws {
+    @Test func optionalBindingRetainsArraySliceElementType() throws {
+        let source = """
+        extension UInt8 {
+            var whitespaceProbe: Bool { self == 32 }
+        }
+
+        let bytes: [UInt8] = [32]
+        let slice: ArraySlice<UInt8> = bytes[0..<bytes.count]
+        if let first = slice.first {
+            first.whitespaceProbe
+        } else {
+            false
+        }
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.boolValue == true)
+    }
+
+    /// Trimmed from the first recorded IceCubes public status. SwiftSoup's
+    /// whitespace path reads `ArraySlice<UInt8>.first`; optional binding must
+    /// preserve that declared element type for UInt8 extension dispatch.
+    @Test func swiftSoupWhitespaceKeepsArraySliceElementType() throws {
         let root = FileManager.default.currentDirectoryPath
         let files = ProjectMaterial.swiftFiles(
             under: root
@@ -574,13 +596,13 @@ import Testing
             })) + """
 
         // swift-interpreter-module SwiftSoup
-        let document = try SwiftSoup.parse("<p>é</p>")
+        let document = try SwiftSoup.parse("<p>Des familles</p>")
         try document.text()
         """
 
         do {
             let value = try Interpreter(registry: TraceRegistry()).run(source: source)
-            #expect(value.stringValue == "é")
+            #expect(value.stringValue == "Des familles")
         } catch let runtime as RuntimeError {
             let lines = source.split(
                 separator: "\n", omittingEmptySubsequences: false)

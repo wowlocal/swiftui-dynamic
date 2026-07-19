@@ -522,7 +522,9 @@ extension Interpreter {
                     value = try resolveIdentifier(name, in: bindings, node: optionalBinding)
                 }
                 guard let unwrapped = value.optionalBindingPayload else { return false }
-                bindings.define(name, unwrapped)
+                bindings.define(
+                    name, unwrapped,
+                    declaredTypeName: value.optionalBindingDeclaredTypeName)
 
             case .matchingPattern(let matching):
                 let subject = try await evaluateSuspending(

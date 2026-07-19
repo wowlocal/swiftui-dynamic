@@ -151,6 +151,17 @@ extension RuntimeValue {
         }
     }
 
+    /// Static type of a present Optional's payload. `if let` and `guard let`
+    /// create a new non-Optional binding, but that binding must retain this
+    /// type for extension and overload selection after the runtime payload has
+    /// erased its source scalar or collection shell.
+    public var optionalBindingDeclaredTypeName: String? {
+        guard case .some(_, let wrappedTypeName) = optionalState else {
+            return nil
+        }
+        return wrappedTypeName
+    }
+
     public var isOptional: Bool {
         if case .optional = self { return true }
         return false

@@ -446,6 +446,106 @@ func optionalLastRemovalCollectionDefaults(
     }
 }
 
+/// Finds nominal collection carriers whose sole generic parameter is the
+/// primary associated type declared by `Collection`. Runtime collection
+/// payloads erase nominal shells, so generated metadata is the reusable proof
+/// that a source annotation such as `SomeCollection<T>` carries `T` as its
+/// element type. The rule is derived from generic and conformance structure;
+/// no concrete standard-library nominal is named here.
+func elementGenericCollectionNominals(
+    in file: SourceFileSyntax?
+) -> [String] {
+    guard let file else { return [] }
+
+    func canonical(_ raw: String) -> String {
+        normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func nominalName(_ raw: String) -> String {
+        var name = canonical(raw)
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return name.split(separator: ".").last.map(String.init) ?? name
+    }
+
+    let collectionDeclaration = file.statements.lazy.compactMap {
+        item -> ProtocolDeclSyntax? in
+        guard case .decl(let declaration) = item.item,
+              let protocolDeclaration = declaration.as(
+                ProtocolDeclSyntax.self),
+              canonical(protocolDeclaration.name.text) == "Collection"
+        else { return nil }
+        return protocolDeclaration
+    }.first
+    guard let primaryAssociatedTypes = collectionDeclaration?
+        .primaryAssociatedTypeClause?.primaryAssociatedTypes
+    else { return [] }
+    let associatedTypes = Array(primaryAssociatedTypes)
+    guard associatedTypes.count == 1 else { return [] }
+    let elementParameterName = associatedTypes[0].name.text
+
+    let collectionProtocols = Set(
+        protocolRefinementEligibility(in: file)["Collection"]
+            ?? ["Collection"])
+    var candidates = Set<String>()
+    var conformingNominals = Set<String>()
+
+    func recordsCollectionConformance(
+        _ inheritanceClause: InheritanceClauseSyntax?,
+        for nominal: String
+    ) {
+        guard inheritanceClause?.inheritedTypes.contains(where: {
+            collectionProtocols.contains(nominalName(
+                $0.type.trimmedDescription))
+        }) == true else { return }
+        conformingNominals.insert(nominal)
+    }
+
+    func recordCandidate(
+        name: String,
+        genericParameters: GenericParameterClauseSyntax?,
+        inheritanceClause: InheritanceClauseSyntax?
+    ) {
+        guard let genericParameters else { return }
+        let parameters = Array(genericParameters.parameters)
+        guard parameters.count == 1,
+              parameters[0].name.text == elementParameterName
+        else { return }
+        let nominal = nominalName(name)
+        candidates.insert(nominal)
+        recordsCollectionConformance(inheritanceClause, for: nominal)
+    }
+
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item else { continue }
+        if let nominal = declaration.as(StructDeclSyntax.self) {
+            recordCandidate(
+                name: nominal.name.text,
+                genericParameters: nominal.genericParameterClause,
+                inheritanceClause: nominal.inheritanceClause)
+        } else if let nominal = declaration.as(EnumDeclSyntax.self) {
+            recordCandidate(
+                name: nominal.name.text,
+                genericParameters: nominal.genericParameterClause,
+                inheritanceClause: nominal.inheritanceClause)
+        } else if let nominal = declaration.as(ClassDeclSyntax.self) {
+            recordCandidate(
+                name: nominal.name.text,
+                genericParameters: nominal.genericParameterClause,
+                inheritanceClause: nominal.inheritanceClause)
+        } else if let extensionDeclaration = declaration.as(
+                    ExtensionDeclSyntax.self) {
+            recordsCollectionConformance(
+                extensionDeclaration.inheritanceClause,
+                for: nominalName(
+                    extensionDeclaration.extendedType.trimmedDescription))
+        }
+    }
+
+    return candidates.intersection(conformingNominals).sorted()
+}
+
 /// Discovers native operations that can be emitted as direct calls on the
 /// interpreter's `[RuntimeValue]` carrier. The carrier nominal is derived
 /// from the host type itself; it is not an authored stdlib type-name branch.

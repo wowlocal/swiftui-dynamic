@@ -40,7 +40,7 @@ extension Interpreter {
             return try arrayMember(
                 name,
                 array,
-                elementTypeName: RuntimeDeclaredType.arrayElementTypeName(
+                elementTypeName: RuntimeDeclaredType.arrayPayloadElementTypeName(
                     in: declaredTypeName))
         case .set(let set):
             return try setMember(name, set)
@@ -701,8 +701,12 @@ extension Interpreter {
         switch name {
         case "count": return .native(array.count)
         case "isEmpty": return .native(array.isEmpty)
-        case "first": return .optional(array.first)
-        case "last": return .optional(array.last)
+        case "first":
+            return .optional(
+                array.first, wrappedTypeName: elementTypeName)
+        case "last":
+            return .optional(
+                array.last, wrappedTypeName: elementTypeName)
         case "indices": return .native(0..<array.count)
         case "startIndex": return .native(0)
         case "endIndex": return .native(array.count)

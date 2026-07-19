@@ -403,7 +403,9 @@ extension Interpreter {
                     value = try resolveIdentifier(name, in: bindings, node: optionalBinding)
                 }
                 guard let unwrapped = value.optionalBindingPayload else { return false }
-                bindings.define(name, unwrapped)
+                bindings.define(
+                    name, unwrapped,
+                    declaredTypeName: value.optionalBindingDeclaredTypeName)
             case .matchingPattern(let matching):
                 // `if case .loading = state` — rides the switch matcher.
                 let subject = try evaluate(matching.initializer.value, in: bindings)
