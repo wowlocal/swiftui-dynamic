@@ -902,9 +902,9 @@ struct AsyncExecutionTests {
         #expect(value.stringValue ==
             "same|same:alive#same|same:released")
         #expect(interpreter.concurrencyRuntime
-            .totalPhysicalSourceKernelSubmissions == 0)
+            .totalPhysicalSourceKernelSubmissions == 2)
         #expect(interpreter.concurrencyRuntime
-            .totalPhysicalSourceKernelExecutions == 0)
+            .totalPhysicalSourceKernelExecutions == 2)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
         #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)

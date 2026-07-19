@@ -5214,6 +5214,67 @@ three suites in 1.18 seconds. The Swift 6.3.3 TSan re-gate rebuilt in 20
 seconds and passed native overlap 20/20 plus all 104 tests in 37 seconds
 without a race or interceptor diagnostic.
 
+The eighty-ninth prerequisite closes apple-browsers' exact
+`Task.detached { [source] in Self.prepareScriptSource(from: source) }.result.get()`
+operation at `UserScript.swift:106`. The selected declaration is a
+synchronous, explicitly nonisolated, nonthrowing static protocol-extension
+default with one labeled `String` parameter and a `String` result. This
+prerequisite asks two bounded questions: whether a concrete conformer retains
+dynamic `Self` while invoking that default, and whether the Task-producing
+postfix base is evaluated exactly once.
+
+The Swift 6.3.3 complete-strict oracle returned exact
+`prepared:FIRST-SCRIPT,prepared:SECOND-SCRIPT` in twenty bounded runs. Its raw
+SHA-256 was
+`f57919808eea723d4af9ec9f7c522d95575a54a5273832c174161aa1b0160995`;
+each five-run focused shard retained
+`320572026b6d366f3e933a103caccd20bc4adb8c06fee6020e66163a3a13f9b3`.
+The first interpreter RED returned only `,` and zero receipts because concrete
+conformers did not publish protocol-extension static defaults and explicit
+capture-list formation discarded `Self` together with the intentionally
+omitted instance `self`. After resolving that gap, the physical RED recorded
+four executions for two logical tasks: the suspending mutating-method probe
+re-evaluated the Task-producing base while testing `.result` for an lvalue.
+
+The target design separates semantic lookup from worker admission:
+
+1. Ordinary static lookup consults own members first, then accepts exactly one
+   protocol-extension static declaration from the conformer's transitive
+   protocols. The closure's lexical owner remains the protocol extension;
+   its dynamic `Self` is the concrete conformer.
+2. Closure formation captures only that immutable concrete metatype when the
+   body references `Self`; an explicit `[source]` list still does not retain
+   the enclosing instance.
+3. The physical classifier records only the exact single ordinary explicit
+   capture. Admission then independently proves a direct `Self` call, matching
+   captured argument, unique declaration identity and shape, explicit
+   nonisolation, a plain unconstrained/unattributed extension header,
+   synchronous/nonthrowing effects, and `String` parameter and result types.
+4. The worker capability contains only the copied String snapshot and typed
+   source-call command. The metatype, selected closure, evaluator, source
+   declaration, and materialized result remain confined and are used only
+   after executor re-entry.
+5. Suspension-aware mutating-method probing excludes every function-call root
+   as an rvalue. It may no longer re-launch a Task while probing the postfix
+   base of `Result.get()` for write-back.
+
+Own static members retain precedence; multiple candidate defaults fail
+closed until compiler constraint ranking exists. Constrained or attributed
+extension defaults remain cooperative. Implicit/multiple/attributed captures,
+concrete-type callees, inherited-isolation and async methods,
+non-String shapes, and richer bodies remain cooperative. This prerequisite
+does not claim worker-side interpretation of arbitrary static source bodies,
+CryptoKit execution, scheduler order, thread identity, or native
+background-performance parity.
+
+The exact-tip canonical iteration passed 110/110 driver/kernel/source-call
+tests in three suites, all 46 methodology/gate checks, and 20/20 focused
+parity repetitions on four workers in two seconds. The parallel-worker board
+passed the same 110/110 tests in 1.21 seconds. The current-tip Swift 6.3.3 TSan
+bundle rebuilt in 19 seconds; its retained-bundle confirmation passed native
+overlap 20/20 and all 110 tests without a race or interceptor diagnostic in 17
+seconds.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -5226,6 +5287,8 @@ argument-free, direct captured-String, or direct argument-free
 inherited argument-free/literal-or-captured-String/captured-`[String]` and
 `@concurrent` captured-String async Void routes, the exact direct
 synchronous explicitly-nonisolated immutable-`URL` Void route,
+the exact synchronous explicitly-nonisolated static protocol-default
+single-`String`-to-`String` route,
 normalized callee shape,
 and the existing core-Task, `String.count`,
 conservative `String.distance`, `Array.map`, `Array.reduce`, and
@@ -5248,6 +5311,7 @@ and parallel-detached-weak-inherited-string-array-source-call
 and parallel-detached-inherited-try-optional-source-call
 and parallel-detached-nonisolated-url-source-call
 and parallel-detached-nonisolated-url-member-source-call
+and parallel-detached-static-string-source-call
 and parallel-detached-try-optional-sleep-prefix
 and parallel-detached-try-optional-nanoseconds-sleep-prefix
 and parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix

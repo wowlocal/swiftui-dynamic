@@ -203,7 +203,8 @@ extension Interpreter {
               (closure.isPhysicalSnapshotKernelCandidate
                 || closure.physicalExplicitMainActorContinuationSignature != nil
                 || closure.isPhysicalStrongSelfSourceCallCandidate
-                || closure.isPhysicalWeakSelfSourceCallCandidate) else {
+                || closure.isPhysicalWeakSelfSourceCallCandidate
+                || closure.physicalSingleValueSourceCallCaptureName != nil) else {
             return nil
         }
 
@@ -575,9 +576,25 @@ extension Interpreter {
         guard metadata.callee.shape == .explicitMember,
               let name = metadata.callee.name,
               let member = metadata.callee.member,
-              member.declName.argumentNames == nil,
-              let selfBox = closure.captured.box(
-                for: "self", before: globals) else {
+              member.declName.argumentNames == nil else {
+            return nil
+        }
+
+        if isDirectSynchronousCall,
+           errorDisposition == .propagate,
+           let staticJob = try physicalProtocolStaticStringSourceCallJob(
+                metadata: metadata,
+                member: member,
+                name: name,
+                closure: closure,
+                entry: entry,
+                record: record,
+                priority: priority) {
+            return staticJob
+        }
+
+        guard let selfBox = closure.captured.box(
+            for: "self", before: globals) else {
             return nil
         }
 
@@ -712,6 +729,94 @@ extension Interpreter {
             // Source cancellation remains a logical runtime fact observed by
             // the reinstated EvaluationTaskContext. It must not become an
             // infrastructure cancellation that suppresses method entry.
+            cancellationBehavior: .unobserved,
+            permitLifetime: .untilConfinedExecutorEntry(handoff))
+    }
+
+    /// apple-browsers calls one synchronous nonisolated static protocol-
+    /// extension default through dynamic `Self` from an exact `[source]`
+    /// detached operation. Copy only that immutable String through the worker
+    /// command; the concrete metatype, selected closure, evaluator, and String
+    /// result stay confined and re-enter through the ordinary relay.
+    private func physicalProtocolStaticStringSourceCallJob(
+        metadata: ParsedCallSiteMetadata,
+        member: MemberAccessExprSyntax,
+        name: String,
+        closure: ClosureValue,
+        entry: RuntimeEntry,
+        record: RuntimeTaskRecord,
+        priority: RuntimeTaskPriority
+    ) throws -> RuntimePhysicalSourceKernelJob? {
+        guard let captureName = closure
+                .physicalSingleValueSourceCallCaptureName,
+              let receiver = member.base?.as(DeclReferenceExprSyntax.self),
+              receiver.baseName.text == "Self",
+              receiver.argumentNames == nil,
+              metadata.arguments.count == 1,
+              let sourceArgument = metadata.arguments.first,
+              let sourceReference = sourceArgument.expression
+                .as(DeclReferenceExprSyntax.self),
+              sourceReference.baseName.text == captureName,
+              sourceReference.argumentNames == nil,
+              let selfTypeBox = closure.captured.locallyOwnedBox(for: "Self"),
+              !selfTypeBox.isMutableBinding,
+              case .type(let conformingType) = try selfTypeBox.load(),
+              !conformingType.isActor,
+              record.entry === entry,
+              record.physicalSourceCall == nil,
+              closure.programPlan === entry.programPlan,
+              let loweredArguments = try physicalSourceCallArguments(
+                metadata.arguments,
+                closure: closure,
+                receiver: nil),
+              loweredArguments.commandArguments.count == 1,
+              loweredArguments.commandArguments[0].valueKind == .string,
+              loweredArguments.commandArguments[0].origin == .capturedImmutable,
+              let target = resolveUniqueProtocolExtensionStaticMethodCallTarget(
+                named: name,
+                onConformingType: conformingType,
+                arguments: loweredArguments.callArguments),
+              target.descriptor.originProgramPlan === entry.programPlan,
+              target.descriptor.isolation == .explicitlyNonisolated,
+              !target.descriptor.isAsync,
+              !target.descriptor.isThrowing,
+              RuntimePhysicalSourceCallResultKind(
+                returnTypeName: target.descriptor.returnTypeName) == .string,
+              target.closure.parameters.count == 1,
+              let parameter = target.closure.parameters.first,
+              !parameter.isVariadic,
+              !parameter.isBuilderAttributed,
+              !parameter.isIsolated,
+              loweredArguments.commandArguments[0].valueKind.accepts(
+                parameterTypeName: parameter.typeName) else {
+            return nil
+        }
+
+        let resultKind = RuntimePhysicalSourceCallResultKind.string
+        let capability = try entry.makeWorkerCapability(
+            copying: loweredArguments.sourceBindings)
+        let handoff = RuntimePhysicalSourceExecutorHandoff()
+        let command = RuntimePhysicalSourceCallCommand(
+            entryID: entry.id,
+            taskID: record.id,
+            target: target.descriptor,
+            arguments: loweredArguments.commandArguments,
+            resultKind: resultKind,
+            errorDisposition: .propagate)
+        let relay = concurrencyRuntime.sourceCallReentryRelay
+        record.physicalSourceCall = RuntimeRegisteredPhysicalSourceCall(
+            command: command,
+            invocation: .resolved(target))
+        return RuntimePhysicalSourceKernelJob(
+            workerJob: RuntimePhysicalWorkerJob(
+                capability: capability,
+                priority: priority
+            ) { capability in
+                try await relay.invoke(
+                    command,
+                    capability: capability,
+                    handoff: handoff)
+            },
             cancellationBehavior: .unobserved,
             permitLifetime: .untilConfinedExecutorEntry(handoff))
     }
@@ -939,7 +1044,7 @@ extension Interpreter {
     private func physicalSourceCallArguments(
         _ metadata: [ParsedCallArgumentMetadata],
         closure: ClosureValue,
-        receiver: Instance
+        receiver: Instance?
     ) throws -> (
         callArguments: CallArguments,
         sourceBindings: [RuntimeWorkerSourceBinding],
@@ -1004,6 +1109,7 @@ extension Interpreter {
                 origin = .capturedImmutable
             } else if let member = argument.expression
                 .as(MemberAccessExprSyntax.self),
+                      let receiver,
                       member.declName.argumentNames == nil,
                       let base = member.base?
                         .as(DeclReferenceExprSyntax.self),

@@ -599,6 +599,25 @@ extension Interpreter {
         }
     }
 
+    /// `Self` is a lexical/dynamic metatype capability, not a strong capture
+    /// of the enclosing instance. Preserve that type in a nested closure even
+    /// when an explicit capture list intentionally omits `self` (the protocol-
+    /// extension `[source] in Self.staticMethod(...)` spelling).
+    private func capturedSelfType(
+        from selfValue: RuntimeValue
+    ) -> RuntimeValue? {
+        switch selfValue {
+        case .instance(let instance):
+            .type(instance.symbol)
+        case .enumCase(let value):
+            .enumType(value.symbol)
+        case .type, .enumType:
+            selfValue
+        default:
+            nil
+        }
+    }
+
     /// Capture lists are not generally transferable worker signatures. The
     /// first demand-backed exception is the exact `[self] in` source call:
     /// one ordinary strong self capture, with no alias, ownership
@@ -641,6 +660,30 @@ extension Interpreter {
             return false
         }
         return true
+    }
+
+    /// apple-browsers' exact static source-call operation captures one
+    /// immutable value explicitly. Record only the capture-list shape here;
+    /// argument type, declaration identity, isolation, effects, and result
+    /// are all re-proven by the physical source-call admission route.
+    private func physicalSingleValueSourceCallCaptureName(
+        _ signature: ClosureSignatureSyntax?
+    ) -> String? {
+        guard let signature,
+              signature.attributes.isEmpty,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil,
+              let captures = signature.capture?.items,
+              captures.count == 1,
+              let capture = captures.first,
+              capture.specifier == nil,
+              capture.name.text != "self",
+              capture.initializer == nil,
+              capture.trailingComma == nil else {
+            return nil
+        }
+        return capture.name.text
     }
 
     private func hasExactWeakSelfCapture(
@@ -808,6 +851,13 @@ extension Interpreter {
                 needsSelf = true
                 continue
             }
+            if name == "Self",
+               let selfValue = env.lookup("self"),
+               let selfType = capturedSelfType(from: selfValue) {
+                captured.define(
+                    "Self", selfType, isMutableBinding: false)
+                continue
+            }
             // `$local.member` is a reference to the projected value of the
             // underlying local wrapper storage, whose lexical binding is
             // named `local` (there is no source variable literally named
@@ -871,6 +921,8 @@ extension Interpreter {
             isPhysicalStrongSelfSourceCallCandidate(closure.signature)
         value.isPhysicalWeakSelfSourceCallCandidate =
             isPhysicalWeakSelfSourceCallCandidate(closure.signature)
+        value.physicalSingleValueSourceCallCaptureName =
+            physicalSingleValueSourceCallCaptureName(closure.signature)
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
         // only the value environment lets same-named nested types resolve in

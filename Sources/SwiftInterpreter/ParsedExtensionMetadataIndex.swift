@@ -35,6 +35,8 @@ public nonisolated struct ParsedExtensionMetadataIndex: Sendable {
     }
 
     fileprivate let extensions: [SyntaxIdentifier: ParsedExtensionMetadata]
+    fileprivate let containingExtensionsByFunction:
+        [SyntaxIdentifier: ParsedExtensionMetadata]
     public let summary: Summary
 
     init(file: SourceFileSyntax) {
@@ -42,6 +44,8 @@ public nonisolated struct ParsedExtensionMetadataIndex: Sendable {
             viewMode: .sourceAccurate)
         collector.walk(Syntax(file))
         extensions = collector.extensions
+        containingExtensionsByFunction =
+            collector.containingExtensionsByFunction
         let values = Array(extensions.values)
         summary = Summary(
             extensionCount: values.count,
@@ -69,6 +73,12 @@ public nonisolated struct ParsedExtensionMetadataIndex: Sendable {
         for declaration: ExtensionDeclSyntax
     ) -> ParsedExtensionMetadata? {
         extensions[Syntax(declaration).id]
+    }
+
+    func metadata(
+        containing declaration: FunctionDeclSyntax
+    ) -> ParsedExtensionMetadata? {
+        containingExtensionsByFunction[Syntax(declaration).id]
     }
 }
 
@@ -105,11 +115,20 @@ private nonisolated final class ParsedExtensionMetadataCollector:
     SyntaxVisitor
 {
     var extensions: [SyntaxIdentifier: ParsedExtensionMetadata] = [:]
+    var containingExtensionsByFunction:
+        [SyntaxIdentifier: ParsedExtensionMetadata] = [:]
 
     override func visit(
         _ node: ExtensionDeclSyntax
     ) -> SyntaxVisitorContinueKind {
-        extensions[Syntax(node).id] = ParsedExtensionMetadata(node)
+        let metadata = ParsedExtensionMetadata(node)
+        extensions[Syntax(node).id] = metadata
+        for member in node.memberBlock.members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self) else {
+                continue
+            }
+            containingExtensionsByFunction[Syntax(function).id] = metadata
+        }
         return .visitChildren
     }
 }

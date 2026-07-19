@@ -173,6 +173,11 @@ public final class ClosureValue {
     /// confined closure and is read only after the physical wrapper reaches
     /// the confined relay; it is never copied to a worker capability.
     var isPhysicalWeakSelfSourceCallCandidate = false
+    /// True only for one ordinary explicit value capture such as
+    /// `[source] in`. This signature may unlock the demand-backed static
+    /// protocol-default String source-call wrapper; it never admits a
+    /// snapshot kernel or transfers the closure itself.
+    var physicalSingleValueSourceCallCaptureName: String?
     /// Immutable source-program capability retained by escaped callbacks. A
     /// fresh host/runtime entry can therefore recover every indexed
     /// declaration fact without consulting whichever program the facade ran

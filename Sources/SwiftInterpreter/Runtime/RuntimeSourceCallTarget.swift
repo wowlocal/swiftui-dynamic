@@ -438,4 +438,67 @@ extension Interpreter {
             descriptor: descriptor,
             closure: closure)
     }
+
+    /// Resolve one static default supplied by a protocol extension while
+    /// preserving the concrete conformer as dynamic `Self`. Own static
+    /// members win before this path, and multiple fitting defaults fail
+    /// closed because the interpreter does not yet model compiler constraint
+    /// ranking for protocol-extension overloads.
+    func resolveUniqueProtocolExtensionStaticMethodCallTarget(
+        named name: String,
+        onConformingType symbol: StructSymbol,
+        arguments: CallArguments
+    ) -> RuntimeResolvedSourceFunctionCall? {
+        guard symbol.staticMethods[name] == nil,
+              symbol.staticProperties[name] == nil,
+              symbol.staticComputedProperties[name] == nil,
+              symbol.staticWrapped[name] == nil,
+              !symbol.staticUninitialized.contains(name),
+              symbol.taskLocalProperties[name] == nil,
+              symbol.nestedTypes[name] == nil else {
+            return nil
+        }
+
+        let argumentShape = ArgumentShape(arguments)
+        var fitting: [FunctionDeclSyntax] = []
+        for conformance in transitiveConformances(of: symbol) {
+            guard let overloads = hostExtensionSymbols[conformance]?
+                .staticMethods[name] else {
+                continue
+            }
+            fitting.append(contentsOf: overloads.filter { declaration in
+                let metadata = programStateOwningDeclaration(declaration.id)?
+                    .programPlan?.metadata.extensionMetadataIndex.metadata(
+                        containing: declaration)
+                    ?? currentProgramMetadata?.extensionMetadataIndex.metadata(
+                        containing: declaration)
+                return !activeFunctionBodies.contains(declaration.id)
+                    && functionMetadata(for: declaration).shape.matches(
+                        argumentShape)
+                    && functionMetadata(for: declaration).body != nil
+                    && metadata?.genericRequirements.isEmpty == true
+                    && metadata?.attributeNames.isEmpty == true
+                    && metadata?.modifierNames.isEmpty == true
+            })
+        }
+        guard fitting.count == 1,
+              let method = fitting.first,
+              let body = functionMetadata(for: method).body else {
+            return nil
+        }
+
+        let closure = makeFunctionClosure(
+            method,
+            body: body,
+            captured: selfEnvironment(.type(symbol)))
+        guard let descriptor = closure.sourceFunctionTargetDescriptor,
+              case .lexicalType(
+                _, isTypeMember: true, isActor: false
+              ) = descriptor.lexicalPlacement else {
+            return nil
+        }
+        return RuntimeResolvedSourceFunctionCall(
+            descriptor: descriptor,
+            closure: closure)
+    }
 }

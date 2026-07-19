@@ -743,6 +743,37 @@ extension Interpreter {
         return base.is(DeclReferenceExprSyntax.self)
     }
 
+    /// A suspension-aware mutating-method probe is meaningful only for an
+    /// assignable-looking postfix chain. Function-call roots are rvalues and
+    /// deliberately excluded: probing `Task.detached { ... }.result` as an
+    /// lvalue would launch the task a second time before invoking
+    /// `Result.get()`.
+    private func isSuspendingMutationStorageSyntax(
+        _ expression: ExprSyntax
+    ) -> Bool {
+        if expression.is(DeclReferenceExprSyntax.self) { return true }
+        if let member = expression.as(MemberAccessExprSyntax.self),
+           let base = member.base {
+            return isSuspendingMutationStorageSyntax(base)
+        }
+        if let subscriptCall = expression.as(SubscriptCallExprSyntax.self) {
+            return isSuspendingMutationStorageSyntax(
+                subscriptCall.calledExpression)
+        }
+        if let optional = expression.as(OptionalChainingExprSyntax.self) {
+            return isSuspendingMutationStorageSyntax(optional.expression)
+        }
+        if let force = expression.as(ForceUnwrapExprSyntax.self) {
+            return isSuspendingMutationStorageSyntax(force.expression)
+        }
+        if let tuple = expression.as(TupleExprSyntax.self),
+           tuple.elements.count == 1,
+           let only = tuple.elements.first {
+            return isSuspendingMutationStorageSyntax(only.expression)
+        }
+        return false
+    }
+
     private func isSupportedOptionalAsyncMutationLValue(
         _ target: LValue
     ) -> Bool {
@@ -796,6 +827,7 @@ extension Interpreter {
             // for the whole async mutating call. Resolve the admitted stored
             // path before reading it, then commit through that same lvalue.
             let optionalPayloadStorage: LValue?
+            let mutationStorage: LValue?
             let evaluatedBase: RuntimeValue
             if let optional = baseExpression
                 .as(OptionalChainingExprSyntax.self),
@@ -804,6 +836,7 @@ extension Interpreter {
                let storage = try? resolveLValue(optional.expression, in: env),
                isSupportedOptionalAsyncMutationLValue(storage) {
                 optionalPayloadStorage = storage
+                mutationStorage = nil
                 evaluatedBase = try storage.read(self)
             } else {
                 optionalPayloadStorage = nil
@@ -811,6 +844,10 @@ extension Interpreter {
                     baseExpression,
                     in: env,
                     forceInvocation: forceInvocation)
+                mutationStorage = isSuspendingMutationStorageSyntax(
+                    baseExpression)
+                    ? (try? resolveLValue(baseExpression, in: env))
+                    : nil
             }
 
             // Optional chaining controls the entire call: evaluate the base
@@ -919,9 +956,8 @@ extension Interpreter {
                     contextualExecutor: .mainActor)
             }
 
-            if let target = try? resolveLValue(baseExpression, in: env),
-               let current = try? target.read(self),
-               case .instance(let receiver) = current,
+            if let target = mutationStorage,
+               case .instance(let receiver) = baseValue,
                !receiver.symbol.isClass {
                 let mutating = mutatingInstanceMethods(named: name, on: receiver)
                 if !mutating.isEmpty {
@@ -929,7 +965,7 @@ extension Interpreter {
                     if let invocation = try await
                         invokeMutatingInstanceMethodSuspending(
                             named: name,
-                            on: current,
+                            on: baseValue,
                             arguments: args,
                             node: call) {
                         try relocating(call) {

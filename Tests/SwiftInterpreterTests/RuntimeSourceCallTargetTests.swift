@@ -490,6 +490,284 @@ struct RuntimeSourceCallTargetTests {
     }
 
     @Test
+    func staticStringSourceCallCopiesCaptureAndUsesPhysicalWrapper()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-static-string-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedStaticStringSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "prepared:FIRST-SCRIPT,prepared:SECOND-SCRIPT")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func staticStringSourceCallModesRemainEquivalent() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-static-string-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedStaticStringSourceCallProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "prepared:FIRST-SCRIPT,prepared:SECOND-SCRIPT")
+        #expect(parallelValue.stringValue == cooperativeValue.stringValue)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func staticProtocolDefaultPublishesExactSendableOriginTarget() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-static-string-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+        let interpreter = Interpreter()
+        try interpreter.run(source: source)
+        let symbol = try #require(interpreter.structSymbols.first {
+            $0.name == "PhysicalStaticStringSourceCallProbe"
+        })
+        let target = try #require(
+            interpreter.resolveUniqueProtocolExtensionStaticMethodCallTarget(
+                named: "prepareScriptSource",
+                onConformingType: symbol,
+                arguments: CallArguments(arguments: [
+                    .init(label: "from", value: .native("probe")),
+                ])))
+
+        #expect(target.descriptor.sourceFunctionName
+            == "prepareScriptSource(from:)")
+        #expect(target.descriptor.lexicalPlacement == .lexicalType(
+            name: "PhysicalStaticStringSourceCallProtocol",
+            isTypeMember: true,
+            isActor: false))
+        #expect(target.descriptor.isolation == .explicitlyNonisolated)
+        #expect(!target.descriptor.isAsync)
+        #expect(!target.descriptor.isThrowing)
+        #expect(target.descriptor.returnTypeName == "String")
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(target.descriptor)
+    }
+
+    @Test
+    func staticProtocolExtensionSourceCallIsSemanticallyExactCooperatively()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-static-string-source-call.swift")
+        let fixtureSource = try String(contentsOf: fixture, encoding: .utf8)
+
+        let directInterpreter = Interpreter()
+        let direct = try await directInterpreter.runAsync(source:
+            fixtureSource
+                + "\nPhysicalStaticStringSourceCallProbe"
+                + ".prepareScriptSource(from: \"direct\")\n")
+        #expect(direct.stringValue == "prepared:DIRECT")
+
+        let defaultDirectInterpreter = Interpreter()
+        let defaultDirect = try await defaultDirectInterpreter.runAsync(
+            source: fixtureSource
+                + "\nPhysicalStaticStringSourceCallProbe("
+                + "source: \"default-direct\").prepareDirectly()\n")
+        #expect(defaultDirect.stringValue == "prepared:DEFAULT-DIRECT")
+
+        let resultGetInterpreter = Interpreter()
+        let resultGet = try await resultGetInterpreter.runAsync(
+            source: fixtureSource + "\nawait detachedResultGetProbe()\n")
+        #expect(resultGet.stringValue == "result-get")
+
+        let defaultInterpreter = Interpreter()
+        let defaultMethod = try await defaultInterpreter.runAsync(source:
+            fixtureSource
+                + "\nawait PhysicalStaticStringSourceCallProbe("
+                + "source: \"default\").prepare()\n")
+        #expect(defaultMethod.stringValue == "prepared:DEFAULT")
+        #expect(defaultInterpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(defaultInterpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+    }
+
+    @Test
+    func taskResultGetEvaluatesDetachedBaseExactlyOnce() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-static-string-source-call.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedResultGetProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "result-get")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func richerStaticStringSourceCallShapesStayCooperative() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        let value = try await interpreter.runAsync(source: #"""
+        protocol StaticStringRouteProtocol: Sendable {}
+
+        protocol ConstrainedStaticStringRouteProtocol: Sendable {
+            associatedtype Payload
+        }
+
+        extension StaticStringRouteProtocol {
+            nonisolated static func prepare(from source: String) -> String {
+                "default:\(source)"
+            }
+
+            static func inherited(from source: String) -> String {
+                "inherited:\(source)"
+            }
+
+            nonisolated static func prepareAsync(
+                from source: String
+            ) async -> String {
+                "async:\(source)"
+            }
+        }
+
+        extension ConstrainedStaticStringRouteProtocol where Payload == String {
+            nonisolated static func constrained(
+                from source: String
+            ) -> String {
+                "constrained:\(source)"
+            }
+        }
+
+        struct StaticStringRouteProbe: StaticStringRouteProtocol {
+            nonisolated static func prepare(from source: String) -> String {
+                "own:\(source)"
+            }
+
+            func run() async -> String {
+                let source = "script"
+                let suffix = "!"
+                let implicit = Task.detached {
+                    Self.inherited(from: source)
+                }
+                let multiple = Task.detached { [source, suffix] in
+                    Self.inherited(from: source) + suffix
+                }
+                let attributed = Task.detached { @Sendable [source] in
+                    Self.inherited(from: source)
+                }
+                let concrete = Task.detached { [source] in
+                    StaticStringRouteProbe.prepare(from: source)
+                }
+                let inherited = Task.detached { [source] in
+                    Self.inherited(from: source)
+                }
+                let asynchronous = Task.detached { [source] in
+                    await Self.prepareAsync(from: source)
+                }
+                let implicitValue = await implicit.value
+                let multipleValue = await multiple.value
+                let attributedValue = await attributed.value
+                let concreteValue = await concrete.value
+                let inheritedValue = await inherited.value
+                let asynchronousValue = await asynchronous.value
+                return [
+                    implicitValue,
+                    multipleValue,
+                    attributedValue,
+                    concreteValue,
+                    inheritedValue,
+                    asynchronousValue,
+                ].joined(separator: "|")
+            }
+        }
+
+        struct ConstrainedStaticStringRouteProbe:
+            ConstrainedStaticStringRouteProtocol
+        {
+            typealias Payload = String
+            let source: String
+
+            func run() async -> String {
+                await Task.detached { [source] in
+                    Self.constrained(from: source)
+                }.value
+            }
+        }
+
+        let ordinary = await StaticStringRouteProbe().run()
+        let constrained = await ConstrainedStaticStringRouteProbe(
+            source: "script"
+        ).run()
+        "\(ordinary)|\(constrained)"
+        """#)
+
+        #expect(value.stringValue
+            == "inherited:script|inherited:script!|inherited:script|"
+                + "own:script|inherited:script|async:script|"
+                + "constrained:script")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func richerNonisolatedURLSourceCallShapesStayCooperative() async throws {
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 1)
