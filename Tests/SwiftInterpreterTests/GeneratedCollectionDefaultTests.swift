@@ -49,6 +49,24 @@ import Testing
         #expect(value.intValue == 20)
     }
 
+    @Test func generatedLastProjectionServesInterpretedCollection() throws {
+        let source = """
+        struct Window: RandomAccessCollection {
+            let storage: [Int]
+            var startIndex: Int { 1 }
+            var endIndex: Int { 3 }
+
+            func index(before value: Int) -> Int { value - 1 }
+            subscript(position: Int) -> Int { storage[position] }
+        }
+
+        Window(storage: [10, 20, 30, 40]).last ?? -1
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.intValue == 30)
+    }
+
     @Test func generatedOptionalLastRemovalMutatesAndPreservesDynamicType() throws {
         let source = """
         class Node {}

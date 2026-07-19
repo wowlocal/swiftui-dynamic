@@ -10,10 +10,16 @@ struct IntegerIndexCollectionDefault: Hashable {
     let distance: Int
 }
 
-struct FirstElementCollectionDefault: Hashable {
+enum OptionalElementCollectionProjection: String, Hashable {
+    case first
+    case last
+}
+
+struct OptionalElementCollectionDefault: Hashable {
     let protocolName: String
     let eligibleProtocolNames: [String]
     let memberName: String
+    let projection: OptionalElementCollectionProjection
 }
 
 struct OptionalLastRemovalCollectionDefault: Hashable {
@@ -231,14 +237,15 @@ func integerIndexCollectionDefaults(
     }
 }
 
-/// Finds protocol-extension getters whose interface body implements the
-/// canonical optional-first-element projection: capture `startIndex`, compare
-/// it with `endIndex`, subscript `self` when nonempty, otherwise return nil.
-/// The member spelling is captured from the declaration; eligibility comes
+/// Finds protocol-extension getters whose interface body implements an
+/// optional endpoint projection. A start projection captures `startIndex`,
+/// checks it against `endIndex`, and subscripts `self`; an end projection
+/// checks emptiness and subscripts at the predecessor of `endIndex`.
+/// Member spellings are captured from declarations; runtime behavior comes
 /// solely from the protocol and getter structure.
-func firstElementCollectionDefaults(
+func optionalElementCollectionDefaults(
     in file: SourceFileSyntax?
-) -> [FirstElementCollectionDefault] {
+) -> [OptionalElementCollectionDefault] {
     guard let file else { return [] }
     let refinementEligibility = protocolRefinementEligibility(in: file)
 
@@ -261,7 +268,7 @@ func firstElementCollectionDefaults(
     func rule(
         protocolName: String,
         variable: VariableDeclSyntax
-    ) -> FirstElementCollectionDefault? {
+    ) -> OptionalElementCollectionDefault? {
         guard isPublic(variable.modifiers),
               variable.bindings.count == 1,
               let binding = variable.bindings.first,
@@ -273,23 +280,35 @@ func firstElementCollectionDefaults(
         else { return nil }
 
         let tokens = accessorBlock.tokens(viewMode: .sourceAccurate).map(\.text)
-        guard tokens.count == 25 else { return nil }
-        let local = tokens[4]
-        let expected = [
-            "{", "get", "{", "let", local, "=", "startIndex",
-            "if", local, "!=", "endIndex", "{", "return", "self",
-            "[", local, "]", "}", "else", "{", "return", "nil",
-            "}", "}", "}",
-        ]
-        guard tokens == expected else { return nil }
-        return FirstElementCollectionDefault(
+        let projection: OptionalElementCollectionProjection
+        if tokens.count == 25 {
+            let local = tokens[4]
+            let expected = [
+                "{", "get", "{", "let", local, "=", "startIndex",
+                "if", local, "!=", "endIndex", "{", "return", "self",
+                "[", local, "]", "}", "else", "{", "return", "nil",
+                "}", "}", "}",
+            ]
+            guard tokens == expected else { return nil }
+            projection = .first
+        } else {
+            let expected = [
+                "{", "get", "{", "return", "isEmpty", "?", "nil",
+                ":", "self", "[", "index", "(", "before", ":",
+                "endIndex", ")", "]", "}", "}",
+            ]
+            guard tokens == expected else { return nil }
+            projection = .last
+        }
+        return OptionalElementCollectionDefault(
             protocolName: protocolName,
             eligibleProtocolNames: refinementEligibility[protocolName]
                 ?? [protocolName],
-            memberName: identifier.identifier.text)
+            memberName: identifier.identifier.text,
+            projection: projection)
     }
 
-    var defaults = Set<FirstElementCollectionDefault>()
+    var defaults = Set<OptionalElementCollectionDefault>()
     for item in file.statements {
         guard case .decl(let declaration) = item.item,
               let extensionDeclaration = declaration.as(
@@ -308,7 +327,8 @@ func firstElementCollectionDefaults(
     }
 
     return defaults.sorted {
-        ($0.protocolName, $0.memberName) < ($1.protocolName, $1.memberName)
+        ($0.protocolName, $0.memberName, $0.projection.rawValue)
+            < ($1.protocolName, $1.memberName, $1.projection.rawValue)
     }
 }
 

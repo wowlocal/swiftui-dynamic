@@ -33,8 +33,15 @@ enum GeneratedCollectionDefaultSurface {
            !conformances.isDisjoint(with: Set(["BidirectionalCollection", "Collection", "LazyCollectionProtocol", "MutableCollection", "RandomAccessCollection", "RangeReplaceableCollection", "StringProtocol", "_AnyCollectionProtocol", "_ArrayBufferProtocol", "_ArrayProtocol"])),
            let elements = try interpreter
             .interpretedIntegerIndexedCollectionElements(receiver) {
-            guard let first = elements.first else { return .none() }
-            return first.liftedToOptional()
+            guard let element = elements.first else { return .none() }
+            return element.liftedToOptional()
+        }
+        if name == "last",
+           !conformances.isDisjoint(with: Set(["BidirectionalCollection", "RandomAccessCollection", "StringProtocol", "_ArrayBufferProtocol"])),
+           let elements = try interpreter
+            .interpretedIntegerIndexedCollectionElements(receiver) {
+            guard let element = elements.last else { return .none() }
+            return element.liftedToOptional()
         }
         return nil
     }

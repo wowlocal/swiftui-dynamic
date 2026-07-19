@@ -1394,8 +1394,8 @@ if let stdlibFile {
 
 let generatedIntegerIndexCollectionDefaults =
     integerIndexCollectionDefaults(in: stdlibFile)
-let generatedFirstElementCollectionDefaults =
-    firstElementCollectionDefaults(in: stdlibFile)
+let generatedOptionalElementCollectionDefaults =
+    optionalElementCollectionDefaults(in: stdlibFile)
 let generatedOptionalLastRemovalCollectionDefaults =
     optionalLastRemovalCollectionDefaults(in: stdlibFile)
 let generatedRangeRemovalMutations =
@@ -1975,9 +1975,14 @@ collectionDefaultsOutput += """
     ) throws -> RuntimeValue? {
 """ + "\n"
 for (memberName, defaults) in Dictionary(
-    grouping: generatedFirstElementCollectionDefaults,
+    grouping: generatedOptionalElementCollectionDefaults,
     by: \.memberName
 ).sorted(by: { $0.key < $1.key }) {
+    let projections = Set(defaults.map(\.projection))
+    precondition(
+        projections.count == 1,
+        "one collection member cannot project both endpoints")
+    let projection = projections.first!.rawValue
     let protocols = Set(defaults.flatMap(\.eligibleProtocolNames)).sorted()
         .map(String.init(reflecting:))
         .joined(separator: ", ")
@@ -1986,8 +1991,8 @@ for (memberName, defaults) in Dictionary(
            !conformances.isDisjoint(with: Set([\(protocols)])),
            let elements = try interpreter
             .interpretedIntegerIndexedCollectionElements(receiver) {
-            guard let first = elements.first else { return .none() }
-            return first.liftedToOptional()
+            guard let element = elements.\(projection) else { return .none() }
+            return element.liftedToOptional()
         }
 """ + "\n"
 }
@@ -2023,7 +2028,7 @@ try collectionDefaultsOutput.write(
 print(
     "wrote \(collectionDefaultsPath) "
         + "(\(generatedIntegerIndexCollectionDefaults.count) methods, "
-        + "\(generatedFirstElementCollectionDefaults.count) properties, "
+        + "\(generatedOptionalElementCollectionDefaults.count) properties, "
         + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals)")
 
 let rangeRemovalMembers = Dictionary(
