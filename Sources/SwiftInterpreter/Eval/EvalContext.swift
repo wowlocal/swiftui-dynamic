@@ -62,6 +62,20 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func runHostWorkerOperation(
+        _ makeOperation: () throws -> HostWorkerOperation
+    ) async throws -> RuntimeValue? {
+        guard interpreter.canRunPhysicalHostOperation(
+            in: evaluationContext) else {
+            return nil
+        }
+        let operation = try makeOperation()
+        return try await withHostOperation {
+            try await interpreter.runPhysicalHostOperation(
+                operation, in: evaluationContext)
+        }
+    }
+
     private func callback<T>(_ operation: () throws -> T) throws -> T {
         guard let operationID = activeHostOperationID,
               let taskID = evaluationContext.runtimeTaskID else {
@@ -321,6 +335,54 @@ extension Interpreter: EvalContext {
                 "\(api) requires an active canonical async runtime task")
         }
         return record
+    }
+
+    func canRunPhysicalHostOperation(
+        in context: EvaluationTaskContext
+    ) -> Bool {
+        guard physicalWorkerDriver != nil,
+              context.isAsyncSession,
+              context.runtimeEntry != nil else {
+            return false
+        }
+        switch context.currentExecutor {
+        case .cooperativeDefault, .detached:
+            return true
+        case .mainActor, .actor:
+            // Offloading a synchronous call from an actor-isolated segment
+            // would introduce reentrancy that native Swift does not permit at
+            // a non-suspending call. Keep those gateways confined.
+            return false
+        }
+    }
+
+    func runPhysicalHostOperation(
+        _ operation: HostWorkerOperation,
+        in context: EvaluationTaskContext
+    ) async throws -> RuntimeValue {
+        guard canRunPhysicalHostOperation(in: context),
+              let driver = physicalWorkerDriver,
+              let entry = context.runtimeEntry else {
+            throw RuntimeError(message:
+                "physical host operation lost its eligible runtime entry",
+                fatal: true)
+        }
+        let capability = try entry.makeWorkerCapability(copying: [])
+        let job = RuntimePhysicalWorkerJob(
+            capability: capability,
+            priority: context.priority
+        ) { capability in
+            guard capability.accessManifest.isWorkerSafe else {
+                throw RuntimeError(message:
+                    "physical host operation received an unsafe worker manifest",
+                    fatal: true)
+            }
+            return try operation.execute().workerSnapshot
+        }
+        concurrencyRuntime.recordPhysicalHostOperationSubmission()
+        let snapshot = try await driver.executeHostOperation(job)
+        concurrencyRuntime.recordPhysicalHostOperationExecution()
+        return snapshot.materializedRuntimeValue()
     }
 
     public func hostTypeName(of value: RuntimeValue) -> String {

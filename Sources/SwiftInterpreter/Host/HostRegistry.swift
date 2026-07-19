@@ -134,6 +134,15 @@ public protocol EvalContext: AnyObject {
     func withHostOperation<T>(
         _ operation: () async throws -> T
     ) async throws -> T
+    /// Execute one statically compiled, executor-neutral host operation on the
+    /// opt-in bounded worker runtime. `nil` means that this context cannot
+    /// safely offload the operation; the gateway must use its ordinary
+    /// confined implementation instead. The builder is deliberately lazy:
+    /// actor-confined and cooperative fallbacks must not copy arguments,
+    /// execute gateway code, or otherwise observe a worker-only path.
+    func runHostWorkerOperation(
+        _ makeOperation: () throws -> HostWorkerOperation
+    ) async throws -> RuntimeValue?
     /// Create an interpreted Task. Async interpreter sessions schedule it on
     /// a real Swift task; synchronous compatibility sessions execute it
     /// deterministically before returning.
@@ -251,6 +260,12 @@ extension EvalContext {
         _ operation: () async throws -> T
     ) async throws -> T {
         try await operation()
+    }
+
+    public func runHostWorkerOperation(
+        _ makeOperation: () throws -> HostWorkerOperation
+    ) async throws -> RuntimeValue? {
+        nil
     }
 
     public func sourceStaticMember(

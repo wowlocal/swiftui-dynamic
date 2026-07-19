@@ -168,18 +168,32 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         }
         switch sourceJob.cancellationBehavior {
         case .unobserved:
-            let job = sourceJob.workerJob
-            let execution = Task.detached(
-                priority: job.priority.nativePriority
-            ) {
-                try await execute([job])
-            }
-            return try await Self.onlySourceSnapshot(
-                from: execution.value)
+            return try await executeUnobserved(sourceJob.workerJob)
         case .observed:
             return try await executeCancellationObservingSourceKernel(
                 sourceJob.workerJob)
         }
+    }
+
+    /// Execute one synchronous source-visible host operation without turning
+    /// the source task's cooperative cancellation bit into infrastructure
+    /// cancellation. A native synchronous call that does not inspect
+    /// cancellation still enters and finishes after cancellation is requested.
+    func executeHostOperation(
+        _ job: RuntimePhysicalWorkerJob
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        try await executeUnobserved(job)
+    }
+
+    private func executeUnobserved(
+        _ job: RuntimePhysicalWorkerJob
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        let execution = Task.detached(
+            priority: job.priority.nativePriority
+        ) {
+            try await execute([job])
+        }
+        return try await Self.onlyWorkerSnapshot(from: execution.value)
     }
 
     /// Launch the source wrapper from an uncancelled infrastructure task,
@@ -301,12 +315,12 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         }
     }
 
-    private static func onlySourceSnapshot(
+    private static func onlyWorkerSnapshot(
         from output: [RuntimeWorkerValueSnapshot]
     ) throws -> RuntimeWorkerValueSnapshot {
         guard let snapshot = output.first else {
             throw RuntimeError(message:
-                "physical source kernel returned no result")
+                "physical worker operation returned no result")
         }
         return snapshot
     }

@@ -2449,6 +2449,41 @@ interceptor diagnostic. The selected priority value, operation ordering,
 worker identity, arbitrary bodies, and Clop's captured Image construction do
 not enter the claim.
 
+The ninetieth M9 slice is a gap closure for TaskObservatory's exact
+source-synchronous `Thread.isMainThread` lane read. The same-source
+`concurrent-executor-hop.swift` oracle asks for exact executor lanes, not task
+order: MainActor reads are `main`; entry and post-yield reads in `@concurrent`
+work are `worker`, including through `Task.detached`. Apple Swift 6.3.3
+returned the exact trace in twenty bounded complete-strict runs with raw digest
+`4e61ac1fc5269991e9308df7c0bef00e5a80694f58f70ece026984eb344e6199`;
+each five-run shard retained
+`46039d1e944abf67f52f9aae88348a8b6abf9e8e75080b9d8cedd1a1afd7ae87`.
+
+The behavioral value was already exact through logical executor projection,
+so the deterministic RED is a physical receipt: parallel mode observed zero
+host executions where four nonactor reads were required. The production fix
+must use a registered `HostWorkerOperation`, never a fixture or application
+name. Tests require a checked `@Sendable` body, the bounded shared driver,
+Bool/String snapshot-only output, zero cooperative receipts, four parity-case
+receipts, no MainActor/source-actor offload, no source-shadow bypass, and empty
+host/task registries after completion. Eligibility must be checked before the
+operation builder runs, and admission must not force computed/lazy source
+callables. The focused board also reruns the full await-free async evaluator
+suite because an over-broad implicit-suspension route would change mature
+mutation semantics.
+
+This slice does not establish scheduler order, a stable worker identity,
+general host Sendability, callback transfer, transitive source-helper
+analysis, or actor-safe synchronous offload. Those stay explicit M9 work.
+
+The closing receipt for this slice is 79/79 focused runtime/signature tests,
+all 46 methodology/gate checks, and 20/20 same-source parity repetitions on
+four workers in four seconds. The physical board is 114/114 tests in three
+suites, the unchanged TaskObservatory integration board is 3/3, and the
+exact-tip TSan bundle rebuilt in 11 seconds then completed native overlap 20/20
+plus all 114 tests in 29 seconds total without a race or interceptor
+diagnostic.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

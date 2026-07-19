@@ -3028,7 +3028,8 @@
       "task-handle-deallocation",
       "task-owned-evaluator-context",
       "task-context-cancellation",
-      "detached-host-context-reentry"
+      "detached-host-context-reentry",
+      "parallel-host-gateway-thread-lane"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -3106,12 +3107,17 @@
         "BindingExtensionMethodTests/extensionMethodDispatchesOnBuiltBinding",
         "CurrentValueSubjectStoreTests/keyPathSubscriptWritesThroughStore",
         "ActorRuntimeTests/actorMutableStorageRequiresOwnershipWhileAllowedStorageRemainsReadable",
-        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears"
+        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears",
+        "RuntimeParallelSourceKernelTests/threadPropertyUsesWorkerGatewayOnlyOnEligibleSourceExecutors",
+        "RuntimeParallelSourceKernelTests/actorConfinedWorkerGatewayNeverIntroducesHiddenReentrancy",
+        "RuntimeParallelSourceKernelTests/sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway",
+        "RuntimeParallelSourceKernelTests/workerAdmissionNeverForcesComputedCallables",
+        "HostSignatureTests/workerGatewaysRequireSynchronousReadOnlyContracts"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Twenty-eight M9 prerequisites are green. ParsedProgram owns immutable all-branch declaration/member metadata and resolves one immutable Sendable target plan with file identity and source map before mutable symbol materialization. Each prepared program owns one MainActor-confined RuntimeProgramState; its session, RuntimeEntry, and escaped closures retain the exact plan, mutable symbol state, and selected HostRegistry across callbacks, descendant tasks, and SwiftUI tasks. CooperativeConcurrencyRuntime owns scheduled handles and evaluator-context identity; contexts own their dynamic stacks and pthread-scoped native-stack guard. Cross-program REDs now cover source maps, HostRegistry selection, and host static-member coercion. The latest RED showed a newer program clearing one process-wide Date.now provider so an escaped origin callback used the wall clock. Host coercions now resolve source static members through their bound EvalContext and exact runtime entry. A standalone Apple Swift 6.3.3 probe returned 1784160000 after passing implicit .now into Calendar.startOfDay(for:) across Task.yield() in three runs. The host-static-shadow-after-suspension fixture remains exact at 1784228400 in twenty repetitions with native SHA-256 49bde28776cde22ce6aa47e119d3ecbb34246309ef8fa2bddb609146a19e692c per shard. Distinct-session materialization, callback/task identity, discarded-handle lifetime, 100-task context isolation/cleanup, detached callback re-entry, facade release, actor propagation, trap containment, FoodTruck Calendar coercion, and real SwiftUI lifecycle cover this confined ownership boundary. The canonical parallel iteration completed seven targeted tests in four suites, all forty-two methodology checks, and all twenty exact parity repetitions on four workers in 1.8 seconds. Scheduler order, physical threads, Sendable host bridges, and physical parallelism are not claimed. Cooperative overlap is supported on the confined heap; active evaluation, explicit host re-entry, mutable value graphs, HostRegistry implementations, and remaining metadata are still facade/MainActor-confined, with no heap classification, opt-in physical-worker mode, cooperative-versus-parallel board, or Thread Sanitizer evidence."
+      "notes": "M9 remains partial. ParsedProgram and its declaration/call/member metadata are immutable Sendable capabilities; each session retains its exact resolved plan, MainActor-confined RuntimeProgramState, heap, registry, runtime entry, and task-owned evaluator context. Explicit parallel mode uses a bounded Task.detached driver with checked Sendable snapshots for the demand-scoped source kernels, sleep/continuation prefixes, and source-call wrappers listed in the M9 acceptance ledger; cooperative mode remains the default and unsupported shapes stay confined. The first native host-routing subset adds a checked source-synchronous HostWorkerOperation to typed HostFunction and read-only HostProperty gateways: only @Sendable closures with Bool/String results may cross, only cooperative-default/detached source executors are eligible, and MainActor/source actors keep the confined implementation so no hidden actor reentrancy is introduced. TaskObservatory's exact Thread.isMainThread helper has same-source parity with four physical host-operation receipts; source-shadowed Thread, cooperative mode, and actor-confined reads record zero. Worker-operation eligibility is decided before the builder runs, and admission never forces computed or lazy callable storage. Physical receipts, cooperative/parallel differential tests, bounded cleanup, interpreted-trap containment, and the source-bound TSan board cover only these admitted subsets. General evaluator/heap parallelism, richer host values/callbacks, transitive synchronous helper graphs, further host/member target resolution, custom executors, ExecutorJob scheduling, and full-mode TSan remain open."
     }
   ]
 }

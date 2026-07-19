@@ -348,6 +348,55 @@ struct HostSignatureTests {
         }
     }
 
+    @Test func workerGatewaysRequireSynchronousReadOnlyContracts() throws {
+        #expect(throws: HostSignatureError.self) {
+            _ = try HostFunction(
+                declaration: "func workerAsync() async -> Bool",
+                invoke: { _, _ in .native(true) },
+                workerOperation: { _, _ in
+                    HostWorkerOperation { .bool(true) }
+                })
+        }
+        #expect(throws: HostSignatureError.self) {
+            _ = try HostProperty(
+                declaration:
+                    "var String.workerAsync: Bool { get async }",
+                get: { _, _ in .native(true) },
+                workerGet: { _, _ in
+                    HostWorkerOperation { .bool(true) }
+                })
+        }
+        #expect(throws: HostSignatureError.self) {
+            _ = try HostProperty(
+                declaration:
+                    "var String.mutableWorker: Bool { get set }",
+                get: { _, _ in .native(true) },
+                workerGet: { _, _ in
+                    HostWorkerOperation { .bool(true) }
+                })
+        }
+
+        let function = try HostFunction(
+            declaration: "func workerSync() -> Bool",
+            invoke: { _, _ in .native(true) },
+            workerOperation: { _, _ in
+                HostWorkerOperation { .bool(true) }
+            })
+        let property = try HostProperty(
+            declaration: "var String.workerSync: Bool { get }",
+            get: { _, _ in .native(true) },
+            workerGet: { _, _ in
+                HostWorkerOperation { .bool(true) }
+            })
+
+        #expect(function.signature?.isAsync == false)
+        #expect(function.canSuspend)
+        #expect(function.hasWorkerOperation)
+        #expect(property.signature.isAsync == false)
+        #expect(property.canSuspend)
+        #expect(property.hasWorkerOperation)
+    }
+
     @Test func typedAsyncGatewaySuspendsAndValidates() async throws {
         let interpreter = Interpreter()
         var calls = 0

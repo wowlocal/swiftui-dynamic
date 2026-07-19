@@ -5275,6 +5275,60 @@ bundle rebuilt in 19 seconds; its retained-bundle confirmation passed native
 overlap 20/20 and all 110 tests without a race or interceptor diagnostic in 17
 seconds.
 
+The ninetieth prerequisite adds the first bounded native-host operation to the
+M9 worker architecture. TaskObservatory demand-cites the unchanged
+source-synchronous `executionLane()` helper, whose `Thread.isMainThread` read
+must observe a real worker from `@concurrent` code without changing the Swift
+declaration to `async`. The shared strict-Swift oracle returns exact
+`main|worker:worker:main|worker:worker:main|main`; the receipt RED was zero
+physical host executions instead of four.
+
+The target boundary has four layers:
+
+1. A generated or handwritten gateway retains its ordinary confined
+   implementation and may build a `HostWorkerOperation`. The operation is
+   `Sendable`; its current result algebra contains only `Bool` and `String`, so
+   `RuntimeValue`, interpreter objects, callbacks, and opaque host state cannot
+   cross.
+2. Typed source-synchronous `HostFunction` and read-only `HostProperty`
+   contracts validate source arguments/receivers before building the
+   operation and validate the materialized result afterward. Authored async or
+   settable property contracts cannot register this transport.
+3. `TaskBoundEvalContext` admits the operation only for an active async runtime
+   entry in explicit parallel mode and only from `.cooperativeDefault` or
+   `.detached`. MainActor and source actors use the confined face; offloading a
+   synchronous actor call would create reentrancy that native Swift does not
+   permit at that source point. Eligibility is checked before invoking the
+   operation builder, so a confined fallback cannot observe builder effects.
+4. The shared bounded driver executes the checked closure, returns a worker
+   snapshot, and records submission/execution receipts. The evaluator and
+   runtime heap remain MainActor-confined throughout.
+
+Source-synchronous worker transport is an interpreter implementation
+suspension, not a source-visible `await`. The async overlay therefore admits
+only a descriptor explicitly marked with a worker operation or one direct
+synchronous source helper whose body directly references such a descriptor.
+Its admission lookup never forces source storage, including a computed or lazy
+callable binding. This avoids rerouting all await-free calls through the less
+mature async call evaluator and preserves existing lvalue/mutation behavior. A
+same-module source `Thread` still wins normal target lookup and stays confined.
+
+This is the reusable attachment point for future swiftinterface-generated
+native APIs, but it is not blanket forwarding. Each generated row still needs
+a statically compiled conversion, a checked Sendable capture/result schema,
+and an authored executor/cancellation disposition. Rich values, arguments,
+throwing families beyond the existing host contract, callbacks, transitive
+helper graphs, global/source actors, and APIs whose semantics depend on task
+locals or executor identity remain outside this prerequisite.
+
+The exact-tip canonical iteration passed 79/79 runtime/signature tests, all 46
+methodology/gate checks, and 20/20 focused parity repetitions on four workers
+in four seconds. The parallel physical board passed 114/114 tests in three
+suites, and the unchanged TaskObservatory integration board passed 3/3. A
+current-tip Swift 6.3.3 TSan bundle rebuilt in 11 seconds and completed native
+overlap 20/20 plus all 114 interpreter tests in 29 seconds total without a race
+or interceptor diagnostic.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and

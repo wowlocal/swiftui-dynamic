@@ -62,6 +62,22 @@
     "notes": "Exact output is main|worker:worker:main|worker:worker:main|main in all 20 Swift 6.3.3 runs. The second work call starts in Task.detached; no relative scheduling order is asserted."
   },
   {
+    "id": "parallel-host-gateway-thread-lane",
+    "fixture": "Fixtures/concurrent-executor-hop.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await concurrentExecutorHopProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 1,
+    "expectedPhysicalHostOperationExecutions": 4,
+    "nativeFact": "In the active Apple Swift runtime, the synchronous executor-neutral Thread.isMainThread host read is false before and after suspension in @concurrent work, including when that work is reached through Task.detached; MainActor reads remain true.",
+    "notes": "TaskObservatory demand-cites the same Thread.isMainThread read in executionLane(). The shared fixture's native parityCurrentExecutorLane helper performs that real Foundation read, while the interpreter gateway retains its logical cooperative fallback. This gap closure requires four nonactor reads to cross the bounded physical host boundary; both MainActor reads remain confined, and no relative task order is asserted."
+  },
+  {
     "id": "actor-isolated-entry",
     "fixture": "Fixtures/actor-isolated-entry.swift",
     "mode": "runtime",

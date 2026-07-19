@@ -58,6 +58,201 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelSubmissions == 0)
     }
 
+    @Test
+    func threadPropertyUsesWorkerGatewayOnlyOnEligibleSourceExecutors()
+        async throws
+    {
+        let source = """
+        nonisolated func executionLane() -> String {
+            Thread.isMainThread ? "main" : "worker"
+        }
+
+        @concurrent
+        nonisolated func work() async -> String {
+            let entered = executionLane()
+            await Task.yield()
+            let resumed = executionLane()
+            return entered + ":" + resumed
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let entered = executionLane()
+            let worker = await work()
+            let resumed = executionLane()
+            return entered + "|" + worker + "|" + resumed
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "main|worker:worker|main")
+        #expect(parallelValue.stringValue == cooperativeValue.stringValue)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 2)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 2)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func actorConfinedWorkerGatewayNeverIntroducesHiddenReentrancy()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        var workerOperationBuildCount = 0
+        interpreter.globals.define(
+            "testWorkerLane",
+            .hostFunction(HostFunction(
+                name: "testWorkerLane",
+                invoke: { _, context in
+                    .native(
+                        context.sourceExecutor.isMainActor
+                            ? "main" : "worker")
+                },
+                workerOperation: { _, _ in
+                    workerOperationBuildCount += 1
+                    return HostWorkerOperation {
+                        .string(
+                            Thread.isMainThread ? "main" : "worker")
+                    }
+                })))
+
+        let value = try await interpreter.runAsync(source: """
+        actor LaneActor {
+            func read() -> String {
+                testWorkerLane()
+            }
+        }
+
+        @MainActor
+        func readMain() -> String {
+            testWorkerLane()
+        }
+
+        func probe() async -> String {
+            let actor = LaneActor()
+            let actorLane = await actor.read()
+            let mainLane = await readMain()
+            return mainLane + "|" + actorLane
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "main|worker")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(workerOperationBuildCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        struct Thread {
+            static var isMainThread: Bool {
+                true
+            }
+        }
+
+        nonisolated func executionLane() -> String {
+            Thread.isMainThread ? "source" : "host"
+        }
+
+        @concurrent
+        nonisolated func probe() async -> String {
+            executionLane()
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "source")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func workerAdmissionNeverForcesComputedCallables() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        var globalReads = 0
+        var laneReader: () -> String {
+            globalReads += 1
+            return { Thread.isMainThread ? "main" : "worker" }
+        }
+
+        @concurrent
+        nonisolated func globalProbe() async -> String {
+            let lane = laneReader()
+            return lane + ":\\(globalReads)"
+        }
+
+        final class Reader {
+            var reads = 0
+
+            var laneReader: () -> String {
+                reads += 1
+                return { Thread.isMainThread ? "main" : "worker" }
+            }
+
+            @concurrent
+            nonisolated func memberProbe() async -> String {
+                let lane = self.laneReader()
+                return lane + ":\\(reads)"
+            }
+        }
+
+        let globalResult = await globalProbe()
+        let memberResult = await Reader().memberProbe()
+        globalResult + "|" + memberResult
+        """)
+
+        #expect(value.stringValue == "worker:1|worker:1")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func immutableStringCountCaptureUsesThePhysicalExpressionKernel()
         async throws
     {

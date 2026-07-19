@@ -14,6 +14,11 @@ public final class HostFunction {
     private let suspendingInvoke: @MainActor
         (CallArguments, EvalContext) async throws -> RuntimeValue
     public let canSuspend: Bool
+    /// True only when a source-synchronous declaration has a checked native
+    /// operation that must cross the physical-worker boundary while the
+    /// interpreter is running asynchronously. This is distinct from an
+    /// authored `async` effect: source does not need to spell `await`.
+    let hasWorkerOperation: Bool
     /// Empty for a legacy dynamic gateway, one element for a typed gateway,
     /// and multiple elements for an overload set.
     public let signatures: [HostSignature]
@@ -29,6 +34,7 @@ public final class HostFunction {
             try invoke(arguments, context)
         }
         self.canSuspend = false
+        self.hasWorkerOperation = false
         self.signatures = []
     }
 
@@ -65,6 +71,7 @@ public final class HostFunction {
             }
         }
         self.canSuspend = true
+        self.hasWorkerOperation = false
         self.signatures = []
     }
 
@@ -83,11 +90,37 @@ public final class HostFunction {
             asyncInvoke: asyncInvoke)
     }
 
+    /// A source-synchronous gateway with a separately compiled physical
+    /// implementation. The ordinary implementation remains authoritative in
+    /// cooperative mode and on actor-confined executors; only an eligible
+    /// task-bound context accepts the checked-Sendable worker operation.
+    public convenience init(
+        name: String,
+        invoke: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> RuntimeValue,
+        workerOperation: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> HostWorkerOperation
+    ) {
+        self.init(
+            name: name,
+            invoke: invoke,
+            tracksHostOperation: false,
+            hasWorkerOperation: true,
+            asyncInvoke: { arguments, context in
+                if let value = try await context.runHostWorkerOperation(
+                    { try workerOperation(arguments, context) }) {
+                    return value
+                }
+                return try invoke(arguments, context)
+            })
+    }
+
     init(
         name: String,
         invoke: @escaping @MainActor
             (CallArguments, EvalContext) throws -> RuntimeValue,
         tracksHostOperation: Bool,
+        hasWorkerOperation: Bool = false,
         asyncInvoke: @escaping @MainActor
             (CallArguments, EvalContext) async throws -> RuntimeValue
     ) {
@@ -102,6 +135,7 @@ public final class HostFunction {
             }
         }
         self.canSuspend = true
+        self.hasWorkerOperation = hasWorkerOperation
         self.signatures = []
     }
 
@@ -125,6 +159,7 @@ public final class HostFunction {
         self.name = signature.callableName
         self.signatures = [signature]
         self.canSuspend = false
+        self.hasWorkerOperation = false
         let checked: @MainActor
             (CallArguments, EvalContext) throws -> RuntimeValue = { arguments, context in
             let match = try signature.validate(arguments: arguments, in: context)
@@ -140,6 +175,70 @@ public final class HostFunction {
         self.invoke = checked
         self.suspendingInvoke = { arguments, context in
             try checked(arguments, context)
+        }
+    }
+
+    /// Typed counterpart of the executor-neutral worker gateway. The parsed
+    /// declaration remains synchronous: physical offload is an interpreter
+    /// implementation detail, not a source-visible `async` effect.
+    public convenience init(
+        declaration: String,
+        invoke: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> RuntimeValue,
+        workerOperation: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> HostWorkerOperation
+    ) throws {
+        try self.init(
+            signature: HostSignature(parsing: declaration),
+            invoke: invoke,
+            workerOperation: workerOperation)
+    }
+
+    public init(
+        signature: HostSignature,
+        invoke implementation: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> RuntimeValue,
+        workerOperation: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> HostWorkerOperation
+    ) throws {
+        try Self.validateRegistration(signature, expectsAsync: false)
+        self.name = signature.callableName
+        self.signatures = [signature]
+        self.canSuspend = true
+        self.hasWorkerOperation = true
+        let checked: @MainActor
+            (CallArguments, EvalContext) throws -> RuntimeValue = {
+                arguments, context in
+            let match = try signature.validate(
+                arguments: arguments, in: context)
+            let result: RuntimeValue
+            do {
+                result = try implementation(arguments, context)
+            } catch {
+                throw Self.checkedImplementationError(error, for: signature)
+            }
+            try signature.validateReturn(result, match: match, in: context)
+            return result
+        }
+        self.invoke = checked
+        self.suspendingInvoke = { arguments, context in
+            let match = try signature.validate(
+                arguments: arguments, in: context)
+            let result: RuntimeValue
+            do {
+                if let workerValue = try await context
+                    .runHostWorkerOperation({
+                        try workerOperation(arguments, context)
+                    }) {
+                    result = workerValue
+                } else {
+                    result = try implementation(arguments, context)
+                }
+            } catch {
+                throw Self.checkedImplementationError(error, for: signature)
+            }
+            try signature.validateReturn(result, match: match, in: context)
+            return result
         }
     }
 
@@ -165,6 +264,7 @@ public final class HostFunction {
         self.name = signature.callableName
         self.signatures = [signature]
         self.canSuspend = true
+        self.hasWorkerOperation = false
         self.invoke = { _, _ in
             throw RuntimeError(message:
                 "async host function '\(signature.callableName)' requires runAsync and await")
@@ -208,6 +308,7 @@ public final class HostFunction {
         self.name = signature.callableName
         self.signatures = [signature]
         self.canSuspend = true
+        self.hasWorkerOperation = false
         self.invoke = { arguments, context in
             let match = try signature.validate(arguments: arguments, in: context)
             let result: RuntimeValue
@@ -263,6 +364,8 @@ public final class HostFunction {
         self.name = name
         self.signatures = declarations
         self.canSuspend = overloads.contains(where: \.canSuspend)
+        self.hasWorkerOperation = overloads.contains(
+            where: \.hasWorkerOperation)
         self.invoke = { arguments, context in
             let selected = try Self.select(
                 from: overloads, arguments: arguments, context: context)
@@ -364,6 +467,8 @@ public final class HostProperty {
         (RuntimeValue, EvalContext) async throws -> RuntimeValue
     public typealias Setter = @MainActor
         (RuntimeValue, RuntimeValue, EvalContext) throws -> Void
+    public typealias WorkerGetter = @MainActor
+        (RuntimeValue, EvalContext) throws -> HostWorkerOperation
 
     private enum GetterImplementation {
         case synchronous(Getter)
@@ -372,9 +477,13 @@ public final class HostProperty {
 
     public let signature: HostSignature
     public let name: String
-    public var canSuspend: Bool { signature.isAsync }
+    public var canSuspend: Bool {
+        signature.isAsync || workerGetter != nil
+    }
+    var hasWorkerOperation: Bool { workerGetter != nil }
     private let getter: GetterImplementation
     private let setter: Setter?
+    private let workerGetter: WorkerGetter?
 
     public convenience init(
         declaration: String,
@@ -416,6 +525,49 @@ public final class HostProperty {
         self.name = signature.name
         self.getter = .synchronous(get)
         self.setter = set
+        self.workerGetter = nil
+    }
+
+    /// Register a read-only source-synchronous property whose native getter
+    /// can be forwarded to the bounded physical runtime. The confined getter
+    /// remains the fallback for cooperative and actor-isolated execution.
+    public convenience init(
+        declaration: String,
+        get: @escaping Getter,
+        workerGet: @escaping WorkerGetter
+    ) throws {
+        try self.init(
+            signature: HostSignature(parsing: declaration),
+            get: get,
+            workerGet: workerGet)
+    }
+
+    public init(
+        signature: HostSignature,
+        get: @escaping Getter,
+        workerGet: @escaping WorkerGetter
+    ) throws {
+        guard signature.kind == .property
+                || signature.kind == .staticProperty else {
+            throw HostSignatureError.invalidRegistration(
+                declaration: signature.declaration,
+                reason: "HostProperty requires a property declaration")
+        }
+        guard !signature.isAsync else {
+            throw HostSignatureError.invalidRegistration(
+                declaration: signature.declaration,
+                reason: "a worker getter requires a synchronous declaration")
+        }
+        guard !signature.isSettable else {
+            throw HostSignatureError.invalidRegistration(
+                declaration: signature.declaration,
+                reason: "a worker getter must be read-only")
+        }
+        self.signature = signature
+        self.name = signature.name
+        self.getter = .synchronous(get)
+        self.setter = nil
+        self.workerGetter = workerGet
     }
 
     /// Registers a genuinely suspending property getter. Swift does not
@@ -453,6 +605,7 @@ public final class HostProperty {
         self.name = signature.name
         self.getter = .asynchronous(asyncGet)
         self.setter = nil
+        self.workerGetter = nil
     }
 
     public func read(
@@ -476,6 +629,21 @@ public final class HostProperty {
     public func readSuspending(
         from receiver: RuntimeValue, in context: EvalContext
     ) async throws -> RuntimeValue {
+        if let workerGetter {
+            try signature.validateReceiver(receiver, in: context)
+            let workerValue: RuntimeValue?
+            do {
+                workerValue = try await context.runHostWorkerOperation(
+                    { try workerGetter(receiver, context) })
+            } catch {
+                throw checkedGetterError(error)
+            }
+            if let value = workerValue {
+                try signature.validatePropertyValue(value, in: context)
+                return value
+            }
+            return try read(from: receiver, in: context)
+        }
         guard case .asynchronous(let getter) = getter else {
             return try read(from: receiver, in: context)
         }

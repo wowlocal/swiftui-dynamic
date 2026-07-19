@@ -1,3 +1,30 @@
+import Foundation
+
+@MainActor
+private enum CoreWorkerHostProperties {
+    static let threadIsMainThread: HostProperty = {
+        do {
+            return try HostProperty(
+                declaration:
+                    "static var Thread.isMainThread: Bool { get }",
+                get: { _, context in
+                    // Cooperative mode exposes the logical source lane. This
+                    // remains the deterministic fallback when no physical
+                    // host operation can be admitted.
+                    .native(context.sourceExecutor.isMainActor)
+                },
+                workerGet: { _, _ in
+                    HostWorkerOperation {
+                        .bool(Thread.isMainThread)
+                    }
+                })
+        } catch {
+            preconditionFailure(
+                "invalid Thread.isMainThread host contract: \(error)")
+        }
+    }()
+}
+
 /// Eager member lookup retains all established precedence rules, but cannot
 /// itself await an effectful host getter. The async evaluator resolves this
 /// private carrier immediately after lookup and never exposes it to source.
@@ -13,6 +40,32 @@ final class PendingHostPropertyRead {
 }
 
 extension Interpreter {
+    /// Whether an eager-looking host property needs the async evaluator only
+    /// as an implementation transport to the bounded worker. Authored async
+    /// properties are deliberately excluded: they still require source
+    /// `await` and compiler preflight.
+    func hostPropertyUsesWorkerOperation(
+        _ name: String, on baseValue: RuntimeValue
+    ) -> Bool {
+        let payload: Any
+        switch baseValue {
+        case .host(let value):
+            payload = value
+        case .optional(let optional):
+            guard let wrapped = optional.wrapped else { return false }
+            return hostPropertyUsesWorkerOperation(name, on: wrapped)
+        default:
+            return false
+        }
+        if let marker = payload as? HostTypeMarker,
+           marker.name == "Thread", name == "isMainThread" {
+            return CoreWorkerHostProperties.threadIsMainThread
+                .hasWorkerOperation
+        }
+        return registry?.hostProperty(named: name, on: payload)?
+            .hasWorkerOperation == true
+    }
+
     /// One funnel for typed and legacy host-member reads. Parsed properties
     /// win; the dynamic hook remains the migration fallback.
     func readHostMember(
@@ -32,11 +85,13 @@ extension Interpreter {
         }
         if let marker = value as? HostTypeMarker,
            marker.name == "Thread", name == "isMainThread" {
-            // The native MainActor is an implementation host for today's
-            // cooperative evaluator, not the source program's executor.
-            // Project the logical lane so @concurrent/MainActor hops remain
-            // observable without pretending the mutable heap is parallel-safe.
-            return .native(evaluationTaskContext.currentExecutor.isMainActor)
+            let property = CoreWorkerHostProperties.threadIsMainThread
+            let receiver = RuntimeValue.native(marker)
+            if deferringAsyncProperty && property.canSuspend {
+                return .native(PendingHostPropertyRead(
+                    property: property, receiver: receiver))
+            }
+            return try property.read(from: receiver, in: self)
         }
         if let marker = value as? HostTypeMarker,
            marker.name == "MainActor", name == "shared" {
