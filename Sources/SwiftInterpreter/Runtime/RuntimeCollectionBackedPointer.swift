@@ -116,6 +116,41 @@ final class RuntimeCollectionBackedBuffer:
             storage: storage,
             elementRange: elementRange.lowerBound..<end)
     }
+
+    /// Reinterpret the represented byte window using any fixed-width scalar
+    /// layout known by the shared ABI mapper. Equal element types retain the
+    /// original storage; other supported scalar views decode one element per
+    /// target stride and fail closed when their layout is unavailable.
+    func bindingMemory(to typeName: String) throws
+        -> RuntimeCollectionBackedBuffer
+    {
+        let targetName = RuntimeABIMemory.canonicalTypeName(typeName)
+        if let elementTypeName,
+           RuntimeABIMemory.canonicalTypeName(elementTypeName) == targetName {
+            return self
+        }
+        guard let rawBytes = storage.rawBytes else {
+            throw RuntimeError(
+                message: "buffer element ABI is unavailable for memory binding")
+        }
+        let layout = try RuntimeABIMemory.layout(
+            typeName: targetName, value: nil)
+        let byteStart = elementRange.lowerBound * storage.elementStride
+        let byteEnd = elementRange.upperBound * storage.elementStride
+        let bytes = rawBytes.subdata(in: byteStart..<byteEnd)
+        let count = bytes.count / layout.stride
+        var rebound: [RuntimeValue] = []
+        rebound.reserveCapacity(count)
+        for index in 0..<count {
+            let start = index * layout.stride
+            let end = start + layout.size
+            rebound.append(try RuntimeABIMemory.value(
+                from: bytes.subdata(in: start..<end),
+                typeName: targetName))
+        }
+        return RuntimeCollectionBackedBuffer(
+            rebound, elementTypeName: targetName)
+    }
 }
 
 /// Address-like cursor into immutable collection storage. Typed cursors advance

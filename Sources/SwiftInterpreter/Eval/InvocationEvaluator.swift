@@ -125,14 +125,7 @@ extension Interpreter {
     func runtimeConstructorName(
         constructedBy callee: RuntimeValue
     ) -> String? {
-        switch callee {
-        case .hostFunction(let function):
-            return function.name
-        case .host(let value) where value is HostTypeMarker:
-            return (value as! HostTypeMarker).name
-        default:
-            return nil
-        }
+        RuntimeMetatype.name(of: callee)
     }
 
     /// A type constructor fed a collection-backed `start` plus an integer

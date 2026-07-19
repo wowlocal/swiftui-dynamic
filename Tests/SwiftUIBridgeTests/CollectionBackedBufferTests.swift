@@ -256,6 +256,25 @@ import Testing
         #expect(value.intValue == 82)
     }
 
+    /// Raw-buffer rebinding is discovered from the standard-library
+    /// interface and preserves the carrier's bytes and indexing semantics.
+    @Test func collectionBackedRawBufferSupportsMemoryBinding() throws {
+        let source = """
+        var result = -1
+        let bytes: [UInt8] = [41, 42]
+        bytes.withUnsafeBufferPointer { typed in
+            let raw = UnsafeRawBufferPointer(
+                start: typed.baseAddress, count: typed.count)
+            let rebound = raw.bindMemory(to: UInt8.self)
+            result = Int(rebound[1])
+        }
+        result
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.intValue == 42)
+    }
+
     @Test func loadedUInt64SupportsZeroByteDetection() throws {
         let source = """
         func firstMatchingWord(_ values: [UInt8], _ target: UInt8) -> Int {

@@ -32,7 +32,7 @@ enum RuntimeUnicodeDecodingConstructor {
         guard let encodedMetatype = arguments.labeled(
                 initializer.encodingLabel),
               let encodingValue = encodedMetatype.unwrappedOptionalOrSelf,
-              let encodingTypeName = runtimeMetatypeName(encodingValue) else {
+              let encodingTypeName = RuntimeMetatype.name(of: encodingValue) else {
             throw RuntimeError(
                 message: "Unicode decoding needs an encoding metatype")
         }
@@ -50,23 +50,6 @@ enum RuntimeUnicodeDecodingConstructor {
                 message: "encoding metatype is not a generated Unicode encoding")
         }
         return .native(decoded)
-    }
-
-    private static func runtimeMetatypeName(
-        _ value: RuntimeValue
-    ) -> String? {
-        switch value {
-        case .host(let payload):
-            return (payload as? HostTypeMarker)?.name
-        case .type(let symbol):
-            return symbol.name
-        case .enumType(let symbol):
-            return symbol.name
-        case .hostFunction(let function):
-            return function.name
-        default:
-            return nil
-        }
     }
 
     private static func unsignedMagnitude(

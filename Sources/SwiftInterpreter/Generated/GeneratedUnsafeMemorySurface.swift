@@ -4,6 +4,10 @@ enum GeneratedUnsafeMemorySurface {
     static let pointerTypeNames: Set<String> = Set(["AutoreleasingUnsafeMutablePointer", "UnsafeMutablePointer", "UnsafeMutableRawPointer", "UnsafePointer", "UnsafeRawPointer"])
     static let rawPointerTypeNames: Set<String> = Set(["UnsafeMutableRawPointer", "UnsafeRawPointer"])
     static let bufferTypeNames: Set<String> = Set(["UnsafeBufferPointer", "UnsafeMutableBufferPointer", "UnsafeMutableRawBufferPointer", "UnsafeRawBufferPointer"])
+    static let bufferRebindingMetatypeLabels: [String: String] = [
+        "assumingMemoryBound": "to",
+        "bindMemory": "to",
+    ]
 
     static func isPointerType(_ name: String) -> Bool {
         pointerTypeNames.contains(canonicalTypeName(name))
@@ -15,6 +19,10 @@ enum GeneratedUnsafeMemorySurface {
 
     static func isBufferType(_ name: String) -> Bool {
         bufferTypeNames.contains(canonicalTypeName(name))
+    }
+
+    static func bufferRebindingMetatypeLabel(for name: String) -> String? {
+        bufferRebindingMetatypeLabels[name]
     }
 
     private static func canonicalTypeName(_ rawName: String) -> String {

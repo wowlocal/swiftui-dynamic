@@ -218,6 +218,17 @@ extension Interpreter {
     /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
         if let buffer = any as? RuntimeCollectionBackedBuffer {
+            if let label = GeneratedUnsafeMemorySurface
+                .bufferRebindingMetatypeLabel(for: name) {
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let typeName = RuntimeMetatype.name(
+                        of: args.labeled(label) ?? args.positional(0)) else {
+                        throw EvalMessage(
+                            text: "memory binding needs a scalar metatype")
+                    }
+                    return .native(try buffer.bindingMemory(to: typeName))
+                })
+            }
             switch name {
             case "count":
                 return .native(buffer.elements.count)
@@ -251,20 +262,7 @@ extension Interpreter {
                     else {
                         throw EvalMessage(text: "load(as:) needs a scalar metatype")
                     }
-                    let typeName: String?
-                    switch metatype {
-                    case .host(let value) where value is HostTypeMarker:
-                        typeName = (value as! HostTypeMarker).name
-                    case .hostFunction(let function):
-                        typeName = function.name
-                    case .type(let symbol):
-                        typeName = symbol.name
-                    case .enumType(let symbol):
-                        typeName = symbol.name
-                    default:
-                        typeName = nil
-                    }
-                    guard let typeName else {
+                    guard let typeName = RuntimeMetatype.name(of: metatype) else {
                         throw EvalMessage(text: "load(as:) needs a scalar metatype")
                     }
                     return try pointer.loadedValue(typeName: typeName)

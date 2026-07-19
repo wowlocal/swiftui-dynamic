@@ -32,6 +32,27 @@ protocol HostStridedMemoryCursor: HostRawMemoryCursor {
         -> any HostStridedMemoryCursor
 }
 
+/// One metatype-name projection shared by unsafe-memory and generated
+/// constructor adapters. Runtime metatypes can arrive through interpreted
+/// declarations, host type markers, or callable constructor values.
+@MainActor
+enum RuntimeMetatype {
+    static func name(of value: RuntimeValue?) -> String? {
+        switch value {
+        case .host(let payload):
+            return (payload as? HostTypeMarker)?.name
+        case .type(let symbol):
+            return symbol.name
+        case .enumType(let symbol):
+            return symbol.name
+        case .hostFunction(let function):
+            return function.name
+        default:
+            return nil
+        }
+    }
+}
+
 public struct RuntimeABILayout: Equatable, Sendable {
     public let size: Int
     public let stride: Int
