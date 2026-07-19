@@ -3136,7 +3136,11 @@
         "ParallelFileServiceGatewayTests/detachedFileManagerPathFormsUseAWorker",
         "ParallelFileServiceGatewayTests/sandboxEscapeIsRejectedIdenticallyOnBothFaces",
         "ParallelFileServiceGatewayTests/mappedFailureDescriptionAgreesAcrossFaces",
-        "ParallelFileServiceGatewayTests/workerListedURLsBehaveAsOrdinaryArraysInSource"
+        "ParallelFileServiceGatewayTests/workerListedURLsBehaveAsOrdinaryArraysInSource",
+        "ParallelFileServiceGatewayTests/detachedCancellationDoesNotSuppressFileOperations",
+        "ParallelFileServiceGatewayTests/outsideSandboxQueriesPassThroughOnBothFaces",
+        "ParallelFileServiceGatewayTests/contendingDetachedRemovalsDrainDeterministically",
+        "ParallelFileServiceGatewayTests/createDirectoryExplicitAttributesAreSandboxInert"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"

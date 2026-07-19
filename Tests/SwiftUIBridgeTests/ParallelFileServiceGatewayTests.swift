@@ -513,6 +513,177 @@ struct ParallelFileServiceGatewayTests {
     }
 
     @Test
+    func detachedCancellationDoesNotSuppressFileOperations() async throws {
+        // Native semantics: a detached body always runs; a synchronous
+        // file operation inside it does not observe cancellation. The
+        // physical face must not turn a cancelled handle into a skipped
+        // or failed operation.
+        let source = """
+        func probe() async -> String {
+            let manager = FileManager.default
+            let victim = manager.temporaryDirectory
+                .appendingPathComponent("cancelled-remove", isDirectory: true)
+            try? manager.createDirectory(
+                at: victim, withIntermediateDirectories: true)
+            let handle = Task.detached(priority: .userInitiated) {
+                try FileManager.default.removeItem(at: victim)
+            }
+            handle.cancel()
+            do {
+                try await handle.value
+            } catch {
+                return "threw"
+            }
+            let removed = !manager.fileExists(atPath: victim.path)
+            return removed ? "removed" : "survived"
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "removed")
+        #expect(parallelValue.stringValue == "removed")
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func outsideSandboxQueriesPassThroughOnBothFaces() async throws {
+        // The stated policy: non-throwing queries are unrestricted. A
+        // detached existence read of a real system path crosses and
+        // answers truthfully, exactly like the confined face always has.
+        let source = """
+        func probe() async -> String {
+            let exists = await Task.detached {
+                FileManager.default.fileExists(atPath: "/")
+            }.value
+            return exists ? "true" : "false"
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "true")
+        #expect(parallelValue.stringValue == "true")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 1)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 1)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func contendingDetachedRemovalsDrainDeterministically() async throws {
+        // Two detached removals of the same item under a one-permit pool:
+        // FIFO order makes the first succeed and the second fail with the
+        // mapped missing-item error; the failed job still drains its
+        // permit and record. Cooperative mode serializes identically.
+        let source = """
+        func probe() async -> String {
+            let manager = FileManager.default
+            let victim = manager.temporaryDirectory
+                .appendingPathComponent("contended-remove", isDirectory: true)
+            try? manager.createDirectory(
+                at: victim, withIntermediateDirectories: true)
+            let first = Task.detached(priority: .userInitiated) {
+                try FileManager.default.removeItem(at: victim)
+            }
+            let second = Task.detached(priority: .userInitiated) {
+                try FileManager.default.removeItem(at: victim)
+            }
+            var outcomes: [String] = []
+            do { try await first.value; outcomes.append("ok") }
+            catch { outcomes.append("error") }
+            do { try await second.value; outcomes.append("ok") }
+            catch { outcomes.append("error") }
+            return outcomes.joined(separator: "|")
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "ok|error")
+        #expect(parallelValue.stringValue == "ok|error")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 2)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 1)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func createDirectoryExplicitAttributesAreSandboxInert() async throws {
+        // The sandbox-analog row ignores explicit attributes (a fresh
+        // container accepts permissive creation); this pins the divergence
+        // deliberately: the directory exists, creation succeeded, and both
+        // faces agree. Attribute application remains a documented
+        // non-goal of the fresh-container reading.
+        let source = """
+        func probe() async -> String {
+            let target = FileManager.default.temporaryDirectory
+                .appendingPathComponent("attributed", isDirectory: true)
+            do {
+                try await Task.detached {
+                    try FileManager.default.createDirectory(
+                        at: target,
+                        withIntermediateDirectories: true,
+                        attributes: [FileAttributeKey.posixPermissions: 448])
+                }.value
+            } catch {
+                return "threw"
+            }
+            let created = FileManager.default.fileExists(atPath: target.path)
+            return created ? "created" : "missing"
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "created")
+        #expect(parallelValue.stringValue == "created")
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func fileManagerSandboxIsOwnedByItsRegistry() throws {
         // The parallel-worker sandbox race: a process-global root let any
         // concurrent verification reset delete or redirect an in-flight
