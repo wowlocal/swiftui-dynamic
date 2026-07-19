@@ -801,7 +801,9 @@ extension Interpreter {
         }
 
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
-        if mutating.contains(name),
+        let removesRange = GeneratedRangeMutationSurface.removesRange(
+            named: name)
+        if (mutating.contains(name) || removesRange),
            var array = baseValue.arrayValue,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
@@ -889,7 +891,18 @@ extension Interpreter {
                 }
                 if let failure { throw failure }
             default:
-                return nil
+                guard removesRange,
+                      args.arguments.count == 1,
+                      let range = args.positional(0)?.rangeValue?
+                        .halfOpenIntRange,
+                      range.lowerBound >= 0,
+                      range.lowerBound <= range.upperBound,
+                      range.upperBound <= array.count else {
+                    throw error(
+                        call,
+                        "generated range removal needs valid Array indices")
+                }
+                array.removeSubrange(range)
             }
             try relocating(call) {
                 try target.writeCanonicalOwned(.native(array), self)
