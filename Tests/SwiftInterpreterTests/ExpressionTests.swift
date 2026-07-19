@@ -78,6 +78,58 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(#""line\nbreak""#).stringValue == "line\nbreak")
     }
 
+    /// Same-module extension overloads compete with imported members after
+    /// argument types are known. Native Swift calls the Optional overload for
+    /// nil exactly once, but selects Foundation's exact String overload for a
+    /// non-optional argument (including the delegation inside that body).
+    @Test func sourceAndImportedMemberOverloadsUseArgumentTypes() throws {
+        let source = """
+        var extensionCalls = 0
+
+        extension String {
+            func appending(_ other: String?) -> String {
+                extensionCalls += 1
+                guard let value: String = other else { return self }
+                return self.appending(value)
+            }
+        }
+
+        let optionalSuffix: String? = ".log"
+        let nilResult = "session".appending(nil)
+        let stringResult = "file".appending(".txt")
+        let optionalResult = "trace".appending(optionalSuffix)
+        "\\(extensionCalls)|\\(nilResult)|\\(stringResult)|\\(optionalResult)"
+        """
+        #expect(try eval(source).stringValue == "2|session|file.txt|trace.log")
+    }
+
+    @Test func sourceAndImportedMemberOverloadsMatchInAsyncSession() async throws {
+        let source = """
+        var extensionCalls = 0
+
+        extension String {
+            func appending(_ other: String?) -> String {
+                extensionCalls += 1
+                guard let value: String = other else { return self }
+                return self.appending(value)
+            }
+        }
+
+        func probe() async -> String {
+            await Task.yield()
+            let optionalSuffix: String? = ".log"
+            let nilResult = "session".appending(nil)
+            let stringResult = "file".appending(".txt")
+            let optionalResult = "trace".appending(optionalSuffix)
+            return "\\(extensionCalls)|\\(nilResult)|\\(stringResult)|\\(optionalResult)"
+        }
+
+        await probe()
+        """
+        let value = try await Interpreter().runAsync(source: source)
+        #expect(value.stringValue == "2|session|file.txt|trace.log")
+    }
+
     @Test func booleansAndComparison() throws {
         #expect(try eval("true && false").boolValue == false)
         #expect(try eval("true || false").boolValue == true)

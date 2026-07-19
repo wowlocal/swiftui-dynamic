@@ -1860,7 +1860,8 @@
             "parallel-shadowed-array-map",
             "parallel-shadowed-array-reduce",
             "parallel-shadowed-substring-count",
-            "parallel-host-gateway-thread-lane"
+            "parallel-host-gateway-thread-lane",
+            "source-imported-string-overload"
           ],
           "evidenceCaseIDs": [
             "extract-isolation-nonisolated",
@@ -1983,6 +1984,8 @@
             "RuntimeParallelSourceKernelTests/sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway",
             "RuntimeParallelSourceKernelTests/workerAdmissionNeverForcesComputedCallables",
             "HostSignatureTests/workerGatewaysRequireSynchronousReadOnlyContracts",
+            "ExpressionTests/sourceAndImportedMemberOverloadsUseArgumentTypes",
+            "ExpressionTests/sourceAndImportedMemberOverloadsMatchInAsyncSession",
             "RuntimeParallelSourceKernelTests/detachedYieldUsesPhysicalSuspendingKernel",
             "RuntimeParallelSourceKernelTests/detachedOperationArgumentUsesPhysicalYieldKernel",
             "RuntimeParallelSourceKernelTests/detachedOperationDefaultPriorityUsesPhysicalYieldKernel",

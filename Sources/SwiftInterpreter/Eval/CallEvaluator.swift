@@ -520,6 +520,17 @@ extension Interpreter {
                 return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
             }
         }
+        // Same-module extensions and imported members form one overload set.
+        // Defer the decision until arguments are evaluated instead of letting
+        // bare member lookup make a source-only choice.
+        if let overloads = try typedHostExtensionMethodOverloads(
+            named: name, on: baseValue
+        ) {
+            let args = try collectArguments(of: call, in: env)
+            let target = try resolveTypedHostExtensionMethodTarget(
+                overloads, arguments: args)
+            return try invoke(target, with: args, node: call)
+        }
         // MUTATING methods on ENUM receivers through writable lvalues:
         // `wrappedValue.setIsLoading(cancelBag:)` — the method runs on a
         // copy whose `self` reassignments write BACK through the lvalue

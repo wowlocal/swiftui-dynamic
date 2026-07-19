@@ -3361,5 +3361,17 @@
     "expectedPhysicalSourceKernelExecutions": 0,
     "nativeFact": "A same-module Substring.count computed property is selected by a context-inferred \\.count key path over an explicitly typed [Substring] inside Task.detached, while the identical key path over [String] still selects String.count; the exact combined result is 178:3.",
     "notes": "CotEditor demand-cites selectedStrings.map(\\.count).reduce(0, +) at Sources/Scanners/EditorCounter.swift:176. This oracle isolates the key-path element property after the Array.map and Array.reduce target proofs. The explicit [Substring] versus [String] annotations are semantic evidence for each key path's inferred root; their shared runtime String storage is not a declaration identity. Apple Swift 6.3.3 compiled the same-source fixture in complete strict Swift 6 mode with warnings as errors and returned exact 178:3 in twenty bounded runs; all four five-run native shards reported SHA-256 6c177a2ff65fa47eaf04034c87bd3446d3047a1267fb98e302d5634fb93cb2a5. Before the fix, both interpreter modes returned 3 for the Substring branch and explicit parallel mode recorded one physical submission/execution. Array key-path application now carries the source binding's static element type into root-property dispatch, so Substring and String remain distinct even though RuntimeValue stores both as String snapshots. Physical admission separately requires an explicit Substring array annotation and a typed standard-library Substring.count target identity from the closure's originating RuntimeProgramState; a source extension fails closed. The retained two-run regression returns exact 178 and 3 with zero receipts, while the positive stdlib Substring reduction keeps its physical path. No worker identity or scheduler order is asserted."
+  },
+  {
+    "id": "source-imported-string-overload",
+    "fixture": "Fixtures/source-imported-string-overload.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await sourceImportedStringOverloadOutput()",
+    "interpreterProjection": "string",
+    "nativeFact": "When a same-module String.appending(String?) overload competes with Foundation's String.appending(String), nil and Optional<String> arguments select the source overload, while an exact String argument selects the imported overload, including the source overload's exact-String delegation.",
+    "notes": "The full parallel-worker gate exposed this gap through the session-script corpus fixture after source extensions gained precedence over imported members: bare member lookup chose the Optional source overload before argument types were available, and its exact-String delegation recursed until the interpreter's call-depth guard fired. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact session<nil>|file.txt|trace.log<optional> in twenty bounded native/interpreter runs; every five-run native shard retained SHA-256 915e65292ef7467c384ca65e498e84f5e843e06f49bf1725a81e35dfb996a2db. The runtime now forms a bounded source/imported overload set only for synchronous source methods competing with a typed synchronous host gateway, evaluates arguments once, and compares both sides with the shared HostSignature matcher. Async source overload families and untyped or suspending host gateways retain the established conservative path. No scheduler order or physical-worker behavior is asserted."
   }
 ]

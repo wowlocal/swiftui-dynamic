@@ -1086,6 +1086,23 @@ extension Interpreter {
             }
             let baseValue = evaluatedBase
 
+            // Source extensions and typed imported members compete only once
+            // argument types are available. Use the same target resolver as
+            // eager evaluation, then retain suspension-aware invocation.
+            if let overloads = try typedHostExtensionMethodOverloads(
+                named: name, on: baseValue
+            ) {
+                let args = try await collectArgumentsSuspending(
+                    of: call, in: env)
+                let target = try resolveTypedHostExtensionMethodTarget(
+                    overloads, arguments: args)
+                return try await invokeSuspending(
+                    target,
+                    with: args,
+                    node: call,
+                    sourceAllowsHostSuspension: forceInvocation)
+            }
+
             // Provenance uses `_Concurrency.MainActor.run(body:)` after a
             // detached sleep. Admit that API only through the intrinsic
             // generated from the active _Concurrency.swiftinterface. A bare

@@ -7,6 +7,16 @@ import SwiftSyntax
 /// `names.map { … }` works like any other call; closure-taking methods call
 /// back through the `EvalContext`.
 extension Interpreter {
+    @MainActor private static let stringAppendingSignature: HostSignature = {
+        do {
+            return try HostSignature(
+                parsing: "func String.appending(_ other: String) -> String")
+        } catch {
+            preconditionFailure(
+                "invalid String.appending host contract: \(error)")
+        }
+    }()
+
     /// Typed entry point for standard-library member dispatch. Keeping this
     /// separate from the host-`Any` fallback lets core values migrate to
     /// dedicated RuntimeValue storage without changing framework gateways.
@@ -1137,9 +1147,16 @@ extension Interpreter {
         case "isWhitespace" where string.count == 1:
             return .native(string.first!.isWhitespace)
         case "appending":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(string + (args.positional(0)?.stringValue ?? ""))
-            })
+            do {
+                return .hostFunction(try HostFunction(
+                    signature: Self.stringAppendingSignature
+                ) { args, _ in
+                    .native(string + args.positional(0)!.stringValue!)
+                })
+            } catch {
+                preconditionFailure(
+                    "invalid String.appending host gateway: \(error)")
+            }
         case "elementsEqual":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 .native(args.positional(0)?.stringValue == string)

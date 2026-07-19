@@ -1,6 +1,17 @@
 import Foundation
 import SwiftSyntax
 
+/// One source-extension method family competing with a typed imported
+/// standard-library member. Member lookup alone cannot select this target:
+/// Swift ranks overloads after argument labels and types are known.
+@MainActor
+struct TypedHostExtensionMethodOverloads {
+    let typeName: String
+    let sourceMethods: [FunctionDeclSyntax]
+    let importedMethod: HostFunction
+    let receiver: RuntimeValue
+}
+
 extension Interpreter {
     // MARK: - Identifiers & members
 
@@ -527,6 +538,116 @@ extension Interpreter {
             }
         }
         return nil
+    }
+
+    /// Preserve compiler-style overload selection when a same-module source
+    /// extension adds an overload beside a typed imported member. Returning a
+    /// closure during bare member lookup is too early: for example,
+    /// `String.appending(String?)` wins for `nil`, while Foundation's
+    /// `appending(String)` wins for a non-optional String.
+    func typedHostExtensionMethodOverloads(
+        named name: String,
+        on receiver: RuntimeValue
+    ) throws -> TypedHostExtensionMethodOverloads? {
+        guard let payload = receiver.hostPayload else { return nil }
+
+        var typeNames: [String] = []
+        if let typeName = registry?.hostTypeName(of: payload) {
+            typeNames.append(typeName)
+        }
+        if payload is String, !typeNames.contains("String") {
+            typeNames.append("String")
+        }
+        if payload is [RuntimeValue], !typeNames.contains("Array") {
+            typeNames.append("Array")
+        }
+        if payload is BindingStub, !typeNames.contains("Binding") {
+            typeNames.append("Binding")
+        }
+
+        guard let imported = try nativeMember(name, on: receiver),
+              case .hostFunction(let importedMethod) = imported,
+              !importedMethod.signatures.isEmpty,
+              !importedMethod.canSuspend else {
+            return nil
+        }
+        for typeName in typeNames {
+            guard let sourceMethods = hostExtensionSymbols[typeName]?
+                .methods[name],
+                  !sourceMethods.isEmpty,
+                  sourceMethods.allSatisfy({
+                    !functionMetadata(for: $0).isAsync
+                  }) else {
+                continue
+            }
+            return TypedHostExtensionMethodOverloads(
+                typeName: typeName,
+                sourceMethods: sourceMethods,
+                importedMethod: importedMethod,
+                receiver: receiver)
+        }
+        return nil
+    }
+
+    /// Resolve the overload set only after argument evaluation. Both sides
+    /// use HostSignature's shared label/type/default/generic scoring, so an
+    /// Optional promotion cannot outrank an exact imported parameter.
+    func resolveTypedHostExtensionMethodTarget(
+        _ overloads: TypedHostExtensionMethodOverloads,
+        arguments: CallArguments
+    ) throws -> RuntimeValue {
+        let available = overloads.sourceMethods.count > 1
+            ? overloads.sourceMethods.filter {
+                !activeFunctionBodies.contains($0.id)
+            }
+            : overloads.sourceMethods
+
+        var bestSource: (declaration: FunctionDeclSyntax, score: Int)?
+        for declaration in available {
+            let genericClause = declaration.genericParameterClause?
+                .trimmedDescription ?? ""
+            let whereClause = declaration.genericWhereClause.map {
+                " " + $0.trimmedDescription
+            } ?? ""
+            let sourceDeclaration = "func \(declaration.name.text)"
+                + genericClause + declaration.signature.trimmedDescription
+                + whereClause
+            guard let signature = try? HostSignature(
+                    parsing: sourceDeclaration),
+                  let match = signature.match(
+                    arguments: arguments, in: self) else {
+                continue
+            }
+            if bestSource == nil || match.score > bestSource!.score {
+                bestSource = (declaration, match.score)
+            }
+        }
+
+        let importedScore = overloads.importedMethod.signatures.compactMap {
+            $0.match(arguments: arguments, in: self)?.score
+        }.max()
+        if let importedScore,
+           importedScore > (bestSource?.score ?? Int.min) {
+            return .hostFunction(overloads.importedMethod)
+        }
+        if let declaration = bestSource?.declaration,
+           let body = functionMetadata(for: declaration).body {
+            let closure = makeFunctionClosure(
+                declaration,
+                body: body,
+                captured: selfEnvironment(overloads.receiver))
+            closure.extensionFrame = ExtensionFrame(
+                typeName: overloads.typeName,
+                member: declaration.name.text)
+            closure.functionDeclID = declaration.id
+            return .closure(closure)
+        }
+        if importedScore != nil {
+            return .hostFunction(overloads.importedMethod)
+        }
+        throw RuntimeError(
+            message: "no matching source or imported overload for "
+                + "'\(overloads.typeName).\(overloads.importedMethod.name)'")
     }
 
     func hostCandidates(for any: Any) -> [String] {

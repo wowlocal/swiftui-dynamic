@@ -5329,6 +5329,35 @@ current-tip Swift 6.3.3 TSan bundle rebuilt in 11 seconds and completed native
 overlap 20/20 plus all 114 interpreter tests in 29 seconds total without a race
 or interceptor diagnostic.
 
+The ninety-first prerequisite is a full-gate repair for session-owned member
+selection. The session-script corpus declares
+`String.appending(String?)` and delegates its non-nil branch to
+`String.appending(String)`. Native Swift ranks those declarations only after
+argument typing: `nil` and `Optional<String>` select the source overload, while
+an exact `String` selects Foundation's imported overload. Selecting the source
+closure during bare member lookup is therefore semantically too early.
+
+The reusable repair forms a bounded source/imported overload set when all
+source candidates are synchronous and the imported host gateway has typed,
+non-suspending `HostSignature` contracts. Both eager and async-session call
+paths evaluate arguments exactly once, rank source and imported signatures
+with the shared matcher, and only then materialize the selected source closure
+or host function. `String.appending(_:)` now exposes its real typed host
+contract instead of a legacy label-only gateway. Async source overload
+families, untyped native members, suspending gateways, and general
+compiler-constraint ranking retain their established conservative paths.
+
+The same-source oracle yields once before exercising nil, exact-String, and
+optional-some calls. Apple Swift 6.3.3 complete-strict compilation and the
+interpreter returned exact
+`session<nil>|file.txt|trace.log<optional>` in twenty bounded runs; every
+five-run native shard retained SHA-256
+`915e65292ef7467c384ca65e498e84f5e843e06f49bf1725a81e35dfb996a2db`.
+The retained corpus regression and both eager/async unit probes are green.
+The canonical focused iteration passed 38 target tests, all 46
+methodology/gate checks, and 20/20 parity repetitions; the current TSan board
+passed native overlap 20/20 plus all 114 worker tests without diagnostics.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -5345,8 +5374,9 @@ the exact synchronous explicitly-nonisolated static protocol-default
 single-`String`-to-`String` route,
 normalized callee shape,
 and the existing core-Task, `String.count`,
-conservative `String.distance`, `Array.map`, `Array.reduce`, and
-`Substring.count` proofs remain incomplete, as does compiler metadata
+conservative `String.distance`, `Array.map`, `Array.reduce`, `Substring.count`,
+and bounded synchronous source/imported-host overload proofs remain
+incomplete outside their admitted subsets, as does compiler metadata
 indexing. Mutable symbol materialization
 plus evaluator state must move fully
 behind the session, and

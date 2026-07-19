@@ -11056,3 +11056,44 @@ driver/kernel/source-call tests in three suites; the unchanged TaskObservatory
 integration board passed 3/3 tests. The exact-tip Swift 6.3.3 TSan bundle
 rebuilt in 11 seconds and completed native overlap 20/20 plus all 114
 interpreter tests in 29 seconds total without a race or interceptor diagnostic.
+
+### Source/imported host overload ranking after argument typing
+
+The ninety-first M9 iteration repairs a regression caught only by the full
+parallel-worker gate. `CorpusTests.sessionScriptToleranceIntervalsAndAppending`
+declares `String.appending(String?)`; its non-nil branch delegates to
+Foundation's `String.appending(String)`. After core source extensions gained
+member-lookup precedence, the interpreter chose the Optional source method
+before arguments were known. The exact-String delegation consequently entered
+that same method until the call-depth guard reported
+`call depth exceeded (possible infinite recursion)`.
+
+The semantic question is which declaration Swift selects for nil,
+`Optional<String>`, and exact `String` arguments when a same-module extension
+competes with an imported member. The committed
+`source-imported-string-overload.swift` oracle yields once, then exercises all
+three forms including delegation from the source body. Apple Swift 6.3.3
+compiled it in complete-strict Swift 6 mode with warnings as errors. Twenty
+bounded native/interpreter runs returned exact
+`session<nil>|file.txt|trace.log<optional>`; every five-run native shard
+retained SHA-256
+`915e65292ef7467c384ca65e498e84f5e843e06f49bf1725a81e35dfb996a2db`.
+No scheduler order or worker identity is asserted.
+
+The runtime now delays this bounded target decision until arguments have been
+evaluated once. It combines same-module host-type extension methods with an
+imported member only when every source candidate is synchronous and the host
+function publishes typed, non-suspending signatures. Source signatures are
+derived from their declarations and both sides use the existing
+`HostSignature` matcher; the winning declaration is then invoked through the
+ordinary eager or suspension-aware path. `String.appending(_:)` now publishes
+its actual `String -> String` host signature. Async source overload families,
+untyped or suspending host members, and general compiler-grade constraint
+ranking remain outside this narrow proof.
+
+The retained corpus RED is green, eager and async-session unit probes return
+the native value, and the focused board passed 195 tests in six suites. The
+canonical iteration passed 38 target tests, all 46 methodology/gate checks,
+and 20/20 focused parity repetitions in two seconds. A current sanitized build
+passed native overlap 20/20 and all 114 TSan worker tests without a race or
+interceptor diagnostic.
