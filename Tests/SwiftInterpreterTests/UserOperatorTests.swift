@@ -67,4 +67,30 @@ import Testing
         let result = try Interpreter().run(source: source)
         #expect(result.intValue == 42)
     }
+
+    /// A generic parameter inside a concrete outer type does not erase that
+    /// outer type during overload selection. SwiftSoup declares generic
+    /// collection operators that must not capture unrelated pointer operands.
+    @Test func genericOperatorOverloadRequiresItsConcreteOuterType() throws {
+        let source = """
+        struct Cursor {
+            let offset: Int
+        }
+
+        struct Box<Element> {}
+
+        func +<Element, Other>(lhs: Box<Element>, rhs: Other) -> Int {
+            -100
+        }
+
+        func +(lhs: Cursor, rhs: Int) -> Int {
+            lhs.offset + rhs
+        }
+
+        Cursor(offset: 40) + 2
+        """
+
+        let result = try Interpreter().run(source: source)
+        #expect(result.intValue == 42)
+    }
 }

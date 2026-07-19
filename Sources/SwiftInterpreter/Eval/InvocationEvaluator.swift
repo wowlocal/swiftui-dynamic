@@ -42,6 +42,35 @@ extension Interpreter {
         return .directGlobalAsyncFunctionDeclaration
     }
 
+    /// The concrete nominal shell around generic arguments, when source type
+    /// syntax supplies one. `Element` and `S.Iterator.Element` remain
+    /// unconstrained, while `Box<Element>` still requires a `Box` value.
+    private func concreteGenericOuterType(
+        in annotation: String,
+        genericParameterNames: Set<String>
+    ) -> String? {
+        guard let angle = annotation.firstIndex(of: "<") else { return nil }
+        var outer = annotation[..<angle]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["any ", "some ", "inout ", "borrowing ", "consuming "] {
+            if outer.hasPrefix(prefix) {
+                outer.removeFirst(prefix.count)
+                outer = outer.trimmingCharacters(in: .whitespaces)
+            }
+        }
+        guard !outer.isEmpty,
+              outer.allSatisfy({
+                  $0.isLetter || $0.isNumber || $0 == "_" || $0 == "."
+              }) else {
+            return nil
+        }
+        let identifiers = Set(outer.split(separator: ".").map(String.init))
+        guard identifiers.isDisjoint(with: genericParameterNames) else {
+            return nil
+        }
+        return outer
+    }
+
     /// Positive runtime type fitting for source overload candidates. Call
     /// shape alone is insufficient when independently compiled source files
     /// contribute same-shaped overloads; concrete parameter annotations must
@@ -60,6 +89,12 @@ extension Interpreter {
                     !$0.isLetter && !$0.isNumber && $0 != "_"
                 }.map(String.init))
                 if !identifiers.isDisjoint(with: genericParameterNames) {
+                    if let outer = concreteGenericOuterType(
+                        in: annotation,
+                        genericParameterNames: genericParameterNames
+                    ), !valueIsType(argument.value, outer) {
+                        return false
+                    }
                     continue
                 }
                 if valueIsType(argument.value, annotation) { continue }
