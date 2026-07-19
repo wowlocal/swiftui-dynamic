@@ -1,6 +1,17 @@
 import Foundation
 import SwiftSyntax
 
+/// One source-extension method family competing with a typed imported
+/// standard-library member. Member lookup alone cannot select this target:
+/// Swift ranks overloads after argument labels and types are known.
+@MainActor
+struct TypedHostExtensionMethodOverloads {
+    let typeName: String
+    let sourceMethods: [FunctionDeclSyntax]
+    let importedMethod: HostFunction
+    let receiver: RuntimeValue
+}
+
 extension Interpreter {
     // MARK: - Identifiers & members
 
@@ -529,6 +540,216 @@ extension Interpreter {
         return nil
     }
 
+    /// Preserve compiler-style overload selection when a same-module source
+    /// extension adds an overload beside a typed imported member. Returning a
+    /// closure during bare member lookup is too early: for example,
+    /// `String.appending(String?)` wins for `nil`, while Foundation's
+    /// `appending(String)` wins for a non-optional String.
+    func typedHostExtensionMethodOverloads(
+        named name: String,
+        on receiver: RuntimeValue,
+        declaredTypeName: String? = nil
+    ) throws -> TypedHostExtensionMethodOverloads? {
+        guard let payload = receiver.hostPayload else { return nil }
+
+        var typeNames: [String] = []
+        func appendTypeName(_ typeName: String?) {
+            guard let typeName, !typeName.isEmpty,
+                  !typeNames.contains(typeName) else { return }
+            typeNames.append(typeName)
+        }
+
+        if let declaredTypeName {
+            let declared = declaredTypeName.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            appendTypeName(declared)
+            if let element = RuntimeDeclaredType.arrayElementTypeName(
+                in: declared) {
+                appendTypeName("[\(element)]")
+                appendTypeName("Array")
+            }
+        }
+        if let typeName = registry?.hostTypeName(of: payload) {
+            appendTypeName(typeName)
+        }
+        if payload is String, !typeNames.contains("String") {
+            appendTypeName("String")
+        }
+        if payload is [RuntimeValue] {
+            if let elements = receiver.arrayValue,
+               let first = elements.first {
+                let elementType = hostTypeName(of: first)
+                if elements.dropFirst().allSatisfy({
+                    valueIsType($0, elementType)
+                }) {
+                    appendTypeName("[\(elementType)]")
+                }
+            }
+            appendTypeName("Array")
+        }
+        if payload is BindingStub, !typeNames.contains("Binding") {
+            appendTypeName("Binding")
+        }
+
+        guard let imported = try nativeMember(name, on: receiver),
+              case .hostFunction(let importedMethod) = imported,
+              !importedMethod.signatures.isEmpty,
+              !importedMethod.canSuspend else {
+            return nil
+        }
+        for typeName in typeNames {
+            guard let sourceMethods = hostExtensionSymbols[typeName]?
+                .methods[name],
+                  !sourceMethods.isEmpty,
+                  sourceMethods.allSatisfy({
+                    !functionMetadata(for: $0).isAsync
+                  }) else {
+                continue
+            }
+            return TypedHostExtensionMethodOverloads(
+                typeName: typeName,
+                sourceMethods: sourceMethods,
+                importedMethod: importedMethod,
+                receiver: receiver)
+        }
+        return nil
+    }
+
+    /// Recover the source type of a member receiver without attaching type
+    /// metadata to every RuntimeValue. A standard-library `filter` preserves
+    /// its receiver's element type, so a chained call retains the same static
+    /// array type even when the intermediate result is empty.
+    func declaredMemberReceiverTypeName(
+        for expression: ExprSyntax,
+        in environment: Environment
+    ) -> String? {
+        func storedValue(
+            for expression: ExprSyntax
+        ) -> RuntimeValue? {
+            if let reference = expression.as(
+                DeclReferenceExprSyntax.self) {
+                let name = reference.baseName.text
+                if name == "self" { return environment.lookup("self") }
+                if let box = environment.box(for: name, before: globals) {
+                    if case .host(let payload) = box.value,
+                       payload is LazyGlobal {
+                        return nil
+                    }
+                    return box.value
+                }
+                if case .instance(let instance)? = environment.lookup("self"),
+                   let box = instance.box(for:
+                       instance.symbol.canonicalPropertyName(name)) {
+                    return box.value
+                }
+                return nil
+            }
+            guard let member = expression.as(MemberAccessExprSyntax.self),
+                  let base = member.base,
+                  case .instance(let instance)? = storedValue(for: base) else {
+                return nil
+            }
+            return instance.box(for: instance.symbol.canonicalPropertyName(
+                member.declName.baseName.text))?.value
+        }
+
+        if let call = expression.as(FunctionCallExprSyntax.self),
+           let member = call.calledExpression.as(
+               MemberAccessExprSyntax.self),
+           member.declName.baseName.text == "filter",
+           let receiver = member.base {
+            return declaredMemberReceiverTypeName(
+                for: receiver, in: environment)
+        }
+        if let reference = expression.as(DeclReferenceExprSyntax.self) {
+            let name = reference.baseName.text
+            if let annotation = environment.box(
+                for: name, before: globals)?.declaredTypeName {
+                return annotation
+            }
+            if case .instance(let instance)? = environment.lookup("self") {
+                let canonical = instance.symbol.canonicalPropertyName(name)
+                return instance.symbol.storedProperty(named: canonical)?
+                    .typeAnnotation?.trimmedDescription
+                    ?? instance.symbol.computedProperties[canonical]?
+                        .typeAnnotation?.trimmedDescription
+            }
+            return globals.box(for: name)?.declaredTypeName
+        }
+        if let member = expression.as(MemberAccessExprSyntax.self),
+           let base = member.base,
+           case .instance(let instance)? = storedValue(for: base) {
+            let name = instance.symbol.canonicalPropertyName(
+                member.declName.baseName.text)
+            return instance.symbol.storedProperty(named: name)?
+                .typeAnnotation?.trimmedDescription
+                ?? instance.symbol.computedProperties[name]?
+                    .typeAnnotation?.trimmedDescription
+        }
+        return nil
+    }
+
+    /// Resolve the overload set only after argument evaluation. Both sides
+    /// use HostSignature's shared label/type/default/generic scoring, so an
+    /// Optional promotion cannot outrank an exact imported parameter.
+    func resolveTypedHostExtensionMethodTarget(
+        _ overloads: TypedHostExtensionMethodOverloads,
+        arguments: CallArguments
+    ) throws -> RuntimeValue {
+        let available = overloads.sourceMethods.count > 1
+            ? overloads.sourceMethods.filter {
+                !activeFunctionBodies.contains($0.id)
+            }
+            : overloads.sourceMethods
+
+        var bestSource: (declaration: FunctionDeclSyntax, score: Int)?
+        for declaration in available {
+            let genericClause = declaration.genericParameterClause?
+                .trimmedDescription ?? ""
+            let whereClause = declaration.genericWhereClause.map {
+                " " + $0.trimmedDescription
+            } ?? ""
+            let sourceDeclaration = "func \(declaration.name.text)"
+                + genericClause + declaration.signature.trimmedDescription
+                + whereClause
+            guard let signature = try? HostSignature(
+                    parsing: sourceDeclaration),
+                  let match = signature.match(
+                    arguments: arguments, in: self) else {
+                continue
+            }
+            if bestSource == nil || match.score > bestSource!.score {
+                bestSource = (declaration, match.score)
+            }
+        }
+
+        let importedScore = overloads.importedMethod.signatures.compactMap {
+            $0.match(arguments: arguments, in: self)?.score
+        }.max()
+        if let importedScore,
+           importedScore > (bestSource?.score ?? Int.min) {
+            return .hostFunction(overloads.importedMethod)
+        }
+        if let declaration = bestSource?.declaration,
+           let body = functionMetadata(for: declaration).body {
+            let closure = makeFunctionClosure(
+                declaration,
+                body: body,
+                captured: selfEnvironment(overloads.receiver))
+            closure.extensionFrame = ExtensionFrame(
+                typeName: overloads.typeName,
+                member: declaration.name.text)
+            closure.functionDeclID = declaration.id
+            return .closure(closure)
+        }
+        if importedScore != nil {
+            return .hostFunction(overloads.importedMethod)
+        }
+        throw RuntimeError(
+            message: "no matching source or imported overload for "
+                + "'\(overloads.typeName).\(overloads.importedMethod.name)'")
+    }
+
     func hostCandidates(for any: Any) -> [String] {
         var names: [String] = []
         if let registry, registry.isViewValue(.native(any)) { names.append("View") }
@@ -965,6 +1186,9 @@ extension Interpreter {
         selfValue: RuntimeValue,
         name: String
     ) throws -> RuntimeValue {
+        if let failure = computed.unsupportedCoroutineReadError {
+            throw failure
+        }
         if computed.isAsync && evaluationTaskContext.isAsyncSession {
             throw RuntimeError(
                 message: "async computed property '\(name)' requires an "
@@ -1010,7 +1234,10 @@ extension Interpreter {
         selfValue: RuntimeValue,
         name: String
     ) async throws -> RuntimeValue {
-        try await withComputedPropertyContextSuspending(
+        if let failure = computed.unsupportedCoroutineReadError {
+            throw failure
+        }
+        return try await withComputedPropertyContextSuspending(
             computed, selfValue: selfValue, name: name
         ) { env in
             guard !computed.isBuilder else {
@@ -1041,6 +1268,9 @@ extension Interpreter {
         name: String,
         value: RuntimeValue
     ) throws {
+        if let failure = computed.unsupportedCoroutineModifyError {
+            throw failure
+        }
         guard let setter = computed.setter else {
             throw EvalMessage(text:
                 "cannot assign to get-only property '\(name)'")
@@ -1763,6 +1993,18 @@ extension Interpreter {
             if let typeName = registry?.hostTypeName(of: any) {
                 extensionCandidates.append(typeName)
             }
+            // Core RuntimeValue payloads do not require a HostRegistry, but
+            // same-module extensions still shadow their imported members.
+            // Keep the concrete type ahead of nativeMember so ordinary
+            // evaluation and physical target admission select the same
+            // source declaration.
+            if any is String, !extensionCandidates.contains("String") {
+                extensionCandidates.append("String")
+            }
+            if any is [RuntimeValue],
+               !extensionCandidates.contains("Array") {
+                extensionCandidates.append("Array")
+            }
             if any is BindingStub { extensionCandidates.append("Binding") }
             if !extensionCandidates.isEmpty,
                let value = try hostExtensionMember(
@@ -1791,6 +2033,14 @@ extension Interpreter {
                 return value
             }
             if let marker = any as? HostTypeMarker {
+                if GeneratedConcurrencySurface.knowsNominalMember(
+                    typeName: marker.name, memberName: name
+                ) {
+                    throw RuntimeError(message:
+                        "\(marker.name).\(name) is declared by the active "
+                            + "_Concurrency.swiftinterface but is not "
+                            + "supported in this call path")
+                }
                 // MODULE-qualified globals (`Swift.max`, `Foundation.pow`)
                 // strip the qualifier — the merge has no modules. DECLARED
                 // types never answer: `SwiftUI.Tab` explicitly bypasses the
@@ -1854,7 +2104,14 @@ extension Interpreter {
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
                 return value
             }
-            if let value = try nativeMember(name, on: baseValue) {
+            let declaredBaseTypeName = Syntax(node).as(
+                MemberAccessExprSyntax.self)?.base.flatMap {
+                    declaredMemberReceiverTypeName(for: $0, in: env)
+                }
+            if let value = try nativeMember(
+                name,
+                on: baseValue,
+                declaredTypeName: declaredBaseTypeName) {
                 return value
             }
             if let value = try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: baseValue) {

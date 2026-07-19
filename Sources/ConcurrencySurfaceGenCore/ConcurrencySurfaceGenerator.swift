@@ -241,6 +241,9 @@ public enum ConcurrencySurfaceGenerator {
     /// declaration map, not parser control flow or hand-authored output code.
     private static let selectedNominalMemberIntrinsics:
         [String: [String: String]] = [
+        "MainActor": [
+            "run": "mainActorRun",
+        ],
         "UnsafeCurrentTask": [
             "==": "currentTaskIdentityEquals",
             "basePriority": "currentTaskBasePriority",
@@ -609,6 +612,9 @@ public enum ConcurrencySurfaceGenerator {
             if let structure = declaration.as(StructDeclSyntax.self) {
                 typeName = structure.name.text
                 members = structure.memberBlock.members
+            } else if let actor = declaration.as(ActorDeclSyntax.self) {
+                typeName = actor.name.text
+                members = actor.memberBlock.members
             } else if let extensionDeclaration = declaration.as(
                 ExtensionDeclSyntax.self
             ) {
@@ -1383,14 +1389,14 @@ public enum ConcurrencySurfaceGenerator {
                 targetTriple: targetTriple,
             ),
             scope: GeneratedCapabilityScope(
-                id: "top-level-functions-and-task-family-members-v4",
+                id: "top-level-functions-and-task-family-members-v5",
                 complete: false,
                 accountingUnit:
                 "public declaration row after canonical-text deduplication",
                 included: [
                     "public top-level function overloads",
                     "public static and instance Task function/variable declarations",
-                    "public function/variable declarations on selected nominal concurrency families (currently UnsafeCurrentTask)",
+                    "public function/variable declarations on selected nominal concurrency families (currently MainActor and UnsafeCurrentTask)",
                     "declarations selected by active compiler conditional-compilation regions",
                     "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
                     "public function/variable declarations on directly nested TaskGroup.Iterator and ThrowingTaskGroup.Iterator types",

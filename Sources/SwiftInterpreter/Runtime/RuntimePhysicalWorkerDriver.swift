@@ -4,6 +4,46 @@ nonisolated enum RuntimePhysicalWorkerDriverError: Error, Sendable, Equatable {
     case invalidParallelism(Int)
 }
 
+/// A finite snapshot kernel owns one worker permit until completion. A source
+/// call that immediately hops to a confined executor relinquishes the permit
+/// at that hop so an indefinitely suspended MainActor method (FoodTruck's
+/// updates loop) cannot starve unrelated physical kernels.
+nonisolated enum RuntimePhysicalSourcePermitLifetime: Sendable {
+    case operation
+    case untilConfinedExecutorEntry(RuntimePhysicalSourceExecutorHandoff)
+}
+
+/// One-shot synchronization between the detached wrapper, its confined
+/// executor relay, and the bounded worker driver. Completion also opens the
+/// gate so a validation failure before executor entry cannot leak a permit.
+actor RuntimePhysicalSourceExecutorHandoff {
+    private var mayReleasePermit = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func reachedConfinedExecutor() {
+        open()
+    }
+
+    func completed() {
+        open()
+    }
+
+    func waitUntilPermitMayBeReleased() async {
+        guard !mayReleasePermit else { return }
+        await withCheckedContinuation { continuation in
+            precondition(waiter == nil)
+            waiter = continuation
+        }
+    }
+
+    private func open() {
+        guard !mayReleasePermit else { return }
+        mayReleasePermit = true
+        waiter?.resume()
+        waiter = nil
+    }
+}
+
 /// One pure job accepted by the physical-worker boundary.
 ///
 /// Both input and output use checked-Sendable snapshots. The operation may
@@ -112,19 +152,144 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
     func executeSourceKernel(
         _ sourceJob: RuntimePhysicalSourceKernelJob
     ) async throws -> RuntimeWorkerValueSnapshot {
+        if case .untilConfinedExecutorEntry(let handoff) =
+            sourceJob.permitLifetime {
+            switch sourceJob.cancellationBehavior {
+            case .unobserved:
+                return try await executeConfinedReentrySourceKernel(
+                    sourceJob.workerJob,
+                    handoff: handoff)
+            case .observed:
+                return try await
+                    executeCancellationObservingConfinedReentrySourceKernel(
+                        sourceJob.workerJob,
+                        handoff: handoff)
+            }
+        }
         switch sourceJob.cancellationBehavior {
         case .unobserved:
-            let job = sourceJob.workerJob
-            let execution = Task.detached(
-                priority: job.priority.nativePriority
-            ) {
-                try await execute([job])
-            }
-            return try await Self.onlySourceSnapshot(
-                from: execution.value)
+            return try await executeUnobserved(sourceJob.workerJob)
         case .observed:
             return try await executeCancellationObservingSourceKernel(
                 sourceJob.workerJob)
+        }
+    }
+
+    /// Execute one synchronous source-visible host operation without turning
+    /// the source task's cooperative cancellation bit into infrastructure
+    /// cancellation. A native synchronous call that does not inspect
+    /// cancellation still enters and finishes after cancellation is requested.
+    func executeHostOperation(
+        _ job: RuntimePhysicalWorkerJob
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        try await executeUnobserved(job)
+    }
+
+    private func executeUnobserved(
+        _ job: RuntimePhysicalWorkerJob
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        let execution = Task.detached(
+            priority: job.priority.nativePriority
+        ) {
+            try await execute([job])
+        }
+        return try await Self.onlyWorkerSnapshot(from: execution.value)
+    }
+
+    /// Launch the source wrapper from an uncancelled infrastructure task,
+    /// hold one worker permit only through its physical prefix, then release
+    /// that permit as soon as the operation reaches its confined executor.
+    /// The detached task itself remains alive and publishes the copied result
+    /// after the MainActor method completes.
+    private func executeConfinedReentrySourceKernel(
+        _ job: RuntimePhysicalWorkerJob,
+        handoff: RuntimePhysicalSourceExecutorHandoff
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        let execution = Task.detached(priority: job.priority.nativePriority) {
+            try await Self.executeConfinedReentryDetached(
+                job,
+                permits: permits,
+                handoff: handoff)
+        }
+        return try await execution.value
+    }
+
+    private static func executeConfinedReentryDetached(
+        _ job: RuntimePhysicalWorkerJob,
+        permits: RuntimePhysicalWorkerPermitPool,
+        handoff: RuntimePhysicalSourceExecutorHandoff
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        try await permits.acquire()
+        let sourceTask = Task.detached(priority: job.priority.nativePriority) {
+            do {
+                let value = try await job.operation(job.capability)
+                await handoff.completed()
+                return value
+            } catch {
+                await handoff.completed()
+                throw error
+            }
+        }
+        await handoff.waitUntilPermitMayBeReleased()
+        await permits.release()
+        return try await sourceTask.value
+    }
+
+    /// A physical suspension prefix needs both source-cancellation forwarding
+    /// and early permit release when its continuation reaches the confined
+    /// evaluator. Keep those two policies orthogonal: cancellation attaches to
+    /// the actual detached source task, while the one-shot handoff owns only
+    /// bounded-worker capacity.
+    private func executeCancellationObservingConfinedReentrySourceKernel(
+        _ job: RuntimePhysicalWorkerJob,
+        handoff: RuntimePhysicalSourceExecutorHandoff
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        let cancellation = RuntimePhysicalSourceCancellationRelay()
+        let execution = Task.detached(priority: job.priority.nativePriority) {
+            try await Self
+                .executeCancellationObservingConfinedReentryDetached(
+                    job,
+                    permits: permits,
+                    handoff: handoff,
+                    cancellation: cancellation)
+        }
+        return try await withTaskCancellationHandler {
+            if Task.isCancelled {
+                await cancellation.requestCancellation()
+            }
+            return try await execution.value
+        } onCancel: {
+            Task { await cancellation.requestCancellation() }
+        }
+    }
+
+    private static func executeCancellationObservingConfinedReentryDetached(
+        _ job: RuntimePhysicalWorkerJob,
+        permits: RuntimePhysicalWorkerPermitPool,
+        handoff: RuntimePhysicalSourceExecutorHandoff,
+        cancellation: RuntimePhysicalSourceCancellationRelay
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        try await permits.acquire()
+        let sourceTask = Task.detached(priority: job.priority.nativePriority) {
+            do {
+                let value = try await job.operation(job.capability)
+                await handoff.completed()
+                return value
+            } catch {
+                await handoff.completed()
+                throw error
+            }
+        }
+        await cancellation.attach(sourceTask)
+        await handoff.waitUntilPermitMayBeReleased()
+        await permits.release()
+        do {
+            let value = try await sourceTask.value
+            await cancellation.finish()
+            return value
+        } catch {
+            await cancellation.finish()
+            throw error
         }
     }
 
@@ -150,12 +315,12 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         }
     }
 
-    private static func onlySourceSnapshot(
+    private static func onlyWorkerSnapshot(
         from output: [RuntimeWorkerValueSnapshot]
     ) throws -> RuntimeWorkerValueSnapshot {
         guard let snapshot = output.first else {
             throw RuntimeError(message:
-                "physical source kernel returned no result")
+                "physical worker operation returned no result")
         }
         return snapshot
     }

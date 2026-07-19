@@ -7,13 +7,41 @@ import SwiftSyntax
 /// `names.map { … }` works like any other call; closure-taking methods call
 /// back through the `EvalContext`.
 extension Interpreter {
+    @MainActor private static let arrayFilterSignature: HostSignature = {
+        do {
+            return try HostSignature(parsing:
+                "func Array.filter(_ isIncluded: (Any) throws -> Bool) rethrows -> [Any]")
+        } catch {
+            preconditionFailure(
+                "invalid Array.filter host contract: \(error)")
+        }
+    }()
+
+    @MainActor private static let stringAppendingSignature: HostSignature = {
+        do {
+            return try HostSignature(
+                parsing: "func String.appending(_ other: String) -> String")
+        } catch {
+            preconditionFailure(
+                "invalid String.appending host contract: \(error)")
+        }
+    }()
+
     /// Typed entry point for standard-library member dispatch. Keeping this
     /// separate from the host-`Any` fallback lets core values migrate to
     /// dedicated RuntimeValue storage without changing framework gateways.
-    func nativeMember(_ name: String, on value: RuntimeValue) throws -> RuntimeValue? {
+    func nativeMember(
+        _ name: String,
+        on value: RuntimeValue,
+        declaredTypeName: String? = nil
+    ) throws -> RuntimeValue? {
         switch value.payload {
         case .array(let array):
-            return try arrayMember(name, array)
+            return try arrayMember(
+                name,
+                array,
+                elementTypeName: RuntimeDeclaredType.arrayElementTypeName(
+                    in: declaredTypeName))
         case .set(let set):
             return try setMember(name, set)
         case .optional(let optional):
@@ -195,6 +223,15 @@ extension Interpreter {
         if let iterator = any as? RuntimeTaskGroupIterator {
             return try sourceTaskGroupIteratorMember(name, on: iterator)
         }
+        if any is RuntimeActorIsolationValue,
+           GeneratedConcurrencySurface.knowsNominalMember(
+            typeName: "MainActor", memberName: name
+           ) {
+            throw RuntimeError(message:
+                "MainActor.\(name) is declared by the active "
+                    + "_Concurrency.swiftinterface but is not supported "
+                    + "on the runtime MainActor isolation value")
+        }
         if let task = any as? RuntimeUnsafeCurrentTask {
             switch GeneratedConcurrencySurface.nominalMemberIntrinsic(
                 typeName: "UnsafeCurrentTask", memberName: name
@@ -217,6 +254,13 @@ extension Interpreter {
                 // RuntimeUnsafeCurrentTask consults this generated route from
                 // its HostRuntimeEquatable implementation.
                 return nil
+            case .mainActorRun:
+                // Intrinsics are nominal-scoped; this branch handles only a
+                // RuntimeUnsafeCurrentTask receiver. Generator/runtime drift
+                // must fail closed rather than degrade to dynamic lookup.
+                throw RuntimeError(message:
+                    "generated MainActor.run intrinsic was selected for "
+                        + "UnsafeCurrentTask")
             case nil:
                 if GeneratedConcurrencySurface.knowsNominalMember(
                     typeName: "UnsafeCurrentTask", memberName: name
@@ -473,7 +517,8 @@ extension Interpreter {
                     for (key, value) in zip(dict.keys, dict.values) {
                         let element = RuntimeValue.native(
                             TupleValue(labels: ["key", "value"], values: [key, value]))
-                        let mapped = try Self.mapStep(args, name, element, self, ctx)
+                        let mapped = try Self.mapStep(
+                            args, name, element, nil, self, ctx)
                         if let unwrapped = mapped.unwrappedOptionalOrSelf {
                             out.append(unwrapped)
                         }
@@ -486,7 +531,8 @@ extension Interpreter {
                 return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                     .native(try zip(dict.keys, dict.values).map { key, value in
                         try Self.mapStep(args, name, .native(
-                            TupleValue(labels: ["key", "value"], values: [key, value])), self, ctx)
+                            TupleValue(labels: ["key", "value"], values: [key, value])),
+                            nil, self, ctx)
                     })
                 })
             case "sorted":
@@ -593,7 +639,11 @@ extension Interpreter {
         return nil
     }
 
-    private func arrayMember(_ name: String, _ array: [RuntimeValue]) throws -> RuntimeValue? {
+    private func arrayMember(
+        _ name: String,
+        _ array: [RuntimeValue],
+        elementTypeName: String? = nil
+    ) throws -> RuntimeValue? {
         switch name {
         case "count": return .native(array.count)
         case "isEmpty": return .native(array.isEmpty)
@@ -633,7 +683,8 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 var out: [RuntimeValue] = []
                 for element in array {
-                    let mapped = try Self.mapStep(args, name, element, self, ctx)
+                    let mapped = try Self.mapStep(
+                        args, name, element, elementTypeName, self, ctx)
                     if let nested = mapped.arrayValue {
                         out.append(contentsOf: nested)
                     } else if !mapped.isNil {
@@ -646,7 +697,8 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 var out: [RuntimeValue] = []
                 for element in array {
-                    let mapped = try Self.mapStep(args, name, element, self, ctx)
+                    let mapped = try Self.mapStep(
+                        args, name, element, elementTypeName, self, ctx)
                     if name == "compactMap" {
                         guard let unwrapped = mapped.unwrappedOptionalOrSelf else { continue }
                         out.append(unwrapped)
@@ -657,18 +709,29 @@ extension Interpreter {
                 return .native(out)
             })
         case "filter":
-            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
-                var out: [RuntimeValue] = []
-                for element in array
-                where try Self.mapStep(args, name, element, self, ctx).boolValue == true {
-                    out.append(element)
-                }
-                return .native(out)
-            })
+            do {
+                return .hostFunction(try HostFunction(
+                    signature: Self.arrayFilterSignature
+                ) { [weak self] args, ctx in
+                    var out: [RuntimeValue] = []
+                    for element in array
+                    where try Self.mapStep(
+                        args, name, element, elementTypeName, self, ctx
+                    ).boolValue == true {
+                        out.append(element)
+                    }
+                    return .native(out)
+                })
+            } catch {
+                preconditionFailure(
+                    "invalid Array.filter host gateway: \(error)")
+            }
         case "allSatisfy":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 for element in array
-                where try Self.mapStep(args, name, element, self, ctx).boolValue != true {
+                where try Self.mapStep(
+                    args, name, element, elementTypeName, self, ctx
+                ).boolValue != true {
                     return .native(false)
                 }
                 return .native(true)
@@ -676,7 +739,9 @@ extension Interpreter {
         case "allSatisfy":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 for element in array
-                where try Self.mapStep(args, name, element, self, ctx).boolValue != true {
+                where try Self.mapStep(
+                    args, name, element, elementTypeName, self, ctx
+                ).boolValue != true {
                     return .native(false)
                 }
                 return .native(true)
@@ -895,6 +960,7 @@ extension Interpreter {
     /// (`.flatMap(\\.windows)`) walks its components.
     private static func mapStep(
         _ args: CallArguments, _ name: String, _ element: RuntimeValue,
+        _ elementTypeName: String?,
         _ interpreter: Interpreter?, _ ctx: EvalContext
     ) throws -> RuntimeValue {
         if let closure = (args.closure(labeled: "transform") ?? args.firstUnlabeledClosure
@@ -903,7 +969,8 @@ extension Interpreter {
         }
         if case .host(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
            let interpreter {
-            return try interpreter.applyKeyPath(path, to: element)
+            return try interpreter.applyKeyPath(
+                path, to: element, rootTypeName: elementTypeName)
         }
         // Unapplied function references: `.flatMap(URL.init(string:))`.
         if case .hostFunction(let fn)? = args.positional(0) {
@@ -922,10 +989,26 @@ extension Interpreter {
 
     /// Walk a key path's components off a value: instance properties,
     /// native members, host members; unknown hops become chains (absorb).
-    func applyKeyPath(_ path: KeyPathStub, to start: RuntimeValue) throws -> RuntimeValue {
+    func applyKeyPath(
+        _ path: KeyPathStub,
+        to start: RuntimeValue,
+        rootTypeName: String? = nil
+    ) throws -> RuntimeValue {
         var current = start
+        var isRoot = true
         for component in path.components where component != "self" {
             if current.isNil { return .none() }
+            if isRoot,
+               let rootTypeName = RuntimeDeclaredType.nominalTypeName(
+                   rootTypeName),
+               let value = try hostExtensionMember(
+                   component,
+                   candidates: [rootTypeName],
+                   selfValue: current) {
+                current = value
+                isRoot = false
+                continue
+            }
             switch current {
             case .instance(let instance):
                 guard let value = try instanceMember(component, on: instance) else {
@@ -962,6 +1045,7 @@ extension Interpreter {
                 current = .native(ChainedImplicitCall(
                     base: current, member: component, arguments: CallArguments()))
             }
+            isRoot = false
         }
         return current
     }
@@ -1080,9 +1164,16 @@ extension Interpreter {
         case "isWhitespace" where string.count == 1:
             return .native(string.first!.isWhitespace)
         case "appending":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(string + (args.positional(0)?.stringValue ?? ""))
-            })
+            do {
+                return .hostFunction(try HostFunction(
+                    signature: Self.stringAppendingSignature
+                ) { args, _ in
+                    .native(string + args.positional(0)!.stringValue!)
+                })
+            } catch {
+                preconditionFailure(
+                    "invalid String.appending host gateway: \(error)")
+            }
         case "elementsEqual":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 .native(args.positional(0)?.stringValue == string)

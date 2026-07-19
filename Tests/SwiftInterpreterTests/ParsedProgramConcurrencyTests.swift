@@ -396,7 +396,11 @@ struct ParsedProgramConcurrencyTests {
             ordinaryArgumentCount: 6,
             trailingClosureCount: 3,
             additionalTrailingClosureCount: 3,
-            directReferenceArgumentCount: 3)
+            directReferenceArgumentCount: 3,
+            directReferenceCalleeCount: 3,
+            explicitMemberCalleeCount: 0,
+            implicitMemberCalleeCount: 0,
+            otherCalleeCount: 0)
 
         func requireSendable<T: Sendable>(_: T) {}
         requireSendable(program.callSiteMetadataIndex)
@@ -409,6 +413,8 @@ struct ParsedProgramConcurrencyTests {
         let call = try #require(topLevelCalls.first)
         let metadata = try #require(
             program.callSiteMetadataIndex.metadata(for: call))
+        #expect(metadata.callee.shape == .directReference)
+        #expect(metadata.callee.name == "route")
         #expect(metadata.arguments.map(\.label)
             == ["operation", "value", nil, "onFailure"])
         #expect(metadata.arguments.map(\.isTrailing)
@@ -426,6 +432,55 @@ struct ParsedProgramConcurrencyTests {
             observations.append(await reader.value)
         }
         #expect(observations == Array(repeating: expected, count: 8))
+    }
+
+    @Test nonisolated func callSiteMetadataOwnsNormalizedCalleeShape()
+    async throws {
+        let program = try ParsedProgram(source: """
+        direct();
+        receiver.member();
+        .implicit();
+        [Int]();
+        [String: Int]();
+        (direct)()
+        """)
+        let calls = program.syntax.statements.compactMap {
+            $0.item.as(ExprSyntax.self)?.as(FunctionCallExprSyntax.self)
+        }
+        let metadata = try calls.map {
+            try #require(program.callSiteMetadataIndex.metadata(for: $0))
+        }
+
+        #expect(metadata.map(\.callee.shape) == [
+            .directReference,
+            .explicitMember,
+            .implicitMember,
+            .arrayType,
+            .dictionaryType,
+            .other,
+        ])
+        #expect(metadata.map(\.callee.name) == [
+            "direct", "member", "implicit", nil, nil, nil,
+        ])
+        #expect(metadata[1].callee.member?.base?.trimmedDescription
+            == "receiver")
+        #expect(metadata[2].callee.member?.base == nil)
+
+        let expected = ParsedCallSiteMetadataIndex.Summary(
+            callCount: 6,
+            ordinaryArgumentCount: 0,
+            trailingClosureCount: 0,
+            additionalTrailingClosureCount: 0,
+            directReferenceArgumentCount: 0,
+            directReferenceCalleeCount: 1,
+            explicitMemberCalleeCount: 1,
+            implicitMemberCalleeCount: 1,
+            otherCalleeCount: 3)
+        #expect(program.callSiteMetadataIndex.summary == expected)
+        let detached = Task.detached {
+            program.callSiteMetadataIndex.summary
+        }
+        #expect(await detached.value == expected)
     }
 
     @Test func callablePlacementHasPureForeignSyntaxFallback() throws {
@@ -460,6 +515,8 @@ struct ParsedProgramConcurrencyTests {
         let call = try #require(calls.first)
         let metadata = Interpreter().callSiteMetadata(for: call)
 
+        #expect(metadata.callee.shape == .directReference)
+        #expect(metadata.callee.name == "consume")
         #expect(metadata.arguments.map(\.label)
             == ["operation", nil, "completion"])
         #expect(metadata.arguments.map(\.isTrailing)

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "728f50fd50daa5f5fbfc0b2b07791660caee4305346d136231c997149dc97eb2",
+  "inventorySHA256": "cc3c6ed1e81c1dc7b49b326541844948e393dda024649905a4d6e5fc0881a155",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -2612,6 +2612,101 @@
         "async-sequence-continuation-runtime"
       ],
       "notes": "The public withUnsafeThrowingContinuation declaration is generated from the active SDK and routes to the shared unsupportedUnsafeContinuation intrinsic. Apple Swift 6.3.3 accepts its explicit MainActor isolation form and immediately returns the exact resumed value. The interpreter deliberately fails closed with a named unsafe-continuation ownership diagnostic before invoking the body or allocating continuation ownership. This native-positive interpreter-diagnostic boundary is not behavioral parity: the API has no corpus, FoodTruck, LiveCheck, or TestCheck demand citation and the section 14 depth cap directs callers to a checked continuation instead of adding unchecked runtime semantics."
+    },
+    {
+      "id": "swift-concurrency-api-v1:552c828c1fac0e6a837d1e6c0d8600350ba401c7c3f00a76bc280a519099444b",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+        "RuntimeParallelSourceKernelTests/generatedMainActorUnroutedMemberFailsClosed"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "MainActor.assumeIsolated is inventoried as a selected nominal member but deliberately has no runtime intrinsic. The imported host-type identity now emits a named active-interface diagnostic instead of silently absorbing the closure. Correct support requires the native on-executor precondition and trap behavior, which is outside this Provenance-cited MainActor.run slice."
+    },
+    {
+      "id": "swift-concurrency-api-v1:660039d579edc3f53940329eb72b5087780e6a55275c4d8c83a3240c3692dc26",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M9/parallel-runtime-and-sanitizers",
+      "evidenceCaseIDs": [
+        "parallel-detached-try-optional-nanoseconds-sleep-prefix"
+      ],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/syntheticInterfacePreservesOverloadsEffectsAndIsolation",
+        "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+        "RuntimeParallelSourceKernelTests/tryOptionalNanosecondsSleepPrefixReentersMainActorContinuation",
+        "RuntimeParallelSourceKernelTests/explicitMainActorRunResultTypeFailsClosed",
+        "RuntimeParallelSourceKernelTests/generatedMainActorRunIdentityDoesNotCaptureSourceShadow"
+      ],
+      "gapEvidenceIDs": [
+        "physical-parallel-runtime-and-sanitizers"
+      ],
+      "notes": "The active-interface MainActor.run declaration now owns a generated selected-nominal intrinsic. The Provenance-cited default-resultType trailing-body spelling executes synchronously under the logical MainActor after a physical detached sleep prefix, preserves cancellation, weak capture, return/error propagation, and source-shadow precedence. An explicit resultType argument fails closed pending complete generic metatype validation, so the complete declaration remains a known divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:584e872051a6b607e2c4d59f6fb0aad89c46b6df63a2197d8ded43eef0fba063",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+        "RuntimeParallelSourceKernelTests/generatedMainActorUnroutedMemberFailsClosed"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "MainActor.enqueue(_:) is now inventoried from the actor declaration itself. Runtime MainActor isolation values reject the member with a named active-interface diagnostic; exposing UnownedJob scheduling would require the deferred executor-job runtime."
+    },
+    {
+      "id": "swift-concurrency-api-v1:97537a8eaf32698d75b71f71f63f3fe1f54a823acddf577f57f70e84d9d7112c",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/syntheticInterfacePreservesOverloadsEffectsAndIsolation",
+        "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "MainActor.shared is inventoried from the actor declaration. The interpreter projects a stable logical MainActor isolation capability for evidenced isolation-argument subsets, but not a complete native MainActor value with executor members and identity, so the full declaration remains a known divergence."
+    },
+    {
+      "id": "swift-concurrency-api-v1:0a627c47d2d6baaf9e637c902ccc458adf037074207546a9a3e3ea0595ba5ee1",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+        "RuntimeParallelSourceKernelTests/generatedMainActorUnroutedMemberFailsClosed"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "MainActor.sharedUnownedExecutor is inventoried from the actor declaration and fails closed by imported nominal identity. UnownedSerialExecutor projection and custom executor scheduling remain deferred."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d1e8503be214a029392b7dd3065a2924fd5c3adb70f90bca9930116a9edb26cf",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+        "RuntimeParallelSourceKernelTests/generatedMainActorUnroutedMemberFailsClosed"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "MainActor.unownedExecutor is inventoried from the actor declaration. The runtime MainActor isolation value emits a named active-interface diagnostic instead of fabricating an UnownedSerialExecutor."
     }
   ],
   "semanticCapabilities": [
@@ -2933,7 +3028,8 @@
       "task-handle-deallocation",
       "task-owned-evaluator-context",
       "task-context-cancellation",
-      "detached-host-context-reentry"
+      "detached-host-context-reentry",
+      "parallel-host-gateway-thread-lane"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -3011,12 +3107,17 @@
         "BindingExtensionMethodTests/extensionMethodDispatchesOnBuiltBinding",
         "CurrentValueSubjectStoreTests/keyPathSubscriptWritesThroughStore",
         "ActorRuntimeTests/actorMutableStorageRequiresOwnershipWhileAllowedStorageRemainsReadable",
-        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears"
+        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears",
+        "RuntimeParallelSourceKernelTests/threadPropertyUsesWorkerGatewayOnlyOnEligibleSourceExecutors",
+        "RuntimeParallelSourceKernelTests/actorConfinedWorkerGatewayNeverIntroducesHiddenReentrancy",
+        "RuntimeParallelSourceKernelTests/sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway",
+        "RuntimeParallelSourceKernelTests/workerAdmissionNeverForcesComputedCallables",
+        "HostSignatureTests/workerGatewaysRequireSynchronousReadOnlyContracts"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Twenty-eight M9 prerequisites are green. ParsedProgram owns immutable all-branch declaration/member metadata and resolves one immutable Sendable target plan with file identity and source map before mutable symbol materialization. Each prepared program owns one MainActor-confined RuntimeProgramState; its session, RuntimeEntry, and escaped closures retain the exact plan, mutable symbol state, and selected HostRegistry across callbacks, descendant tasks, and SwiftUI tasks. CooperativeConcurrencyRuntime owns scheduled handles and evaluator-context identity; contexts own their dynamic stacks and pthread-scoped native-stack guard. Cross-program REDs now cover source maps, HostRegistry selection, and host static-member coercion. The latest RED showed a newer program clearing one process-wide Date.now provider so an escaped origin callback used the wall clock. Host coercions now resolve source static members through their bound EvalContext and exact runtime entry. A standalone Apple Swift 6.3.3 probe returned 1784160000 after passing implicit .now into Calendar.startOfDay(for:) across Task.yield() in three runs. The host-static-shadow-after-suspension fixture remains exact at 1784228400 in twenty repetitions with native SHA-256 49bde28776cde22ce6aa47e119d3ecbb34246309ef8fa2bddb609146a19e692c per shard. Distinct-session materialization, callback/task identity, discarded-handle lifetime, 100-task context isolation/cleanup, detached callback re-entry, facade release, actor propagation, trap containment, FoodTruck Calendar coercion, and real SwiftUI lifecycle cover this confined ownership boundary. The canonical parallel iteration completed seven targeted tests in four suites, all forty-two methodology checks, and all twenty exact parity repetitions on four workers in 1.8 seconds. Scheduler order, physical threads, Sendable host bridges, and physical parallelism are not claimed. Cooperative overlap is supported on the confined heap; active evaluation, explicit host re-entry, mutable value graphs, HostRegistry implementations, and remaining metadata are still facade/MainActor-confined, with no heap classification, opt-in physical-worker mode, cooperative-versus-parallel board, or Thread Sanitizer evidence."
+      "notes": "M9 remains partial. ParsedProgram and its declaration/call/member metadata are immutable Sendable capabilities; each session retains its exact resolved plan, MainActor-confined RuntimeProgramState, heap, registry, runtime entry, and task-owned evaluator context. Explicit parallel mode uses a bounded Task.detached driver with checked Sendable snapshots for the demand-scoped source kernels, sleep/continuation prefixes, and source-call wrappers listed in the M9 acceptance ledger; cooperative mode remains the default and unsupported shapes stay confined. The first native host-routing subset adds a checked source-synchronous HostWorkerOperation to typed HostFunction and read-only HostProperty gateways: only @Sendable closures with Bool/String results may cross, only cooperative-default/detached source executors are eligible, and MainActor/source actors keep the confined implementation so no hidden actor reentrancy is introduced. TaskObservatory's exact Thread.isMainThread helper has same-source parity with four physical host-operation receipts; source-shadowed Thread, cooperative mode, and actor-confined reads record zero. Worker-operation eligibility is decided before the builder runs, and admission never forces computed or lazy callable storage. Physical receipts, cooperative/parallel differential tests, bounded cleanup, interpreted-trap containment, and the source-bound TSan board cover only these admitted subsets. General evaluator/heap parallelism, richer host values/callbacks, transitive synchronous helper graphs, further host/member target resolution, custom executors, ExecutorJob scheduling, and full-mode TSan remain open."
     }
   ]
 }

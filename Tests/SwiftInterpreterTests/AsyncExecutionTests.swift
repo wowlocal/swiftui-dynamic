@@ -104,6 +104,175 @@ struct AsyncExecutionTests {
         #expect(interpreted.stringValue == native)
     }
 
+    @Test func optionalAsyncMutatingStructMethodWritesBackAcrossSuspension()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/optional-value-mutating-async-writeback.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait optionalValueMutatingAsyncWritebackProbe()\n"
+        let interpreter = Interpreter()
+
+        let interpreted = try await interpreter.runAsync(source: source)
+
+        #expect(interpreted.stringValue
+            == "direct-entered-resumed:direct-entered-resumed"
+                + "|nested-entered-resumed:nested-entered-resumed|nil:nil")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func optionalAsyncMutatingStructMethodWritesBackAcrossThrowingExits()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/optional-value-mutating-async-throwing-writeback.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait optionalValueMutatingAsyncThrowingWritebackProbe()\n"
+        let interpreter = Interpreter()
+
+        let interpreted = try await interpreter.runAsync(source: source)
+
+        #expect(interpreted.stringValue
+            == "threw:throw-entered-resumed|cancelled:cancel-entered-resumed")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func optionalAsyncMutatingStructMethodWritesBackThroughComputedProperty()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/optional-computed-value-mutating-async-writeback.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait optionalComputedValueMutatingAsyncWritebackProbe()\n"
+        let interpreter = Interpreter()
+
+        let interpreted = try await interpreter.runAsync(source: source)
+
+        let expected = "get|enter|exit:seed-entered-resumed|"
+            + "set:seed-entered-resumed|seed-entered-resumed"
+        #expect(interpreted.stringValue == "\(expected)#\(expected)")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func unsupportedOptionalAsyncMutationOwnerFailsClosed() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/optional-computed-reference-mutating-async-fail-closed.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait optionalComputedReferenceMutatingAsyncFailClosedProbe()\n"
+        let interpreter = Interpreter()
+
+        do {
+            _ = try await interpreter.runAsync(source: source)
+            Issue.record("unsupported async mutation owner returned a value")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("async optional value mutation"))
+            #expect(error.message.contains("computed reference owner"))
+        }
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func unusedNativeCoroutineAccessorDeclarationDoesNotFailTheRun()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let probe = root.appendingPathComponent(
+            "Tests/NativeProbes/Concurrency/optional-coroutine-accessor-async-writeback.swift")
+        let source = try String(contentsOf: probe, encoding: .utf8)
+            + "\n\"unrelated-result\"\n"
+        let interpreter = Interpreter()
+
+        let result = try await interpreter.runAsync(source: source)
+
+        #expect(result.stringValue == "unrelated-result")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func nativeCoroutineOptionalAccessorFailsClosedWhenUsed()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let probe = root.appendingPathComponent(
+            "Tests/NativeProbes/Concurrency/optional-coroutine-accessor-async-writeback.swift")
+        let source = try String(contentsOf: probe, encoding: .utf8)
+            + "\nawait nativeCoroutineOptionalWritebackProbe()\n"
+        let interpreter = Interpreter()
+
+        do {
+            _ = try await interpreter.runAsync(source: source)
+            Issue.record("coroutine accessor was silently accepted")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("coroutine property accessor"))
+            #expect(error.message.contains("unsupported"))
+        }
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func ordinaryGetterBesideModifyAccessorRemainsReadable()
+        async throws
+    {
+        let declaration = #"""
+final class CoroutineReadableBox {
+    var storage = 7
+    var value: Int {
+        get { storage }
+        _modify { yield &storage }
+    }
+}
+"""#
+
+        let readable = Interpreter()
+        let value = try await readable.runAsync(
+            source: declaration + "\nCoroutineReadableBox().value\n")
+        #expect(value.intValue == 7)
+
+        let modifying = Interpreter()
+        do {
+            _ = try await modifying.runAsync(source:
+                declaration
+                    + "\nlet box = CoroutineReadableBox()\n"
+                    + "box.value += 1\n")
+            Issue.record("unsupported modify accessor was silently used")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("coroutine property accessor"))
+            #expect(error.message.contains("_modify"))
+            #expect(error.message.contains("unsupported"))
+        }
+    }
+
     @Test func nestedAsyncMutatingMethodCopiesOutLikeNativeSwift() async throws {
         var nativeCounter = NativeNestedAsyncCounter(value: 4)
         await nativeCounter.update()
@@ -649,6 +818,150 @@ struct AsyncExecutionTests {
         #expect(observedRuntimeTaskID == handle.id)
         #expect(observedNativeTaskLocal == "default")
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func explicitMainActorDetachedClosurePreservesIsolationAcrossYield()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-explicit-mainactor-closure.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedExplicitMainActorClosureProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        interpreter.globals.define(
+            "parityCurrentIsolationMatches",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationMatches"
+            ) { arguments, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                guard case .host(let expected)? = arguments.positional(0),
+                      let expected = expected
+                        as? RuntimeActorIsolationValue,
+                      case .host(let actual)? =
+                        isolation.unwrappedOptionalOrSelf,
+                      let actual = actual
+                        as? RuntimeActorIsolationValue else {
+                    return .native("none")
+                }
+                return .native(
+                    expected.executor == actual.executor
+                        ? "same" : "other")
+            }))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "same|same#none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test func sendableAttributeDoesNotChangeTaskExecutorSelection()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-sendable-closure-isolation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedSendableClosureIsolationProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        interpreter.globals.define(
+            "parityCurrentIsolationMatches",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationMatches"
+            ) { arguments, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                guard case .host(let expected)? = arguments.positional(0),
+                      let expected = expected
+                        as? RuntimeActorIsolationValue,
+                      case .host(let actual)? =
+                        isolation.unwrappedOptionalOrSelf,
+                      let actual = actual
+                        as? RuntimeActorIsolationValue else {
+                    return .native("none")
+                }
+                return .native(
+                    expected.executor == actual.executor
+                        ? "same" : "other")
+            }))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "same|same#none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
+    @Test
+    func mainActorWeakSelfDetachedClosurePreservesIsolationWithoutRetainingReceiver()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-self.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorWeakSelfProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        interpreter.globals.define(
+            "parityCurrentIsolationMatches",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationMatches"
+            ) { arguments, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                guard case .host(let expected)? = arguments.positional(0),
+                      let expected = expected
+                        as? RuntimeActorIsolationValue,
+                      case .host(let actual)? =
+                        isolation.unwrappedOptionalOrSelf,
+                      let actual = actual
+                        as? RuntimeActorIsolationValue else {
+                    return .native("none")
+                }
+                return .native(
+                    expected.executor == actual.executor
+                        ? "same" : "other")
+            }))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue ==
+            "same|same:alive#same|same:released")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
     }
 
     @Test func runtimeRecordsExplicitInheritedAndDetachedPriorities() async throws {

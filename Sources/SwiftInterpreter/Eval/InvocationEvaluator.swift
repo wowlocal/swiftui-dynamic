@@ -599,6 +599,205 @@ extension Interpreter {
         }
     }
 
+    /// `Self` is a lexical/dynamic metatype capability, not a strong capture
+    /// of the enclosing instance. Preserve that type in a nested closure even
+    /// when an explicit capture list intentionally omits `self` (the protocol-
+    /// extension `[source] in Self.staticMethod(...)` spelling).
+    private func capturedSelfType(
+        from selfValue: RuntimeValue
+    ) -> RuntimeValue? {
+        switch selfValue {
+        case .instance(let instance):
+            .type(instance.symbol)
+        case .enumCase(let value):
+            .enumType(value.symbol)
+        case .type, .enumType:
+            selfValue
+        default:
+            nil
+        }
+    }
+
+    /// Capture lists are not generally transferable worker signatures. The
+    /// first demand-backed exception is the exact `[self] in` source call:
+    /// one ordinary strong self capture, with no alias, ownership
+    /// modifier, attributes, parameters, effects, return clause, or trailing
+    /// capture. The receiver still remains confined in the source closure.
+    private func isPhysicalStrongSelfSourceCallCandidate(
+        _ signature: ClosureSignatureSyntax?
+    ) -> Bool {
+        guard let signature,
+              signature.attributes.isEmpty,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil,
+              let captures = signature.capture?.items,
+              captures.count == 1,
+              let capture = captures.first,
+              capture.specifier == nil,
+              capture.name.text == "self",
+              capture.initializer == nil,
+              capture.trailingComma == nil else {
+            return false
+        }
+        return true
+    }
+
+    /// The first weak-capture physical spelling is deliberately narrower than
+    /// general capture-list support: exactly `[weak self] in`, with no alias,
+    /// additional signature surface, or second capture. Admission later also
+    /// requires either an exact optional-self source call or a demand-backed
+    /// checked sleep-prefix continuation; the signature alone is insufficient.
+    private func isPhysicalWeakSelfSourceCallCandidate(
+        _ signature: ClosureSignatureSyntax?
+    ) -> Bool {
+        guard let signature,
+              signature.attributes.isEmpty,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil,
+              hasExactWeakSelfCapture(signature) else {
+            return false
+        }
+        return true
+    }
+
+    /// apple-browsers' exact static source-call operation captures one
+    /// immutable value explicitly. Record only the capture-list shape here;
+    /// argument type, declaration identity, isolation, effects, and result
+    /// are all re-proven by the physical source-call admission route.
+    private func physicalSingleValueSourceCallCaptureName(
+        _ signature: ClosureSignatureSyntax?
+    ) -> String? {
+        guard let signature,
+              signature.attributes.isEmpty,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil,
+              let captures = signature.capture?.items,
+              captures.count == 1,
+              let capture = captures.first,
+              capture.specifier == nil,
+              capture.name.text != "self",
+              capture.initializer == nil,
+              capture.trailingComma == nil else {
+            return nil
+        }
+        return capture.name.text
+    }
+
+    private func hasExactWeakSelfCapture(
+        _ signature: ClosureSignatureSyntax
+    ) -> Bool {
+        exactWeakCaptureName(signature) == "self"
+    }
+
+    private func exactWeakCaptureName(
+        _ signature: ClosureSignatureSyntax
+    ) -> String? {
+        guard let captures = signature.capture?.items,
+              captures.count == 1,
+              let capture = captures.first,
+              capture.specifier?.specifier.text == "weak",
+              capture.specifier?.detail == nil,
+              capture.initializer == nil,
+              capture.trailingComma == nil else {
+            return nil
+        }
+        return capture.name.text
+    }
+
+    /// Authored closure signatures are not generally transferable. This
+    /// classifier records only demand-backed explicit-MainActor capture
+    /// shapes. Every admitted shape may use only the confined entry/handoff
+    /// wrapper; the closure and capture storage never enter worker capability.
+    private func physicalExplicitMainActorContinuationSignature(
+        _ signature: ClosureSignatureSyntax?
+    ) -> ClosureValue.PhysicalExplicitMainActorContinuationSignature? {
+        guard let signature,
+              signature.parameterClause == nil,
+              signature.effectSpecifiers == nil,
+              signature.returnClause == nil else {
+            return nil
+        }
+        let attributes = signature.attributes.compactMap {
+            $0.as(AttributeSyntax.self)
+        }
+        guard attributes.count == signature.attributes.count,
+              attributes.allSatisfy({ $0.arguments == nil }) else {
+            return nil
+        }
+        let names = attributes.map {
+            $0.attributeName.trimmedDescription
+        }
+        if signature.capture == nil {
+            return names == ["MainActor"] ? .captureless : nil
+        }
+        guard names == ["MainActor"]
+                || names == ["MainActor", "Sendable"] else {
+            return nil
+        }
+        if exactWeakCaptureName(signature) != nil {
+            return .singleWeakCapture
+        }
+        if hasExactStrongWeakWeakCaptures(signature) {
+            return .strongWeakWeakCaptures
+        }
+        if hasExactWeakStrongCaptures(signature) {
+            return .weakStrongCaptures
+        }
+        return nil
+    }
+
+    private func hasExactStrongWeakWeakCaptures(
+        _ signature: ClosureSignatureSyntax
+    ) -> Bool {
+        guard let captures = signature.capture?.items,
+              captures.count == 3 else {
+            return false
+        }
+        let items = Array(captures)
+        let strong = items[0]
+        let firstWeak = items[1]
+        let secondWeak = items[2]
+        guard strong.specifier == nil,
+              strong.initializer == nil,
+              strong.trailingComma != nil,
+              firstWeak.specifier?.specifier.text == "weak",
+              firstWeak.specifier?.detail == nil,
+              firstWeak.initializer == nil,
+              firstWeak.trailingComma != nil,
+              secondWeak.specifier?.specifier.text == "weak",
+              secondWeak.specifier?.detail == nil,
+              secondWeak.initializer == nil,
+              secondWeak.trailingComma == nil else {
+            return false
+        }
+        return true
+    }
+
+    private func hasExactWeakStrongCaptures(
+        _ signature: ClosureSignatureSyntax
+    ) -> Bool {
+        guard let captures = signature.capture?.items,
+              captures.count == 2 else {
+            return false
+        }
+        let items = Array(captures)
+        let weak = items[0]
+        let strong = items[1]
+        guard weak.specifier?.specifier.text == "weak",
+              weak.specifier?.detail == nil,
+              weak.initializer == nil,
+              weak.trailingComma != nil,
+              strong.specifier == nil,
+              strong.initializer == nil,
+              strong.trailingComma == nil else {
+            return false
+        }
+        return true
+    }
+
     func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) throws -> ClosureValue {
         var parameters: [ClosureValue.Parameter] = []
         if let input = closure.signature?.parameterClause {
@@ -652,6 +851,13 @@ extension Interpreter {
                 needsSelf = true
                 continue
             }
+            if name == "Self",
+               let selfValue = env.lookup("self"),
+               let selfType = capturedSelfType(from: selfValue) {
+                captured.define(
+                    "Self", selfType, isMutableBinding: false)
+                continue
+            }
             // `$local.member` is a reference to the projected value of the
             // underlying local wrapper storage, whose lexical binding is
             // named `local` (there is no source variable literally named
@@ -694,7 +900,29 @@ extension Interpreter {
             programPlan: currentProgramPlan)
         value.programState = currentProgramState
         value.lexicalExecutor = currentLexicalExecutor
+        let closureAttributeNames = closure.signature?.attributes.compactMap {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+        } ?? []
+        if closureAttributeNames.contains(where: {
+            $0 == "MainActor" || $0 == "Swift.MainActor"
+        }) {
+            value.executorPreference = .mainActor
+        } else {
+            // Resolve user-defined global actors lazily, after all source
+            // declarations have been collected. Runtime-inert attributes
+            // such as @Sendable are harmless candidates and simply do not
+            // resolve to a type marked @globalActor.
+            value.globalActorAttributeCandidates = closureAttributeNames
+        }
         value.isPhysicalSnapshotKernelCandidate = closure.signature == nil
+        value.physicalExplicitMainActorContinuationSignature =
+            physicalExplicitMainActorContinuationSignature(closure.signature)
+        value.isPhysicalStrongSelfSourceCallCandidate =
+            isPhysicalStrongSelfSourceCallCandidate(closure.signature)
+        value.isPhysicalWeakSelfSourceCallCandidate =
+            isPhysicalWeakSelfSourceCallCandidate(closure.signature)
+        value.physicalSingleValueSourceCallCaptureName =
+            physicalSingleValueSourceCallCaptureName(closure.signature)
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
         // only the value environment lets same-named nested types resolve in

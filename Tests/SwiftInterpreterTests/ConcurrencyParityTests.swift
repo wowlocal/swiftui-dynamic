@@ -43,6 +43,7 @@ private struct ConcurrencyParityCase: Decodable {
     let interpreterExecutionMode: String?
     let interpreterMaximumParallelism: Int?
     let expectedPhysicalSourceKernelExecutions: Int?
+    let expectedPhysicalHostOperationExecutions: Int?
     let diagnosticContains: [String]?
     let diagnosticLine: Int?
     let interpreterDiagnosticContains: [String]?
@@ -666,10 +667,18 @@ private enum ConcurrencyParityHarness {
         interpreter.globals.define(
             "parityCurrentExecutorLane",
             .hostFunction(HostFunction(
-                name: "parityCurrentExecutorLane"
-            ) { _, context in
-                .native(context.sourceExecutor.isMainActor ? "main" : "worker")
-            }))
+                name: "parityCurrentExecutorLane",
+                invoke: { _, context in
+                    .native(
+                        context.sourceExecutor.isMainActor
+                            ? "main" : "worker")
+                },
+                workerOperation: { _, _ in
+                    HostWorkerOperation {
+                        .string(
+                            Thread.isMainThread ? "main" : "worker")
+                    }
+                })))
         interpreter.globals.define(
             "parityCurrentIsolationKind",
             .hostFunction(HostFunction(
@@ -1166,6 +1175,16 @@ private enum ConcurrencyParityHarness {
                 "case '\(parityCase.id)' expected \(expected) physical "
                     + "source kernels but observed "
                     + "\(interpreter.concurrencyRuntime.totalPhysicalSourceKernelExecutions)")
+        }
+
+        if let expected = parityCase
+                .expectedPhysicalHostOperationExecutions,
+           interpreter.concurrencyRuntime
+                .totalPhysicalHostOperationExecutions != expected {
+            throw RuntimeError(message:
+                "case '\(parityCase.id)' expected \(expected) physical "
+                    + "host operations but observed "
+                    + "\(interpreter.concurrencyRuntime.totalPhysicalHostOperationExecutions)")
         }
 
         if hostSequenceRegistry.nextCallCount > 0 {
