@@ -826,7 +826,8 @@ extension Interpreter {
             }
             switch name {
             case "append":
-                if let contents = args.labeled("contentsOf")?.arrayValue {
+                if let source = args.labeled("contentsOf"),
+                   let contents = try materializedCollectionElements(source) {
                     array.append(contentsOf: try contents.map(resolved))
                 } else if let value = args.positional(0) {
                     array.append(try resolved(value))
@@ -834,7 +835,8 @@ extension Interpreter {
                     throw error(call, "append needs a value")
                 }
             case "insert":
-                if let contents = args.labeled("contentsOf")?.arrayValue,
+                if let source = args.labeled("contentsOf"),
+                   let contents = try materializedCollectionElements(source),
                    let index = args.labeled("at")?.intValue,
                    index >= 0, index <= array.count {
                     array.insert(contentsOf: try contents.map(resolved), at: index)

@@ -990,6 +990,24 @@ extension Interpreter {
         return elements
     }
 
+    /// Materializes a runtime collection without naming its concrete API.
+    /// Native carriers use their stored elements; interpreted collections use
+    /// the same integer-indexed protocol shape as generated defaults and
+    /// `for in` execution.
+    func materializedCollectionElements(
+        _ value: RuntimeValue
+    ) throws -> [RuntimeValue]? {
+        if let array = value.arrayValue { return array }
+        if let set = value.setValue { return set.elements }
+        if let string = value.stringValue {
+            return string.map { .native(String($0)) }
+        }
+        if let range = value.rangeValue?.halfOpenIntRange {
+            return range.map(RuntimeValue.native)
+        }
+        return try interpretedIntegerIndexedCollectionElements(value)
+    }
+
     /// The symbol whose user subscripts serve `base`: an interpreted
     /// instance's own, or — for host values — the EXTENSION symbol under
     /// the value's host type name (clean-architecture's
