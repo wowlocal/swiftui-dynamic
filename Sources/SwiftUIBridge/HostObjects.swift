@@ -1330,7 +1330,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         case "copyItem", "moveItem":
             let move = name == "moveItem"
-            return .hostFunction(HostFunction(name: name) { args, _ in
+            let validatedURLs: (CallArguments) throws -> (URL, URL) = { args in
                 guard let from = urlArg(args.labeled("at")), let to = urlArg(args.labeled("to")) else {
                     // Sources that never materialized (URLSession temp
                     // markers) can't be copied — the honest throw lands in
@@ -1339,6 +1339,12 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 try box.requireSandboxed(to)
                 try box.requireSandboxed(from)
+                return (from, to)
+            }
+            return .hostFunction(HostFunction(
+                name: name,
+                invoke: { args, _ in
+                let (from, to) = try validatedURLs(args)
                 do {
                     if move { try box.manager.moveItem(at: from, to: to) }
                     else { try box.manager.copyItem(at: from, to: to) }
@@ -1346,7 +1352,25 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                     throw RuntimeError(message: "\(name): \(error.localizedDescription)")
                 }
                 return .void
-            })
+            }, workerOperation: { args, _ in
+                // Validation and RuntimeValue -> URL copying stay confined.
+                // Only two Foundation value snapshots and the operation kind
+                // cross into the compiler-checked @Sendable closure.
+                let (from, to) = try validatedURLs(args)
+                return HostWorkerOperation {
+                    do {
+                        if move {
+                            try FileManager.default.moveItem(at: from, to: to)
+                        } else {
+                            try FileManager.default.copyItem(at: from, to: to)
+                        }
+                    } catch {
+                        throw RuntimeError(
+                            message: "\(name): \(error.localizedDescription)")
+                    }
+                    return .void
+                }
+            }))
         case "createDirectory":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 let url = urlArg(args.labeled("at"))

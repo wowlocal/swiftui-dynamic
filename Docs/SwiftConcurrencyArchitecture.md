@@ -5287,12 +5287,14 @@ The target boundary has four layers:
 
 1. A generated or handwritten gateway retains its ordinary confined
    implementation and may build a `HostWorkerOperation`. The operation is
-   `Sendable`; its current result algebra contains only `Bool` and `String`, so
+   `Sendable`; its current result algebra contains only `Void`, `Bool`, and
+   `String`, so
    `RuntimeValue`, interpreter objects, callbacks, and opaque host state cannot
    cross.
-2. Typed source-synchronous `HostFunction` and read-only `HostProperty`
-   contracts validate source arguments/receivers before building the
-   operation and validate the materialized result afterward. Authored async or
+2. Source-synchronous `HostFunction` and read-only `HostProperty` descriptors
+   validate source arguments/receivers before building the operation, either
+   through `HostSignature` or their confined gateway conversion, and validate
+   typed materialized results where a signature exists. Authored async or
    settable property contracts cannot register this transport.
 3. `TaskBoundEvalContext` admits the operation only for an active async runtime
    entry in explicit parallel mode and only from `.cooperativeDefault` or
@@ -5408,6 +5410,36 @@ makes no coroutine-semantics claim. Full suspension-safe `_read`/`_modify`
 borrowing, coroutine subscripts, and synthesized setter composition remain
 demand-deferred.
 
+The ninety-fourth prerequisite applies the checked native-host boundary to
+UTM's exact `Task.detached { try FileManager.default.moveItem/copyItem(...) }`
+spellings. These Foundation calls are source-synchronous and throwing, but an
+awaited detached task must publish their file-system effects before `.value`
+returns and must rethrow failure into the caller's `do`/`catch`. The shared
+strict Swift 6 oracle moves a temporary directory, copies the result, then
+repeats the move from the now-missing source; twenty bounded native/interpreter
+runs returned exact
+`worker|source:false|destination:true|copy:true|missing:error`, with focused
+five-run shard digest
+`c9e23bd076040ca9e579c3988f591e7fd52c98268f75ece74377b642a2d7b0e6`.
+
+`HostWorkerValue.Void` is the only new transport value. URL extraction and
+sandbox validation happen on the confined evaluator before worker launch; the
+compiled operation captures only two Foundation `URL` values and the immutable
+copy/move choice. `FileManagerBox`, `RuntimeValue`, evaluator state, and mutable
+sandbox state never cross. A pure registry capability query recognizes the
+imported `FileManager.default` member chain without evaluating `default` during
+admission. A same-module `FileManager` declaration therefore keeps source
+precedence and records no physical operation. Successful move/copy operations
+return `Void`; Foundation failure crosses as `RuntimeError`, so ordinary source
+error handling remains authoritative. This is a checked gateway attachment,
+not blanket native forwarding or general static-member resolution.
+
+The canonical iteration passed 82 implementation tests in three suites, all
+43 methodology checks plus the three gate-contract checks, and 20/20 focused
+parity repetitions. The parallel board passed 116/116 tests in four suites in
+1.63 seconds. A fresh Swift 6.3.3 TSan build passed native overlap 20/20 and all
+116 tests without a race or interceptor diagnostic in 74 seconds total.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -5456,6 +5488,7 @@ and optional-async-closure-invocation
 and weak-receiver-release-across-suspension
 and optional-value-mutating-async-writeback
 and optional-value-mutating-async-throwing-writeback
+and parallel-detached-file-manager-move
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

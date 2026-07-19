@@ -3385,5 +3385,22 @@
     "interpreterProjection": "string",
     "nativeFact": "When a same-module Array.filter([FilterRule]) overload delegates to the standard-library Array.filter(closure), the outer array argument selects the source overload and the inner closure selects the imported overload without recursively re-entering the source method; a key path remains convertible to the imported predicate parameter. A chained imported filter on an empty statically typed [HarbourCargo] preserves that receiver type, so the following filter(String) selects the [HarbourCargo] source extension rather than the imported predicate or a same-shaped [HarbourOther] extension.",
     "notes": "MochiDiffusion demand-cites the Array<SDImage>.filter([Filter]) delegation shape in ImageGallery.swift. Home Assistant retains filter(\\.property), which demand-cites SE-0249 key-path-as-function conversion. Harbour chains filter(closure).filter(searchText) on [Container]; the closing full corpus gate exposed that the intermediate empty runtime array had lost the static sugar-extension identity and the typed imported gateway rejected String. This same-source oracle isolates all three source/imported target decisions and exact output; animation and unrelated application behavior are outside its contract."
+  },
+  {
+    "id": "parallel-detached-file-manager-move",
+    "fixture": "Fixtures/parallel-detached-file-manager-move.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedFileManagerMoveProbe()",
+    "interpreterProjection": "string",
+    "interpreterRegistry": "swiftUI",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "expectedPhysicalHostOperationExecutions": 3,
+    "nativeFact": "Awaited Task.detached operations may synchronously move and copy Foundation URLs with FileManager.default; Task.value returns only after each file-system effect is visible, and a subsequent move from the missing source throws into the caller's do/catch.",
+    "notes": "UTM demand-cites the exact detached FileManager.default move spelling in UTMQemuConfiguration.swift:323-325 and 336-338, plus the corresponding detached copyItem spelling in UTMConfiguration.swift:191-193. The same-source probe also reads the physical lane through a synchronous helper. Its deterministic interpreter RED already returned the correct move/failure behavior, but parallel mode recorded only the existing Thread worker operation; FileManager still ran synchronously on the MainActor-hosted evaluator. The checked bridge route adds one successful move execution, one successful copy execution, and one throwing move submission without moving FileManagerBox, RuntimeValue, evaluator, or mutable sandbox state across the worker boundary. A focused source-shadow regression proves a same-module FileManager keeps source precedence and records no physical host operation. UTMVirtualMachine's distinct Self.fileManager receiver remains cooperative and is not claimed by this route."
   }
 ]

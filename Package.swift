@@ -126,7 +126,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftInterpreterTests",
-            dependencies: ["SwiftInterpreter"],
+            dependencies: ["SwiftInterpreter", "SwiftUIBridge"],
             swiftSettings: mainActorByDefault
         ),
         .testTarget(

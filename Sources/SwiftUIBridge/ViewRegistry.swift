@@ -80,6 +80,16 @@ public final class ViewRegistry: HostRegistry {
         bridgeHostObjectConstructor(named: name)
     }
 
+    public func hostMemberHasWorkerOperation(
+        _ name: String,
+        onStaticMember staticMember: String,
+        ofType typeName: String
+    ) -> Bool {
+        typeName == "FileManager"
+            && staticMember == "default"
+            && (name == "copyItem" || name == "moveItem")
+    }
+
     public func constructor(named name: String) -> HostFunction? {
         let resolvedName = GeneratedPlatformBridge.canonicalTypeName(name)
         // Native SDK constructors come from BridgeGen before compatibility
