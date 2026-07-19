@@ -718,9 +718,23 @@ public final class FileManagerBox {
         return documents
     }
 
+    /// Canonical container path: standardized, with every EXISTING
+    /// directory component resolved. Both sides of the admission check use
+    /// it, so /var vs /private/var spellings agree.
+    private func containerPath(_ url: URL) -> String {
+        url.standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
     func requireSandboxed(_ url: URL) throws {
-        let rootPath = sandboxRoot.standardizedFileURL.path
-        let candidatePath = url.standardizedFileURL.path
+        // Resolve the DIRECTORY chain but keep the leaf unresolved: a
+        // symlink inside the container pointing outside must not smuggle a
+        // mutation out through its parent chain, while removing or
+        // replacing the link itself remains an ordinary in-container
+        // mutation (native removeItem on a link removes the link).
+        let rootPath = containerPath(sandboxRoot)
+        let candidate = url.standardizedFileURL
+        let candidatePath = containerPath(candidate.deletingLastPathComponent())
+            + "/" + candidate.lastPathComponent
         guard candidatePath == rootPath
                 || candidatePath.hasPrefix(rootPath + "/") else {
             throw RuntimeError(message: "file operation outside the app sandbox: \(url.path)")

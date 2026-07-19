@@ -684,6 +684,192 @@ struct ParallelFileServiceGatewayTests {
     }
 
     @Test
+    func symlinkedParentCannotSmuggleMutationsOutside() async throws {
+        // Admission resolves the directory chain: a link inside the
+        // container pointing outside must not carry a mutation out, on
+        // either face, and the outside target stays untouched.
+        let registry = ViewRegistry()
+        let box = registry.fileManagerBox
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "outside-target-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: outside, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try FileManager.default.createDirectory(
+            at: box.sandboxRoot, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: box.sandboxRoot.appendingPathComponent("escape"),
+            withDestinationURL: outside)
+
+        let source = """
+        func probe() async -> String {
+            let link = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("escape", isDirectory: true)
+                .appendingPathComponent("smuggled", isDirectory: true)
+            do {
+                try await Task.detached {
+                    try FileManager.default.createDirectory(
+                        at: link, withIntermediateDirectories: true)
+                }.value
+                return "accepted"
+            } catch {
+                let text = "\\(error)"
+                return text.contains("outside the app sandbox")
+                    ? "confined" : "other:" + text
+            }
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let parallel = Interpreter(
+            registry: registry,
+            executionMode: .parallel(parallelism))
+
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(parallelValue.stringValue == "confined")
+        #expect(!FileManager.default.fileExists(
+            atPath: outside.appendingPathComponent("smuggled").path))
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func removingASymlinkInsideTheSandboxStaysLegal() async throws {
+        // The leaf stays unresolved: native removeItem on a link removes
+        // the LINK. Deleting an in-container link is an ordinary mutation
+        // and must not be rejected because its target lives outside.
+        let registry = ViewRegistry()
+        let box = registry.fileManagerBox
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "outside-survivor-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: outside, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try FileManager.default.createDirectory(
+            at: box.sandboxRoot, withIntermediateDirectories: true)
+        let link = box.sandboxRoot.appendingPathComponent("escape")
+        try FileManager.default.createSymbolicLink(
+            at: link, withDestinationURL: outside)
+
+        let source = """
+        func probe() async -> String {
+            let link = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("escape")
+            do {
+                try await Task.detached {
+                    try FileManager.default.removeItem(at: link)
+                }.value
+                return "removed"
+            } catch {
+                return "threw"
+            }
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let parallel = Interpreter(
+            registry: registry,
+            executionMode: .parallel(parallelism))
+
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(parallelValue.stringValue == "removed")
+        #expect((try? FileManager.default.destinationOfSymbolicLink(
+            atPath: link.path)) == nil)
+        #expect(FileManager.default.fileExists(atPath: outside.path))
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 1)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 1)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func moveOntoExistingDestinationFailsAlikeOnBothFaces() async throws {
+        let source = """
+        func probe() async -> String {
+            let manager = FileManager.default
+            let root = manager.temporaryDirectory
+            let a = root.appendingPathComponent("occupant-a", isDirectory: true)
+            let b = root.appendingPathComponent("occupant-b", isDirectory: true)
+            try? manager.createDirectory(at: a, withIntermediateDirectories: true)
+            try? manager.createDirectory(at: b, withIntermediateDirectories: true)
+            do {
+                try await Task.detached {
+                    try FileManager.default.moveItem(at: a, to: b)
+                }.value
+                return "accepted"
+            } catch {
+                let text = error.localizedDescription
+                return text.hasPrefix("moveItem:") ? "mapped-error" : "other"
+            }
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "mapped-error")
+        #expect(parallelValue.stringValue == "mapped-error")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 1)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func emptyPathQueriesAnswerFalseOnBothFaces() async throws {
+        let source = """
+        func probe() async -> String {
+            let exists = await Task.detached {
+                FileManager.default.fileExists(atPath: "")
+            }.value
+            return exists ? "true" : "false"
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter(registry: ViewRegistry())
+        let parallel = Interpreter(
+            registry: ViewRegistry(),
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "false")
+        #expect(parallelValue.stringValue == "false")
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 1)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 1)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func fileManagerSandboxIsOwnedByItsRegistry() throws {
         // The parallel-worker sandbox race: a process-global root let any
         // concurrent verification reset delete or redirect an in-flight

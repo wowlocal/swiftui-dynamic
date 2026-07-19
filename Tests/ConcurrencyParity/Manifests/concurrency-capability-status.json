@@ -3140,7 +3140,11 @@
         "ParallelFileServiceGatewayTests/detachedCancellationDoesNotSuppressFileOperations",
         "ParallelFileServiceGatewayTests/outsideSandboxQueriesPassThroughOnBothFaces",
         "ParallelFileServiceGatewayTests/contendingDetachedRemovalsDrainDeterministically",
-        "ParallelFileServiceGatewayTests/createDirectoryExplicitAttributesAreSandboxInert"
+        "ParallelFileServiceGatewayTests/createDirectoryExplicitAttributesAreSandboxInert",
+        "ParallelFileServiceGatewayTests/symlinkedParentCannotSmuggleMutationsOutside",
+        "ParallelFileServiceGatewayTests/removingASymlinkInsideTheSandboxStaysLegal",
+        "ParallelFileServiceGatewayTests/moveOntoExistingDestinationFailsAlikeOnBothFaces",
+        "ParallelFileServiceGatewayTests/emptyPathQueriesAnswerFalseOnBothFaces"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
