@@ -109,6 +109,7 @@ public enum SwiftPMBuildDescriptionMaterialError: Error, Equatable,
     case noSwiftCommands(String)
     case missingCompilerInput(String)
     case unreadableCompilerInput(String)
+    case ambiguousCompilerInputModule(String)
 
     public var description: String {
         switch self {
@@ -122,6 +123,9 @@ public enum SwiftPMBuildDescriptionMaterialError: Error, Equatable,
             "SwiftPM build description names a missing source: '\(path)'"
         case let .unreadableCompilerInput(path):
             "SwiftPM compiler input could not be read: '\(path)'"
+        case let .ambiguousCompilerInputModule(path):
+            "SwiftPM build description compiles one source into multiple "
+                + "modules: '\(path)'"
         }
     }
 }
@@ -176,6 +180,25 @@ public enum ProjectMaterial {
     ) throws -> [String] {
         let files = try swiftPMBuildModules(at: path).flatMap(\.sources)
         return Array(Set(files)).sorted()
+    }
+
+    /// Authoritative source-file ownership from SwiftPM's resolved build
+    /// plan. Runtime module qualification uses this provenance to distinguish
+    /// `Dependency.Model` from an unrelated same-named app declaration.
+    public static func sourceModuleNames(
+        inSwiftPMBuildDescriptionAt path: String
+    ) throws -> [String: String] {
+        var result: [String: String] = [:]
+        for module in try swiftPMBuildModules(at: path) {
+            for source in module.sources {
+                if let existing = result[source], existing != module.name {
+                    throw SwiftPMBuildDescriptionMaterialError
+                        .ambiguousCompilerInputModule(source)
+                }
+                result[source] = module.name
+            }
+        }
+        return result
     }
 
     /// Load the transitive source-module slice needed by qualified global
@@ -361,7 +384,9 @@ public enum ProjectMaterial {
                 of: source.source,
                 recordingImportsIn: &imports
             )
-            merged += "\n// FILE: \(source.fileName)\n" + stripped + "\n"
+            merged += sourceModuleStart(manifest.buildTarget.moduleName)
+                + "\n// FILE: \(source.fileName)\n" + stripped + "\n"
+                + sourceModuleEnd
         }
         merged += moduleProvenance(for: imports)
         merged += LibraryShims.shims(importedIn: imports, mergedSource: merged)
@@ -370,12 +395,19 @@ public enum ProjectMaterial {
 
     /// Imports are stripped (the merge holds all the app's own Swift; the
     /// interpreter absorbs what a compiled import would provide).
-    public static func mergedSource(at root: String, files: [String]) -> String {
+    public static func mergedSource(
+        at root: String,
+        files: [String],
+        sourceModules: [String: String] = [:]
+    ) -> String {
         BundleBox.projectResourceRoot = root
-        return mergedSource(files: files)
+        return mergedSource(files: files, sourceModules: sourceModules)
     }
 
-    public static func mergedSource(files: [String]) -> String {
+    public static func mergedSource(
+        files: [String],
+        sourceModules: [String: String] = [:]
+    ) -> String {
         var merged = ""
         var imports: Set<String> = []
         for path in files {
@@ -397,7 +429,18 @@ public enum ProjectMaterial {
                 of: content,
                 recordingImportsIn: &imports
             )
-            merged += "\n// FILE: \(URL(fileURLWithPath: path).lastPathComponent)\n" + stripped + "\n"
+            let canonicalPath = URL(fileURLWithPath: path)
+                .standardizedFileURL.resolvingSymlinksInPath().path
+            let moduleName = sourceModules[canonicalPath]
+                ?? sourceModules[path]
+            if let moduleName {
+                merged += sourceModuleStart(moduleName)
+            }
+            merged += "\n// FILE: \(URL(fileURLWithPath: path).lastPathComponent)\n"
+                + stripped + "\n"
+            if moduleName != nil {
+                merged += sourceModuleEnd
+            }
         }
         merged += moduleProvenance(for: imports)
         // Source-distributed state libraries the app imports but doesn't
@@ -414,6 +457,13 @@ public enum ProjectMaterial {
         return "\n" + imports.sorted().map {
             "// swift-interpreter-module \($0)"
         }.joined(separator: "\n") + "\n"
+    }
+
+    private static let sourceModuleEnd =
+        "\n// swift-interpreter-source-module-end\n"
+
+    private static func sourceModuleStart(_ moduleName: String) -> String {
+        "\n// swift-interpreter-source-module \(moduleName)"
     }
 
     fileprivate static func isSafeProjectRelativeSwiftPath(

@@ -255,6 +255,7 @@ struct IceCubesCheckMain {
         let fixtures: String
         let appFiles: [String]
         let packageFiles: [String]
+        let sourceModules: [String: String]
     }
 
     private static func paths() throws -> Paths {
@@ -280,12 +281,16 @@ struct IceCubesCheckMain {
         // module's compiled source inventory; no package/API identity lives
         // in this instrument.
         let externalPackageFiles: [String]
+        let sourceModules: [String: String]
         if FileManager.default.fileExists(atPath: buildDescription) {
             externalPackageFiles = try ProjectMaterial.swiftFiles(
                 inSwiftPMBuildDescriptionAt: buildDescription,
                 requiredBy: localPackageFiles)
+            sourceModules = try ProjectMaterial.sourceModuleNames(
+                inSwiftPMBuildDescriptionAt: buildDescription)
         } else {
             externalPackageFiles = []
+            sourceModules = [:]
         }
         let packageFiles = Array(Set(
             localPackageFiles + externalPackageFiles)).sorted()
@@ -296,12 +301,14 @@ struct IceCubesCheckMain {
         }
         return Paths(
             root: root, app: app, fixtures: fixtures,
-            appFiles: appFiles.sorted(), packageFiles: packageFiles.sorted())
+            appFiles: appFiles.sorted(), packageFiles: packageFiles.sorted(),
+            sourceModules: sourceModules)
     }
 
     private static func shellRung(paths: Paths, oracle: FixtureOracle) throws -> RungRecord {
         let source = ProjectMaterial.mergedSource(
-            at: paths.app, files: paths.packageFiles + paths.appFiles)
+            at: paths.app, files: paths.packageFiles + paths.appFiles,
+            sourceModules: paths.sourceModules)
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let normalized = strings.map(FixtureOracle.normalize)
         var problems: [String] = []
@@ -328,7 +335,9 @@ struct IceCubesCheckMain {
     private static func renderRungs(
         paths: Paths, oracle: FixtureOracle
     ) throws -> [RungRecord] {
-        let source = ProjectMaterial.mergedSource(at: paths.app, files: paths.packageFiles)
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles,
+            sourceModules: paths.sourceModules)
             + renderProbeSource(includeDetailAndAccount: true)
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let normalized = strings.map(FixtureOracle.normalize)
@@ -486,7 +495,9 @@ struct IceCubesCheckMain {
         Interpreter.interpretsAsPlatform = "iOS"
         NetworkBridge.policy = .replay(fixturesDirectory: paths.fixtures)
         defer { NetworkBridge.policy = .absorbed }
-        let source = ProjectMaterial.mergedSource(at: paths.app, files: paths.packageFiles)
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles,
+            sourceModules: paths.sourceModules)
             + renderProbeSource(includeDetailAndAccount: false)
 
         try FileManager.default.createDirectory(

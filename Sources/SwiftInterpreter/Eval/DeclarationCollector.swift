@@ -359,6 +359,26 @@ extension Interpreter {
     private func collectStruct(_ node: StructDeclSyntax) throws {
         let symbol = try makeStructSymbol(node)
         registerTypeSymbol(symbol)
+        registerSourceModuleType(.type(symbol), declaration: node)
+    }
+
+    /// Build-material provenance, rather than a framework/type-name list,
+    /// owns qualified source declarations after multiple modules are flattened
+    /// into one interpreter program.
+    private func registerSourceModuleType(
+        _ value: RuntimeValue,
+        declaration: some SyntaxProtocol
+    ) {
+        guard let moduleName = currentProgramMetadata?.sourceModuleName(
+            at: declaration.positionAfterSkippingLeadingTrivia)
+        else { return }
+        let typeName: String
+        switch value {
+        case .type(let symbol): typeName = symbol.name
+        case .enumType(let symbol): typeName = symbol.name
+        default: return
+        }
+        globals.define("\(moduleName).\(typeName)", value)
     }
 
     /// Duplicate type names (multi-target repos declare ContentView per
@@ -412,14 +432,18 @@ extension Interpreter {
     ]
 
     private func collectClass(_ node: ClassDeclSyntax) throws {
-        registerTypeSymbol(try makeClassLikeSymbol(node))
+        let symbol = try makeClassLikeSymbol(node)
+        registerTypeSymbol(symbol)
+        registerSourceModuleType(.type(symbol), declaration: node)
     }
 
     /// Actors share the nominal-member collector with classes but retain their
     /// language kind. Instance allocation assigns the runtime actor identity;
     /// isolated member closures then enter that actor's logical executor.
     private func collectActor(_ node: ActorDeclSyntax) throws {
-        registerTypeSymbol(try makeClassLikeSymbol(node))
+        let symbol = try makeClassLikeSymbol(node)
+        registerTypeSymbol(symbol)
+        registerSourceModuleType(.type(symbol), declaration: node)
     }
 
     func makeClassLikeSymbol(
@@ -789,10 +813,12 @@ extension Interpreter {
             // (Rayon + mRayon both ship `enum UIBridge`): members UNION —
             // separate targets never collide on device.
             union(symbol, into: existing)
+            registerSourceModuleType(.enumType(existing), declaration: node)
             return
         }
         enumSymbols[symbol.name] = symbol
         globals.define(symbol.name, .enumType(symbol))
+        registerSourceModuleType(.enumType(symbol), declaration: node)
     }
 
     /// Union `symbol`'s members into `existing` (sibling-target namespaces).

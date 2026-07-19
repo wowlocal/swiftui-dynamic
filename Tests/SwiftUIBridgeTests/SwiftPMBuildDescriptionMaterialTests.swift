@@ -39,10 +39,16 @@ struct SwiftPMBuildDescriptionMaterialTests {
             import Dependency
             import NamespaceKit
             let dependencyResult = Dependency.dependencyMessage()
+            let dependencyModelValue = Dependency.Model.value()
             let namespaceValue = NamespaceKit.Config()
             """
             .write(to: app, atomically: true, encoding: .utf8)
-        try "func dependencyMessage() -> String { \"resolved-dependency\" }\n"
+        try """
+            func dependencyMessage() -> String { "resolved-dependency" }
+            struct Model {
+                static func value() -> Int { 42 }
+            }
+            """
             .write(to: dependency, atomically: true, encoding: .utf8)
         try "enum NamespaceKit { struct Config {} }\n"
             .write(to: namespace, atomically: true, encoding: .utf8)
@@ -86,12 +92,19 @@ struct SwiftPMBuildDescriptionMaterialTests {
         #expect(dependencies == [dependency.path])
 
         let interpreter = Interpreter()
+        let sourceModules = try ProjectMaterial.sourceModuleNames(
+            inSwiftPMBuildDescriptionAt: description.path)
         let merged = ProjectMaterial.mergedSource(
-            files: [app.path] + dependencies)
+            files: [app.path] + dependencies,
+            sourceModules: sourceModules)
         #expect(merged.contains("// swift-interpreter-module Dependency"))
+        #expect(merged.contains(
+            "// swift-interpreter-source-module Dependency"))
         #expect(!merged.contains("import Dependency"))
         try interpreter.run(source: merged)
         #expect(interpreter.globals.lookup("dependencyResult")?.stringValue
             == "resolved-dependency")
+        #expect(interpreter.globals.lookup("dependencyModelValue")?.intValue
+            == 42)
     }
 }

@@ -15,6 +15,52 @@ struct TypedHostExtensionMethodOverloads {
 extension Interpreter {
     // MARK: - Identifiers & members
 
+    /// A module qualifier is semantic source metadata, not a small list of
+    /// framework identities. `Swift` arrives through the language's implicit
+    /// import; project merges preserve every explicit import as provenance.
+    private func isVisibleModuleQualifier(_ name: String) -> Bool {
+        currentProgramMetadata?.importedModuleNames.contains(name) == true
+    }
+
+    /// Resolve `Module.global` without collapsing a source overload family to
+    /// whichever declaration happened to be collected last.
+    private func moduleQualifiedGlobal(
+        named name: String,
+        moduleName: String
+    ) -> RuntimeValue? {
+        guard isVisibleModuleQualifier(moduleName) else { return nil }
+        if let sourceDeclaration = globals.lookup("\(moduleName).\(name)") {
+            return sourceDeclaration
+        }
+        if let overloads = globalFunctionOverloads[name], !overloads.isEmpty {
+            return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
+                guard let self else { return .void }
+                let available = self.functionsAvailableForCall(
+                    from: overloads, args: args)
+                guard let function = self.chooseFunctionByRuntimeTypes(
+                    from: available, for: args) ?? available.first,
+                      let body = self.functionMetadata(for: function).body
+                else {
+                    return .native(ChainedImplicitCall(
+                        base: .implicitMember(name),
+                        member: "call",
+                        arguments: args))
+                }
+                let closure = self.makeFunctionClosure(
+                    function, body: body, captured: self.globals)
+                return try self.callWithArguments(
+                    closure, args: args, node: nil)
+            })
+        }
+        guard let global = globals.lookup(name) else { return nil }
+        switch global {
+        case .type, .enumType:
+            return nil
+        default:
+            return global
+        }
+    }
+
     /// Lazy globals evaluate their initializer on first read (memoized).
     func force(_ box: Box) throws -> RuntimeValue {
         if case .host(let any) = box.value, let computed = any as? ComputedGlobal {
@@ -1671,12 +1717,9 @@ extension Interpreter {
             // MODULE-qualified globals (`Swift.max`) — the catch-all ctor
             // claimed the module name; strip the qualifier. Declared types
             // fall through (the qualifier asks for the FRAMEWORK's symbol).
-            if ["Swift", "Foundation", "SwiftUI", "Combine", "Dispatch"].contains(function.name),
-               let global = globals.lookup(name) {
-                switch global {
-                case .type, .enumType: break
-                default: return global
-                }
+            if let global = moduleQualifiedGlobal(
+                named: name, moduleName: function.name) {
+                return global
             }
             // Program extensions SHADOW imported statics — `extension Date {
             // static var now }` wins over Foundation's own, exactly like a
@@ -2046,12 +2089,9 @@ extension Interpreter {
                 // types never answer: `SwiftUI.Tab` explicitly bypasses the
                 // app's own `enum Tab` (Interactive_Header), so those fall
                 // through to the framework path.
-                if ["Swift", "Foundation", "SwiftUI", "Combine", "Dispatch"].contains(marker.name),
-                   let global = globals.lookup(name) {
-                    switch global {
-                    case .type, .enumType: break
-                    default: return global
-                    }
+                if let global = moduleQualifiedGlobal(
+                    named: name, moduleName: marker.name) {
+                    return global
                 }
                 // `UNAuthorizationStatus.notDetermined` where the program
                 // EXTENDS the host type: mint a TYPED marker so `.map`
