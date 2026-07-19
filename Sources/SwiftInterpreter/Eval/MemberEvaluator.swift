@@ -547,22 +547,48 @@ extension Interpreter {
     /// `appending(String)` wins for a non-optional String.
     func typedHostExtensionMethodOverloads(
         named name: String,
-        on receiver: RuntimeValue
+        on receiver: RuntimeValue,
+        declaredTypeName: String? = nil
     ) throws -> TypedHostExtensionMethodOverloads? {
         guard let payload = receiver.hostPayload else { return nil }
 
         var typeNames: [String] = []
-        if let typeName = registry?.hostTypeName(of: payload) {
+        func appendTypeName(_ typeName: String?) {
+            guard let typeName, !typeName.isEmpty,
+                  !typeNames.contains(typeName) else { return }
             typeNames.append(typeName)
         }
-        if payload is String, !typeNames.contains("String") {
-            typeNames.append("String")
+
+        if let declaredTypeName {
+            let declared = declaredTypeName.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            appendTypeName(declared)
+            if let element = RuntimeDeclaredType.arrayElementTypeName(
+                in: declared) {
+                appendTypeName("[\(element)]")
+                appendTypeName("Array")
+            }
         }
-        if payload is [RuntimeValue], !typeNames.contains("Array") {
-            typeNames.append("Array")
+        if let typeName = registry?.hostTypeName(of: payload) {
+            appendTypeName(typeName)
+        }
+        if payload is String, !typeNames.contains("String") {
+            appendTypeName("String")
+        }
+        if payload is [RuntimeValue] {
+            if let elements = receiver.arrayValue,
+               let first = elements.first {
+                let elementType = hostTypeName(of: first)
+                if elements.dropFirst().allSatisfy({
+                    valueIsType($0, elementType)
+                }) {
+                    appendTypeName("[\(elementType)]")
+                }
+            }
+            appendTypeName("Array")
         }
         if payload is BindingStub, !typeNames.contains("Binding") {
-            typeNames.append("Binding")
+            appendTypeName("Binding")
         }
 
         guard let imported = try nativeMember(name, on: receiver),
@@ -585,6 +611,80 @@ extension Interpreter {
                 sourceMethods: sourceMethods,
                 importedMethod: importedMethod,
                 receiver: receiver)
+        }
+        return nil
+    }
+
+    /// Recover the source type of a member receiver without attaching type
+    /// metadata to every RuntimeValue. A standard-library `filter` preserves
+    /// its receiver's element type, so a chained call retains the same static
+    /// array type even when the intermediate result is empty.
+    func declaredMemberReceiverTypeName(
+        for expression: ExprSyntax,
+        in environment: Environment
+    ) -> String? {
+        func storedValue(
+            for expression: ExprSyntax
+        ) -> RuntimeValue? {
+            if let reference = expression.as(
+                DeclReferenceExprSyntax.self) {
+                let name = reference.baseName.text
+                if name == "self" { return environment.lookup("self") }
+                if let box = environment.box(for: name, before: globals) {
+                    if case .host(let payload) = box.value,
+                       payload is LazyGlobal {
+                        return nil
+                    }
+                    return box.value
+                }
+                if case .instance(let instance)? = environment.lookup("self"),
+                   let box = instance.box(for:
+                       instance.symbol.canonicalPropertyName(name)) {
+                    return box.value
+                }
+                return nil
+            }
+            guard let member = expression.as(MemberAccessExprSyntax.self),
+                  let base = member.base,
+                  case .instance(let instance)? = storedValue(for: base) else {
+                return nil
+            }
+            return instance.box(for: instance.symbol.canonicalPropertyName(
+                member.declName.baseName.text))?.value
+        }
+
+        if let call = expression.as(FunctionCallExprSyntax.self),
+           let member = call.calledExpression.as(
+               MemberAccessExprSyntax.self),
+           member.declName.baseName.text == "filter",
+           let receiver = member.base {
+            return declaredMemberReceiverTypeName(
+                for: receiver, in: environment)
+        }
+        if let reference = expression.as(DeclReferenceExprSyntax.self) {
+            let name = reference.baseName.text
+            if let annotation = environment.box(
+                for: name, before: globals)?.declaredTypeName {
+                return annotation
+            }
+            if case .instance(let instance)? = environment.lookup("self") {
+                let canonical = instance.symbol.canonicalPropertyName(name)
+                return instance.symbol.storedProperty(named: canonical)?
+                    .typeAnnotation?.trimmedDescription
+                    ?? instance.symbol.computedProperties[canonical]?
+                        .typeAnnotation?.trimmedDescription
+            }
+            return globals.box(for: name)?.declaredTypeName
+        }
+        if let member = expression.as(MemberAccessExprSyntax.self),
+           let base = member.base,
+           case .instance(let instance)? = storedValue(for: base) {
+            let name = instance.symbol.canonicalPropertyName(
+                member.declName.baseName.text)
+            return instance.symbol.storedProperty(named: name)?
+                .typeAnnotation?.trimmedDescription
+                ?? instance.symbol.computedProperties[name]?
+                    .typeAnnotation?.trimmedDescription
         }
         return nil
     }
@@ -2004,16 +2104,10 @@ extension Interpreter {
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
                 return value
             }
-            let declaredBaseTypeName: String? = {
-                guard let member = Syntax(node).as(
-                    MemberAccessExprSyntax.self),
-                      let reference = member.base?.as(
-                        DeclReferenceExprSyntax.self) else {
-                    return nil
+            let declaredBaseTypeName = Syntax(node).as(
+                MemberAccessExprSyntax.self)?.base.flatMap {
+                    declaredMemberReceiverTypeName(for: $0, in: env)
                 }
-                return env.box(for: reference.baseName.text)?
-                    .declaredTypeName
-            }()
             if let value = try nativeMember(
                 name,
                 on: baseValue,

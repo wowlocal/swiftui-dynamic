@@ -11110,22 +11110,29 @@ argument-directed ranking, so the closure call re-entered the source method.
 The committed `source-imported-array-filter-overload.swift` fixture preserves
 that exact shape. It also exercises `filter(\.accepted)`, because Home
 Assistant showed that publishing a typed predicate contract must retain
-Swift's SE-0249 key-path-as-function conversion. Before the runtime fix the
-delegating closure failed at line 15 with call-depth exhaustion. Apple Swift
+Swift's SE-0249 key-path-as-function conversion. Its closing Harbour form
+chains imported `filter(closure)` into source `filter(String)` on an empty
+statically typed `[HarbourCargo]`, beside an equally shaped `[HarbourOther]`
+extension. Before the first repair the delegating closure failed at line 15
+with call-depth exhaustion; before the closing repair the Harbour form failed
+with `no matching source or imported overload for 'Array.filter'`. Apple Swift
 6.3.3 complete-strict compilation and interpreted execution now return exact
-`6,12|2,6,12` in twenty bounded runs; all four five-run native shards retain
-SHA-256
-`f75b77e6084f128f18c40fac6ea83192fd9351f91186a361a3b879e9ade649e9`.
+`6,12|2,6,12|cargo:harbour` in twenty bounded runs; all four five-run native
+shards retain SHA-256
+`74cfca1871cac527a1fc5898549324aaebf98688069939c459b95e70deeb596c`.
 
 `Array.filter` now publishes a synchronous throwing-predicate host signature.
 The existing source/imported resolver can therefore select the source method
 for `[FilterRule]` and the imported method for a closure. `HostSignature`
 recognizes a `KeyPathStub` as a function-convertible value at a score below an
 explicit closure, leaving concrete KeyPath overloads free to win. The exact
-MochiDiffusion project passes, Home Assistant passes without its former
-section retries, and the original session-script corpus regression remains
-green. This does not claim general standard-library interface import or full
-generic constraint solving.
+receiver annotation is considered before generic `Array`; a chained imported
+`filter` carries the receiver's static array type forward for overload lookup,
+even when its runtime result has no elements from which to infer a type. The
+exact MochiDiffusion, Home Assistant, and Harbour projects pass, and the
+original session-script corpus regression remains green. This does not claim
+general standard-library interface import, arbitrary return-type inference,
+or full generic constraint solving.
 
 ### Demand-time coroutine-accessor diagnostics
 

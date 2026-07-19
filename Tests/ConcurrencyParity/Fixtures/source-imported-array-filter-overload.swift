@@ -11,6 +11,14 @@ struct FilterRule {
     }
 }
 
+struct HarbourCargo {
+    let marker: String
+}
+
+struct HarbourOther {
+    let marker: String
+}
+
 extension Array where Element == FilterItem {
     func filter(_ rules: [FilterRule]) -> [FilterItem] {
         self.filter { item in
@@ -18,6 +26,18 @@ extension Array where Element == FilterItem {
                 rule.validate(item)
             }
         }
+    }
+}
+
+extension [HarbourCargo] {
+    func filter(_ query: String) -> Self {
+        [HarbourCargo(marker: "cargo:\(query)")]
+    }
+}
+
+extension [HarbourOther] {
+    func filter(_ query: String) -> Self {
+        [HarbourOther(marker: "other:\(query)")]
     }
 }
 
@@ -37,7 +57,12 @@ func sourceImportedArrayFilterOverloadOutput() async -> String {
         .joined(separator: ",")
     let acceptedOutput = accepted.map { String($0.value) }
         .joined(separator: ",")
-    return "\(selectedOutput)|\(acceptedOutput)"
+    let emptyCargo: [HarbourCargo] = []
+    let cargoOutput = emptyCargo.filter { _ in true }
+        .filter("harbour")
+        .map(\.marker)
+        .joined(separator: ",")
+    return "\(selectedOutput)|\(acceptedOutput)|\(cargoOutput)"
 }
 
 @MainActor

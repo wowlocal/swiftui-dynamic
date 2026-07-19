@@ -524,7 +524,10 @@ extension Interpreter {
         // Defer the decision until arguments are evaluated instead of letting
         // bare member lookup make a source-only choice.
         if let overloads = try typedHostExtensionMethodOverloads(
-            named: name, on: baseValue
+            named: name,
+            on: baseValue,
+            declaredTypeName: declaredMemberReceiverTypeName(
+                for: base, in: env)
         ) {
             let args = try collectArguments(of: call, in: env)
             let target = try resolveTypedHostExtensionMethodTarget(

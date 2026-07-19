@@ -1988,6 +1988,7 @@
             "HostSignatureTests/keyPathSatisfiesFunctionParameterLikeNativeSwift",
             "ExpressionTests/sourceAndImportedMemberOverloadsUseArgumentTypes",
             "ExpressionTests/sourceAndImportedMemberOverloadsMatchInAsyncSession",
+            "StdlibTests/sugarTypedArrayFilterOverloadRetainsStaticEmptyType",
             "AsyncExecutionTests/unusedNativeCoroutineAccessorDeclarationDoesNotFailTheRun",
             "AsyncExecutionTests/nativeCoroutineOptionalAccessorFailsClosedWhenUsed",
             "AsyncExecutionTests/ordinaryGetterBesideModifyAccessorRemainsReadable",

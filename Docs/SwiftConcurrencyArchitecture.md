@@ -5368,8 +5368,30 @@ ranking and return validation without pretending to reify `Array.Element`.
 The shared matcher also treats a runtime key path as function-convertible, at
 a lower score than an explicit closure, preserving SE-0249 and concrete
 KeyPath overload precedence. The strict same-source oracle returns exact
-`6,12|2,6,12` in 20/20 native/interpreter repetitions with focused shard
-digest `f75b77e6084f128f18c40fac6ea83192fd9351f91186a361a3b879e9ade649e9`.
+`6,12|2,6,12|cargo:harbour` in 20/20 native/interpreter repetitions with
+focused shard digest
+`74cfca1871cac527a1fc5898549324aaebf98688069939c459b95e70deeb596c`.
+
+The closing corpus gate adds the static receiver identity required by
+Harbour's `containers.filter { ... }.filter(searchText)`. Runtime arrays erase
+their generic element type, and the first predicate can legitimately return
+an empty array, so dynamic element inspection is insufficient. Member-call
+resolution now consults the exact source storage annotation before generic
+`Array`; the standard-library `filter` identity propagates that receiver type
+through a chained call. Consequently `[Container].filter(String)` competes
+with the imported predicate using the correct sugar-extension family even
+when another `[Stack]` overload has the same call shape. Nonempty unannotated
+arrays may additionally infer one homogeneous dynamic element type. This is a
+bounded declaration-identity rule for `filter`, not a claim that arbitrary
+generic return types are reified.
+
+Type recovery is observational: it reads declaration annotations and already
+materialized storage boxes only. It never invokes the general lvalue evaluator
+or re-evaluates a receiver. The first implementation violated that boundary;
+the TSan board caught task-producing bases executing three times and physical
+receipts rising from `1/2` to `3/6`. The corrected lookup restored exact-once
+evaluation, and the rebuilt TSan board passed native overlap 20/20 plus all
+114 worker tests without diagnostics.
 
 The ninety-third prerequisite separates declaration legality from unsupported
 runtime ownership. A merged program may contain native coroutine property

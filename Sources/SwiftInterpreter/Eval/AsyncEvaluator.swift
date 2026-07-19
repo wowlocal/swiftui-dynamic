@@ -1090,7 +1090,10 @@ extension Interpreter {
             // argument types are available. Use the same target resolver as
             // eager evaluation, then retain suspension-aware invocation.
             if let overloads = try typedHostExtensionMethodOverloads(
-                named: name, on: baseValue
+                named: name,
+                on: baseValue,
+                declaredTypeName: declaredMemberReceiverTypeName(
+                    for: baseExpression, in: env)
             ) {
                 let args = try await collectArgumentsSuspending(
                     of: call, in: env)
