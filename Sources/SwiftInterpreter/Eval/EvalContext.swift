@@ -63,13 +63,13 @@ final class TaskBoundEvalContext: EvalContext {
     }
 
     func runHostWorkerOperation(
-        _ makeOperation: () throws -> HostWorkerOperation
+        _ makeOperation: () throws -> HostWorkerOperation?
     ) async throws -> RuntimeValue? {
         guard interpreter.canRunPhysicalHostOperation(
             in: evaluationContext) else {
             return nil
         }
-        let operation = try makeOperation()
+        guard let operation = try makeOperation() else { return nil }
         return try await withHostOperation {
             try await interpreter.runPhysicalHostOperation(
                 operation, in: evaluationContext)

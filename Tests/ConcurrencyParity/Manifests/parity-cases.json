@@ -3419,5 +3419,22 @@
     "expectedPhysicalHostOperationExecutions": 2,
     "nativeFact": "Awaited Task.detached operations may synchronously remove Foundation URL and path String arguments with FileManager.default; Task.value returns only after each removal is visible, and removing the same missing URL throws into the caller's do/catch.",
     "notes": "The 94-project corpus contains eight detached FileManager.default.removeItem occurrences across CodeEdit, Clop, CotEditor, Planet, Provenance, UTM, and Unwatched, making it the broadest remaining detached FileManager operation family. CodeEdit demand-cites the exact priority-bearing awaited URL spelling in RegistryManager.swift:96-98; Clop demand-cites removeItem(atPath:) in PipelineExecution.swift:1079, while UTM and the other projects cite additional conditional, loop, try?, and cleanup compositions. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact url:true|path:true|missing:error in twenty runs; the raw digest is 7b9af5ded53d73eae182cb2491f19992dff6be838fe3ed7b7dd57b15a3595653 and every focused five-run shard retained 643b574324feb690e6faf5e6aa8e665d64a2706b338a80aa6ce2b673b9041a04. The retained URL-only RED returned the correct source value but recorded zero physical submissions/executions instead of two/one. This bounded same-source case isolates both direct static overloads: the successful URL and path removals execute physically, the repeated URL attempt submits and rethrows its Foundation failure, and a source-shadowed FileManager remains confined. URL/path conversion, sandbox validation, mutable FileManagerBox state, RuntimeValue, and evaluator ownership remain outside the worker operation."
+  },
+  {
+    "id": "parallel-detached-file-manager-exists",
+    "fixture": "Fixtures/parallel-detached-file-manager-exists.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelDetachedFileManagerExistsProbe()",
+    "interpreterProjection": "string",
+    "interpreterRegistry": "swiftUI",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 1,
+    "expectedPhysicalSourceKernelExecutions": 0,
+    "expectedPhysicalHostOperationExecutions": 2,
+    "nativeFact": "Awaited Task.detached operations may synchronously query FileManager.default.fileExists(atPath:); Task.value publishes true for an existing path and false for a missing path after each read completes.",
+    "notes": "A refreshed detached FileManager census finds eight fileExists occurrences across five corpus projects. Provenance demand-cites the direct priority-bearing awaited atPath spelling in PVImageFile+Artwork.swift:21-23 before image decoding. Apple Swift 6.3.3 complete-strict compilation with warnings as errors returned exact present:true|missing:false in twenty bounded runs; the raw twenty-line digest is e050daabe763c37563a8ac550e2ddf6db119107b60eba89ab5fb226577551ae4 and every focused five-run shard retained 25041a67d81db417c6c43723b7caeba9823d371eac8fef5d2c27d142583d150d. The deterministic receipt RED returned the exact source value in both interpreter modes but recorded zero physical submissions/executions instead of two/two. Only the direct one-argument atPath overload builds a checked String-only Bool operation. A general argument-sensitive builder decline keeps the isDirectory: overload on the confined implementation with zero receipts, and a source-shadowed FileManager also records zero. No mutable FileManagerBox, RuntimeValue, evaluator state, stable worker identity, or scheduler order crosses or enters the claim."
   }
 ]
