@@ -23,6 +23,15 @@ public protocol HostRawMemoryCursor: HostRawMemory {
         -> any HostRawMemoryCursor
 }
 
+/// A raw-memory cursor whose source representation defines an element stride.
+/// Typed pointers advance by their pointee stride; raw-pointer views expose the
+/// same capability with a stride of one byte.
+@MainActor
+protocol HostStridedMemoryCursor: HostRawMemoryCursor {
+    func advancedMemory(byElementOffset offset: Int) throws
+        -> any HostStridedMemoryCursor
+}
+
 public struct RuntimeABILayout: Equatable, Sendable {
     public let size: Int
     public let stride: Int

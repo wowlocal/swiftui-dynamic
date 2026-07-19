@@ -234,6 +234,28 @@ import Testing
         #expect(value.intValue == 42)
     }
 
+    /// Typed pointers advance by elements for every standard offset spelling;
+    /// the same capability advances raw-pointer views by bytes.
+    @Test func collectionBackedPointerSupportsOffsetOperators() throws {
+        let source = """
+        func offsetScore(_ values: [Int]) -> Int {
+            var result = -1
+            values.withUnsafeBufferPointer { buffer in
+                guard let base = buffer.baseAddress else { return }
+                result = (base + 2).pointee
+                    + (1 + base).pointee
+                    + ((base + 2) - 1).pointee
+            }
+            return result
+        }
+
+        offsetScore([10, 20, 42])
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.intValue == 82)
+    }
+
     @Test func loadedUInt64SupportsZeroByteDetection() throws {
         let source = """
         func firstMatchingWord(_ values: [UInt8], _ target: UInt8) -> Int {

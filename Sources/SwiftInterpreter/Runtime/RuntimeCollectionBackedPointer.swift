@@ -123,7 +123,7 @@ final class RuntimeCollectionBackedBuffer:
 /// and `HostRawMemoryCursor` conformance let generated C adapters translate
 /// native pointer results back into retained interpreter cursors by offset.
 @MainActor
-final class RuntimeCollectionBackedPointer: HostRawMemoryCursor,
+final class RuntimeCollectionBackedPointer: HostStridedMemoryCursor,
     RuntimeIntegerSubscriptReadable, @unchecked Sendable
 {
     private let storage: RuntimeCollectionBackedStorage
@@ -169,6 +169,12 @@ final class RuntimeCollectionBackedPointer: HostRawMemoryCursor,
             storage: storage,
             byteOffset: byteOffset + distance * advanceStride,
             advanceStride: advanceStride)
+    }
+
+    func advancedMemory(byElementOffset offset: Int) throws
+        -> any HostStridedMemoryCursor
+    {
+        advanced(by: offset)
     }
 
     func rawView() -> RuntimeCollectionBackedPointer {

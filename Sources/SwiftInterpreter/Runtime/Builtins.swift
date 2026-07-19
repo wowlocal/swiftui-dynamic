@@ -198,7 +198,49 @@ public enum Builtins {
         }
     }
 
+    /// Pointer arithmetic dispatches on a stride capability supplied by the
+    /// carrier, never on an SDK or runtime type identity.
+    private static func stridedMemoryBinary(
+        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> RuntimeValue? {
+        func cursor(_ value: RuntimeValue) -> (any HostStridedMemoryCursor)? {
+            guard case .host(let payload) = value else { return nil }
+            return payload as? any HostStridedMemoryCursor
+        }
+
+        switch op {
+        case "+":
+            if let base = cursor(lhs), let offset = rhs.intValue {
+                let advanced = try base.advancedMemory(
+                    byElementOffset: offset)
+                return .native(advanced as Any)
+            }
+            if let offset = lhs.intValue, let base = cursor(rhs) {
+                let advanced = try base.advancedMemory(
+                    byElementOffset: offset)
+                return .native(advanced as Any)
+            }
+        case "-":
+            if let base = cursor(lhs), let offset = rhs.intValue {
+                let (negated, overflow) = 0.subtractingReportingOverflow(
+                    offset)
+                guard !overflow else {
+                    throw EvalMessage(text: "integer overflow")
+                }
+                let advanced = try base.advancedMemory(
+                    byElementOffset: negated)
+                return .native(advanced as Any)
+            }
+        default:
+            break
+        }
+        return nil
+    }
+
     static func binary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue {
+        if let pointer = try stridedMemoryBinary(op, lhs, rhs) {
+            return pointer
+        }
         if let unsigned = try uint64Binary(op, lhs, rhs) { return unsigned }
         let usesDecimal: Bool = {
             if case .host(let any) = lhs, any is Decimal { return true }
