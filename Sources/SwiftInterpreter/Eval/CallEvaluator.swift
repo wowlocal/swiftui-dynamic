@@ -811,7 +811,9 @@ extension Interpreter {
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
         let removesRange = GeneratedRangeMutationSurface.removesRange(
             named: name)
-        if (mutating.contains(name) || removesRange),
+        let optionallyRemovesLast = GeneratedCollectionDefaultSurface
+            .optionallyRemovesLast(named: name)
+        if (mutating.contains(name) || removesRange || optionallyRemovesLast),
            var array = baseValue.arrayValue,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
@@ -899,6 +901,21 @@ extension Interpreter {
                 }
                 if let failure { throw failure }
             default:
+                if optionallyRemovesLast {
+                    guard args.arguments.isEmpty else {
+                        throw error(
+                            call,
+                            "generated optional last removal takes no arguments")
+                    }
+                    guard let removed = array.popLast() else {
+                        return .none(wrappedTypeName: elementType)
+                    }
+                    try relocating(call) {
+                        try target.writeCanonicalOwned(.native(array), self)
+                    }
+                    return removed.liftedToOptional(
+                        wrappedTypeName: elementType)
+                }
                 guard removesRange,
                       args.arguments.count == 1,
                       let range = args.positional(0)?.rangeValue?

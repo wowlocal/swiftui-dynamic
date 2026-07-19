@@ -431,7 +431,8 @@ extension Interpreter {
         // serves conformers that don't define the member themselves —
         // through protocol REFINEMENT too (CountriesWebRepository:
         // WebRepository reaches WebRepository's `call(endpoint:)`).
-        for conformance in transitiveConformances(of: instance.symbol) {
+        let conformances = transitiveConformances(of: instance.symbol)
+        for conformance in conformances {
             guard let proto = hostExtensionSymbols[conformance] else { continue }
             if let overloads = proto.methods[name], let firstMethod = overloads.first {
                 // PROPERTY/METHOD collision in the same extension (AnyStatus
@@ -460,6 +461,22 @@ extension Interpreter {
             if let computed = proto.computedProperties[name] {
                 return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
             }
+        }
+        // Compiled protocol extensions cannot execute against an interpreted
+        // conformer. BridgeGen emits the constrained default implementations
+        // whose scalar representation can cross that boundary losslessly.
+        if let generated = GeneratedCollectionDefaultSurface.member(
+            named: name, conformances: Set(conformances)
+        ) {
+            return .hostFunction(generated)
+        }
+        if let generated = try GeneratedCollectionDefaultSurface.property(
+            named: name,
+            conformances: Set(conformances),
+            receiver: .instance(instance),
+            interpreter: self
+        ) {
+            return generated
         }
         // @ModelActor's generated `modelContext` reads the bound
         // container's shared context.
@@ -936,6 +953,38 @@ extension Interpreter {
     /// Runs the user subscript setter with `newValue` and the index bound.
     func callUserSubscriptSetter(on instance: Instance, with args: CallArguments, newValue: RuntimeValue) throws {
         try runUserSubscriptSetter(instance.symbol, selfValue: .instance(instance), args: args, newValue: newValue)
+    }
+
+    /// Materializes the protocol shape used by integer-indexed interpreted
+    /// collections. The source compiler has already proved Sequence
+    /// conformance; at runtime, readable `startIndex`/`endIndex` plus a
+    /// one-argument subscript are the reusable capabilities needed by
+    /// synchronous `for in` execution.
+    func interpretedIntegerIndexedCollectionElements(
+        _ value: RuntimeValue
+    ) throws -> [RuntimeValue]? {
+        guard case .instance(let instance) = value,
+              !instance.symbol.subscripts.isEmpty,
+              let start = try instanceMember("startIndex", on: instance)?.intValue,
+              let end = try instanceMember("endIndex", on: instance)?.intValue,
+              start <= end else {
+            return nil
+        }
+        let member = try userSubscriptMember(
+            in: instance.symbol, argumentCount: 1)
+        var elements: [RuntimeValue] = []
+        elements.reserveCapacity(end - start)
+        for index in start..<end {
+            let arguments = CallArguments(arguments: [
+                .init(label: nil, value: .native(index)),
+            ])
+            elements.append(try runUserSubscriptGetter(
+                member,
+                symbolName: instance.symbol.name,
+                selfValue: value,
+                args: arguments))
+        }
+        return elements
     }
 
     /// The symbol whose user subscripts serve `base`: an interpreted
