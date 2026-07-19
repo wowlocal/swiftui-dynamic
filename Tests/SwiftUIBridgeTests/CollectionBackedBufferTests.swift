@@ -581,10 +581,49 @@ import Testing
         #expect(value.boolValue == true)
     }
 
+    @Test func enumPayloadBindingRetainsByteArrayElementType() throws {
+        let source = """
+        enum Backing {
+            case array([UInt8])
+        }
+
+        let backing = Backing.array([65, 66, 67])
+        switch backing {
+        case .array(let bytes):
+            bytes.withUnsafeBufferPointer { buffer in
+                let raw = UnsafeRawBufferPointer(
+                    start: UnsafeRawPointer(buffer.baseAddress),
+                    count: buffer.count)
+                let rebound = raw.bindMemory(to: UInt8.self)
+                return String(decoding: rebound, as: UTF8.self)
+            }
+        }
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.stringValue == "ABC")
+    }
+
     /// Trimmed from the first recorded IceCubes public status. SwiftSoup's
     /// whitespace path reads `ArraySlice<UInt8>.first`; optional binding must
     /// preserve that declared element type for UInt8 extension dispatch.
     @Test func swiftSoupWhitespaceKeepsArraySliceElementType() throws {
+        let text = try swiftSoupText("<p>Des familles</p>")
+        #expect(text == "Des familles")
+    }
+
+    /// The first recorded IceCubes status adds a leading multi-byte symbol to
+    /// the now-covered whitespace path. Keep the next parser boundary pinned
+    /// to the actual replay bytes rather than a fabricated Unicode sample.
+    @Test func swiftSoupParsesRecordedLeadingSymbolText() throws {
+        let text = try swiftSoupText(
+            "<p>⭕Des familles ont été prises dans des nuages de gaz "
+                + "lacrymogènes lancés par la police lors d’un tournoi de foot.</p>")
+        #expect(text == "⭕Des familles ont été prises dans des nuages de gaz "
+            + "lacrymogènes lancés par la police lors d’un tournoi de foot.")
+    }
+
+    private func swiftSoupText(_ html: String) throws -> String? {
         let root = FileManager.default.currentDirectoryPath
         let files = ProjectMaterial.swiftFiles(
             under: root
@@ -593,24 +632,12 @@ import Testing
             files: files,
             sourceModules: Dictionary(uniqueKeysWithValues: files.map {
                 ($0, "SwiftSoup")
-            })) + """
+            })) + "\n\n// swift-interpreter-module SwiftSoup\n"
+            + "let document = try SwiftSoup.parse(\(String(reflecting: html)))\n"
+            + "try document.text()\n"
 
-        // swift-interpreter-module SwiftSoup
-        let document = try SwiftSoup.parse("<p>Des familles</p>")
-        try document.text()
-        """
-
-        do {
-            let value = try Interpreter(registry: TraceRegistry()).run(source: source)
-            #expect(value.stringValue == "Des familles")
-        } catch let runtime as RuntimeError {
-            let lines = source.split(
-                separator: "\n", omittingEmptySubsequences: false)
-            if runtime.line > 0, runtime.line <= lines.count {
-                print("@@runtime-line|\(runtime.line)|\(lines[runtime.line - 1])")
-            }
-            throw runtime
-        }
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        return value.stringValue
     }
 
 }

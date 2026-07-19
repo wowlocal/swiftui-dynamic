@@ -162,7 +162,8 @@ extension Interpreter {
         _ pattern: PatternSyntax,
         subject: RuntimeValue,
         bindingInto bindings: Environment,
-        env: Environment
+        env: Environment,
+        declaredTypeName: String? = nil
     ) throws -> Bool {
         if pattern.is(WildcardPatternSyntax.self) { return true }
 
@@ -178,11 +179,16 @@ extension Interpreter {
         }
 
         if let binding = pattern.as(ValueBindingPatternSyntax.self) {
-            return try matches(binding.pattern, subject: subject, bindingInto: bindings, env: env)
+            return try matches(
+                binding.pattern, subject: subject,
+                bindingInto: bindings, env: env,
+                declaredTypeName: declaredTypeName)
         }
         if let ident = pattern.as(IdentifierPatternSyntax.self) {
             // Reached only under `let`/`var` — bare constants parse as expression patterns.
-            bindings.define(ident.identifier.text, subject)
+            bindings.define(
+                ident.identifier.text, subject,
+                declaredTypeName: declaredTypeName)
             return true
         }
         if let tuplePattern = pattern.as(TuplePatternSyntax.self), let tuple = subject.tupleValue {
@@ -279,17 +285,21 @@ extension Interpreter {
         // pattern whose expression is OptionalChainingExpr. It unwraps one
         // layer and applies/binds the inner pattern.
         if let optionalPattern = expr.as(OptionalChainingExprSyntax.self) {
-            guard case .some(let wrapped, _) = subject.optionalState else {
+            guard case .some(let wrapped, let wrappedTypeName) =
+                    subject.optionalState else {
                 return false
             }
             let inner = optionalPattern.expression
             if let patternExpression = inner.as(PatternExprSyntax.self) {
                 return try matches(
                     patternExpression.pattern, subject: wrapped,
-                    bindingInto: bindings, env: env)
+                    bindingInto: bindings, env: env,
+                    declaredTypeName: wrappedTypeName)
             }
             if let reference = inner.as(DeclReferenceExprSyntax.self) {
-                bindings.define(reference.baseName.text, wrapped)
+                bindings.define(
+                    reference.baseName.text, wrapped,
+                    declaredTypeName: wrappedTypeName)
                 return true
             }
             if inner.is(DiscardAssignmentExprSyntax.self) { return true }
@@ -311,13 +321,15 @@ extension Interpreter {
            member.base == nil, member.declName.baseName.text == "some",
            call.arguments.count == 1, let inner = call.arguments.first?.expression,
            caseShape(of: subject) == nil {
-            guard case .some(let unwrapped, _) = subject.optionalState else {
+            guard case .some(let unwrapped, let wrappedTypeName) =
+                    subject.optionalState else {
                 return false
             }
             if let patternExpr = inner.as(PatternExprSyntax.self) {
                 return try matches(
                     patternExpr.pattern, subject: unwrapped,
-                    bindingInto: bindings, env: env)
+                    bindingInto: bindings, env: env,
+                    declaredTypeName: wrappedTypeName)
             }
             return try matchExpression(
                 inner, subject: unwrapped,
@@ -359,7 +371,7 @@ extension Interpreter {
         // Bare `case .error:` — compiled Swift lets a payload case be matched
         // by its payload-less spelling; only the case NAME is checked.
         if let member = expr.as(MemberAccessExprSyntax.self),
-           let (caseName, _) = caseShape(of: subject),
+           let (caseName, _, _) = caseShape(of: subject),
            member.declName.baseName.text == caseName {
             return true
         }
@@ -369,14 +381,21 @@ extension Interpreter {
         // ImplicitMemberCall natives; treat them like cases too.
         if let call = expr.as(FunctionCallExprSyntax.self),
            let member = call.calledExpression.as(MemberAccessExprSyntax.self),
-           let (caseName, payloads) = caseShape(of: subject) {
+           let (caseName, payloads, payloadTypeNames) = caseShape(of: subject) {
             guard caseName == member.declName.baseName.text,
                   payloads.count == call.arguments.count else { return false }
-            for (argument, payload) in zip(call.arguments, payloads) {
+            for (index, pair) in zip(call.arguments, payloads).enumerated() {
+                let (argument, payload) = pair
+                let payloadTypeName = payloadTypeNames.indices.contains(index)
+                    ? payloadTypeNames[index] : nil
                 // `case .display(let items, _)` — a payload wildcard.
                 if argument.expression.is(DiscardAssignmentExprSyntax.self) { continue }
                 if let patternExpr = argument.expression.as(PatternExprSyntax.self) {
-                    guard try matches(patternExpr.pattern, subject: payload, bindingInto: bindings, env: env) else {
+                    guard try matches(
+                        patternExpr.pattern, subject: payload,
+                        bindingInto: bindings, env: env,
+                        declaredTypeName: payloadTypeName
+                    ) else {
                         return false
                     }
                 } else if argument.expression.is(FunctionCallExprSyntax.self)
@@ -501,15 +520,31 @@ extension Interpreter {
 
     /// Case name + payloads for anything case-shaped: a real enum value, or a
     /// bare `.name(args)` that never received type context.
-    private func caseShape(of subject: RuntimeValue) -> (name: String, payloads: [RuntimeValue])? {
+    private func caseShape(
+        of subject: RuntimeValue
+    ) -> (
+        name: String,
+        payloads: [RuntimeValue],
+        payloadTypeNames: [String?]
+    )? {
         if case .enumCase(let value) = subject {
-            return (value.name, value.associated)
+            let declared = value.symbol.caseInfo(named: value.name)?
+                .associatedTypeNames ?? []
+            let typeNames: [String?] = value.associated.indices.map { index in
+                declared.indices.contains(index) ? declared[index] : nil
+            }
+            return (value.name, value.associated, typeNames)
         }
         if case .host(let any) = subject, let call = any as? ImplicitMemberCall {
-            return (call.name, call.arguments.arguments.map(\.value))
+            let payloads = call.arguments.arguments.map(\.value)
+            return (
+                call.name, payloads,
+                Array(repeating: nil, count: payloads.count))
         }
         if case .host(let any) = subject, let shaped = any as? CaseShaped {
-            return (shaped.caseName, shaped.casePayloads)
+            return (
+                shaped.caseName, shaped.casePayloads,
+                Array(repeating: nil, count: shaped.casePayloads.count))
         }
         return nil
     }
