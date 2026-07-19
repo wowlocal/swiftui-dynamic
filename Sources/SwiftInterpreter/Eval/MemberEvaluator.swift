@@ -52,13 +52,20 @@ extension Interpreter {
                     closure, args: args, node: nil)
             })
         }
-        guard let global = globals.lookup(name) else { return nil }
-        switch global {
-        case .type, .enumType:
-            return nil
-        default:
-            return global
+        if let global = globals.lookup(name) {
+            switch global {
+            case .type, .enumType:
+                break
+            default:
+                return global
+            }
         }
+        // A qualifier deliberately bypasses a same-named source nominal and
+        // asks for the imported symbol. Constructor availability is the
+        // structural proof that the member is an imported constructible type;
+        // retaining the HostFunction also retains every call-site argument,
+        // including trailing result-builder closures.
+        return registry?.constructor(named: name).map(RuntimeValue.hostFunction)
     }
 
     /// Lazy globals evaluate their initializer on first read (memoized).

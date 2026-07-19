@@ -32,6 +32,29 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         #expect(node.children.map(\.args) == [["a"], ["b"]])
     }
 
+    /// IceCubes qualifies `SwiftUI.List` to avoid its model-layer `List`
+    /// symbol. Module qualification must retain the ordinary trailing
+    /// result-builder argument, just as the native constructor call does.
+    @Test func namespacedContainerPreservesTrailingBuilder() throws {
+        let source = """
+        import SwiftUI
+
+        struct FixtureRow: View {
+            var body: some View { Text("fixture row") }
+        }
+
+        SwiftUI.List {
+            FixtureRow()
+        }
+        """
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.kind == "List")
+        #expect(node.children.count == 1)
+        #expect(node.children.first?.instance?.symbol.name == "FixtureRow")
+    }
+
     @Test func forEachOverRange() throws {
         let source = """
         ForEach(0..<3) { i in
