@@ -10,9 +10,10 @@ public enum HeadlessVerifier {
         public let actionsInvoked: Int
     }
 
-    /// Fresh-container guarantee: every registry owns an empty sandbox/blob
-    /// store; this reset clears the remaining process-scoped host state.
+    /// Fresh-container guarantee: every verification starts with an empty
+    /// sandbox, blob store, and defaults suite — corpus determinism.
     public static func resetBridgeEnvironment() {
+        FileManagerBox.resetSandbox()
         ObjCTrampoline.resetEphemeralDefaults()
         // Delivery mode belongs to each interpreter's registry; this reset
         // only clears delayed deterministic probe work. One interpreter can no

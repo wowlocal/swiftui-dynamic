@@ -5287,14 +5287,12 @@ The target boundary has four layers:
 
 1. A generated or handwritten gateway retains its ordinary confined
    implementation and may build a `HostWorkerOperation`. The operation is
-   `Sendable`; its current result algebra contains only `Void`, `Bool`, and
-   `String`, so
+   `Sendable`; its current result algebra contains only `Bool` and `String`, so
    `RuntimeValue`, interpreter objects, callbacks, and opaque host state cannot
    cross.
-2. Source-synchronous `HostFunction` and read-only `HostProperty` descriptors
-   validate source arguments/receivers before building the operation, either
-   through `HostSignature` or their confined gateway conversion, and validate
-   typed materialized results where a signature exists. Authored async or
+2. Typed source-synchronous `HostFunction` and read-only `HostProperty`
+   contracts validate source arguments/receivers before building the
+   operation and validate the materialized result afterward. Authored async or
    settable property contracts cannot register this transport.
 3. `TaskBoundEvalContext` admits the operation only for an active async runtime
    entry in explicit parallel mode and only from `.cooperativeDefault` or
@@ -5410,165 +5408,6 @@ makes no coroutine-semantics claim. Full suspension-safe `_read`/`_modify`
 borrowing, coroutine subscripts, and synthesized setter composition remain
 demand-deferred.
 
-The ninety-fourth prerequisite applies the checked native-host boundary to
-UTM's exact `Task.detached { try FileManager.default.moveItem/copyItem(...) }`
-spellings. These Foundation calls are source-synchronous and throwing, but an
-awaited detached task must publish their file-system effects before `.value`
-returns and must rethrow failure into the caller's `do`/`catch`. The shared
-strict Swift 6 oracle moves a temporary directory, copies the result, then
-repeats the move from the now-missing source; twenty bounded native/interpreter
-runs returned exact
-`worker|source:false|destination:true|copy:true|missing:error`, with focused
-five-run shard digest
-`c9e23bd076040ca9e579c3988f591e7fd52c98268f75ece74377b642a2d7b0e6`.
-
-`HostWorkerValue.Void` is the only new transport value. URL extraction and
-sandbox validation happen on the confined evaluator before worker launch; the
-compiled operation captures only two Foundation `URL` values and the immutable
-copy/move choice. `FileManagerBox`, `RuntimeValue`, evaluator state, and mutable
-sandbox state never cross. A pure registry capability query recognizes the
-imported `FileManager.default` member chain without evaluating `default` during
-admission. A same-module `FileManager` declaration therefore keeps source
-precedence and records no physical operation. Successful move/copy operations
-return `Void`; Foundation failure crosses as `RuntimeError`, so ordinary source
-error handling remains authoritative. This is a checked gateway attachment,
-not blanket native forwarding or general static-member resolution.
-
-The canonical iteration passed 82 implementation tests in three suites, all
-43 methodology checks plus the three gate-contract checks, and 20/20 focused
-parity repetitions. The parallel board passed 116/116 tests in four suites in
-1.63 seconds. A fresh Swift 6.3.3 TSan build passed native overlap 20/20 and all
-116 tests without a race or interceptor diagnostic in 74 seconds total.
-
-The closing parallel-worker gate found that the original bridge sandbox did
-not satisfy the same ownership rule as the runtime: one process-global
-`FileManagerBox` root and blob store could be reset by an unrelated verifier
-while a detached gateway was suspended. That is a registry-lifetime defect,
-not worker scheduling. `ViewRegistry` and `TraceRegistry` now each own one
-`FileManagerBox`; FileManager, Bundle, and Data constructors and members are
-resolved against that same box. Its UUID root is cleaned up only with its
-owner, and `HeadlessVerifier.resetBridgeEnvironment()` no longer deletes live
-registry state. The worker boundary is unchanged: only checked immutable URLs
-and the operation enum cross it.
-
-A nonserialized regression proves separate roots and blob stores and calls the
-reset path while the first registry's sentinel is live. The formerly red full
-parallel-worker command passed 1353 tests in 210 suites. The updated canonical
-iteration passed 83 implementation tests, all 46 methodology/gate checks, and
-20/20 parity repetitions; the physical and TSan boards passed 117/117, with
-native overlap 20/20 and no sanitizer diagnostics.
-
-The ninety-fifth prerequisite extends the checked Foundation boundary by one
-operation family rather than adding a new transport. The refreshed detached
-census finds eight `FileManager.default.removeItem` uses in seven projects.
-CodeEdit supplies the exact awaited priority-bearing URL spelling, while Clop
-supplies the path-String overload. The same-source oracle removes both kinds
-of argument, then repeats the URL removal so task-value completion and
-throwing behavior are causally observable.
-
-Strict Apple Swift 6.3.3 returned exact
-`url:true|path:true|missing:error` in twenty bounded runs. The raw digest was
-`7b9af5ded53d73eae182cb2491f19992dff6be838fe3ed7b7dd57b15a3595653`,
-and every five-run focused shard retained
-`643b574324feb690e6faf5e6aa8e665d64a2706b338a80aa6ce2b673b9041a04`.
-The retained URL-only receipt RED returned the exact semantic value but
-recorded zero physical submissions/executions instead of two/one.
-
-The target boundary remains unchanged:
-
-1. The confined gateway resolves either `at: URL` or `atPath: String`,
-   converts the latter to URL, and checks the registry-owned sandbox.
-2. The worker operation captures only that immutable Foundation URL and
-   returns the existing `HostWorkerValue.void`; no new result algebra is
-   introduced.
-3. Static imported `FileManager.default` identity is required before the
-   operation builder runs. A same-module FileManager remains source-resolved
-   with zero receipts.
-4. Foundation failure returns through the existing RuntimeError path, so
-   authored `do`/`catch` remains authoritative and the failed operation is a
-   submission but not a successful execution.
-
-Final evidence records three submissions, two successful executions, exact
-cleanup, and zero cooperative receipts. The four-suite physical board and a
-fresh TSan build passed 119/119 tests; TSan also passed native overlap 20/20
-and completed in 29 seconds without a race or interceptor diagnostic. The
-canonical focused iteration passed those 119 implementation tests, all
-46 methodology/gate checks, and 20/20 parity repetitions in six seconds.
-This does not admit FileManager aliases, arbitrary instance receivers, richer
-Foundation values, callback APIs, general synchronous host forwarding, or
-stable worker identity.
-
-The ninety-sixth prerequisite closes the next tied-highest detached
-FileManager receipt gap: eight `fileExists` occurrences across five corpus
-projects. Provenance supplies the direct awaited priority-bearing
-`FileManager.default.fileExists(atPath:)` spelling. The same-source oracle
-checks one existing directory and one missing path, so both Bool outcomes and
-both detached task completions are observable without relying on another
-unproved write gateway.
-
-Strict Apple Swift 6.3.3 returned exact `present:true|missing:false` in twenty
-bounded runs. The raw digest was
-`e050daabe763c37563a8ac550e2ddf6db119107b60eba89ab5fb226577551ae4`,
-and every focused five-run shard retained
-`25041a67d81db417c6c43723b7caeba9823d371eac8fef5d2c27d142583d150d`.
-Before the repair, both interpreter modes returned the exact value but the
-parallel run recorded zero physical submissions/executions instead of two/two.
-
-The direct one-argument `atPath: String -> Bool` gateway now builds the
-existing checked synchronous host operation. Only the immutable String and
-the Bool snapshot cross the worker boundary. The reusable operation builder
-may decline after arguments have been evaluated, but it is not consulted
-until physical eligibility is established. Consequently the
-`fileExists(atPath:isDirectory:)` inout overload, a same-module FileManager,
-cooperative execution, actor-confined work, and all other receivers remain on
-the confined evaluator with zero receipts. No mutable pointer or inout
-writeback crosses the worker boundary.
-
-Final focused evidence records two submissions and two executions, exact
-values, drained registries, and zero cooperative receipts. The four-suite
-physical board and a fresh TSan build passed 123/123 tests; TSan also passed
-native overlap 20/20 and completed in 74 seconds without a race or interceptor
-diagnostic. This is argument-sensitive checked admission, not general native
-forwarding.
-
-The ninety-seventh prerequisite extends that same checked boundary to the
-next current-corpus FileManager family. The refreshed 94-project tree now has
-515 Swift files containing `Task.detached`, rather than the earlier 502-file
-snapshot. A balanced closure-body census followed by source inspection finds
-seven direct `FileManager.default.createDirectory` calls inside detached
-operations across Clop, Provenance, session-ios, and Whisky. Five use
-`at: URL`; two use `atPath: String`; every cited call enables intermediate
-directories and omits `attributes`.
-
-Strict Apple Swift 6.3.3 compiled the same-source fixture with complete
-concurrency checking and warnings as errors. Twenty bounded runs returned
-exact `url:true|path:true`; the raw twenty-line digest was
-`a808cb350d19c054f9c3cdd750100d0ad60a7f97c56e701313b590bc71cbaecf`,
-and every focused five-run shard retained
-`992b293dadc746303526219ec033bc9f15494b2ff891dcf97f7d5f4d8274fe04`.
-Before the repair, cooperative and parallel interpretation already returned
-the exact value, but parallel mode recorded zero physical
-submissions/executions instead of two/two.
-
-The route remains capability-based, not general native forwarding. The
-confined evaluator converts the cited URL or path argument, validates it
-against the registry-owned sandbox, and admits only an exact two-argument call
-whose second label is `withIntermediateDirectories`, whose evaluated value is
-true, and whose attributes argument is absent. The worker closure captures one
-immutable Foundation URL, invokes native FileManager, and returns the existing
-Void snapshot. A same-module FileManager, aliases, arbitrary receivers,
-`withIntermediateDirectories: false`, explicit attributes, cooperative mode,
-and actor-confined execution all stay on the ordinary evaluator and record
-zero receipts. Neither FileManagerBox, RuntimeValue, evaluator state, nor
-mutable sandbox ownership crosses the worker boundary.
-
-The exact-tip physical board and its fresh TSan twin passed 126/126 tests in
-four suites. TSan also passed the native-overlap probe 20/20 and completed in
-31 seconds without a race or interceptor diagnostic. The canonical focused
-iteration passed those 126 implementation tests, all 46 methodology/gate
-checks, and 20/20 parity repetitions in seven seconds. The gap remains open
-for the next demand-cited host family and for general evaluator parallelism.
-
 Earlier metadata slices separate immutable program input, mutable storage, and
 execution identity without changing scheduling; the source kernels change
 scheduling only for their admitted subsets. Remaining member families and
@@ -5617,9 +5456,6 @@ and optional-async-closure-invocation
 and weak-receiver-release-across-suspension
 and optional-value-mutating-async-writeback
 and optional-value-mutating-async-throwing-writeback
-and parallel-detached-file-manager-move
-and parallel-detached-file-manager-remove
-and parallel-detached-file-manager-exists
 differential
 and TSan board is green, but the board must expand with every future worker
 kernel before M9 can close.

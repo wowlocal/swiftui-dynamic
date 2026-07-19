@@ -100,12 +100,7 @@ extension Interpreter {
             callee = workerAdmissionValue(named: name, in: env)
 
         case .explicitMember:
-            guard let member = metadata.member else { return false }
-            if hostStaticMemberChainUsesWorkerOperation(
-                member, in: env) {
-                return true
-            }
-            guard
+            guard let member = metadata.member,
                   let baseExpression = member.base,
                   let baseReference = baseExpression
                     .as(DeclReferenceExprSyntax.self) else {
@@ -148,34 +143,6 @@ extension Interpreter {
         default:
             return false
         }
-    }
-
-    /// Recognize a statically named imported chain such as
-    /// `FileManager.default.moveItem`. The registry supplies capability
-    /// metadata without evaluating `default`; source types/values with the
-    /// same root name are rejected by `workerAdmissionValue` before the
-    /// registry is consulted.
-    private func hostStaticMemberChainUsesWorkerOperation(
-        _ member: MemberAccessExprSyntax,
-        in env: Environment
-    ) -> Bool {
-        guard let receiver = member.base?.as(MemberAccessExprSyntax.self),
-              let typeExpression = receiver.base,
-              let typeReference = typeExpression
-                .as(DeclReferenceExprSyntax.self),
-              typeReference.argumentNames == nil,
-              receiver.declName.argumentNames == nil,
-              member.declName.argumentNames == nil,
-              let root = workerAdmissionValue(
-                named: typeReference.baseName.text, in: env),
-              case .host(let payload) = root,
-              let marker = payload as? HostTypeMarker else {
-            return false
-        }
-        return registry?.hostMemberHasWorkerOperation(
-            member.declName.baseName.text,
-            onStaticMember: receiver.declName.baseName.text,
-            ofType: marker.name) == true
     }
 
     private func closureDirectlyUsesWorkerHostOperation(

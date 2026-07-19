@@ -140,10 +140,8 @@ public protocol EvalContext: AnyObject {
     /// confined implementation instead. The builder is deliberately lazy:
     /// actor-confined and cooperative fallbacks must not copy arguments,
     /// execute gateway code, or otherwise observe a worker-only path.
-    /// A builder may return `nil` after inspecting already-evaluated
-    /// arguments when only a subset of an overload family is worker-safe.
     func runHostWorkerOperation(
-        _ makeOperation: () throws -> HostWorkerOperation?
+        _ makeOperation: () throws -> HostWorkerOperation
     ) async throws -> RuntimeValue?
     /// Create an interpreted Task. Async interpreter sessions schedule it on
     /// a real Swift task; synchronous compatibility sessions execute it
@@ -265,7 +263,7 @@ extension EvalContext {
     }
 
     public func runHostWorkerOperation(
-        _ makeOperation: () throws -> HostWorkerOperation?
+        _ makeOperation: () throws -> HostWorkerOperation
     ) async throws -> RuntimeValue? {
         nil
     }
@@ -463,16 +461,6 @@ public protocol HostRegistry: AnyObject {
     /// property's value turns out not to be callable, this asks for the
     /// METHOD by name, as native overload resolution would have picked.
     func hostMethod(_ name: String, on value: Any) -> RuntimeValue?
-    /// Pure route metadata for source-synchronous host calls whose compiled
-    /// implementation may use `HostWorkerOperation`. The evaluator consults
-    /// this before evaluating an await-free static-member chain, so entering
-    /// the async overlay never requires reading a source computed/lazy value
-    /// or constructing the host receiver merely to discover capability.
-    func hostMemberHasWorkerOperation(
-        _ name: String,
-        onStaticMember staticMember: String,
-        ofType typeName: String
-    ) -> Bool
 }
 
 extension HostRegistry {
@@ -489,11 +477,6 @@ extension HostRegistry {
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostProperty(named name: String, on value: Any) -> HostProperty? { nil }
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? { nil }
-    public func hostMemberHasWorkerOperation(
-        _ name: String,
-        onStaticMember staticMember: String,
-        ofType typeName: String
-    ) -> Bool { false }
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? { nil }
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool { false }
     public func hostObjectConstructor(named name: String) -> HostFunction? { nil }

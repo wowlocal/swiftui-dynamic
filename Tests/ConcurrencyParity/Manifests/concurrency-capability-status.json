@@ -3029,11 +3029,7 @@
       "task-owned-evaluator-context",
       "task-context-cancellation",
       "detached-host-context-reentry",
-      "parallel-host-gateway-thread-lane",
-      "parallel-detached-file-manager-move",
-      "parallel-detached-file-manager-remove",
-      "parallel-detached-file-manager-exists",
-      "parallel-detached-file-manager-create-directory"
+      "parallel-host-gateway-thread-lane"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -3116,24 +3112,12 @@
         "RuntimeParallelSourceKernelTests/actorConfinedWorkerGatewayNeverIntroducesHiddenReentrancy",
         "RuntimeParallelSourceKernelTests/sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway",
         "RuntimeParallelSourceKernelTests/workerAdmissionNeverForcesComputedCallables",
-        "HostSignatureTests/workerGatewaysRequireSynchronousReadOnlyContracts",
-        "ParallelFoundationGatewayTests/detachedFileManagerMoveUsesAWorkerAndPropagatesFailure",
-        "ParallelFoundationGatewayTests/detachedFileManagerRemoveUsesAWorkerAndPropagatesFailure",
-        "ParallelFoundationGatewayTests/detachedFileManagerExistsUsesAWorker",
-        "ParallelFoundationGatewayTests/detachedFileManagerCreateDirectoryUsesAWorker",
-        "ParallelFoundationGatewayTests/sourceShadowedFileManagerStaysOnTheConfinedEvaluator",
-        "ParallelFoundationGatewayTests/sourceShadowedFileManagerRemoveStaysOnTheConfinedEvaluator",
-        "ParallelFoundationGatewayTests/sourceShadowedFileManagerExistsStaysOnTheConfinedEvaluator",
-        "ParallelFoundationGatewayTests/sourceShadowedFileManagerCreateDirectoryStaysConfined",
-        "ParallelFoundationGatewayTests/uncitedCreateDirectoryArgumentsStayOnConfinedEvaluator",
-        "ParallelFoundationGatewayTests/fileManagerExistsInoutOverloadStaysOnTheConfinedEvaluator",
-        "RuntimeParallelSourceKernelTests/workerGatewayCanDeclineAfterArgumentEvaluation",
-        "ParallelFoundationGatewayTests/fileManagerSandboxIsOwnedByItsRegistry"
+        "HostSignatureTests/workerGatewaysRequireSynchronousReadOnlyContracts"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "M9 remains partial. ParsedProgram metadata and worker capabilities are immutable and Sendable; session state, RuntimeValue graphs, evaluators, heaps, registries, and source closures remain confined. Explicit parallel mode uses one bounded Task.detached driver for the demand-scoped source kernels, continuation prefixes, source-call wrappers, and checked source-synchronous HostWorkerOperation gateways listed in the M9 ledger. Cooperative mode remains the default. The current host subset covers Thread.isMainThread plus direct FileManager.default move/copy/remove/fileExists and the cited createDirectory URL/path spellings. Directory creation admits only exactly two evaluated arguments, withIntermediateDirectories true, and omitted attributes; source shadows, aliases, false, explicit attributes, actor-confined work, and cooperative execution record zero receipts. Across the FileManager fixtures there are now nine successful physical executions plus two throwing submissions, while FileManager, Bundle, and Data sandbox/blob ownership stays registry-bound. Worker eligibility is established before a lazy argument-sensitive builder may decline to the ordinary evaluator. The exact-tip physical and fresh TSan boards pass 126/126 tests in four suites, including native overlap 20/20. Physical receipts, differential tests, cleanup checks, and interpreted-trap containment cover only the admitted subsets. General evaluator/heap parallelism, richer host values/callbacks, transitive synchronous helper graphs, further host/member target resolution, custom executors, ExecutorJob scheduling, and full-mode TSan remain open."
+      "notes": "M9 remains partial. ParsedProgram and its declaration/call/member metadata are immutable Sendable capabilities; each session retains its exact resolved plan, MainActor-confined RuntimeProgramState, heap, registry, runtime entry, and task-owned evaluator context. Explicit parallel mode uses a bounded Task.detached driver with checked Sendable snapshots for the demand-scoped source kernels, sleep/continuation prefixes, and source-call wrappers listed in the M9 acceptance ledger; cooperative mode remains the default and unsupported shapes stay confined. The first native host-routing subset adds a checked source-synchronous HostWorkerOperation to typed HostFunction and read-only HostProperty gateways: only @Sendable closures with Bool/String results may cross, only cooperative-default/detached source executors are eligible, and MainActor/source actors keep the confined implementation so no hidden actor reentrancy is introduced. TaskObservatory's exact Thread.isMainThread helper has same-source parity with four physical host-operation receipts; source-shadowed Thread, cooperative mode, and actor-confined reads record zero. Worker-operation eligibility is decided before the builder runs, and admission never forces computed or lazy callable storage. Physical receipts, cooperative/parallel differential tests, bounded cleanup, interpreted-trap containment, and the source-bound TSan board cover only these admitted subsets. General evaluator/heap parallelism, richer host values/callbacks, transitive synchronous helper graphs, further host/member target resolution, custom executors, ExecutorJob scheduling, and full-mode TSan remain open."
     }
   ]
 }

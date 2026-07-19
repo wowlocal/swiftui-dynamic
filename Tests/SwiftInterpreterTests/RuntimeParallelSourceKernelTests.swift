@@ -170,54 +170,6 @@ struct RuntimeParallelSourceKernelTests {
     }
 
     @Test
-    func workerGatewayCanDeclineAfterArgumentEvaluation() async throws {
-        let parallelism = try RuntimeParallelismConfiguration(
-            maximumParallelism: 1)
-        let cooperative = Interpreter()
-        let parallel = Interpreter(
-            executionMode: .parallel(parallelism))
-        var confinedInvocationCount = 0
-        var workerOperationBuildCount = 0
-        let function = HostFunction(
-            name: "conditionalWorker",
-            invoke: { arguments, _ in
-                confinedInvocationCount += 1
-                return arguments.positional(0) ?? .nilValue
-            },
-            workerOperationIfSupported: { _, _ in
-                workerOperationBuildCount += 1
-                return nil
-            })
-        cooperative.globals.define(
-            "conditionalWorker", .hostFunction(function))
-        parallel.globals.define(
-            "conditionalWorker", .hostFunction(function))
-        let source = """
-        func probe() async -> String {
-            await Task.detached {
-                conditionalWorker("confined")
-            }.value
-        }
-
-        await probe()
-        """
-
-        let cooperativeValue = try await cooperative.runAsync(source: source)
-        let parallelValue = try await parallel.runAsync(source: source)
-
-        #expect(cooperativeValue.stringValue == "confined")
-        #expect(parallelValue.stringValue == "confined")
-        #expect(confinedInvocationCount == 2)
-        #expect(workerOperationBuildCount == 1)
-        #expect(cooperative.concurrencyRuntime
-            .totalPhysicalHostOperationSubmissions == 0)
-        #expect(parallel.concurrencyRuntime
-            .totalPhysicalHostOperationSubmissions == 0)
-        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
-        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
-    }
-
-    @Test
     func sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway()
         async throws
     {

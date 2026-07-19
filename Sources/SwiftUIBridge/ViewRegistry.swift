@@ -10,7 +10,6 @@ public final class ViewRegistry: HostRegistry {
     var constructors: [String: HostFunction] = [:]
     var modifiers: [String: HostModifier] = [:]
     let mainQueueDeliveryMode: MainQueueDeliveryMode
-    let fileManagerBox = FileManagerBox()
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
 
     public var compilerPreflightHostModule: CompilerPreflightHostModule? {
@@ -74,25 +73,11 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func storeBlob(_ value: RuntimeValue, at path: String) {
-        fileManagerBox.blobStore[path] = value
+        FileManagerBox.blobStore[path] = value
     }
 
     public func hostObjectConstructor(named name: String) -> HostFunction? {
-        bridgeHostObjectConstructor(named: name, fileManager: fileManagerBox)
-    }
-
-    public func hostMemberHasWorkerOperation(
-        _ name: String,
-        onStaticMember staticMember: String,
-        ofType typeName: String
-    ) -> Bool {
-        typeName == "FileManager"
-            && staticMember == "default"
-            && (name == "fileExists"
-                || name == "copyItem"
-                || name == "moveItem"
-                || name == "removeItem"
-                || name == "createDirectory")
+        bridgeHostObjectConstructor(named: name)
     }
 
     public func constructor(named name: String) -> HostFunction? {
@@ -105,10 +90,7 @@ public final class ViewRegistry: HostRegistry {
         ) {
             return nativePlatform
         }
-        if let hostObject = bridgeHostObjectConstructor(
-            named: resolvedName,
-            fileManager: fileManagerBox
-        ) {
+        if let hostObject = bridgeHostObjectConstructor(named: resolvedName) {
             return hostObject
         }
         if let task = interpretedTaskConstructor(named: resolvedName) { return task }

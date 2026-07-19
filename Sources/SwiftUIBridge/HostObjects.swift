@@ -217,18 +217,10 @@ final class BundleBox {
     }
 
     let bundle: Foundation.Bundle
-    let fileManager: FileManagerBox
-
-    init(bundle: Foundation.Bundle, fileManager: FileManagerBox) {
-        self.bundle = bundle
-        self.fileManager = fileManager
-    }
+    init(bundle: Foundation.Bundle) { self.bundle = bundle }
 }
 
-func bridgeHostObjectConstructor(
-    named name: String,
-    fileManager: FileManagerBox
-) -> HostFunction? {
+func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     if let network = networkHostObjectConstructor(named: name) { return network }
     switch name {
     case "UIGraphicsImageRenderer":
@@ -367,26 +359,20 @@ func bridgeHostObjectConstructor(
             // resolve against the actual filesystem; no argument = main.
             if case .host(let any)? = args.labeled("url"), let url = any as? URL {
                 return .optional(
-                    Foundation.Bundle(url: url).map {
-                        .native(BundleBox(bundle: $0, fileManager: fileManager))
-                    },
+                    Foundation.Bundle(url: url).map { .native(BundleBox(bundle: $0)) },
                     wrappedTypeName: "Bundle")
             }
             if let path = args.labeled("path")?.stringValue {
                 return .optional(
-                    Foundation.Bundle(path: path).map {
-                        .native(BundleBox(bundle: $0, fileManager: fileManager))
-                    },
+                    Foundation.Bundle(path: path).map { .native(BundleBox(bundle: $0)) },
                     wrappedTypeName: "Bundle")
             }
             if let identifier = args.labeled("identifier")?.stringValue {
                 return .optional(
-                    Foundation.Bundle(identifier: identifier).map {
-                        .native(BundleBox(bundle: $0, fileManager: fileManager))
-                    },
+                    Foundation.Bundle(identifier: identifier).map { .native(BundleBox(bundle: $0)) },
                     wrappedTypeName: "Bundle")
             }
-            return .native(BundleBox(bundle: .main, fileManager: fileManager))
+            return .native(BundleBox(bundle: .main))
         }
     case "DateFormatter":
         return dateFormatterConstructorGateway
@@ -397,13 +383,9 @@ func bridgeHostObjectConstructor(
             // Real semantics: reading a file that isn't there throws (a
             // fresh sandbox is empty), so `try?` honestly yields nil.
             if let value = args.labeled("contentsOf") {
-                if let stored = fileManager.blobStore[value.stringified] {
-                    return stored
-                }
+                if let stored = FileManagerBox.blobStore[value.stringified] { return stored }
                 if case .host(let any) = value, let url = any as? URL {
-                    if let stored = fileManager.blobStore[url.path] {
-                        return stored
-                    }
+                    if let stored = FileManagerBox.blobStore[url.path] { return stored }
                     do { return .native(try Data(contentsOf: url)) } catch {
                         throw RuntimeError(message: "Data(contentsOf:): \(error.localizedDescription)")
                     }
@@ -693,34 +675,39 @@ func bridgeHostObjectConstructor(
 /// writes/copies/removals genuinely happen (inside the sandbox only).
 public final class FileManagerBox {
     /// In-run persistence for interpreted encode→write→read→decode cycles.
-    var blobStore: [String: RuntimeValue] = [:]
+    static var blobStore: [String: RuntimeValue] = [:]
 
-    /// One registry owns one app-container capability. A process-global root
-    /// lets an unrelated interpreter delete or redirect an in-flight task's
-    /// files while that task is suspended.
-    let sandboxRoot = FileManager.default.temporaryDirectory
-        .appendingPathComponent(
-            "DynamicSwiftUI-Sandbox-\(UUID().uuidString)",
+    private static var sandboxGeneration = 0
+
+    static var sandboxRoot: URL = FileManagerBox.freshSandboxRoot()
+
+    private static func freshSandboxRoot() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent(
+            "DynamicSwiftUI-Sandbox-\(ProcessInfo.processInfo.processIdentifier)-\(sandboxGeneration)",
             isDirectory: true)
+    }
+
+    /// A fresh app container per VERIFICATION: without this, project N's
+    /// files and blobs leak into project N+1 within one corpus run —
+    /// order-dependent behavior that made full runs diverge from
+    /// standalone runs (the determinism class).
+    static func resetSandbox() {
+        try? FileManager.default.removeItem(at: sandboxRoot)
+        sandboxGeneration += 1
+        sandboxRoot = freshSandboxRoot()
+        blobStore.removeAll()
+    }
 
     let manager = FileManager.default
 
-    deinit {
-        try? FileManager.default.removeItem(at: sandboxRoot)
-    }
-
     func documentsDirectory() -> URL {
-        let documents = sandboxRoot.appendingPathComponent(
-            "Documents", isDirectory: true)
+        let documents = Self.sandboxRoot.appendingPathComponent("Documents", isDirectory: true)
         try? manager.createDirectory(at: documents, withIntermediateDirectories: true)
         return documents
     }
 
     func requireSandboxed(_ url: URL) throws {
-        let rootPath = sandboxRoot.standardizedFileURL.path
-        let candidatePath = url.standardizedFileURL.path
-        guard candidatePath == rootPath
-                || candidatePath.hasPrefix(rootPath + "/") else {
+        guard url.standardizedFileURL.path.hasPrefix(Self.sandboxRoot.standardizedFileURL.path) else {
             throw RuntimeError(message: "file operation outside the app sandbox: \(url.path)")
         }
     }
@@ -1132,11 +1119,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                         return .native(real)
                     }
                     if resource.contains("Info"), resource.hasSuffix(".plist") || ext == "plist" {
-                        let url = box.fileManager.sandboxRoot
-                            .appendingPathComponent("Seeded-Info.plist")
+                        let url = FileManagerBox.sandboxRoot.appendingPathComponent("Seeded-Info.plist")
                         try? FileManager.default.createDirectory(
-                            at: box.fileManager.sandboxRoot,
-                            withIntermediateDirectories: true)
+                            at: FileManagerBox.sandboxRoot, withIntermediateDirectories: true)
                         if !FileManager.default.fileExists(atPath: url.path) {
                             let seeded: [String: Any] = [
                                 "CFBundleShortVersionString": box.bundle
@@ -1292,6 +1277,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let marker = value as? HostTypeMarker, marker.name == "Calendar", name == "current" {
         return .native(CalendarBox())
     }
+    if let marker = value as? HostTypeMarker, marker.name == "FileManager", name == "default" {
+        return .native(FileManagerBox())
+    }
     if let box = value as? FileManagerBox {
         func urlArg(_ value: RuntimeValue?) -> URL? {
             guard case .host(let any)? = value else { return nil }
@@ -1317,75 +1305,32 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         case "homeDirectoryForCurrentUser":
             // The app's "home" is its container — the sandbox root.
-            return .native(box.sandboxRoot)
+            return .native(FileManagerBox.sandboxRoot)
         case "temporaryDirectory":
-            let tmp = box.sandboxRoot.appendingPathComponent(
-                "tmp", isDirectory: true)
+            let tmp = FileManagerBox.sandboxRoot.appendingPathComponent("tmp", isDirectory: true)
             try? box.manager.createDirectory(at: tmp, withIntermediateDirectories: true)
             return .native(tmp)
         case "startDownloadingUbiquitousItem", "setUbiquitous":
             return .hostFunction(HostFunction(name: name) { _, _ in .void })
         case "fileExists":
-            let pathArgument: (CallArguments) -> String? = { args in
-                args.labeled("atPath")?.stringValue
-            }
-            return .hostFunction(HostFunction(
-                name: name,
-                invoke: { args, _ in
-                    guard let path = pathArgument(args) else {
-                        return .native(false)
-                    }
-                    return .native(box.manager.fileExists(atPath: path))
-                },
-                workerOperationIfSupported: { args, _ in
-                    // The inout `isDirectory:` overload has additional
-                    // write-back semantics and remains on the confined path.
-                    guard args.arguments.count == 1,
-                          args.arguments[0].label == "atPath",
-                          let path = pathArgument(args) else {
-                        return nil
-                    }
-                    return HostWorkerOperation {
-                        .bool(FileManager.default.fileExists(atPath: path))
-                    }
-                }))
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let path = args.labeled("atPath")?.stringValue else { return .native(false) }
+                return .native(box.manager.fileExists(atPath: path))
+            })
         case "removeItem":
-            let validatedURL: (CallArguments) throws -> URL = { args in
+            return .hostFunction(HostFunction(name: name) { args, _ in
                 let url = urlArg(args.labeled("at"))
                     ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
                 guard let url else { throw RuntimeError(message: "removeItem needs a URL") }
                 try box.requireSandboxed(url)
-                return url
-            }
-            return .hostFunction(HostFunction(
-                name: name,
-                invoke: { args, _ in
-                let url = try validatedURL(args)
-                do {
-                    try box.manager.removeItem(at: url)
-                } catch {
-                    throw RuntimeError(
-                        message: "removeItem: \(error.localizedDescription)")
+                do { try box.manager.removeItem(at: url) } catch {
+                    throw RuntimeError(message: "removeItem: \(error.localizedDescription)")
                 }
                 return .void
-            }, workerOperation: { args, _ in
-                // RuntimeValue conversion and sandbox validation remain on
-                // the confined evaluator. Foundation.URL is the only source
-                // value captured by the compiler-checked worker closure.
-                let url = try validatedURL(args)
-                return HostWorkerOperation {
-                    do {
-                        try FileManager.default.removeItem(at: url)
-                    } catch {
-                        throw RuntimeError(
-                            message: "removeItem: \(error.localizedDescription)")
-                    }
-                    return .void
-                }
-            }))
+            })
         case "copyItem", "moveItem":
             let move = name == "moveItem"
-            let validatedURLs: (CallArguments) throws -> (URL, URL) = { args in
+            return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let from = urlArg(args.labeled("at")), let to = urlArg(args.labeled("to")) else {
                     // Sources that never materialized (URLSession temp
                     // markers) can't be copied — the honest throw lands in
@@ -1394,12 +1339,6 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 try box.requireSandboxed(to)
                 try box.requireSandboxed(from)
-                return (from, to)
-            }
-            return .hostFunction(HostFunction(
-                name: name,
-                invoke: { args, _ in
-                let (from, to) = try validatedURLs(args)
                 do {
                     if move { try box.manager.moveItem(at: from, to: to) }
                     else { try box.manager.copyItem(at: from, to: to) }
@@ -1407,35 +1346,11 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                     throw RuntimeError(message: "\(name): \(error.localizedDescription)")
                 }
                 return .void
-            }, workerOperation: { args, _ in
-                // Validation and RuntimeValue -> URL copying stay confined.
-                // Only two Foundation value snapshots and the operation kind
-                // cross into the compiler-checked @Sendable closure.
-                let (from, to) = try validatedURLs(args)
-                return HostWorkerOperation {
-                    do {
-                        if move {
-                            try FileManager.default.moveItem(at: from, to: to)
-                        } else {
-                            try FileManager.default.copyItem(at: from, to: to)
-                        }
-                    } catch {
-                        throw RuntimeError(
-                            message: "\(name): \(error.localizedDescription)")
-                    }
-                    return .void
-                }
-            }))
+            })
         case "createDirectory":
-            let directoryURL: (CallArguments) -> URL? = { args in
+            return .hostFunction(HostFunction(name: name) { args, _ in
                 let url = urlArg(args.labeled("at"))
                     ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
-                return url
-            }
-            return .hostFunction(HostFunction(
-                name: name,
-                invoke: { args, _ in
-                let url = directoryURL(args)
                 guard let url else {
                     // An UNKNOWABLE location (a path built from unmerged
                     // APIs): creating it is accepted inertly — the fresh
@@ -1446,30 +1361,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 try box.requireSandboxed(url)
                 try? box.manager.createDirectory(at: url, withIntermediateDirectories: true)
                 return .void
-            }, workerOperationIfSupported: { args, _ in
-                // Demand currently proves only the direct URL/path overloads
-                // with intermediate creation enabled and attributes omitted.
-                // Richer argument shapes stay on the confined implementation.
-                guard args.arguments.count == 2,
-                      args.arguments[1].label == "withIntermediateDirectories",
-                      args.arguments[1].value.boolValue == true,
-                      let firstLabel = args.arguments[0].label,
-                      firstLabel == "at" || firstLabel == "atPath",
-                      let url = directoryURL(args) else {
-                    return nil
-                }
-                try box.requireSandboxed(url)
-                return HostWorkerOperation {
-                    do {
-                        try FileManager.default.createDirectory(
-                            at: url, withIntermediateDirectories: true)
-                    } catch {
-                        throw RuntimeError(
-                            message: "createDirectory: \(error.localizedDescription)")
-                    }
-                    return .void
-                }
-            }))
+            })
         case "contentsOfDirectory":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let url = urlArg(args.labeled("at")) else {

@@ -4,7 +4,6 @@
 /// objects, interpreter values, callbacks, and mutable runtime storage are not
 /// representable.
 public nonisolated enum HostWorkerValue: Sendable, Equatable {
-    case void
     case bool(Bool)
     case string(String)
 }
@@ -30,8 +29,6 @@ public nonisolated struct HostWorkerOperation: Sendable {
 extension HostWorkerValue {
     nonisolated var workerSnapshot: RuntimeWorkerValueSnapshot {
         switch self {
-        case .void:
-            .void
         case .bool(let value):
             .bool(value)
         case .string(let value):

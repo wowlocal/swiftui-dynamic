@@ -306,15 +306,7 @@ public enum MainQueueDrain {
 /// Members on host-native values — shared by the real and trace registries
 /// via their `hostMember` hooks. Numbers come back as Double so interpreted
 /// arithmetic works on them.
-func bridgeHostMember(
-    _ name: String,
-    on value: Any,
-    fileManager: FileManagerBox
-) -> RuntimeValue? {
-    if let marker = value as? HostTypeMarker,
-       marker.name == "FileManager", name == "default" {
-        return .native(fileManager)
-    }
+func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let member = hostObjectMember(name, on: value) {
         return member
     }
@@ -418,14 +410,12 @@ func bridgeHostMember(
         case ("Bundle", "module"):
             // SPM resource bundles resolve against the merge's project
             // root — the committed files ARE what Bundle.module ships.
-            return .native(BundleBox(
-                bundle: .main, fileManager: fileManager))
+            return .native(BundleBox(bundle: .main))
         case ("Bundle", "main"):
             // The host process IS real (the uname doctrine): path-walking
             // idioms (locateHostBundleURL's climb to "/") terminate on a
             // real bundle URL. Resource lookups on the box absorb.
-            return .native(BundleBox(
-                bundle: .main, fileManager: fileManager))
+            return .native(BundleBox(bundle: .main))
         case ("UIScreen", "main"), ("NSScreen", "main"):
             return .native(ScreenStub())
         case ("DispatchQueue", "main"):
@@ -927,7 +917,7 @@ extension ViewRegistry {
     }
 
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
-        bridgeHostMember(name, on: value, fileManager: fileManagerBox)
+        bridgeHostMember(name, on: value)
     }
 
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {

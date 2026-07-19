@@ -3,7 +3,6 @@ import Darwin
 import Foundation
 import Testing
 @testable import SwiftInterpreter
-import SwiftUIBridge
 
 private enum ParityMode: String, Decodable {
     case runtime
@@ -41,7 +40,6 @@ private struct ConcurrencyParityCase: Decodable {
     let nativeWarningContains: [String]?
     let interpreterWarningContains: [String]?
     let interpreterCompletionPolicy: String?
-    let interpreterRegistry: String?
     let interpreterExecutionMode: String?
     let interpreterMaximumParallelism: Int?
     let expectedPhysicalSourceKernelExecutions: Int?
@@ -608,27 +606,11 @@ private enum ConcurrencyParityHarness {
                 "unknown interpreter execution mode '\(unknown)' "
                     + "for '\(parityCase.id)'")
         }
-        let interpreter: Interpreter
-        let hostSequenceRegistry: ParityHostAsyncSequenceRegistry?
-        switch parityCase.interpreterRegistry {
-        case nil, "core":
-            let registry = try ParityHostAsyncSequenceRegistry()
-            hostSequenceRegistry = registry
-            interpreter = Interpreter(
-                registry: registry,
-                executionMode: executionMode)
-            registry.interpreter = interpreter
-        case "swiftUI":
-            hostSequenceRegistry = nil
-            interpreter = Interpreter(
-                registry: ViewRegistry(),
-                executionMode: executionMode)
-        case .some(let unknown):
-            hostSequenceRegistry = nil
-            throw RuntimeError(message:
-                "unknown interpreter registry '\(unknown)' "
-                    + "for '\(parityCase.id)'")
-        }
+        let hostSequenceRegistry = try ParityHostAsyncSequenceRegistry()
+        let interpreter = Interpreter(
+            registry: hostSequenceRegistry,
+            executionMode: executionMode)
+        hostSequenceRegistry.interpreter = interpreter
         var waitStarted = false
         var expectedDetachedContextID: UInt64?
         var hostGatewayEvents: [String] = []
@@ -1205,8 +1187,7 @@ private enum ConcurrencyParityHarness {
                     + "\(interpreter.concurrencyRuntime.totalPhysicalHostOperationExecutions)")
         }
 
-        if let hostSequenceRegistry,
-           hostSequenceRegistry.nextCallCount > 0 {
+        if hostSequenceRegistry.nextCallCount > 0 {
             guard hostSequenceRegistry.nextCallCount == 4,
                   hostSequenceRegistry.trackedNextCallCount == 4 else {
                 throw RuntimeError(message:

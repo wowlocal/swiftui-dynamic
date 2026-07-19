@@ -42,7 +42,6 @@ public final class TraceNode: InertCallable {
 public final class TraceRegistry: HostRegistry {
     /// Nested `Task {}` bodies are scheduled, never run synchronously.
     var taskDepth = 0
-    let fileManagerBox = FileManagerBox()
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
 
     public init() {}
@@ -86,11 +85,11 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func storeBlob(_ value: RuntimeValue, at path: String) {
-        fileManagerBox.blobStore[path] = value
+        FileManagerBox.blobStore[path] = value
     }
 
     public func hostObjectConstructor(named name: String) -> HostFunction? {
-        bridgeHostObjectConstructor(named: name, fileManager: fileManagerBox)
+        bridgeHostObjectConstructor(named: name)
     }
 
     /// The element's identity for state salting: an Identifiable `id`
@@ -111,10 +110,7 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func constructor(named name: String) -> HostFunction? {
-        if let hostObject = bridgeHostObjectConstructor(
-            named: name,
-            fileManager: fileManagerBox
-        ) { return hostObject }
+        if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
         if let platform = GeneratedPlatformBridge.constructor(named: name) {
             return platform
         }
@@ -555,8 +551,7 @@ public final class TraceRegistry: HostRegistry {
             default: break
             }
         }
-        return bridgeHostMember(
-            name, on: value, fileManager: fileManagerBox)
+        return bridgeHostMember(name, on: value)
     }
 
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
