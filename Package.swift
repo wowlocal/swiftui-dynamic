@@ -101,6 +101,11 @@ let package = Package(
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
+            name: "IceCubesCheck",
+            dependencies: ["SwiftUIBridge"],
+            swiftSettings: mainActorByDefault
+        ),
+        .executableTarget(
             name: "BridgeGen",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),

@@ -2932,3 +2932,30 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   vendor missing package deps into the corpus checkouts (bounded
   fetch, faithful to native builds) or ledger the dependent suites
   FreeChat-style. GATE GREEN 1112s.
+- 2026-07-18 i84-i86 RECEIPTED (worktree iteration 87): clean-detached
+  gate GREEN 1147s on exact tip ccdf521; MERGE-READY posted (the
+  makeStream M1 opener + self-diagnosing tuple errors + the
+  absent-dependency re-classification).
+- 2026-07-18 VENDORING DOCTRINE: TCA's TUPLE CLASS DISSOLVES (worktree
+  iteration 88): cloning the seven pointfreeco packages (Sources-only)
+  into the TCA checkout took its tuple-binding count 44 -> ZERO — the
+  free withDependencies now interprets for real, and the histogram
+  head drops to 3-count singleton classes. Two lessons encoded in
+  Scripts/vendor-corpus-deps.sh (the reproducibility instrument for
+  the gitignored External cache): vendor SOURCES ONLY (the unpruned
+  clones' own Tests ballooned the merge ~5x — the first run had to be
+  killed), and the vendoring doctrine generalizes to any corpus
+  project whose absent deps make API families absorb (the
+  self-diagnosing binding error is the detector). TestCheck moves
+  without touching any gate contract (the gate's corpus board is
+  ProjectCheck's). GATE next.
+- 2026-07-19 ICECUBES BOOTSTRAP — FROZEN NATIVE BASELINE (worktree iteration
+  89): `IceCubesCheck` establishes R0/R1 at 1/6 in 29s; the real Catalyst
+  Timeline/Models/NetworkClient/StatusKit/DesignSystem/Env twin decodes 20
+  recorded statuses (2 media) and renders the 900x700 public timeline. One
+  reusable Date-construction interposer freezes both processes at the fixture
+  epoch; independent launches are AE=0 on each side. First cross-side R2 is
+  honestly AE 630000/630000 (100%): the interpreted capture is black. The R1
+  histogram localizes the leading class to absent external package sources
+  (SwiftSoup-backed HTMLString content is empty), not custom Codable decoding.
+  ProjectCheck backstop holds at 678/680 (known Mythic action-driver residue).
