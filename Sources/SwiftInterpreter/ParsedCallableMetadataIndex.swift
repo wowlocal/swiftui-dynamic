@@ -149,13 +149,24 @@ nonisolated struct ParsedCallableShape: Sendable {
     let parameterCount: Int
     let labels: Set<String>
     let wildcardCount: Int
+    /// Number of ordinary positional arguments needed to reach the last
+    /// required `_` parameter. This differs from merely counting required
+    /// wildcards when an earlier positional parameter has a default.
+    let minimumUnlabeledCount: Int
     let requiredLabels: [String]
 
     func matches(_ arguments: Interpreter.ArgumentShape) -> Bool {
         guard arguments.count <= parameterCount,
               arguments.labels.isSubset(of: labels),
               arguments.unlabeledCount <= wildcardCount else { return false }
-        var missingRequired = 0
+        // An unlabeled trailing closure can fill one otherwise-missing
+        // parameter, regardless of whether that parameter has an external
+        // label. Share one budget across both positional and labeled holes.
+        var missingRequired = max(
+            0, minimumUnlabeledCount - arguments.unlabeledCount)
+        if missingRequired > arguments.unlabeledTrailingCount {
+            return false
+        }
         for label in requiredLabels where !arguments.labels.contains(label) {
             missingRequired += 1
             if missingRequired > arguments.unlabeledTrailingCount {
@@ -412,12 +423,16 @@ private nonisolated func parsedCallableShape(
 ) -> ParsedCallableShape {
     var labels: Set<String> = []
     var wildcardCount = 0
+    var minimumUnlabeledCount = 0
     var requiredLabels: [String] = []
     for parameter in parameters {
         let label = parameter.firstName.text
         labels.insert(label)
         if label == "_" {
             wildcardCount += 1
+            if parameter.defaultValue == nil, parameter.ellipsis == nil {
+                minimumUnlabeledCount = wildcardCount
+            }
         } else if parameter.defaultValue == nil {
             requiredLabels.append(label)
         }
@@ -426,5 +441,6 @@ private nonisolated func parsedCallableShape(
         parameterCount: parameters.count,
         labels: labels,
         wildcardCount: wildcardCount,
+        minimumUnlabeledCount: minimumUnlabeledCount,
         requiredLabels: requiredLabels)
 }

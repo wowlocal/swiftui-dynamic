@@ -398,6 +398,34 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "base+child")
     }
 
+    /// A candidate with an unfilled required positional parameter is not a
+    /// match merely because the supplied positional count fits its capacity.
+    /// SwiftSoup's Element overloads differ by exactly this third argument.
+    @Test func initializerOverloadRejectsMissingUnlabeledArgument() throws {
+        let source = """
+        final class Tag {}
+
+        final class Element {
+            let marker: Int
+
+            init(
+                _ tag: Tag, _ bytes: [Int], _ attributes: Int,
+                skip: Bool = false
+            ) {
+                marker = 1
+            }
+
+            init(_ tag: Tag, _ bytes: [Int], skip: Bool = false) {
+                marker = 2
+            }
+        }
+
+        Element(Tag(), [], skip: false).marker
+        """
+
+        #expect(try eval(source).intValue == 2)
+    }
+
     @Test func superInitializerPopulatesInheritedStorage() throws {
         let source = """
         class Base {
