@@ -239,6 +239,30 @@ struct ConcurrencySurfaceGeneratorTests {
             == "TaskPriority")
         #expect(currentTaskMembers["=="]?.first?.modifiers.contains("static")
             == true)
+        #expect(inventory.nominalMemberDispatch["MainActor"] == [
+            "run": "mainActorRun",
+        ])
+        #expect(inventory.knownNominalMembers["MainActor"] == [
+            "assumeIsolated", "enqueue", "run", "shared",
+            "sharedUnownedExecutor", "unownedExecutor",
+        ])
+        let mainActorRun = try #require(
+            inventory.nominalMemberDeclarations["MainActor"]?["run"]?.first)
+        #expect(mainActorRun.isAsync)
+        #expect(mainActorRun.throwsKind == .rethrowing)
+        #expect(mainActorRun.modifiers.contains("static"))
+        #expect(mainActorRun.parameters.contains {
+            $0.label == "body" && $0.type.contains("MainActor")
+                && $0.isSendableFunction
+        })
+        let mainActorMembers = try #require(
+            inventory.nominalMemberDeclarations["MainActor"])
+        #expect(mainActorMembers["shared"]?.first?.kind == .variable)
+        #expect(mainActorMembers["sharedUnownedExecutor"]?.first?.modifiers
+            .contains("static") == true)
+        #expect(mainActorMembers["unownedExecutor"]?.first?.isNonisolated
+            == true)
+        #expect(mainActorMembers["enqueue"]?.first?.isNonisolated == true)
 
         for typeName in ConcurrencySurfaceGenerator.taskGroupTypes {
             #expect(Set(inventory.taskGroupMemberDeclarations[
@@ -317,7 +341,7 @@ struct ConcurrencySurfaceGeneratorTests {
 
     @Test
     func selectedNominalInventoryFailsClosedWhenTypeDisappears() throws {
-        let source = Self.syntheticInterface
+        let missingCurrentTaskSource = Self.syntheticInterface
             .replacingOccurrences(
                 of: "public struct UnsafeCurrentTask",
                 with: "public struct MissingCurrentTask")
@@ -327,13 +351,31 @@ struct ConcurrencySurfaceGeneratorTests {
 
         do {
             _ = try ConcurrencySurfaceGenerator.inventory(
-                interfaceSource: source)
+                interfaceSource: missingCurrentTaskSource)
             Issue.record("missing selected nominal unexpectedly generated")
         } catch ConcurrencySurfaceGenerationError
                 .missingNominalMemberIntrinsics(let names) {
             #expect(names.contains("UnsafeCurrentTask.<type>"))
             #expect(names.contains(
                 "UnsafeCurrentTask.currentTaskIdentityEquals"))
+        }
+
+        let missingMainActorSource = Self.syntheticInterface
+            .replacingOccurrences(
+                of: "public actor MainActor",
+                with: "public actor MissingMainActor")
+            .replacingOccurrences(
+                of: "extension MainActor",
+                with: "extension MissingMainActor")
+
+        do {
+            _ = try ConcurrencySurfaceGenerator.inventory(
+                interfaceSource: missingMainActorSource)
+            Issue.record("missing MainActor nominal unexpectedly generated")
+        } catch ConcurrencySurfaceGenerationError
+                .missingNominalMemberIntrinsics(let names) {
+            #expect(names.contains("MainActor.<type>"))
+            #expect(names.contains("MainActor.mainActorRun"))
         }
     }
 
@@ -374,7 +416,7 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.source.targetTriple.contains("apple-macosx"))
         #expect(!capabilities.scope.complete)
         #expect(capabilities.scope.id
-            == "top-level-functions-and-task-family-members-v4")
+            == "top-level-functions-and-task-family-members-v5")
         #expect(!capabilities.scope.adapterRouteIsSupportEvidence)
         #expect(!capabilities.scope.excluded.isEmpty)
         #expect(capabilities.scope.included.contains {
@@ -384,20 +426,21 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("active compiler conditional-compilation")
         })
         #expect(capabilities.scope.included.contains {
-            $0.contains("selected nominal") && $0.contains("UnsafeCurrentTask")
+            $0.contains("selected nominal") && $0.contains("MainActor")
+                && $0.contains("UnsafeCurrentTask")
         })
         #expect(capabilities.scope.excluded.contains {
             $0.contains("nested declarations outside")
         })
-        #expect(capabilities.summary.declarationCount == 171)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 127)
+        #expect(capabilities.summary.declarationCount == 177)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 128)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 49,
             "task-static-member": 25,
             "task-instance-member": 11,
             "task-group-member": 71,
             "task-group-iterator-member": 6,
-            "selected-nominal-member": 9,
+            "selected-nominal-member": 15,
         ])
         #expect(capabilities.declarations.count
             == capabilities.summary.declarationCount)
@@ -493,6 +536,15 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.domain == "selected-nominal-member" && $0.name == "=="
                 && $0.adapterIntrinsic == "currentTaskIdentityEquals"
         })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "selected-nominal-member"
+                && $0.container == "MainActor" && $0.name == "run"
+                && $0.adapterIntrinsic == "mainActorRun"
+        })
+        #expect(capabilities.declarations.filter {
+            $0.domain == "selected-nominal-member"
+                && $0.container == "MainActor"
+        }.count == 6)
         #expect(capabilities.declarations.contains {
             $0.domain == "selected-nominal-member"
                 && $0.name == "unownedTaskExecutor"
@@ -844,6 +896,28 @@ struct ConcurrencySurfaceGeneratorTests {
         ) -> Bool { false }
         public func escalatePriority(to newPriority: TaskPriority) {}
         public var unownedTaskExecutor: UnownedTaskExecutor? { nil }
+    }
+
+    public actor MainActor {
+        public static let shared: MainActor = MainActor()
+        nonisolated public var unownedExecutor: UnownedSerialExecutor {
+            fatalError()
+        }
+        public static var sharedUnownedExecutor: UnownedSerialExecutor {
+            fatalError()
+        }
+        nonisolated public func enqueue(_ job: UnownedJob) {}
+    }
+    extension MainActor {
+        public static func assumeIsolated<T>(
+            _ operation: @MainActor () throws -> T,
+            file: StaticString = #fileID,
+            line: UInt = #line
+        ) rethrows -> T where T: Sendable { try operation() }
+        public static func run<T>(
+            resultType: T.Type = T.self,
+            body: @MainActor @Sendable () throws -> T
+        ) async rethrows -> T { try body() }
     }
 
     public struct TaskGroup<Child> {

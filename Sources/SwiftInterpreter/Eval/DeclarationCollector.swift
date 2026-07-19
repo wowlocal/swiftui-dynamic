@@ -636,6 +636,7 @@ extension Interpreter {
                         initializer: nil,
                         typeAnnotation: element.typeAnnotation,
                         isBuilderClosure: false,
+                        attributeNames: declarationMetadata.attributeNames,
                         isMutable: declarationMetadata.isMutable,
                         isNonisolated: declarationMetadata.isNonisolated
                     ))
@@ -667,6 +668,8 @@ extension Interpreter {
                     typeAnnotation: annotation)
                 continue
             }
+            let coroutineErrors = unsupportedCoroutineAccessorErrors(
+                for: binding)
             // A binding with an accessor block is computed only if it has a
             // getter; willSet/didSet-only observers mean a stored property
             // whose observers run on assignment (see the write funnel).
@@ -684,7 +687,31 @@ extension Interpreter {
                     declarationID: binding.id,
                     isNonisolated: declarationMetadata.isNonisolated,
                     isAsync: accessors.isGetterAsync,
-                    isThrowing: accessors.isGetterThrowing
+                    isThrowing: accessors.isGetterThrowing,
+                    unsupportedCoroutineReadError:
+                        coroutineErrors?.read,
+                    unsupportedCoroutineModifyError:
+                        coroutineErrors?.modify
+                )
+                if isStaticDecl {
+                    symbol.staticComputedProperties[name] = computed
+                } else {
+                    symbol.computedProperties[name] = computed
+                }
+            } else if let coroutineErrors {
+                // `_read`/`_modify` declarations are legal Swift even when
+                // this run never touches them. Keep an explicit computed
+                // member so root synthesis and member lookup stay correct,
+                // and surface the ownership limitation only on demand.
+                declLexicalOwners[binding.id] = symbol
+                let computed = ComputedProperty(
+                    accessor: CodeBlockItemListSyntax([]),
+                    isBuilder: false,
+                    typeAnnotation: bindingMetadata.typeAnnotation,
+                    declarationID: binding.id,
+                    isNonisolated: declarationMetadata.isNonisolated,
+                    unsupportedCoroutineReadError: coroutineErrors.read,
+                    unsupportedCoroutineModifyError: coroutineErrors.modify
                 )
                 if isStaticDecl {
                     symbol.staticComputedProperties[name] = computed
@@ -729,6 +756,7 @@ extension Interpreter {
                     initializer: bindingMetadata.initializer ?? queryDefault ?? stateLikeDefault,
                     typeAnnotation: bindingMetadata.typeAnnotation ?? syntheticAnnotation,
                     isBuilderClosure: hasBuilderAttribute,
+                    attributeNames: declarationMetadata.attributeNames,
                     isMutable: declarationMetadata.isMutable,
                     isNonisolated: declarationMetadata.isNonisolated
                 )
@@ -914,6 +942,8 @@ extension Interpreter {
                             typeAnnotation: annotation)
                     continue
                 }
+                let coroutineErrors = unsupportedCoroutineAccessorErrors(
+                    for: binding)
                 if bindingMetadata.isComputed,
                    let accessorBlock = binding.accessorBlock,
                    let accessors = parseAccessors(of: accessorBlock) {
@@ -928,7 +958,11 @@ extension Interpreter {
                             typeAnnotation: bindingMetadata.typeAnnotation,
                             declarationID: binding.id,
                             isAsync: accessors.isGetterAsync,
-                            isThrowing: accessors.isGetterThrowing
+                            isThrowing: accessors.isGetterThrowing,
+                            unsupportedCoroutineReadError:
+                                coroutineErrors?.read,
+                            unsupportedCoroutineModifyError:
+                                coroutineErrors?.modify
                         )
                         continue
                     }
@@ -939,8 +973,28 @@ extension Interpreter {
                         typeAnnotation: bindingMetadata.typeAnnotation,
                         declarationID: binding.id,
                         isAsync: accessors.isGetterAsync,
-                        isThrowing: accessors.isGetterThrowing
+                        isThrowing: accessors.isGetterThrowing,
+                        unsupportedCoroutineReadError:
+                            coroutineErrors?.read,
+                        unsupportedCoroutineModifyError:
+                            coroutineErrors?.modify
                     )
+                } else if let coroutineErrors {
+                    declLexicalOwners[binding.id] = symbol
+                    let computed = ComputedProperty(
+                        accessor: CodeBlockItemListSyntax([]),
+                        isBuilder: false,
+                        typeAnnotation: bindingMetadata.typeAnnotation,
+                        declarationID: binding.id,
+                        unsupportedCoroutineReadError: coroutineErrors.read,
+                        unsupportedCoroutineModifyError:
+                            coroutineErrors.modify
+                    )
+                    if isStaticDecl {
+                        symbol.staticComputedProperties[memberName] = computed
+                    } else {
+                        symbol.computedProperties[memberName] = computed
+                    }
                 } else if isStaticDecl {
                     let referenceOwnership = declarationMetadata.referenceOwnership
                     symbol.staticStoragePolicies[memberName] = .init(
@@ -1097,8 +1151,14 @@ extension Interpreter {
         }
     }
 
-    func makeFunctionClosure(_ node: FunctionDeclSyntax, body: CodeBlockSyntax, captured: Environment) -> ClosureValue {
-        let programState = programStateOwningDeclaration(node.id)
+    func makeFunctionClosure(
+        _ node: FunctionDeclSyntax,
+        body: CodeBlockSyntax,
+        captured: Environment,
+        originProgramState: RuntimeProgramState? = nil
+    ) -> ClosureValue {
+        let programState = originProgramState
+            ?? programStateOwningDeclaration(node.id)
         let programPlan = programState?.programPlan ?? currentProgramPlan
         let programMetadata = programPlan?.metadata ?? currentProgramMetadata
         let metadata = programMetadata?.callableMetadataIndex.metadata(for: node)
@@ -1138,6 +1198,11 @@ extension Interpreter {
            let actorID = actor.actorID {
             closure.executorPreference = .actor(actorID)
         }
+        closure.sourceFunctionTargetDescriptor =
+            sourceFunctionTargetDescriptor(
+                declarationID: node.id,
+                metadata: metadata,
+                closure: closure)
         return closure
     }
 
@@ -1240,6 +1305,63 @@ extension Interpreter {
     }
 
     // MARK: - Helpers
+
+    /// SwiftParser currently represents experimental `read`/`modify`
+    /// accessors either as accessor declarations or as getter-body calls with
+    /// trailing closures. Preserve both read and modify limitations so an
+    /// unused declaration remains legal while an actual access fails with a
+    /// stable, located ownership diagnostic.
+    private func unsupportedCoroutineAccessorErrors(
+        for binding: PatternBindingSyntax
+    ) -> (read: RuntimeError?, modify: RuntimeError?)? {
+        guard let accessorBlock = binding.accessorBlock else { return nil }
+        var readAccessor: String?
+        var modifyAccessor: String?
+
+        func classify(_ spelling: String) {
+            switch spelling {
+            case "read", "_read":
+                readAccessor = readAccessor ?? spelling
+            case "modify", "_modify":
+                modifyAccessor = modifyAccessor ?? spelling
+            default:
+                break
+            }
+        }
+
+        switch accessorBlock.accessors {
+        case .accessors(let accessors):
+            for accessor in accessors {
+                classify(accessor.accessorSpecifier.text)
+            }
+        case .getter(let items):
+            for item in items {
+                guard case .expr(let expression) = item.item,
+                      let call = expression.as(FunctionCallExprSyntax.self),
+                      let reference = call.calledExpression
+                        .as(DeclReferenceExprSyntax.self),
+                      call.arguments.isEmpty,
+                      let closure = call.trailingClosure,
+                      closure.tokens(viewMode: .sourceAccurate).contains(
+                          where: { $0.text == "yield" }) else {
+                    continue
+                }
+                classify(reference.baseName.text)
+            }
+        }
+
+        guard readAccessor != nil || modifyAccessor != nil else { return nil }
+        func demandError(_ accessor: String) -> RuntimeError {
+            error(
+                binding,
+                "coroutine property accessor '\(accessor)' is unsupported; "
+                    + "use ordinary get/set or provide a demand citation "
+                    + "for suspension-safe coroutine ownership")
+        }
+        return (
+            readAccessor.map(demandError),
+            modifyAccessor.map(demandError))
+    }
 
     /// nil ⇒ no getter (willSet/didSet observers only): treat as stored.
     func parseAccessors(

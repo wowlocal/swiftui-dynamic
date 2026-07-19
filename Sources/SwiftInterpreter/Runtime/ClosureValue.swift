@@ -6,6 +6,27 @@ import SwiftSyntax
 /// functions and `some View` returns — their bodies evaluate in builder mode.
 @MainActor
 public final class ClosureValue {
+    enum PhysicalExplicitMainActorContinuationSignature {
+        /// Planet's exact one-expression `{ @MainActor in ... }` operation.
+        case captureless
+        /// Provenance/KeyboardCowboy's exact single weak-capture operation.
+        case singleWeakCapture
+        /// apple-browsers' exact strong/weak/weak capture-list operation.
+        case strongWeakWeakCaptures
+        /// Swiftfin's exact weak/strong capture-list operation.
+        case weakStrongCaptures
+
+        var keepsCompleteBodyConfined: Bool {
+            switch self {
+            case .captureless:
+                false
+            case .singleWeakCapture, .strongWeakWeakCaptures,
+                 .weakStrongCaptures:
+                true
+            }
+        }
+    }
+
     public nonisolated struct Parameter: Sendable {
         public let name: String
         /// External argument label (nil for `_` and closure parameters).
@@ -136,6 +157,27 @@ public final class ClosureValue {
     /// remain on the cooperative evaluator until their transfer semantics are
     /// modeled rather than inferred from a literal body.
     var isPhysicalSnapshotKernelCandidate = false
+    /// A demand-backed explicit-MainActor capture shape whose complete closure
+    /// stays confined. This capability may unlock only an entry/handoff
+    /// wrapper, never a snapshot or source-call route.
+    var physicalExplicitMainActorContinuationSignature:
+        PhysicalExplicitMainActorContinuationSignature?
+    /// True only for the demand-backed capture-only spelling `{ [self] in }`.
+    /// This does not admit general capture-list snapshot kernels: it may only
+    /// unlock a direct-self source-call wrapper whose confined registration
+    /// already owns the strongly captured receiver for the source task.
+    var isPhysicalStrongSelfSourceCallCandidate = false
+    /// True only for the demand-backed capture-only `[weak self]` signature.
+    /// It may unlock an exact optional-self source-call wrapper or a checked
+    /// sleep-prefix continuation. The weak box remains in this MainActor-
+    /// confined closure and is read only after the physical wrapper reaches
+    /// the confined relay; it is never copied to a worker capability.
+    var isPhysicalWeakSelfSourceCallCandidate = false
+    /// True only for one ordinary explicit value capture such as
+    /// `[source] in`. This signature may unlock the demand-backed static
+    /// protocol-default String source-call wrapper; it never admits a
+    /// snapshot kernel or transfers the closure itself.
+    var physicalSingleValueSourceCallCaptureName: String?
     /// Immutable source-program capability retained by escaped callbacks. A
     /// fresh host/runtime entry can therefore recover every indexed
     /// declaration fact without consulting whichever program the facade ran
@@ -148,6 +190,12 @@ public final class ClosureValue {
     /// MainActor-confined mutable declaration materialization associated with
     /// `programPlan`. Escaped host callbacks reuse this exact capability.
     var programState: RuntimeProgramState?
+    /// Immutable identity of the exact source declaration represented by this
+    /// closure. Anonymous closure expressions and foreign-syntax fallbacks
+    /// leave it nil; a selected function/method may project this descriptor
+    /// without transferring the closure or its captured environment.
+    var sourceFunctionTargetDescriptor:
+        RuntimeSourceFunctionTargetDescriptor?
     public var callableMetadataIndex: ParsedCallableMetadataIndex? {
         programMetadata?.callableMetadataIndex
     }

@@ -5,6 +5,7 @@ nonisolated enum CoreFunctionIntrinsic: Sendable {
     case intConversion
     case integerMinimum
     case integerMaximum
+    case taskType
 }
 
 extension Interpreter {
@@ -107,7 +108,7 @@ extension Interpreter {
             Swift.print(args.arguments.map { $0.value.stringValue ?? $0.value.stringified }.joined(separator: " "))
             return .void
         }
-        define("Task") { args, context in
+        define("Task", intrinsic: .taskType) { args, context in
             if let body = args.firstUnlabeledClosure ?? args.closure(labeled: "operation") {
                 let priority = try RuntimeTaskPriority.sourceValue(
                     args.labeled("priority"))

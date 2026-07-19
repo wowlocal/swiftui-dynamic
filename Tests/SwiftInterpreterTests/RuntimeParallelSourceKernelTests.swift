@@ -58,6 +58,201 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelSubmissions == 0)
     }
 
+    @Test
+    func threadPropertyUsesWorkerGatewayOnlyOnEligibleSourceExecutors()
+        async throws
+    {
+        let source = """
+        nonisolated func executionLane() -> String {
+            Thread.isMainThread ? "main" : "worker"
+        }
+
+        @concurrent
+        nonisolated func work() async -> String {
+            let entered = executionLane()
+            await Task.yield()
+            let resumed = executionLane()
+            return entered + ":" + resumed
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let entered = executionLane()
+            let worker = await work()
+            let resumed = executionLane()
+            return entered + "|" + worker + "|" + resumed
+        }
+
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "main|worker:worker|main")
+        #expect(parallelValue.stringValue == cooperativeValue.stringValue)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 2)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 2)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func actorConfinedWorkerGatewayNeverIntroducesHiddenReentrancy()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        var workerOperationBuildCount = 0
+        interpreter.globals.define(
+            "testWorkerLane",
+            .hostFunction(HostFunction(
+                name: "testWorkerLane",
+                invoke: { _, context in
+                    .native(
+                        context.sourceExecutor.isMainActor
+                            ? "main" : "worker")
+                },
+                workerOperation: { _, _ in
+                    workerOperationBuildCount += 1
+                    return HostWorkerOperation {
+                        .string(
+                            Thread.isMainThread ? "main" : "worker")
+                    }
+                })))
+
+        let value = try await interpreter.runAsync(source: """
+        actor LaneActor {
+            func read() -> String {
+                testWorkerLane()
+            }
+        }
+
+        @MainActor
+        func readMain() -> String {
+            testWorkerLane()
+        }
+
+        func probe() async -> String {
+            let actor = LaneActor()
+            let actorLane = await actor.read()
+            let mainLane = await readMain()
+            return mainLane + "|" + actorLane
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "main|worker")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(workerOperationBuildCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func sourceShadowedThreadPropertyNeverUsesTheCoreWorkerGateway()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        struct Thread {
+            static var isMainThread: Bool {
+                true
+            }
+        }
+
+        nonisolated func executionLane() -> String {
+            Thread.isMainThread ? "source" : "host"
+        }
+
+        @concurrent
+        nonisolated func probe() async -> String {
+            executionLane()
+        }
+
+        await probe()
+        """)
+
+        #expect(value.stringValue == "source")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func workerAdmissionNeverForcesComputedCallables() async throws {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        var globalReads = 0
+        var laneReader: () -> String {
+            globalReads += 1
+            return { Thread.isMainThread ? "main" : "worker" }
+        }
+
+        @concurrent
+        nonisolated func globalProbe() async -> String {
+            let lane = laneReader()
+            return lane + ":\\(globalReads)"
+        }
+
+        final class Reader {
+            var reads = 0
+
+            var laneReader: () -> String {
+                reads += 1
+                return { Thread.isMainThread ? "main" : "worker" }
+            }
+
+            @concurrent
+            nonisolated func memberProbe() async -> String {
+                let lane = self.laneReader()
+                return lane + ":\\(reads)"
+            }
+        }
+
+        let globalResult = await globalProbe()
+        let memberResult = await Reader().memberProbe()
+        globalResult + "|" + memberResult
+        """)
+
+        #expect(value.stringValue == "worker:1|worker:1")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalHostOperationSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func immutableStringCountCaptureUsesThePhysicalExpressionKernel()
         async throws
     {
@@ -83,6 +278,38 @@ struct RuntimeParallelSourceKernelTests {
         #expect(value.stringValue == "5:9")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelExecutions == 2)
+    }
+
+    @Test
+    func sourceShadowedStringCountUsesOriginTargetAndStaysCooperative()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-string-count.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        _ = try await cooperative.runAsync(source: source)
+        _ = try await parallel.runAsync(source: source)
+        let invocation = "await parallelShadowedStringCountProbe()"
+        let cooperativeValue = try await cooperative.runAsync(
+            source: invocation)
+        let parallelValue = try await parallel.runAsync(source: invocation)
+
+        #expect(cooperativeValue.intValue == 41)
+        #expect(parallelValue.intValue == cooperativeValue.intValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
     }
 
     @Test func immutableStringArrayCountReductionUsesPhysicalExpressionKernel()
@@ -116,6 +343,109 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelExecutions == 2)
     }
 
+    @Test
+    func sourceShadowedArrayMapUsesOriginTargetAndStaysCooperative()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-array-map.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        _ = try await cooperative.runAsync(source: source)
+        _ = try await parallel.runAsync(source: source)
+        let invocation = "await parallelShadowedArrayMapProbe()"
+        let cooperativeValue = try await cooperative.runAsync(
+            source: invocation)
+        let parallelValue = try await parallel.runAsync(source: invocation)
+
+        #expect(cooperativeValue.intValue == 41)
+        #expect(parallelValue.intValue == cooperativeValue.intValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
+    @Test
+    func sourceShadowedArrayReduceUsesOriginTargetAndStaysCooperative()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-array-reduce.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        _ = try await cooperative.runAsync(source: source)
+        _ = try await parallel.runAsync(source: source)
+        let invocation = "await parallelShadowedArrayReduceProbe()"
+        let cooperativeValue = try await cooperative.runAsync(
+            source: invocation)
+        let parallelValue = try await parallel.runAsync(source: invocation)
+
+        #expect(cooperativeValue.intValue == 73)
+        #expect(parallelValue.intValue == cooperativeValue.intValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
+    @Test
+    func sourceShadowedSubstringCountUsesOriginTargetAndStaysCooperative()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-substring-count.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        _ = try await cooperative.runAsync(source: source)
+        _ = try await parallel.runAsync(source: source)
+        let invocation = "await parallelShadowedSubstringCountProbe()"
+        let cooperativeValue = try await cooperative.runAsync(
+            source: invocation)
+        let parallelValue = try await parallel.runAsync(source: invocation)
+        let controlInvocation = "await parallelStringCountControlProbe()"
+        let cooperativeControl = try await cooperative.runAsync(
+            source: controlInvocation)
+        let parallelControl = try await parallel.runAsync(
+            source: controlInvocation)
+
+        #expect(cooperativeValue.intValue == 178)
+        #expect(parallelValue.intValue == cooperativeValue.intValue)
+        #expect(cooperativeControl.intValue == 3)
+        #expect(parallelControl.intValue == cooperativeControl.intValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
     @Test func detachedYieldUsesPhysicalSuspendingKernel() async throws {
         let parallelism = try RuntimeParallelismConfiguration(
             maximumParallelism: 2)
@@ -139,6 +469,184 @@ struct RuntimeParallelSourceKernelTests {
         #expect(value.stringValue == "yielded:2")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelExecutions == 2)
+    }
+
+    @Test func detachedOperationArgumentUsesPhysicalYieldKernel() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-operation-argument.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedOperationArgumentProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "yielded:2")
+        #expect(value.stringValue == cooperativeValue.stringValue)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func detachedOperationDefaultPriorityUsesPhysicalYieldKernel()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/"
+                + "detached-operation-default-priority.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedOperationDefaultPriorityProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "defaulted:2")
+        #expect(value.stringValue == cooperativeValue.stringValue)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func shadowedTaskYieldStaysOnTheCooperativeEvaluator() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-task-yield.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelShadowedTaskYieldProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let parallelValue = try await parallel.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "source")
+        #expect(parallelValue.stringValue == cooperativeValue.stringValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
+    @Test func shadowedTaskSleepStaysOnTheCooperativeEvaluator() async throws {
+        let source = """
+        struct ShadowTaskSleepReceiver: Sendable {
+            func sleep(for duration: Duration) async throws -> String {
+                "source"
+            }
+        }
+
+        @MainActor
+        func probe() async throws -> String {
+            let spawn = {
+                (operation: @escaping @Sendable () async throws -> String) in
+                Task.detached(operation: operation)
+            }
+            return try await {
+                let Task = ShadowTaskSleepReceiver()
+                let slow = false
+                return try await spawn {
+                    try await Task.sleep(
+                        for: slow ? .seconds(0) : .milliseconds(0))
+                }.value
+            }()
+        }
+        try await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "source")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+    }
+
+    @Test
+    func shadowedTaskNanosecondsPrefixStaysOnTheCooperativeEvaluator()
+        async throws
+    {
+        let source = """
+        @MainActor var shadowNanosecondsObservations: [String] = []
+
+        @MainActor
+        func recordShadowNanoseconds(_ value: String) {
+            shadowNanosecondsObservations.append(value)
+        }
+
+        struct ShadowTaskNanosecondsReceiver: Sendable {
+            func sleep(nanoseconds: UInt64) async throws {
+                await recordShadowNanoseconds("source")
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let spawn = {
+                (operation: @escaping @Sendable () async -> Void) in
+                Task.detached(operation: operation)
+            }
+            await {
+                let Task = ShadowTaskNanosecondsReceiver()
+                await spawn {
+                    try? await Task.sleep(nanoseconds: 0)
+                    await recordShadowNanoseconds("suffix")
+                }.value
+            }()
+            return shadowNanosecondsObservations.joined(separator: ",")
+        }
+        await probe()
+        """
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "source,suffix")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
     @Test
@@ -216,6 +724,1113 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelSubmissions == 1)
     }
 
+    @Test
+    func tryOptionalSleepPrefixReentersConfinedContinuation() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-try-optional-sleep-prefix.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedTryOptionalSleepPrefixProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func tryOptionalNanosecondsSleepPrefixReentersMainActorContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-try-optional-nanoseconds-sleep-prefix.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedTryOptionalNanosecondsSleepPrefixProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func signatureFreeTryOptionalNanosecondsSleepPrefixReentersMainActorContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedSignatureFreeTryOptionalNanosecondsSleepPrefixProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func detachedMainActorRunUsesPhysicalWrapperAndConfinedContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-mainactor-run-continuation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedMainActorRunContinuationProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func sourceShadowedMainActorRunStaysOnTheCooperativeEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        struct MainActor {
+            static func run(body: () -> String) async -> String {
+                "source:" + body()
+            }
+        }
+
+        func probe() async -> String {
+            await Task.detached {
+                await MainActor.run { "body" }
+            }.value
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "source:body")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func explicitMainActorClosureUsesPhysicalWrapperAndConfinedContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-explicit-mainactor-continuation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedExplicitMainActorContinuationProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(value.stringValue
+            == "completed:false,cancelled:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func unsupportedOrShadowedExplicitMainActorSignaturesStayCooperative()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let attributed = Interpreter(
+            executionMode: .parallel(parallelism))
+        let shadowed = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let attributedValue = try await attributed.runAsync(source: """
+        func probe() async -> String {
+            await Task.detached { @MainActor @Sendable in
+                "attributed"
+            }.value
+        }
+        await probe()
+        """)
+        let shadowedValue = try await shadowed.runAsync(source: """
+        actor SourceMainActor {}
+
+        @globalActor
+        struct MainActor {
+            static let shared = SourceMainActor()
+        }
+
+        func probe() async -> String {
+            await Task.detached { @MainActor in
+                "shadowed"
+            }.value
+        }
+        await probe()
+        """)
+
+        #expect(attributedValue.stringValue == "attributed")
+        #expect(shadowedValue.stringValue == "shadowed")
+        #expect(attributed.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(attributed.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(shadowed.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(shadowed.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(attributed.concurrencyRuntime.activeRecordCount == 0)
+        #expect(shadowed.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func explicitMainActorWeakSelfClosureUsesPhysicalWrapperWithoutStrengtheningCapture()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-self.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorWeakSelfProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+        let corpus = Interpreter(executionMode: .parallel(parallelism))
+        let corpusValue = try await corpus.runAsync(source: """
+        @MainActor
+        final class CorpusReceiver {
+            var observation = "missing"
+
+            func record() {
+                observation = "entered"
+            }
+
+            func probe() async -> String {
+                await Task.detached { @MainActor [weak self] in
+                    self?.record()
+                }.value
+                return observation
+            }
+        }
+        await CorpusReceiver().probe()
+        """)
+
+        #expect(cooperativeValue.stringValue
+            == "same|same:alive#same|same:released")
+        #expect(value.stringValue
+            == "same|same:alive#same|same:released")
+        #expect(corpusValue.stringValue == "entered")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(corpus.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func explicitMainActorNamedWeakCaptureUsesPhysicalWrapperWithoutStrengtheningCapture()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-capture.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorNamedWeakCaptureProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+        let corpus = Interpreter(executionMode: .parallel(parallelism))
+        let corpusValue = try await corpus.runAsync(source: """
+        @MainActor
+        final class Notifications {
+            var observation = "missing"
+
+            func notify() {
+                observation = "entered"
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let notifications = Notifications()
+            await Task.detached { @MainActor [weak notifications] in
+                notifications?.notify()
+            }.value
+            return notifications.observation
+        }
+        await probe()
+        """)
+
+        #expect(cooperativeValue.stringValue
+            == "same|same:alive#same|same:released")
+        #expect(value.stringValue
+            == "same|same:alive#same|same:released")
+        #expect(corpusValue.stringValue == "entered")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(corpus.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func explicitMainActorMixedCaptureListUsesPhysicalWrapperWithoutChangingOwnership()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-mixed-captures.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorMixedCaptureProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+        let corpus = Interpreter(executionMode: .parallel(parallelism))
+        let corpusValue = try await corpus.runAsync(source: """
+        @MainActor
+        final class CapturedTarget {
+            var observation = "missing"
+
+            func record(_ value: String) {
+                observation = value
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let responders = CapturedTarget()
+            let webView = CapturedTarget()
+            let webViewDeinitObserver = CapturedTarget()
+            await Task.detached {
+                @MainActor [
+                    responders,
+                    weak webView,
+                    weak webViewDeinitObserver
+                ] in
+                responders.record(
+                    webView != nil && webViewDeinitObserver != nil
+                        ? "entered" : "released")
+            }.value
+            return responders.observation
+        }
+        await probe()
+        """)
+
+        let expected = "same|same:responders:alive:alive"
+            + "#same|same:responders:released:released"
+        #expect(cooperativeValue.stringValue == expected)
+        #expect(value.stringValue == expected)
+        #expect(corpusValue.stringValue == "entered")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(corpus.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func explicitMainActorWeakStrongCaptureListUsesPhysicalWrapperWithoutChangingOwnership()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-strong-captures.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorWeakStrongCaptureProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+        let corpus = Interpreter(executionMode: .parallel(parallelism))
+        let corpusValue = try await corpus.runAsync(source: """
+        @MainActor
+        final class Receiver {
+            let key = "key"
+            var observation = "missing"
+
+            func launch() -> Task<Void, Never> {
+                .detached(priority: .userInitiated) {
+                    @MainActor [weak self, key] in
+                    self?.observation = key
+                }
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let receiver = Receiver()
+            await receiver.launch().value
+            return receiver.observation
+        }
+        await probe()
+        """)
+
+        let expected = "same|same:alive:key#same|same:released:key"
+        #expect(cooperativeValue.stringValue == expected)
+        #expect(value.stringValue == expected)
+        #expect(corpusValue.stringValue == "key")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(corpus.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(corpus.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func explicitMainActorWeakStrongCaptureForAwaitPreservesIterationAndRelease()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-mainactor-weak-strong-for-await.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedMainActorWeakStrongForAwaitProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf,
+                          case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        let expected = "same,same:2#0"
+        #expect(cooperativeValue.stringValue == expected)
+        #expect(value.stringValue == expected)
+        #expect(cooperative.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+        #expect(cooperative.concurrencyRuntime.activeActorCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func contextualTaskDetachedStaticMemberExecutesOperation() async throws {
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: """
+        func launch() -> Task<String, Never> {
+            .detached(priority: .userInitiated) {
+                "launched"
+            }
+        }
+        await launch().value
+        """)
+
+        #expect(value.stringValue == "launched")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func contextualTaskDetachedStaticMemberUsesExpectedTaskType() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/detached-contextual-task-static-member.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait detachedContextualTaskStaticMemberProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+        for target in [cooperative, interpreter] {
+            target.globals.define(
+                "parityCurrentIsolationMatches",
+                .hostFunction(HostFunction(
+                    name: "parityCurrentIsolationMatches"
+                ) { arguments, _ in
+                    let isolation = try target.currentSourceIsolationValue()
+                    guard let actual = isolation.unwrappedOptionalOrSelf else {
+                        return .native("none")
+                    }
+                    guard case .host(let expectedPayload)? =
+                            arguments.positional(0),
+                          let expected = expectedPayload
+                            as? RuntimeActorIsolationValue,
+                          case .host(let actualPayload) = actual,
+                          let actual = actualPayload
+                            as? RuntimeActorIsolationValue else {
+                        return .native("other")
+                    }
+                    return .native(
+                        expected.executor == actual.executor
+                            ? "same" : "other")
+                }))
+        }
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue == "none|none")
+        #expect(value.stringValue == "none|none")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func unsupportedExplicitMainActorMixedCaptureShapesStayCooperative()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        final class CaptureTarget {
+            var observations: [String] = []
+
+            func record(_ value: String) {
+                observations.append(value)
+            }
+        }
+
+        @MainActor
+        func probe() async -> String {
+            let responders = CaptureTarget()
+            let webView = CaptureTarget()
+            let observer = CaptureTarget()
+            await Task.detached {
+                @MainActor [weak webView, responders, weak observer] in
+                responders.record(webView == nil ? "missing" : "reordered")
+            }.value
+            await Task.detached {
+                @MainActor [responders, weak webView] in
+                responders.record(webView == nil ? "missing" : "short")
+            }.value
+            await Task.detached {
+                @MainActor [responders, weak alias = webView, weak observer] in
+                responders.record(
+                    alias == nil || observer == nil ? "missing" : "aliased")
+            }.value
+            return responders.observations.joined(separator: ",")
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "reordered,short,aliased")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unsupportedOrShadowedExplicitMainActorWeakCaptureSignaturesStayCooperative()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let unsupported = Interpreter(
+            executionMode: .parallel(parallelism))
+        let shadowed = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let unsupportedValue = try await unsupported.runAsync(source: """
+        @MainActor
+        final class Receiver {
+            var observations: [String] = []
+
+            func record(_ value: String) {
+                observations.append(value)
+            }
+
+            func probe() async -> String {
+                let marker = "additional"
+                let extra = "unused"
+                let notifications = self
+                await Task.detached {
+                    @MainActor @Sendable [weak self, marker, extra] in
+                    self?.record(marker)
+                }.value
+                await Task.detached {
+                    @Sendable @MainActor [weak self] in
+                    self?.record("reordered")
+                }.value
+                await Task.detached {
+                    @MainActor [weak observer = notifications] in
+                    observer?.record("aliased")
+                }.value
+                await Task.detached {
+                    @MainActor [unowned notifications] in
+                    notifications.record("unowned")
+                }.value
+                return observations.joined(separator: ",")
+            }
+        }
+        await Receiver().probe()
+        """)
+        let shadowedValue = try await shadowed.runAsync(source: """
+        actor SourceMainActor {}
+
+        @globalActor
+        struct MainActor {
+            static let shared = SourceMainActor()
+        }
+
+        final class Receiver {
+            func probe() async -> String {
+                await Task.detached { @MainActor [weak self] in
+                    self == nil ? "released" : "shadowed"
+                }.value
+            }
+        }
+        await Receiver().probe()
+        """)
+
+        #expect(unsupportedValue.stringValue
+            == "additional,reordered,aliased,unowned")
+        #expect(shadowedValue.stringValue == "shadowed")
+        #expect(unsupported.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(unsupported.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(shadowed.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(shadowed.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(unsupported.concurrencyRuntime.activeRecordCount == 0)
+        #expect(shadowed.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func weakTryOptionalDurationSleepPrefixReentersActorContinuation()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-detached-weak-try-optional-sleep-prefix.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelDetachedWeakTryOptionalSleepPrefixProbe()\n"
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let cooperativeValue = try await cooperative.runAsync(source: source)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(cooperativeValue.stringValue
+            == "group-a:false,group-b:true|false:true")
+        #expect(value.stringValue
+            == "group-a:false,group-b:true|false:true")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
+    func unsupportedWeakSleepPrefixShapesStayOnCooperativeEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        actor WeakPrefixNegativeProbe {
+            func mark(_ input: String) {}
+
+            func run() async {
+                let duration = Duration.milliseconds(0)
+                let capturedDuration = Task.detached { [weak self] in
+                    try? await Task.sleep(for: duration)
+                    await self?.mark("captured-duration")
+                }
+                await capturedDuration.value
+
+                let extraCapture = Task.detached { [weak self, duration] in
+                    try? await Task.sleep(for: .milliseconds(0))
+                    await self?.mark("extra-capture")
+                }
+                await extraCapture.value
+            }
+        }
+
+        let probe = WeakPrefixNegativeProbe()
+        await probe.run()
+        "completed"
+        """)
+
+        #expect(value.stringValue == "completed")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func explicitMainActorRunResultTypeFailsClosed() async throws {
+        let interpreter = Interpreter()
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            await MainActor.run(resultType: String.self) {
+                "unsupported"
+            }
+            """)
+            Issue.record("expected explicit-result MainActor.run diagnostic")
+        } catch let runtime as RuntimeError {
+            #expect(runtime.message.contains(
+                "MainActor.run(resultType:body:) is unsupported"))
+        } catch {
+            Issue.record("unexpected MainActor.run failure: \(error)")
+        }
+    }
+
+    @Test func generatedMainActorRunIdentityDoesNotCaptureSourceShadow()
+        async throws
+    {
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: """
+        struct MainActor {
+            static func run(body: () -> String) -> String {
+                "source:" + body()
+            }
+        }
+        MainActor.run { "body" }
+        """)
+
+        #expect(value.stringValue == "source:body")
+    }
+
+    @Test func generatedMainActorUnroutedMemberFailsClosed() async throws {
+        let probes = [
+            ("MainActor.assumeIsolated { \"unsupported\" }",
+             "MainActor.assumeIsolated"),
+            ("MainActor.sharedUnownedExecutor",
+             "MainActor.sharedUnownedExecutor"),
+            ("MainActor.shared.unownedExecutor",
+             "MainActor.unownedExecutor"),
+            ("MainActor.shared.enqueue", "MainActor.enqueue"),
+        ]
+
+        for (source, expectedMember) in probes {
+            let interpreter = Interpreter()
+            do {
+                _ = try await interpreter.runAsync(source: source)
+                Issue.record(
+                    "expected generated \(expectedMember) diagnostic")
+            } catch let runtime as RuntimeError {
+                #expect(runtime.message.contains(expectedMember))
+                #expect(runtime.message.contains(
+                    "declared by the active _Concurrency.swiftinterface"))
+            } catch {
+                Issue.record(
+                    "unexpected \(expectedMember) failure: \(error)")
+            }
+        }
+    }
+
+    @Test
+    func confinedSleepContinuationReleasesPermitBeforeNestedPhysicalWork()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        func nestedPhysicalWork() async -> String {
+            await Task.detached { "nested" }.value
+        }
+
+        let outer = Task.detached {
+            try? await Task.sleep(for: .milliseconds(0))
+            await nestedPhysicalWork()
+        }
+        await outer.value
+        """)
+
+        #expect(value.stringValue == "nested")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 2)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func unsupportedSleepPrefixShapesStayOnCooperativeEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        func mark() async {
+            await Task.yield()
+        }
+
+        let plainTry = Task.detached {
+            try await Task.sleep(for: .milliseconds(0))
+            await mark()
+        }
+        _ = try? await plainTry.value
+
+        let forcedTry = Task.detached {
+            try! await Task.sleep(for: .milliseconds(0))
+            await mark()
+        }
+        await forcedTry.value
+
+        let nanoseconds = 0
+        let capturedNanoseconds = Task.detached {
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            await mark()
+        }
+        await capturedNanoseconds.value
+
+        let unsupportedUnit = Task.detached {
+            try? await Task.sleep(for: .microseconds(0))
+            await mark()
+        }
+        await unsupportedUnit.value
+
+        let threeItems = Task.detached {
+            try? await Task.sleep(for: .milliseconds(0))
+            await mark()
+            await mark()
+        }
+        await threeItems.value
+
+        let reversed = Task.detached {
+            await mark()
+            try? await Task.sleep(for: .milliseconds(0))
+        }
+        await reversed.value
+
+        let authored = Task.detached { () async -> Void in
+            try? await Task.sleep(for: .milliseconds(0))
+            await mark()
+        }
+        await authored.value
+        "completed"
+        """)
+
+        #expect(value.stringValue == "completed")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func interpretedTrapInConfinedSleepContinuationRemainsContained()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            @MainActor
+            func crashAfterPhysicalSleep() async -> String {
+                fatalError("contained physical sleep continuation")
+            }
+
+            await Task.detached {
+                try? await Task.sleep(for: .milliseconds(0))
+                await crashAfterPhysicalSleep()
+            }.value
+            """)
+            Issue.record("expected interpreted sleep-continuation trap")
+        } catch let thrown as InterpretedThrow {
+            let error = try #require(
+                thrown.value.hostPayload as? RuntimeError)
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "contained physical sleep continuation"))
+        } catch {
+            Issue.record("unexpected sleep-continuation failure: \(error)")
+        }
+
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 1)
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func capturedStringIndexDistanceUsesPhysicalExpressionKernel()
         async throws
     {
@@ -242,6 +1857,38 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelExecutions == 1)
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelSubmissions == 1)
+    }
+
+    @Test
+    func sourceShadowedStringDistanceUsesOriginTargetAndStaysCooperative()
+        async throws
+    {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-shadowed-string-distance.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 1)
+        let cooperative = Interpreter()
+        let parallel = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        _ = try await cooperative.runAsync(source: source)
+        _ = try await parallel.runAsync(source: source)
+        let invocation = "await parallelShadowedStringDistanceProbe()"
+        let cooperativeValue = try await cooperative.runAsync(
+            source: invocation)
+        let parallelValue = try await parallel.runAsync(source: invocation)
+
+        #expect(cooperativeValue.intValue == 77)
+        #expect(parallelValue.intValue == cooperativeValue.intValue)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+        #expect(parallel.concurrencyRuntime
+            .totalPhysicalSourceKernelSubmissions == 0)
     }
 
     @Test func cancelledPhysicalStringDistanceStillReturnsItsValue()

@@ -98,7 +98,9 @@ extension Interpreter {
             throw error
         }
         let instance = Instance(
-            symbol: symbol, lifecycleOwner: symbol.isClass ? self : nil)
+            symbol: symbol,
+            lifecycleOwner: symbol.isClass ? self : nil,
+            programState: currentProgramState)
         if symbol.isActor {
             instance.actorID = concurrencyRuntime.registerActor(instance)
         }
@@ -1341,6 +1343,39 @@ extension Interpreter {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))
                 return try callWithArguments(closure, args: call.arguments, node: nil)
+            }
+        }
+        // Some imported generic nominals are represented by callable host
+        // type markers in the global environment. A contextual static call
+        // such as a Task-returning function whose body starts with .detached
+        // must resolve and invoke that nominal's real static member while the
+        // expected type is still available. Leaving it as an
+        // ImplicitMemberCall silently loses the operation before return-value
+        // annotation resolution completes.
+        //
+        // Source enum/struct statics and host-type extensions have already
+        // received precedence above. This path is generic over callable
+        // imported nominals; Task API identity remains selected by the
+        // generated member gateway in accessMember.
+        if case .host(let any) = value,
+           let call = any as? ImplicitMemberCall,
+           let annotatedType = globals.lookup(typeName),
+           case .hostFunction = annotatedType {
+            let anchor = DeclReferenceExprSyntax(
+                baseName: .identifier(typeName))
+            let member = try accessMember(
+                call.name,
+                on: annotatedType,
+                node: anchor,
+                env: globals)
+            if case .implicitMember = member {
+                // Unknown imported statics retain the ordinary typed-marker
+                // fallback below.
+            } else {
+                return try invoke(
+                    member,
+                    with: call.arguments,
+                    node: anchor)
             }
         }
         // Host-type annotations: `: Date = .init()`, `: CGSize = .init(…)`,

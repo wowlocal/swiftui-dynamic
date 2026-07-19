@@ -145,7 +145,39 @@ extension Interpreter {
             }
             return .nilValue
         }
-        return nil
+        return try protocolExtensionStaticMethod(
+            name, onConformingType: symbol)
+    }
+
+    /// A concrete conformer inherits a uniquely named protocol-extension
+    /// static method just as it inherits an instance default witness. Keep
+    /// the concrete type as dynamic `Self`, while declaration metadata and
+    /// lexical lookup continue to belong to the protocol extension. A name
+    /// supplied by more than one protocol is intentionally unresolved until
+    /// call-shape/constraint selection can prove the exact declaration.
+    private func protocolExtensionStaticMethod(
+        _ name: String,
+        onConformingType symbol: StructSymbol
+    ) throws -> RuntimeValue? {
+        var candidates: [FunctionDeclSyntax] = []
+        for conformance in transitiveConformances(of: symbol) {
+            guard let methods = hostExtensionSymbols[conformance]?
+                .staticMethods[name] else {
+                continue
+            }
+            candidates.append(contentsOf: methods.filter {
+                functionMetadata(for: $0).body != nil
+            })
+        }
+        guard candidates.count == 1,
+              let method = candidates.first,
+              let body = functionMetadata(for: method).body else {
+            return nil
+        }
+        return .closure(makeFunctionClosure(
+            method,
+            body: body,
+            captured: selfEnvironment(.type(symbol))))
     }
 
     func staticMember(_ name: String, of symbol: EnumSymbol) throws -> RuntimeValue? {

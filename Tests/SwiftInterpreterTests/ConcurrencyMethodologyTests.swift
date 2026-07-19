@@ -3060,7 +3060,7 @@ struct ConcurrencyMethodologyTests {
             "Tests/RuntimeIsolation/NativeDetachedOverlap.swift",
             "\"$native_dir/overlap\" 20",
             "PREBUILT_TEST_SCRATCH_PATH=\"$scratch_path\"",
-            "RuntimePhysicalWorkerDriverTests|RuntimeParallelSourceKernelTests",
+            "RuntimePhysicalWorkerDriverTests|RuntimeParallelSourceKernelTests|RuntimeSourceCallTargetTests",
             "Interceptors are not working|interceptors not installed",
             "run_with_deadline 60",
             "run_with_deadline 600",

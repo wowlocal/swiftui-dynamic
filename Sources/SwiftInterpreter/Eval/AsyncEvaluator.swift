@@ -62,6 +62,154 @@ extension Interpreter {
         return false
     }
 
+    /// Source-synchronous worker gateways need an internal suspension while
+    /// the native operation crosses the bounded driver. Keep that transport
+    /// opt-in: ordinary await-free calls continue through the mature eager
+    /// evaluator. The first demand-backed source-helper subset is deliberately
+    /// direct and non-transitive; nested closures and helper-call graphs remain
+    /// confined until they receive their own target-resolution evidence.
+    private func workerAdmissionValue(
+        named name: String,
+        in env: Environment
+    ) -> RuntimeValue? {
+        if let box = env.box(for: name, before: globals) {
+            return box.value
+        }
+        if let box = globals.box(for: name) {
+            return box.value
+        }
+        // Unknown uppercase identifiers use the interpreter's existing inert
+        // imported-type marker. Never call `resolveIdentifier` from admission:
+        // that could execute a computed or lazy source binding before the
+        // ordinary evaluator reaches the expression.
+        if name.first?.isUppercase == true {
+            return .native(HostTypeMarker(name: name))
+        }
+        return nil
+    }
+
+    private func callDirectlyUsesWorkerHostOperation(
+        _ call: FunctionCallExprSyntax,
+        in env: Environment
+    ) -> Bool {
+        let metadata = callSiteMetadata(for: call).callee
+        let callee: RuntimeValue?
+        switch metadata.shape {
+        case .directReference:
+            guard let name = metadata.name else { return false }
+            callee = workerAdmissionValue(named: name, in: env)
+
+        case .explicitMember:
+            guard let member = metadata.member,
+                  let baseExpression = member.base,
+                  let baseReference = baseExpression
+                    .as(DeclReferenceExprSyntax.self) else {
+                return false
+            }
+            guard let base = workerAdmissionValue(
+                named: baseReference.baseName.text,
+                in: env),
+                  case .instance(let instance) = base else {
+                return false
+            }
+            let name = instance.symbol.canonicalPropertyName(
+                member.declName.baseName.text)
+            // Admission must not read stored/lazy/computed callable storage.
+            // The first helper subset is one unique source method; every
+            // collision or overload stays on the eager confined path.
+            guard instance.box(for: name) == nil,
+                  instance.symbol.computedProperties[name] == nil,
+                  let methods = instance.symbol.methods[name],
+                  methods.count == 1,
+                  let method = methods.first,
+                  !activeFunctionBodies.contains(method.id),
+                  let body = functionMetadata(for: method).body else {
+                return false
+            }
+            callee = .closure(makeFunctionClosure(
+                method,
+                body: body,
+                captured: instanceMethodEnvironment(instance)))
+
+        case .implicitMember, .arrayType, .dictionaryType, .other:
+            return false
+        }
+
+        switch callee {
+        case .hostFunction(let function):
+            return function.hasWorkerOperation
+        case .closure(let closure):
+            return closureDirectlyUsesWorkerHostOperation(closure)
+        default:
+            return false
+        }
+    }
+
+    private func closureDirectlyUsesWorkerHostOperation(
+        _ closure: ClosureValue
+    ) -> Bool {
+        func visit(_ syntax: Syntax) -> Bool {
+            // A nested declaration or closure is deferred and is not part of
+            // this synchronous helper's dynamic execution.
+            if syntax.is(ClosureExprSyntax.self)
+                || syntax.as(DeclSyntax.self) != nil {
+                return false
+            }
+
+            if let call = syntax.as(FunctionCallExprSyntax.self),
+               let reference = call.calledExpression
+                .as(DeclReferenceExprSyntax.self) {
+                let value = workerAdmissionValue(
+                    named: reference.baseName.text,
+                    in: closure.captured)
+                if case .hostFunction(let function) = value,
+                   function.hasWorkerOperation {
+                    return true
+                }
+            }
+
+            if let member = syntax.as(MemberAccessExprSyntax.self),
+               let baseExpression = member.base,
+               let reference = baseExpression
+                .as(DeclReferenceExprSyntax.self) {
+                if let base = workerAdmissionValue(
+                    named: reference.baseName.text,
+                    in: closure.captured),
+                   hostPropertyUsesWorkerOperation(
+                    member.declName.baseName.text, on: base) {
+                    return true
+                }
+            }
+
+            for child in syntax.children(viewMode: .sourceAccurate) {
+                if visit(child) { return true }
+            }
+            return false
+        }
+
+        for item in closure.body {
+            if visit(Syntax(item)) { return true }
+        }
+        return false
+    }
+
+    private func memberDirectlyUsesWorkerHostOperation(
+        _ member: MemberAccessExprSyntax,
+        in env: Environment
+    ) -> Bool {
+        guard let baseExpression = member.base,
+              let reference = baseExpression
+                .as(DeclReferenceExprSyntax.self) else {
+            return false
+        }
+        let name = reference.baseName.text
+        guard let base = workerAdmissionValue(named: name, in: env) else {
+            return false
+        }
+        return hostPropertyUsesWorkerOperation(
+            member.declName.baseName.text, on: base)
+    }
+
     /// Outermost roots that must be evaluated before an otherwise eager
     /// expression. Lazy/error-handling roots are kept whole so ternaries,
     /// short-circuit operators, and `try?` never execute an untaken branch.
@@ -206,19 +354,27 @@ extension Interpreter {
             throw error(switchExpression, "control flow can't escape a switch-expression")
 
         case .functionCallExpr:
-            if forceInvocation || syntaxContainsSuspension(Syntax(expression)) {
+            let call = expression.cast(FunctionCallExprSyntax.self)
+            let containsSourceSuspension = syntaxContainsSuspension(
+                Syntax(expression))
+            let usesWorkerHostOperation = forceInvocation
+                || containsSourceSuspension
+                ? false
+                : callDirectlyUsesWorkerHostOperation(call, in: env)
+            if forceInvocation || containsSourceSuspension
+                || usesWorkerHostOperation {
                 try tick(expression)
                 return try await evaluateCallSuspending(
-                    expression.cast(FunctionCallExprSyntax.self),
+                    call,
                     in: env,
                     forceInvocation: forceInvocation)
             }
             return try evaluate(expression, in: env)
 
         case .memberAccessExpr:
+            let member = expression.cast(MemberAccessExprSyntax.self)
             if forceInvocation {
                 try tick(expression)
-                let member = expression.cast(MemberAccessExprSyntax.self)
                 if let baseExpression = member.base {
                     let base = try await evaluateSuspending(
                         baseExpression, in: env, forceInvocation: true)
@@ -241,6 +397,16 @@ extension Interpreter {
                         node: member,
                         env: env)
                 }
+            } else if memberDirectlyUsesWorkerHostOperation(
+                member, in: env), let baseExpression = member.base {
+                try tick(expression)
+                let base = try await evaluateSuspending(
+                    baseExpression, in: env)
+                return try await accessMemberSuspending(
+                    member.declName.baseName.text,
+                    on: base,
+                    node: member,
+                    env: env)
             }
 
         case .subscriptCallExpr:
@@ -684,11 +850,14 @@ extension Interpreter {
     /// Suspension-aware call-site resolution. Ordinary calls still use the
     /// mature synchronous evaluator; this path is entered only beneath await
     /// (or when an argument itself suspends).
+    /// A supplied write-back transaction ends an enclosing storage borrow on
+    /// both normal and exceptional method completion, before an error escapes.
     func invokeMutatingInstanceMethodSuspending(
         named name: String,
         on current: RuntimeValue,
         arguments: CallArguments,
-        node: some SyntaxProtocol
+        node: some SyntaxProtocol,
+        writeBackOnExit: ((RuntimeValue) throws -> Void)? = nil
     ) async throws -> (result: RuntimeValue, receiver: RuntimeValue)? {
         guard case .instance(let receiver) = current,
               !receiver.symbol.isClass else { return nil }
@@ -703,12 +872,111 @@ extension Interpreter {
         let selfEnvironment = selfEnvironment(.instance(working))
         let closure = makeFunctionClosure(
             method, body: body, captured: selfEnvironment)
-        let result = try await callWithArgumentsSuspending(
-            closure, args: arguments, node: Syntax(node))
-        let finalSelf = selfEnvironment.lookup("self") ?? .instance(working)
-        return (
-            result,
-            try resolveAnnotated(finalSelf, typeName: receiver.symbol.name))
+        func finalReceiver() throws -> RuntimeValue {
+            let finalSelf = selfEnvironment.lookup("self") ?? .instance(working)
+            return try resolveAnnotated(
+                finalSelf, typeName: receiver.symbol.name)
+        }
+
+        let result: RuntimeValue
+        do {
+            result = try await callWithArgumentsSuspending(
+                closure, args: arguments, node: Syntax(node))
+        } catch {
+            let failure = error
+            try writeBackOnExit?(finalReceiver())
+            throw failure
+        }
+        let resolvedReceiver = try finalReceiver()
+        try writeBackOnExit?(resolvedReceiver)
+        return (result, resolvedReceiver)
+    }
+
+    /// Optional async write-back admits a local binding or one directly named
+    /// source property. A synchronous nonthrowing computed get/set pair can
+    /// use the same suspension-spanning copy-in/copy-out transaction as stored
+    /// value storage; native coroutine and subscript accessors remain separate.
+    private func isSupportedOptionalAsyncMutationStorageSyntax(
+        _ expression: ExprSyntax
+    ) -> Bool {
+        if expression.is(DeclReferenceExprSyntax.self) {
+            return true
+        }
+        guard let member = expression.as(MemberAccessExprSyntax.self),
+              let base = member.base else {
+            return false
+        }
+        return base.is(DeclReferenceExprSyntax.self)
+    }
+
+    /// A suspension-aware mutating-method probe is meaningful only for an
+    /// assignable-looking postfix chain. Function-call roots are rvalues and
+    /// deliberately excluded: probing `Task.detached { ... }.result` as an
+    /// lvalue would launch the task a second time before invoking
+    /// `Result.get()`.
+    private func isSuspendingMutationStorageSyntax(
+        _ expression: ExprSyntax
+    ) -> Bool {
+        if expression.is(DeclReferenceExprSyntax.self) { return true }
+        if let member = expression.as(MemberAccessExprSyntax.self),
+           let base = member.base {
+            return isSuspendingMutationStorageSyntax(base)
+        }
+        if let subscriptCall = expression.as(SubscriptCallExprSyntax.self) {
+            return isSuspendingMutationStorageSyntax(
+                subscriptCall.calledExpression)
+        }
+        if let optional = expression.as(OptionalChainingExprSyntax.self) {
+            return isSuspendingMutationStorageSyntax(optional.expression)
+        }
+        if let force = expression.as(ForceUnwrapExprSyntax.self) {
+            return isSuspendingMutationStorageSyntax(force.expression)
+        }
+        if let tuple = expression.as(TupleExprSyntax.self),
+           tuple.elements.count == 1,
+           let only = tuple.elements.first {
+            return isSuspendingMutationStorageSyntax(only.expression)
+        }
+        return false
+    }
+
+    private func isSupportedOptionalAsyncMutationLValue(
+        _ target: LValue
+    ) -> Bool {
+        switch target {
+        case .box:
+            return true
+        case .instanceProperty(let instance, let name):
+            return instance.symbol.storedProperty(named: name) != nil
+        case .instanceValueProperty(let base, let symbol, let name):
+            if symbol.storedProperty(named: name) != nil {
+                return isSupportedOptionalAsyncMutationLValue(base)
+            }
+            guard let computed = symbol.computedProperties[name],
+                  computed.setter != nil,
+                  !computed.isAsync,
+                  !computed.isThrowing,
+                  let typeName = computed.typeAnnotation?.trimmedDescription,
+                  RuntimeOptionalValue.wrappedType(in: typeName) != nil else {
+                return false
+            }
+            return isSupportedOptionalAsyncMutationLValue(base)
+        default:
+            return false
+        }
+    }
+
+    private func replacingOptionalPayload(
+        in optionalValue: RuntimeValue,
+        with payload: RuntimeValue
+    ) -> RuntimeValue {
+        guard case .optional(let optional) = optionalValue else {
+            return payload.liftedToOptional()
+        }
+        return .some(
+            payload,
+            wrappedTypeName: optional.wrappedTypeName,
+            isImplicitlyUnwrapped: optional.isImplicitlyUnwrapped)
     }
 
     func evaluateCallSuspending(
@@ -716,17 +984,166 @@ extension Interpreter {
         in env: Environment,
         forceInvocation: Bool
     ) async throws -> RuntimeValue {
-        if let member = call.calledExpression.as(MemberAccessExprSyntax.self),
+        let calleeMetadata = callSiteMetadata(for: call).callee
+        if calleeMetadata.shape == .explicitMember,
+           let member = calleeMetadata.member,
            let baseExpression = member.base {
             let name = member.declName.baseName.text
-            let baseValue = try await evaluateSuspending(
-                baseExpression,
-                in: env,
-                forceInvocation: forceInvocation)
+            // A writable optional value must be borrowed through its storage
+            // for the whole async mutating call. Resolve the admitted stored
+            // path before reading it, then commit through that same lvalue.
+            let optionalPayloadStorage: LValue?
+            let mutationStorage: LValue?
+            let evaluatedBase: RuntimeValue
+            if let optional = baseExpression
+                .as(OptionalChainingExprSyntax.self),
+               isSupportedOptionalAsyncMutationStorageSyntax(
+                   optional.expression),
+               let storage = try? resolveLValue(optional.expression, in: env),
+               isSupportedOptionalAsyncMutationLValue(storage) {
+                optionalPayloadStorage = storage
+                mutationStorage = nil
+                evaluatedBase = try storage.read(self)
+            } else {
+                optionalPayloadStorage = nil
+                evaluatedBase = try await evaluateSuspending(
+                    baseExpression,
+                    in: env,
+                    forceInvocation: forceInvocation)
+                mutationStorage = isSuspendingMutationStorageSyntax(
+                    baseExpression)
+                    ? (try? resolveLValue(baseExpression, in: env))
+                    : nil
+            }
 
-            if let target = try? resolveLValue(baseExpression, in: env),
-               let current = try? target.read(self),
-               case .instance(let receiver) = current,
+            // Optional chaining controls the entire call: evaluate the base
+            // once, skip arguments and invocation for nil, or dispatch the
+            // wrapped source reference through this same suspension-aware
+            // call path before flattening the result back to one Optional
+            // level. The admitted source-value storage subset instead uses
+            // the lvalue transaction above so rebinding cannot lose write-back.
+            if baseExpression.is(OptionalChainingExprSyntax.self) {
+                switch evaluatedBase.optionalState {
+                case .none:
+                    return .none()
+                case .some(let wrapped, _):
+                    if case .instance(let instance) = wrapped,
+                       instance.symbol.isClass || instance.symbol.isActor {
+                        let child = Environment(parent: env)
+                        let temporary = temporaryName()
+                        child.define(temporary, wrapped)
+                        let replacement = ExprSyntax(
+                            DeclReferenceExprSyntax(
+                                baseName: .identifier(temporary)))
+                        let rewrittenMember = member.with(
+                            \.base, replacement)
+                        let rewrittenCall = call.with(
+                            \.calledExpression,
+                            ExprSyntax(rewrittenMember))
+                        return try await evaluateCallSuspending(
+                            rewrittenCall,
+                            in: child,
+                            forceInvocation: forceInvocation
+                        ).liftedToOptional()
+                    }
+                    if case .instance(let instance) = wrapped,
+                       !instance.symbol.isClass,
+                       !mutatingInstanceMethods(
+                            named: name, on: instance).isEmpty {
+                        guard let storage = optionalPayloadStorage else {
+                            throw error(
+                                call,
+                                "async optional value mutation through a "
+                                    + "computed reference owner or unsupported "
+                                    + "storage path is unsupported; use direct "
+                                    + "stored Optional storage or a synchronous "
+                                    + "nonthrowing computed property on a "
+                                    + "source value")
+                        }
+                        let args = try await collectArgumentsSuspending(
+                            of: call, in: env)
+                        if let invocation = try await
+                            invokeMutatingInstanceMethodSuspending(
+                                named: name,
+                                on: wrapped,
+                                arguments: args,
+                                node: call,
+                                writeBackOnExit: { receiver in
+                                    try self.relocating(call) {
+                                        try storage.writeOwned(
+                                            self.replacingOptionalPayload(
+                                                in: evaluatedBase,
+                                                with: receiver),
+                                            self)
+                                    }
+                                }) {
+                            return invocation.result.liftedToOptional()
+                        }
+                    }
+                case .notOptional:
+                    break
+                }
+            }
+            let baseValue = evaluatedBase
+
+            // Source extensions and typed imported members compete only once
+            // argument types are available. Use the same target resolver as
+            // eager evaluation, then retain suspension-aware invocation.
+            if let overloads = try typedHostExtensionMethodOverloads(
+                named: name,
+                on: baseValue,
+                declaredTypeName: declaredMemberReceiverTypeName(
+                    for: baseExpression, in: env)
+            ) {
+                let args = try await collectArgumentsSuspending(
+                    of: call, in: env)
+                let target = try resolveTypedHostExtensionMethodTarget(
+                    overloads, arguments: args)
+                return try await invokeSuspending(
+                    target,
+                    with: args,
+                    node: call,
+                    sourceAllowsHostSuspension: forceInvocation)
+            }
+
+            // Provenance uses `_Concurrency.MainActor.run(body:)` after a
+            // detached sleep. Admit that API only through the intrinsic
+            // generated from the active _Concurrency.swiftinterface. A bare
+            // host-type marker is the imported nominal identity; same-named
+            // source types resolve to source symbols before reaching this
+            // branch. Execute the synchronous trailing body under the logical
+            // MainActor executor and return its value instead of degrading the
+            // static member to an inert implicit-member marker.
+            if case .host(let payload) = baseValue,
+               let marker = payload as? HostTypeMarker,
+               GeneratedConcurrencySurface.nominalMemberIntrinsic(
+                typeName: marker.name, memberName: name) == .mainActorRun {
+                guard call.arguments.isEmpty,
+                      call.trailingClosure != nil,
+                      call.additionalTrailingClosures.isEmpty else {
+                    throw error(
+                        call,
+                        "MainActor.run(resultType:body:) is unsupported; "
+                            + "only the demand-backed MainActor.run(body:) "
+                            + "spelling is supported")
+                }
+                let arguments = try await collectArgumentsSuspending(
+                    of: call, in: env)
+                guard arguments.arguments.count == 1,
+                      let body = arguments.lastUnlabeledClosure else {
+                    throw error(
+                        call,
+                        "MainActor.run(body:) requires one trailing closure")
+                }
+                return try await callWithArgumentsSuspending(
+                    body,
+                    args: CallArguments(),
+                    node: Syntax(call),
+                    contextualExecutor: .mainActor)
+            }
+
+            if let target = mutationStorage,
+               case .instance(let receiver) = baseValue,
                !receiver.symbol.isClass {
                 let mutating = mutatingInstanceMethods(named: name, on: receiver)
                 if !mutating.isEmpty {
@@ -734,7 +1151,7 @@ extension Interpreter {
                     if let invocation = try await
                         invokeMutatingInstanceMethodSuspending(
                             named: name,
-                            on: current,
+                            on: baseValue,
                             arguments: args,
                             node: call) {
                         try relocating(call) {
@@ -743,6 +1160,25 @@ extension Interpreter {
                         return invocation.result
                     }
                 }
+            }
+
+            // FoodTruck's detached updates loop is the first demand-cited
+            // source-call target. Resolve an argument-free own reference
+            // method to one exact origin declaration before invocation; the
+            // descriptor is Sendable, while this closure and receiver stay
+            // on the MainActor-confined evaluator.
+            if call.arguments.isEmpty,
+               call.trailingClosure == nil,
+               call.additionalTrailingClosures.isEmpty,
+               case .instance(let instance) = baseValue,
+               let target = resolveOwnSourceInstanceMethodCallTarget(
+                   named: name,
+                   on: instance,
+                   arguments: CallArguments()) {
+                return try await invokeSuspending(
+                    .closure(target.closure),
+                    with: CallArguments(),
+                    node: call)
             }
 
             if case .instance(let instance) = baseValue,
@@ -804,7 +1240,11 @@ extension Interpreter {
             }
             let args = try await collectArgumentsSuspending(of: call, in: env)
             do {
-                return try await invokeSuspending(callee, with: args, node: call)
+                return try await invokeSuspending(
+                    callee,
+                    with: args,
+                    node: call,
+                    sourceAllowsHostSuspension: forceInvocation)
             } catch let bindingError as RuntimeError
                 where !bindingError.fatal
                     && (bindingError.message.hasPrefix("missing argument")
@@ -823,15 +1263,19 @@ extension Interpreter {
                 }
                 if let any = baseValue.hostPayload,
                    let method = registry?.hostMethod(name, on: any) {
-                    return try await invokeSuspending(method, with: args, node: call)
+                    return try await invokeSuspending(
+                        method,
+                        with: args,
+                        node: call,
+                        sourceAllowsHostSuspension: forceInvocation)
                 }
                 throw bindingError
             }
         }
 
-        if let reference = call.calledExpression.as(DeclReferenceExprSyntax.self),
-           env.box(for: reference.baseName.text, before: globals) == nil {
-            let name = reference.baseName.text
+        if calleeMetadata.shape == .directReference,
+           let name = calleeMetadata.name,
+           env.box(for: name, before: globals) == nil {
             if let overloads = globalFunctionOverloads[name], overloads.count > 1 {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
@@ -864,15 +1308,43 @@ extension Interpreter {
             }
         }
 
-        let callee = try await evaluateSuspending(call.calledExpression, in: env)
+        let callee = try await evaluateSuspending(
+            calleeMetadata.expression, in: env)
+
+        // An optional callable controls the whole invocation. Preserve the
+        // suspension-aware path for a present closure, but do not evaluate
+        // arguments at all when optional chaining finds nil.
+        if call.calledExpression.is(OptionalChainingExprSyntax.self) {
+            switch callee.optionalState {
+            case .none:
+                return .none()
+            case .some(let wrapped, _):
+                let args = try await collectArgumentsSuspending(
+                    of: call, in: env)
+                return try await invokeSuspending(
+                    wrapped,
+                    with: args,
+                    node: call,
+                    sourceAllowsHostSuspension: forceInvocation
+                ).liftedToOptional()
+            case .notOptional:
+                break
+            }
+        }
+
         let args = try await collectArgumentsSuspending(of: call, in: env)
-        return try await invokeSuspending(callee, with: args, node: call)
+        return try await invokeSuspending(
+            callee,
+            with: args,
+            node: call,
+            sourceAllowsHostSuspension: forceInvocation)
     }
 
     func invokeSuspending(
         _ callee: RuntimeValue,
         with originalArguments: CallArguments,
-        node: some SyntaxProtocol
+        node: some SyntaxProtocol,
+        sourceAllowsHostSuspension: Bool = true
     ) async throws -> RuntimeValue {
         var arguments = originalArguments
         switch callee {
@@ -934,13 +1406,15 @@ extension Interpreter {
                 }
             }
             do {
-                if function.canSuspend {
+                if function.canSuspend
+                    && (sourceAllowsHostSuspension
+                        || function.hasWorkerOperation) {
                     let context = TaskBoundEvalContext(
                         interpreter: self,
                         evaluationContext: evaluationTaskContext)
                     return try await function.invokeSuspending(arguments, context)
                 }
-                return try await function.invokeSuspending(arguments, self)
+                return try function.invoke(arguments, self)
             } catch let runtime as RuntimeError where runtime.line == 0 {
                 throw error(node, locating: runtime)
             }
@@ -957,7 +1431,8 @@ extension Interpreter {
         _ closure: ClosureValue,
         args: CallArguments,
         node: Syntax?,
-        contextualExecutor: RuntimeExecutorKind? = nil
+        contextualExecutor: RuntimeExecutorKind? = nil,
+        inheritsAnonymousClosureLexicalExecutor: Bool = true
     ) async throws -> RuntimeValue {
         let programState = closure.programState
         evaluationTaskContext.enterProgramState(programState)
@@ -976,7 +1451,9 @@ extension Interpreter {
                 args: effectiveArguments,
                 node: node,
                 calleeExecutor: calleeExecutor,
-                contextualExecutor: contextualExecutor)
+                contextualExecutor: contextualExecutor,
+                inheritsAnonymousClosureLexicalExecutor:
+                    inheritsAnonymousClosureLexicalExecutor)
             if let suspendedCallerActor {
                 await concurrencyRuntime.resumeActorExecutor(
                     suspendedCallerActor)
@@ -997,7 +1474,8 @@ extension Interpreter {
         args: CallArguments,
         node: Syntax?,
         calleeExecutor: RuntimeExecutorKind?,
-        contextualExecutor: RuntimeExecutorKind?
+        contextualExecutor: RuntimeExecutorKind?,
+        inheritsAnonymousClosureLexicalExecutor: Bool
     ) async throws -> RuntimeValue {
         let actorOwnership = try await enterActorInvocation(
             executor: calleeExecutor)
@@ -1011,7 +1489,9 @@ extension Interpreter {
         defer { evaluationTaskContext.currentExecutor = previousExecutor }
         lexicalExecutorFrames.append(
             closure.functionDeclID == nil
-                ? contextualExecutor ?? closure.lexicalExecutor
+                ? (inheritsAnonymousClosureLexicalExecutor
+                    ? contextualExecutor ?? closure.lexicalExecutor
+                    : calleeExecutor)
                 : calleeExecutor)
         defer { lexicalExecutorFrames.removeLast() }
         var insertedFrame: ExtensionFrame?

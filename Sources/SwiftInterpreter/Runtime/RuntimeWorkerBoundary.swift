@@ -1,3 +1,5 @@
+import Foundation
+
 /// The only ways a runtime storage edge may participate in physical-worker
 /// execution. This is an audit vocabulary, not a promise that every policy is
 /// implemented today: current worker admission retains immutable metadata,
@@ -141,6 +143,7 @@ nonisolated indirect enum RuntimeWorkerValueSnapshot: Sendable, Equatable {
     case bool(Bool)
     case string(String)
     case stringIndex(String.Index)
+    case url(URL)
     case array([RuntimeWorkerValueSnapshot])
     case dictionary([DictionaryEntry])
     case tuple(labels: [String?], values: [RuntimeWorkerValueSnapshot])
@@ -156,6 +159,19 @@ nonisolated indirect enum RuntimeWorkerValueSnapshot: Sendable, Equatable {
         wrappedTypeName: String?,
         isImplicitlyUnwrapped: Bool)
     case implicitMember(String)
+
+    /// Copy a result while still on the evaluator's owning actor. Physical
+    /// source-call re-entry uses the same structural boundary as captured
+    /// worker inputs; an interpreted reference, closure, symbol, or opaque
+    /// host value therefore fails closed before control returns to a worker.
+    @MainActor
+    static func copying(
+        _ value: RuntimeValue,
+        path: String = "output"
+    ) throws -> RuntimeWorkerValueSnapshot {
+        var copier = RuntimeWorkerValueCopier()
+        return try copier.copy(value, path: path)
+    }
 
     /// Re-enter the interpreter only on its owning actor. This is the inverse
     /// boundary needed when a future pure worker kernel returns a snapshot.
@@ -175,6 +191,8 @@ nonisolated indirect enum RuntimeWorkerValueSnapshot: Sendable, Equatable {
         case .string(let value):
             return .string(value)
         case .stringIndex(let value):
+            return .native(value)
+        case .url(let value):
             return .native(value)
         case .array(let values):
             return .array(values.map { $0.materializedRuntimeValue() })
@@ -341,6 +359,9 @@ private struct RuntimeWorkerValueCopier {
         case .host(let value):
             if let index = value as? String.Index {
                 return .stringIndex(index)
+            }
+            if let url = value as? URL {
+                return .url(url)
             }
             throw rejection(
                 path: path, disposition: .rejectedNonSendable,

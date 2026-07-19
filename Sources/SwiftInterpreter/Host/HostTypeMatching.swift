@@ -88,6 +88,11 @@ extension HostSignature {
         if isFunctionType(type) {
             switch value {
             case .closure, .hostFunction: return 25
+            case .host(let any) where any is KeyPathStub:
+                // SE-0249: a key path is implicitly callable as
+                // `(Root) -> Value`. Keep it slightly below an explicit
+                // closure so a concrete KeyPath overload still wins.
+                return 23
             default: return nil
             }
         }

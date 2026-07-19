@@ -978,6 +978,28 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "2.0 1")
     }
 
+    @Test func sugarTypedArrayFilterOverloadRetainsStaticEmptyType() throws {
+        let source = """
+        struct Cargo { let marker: String }
+        struct Other { let marker: String }
+
+        extension [Cargo] {
+            func filter(_ query: String) -> Self {
+                [Cargo(marker: "cargo:\\(query)")]
+            }
+        }
+        extension [Other] {
+            func filter(_ query: String) -> Self {
+                [Other(marker: "other:\\(query)")]
+            }
+        }
+
+        let cargo: [Cargo] = []
+        cargo.filter { _ in true }.filter("harbour").first?.marker ?? "nil"
+        """
+        #expect(try eval(source).stringValue == "cargo:harbour")
+    }
+
     @Test func asCasts() throws {
         let source = """
         struct Item {

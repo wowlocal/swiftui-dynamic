@@ -134,7 +134,10 @@ extension RuntimeValue {
                 if let existing = structCopies[identity] {
                     return .instance(existing)
                 }
-                let isolated = Instance(symbol: instance.symbol)
+                let isolated = Instance(
+                    symbol: instance.symbol,
+                    lifecycleOwner: nil,
+                    programState: instance.programState)
                 isolated.isInitializing = instance.isInitializing
                 isolated.synthesizedRootOwners = instance.synthesizedRootOwners
                 structCopies[identity] = isolated
@@ -190,7 +193,10 @@ extension Instance {
     /// boxes. Nested payloads detach lazily along their composed lvalue path.
     func copiedForValueSemantics() -> Instance {
         precondition(!symbol.isClass, "class instances must retain identity")
-        let copy = Instance(symbol: symbol)
+        let copy = Instance(
+            symbol: symbol,
+            lifecycleOwner: nil,
+            programState: programState)
         copy.isInitializing = isInitializing
         copy.synthesizedRootOwners = synthesizedRootOwners
         for (name, box) in properties {

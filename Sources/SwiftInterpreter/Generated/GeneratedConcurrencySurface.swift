@@ -46,6 +46,7 @@ enum RuntimeConcurrencyNominalMemberIntrinsic: String, Sendable {
     case currentTaskIdentityEquals
     case currentTaskIsCancelled
     case currentTaskPriority
+    case mainActorRun
 }
 
 enum RuntimeTaskGroupIteratorIntrinsic: String, Sendable {
@@ -477,6 +478,9 @@ enum GeneratedConcurrencySurface {
     static let nominalMemberDispatch: [
         String: [String: RuntimeConcurrencyNominalMemberIntrinsic]
     ] = [
+        "MainActor": [
+            "run": .mainActorRun,
+        ],
         "UnsafeCurrentTask": [
             "==": .currentTaskIdentityEquals,
             "basePriority": .currentTaskBasePriority,
@@ -488,6 +492,14 @@ enum GeneratedConcurrencySurface {
     ]
 
     static let knownNominalMembers: [String: Set<String>] = [
+        "MainActor": [
+            "assumeIsolated",
+            "enqueue",
+            "run",
+            "shared",
+            "sharedUnownedExecutor",
+            "unownedExecutor",
+        ],
         "UnsafeCurrentTask": [
             "==",
             "basePriority",
@@ -504,6 +516,26 @@ enum GeneratedConcurrencySurface {
     static let nominalMemberDeclarations: [
         String: [String: [GeneratedConcurrencyDeclaration]]
     ] = [
+        "MainActor": [
+            "assumeIsolated": [
+                .init(declaration: "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)\n  @_alwaysEmitIntoClient @_unavailableFromAsync(message: \"await the call to the @MainActor closure directly\") public static func assumeIsolated<T>(_ operation: @_Concurrency.MainActor () throws -> T, file: Swift.StaticString = #fileID, line: Swift.UInt = #line) rethrows -> T where T : Swift.Sendable", kind: .function, parameters: [.init(label: nil, name: "operation", type: "@_Concurrency.MainActor () throws -> T", defaultValue: nil, attributes: [], modifiers: []), .init(label: "file", name: "file", type: "Swift.StaticString", defaultValue: "#fileID", attributes: [], modifiers: []), .init(label: "line", name: "line", type: "Swift.UInt", defaultValue: "#line", attributes: [], modifiers: [])], returnType: "T", isAsync: false, throwsKind: .rethrowing, thrownErrorType: nil, attributes: ["@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)", "@_alwaysEmitIntoClient", "@_unavailableFromAsync(message: \"await the call to the @MainActor closure directly\")"], modifiers: ["public", "static"], globalActor: nil),
+            ],
+            "enqueue": [
+                .init(declaration: "@inlinable nonisolated final public func enqueue(_ job: _Concurrency.UnownedJob)", kind: .function, parameters: [.init(label: nil, name: "job", type: "_Concurrency.UnownedJob", defaultValue: nil, attributes: [], modifiers: [])], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@inlinable"], modifiers: ["nonisolated", "final", "public"], globalActor: nil),
+            ],
+            "run": [
+                .init(declaration: "@_alwaysEmitIntoClient public static func run<T>(resultType: T.Type = T.self, body: @_Concurrency.MainActor @Sendable () throws -> T) async rethrows -> T where T : Swift.Sendable", kind: .function, parameters: [.init(label: "resultType", name: "resultType", type: "T.Type", defaultValue: "T.self", attributes: [], modifiers: []), .init(label: "body", name: "body", type: "@_Concurrency.MainActor @Sendable () throws -> T", defaultValue: nil, attributes: [], modifiers: [])], returnType: "T", isAsync: true, throwsKind: .rethrowing, thrownErrorType: nil, attributes: ["@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+            ],
+            "shared": [
+                .init(declaration: "public static let shared: _Concurrency.MainActor", kind: .variable, parameters: [], returnType: "_Concurrency.MainActor", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+            ],
+            "sharedUnownedExecutor": [
+                .init(declaration: "@inlinable public static var sharedUnownedExecutor: _Concurrency.UnownedSerialExecutor {\n    get {\n    return UnownedSerialExecutor(Builtin.buildMainActorExecutorRef())\n  }\n  }", kind: .variable, parameters: [], returnType: "_Concurrency.UnownedSerialExecutor", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@inlinable"], modifiers: ["public", "static"], globalActor: nil),
+            ],
+            "unownedExecutor": [
+                .init(declaration: "@inlinable nonisolated final public var unownedExecutor: _Concurrency.UnownedSerialExecutor {\n    get {\n    return UnownedSerialExecutor(Builtin.buildMainActorExecutorRef())\n  }\n  }", kind: .variable, parameters: [], returnType: "_Concurrency.UnownedSerialExecutor", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@inlinable"], modifiers: ["nonisolated", "final", "public"], globalActor: nil),
+            ],
+        ],
         "UnsafeCurrentTask": [
             "==": [
                 .init(declaration: "public static func == (lhs: _Concurrency.UnsafeCurrentTask, rhs: _Concurrency.UnsafeCurrentTask) -> Swift.Bool", kind: .function, parameters: [.init(label: "lhs", name: "lhs", type: "_Concurrency.UnsafeCurrentTask", defaultValue: nil, attributes: [], modifiers: []), .init(label: "rhs", name: "rhs", type: "_Concurrency.UnsafeCurrentTask", defaultValue: nil, attributes: [], modifiers: [])], returnType: "Swift.Bool", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),

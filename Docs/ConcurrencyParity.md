@@ -59,9 +59,9 @@ evidence that remains covered.
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all four public group-scope declarations for their evidenced default-isolation subsets, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, all four canonical `addTask(priority:operation:)`, all four canonical `addTaskUnlessCancelled(priority:operation:)`, all eight named add declarations without executor preference for their evidenced nonisolated subsets with task-owned names preserved, all eight `addTask` executor-preference declarations for their explicit-nil nonisolated subsets with non-nil preferences rejected by a shared guard and arbitrary-actor executor divergences recorded, all eight `addTaskUnlessCancelled` executor-preference declarations for active explicit-nil acceptance and post-cancellation rejection without child creation, with the shared non-nil guard and arbitrary-actor executor divergences recorded, and all eight `addImmediateTask`/`addImmediateTaskUnlessCancelled` declarations for their explicit-nil inherited-MainActor subsets with synchronous-prefix execution, Task.name, join, and cancellation-before-preference-validation evidence while non-nil preference and arbitrary-actor divergences remain recorded, all four ordinary/throwing group `next()` declarations, both deprecated `spawn()`, both deprecated `async()`, both deprecated conditional `add()` aliases, both deprecated `asyncUnlessCancelled()` aliases, and both deprecated `spawnUnlessCancelled()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition. | All currently generated task-group declarations have explicit dispositions and the target-aware escaped-capability boundary is covered. The remaining repeated-wait/new-work, non-nil TaskExecutor preference, and arbitrary-actor operation-executor semantics are demand-deferred (2026-07-16): they reopen only on a cited real-program failure; positive claims still require executable evidence and negative/deferred claims still require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | provisional | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, struct- and enum-backed arbitrary global-actor capability propagation through `#isolation` and defaulted isolated dispatch, depth-counted mailbox ownership for synchronous and async actor-function plus externally awaited synchronous computed-getter and subscript-getter segments, throwing computed-getter failure cleanup, async-throwing computed/subscript-getter success/source-error/cancellation reacquisition cleanup with caller restoration, actor computed-property and subscript-setter confinement to already-owned segments, controlled suspension release/reacquisition and actor reentrancy, task-local propagation through actor hops and suspension, retained queued actor messages after task cancellation, cross-actor throwing and cancellation-observing function hops with caller restoration, explicit plus defaulted/optional source-actor, MainActor, custom-global-actor, and nil isolated-parameter dispatch, explicit waitingForActor handoff/cleanup, replayable seeded mailbox stress with complete runtime draining, mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions, MainActor-owned deinitializer execution, fail-closed source-actor/user-global-actor deinitializer boundaries, and fail-closed custom actor-executor dispatch are covered. | The demand-scoped M5 actor cycle is covered. M5 remains provisional while its broad M4 and M7 prerequisite milestones retain explicitly owned partial-surface gaps; custom actor-executor scheduling and physical workers are not claimed. |
 | M6 async sequences/continuations | partial | Protocol-level `for await` dispatches `makeAsyncIterator()` and suspending `next()` witnesses through the ordinary evaluator/executor path for interpreted values, protocol-extension defaults, and typed opaque host gateways. Exact same-source parity covers finite success, typed source failure, cooperative user-iterator cancellation, `break`/`continue`/`return` plus per-iteration and function-level `defer` cleanup, real source and host suspension, iterator state, terminal `nil`, host-operation ownership, and registry cleanup. `AsyncStream` and `AsyncThrowingStream` share runtime-owned suspension, cancellation, finish/failure, nonnegative buffering, copied-iterator, final-owner termination, escaped non-owning producer-handle, and complete cleanup evidence. Copied throwing-stream iterators share one pending-`next()` capability per stream; overlapping calls trap, with fatal semantics preserved across gateway source-location attachment. The current `withCheckedContinuation` slice owns delayed `resume(returning:)` values, zero-argument Void `resume()`, and nonthrowing Result success through `resume(with:)` in a bounded continuation registry for explicit or caller-defaulted `nil`, `MainActor.shared`, and source-actor isolation. It records `waitingForContinuation`, runs the contextual body on the selected actor, restores a different caller executor after body return, releases an already-owned source actor while parked, permits actor reentry, reacquires that actor before continuation, distinguishes source cancellation from infrastructure abort, and drains every ownership edge. Omitted `#isolation` is materialized once in caller lexical isolation. `withCheckedThrowingContinuation` shares that record for value resume and exact source-error projection through `resume(throwing:)`; its MainActor and source-actor error paths have exact body-isolation and caller-restoration evidence, with mailbox release/reentry/reacquisition for a caller-defaulted actor, and concrete-error plus existential-error Result success/failure through `resume(with:)` delegate to those same terminal transitions. Both checked forms have process-isolated double-resume parity: the first terminal transition wins and a second resume is a fatal runtime invariant that bypasses source `do`/`catch`. Both forms also diagnose abandonment when the final unchecked source token is released: the diagnostic is a successful-process runtime warning, not a catchable error or trap, and the waiting task remains suspended until the host applies explicit teardown. A resumed token may remain escaped after owner completion without retaining the owner's task-local object, continuation record, runtime, session, or interpreter; releasing that token is inert. Task-group iteration remains separate M4 evidence. `withUnsafeContinuation` and `withUnsafeThrowingContinuation` are generated from the active SDK interface into one shared `unsupportedUnsafeContinuation` intrinsic. Apple Swift 6.3.3 accepted explicit `MainActor.shared` isolation and immediate one-shot resume as `value:33` and `value:44` in twenty bounded runs per form; the interpreter fails closed with a form-specific named unsupported-ownership diagnostic before invoking either body or allocating continuation ownership. | The demand-scoped M6 cycle is closed. Negative stream capacities, broader unsafe ownership, and the pinned upstream stream adapter remain explicit demand-deferred divergences. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, both macOS 26 task-priority-escalation handler declarations for their evidenced cooperative and explicit-`nil` subsets, the `withTaskExecutorPreference` declaration for its explicit-`nil`, no-ambient-custom-executor, bare-unqualified-direct-global-async-nil-operation-executor-preference-explicitly-nonisolated-operation subset, the `extractIsolation` declaration for synchronous non-invoking reflection of bare unqualified direct global async plain-explicit-nonisolated declarations including `@concurrent` while aliases, conversions, member references, and actor identity fail closed, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, the public `withCheckedContinuation` declaration routed for its evidenced explicit or caller-defaulted `nil`, MainActor, and source-actor value-resume plus explicit-`nil` Void-resume and nonthrowing Result-resume subsets, `withCheckedThrowingContinuation` routed for its explicit-`nil` value/error-resume plus explicit or caller-defaulted MainActor and source-actor error-resume, caller-defaulted nonisolated isolation, and concrete-error plus existential-error Result-resume subsets, while both public unsafe continuation entry points are generated into one shared explicit fail-closed diagnostic, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 171/171 reviewed: 53 runtime-supported, 22 diagnosed-unsupported, 69 known divergences, 26 excluded compiler ABI, one deferred, and zero unreviewed; generated adapter routing covers 127 declarations. | Target-aware project manifests are covered. Keep M7 partial while the generated inventory scope is explicitly incomplete and known-divergent or deferred declarations retain owned gap dispositions. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, all six selected `MainActor` member rows: the default-`resultType` `run` subset routed, `shared` projected as a known-divergent logical isolation value, and `assumeIsolated`/`enqueue`/executor members diagnosed, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, both macOS 26 task-priority-escalation handler declarations for their evidenced cooperative and explicit-`nil` subsets, the `withTaskExecutorPreference` declaration for its explicit-`nil`, no-ambient-custom-executor, bare-unqualified-direct-global-async-nil-operation-executor-preference-explicitly-nonisolated-operation subset, the `extractIsolation` declaration for synchronous non-invoking reflection of bare unqualified direct global async plain-explicit-nonisolated declarations including `@concurrent` while aliases, conversions, member references, and actor identity fail closed, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, the public `withCheckedContinuation` declaration routed for its evidenced explicit or caller-defaulted `nil`, MainActor, and source-actor value-resume plus explicit-`nil` Void-resume and nonthrowing Result-resume subsets, `withCheckedThrowingContinuation` routed for its explicit-`nil` value/error-resume plus explicit or caller-defaulted MainActor and source-actor error-resume, caller-defaulted nonisolated isolation, and concrete-error plus existential-error Result-resume subsets, while both public unsafe continuation entry points are generated into one shared explicit fail-closed diagnostic, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 177/177 reviewed: 53 runtime-supported, 26 diagnosed-unsupported, 71 known divergences, 26 excluded compiler ABI, one deferred, and zero unreviewed; generated adapter routing covers 128 declarations. | Target-aware project manifests are covered. Keep M7 partial while the generated inventory scope is explicitly incomplete and known-divergent or deferred declarations retain owned gap dispositions. |
 | M8 SwiftUI lifecycle | provisional | Synchronous callbacks use runtime-owned host tasks. BridgeGen emits `.task`, `.task(id:)`, and `.refreshable`; one reusable adapter gives actual SwiftUI-owned invocations fresh `.swiftUITask` sessions. Six same-source hosting probes cover async entry, MainActor identity, disappearance cancellation, id replacement, same-id preservation, refresh trigger/completion, 32-cycle repeated teardown, and weak release of every task/session ownership object plus the final interpreter/runtime graph. | The demand-scoped M8 requirement is covered. M8 remains provisional while its broad M5 and M7 dependencies remain partial; physical workers belong to active M9. |
-| M9 physical parallelism | partial | The general source evaluator remains cooperatively scheduled and main-actor hosted; physical interpreted execution is claimed only for six demand-scoped, signature-free, argument-free `Task.detached` snapshot kernels in explicit parallel mode: single literals, `String.count` over a locally owned immutable String capture, `map(\.count).reduce(0, +)` over a locally owned immutable `[Substring]` capture, the exact no-capture `await Task.yield()` command cited by swift-composable-architecture, CotEditor's exact `String.distance(from: String.startIndex, to: String.Index)` spelling over locally owned immutable captures, and Signal-iOS's conditional `Task.sleep(for:)` over a locally owned immutable Bool and literal seconds/milliseconds. ParsedProgram is immutable and Sendable and owns folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral all-branch declaration, callable/accessor/subscript, call-site argument, member-plan, nominal, property-storage, enum-case, extension, type-alias, and deinitializer indexes. Callable facts now include immutable function bodies, names, parameters, modifiers, effects, isolation, and placement plus initializer bodies, attributes, modifiers, failable/Codable classification, and isolation facts. Call-site facts include labels/expressions, first and additional trailing-closure structure, and bare unqualified direct-reference spelling while compiler predicates are excluded. Synchronous/suspending argument collection and bounded async-operation provenance consume those immutable facts; overload resolution and call-target identity remain session-owned. Member plans classify every direct nominal/extension declaration and nested conditional clause; each session resolves one active member sequence before mutable symbol materialization. Runtime function body/shape/placement dispatch, initializer selection/execution, nominal/member/storage/case materialization, extension target/conformance handling, alias binding, and deinitializer body/isolation-policy attachment consume immutable metadata while mutable runtime symbols, values, and materialized members remain MainActor-confined. Each session resolves one build-specific top-level plan before mutable runtime-symbol materialization. Each Interpreter owns a distinct MainActor-confined RuntimeHeap. Every runAsync program entry executes through a single-use InterpreterSession, and program roots, callbacks, SwiftUI tasks, and their source tasks carry an explicit RuntimeEntry preserving the originating metadata snapshot. Causally controlled native parity proves callback overlap, while conditional-member, explicit-nil task-executor-preference, `extractIsolation`, actor-subscript, custom-global-actor, actor-initialization, enum-case, extension, type-alias, ordinary-deinitializer, callable-placement, and initializer-declaration parity characterize or close metadata semantics. The source-callable _swift_createJobForTestingOnly hook remains preflight-only/deferred. Each InterpreterSession owns one immutable target-specific ResolvedProgramPlan containing its file identity and SourceLocationConverter, and its RuntimeEntry plus escaped source closures retain that exact source map and top-level/member selection across host callbacks, SwiftUI tasks, and source tasks. Exact same-source parity proves lexical `#line` provenance survives suspension. Each prepared program also owns one MainActor-confined RuntimeProgramState containing its mutable declaration/symbol registries; the session, entries, and escaped closures retain that exact state across the same boundaries instead of consulting the facade's latest program. CooperativeConcurrencyRuntime now strongly owns session-scheduled unstructured and detached task handles until autonomous completion or session-policy release; Interpreter exposes only a read-only compatibility inspection view. The runtime also allocates every asynchronous EvaluationTaskContext identity through one factory; only the facade's synchronous compatibility context retains reserved ID 0. EvaluationTaskContext identifies that owning runtime through a weak capability instead of retaining or identifying an Interpreter facade; explicit TaskBoundEvalContext host re-entry ownership remains separate. Native-stack guard geometry is likewise EvaluationTaskContext-owned, keyed to the numeric ID of its supplying pthread, refreshed after migration, and cleared with task dynamic state. RuntimeEntry can now project a structurally Sendable worker capability containing only entry identity, immutable program plan/metadata, and recursively copied RuntimeValue snapshots. All current RuntimeHeap roots are explicitly MainActor-confined and excluded; interpreted references, actor instances, closures, symbols, and opaque host values fail closed before a capability is returned. A bounded physical driver now consumes only that checked capability and snapshot output: each active slot owns a Task.detached, one shared FIFO permit pool enforces the configured limit across concurrent batches, cancellation is forwarded, failures cancel siblings, and ordered success plus capture release are verified. A validated public RuntimeExecutionMode defaults to cooperative and preserves the legacy initializer entry points. In parallel mode, admitted literal detached bodies lower on MainActor to checked constant-snapshot jobs; the CotEditor-cited `string.count` spelling over a local `let String` lowers to typed expression IR after the binding is copied into the checked worker capability; and CotEditor's `map(\.count).reduce(0, +)` spelling over a local immutable `[Substring]` lowers to typed count-sum IR after recursive snapshot copying. All six execute through real Task.detached and materialize back on MainActor; exact runtime receipts prove the physical path, while mutable or global captures, unsupported bodies, and authored signatures use unchanged cooperative evaluation. All six kernels now have twenty-pair same-source cooperative/parallel differentials with exact expected physical receipts and share a dedicated TSan board covering twenty native overlap iterations plus all driver/source-kernel tests; interceptor initialization is fail-closed. The fourth source kernel is the first suspending worker command: MainActor admits only a one-expression `await Task.yield()` body, emits typed task-yield IR with an empty capability, and leaves authored signatures, multi-statement bodies, alternate calls, and captures cooperative. Native Swift 6.3.3 and interpreted execution returned exact `yielded:2` in twenty bounded repetitions with canonical digest a8da6accf02cddfd0779ab299c9ccaf8f75d2092aa1704824745f6c197af7e8c; receipt REDs moved from zero to two physical executions. The fifth source kernel is CotEditor's immutable String/String.Index distance expression. MainActor copies only typed String and String.Index snapshots and emits typed startIndex/distance IR; mutable or global bindings, alternate `from:` expressions, authored signatures, and all other shapes remain cooperative. Native Swift 6.3.3 and interpreted execution returned exact distance pair `2:5` and cancellation pair `2:true` in twenty bounded repetitions with canonical digest da866620191667df04f2901b8f5ca2478e97f730df4787c6d7c5b18260518f28. Receipt REDs moved from zero to three physical executions, and a cancellation RED proved a cancelled non-checking source task must still publish its value while its handle remains cancelled. The finite source-kernel job is therefore isolated from logical source cancellation; the ordinary driver API retains infrastructure-cancellation forwarding. The sixth source kernel is Signal-iOS's conditional throwing sleep. MainActor copies only an immutable Bool and emits typed conditional-Duration plus sleep IR; a Sendable actor relay preserves pre-cancelled body entry and forwards cancellation to the actual worker. Native Swift 6.3.3 and interpreted execution returned exact `slow:fast` plus `cancelled:true` in twenty bounded repetitions with focused-shard digest d78d19bf880bb60f640e843e2e59091db7555910efa54f0ed50b4b5e8d62ac95. Receipt REDs moved from zero to two successful physical executions; twenty paired runs record zero/three submissions, and unsupported duration forms remain cooperative. The expanded TSan board passed twenty native overlap iterations and all thirty-three driver/source-kernel tests on four workers in 23 seconds without a race or interceptor diagnostic. The canonical focused iteration completed eighty-nine ownership/worker tests in nine suites, all forty-three methodology checks (the forty-test board plus three source-bound gate checks), and all twenty parity repetitions on four workers in two seconds. | Complete immutable indexing for remaining member semantics and compiler-only signature families, call-site semantic resolution, and compiler-preflight metadata, finish moving mutable runtime-symbol materialization and evaluation behind InterpreterSession, extend physical source execution beyond the admitted literal, immutable-String-count, immutable-Substring-array-count-reduction, exact no-capture Task.yield, immutable String/String.Index-distance, and immutable-Bool conditional-sleep kernels to remaining demand-cited value, scalar-expression, and captured or richer suspending work without direct heap access, and expand the scoped Thread Sanitizer plus cooperative-versus-parallel differential board with every future physical kernel without exposing Box, Environment, or Instance to races. |
+| M9 physical parallelism | partial | The general source evaluator remains cooperatively scheduled and main-actor hosted; physical interpreted execution is claimed only for six demand-scoped, signature-free, argument-free `Task.detached` snapshot kernels, four demand-scoped two-item `try?` sleep-prefix spellings, five demand-cited MainActor continuation wrappers (a complete signature-free `MainActor.run(body:)` body, an exact one-expression `@MainActor in` operation, an exact explicit-MainActor single-weak-capture operation, an exact explicit-MainActor weak/strong-capture operation, and an exact explicit-MainActor strong/weak/weak-capture operation), plus seven demand-scoped uniquely resolved source-call routing families (MainActor argument-free/Boolean-literal, @concurrent direct-self Int/Int64 or weak-self single-String, inherited-caller async argument-free or single-String Void, default-actor synchronous Void, async required single-Int Void, or async explicit single-defaulted-Bool Void, actor-declared custom-global-actor argument-free async Void, direct synchronous explicitly-nonisolated single immutable-URL Void, and synchronous explicitly-nonisolated static protocol-default single-String-to-String) in explicit parallel mode: the kernels are single literals, `String.count` over a locally owned immutable String capture, `map(\.count).reduce(0, +)` over a locally owned immutable `[Substring]` capture, the exact no-capture `await Task.yield()` command cited by swift-composable-architecture, CotEditor's exact `String.distance(from: String.startIndex, to: String.Index)` spelling over locally owned immutable captures, and Signal-iOS's conditional `Task.sleep(for:)` over a locally owned immutable Bool and literal seconds/milliseconds. ParsedProgram is immutable and Sendable and owns folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral all-branch declaration, callable/accessor/subscript, call-site argument/callee-shape, member-plan, nominal, property-storage, enum-case, extension, type-alias, and deinitializer indexes. Callable facts now include immutable function bodies, names, parameters, modifiers, effects, isolation, and placement plus initializer bodies, attributes, modifiers, failable/Codable classification, and isolation facts. Call-site facts include normalized direct/member/typed-collection/other callee shape, the immutable callee expression, labels/expressions, first and additional trailing-closure structure, and bare unqualified direct-reference spelling while compiler predicates are excluded. Synchronous/suspending argument collection and bounded async-operation provenance consume those immutable facts; overload resolution and call-target identity remain session-owned. Member plans classify every direct nominal/extension declaration and nested conditional clause; each session resolves one active member sequence before mutable symbol materialization. Runtime function body/shape/placement dispatch, initializer selection/execution, nominal/member/storage/case materialization, extension target/conformance handling, alias binding, and deinitializer body/isolation-policy attachment consume immutable metadata while mutable runtime symbols, values, and materialized members remain MainActor-confined. Each session resolves one build-specific top-level plan before mutable runtime-symbol materialization. Each Interpreter owns a distinct MainActor-confined RuntimeHeap. Every runAsync program entry executes through a single-use InterpreterSession, and program roots, callbacks, SwiftUI tasks, and their source tasks carry an explicit RuntimeEntry preserving the originating metadata snapshot. Causally controlled native parity proves callback overlap, while detached source-member call-target, conditional-member, explicit-nil task-executor-preference, `extractIsolation`, actor-subscript, custom-global-actor, actor-initialization, enum-case, extension, type-alias, ordinary-deinitializer, callable-placement, and initializer-declaration parity characterize or close metadata semantics. The source-callable _swift_createJobForTestingOnly hook remains preflight-only/deferred. Each InterpreterSession owns one immutable target-specific ResolvedProgramPlan containing its file identity and SourceLocationConverter, and its RuntimeEntry plus escaped source closures retain that exact source map and top-level/member selection across host callbacks, SwiftUI tasks, and source tasks. Exact same-source parity proves lexical `#line` provenance survives suspension. Each prepared program also owns one MainActor-confined RuntimeProgramState containing its mutable declaration/symbol registries; the session, entries, and escaped closures retain that exact state across the same boundaries instead of consulting the facade's latest program. CooperativeConcurrencyRuntime now strongly owns session-scheduled unstructured and detached task handles until autonomous completion or session-policy release; Interpreter exposes only a read-only compatibility inspection view. The runtime also allocates every asynchronous EvaluationTaskContext identity through one factory; only the facade's synchronous compatibility context retains reserved ID 0. EvaluationTaskContext identifies that owning runtime through a weak capability instead of retaining or identifying an Interpreter facade; explicit TaskBoundEvalContext host re-entry ownership remains separate. Native-stack guard geometry is likewise EvaluationTaskContext-owned, keyed to the numeric ID of its supplying pthread, refreshed after migration, and cleared with task dynamic state. RuntimeEntry can now project a structurally Sendable worker capability containing only entry identity, immutable program plan/metadata, and recursively copied RuntimeValue snapshots. All current RuntimeHeap roots are explicitly MainActor-confined and excluded; interpreted references, actor instances, closures, symbols, and unaudited opaque host values fail closed before a capability is returned; String.Index and Foundation.URL use explicit typed snapshots. A checked source-synchronous HostWorkerOperation now lets typed HostFunction and read-only HostProperty gateways cross the same bounded boundary: only @Sendable native closures and Bool/String snapshots transfer, only cooperative-default/detached source executors are eligible, and cooperative mode plus MainActor/source actors retain the confined implementation. TaskObservatory's exact Thread.isMainThread helper and the shared concurrent-executor fixture prove four physical host calls with unchanged source output; source-shadowed Thread remains source-resolved. Worker-operation eligibility is decided before the builder runs, and admission never forces computed or lazy callable storage. A bounded physical driver now consumes only that checked capability and snapshot output: each active slot owns a Task.detached, one shared FIFO permit pool enforces the configured limit across concurrent batches, cancellation is forwarded, failures cancel siblings, and ordered success plus capture release are verified. A validated public RuntimeExecutionMode defaults to cooperative and preserves the legacy initializer entry points. In parallel mode, admitted literal detached bodies lower on MainActor to checked constant-snapshot jobs; the CotEditor-cited `string.count` spelling over a local `let String` lowers to typed expression IR after the binding is copied into the checked worker capability; and CotEditor's `map(\.count).reduce(0, +)` spelling over a local immutable `[Substring]` lowers to typed count-sum IR after recursive snapshot copying. All six execute through real Task.detached and materialize back on MainActor; exact runtime receipts prove the physical path, while mutable or global captures, unsupported bodies, and authored signatures use unchanged cooperative evaluation. Explicit detached-operation closure isolation is now orthogonal to lexical inheritance: an authored MainActor or lazily resolved user-global-actor annotation selects the closure executor, while a plain Task.detached operation discards its MainActor formation-site isolation; immediate task APIs retain their independently selected operation executors. A demand-cited characterization separately proves closure-signature `@Sendable` is executor-inert: ordinary Task retains MainActor lexical inheritance and Task.detached suppresses it across suspension. Provenance's weak-self, KeyboardCowboy's named-weak, Swiftfin's weak/strong, and apple-browsers' strong/weak/weak explicit-MainActor compositions now use one typed continuation-signature capability and the same empty physical wrapper while preserving actor isolation and every authored ownership edge across a causal suspension. Swiftfin's complete cited form also composes that wrapper with confined `for await` iteration, a per-element weak-self guard, and an optional callback; a causal release branch exits without a callback. Damus's parenthesized `Task.detached(priority:operation:)` spelling is characterized through the same call-site metadata, generated Task gateway, signature-free ClosureValue, and typed Task.yield kernel; it records the same physical receipts without adding a worker capability. Clop's parenthesized `Task.detached(operation:)` spelling is characterized through an absent-priority metadata slot that the generated gateway maps to nil before passing the labeled signature-free ClosureValue to the same typed Task.yield kernel; it adds no worker capability. Damus's direct synchronous explicitly-nonisolated Void route copies one immutable Foundation.URL from either a directly owned immutable capture or a proven plain stored let through a typed snapshot and command before confined source re-entry; the wrapper receipt does not claim source-body worker execution or native background-performance parity. apple-browsers' exact `[source] in Self.prepareScriptSource(from: source)` route preserves the concrete conformer as dynamic `Self`, uniquely selects one plain unconstrained/unattributed synchronous explicitly-nonisolated String-to-String protocol-extension static default, copies only the immutable String command, and keeps the metatype, closure, evaluator, source body, and result confined. Swiftfin's contextual .detached spelling now resolves through the Task return annotation to the imported nominal's generated static-member gateway; source types and extensions keep precedence, and the multi-expression operation remains cooperative. Planet's inherited-isolation async Void source-call route now copies one labeled immutable String capture through the checked worker command and materializes it only after confined re-entry. Amperfy's exact weak-self @concurrent route copies one labeled immutable String but defers receiver lookup until confined re-entry, preserving non-retention. Provenance's exact weak-self inherited route carries one labeled String literal through typed literal provenance while retaining deferred receiver lookup. Session-iOS extends that same inherited route to one labeled directly owned immutable String capture. KeyboardCowboy adds one unlabeled directly owned immutable `[String]` capture with recursively checked elements. Meshtastic-Apple adds an exact direct-self argument-free `try? await` route whose ordinary throwing-Void outcome is optionalized during confined re-entry. FreeChat adds an exact two-item `try?`-contained Task.sleep prefix whose awaited suffix and complete RuntimeValue/Error outcome remain confined behind a Sendable continuation token. Provenance adds the exact capture-only weak-self `Task.sleep(nanoseconds:)` prefix followed by imported `MainActor.run(body:)`; the nanoseconds literal is checked before worker launch, and the run target is a selected-nominal intrinsic generated from the active interface rather than a source-name branch. Session-iOS adds the exact capture-only weak-self `Task.sleep(for:)` prefix followed by an actor-isolated optional-self call with one directly captured immutable String; only the checked literal Duration sleep crosses the worker boundary. Planet adds the signature-free literal-nanoseconds prefix before `MainActor.run(body:)` over an implicitly captured receiver; the receiver, suffix, MainActor invocation, and outcome remain confined. Planet's complete signature-free `MainActor.run(body:)` body now uses an empty physical wrapper and the same confined continuation/outcome token, with imported nominal identity required before launch. Planet's exact one-expression `@MainActor in` operation reuses that wrapper and token while the complete authored closure remains confined; additional attributes and source-shadowed MainActor declarations stay cooperative. All six snapshot kernels, all four sleep-prefix routes, and all five exact MainActor continuation wrappers have twenty-pair same-source cooperative/parallel differentials with exact expected receipts, all sixteen physical source-call spelling subsets have their own same-source differentials and receipts, the cooperative weak/optional async-member, optional async-closure, and optional source-value mutating write-back subsets have exact same-source parity with zero physical receipts, the causally gated weak-receiver lifetime subset proves release across suspension with zero receipts, and the shared TSan board covers twenty native-overlap iterations plus all 114 driver/kernel/source-call tests; interceptor initialization is fail-closed. Physical admission for the Task.yield and Task.sleep kernels now also requires the exact registered core Task host-function identity from the originating closure's lexical environment; same-named source values stay cooperative. Physical admission for String.count now also requires a typed property-target identity from the originating RuntimeProgramState; a same-module source computed property remains cooperative, and core String member evaluation selects it before the imported native member. Physical admission for String.distance now requires a typed standard-library method proof from that origin state; any same-base source extension overload leaves the proof unresolved and stays cooperative until exact session-owned overload resolution exists. The compound count-reduction kernel now requires typed Array.map, Array.reduce, and statically inferred Substring.count proofs; core Array source extensions dispatch before imported native members, and Array key-path evaluation preserves source String-versus-Substring root identity. The fourth source kernel is the first suspending worker command: MainActor admits only a one-expression `await Task.yield()` body, emits typed task-yield IR with an empty capability, and leaves authored signatures, multi-statement bodies, alternate calls, and captures cooperative. Native Swift 6.3.3 and interpreted execution returned exact `yielded:2` in twenty bounded repetitions with canonical digest a8da6accf02cddfd0779ab299c9ccaf8f75d2092aa1704824745f6c197af7e8c; receipt REDs moved from zero to two physical executions. The fifth source kernel is CotEditor's immutable String/String.Index distance expression. MainActor copies only typed String and String.Index snapshots and emits typed startIndex/distance IR; mutable or global bindings, alternate `from:` expressions, authored signatures, and all other shapes remain cooperative. Native Swift 6.3.3 and interpreted execution returned exact distance pair `2:5` and cancellation pair `2:true` in twenty bounded repetitions with canonical digest da866620191667df04f2901b8f5ca2478e97f730df4787c6d7c5b18260518f28. Receipt REDs moved from zero to three physical executions, and a cancellation RED proved a cancelled non-checking source task must still publish its value while its handle remains cancelled. The finite source-kernel job is therefore isolated from logical source cancellation; the ordinary driver API retains infrastructure-cancellation forwarding. The sixth source kernel is Signal-iOS's conditional throwing sleep. MainActor copies only an immutable Bool and emits typed conditional-Duration plus sleep IR; a Sendable actor relay preserves pre-cancelled body entry and forwards cancellation to the actual worker. Native Swift 6.3.3 and interpreted execution returned exact `slow:fast` plus `cancelled:true` in twenty bounded repetitions with focused-shard digest d78d19bf880bb60f640e843e2e59091db7555910efa54f0ed50b4b5e8d62ac95. Receipt REDs moved from zero to two successful physical executions; twenty paired runs record zero/three submissions, and unsupported duration forms remain cooperative. The String.count target-identity gap closure returned exact 41 in twenty native/interpreter runs with canonical digest e195c78d2738596cc170bb3277a29bf2f181174109dcad6afec0ab1a95b0033a; before the fix both interpreter modes returned 5 and parallel mode recorded one physical execution. A retained two-run regression proves origin-program ownership with zero physical submissions/executions while the positive imported-property probe keeps its physical receipt. The String.distance method-proof gap closure returned exact 77 in twenty native/interpreter runs with canonical digest 0e8f6fc06b0a6860d392095f867a5b94dc032ed589e0a43d0ce9b30924258f53; before the fix cooperative mode returned 77 while parallel mode returned 2 and recorded one physical submission/execution. Its retained two-run regression records zero receipts while the positive imported-method probe keeps its physical receipt. The Array.map target-proof gap closure returned exact 41 in twenty native/interpreter runs with canonical digest 06012cab1f7bd007fb1ad3ff15d7822d89b450f3ea30814bf7d8f27b8d2687bb; before the fix both interpreter modes returned 3 and parallel mode recorded one physical submission/execution. Its retained two-run regression records zero receipts while the positive stdlib reduction keeps its physical path. The Array.reduce target-proof gap closure returned exact 73 in twenty native/interpreter runs with canonical digest 510c4b8fd1343251f41b2cfbed0f4b84e7517a95b4603e64a96e98284898f67e; before the fix cooperative mode returned 73 while parallel mode returned 3 and recorded one physical submission/execution. Its retained two-run regression records zero receipts while the positive stdlib reduction keeps its physical path. The Substring.count target-identity gap closure returned exact 178:3 in twenty native/interpreter runs with canonical digest 6c177a2ff65fa47eaf04034c87bd3446d3047a1267fb98e302d5634fb93cb2a5; before the fix both interpreter modes returned 3 for the Substring branch and parallel mode recorded one physical submission/execution. Array key-path evaluation now carries the binding's static element type, while physical admission requires both an explicit Substring element type and an origin-state Substring.count identity. Its retained two-run regression distinguishes Substring 178 from String 3 with zero receipts while the positive stdlib Substring reduction keeps its physical path. The expanded TSan board passed twenty native overlap iterations and all forty driver/source-kernel tests on four workers in 20 seconds without a race or interceptor diagnostic. The canonical focused iteration completed sixty-nine runtime/metadata/worker tests in three suites, all forty-three methodology checks plus three isolated gate-contract checks, and all twenty parity repetitions on four workers in two seconds. The unique own reference-method target prerequisite now projects an origin-bound Sendable descriptor with exact declaration identity, lexical placement, isolation/effects, and return type after receiver/call-shape resolution. Source instances retain their originating RuntimeProgramState across later facade runs, and same-shape overloads fail closed. The FoodTruck direct-self MainActor call subset now launches a real detached wrapper using a Sendable entry/task/target/result command; RuntimeTaskRecord retains the confined closure, the MainActor relay reinstalls the originating EvaluationTaskContext, and only a copied Void/String result returns across the worker boundary. Logical cancellation and interpreted-trap containment are preserved, while executor-entry handoff releases the bounded permit before a long-lived source method completes. The TaskObservatory direct-self @concurrent subset extends that command family to labeled Int/Int64 arguments copied from integer literals or directly owned immutable captures; the detached wrapper is physical, while the origin-bound source closure re-enters under its logical cooperative-default EvaluationTaskContext and may hop to MainActor. The unchanged TaskObservatory project records three physical wrappers, exact structured-concurrency results, and complete runtime cleanup. The iTorrent MainActor Boolean-literal subset adds an explicit scalar kind to each command argument, validates it against both the selected Bool parameter and copied Boolean snapshot, and moves the cited true/false wrappers from zero to two physical receipts while captured Bool remains cooperative. The Session-iOS default-actor subset physically launches an argument-free detached wrapper, then re-enters the exact receiver mailbox for its synchronous Void method. Planet's async default-actor subsets copy either one required labeled Int/Int64 argument or one explicitly supplied Boolean literal for a defaulted Bool parameter, release the mailbox at suspension, and reacquire it before continuation; omitted defaults, captured Bool, defaulted integer, nondefaulted Boolean, String, multiple, mutable, expression, throwing, and custom-executor actor calls remain cooperative. The actor-declared custom-global-actor source-class subset performs a pure unique declaration-candidate proof before worker launch, then resolves canonical static shared only during confined invocation; its argument-free async Void method preserves that actor before and after suspension. Argument-bearing or String-returning custom-global-actor methods, struct/enum-backed global actors, and custom executors remain cooperative. iTorrent's plain async, argument-free, Void source-class methods now inherit the detached caller through one physical wrapper and preserve nil actor isolation across suspension; inherited argument/result families beyond the admitted single-String Void call or exact argument-free `try?`-contained throwing Void call and explicit nonisolated methods outside the exact synchronous immutable-URL Void route remain cooperative. Provenance's exact capture-only `[self] in` spelling uses that same inherited route while retaining the confined receiver strongly; all other authored closure signatures remain outside this physical route. Weak/optional-self explicit-member calls outside the exact capture-only inherited argument-free, single-literal/captured-String, or single-captured-`[String]` Void routes and the @concurrent single-captured-String route remain cooperative but use suspension-aware optional dispatch: a live source class/actor receiver suspends normally and nil skips argument evaluation. Optional async closures likewise remain cooperative but now short-circuit nil before argument collection and invoke a present callable through suspension-aware dispatch. A causally gated detached `[weak receiver]` task also releases its receiver while suspended; RuntimeTaskRecord closure ownership does not strengthen the weak capture box. Provenance's exact capture-only `[weak self] in await self?.processQueue()` form now launches one physical wrapper while the task record retains only that confined weak box; the MainActor relay reads it after worker entry and returns Optional.none or re-resolves the exact inherited argument-free Void target. Amperfy's exact weak-self form reuses that deferred receiver lookup with one copied labeled immutable String and an @concurrent async Void target; an occupied-permit regression proves the command does not retain a released receiver. Provenance's exact weak-self timeout form reuses the same relay for one labeled String literal and an inherited-isolation async Void target. Session-iOS's repeated updateMentions form uses one copied immutable String on that same inherited route. KeyboardCowboy's reload form uses one copied immutable `[String]` on the inherited weak route. Meshtastic-Apple's exact direct-self `try? await` form contains ordinary interpreted throws during MainActor re-entry and returns only a typed Optional<Void> snapshot; fatal/session-abort control flow and every uncited throwing route remain outside that disposition. The official swiftlang-derived optional source-struct case now borrows direct or enclosing stored Optional payloads through the confined LValue transaction, suspends in the ordinary async mutating method, writes the final receiver back, and returns one lifted Optional result with zero physical receipts. Its exceptional companion resolves and commits final self through one confined write-back-on-exit transaction before preserving a typed source throw or current-task CancellationError. A third official-swiftlang-derived case admits an ordinary synchronous nonthrowing get/set Optional property on a directly named source value: it reads once, suspends the mutating payload, reconstructs its typed Optional wrapper, and invokes the same setter after return or unwind; the uncited async/throwing computed, computed reference/nested-owner, and subscript access families remain unimplemented behind one named fail-closed async Optional value-mutation diagnostic; native read/modify coroutine declarations are recognized during collection and rejected with a named coroutine-ownership diagnostic. | Complete immutable indexing for remaining member semantics and compiler-only signature families; complete call-target resolution beyond the unique own reference-method descriptor, including same-shape overloads, inherited/protocol witnesses beyond the exact static protocol-default String route, actor routing beyond the exact default-actor synchronous Void, async required single-Int Void, and async explicit single-defaulted-Bool Void subsets, custom-global-actor routing beyond the exact actor-declared argument-free async Void subset, inherited-isolation routing beyond the exact inherited-caller argument-free, single-String async Void, or argument-free `try?`-contained throwing Void subsets, host routing beyond the direct synchronous Bool/String worker-gateway and Thread.isMainThread subset, and standard-library families beyond normalized callee shape and the current core Task, String.count, conservative String.distance, Array.map, Array.reduce, and Substring.count proofs. The exact compound count-reduction target chain is complete. Complete contextual imported-static resolution beyond the demand-cited Task-returning .detached subset; complete compiler-preflight metadata, finish moving mutable runtime-symbol materialization and evaluation behind InterpreterSession, extend physical source execution beyond the admitted literal, immutable-String-count, immutable-Substring-array-count-reduction, exact no-capture Task.yield, immutable String/String.Index-distance, immutable-Bool conditional-sleep, exact two-item try?-sleep-prefix spellings, the five exact MainActor continuation wrappers, and direct-self MainActor argument-free/Boolean-literal plus @concurrent direct-self Int/Int64 or weak-self single-String and default-actor synchronous Void/async required single-Int Void/async explicit single-defaulted-Bool Void plus actor-declared custom-global-actor argument-free async Void plus direct synchronous explicitly-nonisolated immutable-URL Void plus synchronous explicitly-nonisolated static protocol-default single-String-to-String plus inherited-caller argument-free, single-String async Void, or argument-free `try?`-contained throwing Void source-call subsets (including the exact capture-only `[self] in` form and the exact capture-only `[weak self]` inherited argument-free, single-literal/captured-String, or single-captured-`[String]`, plus @concurrent single-captured-String optional Void forms) to remaining demand-cited value, scalar-expression, and captured or richer suspending work without direct heap access, extend optional value-type async mutation beyond direct/enclosing stored-lvalue normal, source-thrown, and cancellation exits plus directly named source-value synchronous nonthrowing computed get/set owners to native coroutine, async/throwing computed, computed reference-owner, and subscript accessors, and expand the scoped Thread Sanitizer plus cooperative-versus-parallel differential board with every future physical kernel without exposing Box, Environment, or Instance to races. |
 
 ## Committed native facts
 
@@ -72,9 +72,12 @@ evidence that remains covered.
 | `host-gateway-suspension` | exact | Awaiting the controlled async wrapper suspends until its explicit gate opens, so a ready MainActor controller records progress before the wrapper returns | Native/interpreter parity in 20 repetitions: `before,host-enter,controller,host-exit,value`; the interpreted caller is `.waiting/.awaitingHost(operationID)` at the forced barrier and the operation registry is empty after completion |
 | `host-callback-task-runtime` | exact | A synchronous MainActor callback exposes its inline mutation before returning, while an unstructured task it creates continues through Swift concurrency and may own structured group children | Native/interpreter parity in 20 repetitions: `started,done-3`; the interpreter fires the retained closure only after its initial evaluation has returned, enters `.hostCallback`, and finishes with empty task/group/scope registries |
 | `host-callback-structured-composition` | exact | A retained synchronous MainActor callback returns after its inline mutation while independently scheduled work composes async-let children, a shared detached result with two waiters, task-group children, and cancellation-handler observation | Already-GREEN native/interpreter characterization in 20 repetitions: `started,async:5\|shared:10:10\|cancelled`; all four native shards report SHA-256 `c4c9895155080edb1fd1dcf9b0e887a6c057553fd836addef8bc94ff20a885f8`, with empty task/group/scope registries and no sibling-order or physical-thread claim |
+| `detached-source-member-call-target` | exact | An explicit `self` member call inside `Task.detached` selects the captured MainActor-isolated instance method and publishes its value rather than invoking a same-named global function | Already-GREEN native/interpreter characterization in 20 repetitions: `target:member`; all four native five-run shards report SHA-256 `88ddf30fbc689070f9013a46d59717a74b18015dd09b8c8b2bd46316053566ff`. FoodTruck cites `StoreMessagesManager.swift:33-35`; no physical-worker, overload-identity, thread, or scheduler-order claim follows. |
+| `parallel-shadowed-task-yield` | exact | A local value named `Task` shadows the standard-library type, so its async `yield()` method remains the selected call even inside an operation launched by a real `Task.detached` | Native/interpreter parity in 20 repetitions: `source`; all four native five-run shards report SHA-256 `5f56add95e0689069a663ad8f90d7ec54eb7305fc06e321ef8ca348d55017328`. Parallel interpretation records zero physical receipts; no worker identity or unrelated scheduler order is asserted. |
 | `host-static-shadow-after-suspension` | exact | A same-module `Date.now` remains selected when implicit `.now` crosses a host-call boundary after suspension | Native/interpreter parity in 20 repetitions: `1784228400`; a focused cross-program callback regression proves a newer prepared program cannot redirect the old lookup, and no scheduler-order, worker-thread, or physical-parallelism claim is made |
 | `main-actor-task-partial-order` | partial order | A newly created MainActor task does not execute inline; `sync` precedes both task events | Expected native parity through async-session drain policy; relative child order is not asserted |
 | `concurrent-executor-hop` | exact | A `@concurrent nonisolated` async method leaves MainActor for entry and post-yield continuation, an awaited MainActor method runs on the main executor, and both direct and detached callers return to their prior executor afterward | Native/interpreter parity in 20 repetitions: `main\|worker:worker:main\|worker:worker:main\|main`; the interpreter models logical executor identity cooperatively and does not claim physical parallel execution |
+| `parallel-host-gateway-thread-lane` | exact plus physical receipt | A source-synchronous `Thread.isMainThread` read is false at `@concurrent` entry and after suspension, including through `Task.detached`, while MainActor reads remain true | Parallel-mode native/interpreter parity in 20 repetitions preserves `main\|worker:worker:main\|worker:worker:main\|main` and records exactly four bounded physical host operations; actor-confined reads remain local, and no relative order or stable worker identity is asserted |
 | `actor-isolated-entry` | exact | An actor-isolated instance method sees its exact actor through `#isolation`, while an explicit `nonisolated` method sees no actor | Native/interpreter parity in 20 repetitions: `actor:none`; actor identity is logical and does not claim physical worker execution |
 | `custom-global-actor-isolation` | exact | A function annotated with a user-defined global actor uses that declaration's canonical `static shared` actor identity, while an explicit `nonisolated` function sees none | Native/interpreter parity in 20 repetitions: `same:none`; declaration order and repeated resolution preserve the same runtime actor ID |
 | `actor-arbitrary-global-actor-isolation` | exact | Struct- and enum-backed global actors whose `static shared` values have separate source-actor types expose those exact canonical actors through `#isolation`; a defaulted isolated existential selects and owns the same mailbox | Native/interpreter parity in 20 repetitions: `same:owned:same\|same:owned:same`; both nominal-symbol representations are covered without a physical-thread, independent-order, or arbitrary `@isolated(any)` task-operation claim |
@@ -118,6 +121,31 @@ evidence that remains covered.
 | `task-completed-handle-reads` | exact | Once a task has completed, repeated `value` and `result` reads reproduce its stored success or failure, and `Result.get()` continues to rethrow the stored failure | Native/interpreter parity in 20 repetitions: `value,value,success:value,failure,failure,get-caught`; escaped interpreted handles retain typed logical outcomes after active-registry release |
 | `task-result-cancellation` | exact | A throwing task cancelled during a cancellable suspension completes its result as `.failure` | Native/interpreter parity in 20 repetitions; the fixture asserts case shape rather than error text |
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
+| `detached-explicit-mainactor-closure` | exact | An explicit `@MainActor` detached-operation closure remains MainActor-isolated across suspension, while a plain detached closure formed by the same MainActor caller remains nonisolated | Native/interpreter parity in 20 repetitions: `same\|same#none\|none`; the authored closure signatures remain cooperative with zero physical receipts, and no worker identity or unrelated scheduling order is asserted |
+| `detached-sendable-closure-isolation` | exact | A closure-signature `@Sendable` attribute is executor-inert: `Task` retains its MainActor formation context while `Task.detached` remains nonisolated across suspension | Native/interpreter parity in 20 repetitions: `same\|same#none\|none`; this was already GREEN after the closure-executor fix, both authored signatures remain cooperative with zero physical receipts, and no Sendable-checking, worker-identity, or unrelated-order claim is made |
+| `detached-operation-argument` | exact | Parenthesized `Task.detached(priority:operation:)` launches and awaits the same signature-free suspending operation accepted through trailing-closure syntax | Native/interpreter parity in 20 repetitions: `yielded:2`; cooperative mode records zero physical receipts, explicit parallel mode records two typed Task.yield kernels, and no operation order or worker identity is asserted |
+| `detached-operation-default-priority` | exact | Parenthesized `Task.detached(operation:)` applies its default priority and launches the same labeled, signature-free suspending operation | Native/interpreter parity in 20 repetitions: `defaulted:2`; cooperative mode records zero physical receipts, explicit parallel mode records two typed Task.yield kernels, and no runtime-selected priority value, operation order, or worker identity is asserted |
+| `detached-mainactor-weak-self` | exact | An explicitly MainActor-isolated detached operation retains that actor across suspension without strengthening its weak self capture | Native/interpreter parity in 20 repetitions: `same\|same:alive#same\|same:released`; an actor gate causally drops the final strong receiver while the operation is suspended, explicit parallel mode records two empty physical wrappers, and no worker identity or unrelated order is asserted |
+| `detached-mainactor-weak-capture` | exact | An explicitly MainActor-isolated detached operation with one named weak capture retains that actor across suspension without retaining its captured referent | Native/interpreter parity in 20 repetitions: `same\|same:alive#same\|same:released`; an actor gate causally drops the final strong reference while the operation is suspended, explicit parallel mode records two empty physical wrappers, and aliases/initializers, unowned or additional captures, worker identity, and unrelated order are not admitted or asserted |
+| `detached-mainactor-mixed-captures` | exact | An explicitly MainActor-isolated detached operation with one strong and two weak captures preserves all three ownership edges across suspension | Native/interpreter parity in 20 repetitions: `same\|same:responders:alive:alive#same\|same:responders:released:released`; a causal actor gate proves the strong referent survives while both weak referents disappear, explicit parallel mode records two empty physical wrappers, and reordered/short/aliased shapes, worker identity, and unrelated order are not admitted or asserted |
+| `detached-contextual-task-static-member` | exact | A Task-returning contextual `.detached` call resolves to imported `Task.detached`, starts its operation, and preserves detached nonisolation across suspension | Native/interpreter parity in 20 repetitions: `none\|none`; source types and extensions keep precedence, the multi-expression operation remains cooperative with zero physical receipts, and no worker identity or scheduler order is asserted |
+| `detached-mainactor-weak-strong-captures` | exact | Swiftfin's contextual detached operation with weak `self` followed by an ordinary `key` capture preserves MainActor and both ownership edges across suspension | Native/interpreter parity in 20 repetitions: `same\|same:alive:key#same\|same:released:key`; explicit parallel mode records two empty physical wrappers, the unmodified corpus spelling records one, and reversed/richer/aliased shapes remain cooperative |
+| `detached-mainactor-weak-strong-for-await` | exact | Swiftfin's full contextual MainActor weak-self/strong-key operation iterates an async sequence and rechecks the weak owner at its per-element guard | Native/interpreter parity in 20 repetitions: `same,same:2#0`; cooperative mode records zero physical receipts, explicit parallel mode records two empty wrappers, and the causally released branch invokes no callback |
+| `parallel-detached-inherited-string-source-call` | exact | One immutable String capture may cross the checked physical-wrapper boundary and bind a labeled parameter only after confined re-entry into an inherited-isolation async Void source method | Native/interpreter parity in 20 repetitions: `bafy-planet:none\|none`; explicit parallel mode records one physical receipt, String literals/mutable captures/other executor routes remain cooperative, and neither source receiver nor evaluator state crosses the worker boundary |
+| `parallel-detached-nonisolated-url-source-call` | exact | A detached operation may synchronously call one own explicitly nonisolated, nonthrowing Void source-class method without await and pass one immutable Foundation.URL with its value intact | Native/interpreter parity in 20 repetitions: `loaded:first.mp4,second.mp4`; explicit parallel mode records two checked wrapper/URL-handoff receipts, richer or mutable forms remain cooperative, and source-body worker execution, AVPlayerItem/DispatchQueue behavior, thread identity, and background-performance parity are not claimed |
+| `parallel-detached-nonisolated-url-member-source-call` | exact | Strict Swift 6 permits a detached operation to read one direct immutable stored Foundation.URL through `self` and pass it to the same synchronous explicitly nonisolated Void source method | Native/interpreter parity in 20 repetitions: `loaded:first-member.mp4,second-member.mp4`; explicit parallel mode records two checked wrapper/URL-handoff receipts, while mutable, computed, lazy, attributed, inherited, and nested member forms remain cooperative and no arbitrary source-body worker execution is claimed |
+| `parallel-detached-static-string-source-call` | exact | An explicit immutable String capture may call one synchronous explicitly nonisolated static protocol-extension default through dynamic `Self`, then await the detached task through `.result.get()` | Native/interpreter parity in 20 repetitions: `prepared:FIRST-SCRIPT,prepared:SECOND-SCRIPT`; cooperative/parallel modes are value-equivalent with zero/two receipts, the concrete conformer remains dynamic `Self`, and implicit, multiple, attributed, constrained-extension, shadowed, inherited-isolation, async, or concrete-type forms remain cooperative |
+| `parallel-detached-inherited-try-optional-source-call` | exact | An argument-free inherited-isolation async throwing Void source method called as `try?` from a detached wrapper keeps nil actor isolation across suspension; success becomes `Optional.some(Void)` and an ordinary source throw becomes `Optional.none` without transporting its interpreted error value to a worker | Native/interpreter parity in 20 repetitions: `success:none\|none#some\|failure:none\|none#nil`; explicit parallel mode records two physical receipts, confined re-entry contains the ordinary throw, fatal/session-abort control flow remains unsuppressed, and unsupported throwing routes remain cooperative |
+| `parallel-detached-try-optional-sleep-prefix` | exact | A detached `try? await Task.sleep(for:)` prefix suppresses cancellation and continues with the second source expression in the same cancelled logical task | Native/interpreter parity in 20 repetitions: `completed:false,cancelled:true\|false:true`; explicit parallel mode records two physical prefixes, the suffix and its complete value/error outcome remain confined, and the worker permit is released before suffix re-entry |
+| `parallel-detached-try-optional-nanoseconds-sleep-prefix` | exact | Provenance's capture-only weak-self detached task suppresses cancellation from `Task.sleep(nanoseconds:)`, then executes imported `MainActor.run(body:)` in the same cancelled logical task | Native/interpreter parity in 20 repetitions: `completed:false,cancelled:true\|false:true`; explicit parallel mode records two physical prefixes, the active interface supplies the selected-nominal run intrinsic, same-named source types retain precedence, and explicit `resultType:` fails closed |
+| `parallel-detached-signature-free-try-optional-nanoseconds-sleep-prefix` | exact | Planet's signature-free detached task suppresses cancellation from literal `Task.sleep(nanoseconds:)`, then executes `MainActor.run(body:)` with its implicitly captured receiver in the same cancelled logical task | Native/interpreter parity in 20 repetitions: `completed:false,cancelled:true\|false:true`; explicit parallel mode records two physical prefixes while the receiver, suffix, MainActor invocation, and complete outcome remain confined; computed nanoseconds and source-shadowed Task.sleep stay cooperative |
+| `parallel-detached-mainactor-run-continuation` | exact | Planet's signature-free detached task whose complete body is imported `MainActor.run(body:)` enters that body even after immediate cancellation | Native/interpreter parity in 20 repetitions: `completed:false,cancelled:true\|false:true`; explicit parallel mode records two physical wrappers, releases each permit at MainActor handoff, and keeps the receiver, source closure, body, and complete outcome confined; a source-shadowed MainActor stays cooperative |
+| `parallel-detached-explicit-mainactor-continuation` | exact | Planet's detached task with the exact `@MainActor in` operation signature enters its actor-isolated body even after immediate cancellation | Native/interpreter parity in 20 repetitions: `completed:false,cancelled:true\|false:true`; explicit parallel mode records two empty physical wrappers while the complete closure and outcome remain confined; an additional `@Sendable` attribute and a source-shadowed MainActor stay cooperative |
+| `parallel-detached-weak-try-optional-sleep-prefix` | exact | Session-iOS's capture-only weak-self task suppresses cancellation from literal-duration `Task.sleep(for:)`, then invokes an actor-isolated suffix with its captured immutable String in the same cancelled task | Native/interpreter parity in 20 repetitions: `group-a:false,group-b:true\|false:true`; explicit parallel mode records two physical prefixes while the actor, weak box, String, suffix, and complete outcome remain confined; computed durations and extra capture-list entries stay cooperative |
+| `parallel-detached-weak-concurrent-string-source-call` | exact | A live `[weak self]` optional call may carry one immutable String snapshot into an `@concurrent` async Void source-class method while receiver lookup remains confined and non-retaining | Native/interpreter parity in 20 repetitions: `cover-cache:none\|none#some`; explicit parallel mode records one physical receipt, an occupied-permit regression proves receiver release before re-entry, and literal/mutable/other-executor forms remain cooperative |
+| `parallel-detached-weak-inherited-string-literal-source-call` | exact | A live `[weak self]` optional call may carry one labeled String literal into an inherited-isolation async Void source-class method while receiver lookup remains confined and non-retaining | Native/interpreter parity in 20 repetitions: `timeout:none\|none#some`; explicit parallel mode records one physical receipt, typed literal provenance keeps the direct inherited and weak `@concurrent` routes capture-only, and captured/mutable/other-executor forms remain cooperative |
+| `parallel-detached-weak-inherited-captured-string-source-call` | exact | A live `[weak self]` optional call may carry one labeled immutable String capture into an inherited-isolation async Void source-class method while receiver lookup remains confined and non-retaining | Native/interpreter parity in 20 repetitions: `session-message:none\|none#some`; explicit parallel mode records one physical receipt through typed captured-immutable provenance, while mutable/expression/other-executor forms remain cooperative |
+| `parallel-detached-weak-inherited-string-array-source-call` | exact | A live `[weak self]` optional call may carry one unlabeled immutable `[String]` capture into an inherited-isolation async Void source-class method while receiver lookup remains confined and non-retaining | Native/interpreter parity in 20 repetitions: `Applications,WebApps:none\|none#some`; explicit parallel mode records one physical receipt through recursively checked string-array provenance, while direct/other-executor and unsupported array forms remain cooperative |
 | `task-group-named-add` | exact | All eight named `addTask`/`addTaskUnlessCancelled` overloads assign the supplied name to accepted children across ordinary, throwing, discarding, and throwing-discarding groups | Native/interpreter parity in 20 repetitions; every conditional add is accepted, scope exit joins the children, and sorted output avoids a scheduler-order assertion |
 | `task-group-executor-preference-nil-add` | exact | All eight named and unnamed `addTask` executor-preference overloads across ordinary, throwing, discarding, and throwing-discarding groups accept an explicit `nil` preference, run their children, preserve optional task names, and join at scope exit | Native/interpreter parity in 20 repetitions: `discarding-named:discarding-name\|discarding-unnamed:nil\|ordinary-named:ordinary-name\|ordinary-unnamed:nil\|throwing-discarding-named:throwing-discarding-name\|throwing-discarding-unnamed:nil\|throwing-named:throwing-name\|throwing-unnamed:nil`; sorted output avoids a scheduling-order claim |
 | `task-group-executor-preference-nil-add-unless-cancelled` | exact | All eight named and unnamed `addTaskUnlessCancelled` executor-preference overloads accept active explicit-`nil` calls, preserve optional child names, and reject post-`cancelAll` calls without child creation | Native/interpreter parity in 20 repetitions; decisions are `true,true,false,false` for every group kind, sorted child values avoid a scheduler-order claim, and no priority or physical-executor claim is made |
@@ -9256,3 +9284,1880 @@ methodology checks, and all twenty parity repetitions on four workers in two
 seconds. This evidence does not admit arbitrary Duration expressions, general
 interpreted suspension, actors, host calls, or heap access on a physical
 worker.
+
+### Detached source-member callee metadata
+
+The fortieth M9 prerequisite is demand-cited by FoodTruck's
+`StoreMessagesManager.swift:33-35`, where a background `Task.detached` executes
+`await self.updatesLoop()`. The exact semantic question is whether the explicit
+member reference selects the captured MainActor-isolated instance method and
+publishes its value rather than invoking a same-named global function. Apple
+Swift 6.3.3 compiled the same-source fixture in complete strict Swift 6 mode
+with warnings as errors and returned exact `target:member` in twenty bounded
+runs. Every native five-run shard reported SHA-256
+`88ddf30fbc689070f9013a46d59717a74b18015dd09b8c8b2bd46316053566ff`.
+Worker identity and unrelated scheduler order are not asserted.
+
+The workflow is an already-GREEN behavioral characterization: the interpreter
+also returned `target:member` in all twenty pre-change repetitions, so no
+semantic RED was fabricated. The architectural RED was compile-time. The
+immutable call-site index owned argument and trailing-closure facts but no
+normalized callee fact; sync and suspending dispatch independently recast the
+same syntax. `ParsedCallSiteMetadata` now retains the original immutable callee
+expression and classifies it as a direct reference, explicit member, implicit
+member, typed array, typed dictionary, or other expression, with the source
+name and member node where applicable. Both dispatch paths consume this one
+fact, the foreign-syntax fallback produces the same metadata, and a detached
+reader proves the composite index remains `Sendable`.
+
+This is a prerequisite for safe call-target resolution, not that resolution
+itself. Runtime receiver lookup, overload choice, declaration identity, actor
+hops, and host routing remain session-owned. The source method still runs on
+the cooperative MainActor-confined evaluator; there is no seventh physical
+kernel, no member-name/API special case, and no transfer of `Box`,
+`Environment`, `Instance`, heap, host bridge, or evaluator to a worker.
+The canonical focused iteration completed 143 call/metadata/async/host tests
+in six suites, all forty-three methodology checks plus three isolated
+gate-contract checks, and all twenty parity repetitions on four workers in two
+seconds.
+
+### Core Task identity for physical admission
+
+The forty-first M9 prerequisite closes a behavioral gap in the existing yield
+and sleep kernels rather than adding another kernel. The same-source fixture
+forms a real detached-operation factory, then shadows `Task` with a local
+source value whose async `yield()` returns `source`. Apple Swift 6.3.3 compiled
+that fixture in complete strict Swift 6 mode with warnings as errors and
+returned exact `source` in twenty bounded runs. Every native five-run shard
+reported SHA-256
+`5f56add95e0689069a663ad8f90d7ec54eb7305fc06e321ef8ca348d55017328`.
+
+Before the fix, cooperative interpretation was correct but explicit parallel
+mode admitted the inner call solely from its spelling, returned `Void`, and
+recorded one physical execution. The runtime now gives its builtin Task host
+function a stable core-intrinsic identity. Physical yield and conditional-
+sleep admission requires both immutable explicit-member callee shape and that
+exact value through the originating closure's lexical environment. The yield
+fixture and a direct shadowed-sleep regression now return the source value
+with zero physical submissions/executions; positive builtin yield/sleep
+regressions still take their physical paths. The scoped TSan board passed
+twenty native overlap iterations plus all thirty-five driver/source-kernel
+tests on four workers in 53 seconds. The canonical focused iteration completed
+64 runtime/metadata/worker tests in three suites, all forty-three methodology
+checks plus three isolated gate-contract checks, and all twenty parity
+repetitions on four workers in one second. Other source, actor, host, and
+standard-library call identities remain open; no raw name is sufficient proof.
+
+### Standard-library property identity for physical admission
+
+The forty-second M9 prerequisite closes a behavioral gap in the existing
+`String.count` kernel rather than adding another kernel. The same-source
+fixture declares a computed `count` property in `extension String`; native
+Swift selects that source declaration inside `Task.detached` and returns
+exact `41`. Apple Swift 6.3.3 compiled the fixture in complete strict Swift 6
+mode with warnings as errors and returned that result in twenty bounded runs.
+Every native five-run shard reported SHA-256
+`e195c78d2738596cc170bb3277a29bf2f181174109dcad6afec0ab1a95b0033a`.
+
+Before the fix, both cooperative and explicit-parallel interpretation selected
+the imported grapheme-count property and returned `5`; parallel mode also
+recorded one physical execution. Core `String` values now participate in
+source-extension lookup before native-member dispatch. The physical lowerer
+asks the closure's originating `RuntimeProgramState` for a typed property
+target and admits only the exact standard-library `String.count` identity; a
+source computed property carries its declaration `SyntaxIdentifier`, and
+missing state fails closed. The regression installs the source declaration in
+one run and invokes the retained function in the next, proving origin-state
+selection with zero physical submissions/executions. The existing positive
+stdlib count probe still records its physical receipt.
+
+No syntax, source declaration, mutable program state, `Box`, `Environment`,
+`Instance`, heap, host bridge, or evaluator crosses the worker boundary. The
+scoped TSan board passed twenty native overlap iterations plus all thirty-six
+driver/source-kernel tests on four workers in 55 seconds. The canonical focused
+iteration completed 65 runtime/metadata/worker tests in three suites, all
+forty-three methodology checks plus three isolated gate-contract checks, and
+all twenty parity repetitions on four workers in one second. Other
+standard-library properties and methods, source/actor/host call identities,
+and overload resolution remain open; no raw member name is sufficient proof.
+
+### Standard-library method proof for physical admission
+
+The forty-third M9 prerequisite closes a behavioral gap in the existing
+CotEditor `String.distance(from:to:)` kernel rather than adding another kernel.
+The same-source fixture declares that exact method in `extension String` and
+returns `77`. Apple Swift 6.3.3 compiled it in complete strict Swift 6 mode
+with warnings as errors and selected the source method inside `Task.detached`
+in twenty bounded runs. Every native five-run shard reported SHA-256
+`0e8f6fc06b0a6860d392095f867a5b94dc032ed589e0a43d0ce9b30924258f53`.
+
+Before the fix, cooperative interpretation returned `77`, but explicit
+parallel mode admitted the call from receiver/name/argument shape, executed
+the stdlib kernel, returned `2`, and recorded one physical
+submission/execution. The lowerer now asks the closure's originating
+`RuntimeProgramState` for a typed standard-library method proof. Full overload
+resolution remains session-owned and incomplete, so every same-base source
+extension overload makes the proof unresolved and keeps execution cooperative.
+This intentionally does not infer declaration identity from labels alone:
+defaults, generics, and parameter types can change the selected overload.
+
+The regression installs the extension and retained function in one run, then
+invokes it in the next; both modes return `77`, and parallel mode records zero
+receipts. The existing positive stdlib distance probe still records one
+physical execution. No syntax, overload symbol, mutable program state, `Box`,
+`Environment`, `Instance`, heap, host bridge, or evaluator crosses the worker
+boundary. The scoped TSan board passed twenty native overlap iterations plus
+all thirty-seven driver/source-kernel tests on four workers in 52 seconds. The
+canonical focused iteration completed 66 runtime/metadata/worker tests in
+three suites, all forty-three methodology checks plus three isolated
+gate-contract checks, and all twenty parity repetitions on four workers in two
+seconds. Other methods and overload families remain unresolved; no raw call
+shape is sufficient proof.
+
+### Array.map proof for the count-reduction kernel
+
+The forty-fourth M9 prerequisite closes one declaration-selection gap in the
+existing CotEditor `selectedStrings.map(\.count).reduce(0, +)` kernel. The
+same-source fixture adds a more-specific `Array.map` overload constrained to
+`Element == Substring`; it returns `[41]`. Apple Swift 6.3.3 compiled the
+fixture in complete strict Swift 6 mode with warnings as errors and selected
+that method inside `Task.detached` in twenty bounded runs. Every native
+five-run shard reported SHA-256
+`06012cab1f7bd007fb1ad3ff15d7822d89b450f3ea30814bf7d8f27b8d2687bb`.
+
+Before the fix, both cooperative and explicit-parallel interpretation ignored
+the source overload and returned the stdlib result `3`; parallel mode also
+recorded one physical submission/execution. Core Array values now participate
+in source-extension dispatch before imported native members. The physical
+count-reduction lowerer obtains a typed `.arrayMap` proof from the closure's
+originating `RuntimeProgramState`; every same-base source overload leaves that
+proof unresolved and keeps the expression cooperative.
+
+The regression installs the extension and retained function in one run and
+invokes it in the next. Both modes return `41`, parallel mode records zero
+receipts, and the positive stdlib reduction still records its physical path.
+No syntax, overload symbol, mutable program state, runtime container, heap,
+host bridge, or evaluator crosses the worker boundary. The scoped TSan board
+passed twenty native overlap iterations plus all thirty-eight
+driver/source-kernel tests on four workers in 25 seconds. The canonical focused
+iteration completed 67 runtime/metadata/worker tests in three suites, all
+forty-three methodology checks plus three isolated gate-contract checks, and
+all twenty parity repetitions on four workers in one second. This proof is
+deliberately limited to `map`; `reduce`, the element `count` key path, and
+unrelated overload families remain open.
+
+### Array.reduce proof for the count-reduction kernel
+
+The forty-fifth M9 prerequisite closes the second method-selection gap in the
+existing CotEditor `selectedStrings.map(\.count).reduce(0, +)` kernel. The
+same-source fixture adds a more-specific `Array.reduce` overload constrained to
+`Element == Int`; it returns `73`. Apple Swift 6.3.3 compiled the fixture in
+complete strict Swift 6 mode with warnings as errors and selected that method
+inside `Task.detached` in twenty bounded runs. Every native five-run shard
+reported SHA-256
+`510c4b8fd1343251f41b2cfbed0f4b84e7517a95b4603e64a96e98284898f67e`.
+
+Before the fix, cooperative interpretation returned `73`, but explicit
+parallel mode executed the stdlib reduction, returned `3`, and recorded one
+physical submission/execution. The physical lowerer now obtains both typed
+`.arrayMap` and `.arrayReduce` proofs from the closure's originating
+`RuntimeProgramState`; every same-base source overload leaves its proof
+unresolved and keeps the compound expression cooperative.
+
+The retained two-run regression returns `73` in both modes with zero receipts,
+while the positive stdlib reduction continues to execute physically. No syntax,
+overload symbol, mutable program state, runtime container, heap, host bridge,
+or evaluator crosses the worker boundary. The scoped TSan board passed twenty
+native overlap iterations plus all thirty-nine driver/source-kernel tests on
+four workers in 35 seconds. The canonical focused iteration completed 68
+runtime/metadata/worker tests in three suites, all forty-three methodology
+checks plus three isolated gate-contract checks, and all twenty parity
+repetitions on four workers in one second. The element `count` key-path target
+remains the final unresolved target inside this compound kernel.
+
+### Substring.count proof for the count-reduction kernel
+
+The forty-sixth M9 prerequisite closes the element-property target in the
+existing CotEditor `selectedStrings.map(\.count).reduce(0, +)` kernel. The
+same-source fixture adds `Substring.count` returning `89`, applies the inferred
+key path to two explicitly typed Substrings, and includes an explicitly typed
+String-array control. Apple Swift 6.3.3 compiled the fixture in complete strict
+Swift 6 mode with warnings as errors and returned exact `178:3` in twenty
+bounded runs. Every native five-run shard reported SHA-256
+`6c177a2ff65fa47eaf04034c87bd3446d3047a1267fb98e302d5634fb93cb2a5`.
+
+Before the fix, both interpreter modes returned stdlib `3` for the Substring
+branch; parallel mode also recorded one physical submission/execution. The
+runtime intentionally stores String and Substring as the same safe String
+snapshot, but evaluator boxes retain the source annotation. Array map now
+passes that static element type into key-path root dispatch, selecting the
+Substring extension only for `[Substring]`; the `[String]` control remains
+`3`.
+
+The physical lowerer independently requires an explicitly known Substring
+element type and a typed `.substringCount` identity from the closure's
+originating `RuntimeProgramState`. The retained two-run regression returns
+`178` and `3` with zero receipts, while the positive stdlib Substring reduction
+continues to execute physically. No syntax, source declaration, mutable
+program state, runtime container, heap, host bridge, or evaluator crosses the
+worker boundary. The scoped TSan board passed twenty native overlap iterations
+plus all forty driver/source-kernel tests on four workers in 20 seconds. The
+canonical focused iteration completed 69 runtime/metadata/worker tests in
+three suites, all forty-three methodology checks plus three isolated
+gate-contract checks, and all twenty parity repetitions on four workers in two
+seconds. This
+completes the target chain for the exact compound kernel; unrelated key-path
+inference and member families remain open.
+
+### Origin-bound source function targets
+
+The forty-seventh M9 prerequisite returns to FoodTruck's
+`Task.detached { await self.updatesLoop() }` shape. The semantic question is
+whether the runtime can publish the exact source declaration selected after
+receiver lookup and call-shape filtering, while retaining the source instance,
+closure, environment, and evaluator on MainActor. Apple Swift 6.3.3 and the
+interpreter again returned exact `target:member` in twenty bounded same-source
+runs; all four native five-run shards retained SHA-256
+`88ddf30fbc689070f9013a46d59717a74b18015dd09b8c8b2bd46316053566ff`.
+
+The behavior was already GREEN. The architectural RED was a compile failure
+for the absent target descriptor and resolver. The first implementation run
+then exposed a runtime provenance RED: after a second facade run, resolving a
+method on an instance created by the first program rebound its declaration to
+the second `ResolvedProgramPlan` and reported global lexical placement. Source
+instances now retain their originating MainActor-confined
+`RuntimeProgramState`; struct copies preserve it, and method closure formation
+accepts that explicit origin.
+
+An exact selected source function now carries an immutable Sendable descriptor
+with its origin plan, declaration `SyntaxIdentifier`, native function spelling,
+lexical type/global placement, isolation facts, effects, and return type name.
+The shared resolver publishes only an own reference-type method having no
+property collision and exactly one call-shape match. Two overloads with the
+same labels but different parameter types fail closed because the interpreter
+does not yet own compiler-grade type overload resolution. The demand-cited
+argument-free suspending member path uses the resolver; parallel mode remains
+cooperative and records zero physical submissions/executions.
+
+A detached reader proves only the descriptor crosses executor boundaries. No
+`Instance`, `RuntimeProgramState`, `ClosureValue`, `Environment`, symbol, heap,
+host bridge, or evaluator is transferred. The canonical focused iteration
+completed 45 ownership/target/worker tests in four suites, all forty-three
+methodology checks plus three isolated gate-contract checks, and twenty parity
+repetitions on four workers in one second. The rebuilt scoped TSan board
+passed twenty native overlap iterations and all forty driver/source-kernel
+tests on four workers in 70 seconds. Inherited/protocol targets, same-shape type
+overloads, actor/host routing, a safe actor re-entry command, and physical
+execution of this source method remain open.
+
+The forty-eighth M9 gap closure admits the first physical source-call wrapper
+for FoodTruck's exact `Task.detached { await self.updatesLoop() }` family. The
+bounded native probe has two Void-returning MainActor methods: one yields and
+mutates isolated state, while the other observes cancellation requested before
+the caller releases MainActor. Apple Swift 6 complete-strict compilation and
+the interpreter returned exact `1:true` in twenty runs; every native five-run
+shard retained SHA-256
+`5a14c888baeb47a0a83163bf1680a3fdcc9a508e7b5aa5bf4191aad7390e1d3a`.
+The value was already correct through cooperative fallback, but parallel mode
+recorded zero physical receipts instead of the required two.
+
+MainActor admission requires a signature-free, one-expression
+`await self.method()` body and the exact origin-bound target descriptor for one
+own source-class method. The selected method must be async, nonthrowing,
+MainActor-isolated, argument-free, and Void- or String-returning. A Sendable
+command carries entry/task IDs, descriptor, and result kind to the real
+detached wrapper. `RuntimeTaskRecord` retains the confined receiver closure;
+the MainActor relay validates command provenance, reinstalls the original
+`EvaluationTaskContext`, executes that closure, and copies its result back to a
+worker snapshot. Cancellation therefore remains the logical source task's
+state, and an interpreted trap becomes the existing contained task failure
+instead of aborting the host.
+
+The wrapper relinquishes its worker permit on confined-executor entry. A
+maximum-one liveness regression proves that a parked MainActor call cannot
+starve a following finite kernel, which is essential for FoodTruck's
+long-lived updates loop. Actor, inherited/nonisolated, non-self, ambiguous,
+argument-bearing, throwing, foreign-origin, and richer-result calls still use
+cooperative evaluation. No `Instance`, closure, environment, program state,
+heap, symbol, or evaluator enters the worker capability.
+
+The canonical focused iteration completed 58 tests in five suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in two
+seconds. The expanded scoped TSan board passed native overlap 20/20 and all 48
+driver/kernel/source-call tests in three suites on four workers in 66 seconds
+without a race or interceptor diagnostic. Actor/host routing,
+inherited/protocol witnesses, same-shape type overloads, typed arguments,
+throwing calls, and richer results remain open.
+
+The forty-ninth M9 gap closure follows TaskObservatory's three exact detached
+wrappers whose bodies call `@concurrent nonisolated` source methods with
+labeled `Int`/`Int64` arguments. The bounded same-source probe calls
+`compute(id:run:)`, yields on the default executor, observes nil lexical
+isolation, hops to MainActor to record receiver state, and returns exact
+`7:11|18:none`. Apple Swift 6 complete-strict compilation and the interpreter
+returned that value in twenty bounded runs; every native five-run shard
+retained SHA-256
+`34d58dd88621c8d3b3208bf3323e40b36c7d84323ee01c44574ee52ebcef4315`.
+The value was already correct through cooperative fallback, while the receipt
+RED recorded zero physical executions instead of one.
+
+Admission extends the same origin-bound direct-self command family only when
+the selected own source-class method is async, nonthrowing, MainActor- or
+`@concurrent`-executor bound, and Void- or String-returning. Every explicit
+parameter must be a nondefaulted, nonvariadic, non-builder, nonisolated
+`Int`/`Int64`; every argument must be an integer literal or a directly owned
+immutable `Int`/`Int64` capture. The checked worker capability carries copied
+values, while the Sendable command carries their labels and binding IDs. On
+confined re-entry the relay verifies provenance, reconstructs
+`CallArguments`, reinstalls the original `EvaluationTaskContext`, and invokes
+the already selected closure. No receiver, source box, `RuntimeValue`,
+`CallArguments`, environment, program state, heap, or evaluator crosses the
+worker boundary. Only the detached wrapper is physical; source evaluation
+remains confined.
+
+A regression over the unchanged TaskObservatory project runs all three
+wrappers with maximum parallelism one, observes exact completed/cancelled/
+completed worker outcomes and both shared-value waiters, records three
+physical receipts, and drains task, group, and structured-scope registries.
+Mutable captures, expression or noninteger arguments, ordinary explicit
+`nonisolated` methods, actors, ambiguity, throwing calls, and richer results
+remain cooperative. The canonical focused iteration completed 62 tests in six
+suites, all 46 methodology/gate checks, and twenty parity repetitions on four
+workers in two seconds. The rebuilt scoped TSan board passed native overlap
+20/20 plus all 49 driver/kernel/source-call tests in three suites on four
+workers in 87 seconds without a race or interceptor diagnostic. This does not
+claim physical evaluation of the method body, arbitrary Sendable arguments,
+general overload resolution, actor/host routing, or general evaluator
+parallelism.
+
+The fiftieth M9 gap closure follows iTorrent's two exact one-line detached
+calls to `await self.invalidateBackgroundState(true)` and `false`. The bounded
+same-source probe sequentially awaits both wrappers, yields inside the selected
+MainActor method, records isolated state, and returns exact `on:off|TF`. Apple
+Swift 6.3.3 complete-strict compilation and the interpreter returned that
+value in twenty bounded runs; every native five-run shard retained canonical
+SHA-256
+`ec0dfbfcbd3bbeab6dd3c5728b5da0face87e81f2b3be963f6d9d1acfa617bf6`.
+The value was already correct through cooperative fallback, while the receipt
+RED recorded zero physical submissions/executions instead of two.
+
+The source-call command now carries an explicit integer-or-Boolean value kind
+for every binding. Admission pairs that kind with the selected declaration's
+`Int`, `Int64`, or `Bool` parameter type; confined re-entry also verifies it
+against the copied snapshot before materialization. This prevents a label and
+binding ID from masking a scalar-type mismatch. Boolean admission is
+demand-capped to literal `true`/`false`; captured Bool, Boolean expressions,
+String, mutable captures, ambiguous targets, actors, throwing calls, and richer
+results remain cooperative. No source object or evaluator crosses the worker
+boundary.
+
+The canonical focused iteration completed 63 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in two
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 50
+driver/kernel/source-call tests in three suites on four workers in 68 seconds
+without a race or interceptor diagnostic. This extends the checked command
+boundary; it still does not claim physical method-body evaluation, arbitrary
+Sendable arguments, general overload resolution, or general evaluator
+parallelism.
+
+The fifty-first M9 gap closure follows Session-iOS's actor initializer, which
+launches `Task.detached { await self.loadExtensionLogsAndResumeLogging() }`
+without retaining the handle and selects an argument-free synchronous
+actor-isolated method. The bounded same-source probe preserves that launch
+shape; a later actor method yields until the wrapper re-enters that same actor,
+then returns exact `actor|R`.
+Apple Swift 6.3.3 compiled it in complete-strict Swift 6 mode with warnings as
+errors and returned that value in twenty bounded runs; every native five-run
+shard retained canonical SHA-256
+`ee46339758b9bf4f9030cfb7cc9db448e6b2c961004386a9c262fe21f5ce57cc`.
+The value was already correct through cooperative fallback, while the receipt
+RED recorded zero physical submissions/executions instead of one.
+
+The direct-self route table now distinguishes source-class and source-actor
+targets from immutable descriptor facts. The new actor route requires one
+uniquely selected own method that is synchronous, nonthrowing,
+argument-free, isolated to the exact receiver actor ID, backed by Swift's
+default actor executor, and Void-returning. The detached worker still carries
+only the checked entry/task/target/result command. On confined
+re-entry the relay reinstalls the logical `EvaluationTaskContext`; the ordinary
+suspending invocation parks any caller actor, acquires the selected actor's
+mailbox, executes the synchronous method, releases that mailbox, and restores
+the caller actor before publishing the copied result.
+
+The fixture's result method owns the actor mailbox while checking state and
+must release it at `Task.yield`, so exact completion is also a bounded
+deadlock/reentrancy proof for the unretained initializer task. Runtime
+regressions require one physical receipt and empty task and actor registries.
+Zero-argument async or synchronous argument-bearing actor methods,
+String-returning or explicitly nonisolated actor methods, custom actor
+executors, ambiguity, throwing calls, and richer results remain cooperative.
+No actor, `Instance`, closure,
+environment, program state, heap, source value, or evaluator crosses the
+worker boundary; this is physical wrapper launch with mailbox-confined source
+evaluation, not general parallel evaluation of actor bodies.
+
+The canonical focused board passed 65 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in two
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 51
+driver/kernel/source-call tests in three suites on four workers in 25 seconds
+without a race or interceptor diagnostic.
+
+The fifty-second M9 gap closure follows Planet's `IPFSDaemon` callback, which
+captures immutable `ret: Int` in
+`Task.detached { await self.handleDaemonTermination(terminationStatus: ret) }`.
+The selected actor method is async, nonthrowing, and Void-returning. The
+bounded same-source probe writes `start:17`, suspends at `Task.yield`, then may
+write `done:17` only after reacquiring the same actor mailbox. Apple Swift
+6.3.3 complete-strict compilation with warnings as errors and the interpreter
+returned exact `start:17|done:17` in twenty bounded runs; every native five-run
+shard retained canonical SHA-256
+`b2ba89617abb88d104c2131843423923d4bbf7b369d08f05192dd8985b01325a`.
+The value was already correct through cooperative fallback, while the receipt
+RED recorded zero physical submissions/executions instead of one.
+
+The default-actor route now has a second explicit demand shape: exactly one
+integer command argument, already checked against an `Int`/`Int64` parameter,
+may target an async Void method. The worker copies the immutable scalar and
+carries its label/binding ID in the existing Sendable command. Confined
+re-entry reinstalls the source task context; normal actor invocation acquires
+the receiver mailbox, and the canonical suspension machinery releases and
+reacquires that lease around `Task.yield`. No actor, receiver, source box,
+`RuntimeValue`, `CallArguments`, environment, heap, or evaluator crosses the
+worker boundary.
+
+The retained negative control keeps an async Void actor call with a Boolean
+literal cooperative, alongside zero-argument async, synchronous argument,
+String-result, explicitly nonisolated, throwing, and custom-executor forms.
+This is one checked physical wrapper and confined actor evaluation, not a
+general actor executor or parallel evaluator. The canonical focused board
+passed 66 tests in six suites, all 46 methodology/gate checks, and twenty
+parity repetitions on four workers in two seconds. The rebuilt scoped TSan
+board passed native overlap 20/20 plus all 52 driver/kernel/source-call tests
+in three suites on four workers in 25 seconds without a race or interceptor
+diagnostic.
+
+The fifty-third M9 gap closure follows Planet's exact
+`Task.detached { await self.setupIPFS(andLaunch: true) }` call. The selected
+default-actor method is async, nonthrowing, and Void-returning; its single
+`Bool` parameter has a default of `false`, but this call supplies the literal
+`true` explicitly. The bounded same-source probe records `start:true`,
+suspends at `Task.yield`, and records `done:true` only after reacquiring the
+same actor mailbox. Apple Swift 6.3.3 complete-strict compilation with
+warnings as errors and interpreted execution returned exact
+`start:true|done:true` in twenty bounded runs. Every native five-run shard
+retained canonical SHA-256
+`1b0355375aa6a812ce51840fb7f3c38c1c21320283d5e013d0cd27e5c30e1abe`.
+The receipt RED returned the right value through cooperative fallback but
+recorded zero physical submissions/executions instead of one.
+
+Admission remains signature-shaped and fail closed. Structural validation
+requires one explicitly supplied Boolean literal whose selected parameter is
+`Bool` and owns a default expression; the route then requires an async,
+nonthrowing, Void-returning own method isolated to the exact default receiver
+actor. The worker copies only the Boolean snapshot and command metadata.
+Confined re-entry restores the logical task context, and ordinary suspending
+actor invocation releases and reacquires the mailbox around `Task.yield`.
+No actor, receiver, source box, `RuntimeValue`, `CallArguments`, environment,
+heap, or evaluator crosses the worker boundary.
+
+The retained negative board proves that an omitted default, a captured Bool,
+a defaulted integer parameter, and a nondefaulted Boolean parameter remain
+cooperative with zero physical receipts, alongside zero-argument async,
+String-result, explicitly nonisolated, throwing, and custom-executor forms.
+This is a physical wrapper plus confined actor evaluation, not general actor
+execution on workers. The canonical focused board passed 67 tests in six
+suites, all 46 methodology/gate checks, and twenty parity repetitions on four
+workers in one second. The rebuilt scoped TSan board passed native overlap
+20/20 plus all 53 driver/kernel/source-call tests in three suites on four
+workers in 23 seconds without a race or interceptor diagnostic.
+
+The fifty-fourth M9 gap closure follows Provenance's
+`Task.detached { await self.createSystemDirectories() }` call. The selected
+source-class method is argument-free, async, nonthrowing, Void-returning, and
+isolated to an actor-declared user global actor. The bounded same-source probe
+makes a result method wait on that same global actor, so it must release the
+mailbox for the unretained wrapper. Identity checks before and after
+`Task.yield` return exact `same|same`. Apple Swift 6.3.3 complete-strict
+compilation with warnings as errors and interpreted execution produced that
+trace in twenty bounded runs; every native five-run shard retained canonical
+SHA-256
+`fcb1cc9c933c78c04ad6becc131ea2f7d8ca50a23b090f5336dbcb64c0be6261`.
+The receipt RED returned the same value through cooperative fallback but
+recorded zero physical submissions/executions instead of one.
+
+The production route preserves Swift's lazy global-actor semantics. Admission
+does not read `static shared`: that could initialize source state before the
+detached body runs. It performs only confined declaration lookup and requires
+exactly one candidate whose source nominal is itself an `@globalActor actor`
+using the default executor. The existing Sendable command crosses the worker
+boundary; ordinary confined invocation then resolves canonical `shared`,
+acquires its mailbox, releases it at suspension, and reacquires it before the
+continuation. The persistent global-actor record is expected to remain while
+`static shared` is live, but focused evidence requires no executor owner, no
+mailbox waiters, and no runtime task records after completion.
+
+Argument-bearing or String-returning custom-global-actor methods and
+struct/enum-backed global actors remain cooperative with zero physical
+receipts, as do custom executors, throwing calls, and richer results. This
+proves one physical wrapper plus ordinary confined global-actor evaluation;
+no source initializer, actor, receiver, closure, environment, heap, or
+evaluator crosses or executes on the worker. The canonical focused board
+passed 69 tests in six suites, all 46 methodology/gate checks, and twenty
+parity repetitions on four workers in one second. The rebuilt scoped TSan
+board passed native overlap 20/20 plus all 55 driver/kernel/source-call tests
+in three suites on four workers in 20 seconds without a race or interceptor
+diagnostic.
+
+The fifty-fifth M9 gap closure follows iTorrent's two one-expression
+`Task.detached(priority: .utility) { await self.refresh...State() }` calls.
+`WebServerService` is an `@unchecked Sendable` source class; both selected
+methods are plain async, nonthrowing, argument-free, and Void-returning. They
+therefore retain inherited caller isolation rather than naming MainActor,
+`@concurrent`, a receiver actor, or a custom global actor.
+
+The strict Swift 6.3.3 probe launches an unretained detached wrapper and
+observes the selected method's `#isolation` before and after `Task.yield`.
+Native Swift and interpreted execution returned exact `none|none` in twenty
+bounded runs; every native five-run shard retained canonical SHA-256
+`dc022b9fd32ef23613a6bf01ee0af601d88cf1f8fce887c8924f7047de1bd4b4`.
+The receipt RED already returned that value through cooperative fallback but
+recorded zero physical submissions/executions instead of one.
+
+The source-class route now admits `.inherited` only for an async,
+nonthrowing, argument-free, Void-returning own method. The physical wrapper
+still carries the entry/task/target/result command without a source instance,
+closure, environment, runtime value, program state, heap, or evaluator. The
+confined relay restores the detached source task's logical cooperative-default
+context before ordinary invocation, so inherited isolation is `nil` both
+before suspension and after continuation. Argument-bearing or String-returning
+inherited methods and explicit `nonisolated` methods remain cooperative with
+zero receipts. The canonical focused board passed 70 tests in six suites, all
+46 methodology/gate checks, and twenty parity repetitions on four workers in
+one second. The rebuilt scoped TSan board passed native overlap 20/20 plus all
+56 driver/kernel/source-call tests in three suites on four workers in 24
+seconds without a race or interceptor diagnostic.
+
+The fifty-sixth M9 gap closure follows Provenance's exact capture-only
+`Task.detached(priority: .userInitiated) { [self] in await
+self.registerDefaults() }` wrapper. `DiscSerialExtractorRegistry` is a
+`Sendable` source class, and the selected own method is plain async,
+nonthrowing, argument-free, and Void-returning. The explicit strong capture
+does not introduce an actor executor; the method still inherits the detached
+caller's nil actor isolation.
+
+Apple Swift 6.3.3 complete-strict compilation with warnings as errors and the
+interpreter returned exact `strong:none|none` in twenty bounded runs. Every
+native five-run shard retained canonical SHA-256
+`14c92e632cbf820172e940cbe85fb910e691b2b5a8e7ccd49b1a5f976660df9e`.
+The deterministic RED already returned the right value and drained the
+runtime, but recorded zero physical submissions/executions instead of one.
+
+Closure construction now records a separate provenance bit only for one
+ordinary `[self]` capture with no alias, ownership modifier, attribute,
+parameter, effect, return clause, additional capture, or trailing comma. That
+bit may enter the physical lowering path only long enough to attempt the
+direct-self source-call wrapper. If target resolution or route admission
+fails, an explicit guard returns to cooperative evaluation before any
+literal, expression, yield, sleep, or other snapshot kernel can run. The
+`RuntimeTaskRecord` continues to own the confined source closure and therefore
+the strongly captured receiver; the worker still carries only the existing
+Sendable entry/task/target/result command.
+
+Retained controls keep `unowned self`, capture aliases, multiple captures,
+explicit parameter/effect/return signatures, and a non-call literal body
+cooperative with zero receipts. Weak/optional-self async dispatch remains an
+unclaimed gap outside that physical-route slice. The canonical
+focused board passed 71 tests in six suites, all 46 methodology/gate checks, and
+twenty parity repetitions on four workers in one second. The rebuilt scoped
+TSan board passed native overlap 20/20 plus all 57
+driver/kernel/source-call tests in three suites on four workers in 49 seconds
+without a race or interceptor diagnostic.
+
+The fifty-seventh M9 gap closure follows the repeated
+`Task.detached { [weak self] in await self?.method(...) }` spelling in
+Session, Provenance, and other corpus projects. This is intentionally a
+cooperative semantic prerequisite rather than a physical weak-reference
+route: a worker must not gain a strong receiver merely because the optional
+was non-nil during admission.
+
+The strict Swift 6.3.3 oracle keeps one weak receiver alive while its async
+method crosses `Task.yield`, then calls a nil optional receiver with a fatal
+argument expression. Native Swift and interpreted execution returned exact
+`alive:none|none|nil` in twenty bounded runs; every native five-run shard
+retained canonical SHA-256
+`76d6367b231b0e0530517d36cac3c518d1d5eb029e181e53e7ac83722d93b2a7`.
+Before the fix, the alive call reached the selected method through the eager
+optional-member wrapper and failed when `Task.yield` required the async
+runtime. The nil-side argument trap proves chaining is also an evaluation
+boundary, not only a result wrapper.
+
+Suspension-aware explicit-member dispatch now evaluates an optional-chain
+base exactly once. `.none` returns before collecting arguments or resolving a
+callee. `.some` is rebound to a temporary and the call is rewritten through
+the ordinary async method-selection/executor path only for a source
+class/actor reference; its result is then lifted with existing SE-0230-style
+Optional flattening. Optional value types retain their prior path until
+mutating write-back has its own oracle. Weak capture ownership and
+the source closure remain confined, and both detached calls record zero
+physical receipts. Optional async closure invocation, optional value-type
+async chains with mutating write-back, weak-receiver destruction races, and
+physical weak-reference transfer remain unclaimed.
+
+The canonical focused board passed 72 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in two
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 58
+driver/kernel/source-call tests in three suites on four workers in 24 seconds
+without a race or interceptor diagnostic.
+
+The fifty-eighth M9 gap closure follows demand-cited optional async closures:
+Aidoku calls `await loadMore?()` in `HomeListView.swift:145`, iTorrent calls
+`await refreshTask?()` in `BaseCollectionViewController.swift:31`, and
+Provenance calls `await iterationComplete?()` in
+`iCloudContainerSyncer.swift:187`. This remains a cooperative semantic slice;
+no source closure or capture crosses a worker boundary.
+
+The strict Swift 6.3.3 oracle invokes a present `@Sendable` async closure with
+one integer, samples nil actor isolation around `Task.yield`, and then invokes
+a nil optional closure with a fatal argument expression. Native Swift and the
+interpreter returned exact `live:7:none|none|nil` in twenty bounded runs;
+every native five-run shard retained canonical SHA-256
+`aeba7d1f8923f7f34fb729387f5cf709d80eefe1cf283d8faff2811c04e40706`.
+Before the fix, the present closure entered through synchronous invocation and
+failed when `Task.yield` required the async runtime. The nil-side trap proves
+that optional callable chaining is an argument-evaluation boundary too.
+
+Suspension-aware call evaluation now recognizes an optional-chaining callee
+before argument collection. `.none` returns immediately; `.some` is invoked
+through ordinary suspension-aware callable dispatch and lifted with the
+existing Optional flattening rule. Both detached calls remain cooperative and
+record zero physical receipts. Optional value-type async chains with mutating
+write-back, weak-receiver destruction races, and physical weak-reference
+transfer remain open.
+
+The canonical focused board passed 73 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in six
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 59
+driver/kernel/source-call tests in three suites on four workers in 58 seconds
+without a race or interceptor diagnostic.
+
+The fifty-ninth M9 slice is an already-GREEN weak-lifetime characterization.
+Session demand-cites `Task.detached { [weak self] in ... }` bodies that suspend
+before reading `self?`, including `GroupPromoteMemberJob.swift:203-209` and
+`GroupInviteMemberJob.swift:207-209`. The semantic question is whether runtime
+task ownership accidentally strengthens the receiver across that suspension.
+
+The strict Swift 6.3.3 oracle replaces elapsed sleep with a reentrant actor
+gate. The detached task causally reports entry and suspends; the parent then
+clears the only strong receiver before reopening the gate. Native Swift and
+the unchanged interpreter returned exact `released` in twenty bounded runs;
+every native five-run shard retained canonical SHA-256
+`c5e92e2453b9fcfd589dc5d3b917f8708b27239decb0a58ca175b11b85c27b6e`.
+The interpreter also recorded zero physical receipts and drained its task and
+actor registries.
+
+No production change was required. `RuntimeTaskRecord` strongly owns the
+source closure for unstructured-task lifetime, while the closure environment's
+weak capture box remains non-owning and therefore does not keep the source
+instance alive. This proves cooperative weak lifetime only; general physical
+weak-call routing and optional value-type async chains with mutating write-back
+remain open.
+
+The canonical focused board passed 74 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in six
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 60
+driver/kernel/source-call tests in three suites on four workers in 21 seconds
+without a race or interceptor diagnostic.
+
+The sixtieth M9 gap closure follows Provenance's exact
+`Task.detached(priority: .background) { [weak self] in await
+self?.processQueue() }` spelling. The selected source-class method is plain
+async, nonthrowing, argument-free, and Void-returning, so it inherits the
+detached caller's nil actor isolation. The precise question is whether a real
+physical wrapper can preserve the weak read at body entry without transferring
+or strengthening the receiver.
+
+The strict Swift 6.3.3 same-source oracle retained the receiver through result
+observation and returned exact `weak:none|none` in twenty bounded runs. Every
+native five-run shard retained canonical SHA-256
+`59b08bc91e9e8533552cc5edbaeedf8d0af325e761b6131da38169d353f0b121`.
+The deterministic receipt RED already produced the same value and complete
+runtime cleanup through cooperative fallback but recorded zero physical
+submissions/executions instead of one.
+
+Closure formation now identifies only the exact capture-only `[weak self] in`
+signature. Physical admission proves one origin-bound argument-free inherited
+Void target but deliberately discards its resolved method closure. The task
+record retains only the source operation closure and its non-owning weak box;
+the worker carries the Sendable entry/task/descriptor/result command with no
+receiver, box, closure, environment, runtime value, heap, or evaluator. On
+MainActor re-entry the relay reads the weak box, returns Optional.none for a
+released receiver, or re-resolves the exact descriptor and temporarily retains
+a live receiver for the call before returning Optional.some(Void).
+
+A causal occupied-permit regression clears the final strong receiver after the
+physical submission queues but before relay entry; it returns `released` with
+one physical receipt. This distinguishes deferred confined weak resolution
+from the unsafe shortcut of registering a strongly capturing method closure.
+Weak argument-bearing or String-returning calls, nil-at-admission, aliases,
+additional captures, explicit signatures, unowned captures, and richer forms
+remain cooperative with zero receipts.
+
+The canonical focused board passed 75 tests in six suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers in four
+seconds. The rebuilt scoped TSan board passed native overlap 20/20 plus all 62
+driver/kernel/source-call tests in three suites on four workers in 68 seconds
+without a race or interceptor diagnostic. General weak-call physical routing
+and optional value-type async chains with mutating write-back remain open.
+
+The sixty-first M9 gap closure is distilled from pinned `swiftlang/swift`
+`test/IRGen/run-coroutine_accessors.swift` at `swift-6.3.3-RELEASE` commit
+`064859e41d68596f486c5d724401cb370f260409`, SHA-256
+`2fdae2aa9cd0153da1db13b5e227c6fe5a74112eda85b91795fad9554a80cc95`.
+The upstream test requires `await b.value?.mutate()` to preserve nil and copy
+the mutated present value back. The same-source fixture adds `Task.yield` and
+checks both direct Optional storage and a nested source-value stored property.
+
+Strict Apple Swift 6.3.3 and interpreted execution returned exact
+`direct-entered-resumed:direct-entered-resumed|nested-entered-resumed:nested-entered-resumed|nil:nil`
+in twenty bounded runs. Every native five-run shard retained canonical
+SHA-256
+`7b98f96ff0ce968ecede27d9907e5ae498748983dd442b768d9b47f5d171a234`.
+The deterministic RED failed at the first `Task.yield`: optional value-member
+dispatch had entered the mutating method through the synchronous evaluator.
+
+Suspension-aware optional-member dispatch now borrows a writable source-value
+payload through the ordinary `LValue` transaction, invokes the existing async
+mutating copy-in/copy-out kernel, and commits its final receiver through the
+same direct or enclosing owner before lifting the result once. Nil skips
+arguments and invocation. This is a cooperative semantic correction with zero
+physical receipts; reference receivers keep their prior route. Throwing and
+cancellation exits plus coroutine, computed, and richer subscript accessor
+families remain open.
+
+The canonical focused board passed 76 tests in seven suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers. The
+rebuilt scoped TSan board passed native overlap 20/20 plus all 62 physical
+driver/kernel/source-call tests in 17 seconds without a race or interceptor
+diagnostic.
+
+The sixty-second M9 gap closure extends that exact stored-Optional transaction
+to throwing exits. The upstream basis combines pinned
+`test/IRGen/run-coroutine_accessors.swift` with
+`test/Interpreter/coroutine_accessors_old_abi_nounwind.swift` from
+`swift-6.3.3-RELEASE` commit
+`064859e41d68596f486c5d724401cb370f260409`; the latter has SHA-256
+`68f7dec3be698ae0010c9cf35b25bbc8c53e910e31d2cfd14a67145bb9fc2ce9`
+and proves modify cleanup executes after a throwing mutating operation.
+
+The 39-line same-source case mutates direct Optional storage before a typed
+source error and an enclosing stored Optional before cancellation. Both calls
+cross `Task.yield`; the second task deterministically cancels itself and exits
+through `Task.checkCancellation`. Strict Apple Swift 6.3.3
+and the interpreter returned exact
+`threw:throw-entered-resumed|cancelled:cancel-entered-resumed` in twenty
+bounded repetitions. Every native five-run shard retained canonical SHA-256
+`a7e9b9c675182511ce7f0f538699d283c2b57d960f1a0c2b574c29e4e270f295`.
+Before the fix, both errors reached the right catch clauses but the output was
+`threw:throw|cancelled:cancel`, isolating lost exceptional copy-out rather than
+error or cancellation routing.
+
+The suspension-aware mutating invocation helper now resolves final `self` and
+runs a confined write-back transaction on both return and throw, then
+rethrows the original failure. Optional stored-lvalue dispatch supplies its
+existing `LValue.forceUnwrapped` commit; no error-kind or API-specific path was
+added. The case remains cooperative with zero physical receipts. Computed,
+coroutine, and subscript accessor owners remain open because their access
+lifetime must itself suspend.
+
+The canonical focused board passed 76 tests in seven suites, all 46
+methodology/gate checks, and twenty parity repetitions on four workers. The
+rebuilt scoped TSan board passed native overlap 20/20 plus all 62 physical
+driver/kernel/source-call tests in 24 seconds without a race or interceptor
+diagnostic.
+
+The sixty-third M9 gap closure adds the ordinary writable computed-property
+owner to Optional source-value async mutation. Its pinned upstream basis is
+`test/IRGen/run-coroutine_accessors.swift`: lines 200-220 define the computed
+Optional `read`/`modify` transaction and lines 368-386 call its async mutating
+payload. The companion unwind basis is
+`test/Interpreter/coroutine_accessors_old_abi_nounwind.swift`, lines 9-41.
+This slice distills the observable guarantee with a standard synchronous,
+nonthrowing get/set property; it does not claim native coroutine syntax.
+
+Strict Apple Swift 6.3.3 and the interpreter returned exact
+`get|enter|exit:seed-entered-resumed|set:seed-entered-resumed|seed-entered-resumed#get|enter|exit:seed-entered-resumed|set:seed-entered-resumed|seed-entered-resumed`
+in twenty bounded runs. Every native five-run shard retained canonical
+SHA-256
+`a02611976cbcd7de5b34b6f5bb05bcfddd74953d47d67d9db2666eb907bc88ab`.
+The deterministic RED returned `get|enter|seed#get|enter|seed`: the getter and
+method prefix ran, but the synchronous path neither resumed after
+`Task.yield` nor invoked the setter on return or throw.
+
+The confined Optional LValue path now admits only a directly named
+source-value property whose metadata proves an Optional result, synchronous
+nonthrowing getter, and setter. It reads once, runs the ordinary async mutating
+working copy, reconstructs the original typed Optional wrapper, and commits
+through the same computed lvalue on success or unwind. The case remains
+cooperative and records zero physical receipts. Native `read`/`modify`, async
+or throwing computed getters, computed reference or nested owners, and source
+subscripts remain outside the admitted support. One native-positive companion
+case pins their common fail-closed boundary: native returns exact
+`seed-entered-resumed` with five-run SHA-256
+`ce729f52a3592f1c93a7140c8bc10addb7e62d41ae42f06a3651ce98efcba89a`,
+while interpreted execution emits a named unsupported storage-transaction
+diagnostic before argument evaluation or payload mutation. Its RED entered the
+method synchronously and failed only at `Task.yield`.
+
+The exact `read`/`modify` spelling is pinned separately by
+`Tests/NativeProbes/Concurrency/optional-coroutine-accessor-async-writeback.swift`
+(source SHA-256
+`970932d93de220890b56e5a8b520a6c4d25dd1e07d148c44fc9f1405aa0ff223`).
+Apple Swift 6.3.3 compiled it with the experimental CoroutineAccessors feature,
+complete strict concurrency, and warnings as errors, then returned exact
+`seed-entered-resumed` twenty times. The interpreter RED was the unrelated
+late error `unresolved identifier 'read'`. The collector now recognizes both
+direct accessor syntax and SwiftParser's recovered trailing-closure shape for
+`read`, `modify`, `_read`, and `_modify`, and fails at declaration collection
+with the named unsupported coroutine-ownership diagnostic.
+
+The focused iterations passed both new regressions, all 46 methodology/gate
+checks, and twenty repetitions of each parity case on four workers. The
+exact-tip AsyncExecutionTests plus RuntimeSourceCallTargetTests board passed
+114 tests in two suites. The rebuilt scoped TSan board passed native overlap
+20/20 plus all 62 physical driver/kernel/source-call tests in three suites on
+four workers in 31 seconds without a race or interceptor diagnostic.
+
+The sixty-fourth M9 gap closure follows the explicit actor annotation on a
+detached operation closure. Planet demand-cites `Task.detached { @MainActor in
+... }` in `PlanetStore.swift:246`; the pinned corpus contains 57 matching
+operation shapes across Planet, Provenance, and apple-browsers. The precise
+comparison places an explicit and a plain detached closure in the same
+MainActor function, observes lexical isolation before and after `Task.yield`,
+and asserts no independent task order or physical thread.
+
+Apple Swift 6.3.3's complete-strict region checker emits its own internal
+checker diagnostic for the exact corpus spelling. Adding explicit `@Sendable`
+is the smallest native-oracle workaround: detached operations are Sendable
+already, and this attribute does not select an executor. The strict fixture
+then returned exact `same|same#none|none` in twenty bounded runs. The focused
+four-shard receipt retained canonical native-observation SHA-256
+`032c610c796c0f579b3af0c81e114c283f50d2ce0e576bb16089ef843ef1da7a`.
+The deterministic interpreter RED was `same|same#same|same`: the explicit
+closure only appeared correct because every anonymous closure inherited its
+formation-site MainActor, including the plain detached operation.
+
+Closure formation now records explicit `MainActor` as the closure's own
+executor and retains arbitrary global-actor attribute names for lazy canonical
+resolution. Task launch separately controls lexical inheritance. Ordinary
+`Task.detached` suppresses the anonymous closure's inherited lexical executor
+but still honors an explicit closure executor; ordinary `Task`,
+`Task.immediate`, and `Task.immediateDetached` retain their independently
+tested inheritance contracts. No closure object is mutated at task launch, so
+one closure value can still be passed to APIs with different inheritance
+rules. Authored signatures remain on the cooperative evaluator with zero
+physical receipts.
+
+The focused iteration passed the new regression plus the immediate-task
+preservation tests, all 46 methodology/gate checks, and twenty parity
+repetitions on four workers in two seconds. The rebuilt scoped TSan board
+passed native overlap 20/20 plus all 62 physical driver/kernel/source-call
+tests on four workers in 40 seconds without a race or interceptor diagnostic.
+The exact-tip AsyncExecution, generated Task-surface, and parallel-kernel board
+passed 137 tests in three suites on four workers in two seconds.
+
+The sixty-fifth M9 slice characterizes the runtime-inert closure attribute
+that the preceding native workaround introduced. The pinned corpus contains
+the exact `Task.detached { @Sendable in ... }` spelling in
+swift-composable-architecture's `CurrentValueRelayTests.swift:38` and its
+priority-bearing form in CotEditor's `FileNode.swift:410`.
+
+The same MainActor function forms `Task { @Sendable in ... }` and
+`Task.detached { @Sendable in ... }`, then observes source isolation before
+and after `Task.yield`. Apple Swift 6.3.3 compiled the fixture with Swift 6,
+complete strict concurrency, and warnings as errors. Twenty bounded native
+runs returned exact `same|same#none|none`; every five-run focused shard
+retained canonical native-observation SHA-256
+`c1c7528bed014c8a1065d919d0b0813aad3cb8170d5d495fd0968c2812edeaa4`.
+
+The interpreter was already GREEN after the sixty-fourth closure-executor
+fix. This is therefore a characterization with no production change:
+`@Sendable` does not select an executor, ordinary `Task` still inherits the
+MainActor formation context, and `Task.detached` still suppresses it. Both
+authored signatures remain cooperative and record zero physical receipts.
+The focused iteration completed two regressions, all 46 methodology/gate
+checks, and twenty parity repetitions on four workers in two seconds. The
+exact-tip AsyncExecution, generated Task-surface, and parallel-kernel board
+passed 138 tests in three suites on four workers in two seconds.
+
+The sixty-sixth M9 slice composes explicit detached-operation isolation with
+capture ownership. Provenance contains 11 exact
+`Task.detached { @MainActor [weak self] in ... }` operations, including
+`DeltaSkinInputHandler.swift:3064` and two priority-bearing forms. The probe
+keeps one receiver alive and uses an actor gate to suspend a second operation,
+drop its final strong receiver, and only then resume it.
+
+Apple Swift 6.3.3's complete-strict region checker emits its internal
+unsupported-pattern diagnostic for the exact corpus spelling. Adding the
+already characterized executor-neutral `@Sendable` makes the oracle compile
+with warnings as errors. Twenty bounded native runs returned exact
+`same|same:alive#same|same:released`; every five-run focused shard retained
+canonical SHA-256
+`768eb94127084dde469655732899dc1af00bd57c0f04a710c4edbc8e939c46d6`.
+
+The unchanged interpreter was already GREEN. Explicit `MainActor` remains the
+closure executor before and after suspension, while the weak capture box does
+not retain its receiver. This is composition characterization, not a new
+physical route: the authored signature remains cooperative with zero physical
+receipts and no production change. The focused iteration passed three
+regressions, all 46 methodology/gate checks, and twenty parity repetitions on
+four workers in two seconds. The exact-tip AsyncExecution, generated
+Task-surface, and parallel-kernel board passed 139 tests in three suites on
+four workers in two seconds.
+
+The sixty-seventh M9 gap closure extends the checked source-call command for
+Planet's exact `Task.detached(priority: .background) { await
+self.sendNotificationForNewCID(cid: cid) }` at
+`MyPlanetModel.swift:2948-2950`. The optional-binding `cid` is immutable, and
+the selected inherited-isolation source method takes one labeled `String`, is
+async and nonthrowing, and returns Void.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. Twenty bounded native/interpreter runs returned
+exact `bafy-planet:none|none`; every focused five-run shard retained canonical
+SHA-256
+`2e15021f8c242902f4ed71d5b4dd1a16a4cc66ec7ca6135550bd1b58782e99a0`.
+The deterministic RED returned the correct value but recorded zero physical
+submissions/executions instead of one.
+
+`RuntimePhysicalSourceCallValueKind` now owns a String case. Admission copies
+only a directly owned immutable String capture into the checked worker
+capability, verifies the selected parameter and copied snapshot, and
+materializes the labeled argument only after confined re-entry. The new route
+is limited to one inherited-isolation async nonthrowing Void method. String
+literals, mutable captures, MainActor, `@concurrent`, actor, multiple-argument,
+throwing, and richer-result forms remain cooperative with zero receipts. The
+focused iteration passed two regressions, all 46 methodology/gate checks, and
+twenty parity repetitions on four workers in two seconds. The exact-tip
+physical driver/kernel/source-call board passed 64 tests in three suites on
+four workers in one second. The rebuilt TSan board passed native overlap 20/20
+plus all 64 tests in 33 seconds without a race or interceptor diagnostic.
+
+The sixty-eighth M9 gap closure follows Amperfy's exact
+`Task.detached(priority: .high) { [weak self] in await
+self?.loadImageAndCacheIt(imagePath: imagePathToDisplay) }` spelling at
+`LibraryEntityImage.swift:171-173`. The optional-binding String is immutable,
+and the selected source-class method at line 177 is `@concurrent`, async,
+nonthrowing, Void-returning, and accepts one labeled String.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. Twenty bounded native/interpreter runs returned
+exact `cover-cache:none|none#some`; every focused five-run shard retained
+canonical SHA-256
+`048303aaf53c0ed1e6f9788bb5cf8564a63ad7b333f05addf7971bc5c510e699`.
+The deterministic RED returned the exact value through cooperative fallback
+but recorded zero physical submissions/executions instead of one.
+
+Weak optional-self admission now has its own route proof rather than borrowing
+the direct-self table. The checked worker command carries only the copied
+String snapshot. Confined re-entry reloads the genuinely weak receiver,
+re-resolves the exact target with the materialized argument, and temporarily
+strengthens only a live receiver for invocation. An occupied-permit regression
+drops the receiver before re-entry and returns `released`. String literals,
+mutable captures, inherited/MainActor/actor routes, multiple arguments,
+throwing methods, and richer results remain cooperative. The focused iteration
+passed three regressions, all 46 methodology/gate checks, and twenty parity
+repetitions on four workers in two seconds. The exact-tip physical board passed
+67 tests in three suites on four workers in one second.
+The rebuilt TSan board passed native overlap 20/20 plus all 67 tests in 26
+seconds without a race or interceptor diagnostic.
+
+The sixty-ninth M9 gap closure follows Provenance's exact
+`Task.detached { [weak self] in await
+self?.restartProcessingIfQueueHasPendingWork(context: "timeout") }` spelling
+at `GameImporter.swift:1297-1299`. The selected own source-class method begins
+at line 1092, inherits the detached caller's isolation, is async and
+nonthrowing, returns Void, and accepts one labeled String.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. Twenty bounded native/interpreter runs returned
+exact `timeout:none|none#some`; every focused five-run shard retained canonical
+SHA-256
+`fc29406e305e33efd900981045bd11728b7edc7f352ec5dd5f3dac67a99ee469`.
+The deterministic RED returned the exact value through cooperative fallback
+but recorded zero physical submissions/executions instead of one.
+
+`RuntimePhysicalSourceCallArgumentOrigin` now records whether an admitted
+scalar came from a side-effect-free literal or a directly owned immutable
+capture. The distinction is typed command provenance, not a synthetic binding
+name. The weak inherited route accepts exactly one String literal, while the
+Planet direct inherited and Amperfy weak `@concurrent` routes continue to
+accept only immutable String captures. Confined re-entry still reloads the
+genuinely weak receiver before target re-resolution and invocation. Captured
+or mutable Strings on the new route, literals on either capture-only route,
+MainActor/actor methods, multiple arguments, throwing effects, and richer
+results remain cooperative. The focused regressions passed 5/5; the strict
+same-source parity board passed 20/20 on four workers in two seconds. The
+exact-tip physical board passed 68 tests in three suites in one second. The
+rebuilt TSan board passed native overlap 20/20 plus all 68 tests in 69 seconds
+without a race or interceptor diagnostic.
+
+The seventieth M9 gap closure follows Session-iOS's repeated exact
+`Task.detached(priority: .userInitiated) { [weak self] in await
+self?.updateMentions(for: newText) }` spelling at
+`ConversationVC+Interaction.swift:1016-1018` and
+`AttachmentApprovalViewController.swift:860-862`. Each selected own
+source-class method is inherited-isolation, async, nonthrowing,
+Void-returning, and accepts one labeled String.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. Twenty bounded native/interpreter runs returned
+exact `session-message:none|none#some`; every focused five-run shard retained
+canonical SHA-256
+`d12895520e72e0f0c35194394fa4cc6fe01f5cf0bba7f133fc04e8fe06994403`.
+The deterministic RED returned the exact value through cooperative fallback
+but recorded zero physical submissions/executions instead of one.
+
+The weak inherited route now accepts the existing typed
+`.capturedImmutable` String origin as well as the separately proved literal
+origin. The worker still carries only a checked String snapshot; confined
+re-entry reloads the genuinely weak receiver before materialization,
+re-resolution, and invocation. The direct inherited and weak `@concurrent`
+capture routes are unchanged. Mutable or expression Strings, MainActor/actor
+methods, multiple arguments, throwing effects, and richer results remain
+cooperative. The focused board passed six regressions; same-source parity
+passed 20/20 on four workers in two seconds. The exact-tip physical board
+passed 69 tests in three suites in one second. The rebuilt TSan board passed
+native overlap 20/20 plus all 69 tests in 25 seconds without a race or
+interceptor diagnostic.
+
+The seventy-first M9 gap closure follows KeyboardCowboy's exact
+`Task.detached { [weak self] in await self?.reload(additionalPaths) }`
+spelling at `ApplicationStore.swift:79-81`. `additionalPaths` is an immutable
+`[String]`, and the selected own method at line 90 is inherited-isolation,
+async, nonthrowing, Void-returning, and accepts one unlabeled `[String]`.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. Twenty bounded native/interpreter runs returned
+exact `Applications,WebApps:none|none#some`; every focused five-run shard
+retained canonical SHA-256
+`1782ec2cb9384815bd4effeae9daa6f2521dc4064c23871eea026619d5184104`.
+The deterministic RED returned the exact value through cooperative fallback
+but recorded zero physical submissions/executions instead of one.
+
+`RuntimePhysicalSourceCallValueKind.stringArray` verifies both the declared
+`[String]` element type and every element in the recursively copied worker
+snapshot. Admission requires exactly one directly owned immutable capture on
+the weak inherited async Void route. The command still carries no receiver,
+weak box, closure, environment, runtime value, program state, heap, or
+evaluator. A separate zero-receipt regression keeps direct inherited, weak
+`@concurrent`, and weak MainActor array calls cooperative. Mutable,
+literal/expression, other-element, multiple-argument, throwing, and
+richer-result forms remain outside the route. The focused route board passed
+eight tests; same-source parity passed 20/20 on four workers in two seconds.
+The exact-tip physical board passed 71 tests in three suites in one second.
+The rebuilt TSan board passed native overlap 20/20 plus all 71 tests in 29
+seconds without a race or interceptor diagnostic.
+
+The seventy-second M9 gap closure follows Meshtastic-Apple's exact nested
+`Task.detached(priority: .utility) { try? await
+self.refreshDevicesAPIData() }` spelling at `MeshtasticAPI.swift:136-138`.
+`MeshtasticAPI` is `@unchecked Sendable`; the selected own source-class method
+at line 199 inherits the detached caller's isolation, is async and throwing,
+has no arguments, and returns Void.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. Twenty bounded native/interpreter runs returned
+exact `success:none|none#some|failure:none|none#nil`; every focused five-run
+shard retained canonical SHA-256
+`bea8145a5762b64cfca390d6d8247e3f3c6d695e8d6a1a7d22bc294251068b9e`,
+and the standalone twenty-line native observation had SHA-256
+`99d9d9b6aa87c21d6bf64a993ab7eb29a2969a115f8210328f4073dc8e9b64d9`.
+The deterministic RED already returned the exact value through cooperative
+fallback but recorded zero physical submissions/executions instead of two.
+
+`RuntimePhysicalSourceCallErrorDisposition.suppressToOptional` is now part of
+the checked command. The worker still carries no source error or runtime
+value: confined re-entry invokes the selected method on MainActor, turns
+ordinary source/host/cancellation errors into `Optional.none`, and turns a
+successful Void into `Optional.some(Void)` before snapshot copying. Fatal
+`RuntimeError` and `InterpreterSessionAbort` remain unsuppressed. Admission is
+limited to the exact direct-self, argument-free, inherited-isolation, async
+throwing Void route; plain `try`, `try!`, arguments, richer results,
+MainActor, `@concurrent`, and weak-self variants remain cooperative. Three
+focused regressions cover success/failure, zero-receipt controls, and fatal
+trap containment. Same-source parity passed 20/20 on four workers in one
+second; the exact-tip physical board passed 74 tests in three suites in one
+second. The rebuilt TSan bundle plus a retained confirmation passed native
+overlap 20/20 and all 74 tests; the confirmation completed in 14 seconds
+without a race or interceptor diagnostic.
+
+The seventy-third M9 gap closure follows FreeChat's exact two-item detached
+body at `ConversationView.swift:228-231`: `try? await Task.sleep(for:
+.seconds(1))` followed by `await submit(input)`. The semantic question is
+whether cancellation of the throwing sleep is contained by `try?` and the
+second item still runs in the same cancelled task. A bounded fixture uses a
+zero-duration success branch and immediately cancels a 30-second branch, so
+the result depends on cancellation rather than elapsed time.
+
+Apple Swift 6.3.3 compiled the fixture in complete-strict Swift 6 mode with
+warnings as errors. Twenty native/interpreter repetitions returned exact
+`completed:false,cancelled:true|false:true`; every five-run native shard had
+SHA-256
+`0a5b2906a7b66290e031388b4917c98fc54cbd9670544a3d5a05930982e24523`,
+and the standalone twenty-line observation had SHA-256
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`.
+The deterministic RED already returned the exact value through cooperative
+fallback but recorded zero physical submissions/executions instead of two.
+
+Admission is capped to an unsigned, signature-free two-item body: the first
+item must be the exact registered core-Task `try? await Task.sleep(for:)`
+call with a nonnegative integer-literal seconds or milliseconds duration, and
+the second item must be one awaited expression. The worker executes only the
+sleep. `RuntimeTaskRecord` retains a suffix closure and its complete confined
+`RuntimeValue` or `Error`; a Sendable entry/task token crosses the boundary,
+and the logical task redeems that outcome only after the worker returns a Void
+completion snapshot. Cancellation is forwarded to the actual worker sleep,
+while a one-shot executor handoff releases the bounded permit before suffix
+re-entry. Plain `try`, `try!`, alternate overloads/units, three-item bodies,
+reversed bodies, and authored signatures remain cooperative.
+
+Four focused regressions cover exact success/cancellation, permit release
+before nested physical work at maximum parallelism one, zero-receipt negative
+routes, and fatal interpreted-trap containment. Same-source parity passed
+20/20 on four workers in one second; the exact-tip physical board passed all
+78 tests in three suites in one second. The rebuilt scoped TSan board passed
+native overlap 20/20 plus all 78 tests in 60 seconds without a race or
+interceptor diagnostic.
+
+The seventy-fourth M9 gap closure follows Provenance's capture-only weak-self
+spelling at `ImportProgressViewModel.swift:132-136`: `try? await
+Task.sleep(nanoseconds: 100_000_000)` followed by `await MainActor.run {
+self?.setupPrimarySubscriptions() }`. The bounded fixture covers a zero-
+duration success and an immediately cancelled 30-second sleep.
+
+Apple Swift 6.3.3 compiled the fixture in complete-strict Swift 6 mode with
+warnings as errors. Twenty native/interpreter repetitions returned exact
+`completed:false,cancelled:true|false:true`; the standalone native digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`,
+and every five-run focused shard retained
+`432229c2edb0bd47e62066c636a5d17499311877f8ea718aa1af5c2ddd3f0263`.
+The deterministic RED recorded zero physical receipts and both interpreter
+modes returned `|false:true`, because imported `MainActor.run` silently
+discarded its trailing body.
+
+Admission now reuses the confined continuation/outcome token only for the
+exact weak-self two-item shape and a nonnegative nanoseconds integer literal.
+The active `_Concurrency.swiftinterface` generator inventories selected
+nominal members from both actor declarations and extensions, bringing the
+reviewed denominator to 177/177, and attaches `MainActor.run` to a generated
+intrinsic. Runtime
+dispatch requires that imported identity, so a same-named source type remains
+source-resolved; explicit `resultType:` and generated-but-unrouted
+`assumeIsolated`, `enqueue`, and executor members fail closed. The parallel source-kernel suite passed 39/39,
+same-source parity passed 20/20 on four workers in one second, and the physical
+board passed 82/82 in three suites in one second. A fresh TSan build passed
+native overlap 20/20 plus all 82 tests in 32 seconds without a race or
+interceptor diagnostic.
+
+The seventy-fifth M9 gap closure follows the duplicated Session-iOS spelling
+in `GroupPromoteMemberJob.swift:203-206` and
+`GroupInviteMemberJob.swift:207-210`: `Task.detached(priority: .medium) {
+[weak self] in try? await Task.sleep(for: .seconds(3)); await
+self?.sendFailureNotifications(groupId) }`. The bounded fixture preserves the
+weak actor receiver, directly captured immutable `String`, literal `Duration`,
+two-item body, zero-duration success, and immediately cancelled 30-second
+branch.
+
+Apple Swift 6.3.3 compiled the fixture in complete-strict Swift 6 mode with
+warnings as errors. Twenty native runs returned exact
+`group-a:false,group-b:true|false:true`; the raw twenty-line digest was
+`cb53afa4960d6525d08403b93ea3b837eebeca584367848c60be88d7adfdd712`,
+and every five-run focused shard retained
+`cfd9ce47bbf230ed12dc5f7afa3a8f7734ca8f6b58f8153ca1e7f62263acb396`.
+The deterministic RED already returned the exact value in both interpreter
+modes but recorded zero physical submissions/executions instead of two.
+
+The existing continuation command now accepts nonnegative integer-literal
+seconds/milliseconds for the exact capture-only `[weak self]` signature as
+well as for its signature-free route. Only the checked sleep command crosses
+the worker boundary. The actor, weak box, captured `String`, suffix closure,
+and complete `RuntimeValue`/`Error` outcome remain confined and are redeemed
+under the originating logical task after worker re-entry. Captured/computed
+durations, additional capture-list entries, richer bodies, and alternate
+units remain cooperative.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 41/41. The exact-tip physical board passed
+84/84 in three suites in one second; a fresh TSan build passed native overlap
+20/20 plus all 84 tests in 26 seconds without a race or interceptor
+diagnostic. The canonical prebuilt iteration completed 47 targeted tests in
+two suites, all 46 methodology/gate checks, and all 20 parity repetitions in
+10 seconds.
+
+The seventy-sixth M9 gap closure follows Planet's duplicated signature-free
+spelling in `PlanetAPIController.swift:70-75` and `101-106`:
+`Task.detached(priority: .utility) { try? await
+Task.sleep(nanoseconds: 200_000_000); await MainActor.run {
+self.isOperating = false } }`. The semantic question is whether cancellation
+suppressed by the literal nanoseconds sleep continues into the MainActor
+suffix in the same cancelled task while the handle completes successfully.
+
+Apple Swift 6.3.3 compiled the bounded fixture in complete-strict Swift 6 mode
+with warnings as errors. Twenty native runs returned exact
+`completed:false,cancelled:true|false:true`; the raw twenty-line digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`,
+and every five-run focused shard retained
+`128279d479fdb8fdc315653b76f48229b0d39d7a7b39b551b6c12b11056708cb`.
+The deterministic RED already returned the exact value in both interpreter
+modes but recorded zero physical submissions/executions instead of two.
+
+The existing continuation command now accepts a nonnegative integer-literal
+nanoseconds argument for its signature-free two-item route as well as the
+previous capture-only weak-self route. Only the checked sleep command crosses
+the worker boundary. The implicitly captured receiver, suffix closure,
+`MainActor.run` invocation, and complete `RuntimeValue`/`Error` outcome remain
+confined and resume under the originating logical task. A source-shadowed
+`Task.sleep(nanoseconds:)` and captured/computed nanoseconds retain zero
+physical receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 43/43. The exact-tip physical board passed
+86/86 in three suites in one second; a fresh TSan build passed native overlap
+20/20 plus all 86 tests in 25 seconds without a race or interceptor
+diagnostic. The canonical prebuilt iteration completed 49 targeted tests in
+two suites, all 46 methodology/gate checks, and all 20 parity repetitions in
+10 seconds.
+
+The seventy-seventh M9 gap closure follows Planet's duplicated
+`Task.detached(priority: .utility) { await MainActor.run {
+self.isOperating = true } }` spelling at `PlanetAPIController.swift:64-68`
+and `95-99`. The semantic question is whether an already-cancelled detached
+task still enters its non-checking MainActor body, exposes the same logical
+cancellation bit there, and completes successfully.
+
+Apple Swift 6.3.3 compiled the bounded fixture in complete-strict Swift 6 mode
+with warnings as errors. Both tasks are formed on MainActor, so cancelling the
+second handle before the first await causally precedes its body without a
+scheduler-order assumption. Twenty native runs returned exact
+`completed:false,cancelled:true|false:true`; the raw twenty-line digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`,
+and every five-run focused shard retained
+`1e980421bc83665ffaf6eaeac708ecf26e9e12520d4fa90e200ded68e5802c8f`.
+The deterministic RED already returned the exact value in both interpreter
+modes but recorded zero physical submissions/executions instead of two.
+
+The general confined-continuation token now also represents a complete
+signature-free imported `MainActor.run(body:)` operation. A real detached
+wrapper carries only an empty checked capability and entry/task token, then
+releases its permit at MainActor handoff. The original receiver, source
+closure, body, and complete `RuntimeValue`/`Error` outcome remain confined.
+Admission requires the generated imported nominal identity; a same-named
+source `MainActor.run` remains cooperative with zero receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 45/45. The canonical prebuilt iteration
+passed 51 implementation tests in two suites, all 46 methodology/gate checks,
+and all 20 parity repetitions in nine seconds. The exact-tip physical board
+passed 88/88 tests in three suites in one second; a fresh TSan build passed
+native overlap 20/20 plus all 88 tests in 27 seconds without a race or
+interceptor diagnostic.
+
+The seventy-eighth M9 gap closure follows Planet's exact
+`Task.detached(priority: .utility) { @MainActor in
+PlanetPublishedServiceStore.shared.reloadPublishedFolders() }` spelling at
+`IPFSState.swift:144-146`. The semantic question is whether immediate
+cancellation suppresses entry into the explicitly MainActor-isolated body or
+whether that body still enters, observes the same cancellation bit, and lets
+the handle complete successfully.
+
+Apple Swift 6.3.3 compiled the bounded exact spelling in complete-strict Swift
+6 mode with warnings as errors. Both tasks are formed on MainActor, and the
+second is cancelled synchronously before its first await, so body entry is a
+causal assertion rather than scheduler-order evidence. Twenty native runs
+returned exact `completed:false,cancelled:true|false:true`; the raw twenty-line
+digest was
+`21dcdc5c10474172ee5c69f6c6fb8fbdbcb4f2a72619d013e3cd30273145d14e`,
+and every five-run focused shard retained
+`df51c444c43d210be0c338ca979a1bcaf2f38902db17119d5435a4ae6f61059a`.
+The deterministic RED already returned the exact value in both interpreter
+modes but recorded zero physical submissions/executions instead of two.
+
+The existing empty wrapper and confined continuation/outcome token now admit
+only one imported `@MainActor` attribute with no capture-list, parameters,
+effects, return clause, or additional attributes and exactly one body expression. The
+worker carries only entry/task identity and releases its permit at MainActor
+handoff; the complete source closure and `RuntimeValue`/`Error` outcome remain
+confined. An additional `@Sendable` attribute and a source-shadowed
+`MainActor` retain zero physical receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 47/47. The canonical prebuilt iteration
+passed 53 implementation tests in two suites, all 46 methodology/gate checks,
+and all 20 parity repetitions in 15 seconds. The exact-tip physical board
+passed 90/90 tests in three suites in one second; a fresh TSan build passed
+native overlap 20/20 plus all 90 tests in 55 seconds without a race or
+interceptor diagnostic.
+
+The seventy-ninth M9 gap closure follows Provenance's eleven exact
+`Task.detached { @MainActor [weak self] in ... }` operation shapes, including
+`DeltaSkinInputHandler.swift:3064`. The semantic question is whether the
+explicit actor survives suspension while a causal actor gate releases the
+last strong receiver, and whether a physical entry wrapper can preserve that
+result without transporting or strengthening the weak capture.
+
+Apple Swift 6.3.3's complete-strict region checker emits an internal checker
+diagnostic for the exact corpus spelling. The same-source oracle therefore
+adds executor-neutral `@Sendable` and compiles with warnings as errors. Twenty
+native runs returned exact `same|same:alive#same|same:released`; the raw
+twenty-line digest was
+`8f8952506fd713e4c83ea12ceeb60b04bdca0851bde0d3068fb4e1bac0966d38`,
+and every five-run focused shard retained
+`768eb94127084dde469655732899dc1af00bd57c0f04a710c4edbc8e939c46d6`.
+The earlier behavioral characterization remained exact, but the deterministic
+receipt RED recorded zero physical submissions/executions instead of two.
+
+Closure formation now admits only exact `[weak self]` with ordered
+`@MainActor` and the optional oracle-only `@Sendable` workaround, no alias,
+initializer, extra capture, parameters, effects, return clause, or additional
+attribute surface. The existing empty wrapper carries only entry/task identity
+and releases its permit at MainActor handoff; the complete closure, genuine
+weak box, evaluator, body, and `RuntimeValue`/`Error` outcome remain confined.
+The exact corpus spelling without `@Sendable` records a physical receipt.
+Extra captures, reversed attributes, and a source-shadowed `MainActor` remain
+cooperative with zero receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 49/49. The canonical prebuilt iteration
+passed 49 implementation tests in one suite, all 46 methodology/gate checks,
+and all 20 parity repetitions in two seconds. The exact-tip physical board
+passed 92/92 tests in three suites in one second; a fresh TSan build passed
+native overlap 20/20 plus all 92 tests in 47 seconds without a race or
+interceptor diagnostic.
+
+The eightieth M9 gap closure follows KeyboardCowboy's exact
+`Task.detached { @MainActor [weak notifications] in ... }` spelling at
+`WorkflowRunner.swift:50-52`. The semantic question is whether explicit actor
+isolation survives suspension while a single weak capture with a non-`self`
+identifier remains non-owning, and whether the existing empty physical wrapper
+can preserve that result without transporting the weak box.
+
+Apple Swift 6.3.3's complete-strict region checker emits an internal checker
+diagnostic for the exact corpus spelling. The same-source fixture therefore
+adds executor-neutral `@Sendable` and compiles with warnings as errors; a
+separate interpreter probe retains the unmodified corpus spelling. Twenty
+native runs returned exact `same|same:alive#same|same:released`; the raw
+twenty-line digest was
+`8f8952506fd713e4c83ea12ceeb60b04bdca0851bde0d3068fb4e1bac0966d38`,
+and every five-run focused shard retained
+`7491365c8c4a8fa386bd87ee3d2ac9ab4af932eced41a0597eea8945526ef8fd`.
+Both interpreter modes already returned the exact value, but the deterministic
+receipt RED recorded zero physical submissions/executions instead of two.
+
+The prior weak-self-only closure fact is generalized by capture semantics, not
+identifier spelling. Admission requires one exact weak capture, ordered
+`@MainActor` with only the optional oracle workaround, and no alias,
+initializer, second capture, parameters, effects, return clause, or other
+attributes. The worker still carries only entry/task identity; the complete
+closure, genuine weak box, evaluator, body, and outcome remain confined. The
+exact corpus spelling records one physical receipt. Aliased, unowned,
+additional, reversed-attribute, and source-shadowed controls remain cooperative
+with zero receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 50/50. The canonical prebuilt iteration
+passed those 50 implementation tests, all 46 methodology/gate checks, and all
+20 parity repetitions in two seconds. The exact-tip physical board passed
+93/93 tests in three suites in one second; a fresh TSan build passed native
+overlap 20/20 plus all 93 tests in 51 seconds without a race or interceptor
+diagnostic.
+
+The eighty-first M9 gap closure follows apple-browsers' exact
+`Task.detached { @MainActor [responders, weak webView, weak
+webViewDeinitObserver] in ... }` spelling at
+`DistributedNavigationDelegate.swift:133`. The semantic question is whether a
+strong capture remains owning, both weak captures remain non-owning, and
+MainActor survives suspension when the physical wrapper transports none of
+those captures.
+
+Apple Swift 6.3.3's complete-strict region checker emits an internal checker
+diagnostic for the exact corpus spelling. The same-source fixture adds
+executor-neutral `@Sendable` and compiles with warnings as errors; a separate
+interpreter probe retains the unmodified spelling. Twenty native runs returned
+exact `same|same:responders:alive:alive#same|same:responders:released:released`;
+the raw twenty-line digest was
+`1a85049a3ab02941d13c7bf7b3bef253460ee7d5727b66a7f9ffff78c229eb1c`,
+and every five-run focused shard retained
+`332be7a83579da5bd920d679296ff7a338a14538922b2fc103b3ff84a50d2f3c`.
+Both interpreter modes already returned the exact value, but the deterministic
+receipt RED recorded zero physical submissions/executions instead of two.
+
+Closure formation now publishes one typed explicit-MainActor continuation-
+signature capability for the demand-backed captureless, single-weak, and exact
+strong/weak/weak shapes instead of accumulating corpus-specific booleans. The
+empty wrapper still carries only entry/task identity. The complete closure,
+strong reference, genuine weak boxes, evaluator, body, and outcome remain
+confined. Reordered ownership, shorter lists, aliases/initializers, other
+attributes, and source-shadowed MainActor remain cooperative with zero
+receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 52/52. The canonical prebuilt iteration
+passed those 52 implementation tests, all 46 methodology/gate checks, and all
+20 parity repetitions in two seconds. The exact-tip physical board passed
+95/95 tests in three suites in one second; a fresh TSan build passed native
+overlap 20/20 plus all 95 tests in 56 seconds without a race or interceptor
+diagnostic.
+
+The eighty-second M9 gap closure follows Swiftfin's exact contextual
+`task = .detached(priority: .userInitiated) { ... }` target spelling at
+`DefaultsObservable.swift:41`. This prerequisite deliberately isolates the
+static-member target from that site's richer MainActor weak/strong capture
+list. The semantic question is whether the declared `Task<Success, Failure>`
+result type selects imported `Task.detached`, starts the operation, and keeps
+detached nonisolation across suspension.
+
+Strict Apple Swift 6.3.3 compiled the same-source distillation in complete
+concurrency mode with warnings as errors. Twenty native runs returned exact
+`none|none`; their SHA-256 was
+`a659177e21f1577dd1f402a481e88a0cdc39546ca94bc7cbe6a56c48c39c43de`,
+and every five-run focused shard retained
+`0e8e7cc7779ed16ceef55632d5372244b64e74f7c12bae42e3c23cd8f055a0bb`.
+The deterministic RED returned a contextual marker whose string projection
+was nil instead of `launched`; a causal caller could consequently wait
+forever for an operation that never started.
+
+Expected-type annotation resolution now asks a callable imported nominal for
+the authored static member and invokes it through the existing generated
+member gateway. This is not a `Task`-name branch. Source enum/struct statics
+and host-type extensions retain precedence, while an unknown imported static
+retains the typed-marker fallback. Both runtime modes return `none|none`;
+the multi-expression body remains cooperative with zero physical receipts.
+
+Focused parity passed 20/20 on four workers in one second, and the complete
+parallel source-kernel suite passed 54/54. The canonical prebuilt iteration
+passed those 54 implementation tests, all 46 methodology/gate checks, and all
+20 parity repetitions in two seconds. The exact-tip physical board passed
+97/97 tests in three suites in one second; a fresh TSan build passed native
+overlap 20/20 plus all 97 tests in 27 seconds without a race or interceptor
+diagnostic.
+
+The eighty-third M9 gap closure completes Swiftfin's exact contextual
+`.detached(priority: .userInitiated) { @MainActor [weak self, key] in ... }`
+operation at `DefaultsObservable.swift:41`. The semantic question is whether
+MainActor survives a real suspension, weak `self` remains non-owning, and the
+ordinary `key` capture remains alive when the physical wrapper transports none
+of those captures.
+
+Apple Swift 6.3.3's complete-strict region checker emits an internal checker
+diagnostic for the unmodified corpus spelling. The same-source fixture adds
+the already-proven executor-neutral `@Sendable` workaround and compiles with
+warnings as errors; a separate interpreter probe retains the exact spelling.
+Twenty native runs returned exact
+`same|same:alive:key#same|same:released:key`; their raw SHA-256 was
+`670469e75b8848c1a7e32c5231b4d7ef53fa62cd346fcad76bc93fd4f9b915ca`,
+and every five-run focused shard retained
+`0dac459b29bdd7a66d688f919ec2d628313dcc45b7dd8d32cd435684aa4ede89`.
+The actor gate fixes suspension before the parent clears its final owner and
+key references; no ready-task order or physical thread is asserted.
+
+Both interpreter modes already returned the native value. The deterministic
+receipt RED was zero physical submissions/executions instead of two, while the
+unmodified contextual corpus spelling recorded zero instead of one. The typed
+explicit-MainActor continuation-signature capability now adds one exact
+weak/strong case. Admission requires weak ownership first, ordinary ownership
+second, and no aliases, initializers, extra captures, parameters, effects,
+return clause, or alternate attributes. Only entry/task identity crosses the
+empty wrapper; the complete closure, weak box, strong key, evaluator, body,
+and outcome remain confined. Reversed, richer, aliased, unowned,
+reversed-attribute, and source-shadowed forms retain zero receipts.
+
+Focused parity passed 20/20 on four workers in two seconds, the complete
+parallel source-kernel suite passed 55/55, all 46 methodology/gate checks
+passed, and the exact-tip physical board passed 98/98 tests in three suites in
+one second. A fresh TSan build passed native overlap 20/20 plus all 98 tests in
+18 seconds without a race or interceptor diagnostic.
+
+The eighty-fourth M9 iteration is an already-GREEN composition
+characterization of Swiftfin's complete cited operation at
+`DefaultsObservable.swift:41-46`: contextual `.detached`, explicit MainActor,
+weak `self`, strong `key`, `for await`, the per-element `guard let self`, and
+the optional callback. The semantic question is whether async-sequence
+iteration remains MainActor-isolated across its suspensions and whether a
+causally released owner exits at that guard without invoking the callback.
+
+Apple Swift 6.3.3 compiled the same source in complete-strict Swift 6 mode with
+warnings as errors. Twenty bounded runs returned exact `same,same:2#0`; the raw
+twenty-line SHA-256 was
+`6d5b6034081987f3c77e65fb626953a03030574b0a5a5dfd76fd014474b14294`,
+and every five-run focused shard retained
+`3e3161f2303f9393fe4012e18d1a8528c40764ad6b0d1f8728adf3623077c9a5`.
+The live sequence records two MainActor callbacks. The released sequence
+causally reports entry before the parent drops its final owner; after resume
+the authored guard returns and the external callback log remains empty.
+
+Both interpreter modes already returned the native value, so no production
+mechanism changed. Cooperative mode records zero physical receipts; explicit
+parallel mode records exactly two empty wrappers, keeps iteration and every
+capture confined, and drains all task/actor registries. The canonical prebuilt
+iteration passed 56/56 source-kernel tests, all 46 methodology/gate checks,
+and 20/20 parity repetitions on four workers in two seconds. The exact-tip
+physical board passed 99/99 tests in three suites in 1.14 seconds; a fresh TSan
+build passed native overlap 20/20 plus all 99 tests in 24 seconds without a
+race or interceptor diagnostic. No sequence timing, ready-task order, worker
+identity, direct worker iteration, or broader AsyncSequence/capture-list
+support is claimed.
+
+The eighty-fifth M9 iteration characterizes Damus's parenthesized
+`Task.detached(priority: .background, operation: { ... })` spelling at
+`EventActionBar.swift:257-261` and `AppearanceSettingsView.swift:196-198`.
+The semantic question is whether a labeled `operation:` closure is launched,
+suspends at the same real `Task.yield`, and completes through its awaited
+handle like the trailing-closure spelling. Start/completion ordering and worker
+identity are deliberately outside the assertion.
+
+Apple Swift 6.3.3 compiled the fixture in complete-strict Swift 6 mode with
+warnings as errors. Twenty bounded native/interpreter runs returned exact
+`yielded:2`; the raw native SHA-256 was
+`1c83194c943a93d0f11bbfe107b23ec2fcdeda5e6efb7f78b0c31885f9eef549`,
+and every five-run focused shard retained
+`cbcb335f090be7e3b06e30b72823d6c25e0ec9a2ca2b77453fb4bfa1cd318115`.
+
+This was already GREEN and required no production change. Call-site metadata
+materializes the labeled closure, the generated Task gateway selects
+`operation`, and the existing typed `Task.yield` kernel consumes the same
+signature-free `ClosureValue` used by trailing-closure syntax. Cooperative and
+parallel modes record zero/two physical receipts and drain their registries.
+The canonical iteration passed 57/57 source-kernel tests, all 46
+methodology/gate checks, and 20/20 parity repetitions in four seconds. The
+exact-tip physical board passed 100/100 tests in three suites in 1.14 seconds;
+a fresh TSan build passed native overlap 20/20 plus all 100 tests in 24 seconds
+without a race or interceptor diagnostic. Arbitrary parenthesized bodies and
+broader captured Damus work remain unclaimed.
+
+The eighty-sixth M9 iteration characterizes Clop's parenthesized
+`Task.detached(operation: { ... })` spelling at `DropZone.swift:885-889`.
+The semantic question is whether omission of the defaulted priority still
+selects and launches the labeled operation through the detached path, permits
+a real `Task.yield` suspension, and completes the awaited handle. It does not
+observe the runtime-selected priority value.
+
+Apple Swift 6.3.3 compiled the fixture in complete-strict Swift 6 mode with
+warnings as errors. Twenty bounded native/interpreter runs returned exact
+`defaulted:2`; the raw native SHA-256 was
+`b92d33ded64ecdb1fdd60c36c0ef66478b5d41b536cbadde67a06d0778589893`,
+and every five-run focused shard retained
+`2d0946663d092ea34bb091ec6ce9a39aad121137aad06acadb2f2b6ba89d2b33`.
+
+This was already GREEN and required no production change. Call-site metadata
+preserves the absent priority and labeled closure, the generated Task gateway
+maps the missing default to `nil` and selects `operation`, and the existing
+typed yield kernel receives the same signature-free `ClosureValue`.
+Cooperative/parallel modes record zero/two physical receipts and drain their
+registries. The canonical iteration passed 58/58 source-kernel tests, all 46
+methodology/gate checks, and 20/20 parity repetitions in five seconds. The
+exact-tip physical board passed 101/101 tests in three suites in 1.24 seconds;
+a fresh TSan build passed native overlap 20/20 plus all 101 tests in 156
+seconds without a race or interceptor diagnostic. Operation start/completion
+order, worker identity, arbitrary bodies, and Clop's captured Image
+construction remain unclaimed.
+
+The eighty-seventh M9 iteration closes the checked value-handoff prerequisite
+for Damus's direct synchronous
+`Task.detached { self.loadPlayerItem(url: url) }` form at
+`DamusVideoPlayer.swift:115-121`. Lines 141-144 repeat the call with
+the member expression `self.url`, which remains cooperative in this
+slice. The semantic question is whether a detached operation may call one own synchronous,
+explicitly `nonisolated`, nonthrowing Void method on its MainActor-owned
+class without `await` and pass one immutable `Foundation.URL` exactly.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. The selected method preconditions both URL path
+components. Twenty bounded native runs returned exact
+`loaded:first.mp4,second.mp4`; the raw SHA-256 was
+`26294b72992c9fd560343945e2aa77e12ea5b60ee2b33c581a348651f99e5fb8`,
+and every focused five-run shard retained
+`8bce6684db5df514b31973891d9d1e3c7657d5dd217b6395449543af0436e86b`.
+The deterministic RED already returned the exact value and drained every
+runtime registry, but parallel mode recorded zero physical
+submissions/executions instead of two.
+
+`RuntimeWorkerValueSnapshot` now carries a checked Sendable/Equatable
+`URL` value. The source-call command adds a typed URL argument kind and
+validates both that snapshot and the exact selected URL parameter. Direct
+synchronous syntax can enter the physical wrapper only for an own
+source-class method proved synchronous, explicitly nonisolated, nonthrowing,
+Void-returning, single-parameter, and supplied by one directly captured
+immutable URL. Mutable and expression arguments, async or richer-result
+nonisolated methods, throwing calls, weak receivers, multiple arguments, and
+all other direct synchronous forms remain cooperative.
+
+The receipt intentionally covers only the real detached wrapper and checked
+URL handoff. The receiver, source method body, evaluator, host calls, and
+result remain in confined MainActor re-entry. Therefore this iteration does
+not claim arbitrary source execution on a worker, Damus's expensive
+`AVPlayerItem` construction, `DispatchQueue` behavior, physical thread
+identity, or native background-performance parity; that larger semantic and
+performance gap remains open.
+
+The exact-tip prebuilt iteration passed 43/43 worker-boundary/source-call
+tests, all 46 methodology/gate checks, and 20/20 parity repetitions on four
+workers in one second. The exact-tip physical board passed 103/103 tests in
+three suites in 1.17 seconds. The exact-tip Swift 6.3.3 TSan re-gate passed
+native overlap 20/20 plus all 103 tests in 26 seconds without a race or
+interceptor diagnostic.
+
+The eighty-eighth M9 iteration closes the second Damus spelling,
+`Task.detached { self.loadPlayerItem(url: self.url) }`, at
+`DamusVideoPlayer.swift:141-144`. The semantic question is whether strict
+Swift 6 permits a detached operation to read one immutable stored
+`Foundation.URL` through `self` on a MainActor-owned class and pass it
+synchronously to the same own explicitly nonisolated, nonthrowing Void
+method.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. The method preconditions both stored URL path
+components. Twenty bounded native/interpreter runs returned exact
+`loaded:first-member.mp4,second-member.mp4`; the raw native SHA-256 was
+`a8824bb4d6fec8040cf1bbffaf5f6bad570be9c3bb4b2e77f5435db7244581b3`,
+and every focused five-run shard retained canonical SHA-256
+`7af5a771984f4d99a81b213ee5d397a2e7d54f7c80bb9baf66b78b1478169421`.
+The deterministic RED already returned the exact value and drained every
+runtime registry, but recorded zero physical submissions/executions instead
+of two.
+
+Admission now accepts only a direct `self.member` whose exact own declaration
+is an unattributed and unwrapped, non-lazy, observer-free, strongly held
+stored `let` on the same nonactor source receiver. Stored-property descriptors
+retain source attribute names so an unknown macro or wrapper cannot be
+misclassified as plain storage. The confined admission path reads the already
+initialized box, recursively copies only a typed URL snapshot, records
+`storedImmutableMember` provenance, and never invokes a getter. Only the
+existing synchronous explicitly-nonisolated single-URL Void route accepts
+that provenance. Mutable, computed, lazy, attributed or wrapped, inherited,
+and nested member expressions remain cooperative with zero receipts.
+
+The physical receipt still covers only the detached wrapper and checked URL
+handoff. The source method body re-enters the MainActor-confined evaluator, so
+arbitrary worker-side source execution, `AVPlayerItem` construction,
+`DispatchQueue` behavior, thread identity, and native background-performance
+parity remain open.
+
+The exact-tip prebuilt iteration passed 44/44 worker-boundary/source-call
+tests, all 46 methodology/gate checks, and 20/20 parity repetitions on four
+workers in ten seconds. The exact-tip physical board passed 104/104 tests in
+three suites in 1.18 seconds. The Swift 6.3.3 TSan re-gate rebuilt in 20
+seconds and passed native overlap 20/20 plus all 104 tests in 37 seconds
+without a race or interceptor diagnostic.
+
+The eighty-ninth M9 iteration closes apple-browsers' exact
+`Task.detached { [source] in Self.prepareScriptSource(from: source) }.result.get()`
+spelling at `SharedPackages/BrowserServicesKit/Sources/UserScript/UserScript.swift:106`.
+The selected declaration at lines 75-87 is a synchronous, explicitly
+nonisolated, nonthrowing static protocol-extension default that accepts one
+labeled `String` and returns `String`. The semantic question includes both
+dynamic `Self` dispatch through the concrete conformer and exactly-once
+evaluation of the Task-producing `.result.get()` base.
+
+Apple Swift 6.3.3 compiled the same-source fixture in complete-strict Swift 6
+mode with warnings as errors. Twenty bounded runs returned exact
+`prepared:FIRST-SCRIPT,prepared:SECOND-SCRIPT`; the raw native SHA-256 was
+`f57919808eea723d4af9ec9f7c522d95575a54a5273832c174161aa1b0160995`,
+and every focused five-run shard retained
+`320572026b6d366f3e933a103caccd20bc4adb8c06fee6020e66163a3a13f9b3`.
+The first deterministic interpreter RED returned only `,` with zero physical
+receipts: a concrete conformer did not expose its protocol-extension static
+default, and the explicit capture list correctly omitted instance `self` but
+also lost lexical/dynamic `Self`. Once that semantic gap was closed, a second
+RED returned the exact value but recorded four executions for two source
+tasks because mutating-method lvalue probing evaluated the Task-producing base
+of `.result.get()` a second time.
+
+Static member lookup now admits one uniquely named protocol-extension static
+declaration after own members have failed to resolve. The selected closure
+retains its protocol-extension lexical owner while its environment carries
+only the concrete conformer metatype as dynamic `Self`; it does not retain the
+instance. Physical admission is separately fail-closed: exactly one ordinary
+explicit immutable capture, one direct `Self.method(from: capture)` call, one
+uniquely shape-resolved protocol-extension declaration, explicit nonisolation,
+an unconstrained/unattributed extension header, synchronous/nonthrowing
+effects, and one `String` parameter/result are all required. The checked
+worker carries only the copied `String` command. The
+metatype, selected closure, evaluator, source body, and result stay confined
+behind ordinary source-call re-entry. Suspension-aware mutation probing now
+rejects function-call roots as rvalues, so `.result.get()` launches its
+producer exactly once.
+
+Implicit, multiple, attributed, aliased, or `self` captures, concrete-type
+callees, own static shadows, inherited-isolation or async targets, ambiguous
+protocol defaults, non-String arguments/results, and richer bodies remain
+cooperative; constrained or attributed extension defaults also stay on that
+path. The receipt proves only the detached wrapper and checked String
+handoff; it does not claim arbitrary protocol-default execution on a worker,
+CryptoKit behavior from the application body, scheduler order, physical
+thread identity, or native background-performance parity.
+
+The exact-tip canonical iteration passed 110/110 driver/kernel/source-call
+tests in three suites, all 46 methodology/gate checks, and 20/20 focused
+parity repetitions on four workers in two seconds. The parallel-worker board
+passed the same 110/110 tests in 1.21 seconds. The current-tip Swift 6.3.3 TSan
+bundle rebuilt in 19 seconds; its retained-bundle confirmation passed native
+overlap 20/20 and all 110 tests without a race or interceptor diagnostic in 17
+seconds.
+
+The ninetieth M9 iteration closes TaskObservatory's first native-host routing
+gap. Its unchanged `executionLane()` helper reads `Thread.isMainThread` from
+synchronous `nonisolated` source code reached on MainActor and from
+`@concurrent` work before and after `Task.yield`. The precise question is
+whether an executor-neutral synchronous host read can execute on a physical
+worker without turning the source declaration into `async`, while MainActor
+and source-actor calls remain confined and non-reentrant.
+
+The shared `concurrent-executor-hop.swift` fixture is the native oracle. Apple
+Swift 6.3.3 compiled it in complete-strict Swift 6 mode with warnings as errors.
+Twenty bounded runs returned exact
+`main|worker:worker:main|worker:worker:main|main`; the twenty-run native digest
+was `4e61ac1fc5269991e9308df7c0bef00e5a80694f58f70ece026984eb344e6199`,
+and each five-run focused shard retained
+`46039d1e944abf67f52f9aae88348a8b6abf9e8e75080b9d8cedd1a1afd7ae87`.
+No relative scheduling order or stable worker identity is asserted. The
+deterministic interpreter RED already returned the exact string and drained
+its runtime, but recorded zero physical host executions instead of the four
+nonactor reads required by the new receipt.
+
+`HostWorkerOperation` is the reusable boundary. Its body is compiler-checked
+`@Sendable`; only `Bool` and `String` can currently become worker snapshots.
+`HostFunction` and read-only, source-synchronous `HostProperty` descriptors
+retain a confined implementation and may additionally build this operation.
+An async runtime task parks through its ordinary host-operation lease while
+the shared bounded driver runs the native closure, then materializes the
+snapshot on MainActor. Cooperative mode and synchronous interpreter entry use
+the confined implementation. Physical admission accepts only logical
+`.cooperativeDefault` or `.detached`; MainActor and source actors never offload
+a source-synchronous call, so the transport cannot introduce hidden actor
+reentrancy. Eligibility is decided before the operation builder runs, so a
+confined fallback cannot observe worker-only argument copying or builder side
+effects.
+
+The async overlay recognizes only a registered worker gateway or a direct
+synchronous source helper whose body directly references one; it does not
+reroute all await-free calls. Admission lookup does not force source storage,
+including computed or lazy callable bindings, and a source declaration named
+`Thread` retains precedence and records zero physical receipts. The core
+`Thread.isMainThread` descriptor uses this same
+property mechanism, while generated SDK gateways can attach the function or
+property operation without adding evaluator source-name branches. General
+arguments/results, opaque host objects, callbacks, transitive helper graphs,
+actor offload, and arbitrary synchronous APIs remain open.
+
+The exact-tip canonical iteration passed 79/79 runtime/signature tests in two
+suites, all 46 methodology/gate checks, and 20/20 focused parity repetitions
+on four workers in four seconds. The parallel physical board passed 114/114
+driver/kernel/source-call tests in three suites; the unchanged TaskObservatory
+integration board passed 3/3 tests. The exact-tip Swift 6.3.3 TSan bundle
+rebuilt in 11 seconds and completed native overlap 20/20 plus all 114
+interpreter tests in 29 seconds total without a race or interceptor diagnostic.
+
+### Source/imported host overload ranking after argument typing
+
+The ninety-first M9 iteration repairs a regression caught only by the full
+parallel-worker gate. `CorpusTests.sessionScriptToleranceIntervalsAndAppending`
+declares `String.appending(String?)`; its non-nil branch delegates to
+Foundation's `String.appending(String)`. After core source extensions gained
+member-lookup precedence, the interpreter chose the Optional source method
+before arguments were known. The exact-String delegation consequently entered
+that same method until the call-depth guard reported
+`call depth exceeded (possible infinite recursion)`.
+
+The semantic question is which declaration Swift selects for nil,
+`Optional<String>`, and exact `String` arguments when a same-module extension
+competes with an imported member. The committed
+`source-imported-string-overload.swift` oracle yields once, then exercises all
+three forms including delegation from the source body. Apple Swift 6.3.3
+compiled it in complete-strict Swift 6 mode with warnings as errors. Twenty
+bounded native/interpreter runs returned exact
+`session<nil>|file.txt|trace.log<optional>`; every five-run native shard
+retained SHA-256
+`915e65292ef7467c384ca65e498e84f5e843e06f49bf1725a81e35dfb996a2db`.
+No scheduler order or worker identity is asserted.
+
+The runtime now delays this bounded target decision until arguments have been
+evaluated once. It combines same-module host-type extension methods with an
+imported member only when every source candidate is synchronous and the host
+function publishes typed, non-suspending signatures. Source signatures are
+derived from their declarations and both sides use the existing
+`HostSignature` matcher; the winning declaration is then invoked through the
+ordinary eager or suspension-aware path. `String.appending(_:)` now publishes
+its actual `String -> String` host signature. Async source overload families,
+untyped or suspending host members, and general compiler-grade constraint
+ranking remain outside this narrow proof.
+
+The retained corpus RED is green, eager and async-session unit probes return
+the native value, and the focused board passed 195 tests in six suites. The
+canonical iteration passed 38 target tests, all 46 methodology/gate checks,
+and 20/20 focused parity repetitions in two seconds. A current sanitized build
+passed native overlap 20/20 and all 114 TSan worker tests without a race or
+interceptor diagnostic.
+
+### Array.filter source/imported overload ranking
+
+The ninety-second M9 iteration applies the bounded overload mechanism to a
+second real standard-library family. MochiDiffusion declares
+`Array<SDImage>.filter([Filter])` and delegates its body to
+`self.filter { ... }`. The closing corpus board exhausted call depth because
+the untyped imported `Array.filter` gateway could not participate in
+argument-directed ranking, so the closure call re-entered the source method.
+
+The committed `source-imported-array-filter-overload.swift` fixture preserves
+that exact shape. It also exercises `filter(\.accepted)`, because Home
+Assistant showed that publishing a typed predicate contract must retain
+Swift's SE-0249 key-path-as-function conversion. Its closing Harbour form
+chains imported `filter(closure)` into source `filter(String)` on an empty
+statically typed `[HarbourCargo]`, beside an equally shaped `[HarbourOther]`
+extension. Before the first repair the delegating closure failed at line 15
+with call-depth exhaustion; before the closing repair the Harbour form failed
+with `no matching source or imported overload for 'Array.filter'`. Apple Swift
+6.3.3 complete-strict compilation and interpreted execution now return exact
+`6,12|2,6,12|cargo:harbour` in twenty bounded runs; all four five-run native
+shards retain SHA-256
+`74cfca1871cac527a1fc5898549324aaebf98688069939c459b95e70deeb596c`.
+
+`Array.filter` now publishes a synchronous throwing-predicate host signature.
+The existing source/imported resolver can therefore select the source method
+for `[FilterRule]` and the imported method for a closure. `HostSignature`
+recognizes a `KeyPathStub` as a function-convertible value at a score below an
+explicit closure, leaving concrete KeyPath overloads free to win. The exact
+receiver annotation is considered before generic `Array`; a chained imported
+`filter` carries the receiver's static array type forward for overload lookup,
+even when its runtime result has no elements from which to infer a type. The
+exact MochiDiffusion, Home Assistant, and Harbour projects pass, and the
+original session-script corpus regression remains green. This does not claim
+general standard-library interface import, arbitrary return-type inference,
+or full generic constraint solving.
+
+### Demand-time coroutine-accessor diagnostics
+
+The ninety-third M9 iteration repairs four whole-project corpus regressions in
+swift-composable-architecture, apple-browsers, isowords, and Home Assistant.
+All four contain legal `_read` or `_modify` declarations outside the rendered
+path. Rejecting them during declaration collection made unused library code
+fatal, unlike native Swift, and reduced the closing corpus board from its
+ledgered 678/680 baseline to 673/680.
+
+The existing native probe remains authoritative for the unsupported semantic
+depth. Apple Swift 6.3.3 compiles it with
+`-enable-experimental-feature CoroutineAccessors`, complete strict
+concurrency, and warnings as errors, and returned exact
+`seed-entered-resumed` in twenty runs (raw twenty-line SHA-256
+`5fedefa78d5e4732a798893fca0331e0c37144b514a0378e80e48211cacd3a51`).
+The interpreter still does not claim suspension-safe yielded-borrow
+ownership.
+
+Instead, collection now records located read and modify failures on the
+computed-property descriptor. An unused declaration is accepted; a `_read`
+use throws the named coroutine-ownership `RuntimeError`; a write requiring
+`_modify` throws its corresponding error. When an ordinary `get` coexists
+with `_modify`, reads continue through that getter while mutation remains
+fail-closed. This is explicit demand deferral, not a silent no-op or emulation
+of coroutine accessors. The three focused accessor tests, all 97 async tests,
+all 18 host-signature tests, and each of the five previously failing OSS
+projects pass.
