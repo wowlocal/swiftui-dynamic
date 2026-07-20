@@ -1036,6 +1036,7 @@ struct ParsedProgramConcurrencyTests {
         #expect(!declarationMetadata.isLazy)
         #expect(declarationMetadata.referenceOwnership == .weak)
         #expect(bindingMetadata.identifierName == "foreign")
+        #expect(bindingMetadata.typeName == "NSObject?")
         #expect(!bindingMetadata.isComputed)
         #expect(bindingMetadata.willSet?.parameterName == "next")
         #expect(bindingMetadata.didSet?.parameterName == "previous")

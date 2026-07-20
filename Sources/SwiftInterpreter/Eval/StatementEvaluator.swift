@@ -109,14 +109,17 @@ extension Interpreter {
             let declarationMetadata = propertyMetadata(for: varDecl)
             let referenceOwnership = declarationMetadata.referenceOwnership
             let isMutableBinding = declarationMetadata.isMutable
-            func sharedAnnotation(startingAt index: Int) -> TypeSyntax? {
+            func sharedTypeName(startingAt index: Int) -> String? {
                 for later in allBindings[index...] {
-                    if let type = later.typeAnnotation?.type { return type }
+                    if let typeName = propertyMetadata(for: later).typeName {
+                        return typeName
+                    }
                     if later.initializer != nil { return nil }
                 }
                 return nil
             }
             for (bindingIndex, binding) in allBindings.enumerated() {
+                let bindingMetadata = propertyMetadata(for: binding)
                 // `let _ = sideEffect()` — evaluate for effect, no binding.
                 if binding.pattern.is(WildcardPatternSyntax.self) {
                     if let initializer = binding.initializer?.value {
@@ -156,10 +159,10 @@ extension Interpreter {
                     let result = try executeBlock(accessors.getter, in: Environment(parent: env))
                     switch result {
                     case .normal(let value), .returnValue(let value):
-                        let typeName = binding.typeAnnotation?.type.trimmedDescription
+                        let typeName = bindingMetadata.typeName
                         env.define(
                             ident.identifier.text,
-                            try resolveAnnotated(value, annotation: binding.typeAnnotation?.type),
+                            try resolveAnnotated(value, typeName: typeName),
                             declaredTypeName: typeName,
                             isMutableBinding: isMutableBinding)
                     default:
@@ -179,8 +182,8 @@ extension Interpreter {
                             isMutableBinding: isMutableBinding)
                         continue
                     }
-                    let annotationText = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
-                        .trimmedDescription ?? ""
+                    let annotationText = bindingMetadata.typeName
+                        ?? sharedTypeName(startingAt: bindingIndex) ?? ""
                     if RuntimeOptionalValue.wrappedType(in: annotationText) != nil {
                         env.define(
                             ident.identifier.text,
@@ -202,8 +205,8 @@ extension Interpreter {
                     }
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
                 }
-                let hint = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
-                    .trimmedDescription
+                let hint = bindingMetadata.typeName
+                    ?? sharedTypeName(startingAt: bindingIndex)
                 let value = try withExpectedAnnotation(hint) { try evaluate(initializer, in: env) }
                 let resolved = try hint.map {
                     try resolveAnnotated(value, typeName: $0)

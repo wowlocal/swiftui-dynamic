@@ -176,6 +176,9 @@ nonisolated struct ParsedPropertyBindingMetadata: Sendable {
     let tupleElements: [TupleElement]
     let initializer: ExprSyntax?
     let typeAnnotation: TypeSyntax?
+    /// Immutable spelling used by hot declaration/coercion paths without
+    /// rebuilding a detached syntax tree at every execution.
+    let typeName: String?
     let isComputed: Bool
     let willSet: Observer?
     let didSet: Observer?
@@ -223,7 +226,9 @@ nonisolated struct ParsedPropertyBindingMetadata: Sendable {
         }
 
         initializer = binding.initializer?.value
-        typeAnnotation = binding.typeAnnotation?.type
+        let parsedTypeAnnotation = binding.typeAnnotation?.type
+        typeAnnotation = parsedTypeAnnotation
+        typeName = parsedTypeAnnotation?.trimmedDescription
         isComputed = binding.accessorBlock.flatMap {
             ParsedAccessorMetadata($0)
         } != nil

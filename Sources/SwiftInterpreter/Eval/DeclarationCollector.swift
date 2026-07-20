@@ -80,9 +80,8 @@ extension Interpreter {
                     name,
                     .native(LazyGlobal(
                         initializer: bindingMetadata.initializer,
-                        annotation: bindingMetadata.typeAnnotation)),
-                    declaredTypeName:
-                        bindingMetadata.typeAnnotation?.trimmedDescription,
+                        typeName: bindingMetadata.typeName)),
+                    declaredTypeName: bindingMetadata.typeName,
                     referenceOwnership: ownership)
             }
             return
@@ -101,17 +100,15 @@ extension Interpreter {
                     name,
                     .native(ComputedGlobal(
                         accessor: accessors.getter,
-                        annotation: bindingMetadata.typeAnnotation)),
-                    declaredTypeName:
-                        bindingMetadata.typeAnnotation?.trimmedDescription)
+                        typeName: bindingMetadata.typeName)),
+                    declaredTypeName: bindingMetadata.typeName)
             } else {
                 globals.define(
                     name,
                     .native(LazyGlobal(
                         initializer: bindingMetadata.initializer,
-                        annotation: bindingMetadata.typeAnnotation)),
-                    declaredTypeName:
-                        bindingMetadata.typeAnnotation?.trimmedDescription,
+                        typeName: bindingMetadata.typeName)),
+                    declaredTypeName: bindingMetadata.typeName,
                     referenceOwnership: declarationMetadata.referenceOwnership)
             }
         }
@@ -774,7 +771,7 @@ extension Interpreter {
             } else if isStaticDecl {
                 let referenceOwnership = declarationMetadata.referenceOwnership
                 symbol.staticStoragePolicies[name] = .init(
-                    typeName: bindingMetadata.typeAnnotation?.trimmedDescription,
+                    typeName: bindingMetadata.typeName,
                     referenceOwnership: referenceOwnership)
                 if let initializer = bindingMetadata.initializer {
                     symbol.staticProperties[name] = .init(
@@ -800,7 +797,7 @@ extension Interpreter {
                 var stateLikeDefault: ExprSyntax?
                 if bindingMetadata.initializer == nil,
                    hasAttribute(varDecl.attributes, named: "FocusState"),
-                   bindingMetadata.typeAnnotation?.trimmedDescription == "Bool" {
+                   bindingMetadata.typeName == "Bool" {
                     stateLikeDefault = ExprSyntax(BooleanLiteralExprSyntax(literal: .keyword(.false)))
                 }
                 var stored = StructSymbol.StoredProperty(

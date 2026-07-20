@@ -75,7 +75,7 @@ extension Interpreter {
             let result = try executeBlock(computed.accessor, in: Environment(parent: globals))
             switch result {
             case .normal(let value), .returnValue(let value):
-                return try resolveAnnotated(value, annotation: computed.annotation)
+                return try resolveAnnotated(value, typeName: computed.typeName)
             default:
                 return .void
             }
@@ -83,11 +83,12 @@ extension Interpreter {
         guard case .host(let any) = box.value, let lazy = any as? LazyGlobal else {
             return try box.load()
         }
-        let annotationText = lazy.annotation?.trimmedDescription ?? ""
+        let annotationText = lazy.typeName ?? ""
         var value: RuntimeValue = RuntimeOptionalValue.wrappedType(in: annotationText) != nil
             ? .none(forTypeAnnotation: annotationText) : .void
         if let initializer = lazy.initializer {
-            value = try resolveAnnotated(try evaluate(initializer, in: globals), annotation: lazy.annotation)
+            value = try resolveAnnotated(
+                try evaluate(initializer, in: globals), typeName: lazy.typeName)
         }
         var stored: RuntimeValue? = value.copiedForValueSemantics()
         box.value = stored!
