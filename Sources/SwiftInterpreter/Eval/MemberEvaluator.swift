@@ -1,19 +1,72 @@
 import Foundation
 import SwiftSyntax
 
-/// One source-extension method family competing with a typed imported
-/// standard-library member. Member lookup alone cannot select this target:
-/// Swift ranks overloads after argument labels and types are known.
+/// A host-type source-extension method family, optionally competing with an
+/// imported standard-library member. Member lookup alone cannot select this
+/// target: Swift ranks overloads after argument labels and types are known.
 @MainActor
-struct TypedHostExtensionMethodOverloads {
+struct HostExtensionMethodOverloads {
     let typeName: String
     let sourceMethods: [FunctionDeclSyntax]
-    let importedMethod: HostFunction
+    let importedMethod: HostFunction?
     let receiver: RuntimeValue
 }
 
 extension Interpreter {
     // MARK: - Identifiers & members
+
+    /// A module qualifier is semantic source metadata, not a small list of
+    /// framework identities. `Swift` arrives through the language's implicit
+    /// import; project merges preserve every explicit import as provenance.
+    private func isVisibleModuleQualifier(_ name: String) -> Bool {
+        currentProgramMetadata?.importedModuleNames.contains(name) == true
+    }
+
+    /// Resolve `Module.global` without collapsing a source overload family to
+    /// whichever declaration happened to be collected last.
+    private func moduleQualifiedGlobal(
+        named name: String,
+        moduleName: String
+    ) -> RuntimeValue? {
+        guard isVisibleModuleQualifier(moduleName) else { return nil }
+        if let sourceDeclaration = globals.lookup("\(moduleName).\(name)") {
+            return sourceDeclaration
+        }
+        if let overloads = globalFunctionOverloads[name], !overloads.isEmpty {
+            return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
+                guard let self else { return .void }
+                let available = self.functionsAvailableForCall(
+                    from: overloads, args: args)
+                guard let function = self.chooseFunctionByRuntimeTypes(
+                    from: available, for: args) ?? available.first,
+                      let body = self.functionMetadata(for: function).body
+                else {
+                    return .native(ChainedImplicitCall(
+                        base: .implicitMember(name),
+                        member: "call",
+                        arguments: args))
+                }
+                let closure = self.makeFunctionClosure(
+                    function, body: body, captured: self.globals)
+                return try self.callWithArguments(
+                    closure, args: args, node: nil)
+            })
+        }
+        if let global = globals.lookup(name) {
+            switch global {
+            case .type, .enumType:
+                break
+            default:
+                return global
+            }
+        }
+        // A qualifier deliberately bypasses a same-named source nominal and
+        // asks for the imported symbol. Constructor availability is the
+        // structural proof that the member is an imported constructible type;
+        // retaining the HostFunction also retains every call-site argument,
+        // including trailing result-builder closures.
+        return registry?.constructor(named: name).map(RuntimeValue.hostFunction)
+    }
 
     /// Lazy globals evaluate their initializer on first read (memoized).
     func force(_ box: Box) throws -> RuntimeValue {
@@ -22,7 +75,7 @@ extension Interpreter {
             let result = try executeBlock(computed.accessor, in: Environment(parent: globals))
             switch result {
             case .normal(let value), .returnValue(let value):
-                return try resolveAnnotated(value, annotation: computed.annotation)
+                return try resolveAnnotated(value, typeName: computed.typeName)
             default:
                 return .void
             }
@@ -30,11 +83,12 @@ extension Interpreter {
         guard case .host(let any) = box.value, let lazy = any as? LazyGlobal else {
             return try box.load()
         }
-        let annotationText = lazy.annotation?.trimmedDescription ?? ""
+        let annotationText = lazy.typeName ?? ""
         var value: RuntimeValue = RuntimeOptionalValue.wrappedType(in: annotationText) != nil
             ? .none(forTypeAnnotation: annotationText) : .void
         if let initializer = lazy.initializer {
-            value = try resolveAnnotated(try evaluate(initializer, in: globals), annotation: lazy.annotation)
+            value = try resolveAnnotated(
+                try evaluate(initializer, in: globals), typeName: lazy.typeName)
         }
         var stored: RuntimeValue? = value.copiedForValueSemantics()
         box.value = stored!
@@ -159,6 +213,18 @@ extension Interpreter {
            let value = try selfMember(name, on: selfValue) {
             return value
         }
+        // A nested nominal remains in the lexical scope of every enclosing
+        // nominal. Swift therefore permits `Inner` bodies to refer to an
+        // outer static member without qualification. Runtime `self` only
+        // identifies `Inner`, so walk the declaration-owner chain before
+        // consulting module globals.
+        if let value = try lexicallyEnclosingTypeMember(name) {
+            return value
+        }
+        if let module = currentLexicalSourceModuleName,
+           let value = typeValue(named: "\(module).\(name)") {
+            return value
+        }
         if let box = globals.box(for: name) { return try force(box) }
         // Operator-function references (`reduce(0, +)`, `sorted(by: >)`) —
         // real Swift passes the global operator function; ours applies the
@@ -180,6 +246,9 @@ extension Interpreter {
             default:
                 break
             }
+        }
+        if let value = registry?.hostGlobal(named: name) {
+            return value
         }
         // SDK symbol graphs include imported module functions whose names are
         // conventionally uppercase (MTLCreateSystemDefaultDevice, UIGraphics…)
@@ -224,13 +293,68 @@ extension Interpreter {
                 .allSatisfy({ $0.isUppercase || $0 == "_" || $0.isNumber }) {
                 return .implicitMember(name)
             }
-            return .hostFunction(HostFunction(name: name) { [weak self] _, _ in
-                self?.registry?.absorbedCValue(named: name)
-                    ?? .native(ChainedImplicitCall(
-                        base: .implicitMember(name), member: "call", arguments: CallArguments()))
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                // Preserve unresolved-import provenance in the result. A
+                // registry's generic host-object recorder represents a value
+                // that was actually constructed; using it here made `if let`
+                // unable to distinguish a missing imported result from that
+                // concrete opaque object.
+                .native(ChainedImplicitCall(
+                    base: .implicitMember(name), member: "call",
+                    arguments: args))
             })
         }
         throw error(node, "unresolved identifier '\(name)'")
+    }
+
+    /// Finds the current nominal's own type identity or a static member in its
+    /// lexical namespace, then walks each enclosing nominal. The ownership
+    /// links are collected from source nesting, so this dispatch is structural
+    /// rather than keyed to a type or member identity.
+    private func lexicallyEnclosingTypeMember(
+        _ name: String
+    ) throws -> RuntimeValue? {
+        var owner = lexicalOwnerFrames.last
+        var visited: Set<ObjectIdentifier> = []
+        while let current = owner,
+              visited.insert(ObjectIdentifier(current)).inserted {
+            if let symbol = current as? StructSymbol {
+                if name == symbol.name {
+                    // An extension of an SDK/host type owns members, not the
+                    // nominal itself. A reference to the extended type from
+                    // inside its body must therefore keep using the native
+                    // constructor (including labels unrelated to storage),
+                    // rather than memberwise-constructing the synthetic
+                    // extension symbol.
+                    if hostExtensionSymbols[symbol.name] === symbol,
+                       let global = globals.lookup(name) {
+                        if case .type(let globalSymbol) = global,
+                           globalSymbol === symbol {
+                            return .type(symbol)
+                        }
+                        return global
+                    }
+                    if hostExtensionSymbols[symbol.name] === symbol,
+                       let constructor = registry?.constructor(named: name) {
+                        return .hostFunction(constructor)
+                    }
+                    return .type(symbol)
+                }
+                if let value = try staticMember(name, of: symbol) {
+                    return value
+                }
+                owner = symbol.lexicalTypeOwner
+            } else if let symbol = current as? EnumSymbol {
+                if name == symbol.name { return .enumType(symbol) }
+                if let value = try staticMember(name, of: symbol) {
+                    return value
+                }
+                owner = symbol.lexicalTypeOwner
+            } else {
+                break
+            }
+        }
+        return nil
     }
 
     /// Implicit-self member resolution (works for struct instances, enum
@@ -259,7 +383,9 @@ extension Interpreter {
                 if name == "projectedValue" { return selfValue }
             }
             if let value = try nativeMember(name, on: selfValue) { return value }
-            if let value = try readHostMember(name, on: any) { return value }
+            if let value = try readHostMember(
+                name, on: any, includingFallback: false
+            ) { return value }
             return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
         default:
             return nil
@@ -294,7 +420,7 @@ extension Interpreter {
             // Force the lazy member now, with self bound.
             let value = try resolveAnnotated(
                 try evaluate(seed.initializer, in: selfEnvironment(.instance(instance))),
-                annotation: seed.annotation).copiedForValueSemantics()
+                typeName: seed.typeName).copiedForValueSemantics()
             box.value = value
             return value
         }
@@ -304,6 +430,35 @@ extension Interpreter {
         // protocol-extension bodies never see the runtime self's nesteds.
         if let nested = lexicalNestedType(name, runtime: instance.symbol) { return nested }
         if let box = instance.box(for: name) { return try box.load() }
+        let conformances = transitiveConformances(of: instance.symbol)
+
+        // Bare member syntax selects a protocol property over a concrete
+        // same-base method; call syntax is resolved independently by
+        // CallEvaluator. Source-authored properties remain more specific
+        // than a generated standard-library default.
+        var hierarchyDefinesComputedProperty = false
+        var propertyCandidate: StructSymbol? = instance.symbol
+        var walkedPropertyOwners = Set<ObjectIdentifier>()
+        while let owner = propertyCandidate,
+              walkedPropertyOwners.insert(ObjectIdentifier(owner)).inserted {
+            if owner.computedProperties[name] != nil {
+                hierarchyDefinesComputedProperty = true
+                break
+            }
+            propertyCandidate = interpretedSuperclass(of: owner)
+        }
+        let sourceProtocolDefinesComputedProperty = conformances.contains {
+            hostExtensionSymbols[$0]?.computedProperties[name] != nil
+        }
+        if !hierarchyDefinesComputedProperty,
+           !sourceProtocolDefinesComputedProperty,
+           let generated = try GeneratedCollectionDefaultSurface.property(
+               named: name,
+               conformances: Set(conformances),
+               receiver: .instance(instance),
+               interpreter: self) {
+            return generated
+        }
         // Dynamic dispatch: the instance's OWN members win (overrides beat
         // the inherited definition), THEN interpreted-superclass members
         // dispatch with self unchanged, walking the chain.
@@ -328,8 +483,8 @@ extension Interpreter {
             // directly by CallEvaluator. Carry the unavailable property as
             // an inert marker.
             if preferHostSuperclassProperty,
-               let superName = instance.symbol.superclassName,
-               !isInterpretedType(superName),
+               instance.symbol.superclassName != nil,
+               interpretedSuperclass(of: instance.symbol) == nil,
                overloads.allSatisfy({ method in
                    functionMetadata(for: method).parameters.contains {
                        $0.defaultValue == nil
@@ -360,10 +515,9 @@ extension Interpreter {
         if let computed = instance.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
         }
-        var parentName = instance.symbol.superclassName
-        while let superName = parentName {
-            guard case .type(let parent)? = globals.lookup(superName) else { break }
-            if let overloads = parent.methods[name], let firstMethod = overloads.first {
+        var parent = interpretedSuperclass(of: instance.symbol)
+        while let candidate = parent {
+            if let overloads = candidate.methods[name], let firstMethod = overloads.first {
                 let method = overloads.count > 1
                     ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? firstMethod)
                     : firstMethod
@@ -372,10 +526,10 @@ extension Interpreter {
                         method, body: body, captured: instanceMethodEnvironment(instance)))
                 }
             }
-            if let computed = parent.computedProperties[name] {
+            if let computed = candidate.computedProperties[name] {
                 return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
             }
-            parentName = parent.superclassName
+            parent = interpretedSuperclass(of: candidate)
         }
         if instance.symbol.conformsToView,
            let value = try hostExtensionMember(name, candidates: ["View"], selfValue: .instance(instance)) {
@@ -385,7 +539,7 @@ extension Interpreter {
         // serves conformers that don't define the member themselves —
         // through protocol REFINEMENT too (CountriesWebRepository:
         // WebRepository reaches WebRepository's `call(endpoint:)`).
-        for conformance in transitiveConformances(of: instance.symbol) {
+        for conformance in conformances {
             guard let proto = hostExtensionSymbols[conformance] else { continue }
             if let overloads = proto.methods[name], let firstMethod = overloads.first {
                 // PROPERTY/METHOD collision in the same extension (AnyStatus
@@ -414,6 +568,22 @@ extension Interpreter {
             if let computed = proto.computedProperties[name] {
                 return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
             }
+        }
+        // Compiled protocol extensions cannot execute against an interpreted
+        // conformer. BridgeGen emits the constrained default implementations
+        // whose scalar representation can cross that boundary losslessly.
+        if let generated = GeneratedCollectionDefaultSurface.member(
+            named: name, conformances: Set(conformances)
+        ) {
+            return .hostFunction(generated)
+        }
+        if let generated = try GeneratedCollectionDefaultSurface.property(
+            named: name,
+            conformances: Set(conformances),
+            receiver: .instance(instance),
+            interpreter: self
+        ) {
+            return generated
         }
         // @ModelActor's generated `modelContext` reads the bound
         // container's shared context.
@@ -453,8 +623,8 @@ extension Interpreter {
               hostSymbol.staticCache[name] == nil,
               hostSymbol.staticReferenceBoxes[name] == nil else { return nil }
         return .hostFunction(HostFunction(name: name) { [unowned self] args, _ in
-            let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
-            let pool = available.isEmpty ? overloads : available
+            let pool = functionsAvailableForCall(
+                from: overloads, args: args)
             // A declared overload only competes when it accepts every label
             // the call passes — `using:` against an (in:)-only shadow is a
             // host call, not a shadow hit.
@@ -540,16 +710,16 @@ extension Interpreter {
         return nil
     }
 
-    /// Preserve compiler-style overload selection when a same-module source
-    /// extension adds an overload beside a typed imported member. Returning a
-    /// closure during bare member lookup is too early: for example,
+    /// Preserve compiler-style overload selection for source extensions on a
+    /// host type, including families that also contain an imported member.
+    /// Returning a closure during bare member lookup is too early: for example,
     /// `String.appending(String?)` wins for `nil`, while Foundation's
     /// `appending(String)` wins for a non-optional String.
-    func typedHostExtensionMethodOverloads(
+    func hostExtensionMethodOverloads(
         named name: String,
         on receiver: RuntimeValue,
         declaredTypeName: String? = nil
-    ) throws -> TypedHostExtensionMethodOverloads? {
+    ) throws -> HostExtensionMethodOverloads? {
         guard let payload = receiver.hostPayload else { return nil }
 
         var typeNames: [String] = []
@@ -591,22 +761,40 @@ extension Interpreter {
             appendTypeName("Binding")
         }
 
-        guard let imported = try nativeMember(name, on: receiver),
-              case .hostFunction(let importedMethod) = imported,
-              !importedMethod.signatures.isEmpty,
-              !importedMethod.canSuspend else {
-            return nil
+        let delegatesFromSourceExtension = typeNames.contains { typeName in
+            activeExtensionFrames.contains(ExtensionFrame(
+                typeName: typeName, member: name))
+        }
+        let importedMethod: HostFunction?
+        if let imported = try nativeMember(name, on: receiver),
+           case .hostFunction(let method) = imported,
+           !method.canSuspend {
+            importedMethod = method
+        } else if assumesCompiledImports && delegatesFromSourceExtension {
+            // The merged source was accepted by its original compiler, so a
+            // same-named call from inside a source extension that fits no
+            // source declaration may target an imported SDK peer the runtime
+            // bridge has not modeled yet. Keep that peer in the overload
+            // family as an absorbing callable; source candidates still win
+            // whenever their runtime types fit.
+            importedMethod = HostFunction(name: name) { args, _ in
+                .native(ChainedImplicitCall(
+                    base: receiver, member: name, arguments: args))
+            }
+        } else {
+            importedMethod = nil
         }
         for typeName in typeNames {
             guard let sourceMethods = hostExtensionSymbols[typeName]?
                 .methods[name],
                   !sourceMethods.isEmpty,
+                  sourceMethods.count > 1 || importedMethod != nil,
                   sourceMethods.allSatisfy({
                     !functionMetadata(for: $0).isAsync
                   }) else {
                 continue
             }
-            return TypedHostExtensionMethodOverloads(
+            return HostExtensionMethodOverloads(
                 typeName: typeName,
                 sourceMethods: sourceMethods,
                 importedMethod: importedMethod,
@@ -616,9 +804,9 @@ extension Interpreter {
     }
 
     /// Recover the source type of a member receiver without attaching type
-    /// metadata to every RuntimeValue. A standard-library `filter` preserves
-    /// its receiver's element type, so a chained call retains the same static
-    /// array type even when the intermediate result is empty.
+    /// metadata to every RuntimeValue. Native array-payload subscripting
+    /// produces the declared element type, while a standard-library `filter`
+    /// preserves its receiver's array type even when the result is empty.
     func declaredMemberReceiverTypeName(
         for expression: ExprSyntax,
         in environment: Environment
@@ -642,6 +830,13 @@ extension Interpreter {
                        instance.symbol.canonicalPropertyName(name)) {
                     return box.value
                 }
+                if let box = globals.box(for: name) {
+                    if case .host(let payload) = box.value,
+                       payload is LazyGlobal {
+                        return nil
+                    }
+                    return box.value
+                }
                 return nil
             }
             guard let member = expression.as(MemberAccessExprSyntax.self),
@@ -653,6 +848,17 @@ extension Interpreter {
                 member.declName.baseName.text))?.value
         }
 
+        if let subscriptCall = expression.as(SubscriptCallExprSyntax.self) {
+            if let base = storedValue(for: subscriptCall.calledExpression),
+               case .host(let payload) = base,
+               let readable = payload as? any RuntimeIntegerSubscriptReadable {
+                return readable.runtimeElementTypeName
+            }
+            let collectionTypeName = declaredMemberReceiverTypeName(
+                for: subscriptCall.calledExpression, in: environment)
+            return RuntimeDeclaredType.arrayPayloadElementTypeName(
+                in: collectionTypeName)
+        }
         if let call = expression.as(FunctionCallExprSyntax.self),
            let member = call.calledExpression.as(
                MemberAccessExprSyntax.self),
@@ -670,9 +876,9 @@ extension Interpreter {
             if case .instance(let instance)? = environment.lookup("self") {
                 let canonical = instance.symbol.canonicalPropertyName(name)
                 return instance.symbol.storedProperty(named: canonical)?
-                    .typeAnnotation?.trimmedDescription
+                    .typeName
                     ?? instance.symbol.computedProperties[canonical]?
-                        .typeAnnotation?.trimmedDescription
+                        .typeName
             }
             return globals.box(for: name)?.declaredTypeName
         }
@@ -682,25 +888,23 @@ extension Interpreter {
             let name = instance.symbol.canonicalPropertyName(
                 member.declName.baseName.text)
             return instance.symbol.storedProperty(named: name)?
-                .typeAnnotation?.trimmedDescription
+                .typeName
                 ?? instance.symbol.computedProperties[name]?
-                    .typeAnnotation?.trimmedDescription
+                    .typeName
         }
         return nil
     }
 
-    /// Resolve the overload set only after argument evaluation. Both sides
-    /// use HostSignature's shared label/type/default/generic scoring, so an
-    /// Optional promotion cannot outrank an exact imported parameter.
-    func resolveTypedHostExtensionMethodTarget(
-        _ overloads: TypedHostExtensionMethodOverloads,
+    /// Resolve the overload set only after argument evaluation. Every source
+    /// candidate and any imported peer use HostSignature's shared
+    /// label/type/default/generic scoring, so an Optional promotion cannot
+    /// outrank an exact parameter.
+    func resolveHostExtensionMethodTarget(
+        _ overloads: HostExtensionMethodOverloads,
         arguments: CallArguments
     ) throws -> RuntimeValue {
-        let available = overloads.sourceMethods.count > 1
-            ? overloads.sourceMethods.filter {
-                !activeFunctionBodies.contains($0.id)
-            }
-            : overloads.sourceMethods
+        let available = functionsAvailableForCall(
+            from: overloads.sourceMethods, args: arguments)
 
         var bestSource: (declaration: FunctionDeclSyntax, score: Int)?
         for declaration in available {
@@ -723,12 +927,13 @@ extension Interpreter {
             }
         }
 
-        let importedScore = overloads.importedMethod.signatures.compactMap {
+        let importedScore = overloads.importedMethod?.signatures.compactMap {
             $0.match(arguments: arguments, in: self)?.score
         }.max()
         if let importedScore,
+           let importedMethod = overloads.importedMethod,
            importedScore > (bestSource?.score ?? Int.min) {
-            return .hostFunction(overloads.importedMethod)
+            return .hostFunction(importedMethod)
         }
         if let declaration = bestSource?.declaration,
            let body = functionMetadata(for: declaration).body {
@@ -742,12 +947,15 @@ extension Interpreter {
             closure.functionDeclID = declaration.id
             return .closure(closure)
         }
-        if importedScore != nil {
-            return .hostFunction(overloads.importedMethod)
+        if let importedMethod = overloads.importedMethod,
+           importedScore != nil || importedMethod.signatures.isEmpty {
+            return .hostFunction(importedMethod)
         }
+        let memberName = overloads.sourceMethods.first?.name.text
+            ?? overloads.importedMethod?.name ?? "member"
         throw RuntimeError(
             message: "no matching source or imported overload for "
-                + "'\(overloads.typeName).\(overloads.importedMethod.name)'")
+                + "'\(overloads.typeName).\(memberName)'")
     }
 
     func hostCandidates(for any: Any) -> [String] {
@@ -882,7 +1090,7 @@ extension Interpreter {
         return nil
     }
 
-    /// Runs the best-matching user subscript getter (picked by arity).
+    /// Runs the best-matching user subscript getter.
     func callUserSubscriptGetter(on instance: Instance, with args: CallArguments) throws -> RuntimeValue {
         try runUserSubscriptGetter(instance.symbol, selfValue: .instance(instance), args: args)
     }
@@ -890,6 +1098,75 @@ extension Interpreter {
     /// Runs the user subscript setter with `newValue` and the index bound.
     func callUserSubscriptSetter(on instance: Instance, with args: CallArguments, newValue: RuntimeValue) throws {
         try runUserSubscriptSetter(instance.symbol, selfValue: .instance(instance), args: args, newValue: newValue)
+    }
+
+    /// Compares two generated Index-typed collection endpoints without
+    /// naming either requirement in handwritten runtime dispatch.
+    func interpretedIntegerIndexedCollectionEndpointsAreEqual(
+        _ value: RuntimeValue,
+        leftMemberName: String,
+        rightMemberName: String
+    ) throws -> Bool? {
+        guard case .instance(let instance) = value,
+              let left = try instanceMember(
+                  leftMemberName, on: instance)?.intValue,
+              let right = try instanceMember(
+                  rightMemberName, on: instance)?.intValue
+        else { return nil }
+        return left == right
+    }
+
+    /// Materializes the protocol shape used by integer-indexed interpreted
+    /// collections. The source compiler has already proved Sequence
+    /// conformance; at runtime, readable `startIndex`/`endIndex` plus a
+    /// one-argument subscript are the reusable capabilities needed by
+    /// synchronous `for in` execution.
+    func interpretedIntegerIndexedCollectionElements(
+        _ value: RuntimeValue
+    ) throws -> [RuntimeValue]? {
+        guard case .instance(let instance) = value,
+              !instance.symbol.subscripts.isEmpty,
+              let start = try instanceMember("startIndex", on: instance)?.intValue,
+              let end = try instanceMember("endIndex", on: instance)?.intValue,
+              start <= end else {
+            return nil
+        }
+        let probe = CallArguments(arguments: [
+            .init(label: nil, value: .native(start)),
+        ])
+        let member = try userSubscriptMember(
+            in: instance.symbol, args: probe)
+        var elements: [RuntimeValue] = []
+        elements.reserveCapacity(end - start)
+        for index in start..<end {
+            let arguments = CallArguments(arguments: [
+                .init(label: nil, value: .native(index)),
+            ])
+            elements.append(try runUserSubscriptGetter(
+                member,
+                symbolName: instance.symbol.name,
+                selfValue: value,
+                args: arguments))
+        }
+        return elements
+    }
+
+    /// Materializes a runtime collection without naming its concrete API.
+    /// Native carriers use their stored elements; interpreted collections use
+    /// the same integer-indexed protocol shape as generated defaults and
+    /// `for in` execution.
+    func materializedCollectionElements(
+        _ value: RuntimeValue
+    ) throws -> [RuntimeValue]? {
+        if let array = value.arrayValue { return array }
+        if let set = value.setValue { return set.elements }
+        if let string = value.stringValue {
+            return string.map { .native(String($0)) }
+        }
+        if let range = value.rangeValue {
+            return range.integerValues()
+        }
+        return try interpretedIntegerIndexedCollectionElements(value)
     }
 
     /// The symbol whose user subscripts serve `base`: an interpreted
@@ -913,7 +1190,7 @@ extension Interpreter {
         _ symbol: StructSymbol, selfValue: RuntimeValue, args: CallArguments
     ) throws -> RuntimeValue {
         let member = try userSubscriptMember(
-            in: symbol, argumentCount: args.arguments.count)
+            in: symbol, args: args)
         return try runUserSubscriptGetter(
             member,
             symbolName: symbol.name,
@@ -922,11 +1199,16 @@ extension Interpreter {
     }
 
     func userSubscriptMember(
-        in symbol: StructSymbol, argumentCount: Int
+        in symbol: StructSymbol, args: CallArguments
     ) throws -> StructSymbol.SubscriptMember {
-        guard let member = symbol.subscripts.first(where: {
-            $0.parameters.count == argumentCount
-        }) ?? symbol.subscripts.first else {
+        let arityMatches = symbol.subscripts.filter {
+            $0.parameters.count == args.arguments.count
+        }
+        let shaped = arityMatches.isEmpty ? symbol.subscripts : arityMatches
+        let typed = shaped.filter {
+            runtimeArgumentsFitDeclaredTypes($0.parameters, args: args)
+        }
+        guard let member = typed.first ?? shaped.first else {
             throw RuntimeError(message: "'\(symbol.name)' has no subscript")
         }
         return member
@@ -985,7 +1267,7 @@ extension Interpreter {
         _ symbol: StructSymbol, selfValue: RuntimeValue, args: CallArguments, newValue: RuntimeValue
     ) throws {
         let member = try userSubscriptMember(
-            in: symbol, argumentCount: args.arguments.count)
+            in: symbol, args: args)
         try runUserSubscriptSetter(
             member,
             symbolName: symbol.name,
@@ -1050,7 +1332,9 @@ extension Interpreter {
         }
 
         var pushedLexicalOwner = false
-        if let declarationID, let owner = declLexicalOwners[declarationID] {
+        if let declarationID,
+           let owner = programState?.declarationLexicalOwners[declarationID]
+                ?? lexicalOwner(of: declarationID) {
             lexicalOwnerFrames.append(owner)
             pushedLexicalOwner = true
         }
@@ -1112,7 +1396,9 @@ extension Interpreter {
         }
 
         var pushedLexicalOwner = false
-        if let declarationID, let owner = declLexicalOwners[declarationID] {
+        if let declarationID,
+           let owner = programState?.declarationLexicalOwners[declarationID]
+                ?? lexicalOwner(of: declarationID) {
             lexicalOwnerFrames.append(owner)
             pushedLexicalOwner = true
         }
@@ -1202,10 +1488,21 @@ extension Interpreter {
                 let views = try collectBuilderViews(computed.accessor, in: env)
                 return try groupViews(views)
             }
+            if let prepared = preparedScalarAccessor(
+                    computed, captured: env),
+               let value = try prepared.execute(
+                    arguments: [], receiver: selfValue,
+                    interpreter: self) {
+                if let typeName = computed.typeName,
+                   RuntimeOptionalValue.wrappedType(in: typeName) != nil {
+                    return try resolveAnnotated(value, typeName: typeName)
+                }
+                return value
+            }
             let result = try executeBlock(computed.accessor, in: env)
             switch result {
             case .normal(let value), .returnValue(let value):
-                if let typeName = computed.typeAnnotation?.trimmedDescription,
+                if let typeName = computed.typeName,
                    RuntimeOptionalValue.wrappedType(in: typeName) != nil {
                     return try resolveAnnotated(value, typeName: typeName)
                 }
@@ -1217,7 +1514,7 @@ extension Interpreter {
                 // (`var title: LocalizedStringKey { .init(name) }`).
                 if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                    call.typeHint == nil,
-                   let typeName = computed.typeAnnotation?.trimmedDescription {
+                   let typeName = computed.typeName {
                     return .native(ImplicitMemberCall(
                         name: call.name, arguments: call.arguments, typeHint: typeName))
                 }
@@ -1250,7 +1547,7 @@ extension Interpreter {
                 computed.accessor, in: env)
             switch result {
             case .normal(let value), .returnValue(let value):
-                if let typeName = computed.typeAnnotation?.trimmedDescription,
+                if let typeName = computed.typeName,
                    RuntimeOptionalValue.wrappedType(in: typeName) != nil {
                     return try resolveAnnotated(value, typeName: typeName)
                 }
@@ -1296,8 +1593,13 @@ extension Interpreter {
         on baseValue: RuntimeValue,
         node: some SyntaxProtocol,
         env: Environment,
-        deferringAsyncHostProperty: Bool = false
+        deferringAsyncHostProperty: Bool = false,
+        declaredTypeName: String? = nil
     ) throws -> RuntimeValue {
+        let declaredBaseTypeName = declaredTypeName
+            ?? Syntax(node).as(MemberAccessExprSyntax.self)?.base.flatMap {
+                declaredMemberReceiverTypeName(for: $0, in: env)
+            }
         if name == "self" {
             return baseValue // `SizeKey.self`, `x.self` — the value itself
         }
@@ -1364,7 +1666,8 @@ extension Interpreter {
                 on: wrapped,
                 node: node,
                 env: env,
-                deferringAsyncHostProperty: deferringAsyncHostProperty)
+                deferringAsyncHostProperty: deferringAsyncHostProperty,
+                declaredTypeName: optional.wrappedTypeName)
             if optional.isImplicitlyUnwrapped && !explicitlyChained {
                 return member
             }
@@ -1451,7 +1754,7 @@ extension Interpreter {
                 // can't call nil — the registry modifier applies.
                 if value.isNil, instance.symbol.rendersLikeView,
                    let property = instance.symbol.storedProperty(named: name),
-                   property.typeAnnotation?.trimmedDescription.contains("->") == true,
+                   property.typeName?.contains("->") == true,
                    let registry, let modifier = registry.modifier(named: name) {
                     let wrapped = registry.makeRenderable(instance: instance, interpreter: self)
                     return .hostFunction(HostFunction(name: name) { args, ctx in
@@ -1671,12 +1974,9 @@ extension Interpreter {
             // MODULE-qualified globals (`Swift.max`) — the catch-all ctor
             // claimed the module name; strip the qualifier. Declared types
             // fall through (the qualifier asks for the FRAMEWORK's symbol).
-            if ["Swift", "Foundation", "SwiftUI", "Combine", "Dispatch"].contains(function.name),
-               let global = globals.lookup(name) {
-                switch global {
-                case .type, .enumType: break
-                default: return global
-                }
+            if let global = moduleQualifiedGlobal(
+                named: name, moduleName: function.name) {
+                return global
             }
             // Program extensions SHADOW imported statics — `extension Date {
             // static var now }` wins over Foundation's own, exactly like a
@@ -1835,9 +2135,8 @@ extension Interpreter {
                 if tuple.values.indices.contains(idx) { return tuple.values[idx] }
             }
             if let superRef = any as? SuperReference {
-                let symbol = superRef.instance.symbol
-                if let parentName = symbol.superclassName,
-                   case .type(let parent)? = globals.lookup(parentName) {
+                let symbol = superRef.dispatchOwner
+                if let parent = interpretedSuperclass(of: symbol) {
                     if name == "init" {
                         return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
                             guard let self else {
@@ -1990,8 +2289,15 @@ extension Interpreter {
             // `extension UIColor { … }` on a recorded UIColor node).
             // Core stubs the bridge can't name map explicitly (Binding).
             var extensionCandidates: [String] = []
+            if let declaredNominal = RuntimeDeclaredType.nominalTypeName(
+                declaredBaseTypeName),
+               hostExtensionSymbols[declaredNominal] != nil {
+                extensionCandidates.append(declaredNominal)
+            }
             if let typeName = registry?.hostTypeName(of: any) {
-                extensionCandidates.append(typeName)
+                if !extensionCandidates.contains(typeName) {
+                    extensionCandidates.append(typeName)
+                }
             }
             // Core RuntimeValue payloads do not require a HostRegistry, but
             // same-module extensions still shadow their imported members.
@@ -2046,12 +2352,9 @@ extension Interpreter {
                 // types never answer: `SwiftUI.Tab` explicitly bypasses the
                 // app's own `enum Tab` (Interactive_Header), so those fall
                 // through to the framework path.
-                if ["Swift", "Foundation", "SwiftUI", "Combine", "Dispatch"].contains(marker.name),
-                   let global = globals.lookup(name) {
-                    switch global {
-                    case .type, .enumType: break
-                    default: return global
-                    }
+                if let global = moduleQualifiedGlobal(
+                    named: name, moduleName: marker.name) {
+                    return global
                 }
                 // `UNAuthorizationStatus.notDetermined` where the program
                 // EXTENDS the host type: mint a TYPED marker so `.map`
@@ -2104,10 +2407,6 @@ extension Interpreter {
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
                 return value
             }
-            let declaredBaseTypeName = Syntax(node).as(
-                MemberAccessExprSyntax.self)?.base.flatMap {
-                    declaredMemberReceiverTypeName(for: $0, in: env)
-                }
             if let value = try nativeMember(
                 name,
                 on: baseValue,

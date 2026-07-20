@@ -1344,8 +1344,9 @@ enum JSONDecodeBridge {
             guard let items = json as? [Any] else {
                 throw RuntimeError(message: "decode: expected a JSON array")
             }
-            return .native(try items.map {
-                try decode(array[0], json: $0, interpreter: interpreter, decoder: decoder)
+            return .native(try mapKnownFiniteElements(items, interpreter: interpreter) {
+                try decode(array[0], json: $0, interpreter: interpreter,
+                           decoder: decoder)
             })
         }
         // A generic APPLICATION (`PaginatedResponse<Movie>`): the head
@@ -1417,7 +1418,7 @@ enum JSONDecodeBridge {
         var arguments: [CallArguments.Argument] = []
         for property in symbol.storedProperties {
             let jsonValue = lookup(property.name, in: object, codingKeys: codingKeys)
-            var annotation = property.typeAnnotation?.trimmedDescription
+            var annotation = property.typeName
             if let text = annotation, !substitutions.isEmpty {
                 annotation = substituteGenerics(text, substitutions)
             }
@@ -1453,7 +1454,7 @@ enum JSONDecodeBridge {
                 throw RuntimeError(message: "decode(\(context)): expected array")
             }
             let element = String(typeName.dropFirst().dropLast())
-            return .native(try items.map {
+            return .native(try mapKnownFiniteElements(items, interpreter: interpreter) {
                 try decodeField(
                     $0, annotation: element, interpreter: interpreter, decoder: decoder,
                     context: context, owner: owner)
@@ -1538,6 +1539,22 @@ enum JSONDecodeBridge {
             }
         }
         throw RuntimeError(message: "decode(\(symbol.name)): no case matches \(json)")
+    }
+
+    /// Foundation has already materialized each JSON array, proving finite
+    /// cardinality before interpreted custom decoders run. Give every element
+    /// the same independently bounded slice as a source `for` iteration; a
+    /// non-terminating `init(from:)` still exhausts that element's budget.
+    private static func mapKnownFiniteElements<Element>(
+        _ elements: [Element],
+        interpreter: Interpreter,
+        transform: (Element) throws -> RuntimeValue
+    ) throws -> [RuntimeValue] {
+        try elements.map { element in
+            try interpreter.withKnownFiniteHostIteration {
+                try transform(element)
+            }
+        }
     }
 
     /// STRUCTURAL encode — the decode direction reversed. CodingKeys raw

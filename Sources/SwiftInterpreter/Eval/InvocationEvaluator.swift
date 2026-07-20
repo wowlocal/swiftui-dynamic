@@ -18,7 +18,9 @@ extension Interpreter {
                 sourceProvenance: callArgumentSourceProvenance(
                     of: argument, value: value, in: env)))
         }
-        return CallArguments(arguments: arguments)
+        return CallArguments(
+            arguments: arguments,
+            sourceSiteID: call.id.indexInTree.toOpaque())
     }
 
     /// Proves the narrow bare/unqualified declaration boundary used by
@@ -42,21 +44,197 @@ extension Interpreter {
         return .directGlobalAsyncFunctionDeclaration
     }
 
-    /// A host-extension init fits only when labels align AND every
-    /// argument's RUNTIME type satisfies the parameter annotation.
-    func extensionInitFits(_ decl: InitializerDeclSyntax, args: CallArguments) -> Bool {
-        let parameters = initializerMetadata(for: decl).parameters
+    /// The concrete nominal shell around generic arguments, when source type
+    /// syntax supplies one. `Element` and `S.Iterator.Element` remain
+    /// unconstrained, while `Box<Element>` still requires a `Box` value.
+    private func concreteGenericOuterType(
+        in annotation: String,
+        genericParameterNames: Set<String>
+    ) -> String? {
+        guard let angle = annotation.firstIndex(of: "<") else { return nil }
+        var outer = annotation[..<angle]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["any ", "some ", "inout ", "borrowing ", "consuming "] {
+            if outer.hasPrefix(prefix) {
+                outer.removeFirst(prefix.count)
+                outer = outer.trimmingCharacters(in: .whitespaces)
+            }
+        }
+        guard !outer.isEmpty,
+              outer.allSatisfy({
+                  $0.isLetter || $0.isNumber || $0 == "_" || $0 == "."
+              }) else {
+            return nil
+        }
+        let identifiers = Set(outer.split(separator: ".").map(String.init))
+        guard identifiers.isDisjoint(with: genericParameterNames) else {
+            return nil
+        }
+        return outer
+    }
+
+    private func directGenericParameterName(
+        in annotation: String,
+        genericParameterNames: Set<String>
+    ) -> String? {
+        var name = annotation.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in [
+            "__owned ", "inout ", "borrowing ", "consuming ",
+            "sending ", "isolated ",
+        ] where name.hasPrefix(prefix) {
+            name.removeFirst(prefix.count)
+            name = name.trimmingCharacters(in: .whitespaces)
+        }
+        return genericParameterNames.contains(name) ? name : nil
+    }
+
+    /// Dynamic evidence for a direct generic protocol bound. Interpreted
+    /// conformers use the ordinary runtime type relation. Native sequence
+    /// carriers use their materialization property, gated by the generated
+    /// stdlib protocol-refinement set rather than a protocol-name branch.
+    private func runtimeValue(
+        _ value: RuntimeValue,
+        satisfies requirement: ParsedGenericConformanceRequirement
+    ) -> Bool {
+        if valueIsType(value, requirement.protocolTypeName) { return true }
+        guard GeneratedCollectionDefaultSurface
+            .isMaterializableSequenceProtocol(
+                named: requirement.protocolTypeName) else { return false }
+        if value.dictValue != nil { return true }
+        do {
+            return try materializedCollectionElements(value) != nil
+        } catch {
+            return false
+        }
+    }
+
+    /// Positive runtime type fitting for source overload candidates. Call
+    /// shape alone is insufficient when independently compiled source files
+    /// contribute same-shaped overloads; concrete parameter annotations must
+    /// accept the runtime values before the declaration can participate.
+    func runtimeArgumentsFitDeclaredTypes(
+        _ parameters: [ClosureValue.Parameter],
+        args: CallArguments,
+        genericParameterNames: Set<String> = [],
+        genericConformanceRequirements:
+            [ParsedGenericConformanceRequirement] = [],
+        allowValueCoercion: Bool = true
+    ) -> Bool {
         var remaining = args.arguments
         for parameter in parameters {
             if let index = remaining.firstIndex(where: { $0.label == parameter.label }) {
                 let argument = remaining.remove(at: index)
-                guard let annotation = parameter.typeAnnotation?.trimmedDescription,
-                      valueIsType(argument.value, annotation) else { return false }
+                guard let annotation = parameter.typeName else { return false }
+                let identifiers = Set(annotation.split {
+                    !$0.isLetter && !$0.isNumber && $0 != "_"
+                }.map(String.init))
+                if !identifiers.isDisjoint(with: genericParameterNames) {
+                    if let genericParameterName = directGenericParameterName(
+                        in: annotation,
+                        genericParameterNames: genericParameterNames) {
+                        let requirements = genericConformanceRequirements
+                            .filter {
+                                $0.genericParameterName
+                                    == genericParameterName
+                            }
+                        guard requirements.allSatisfy({
+                            runtimeValue(argument.value, satisfies: $0)
+                        }) else { return false }
+                    }
+                    if let outer = concreteGenericOuterType(
+                        in: annotation,
+                        genericParameterNames: genericParameterNames
+                    ), !valueIsType(argument.value, outer) {
+                        return false
+                    }
+                    continue
+                }
+                if valueIsType(argument.value, annotation) { continue }
+                guard allowValueCoercion else { return false }
+                guard let resolved = try? resolveAnnotated(
+                    argument.value, typeName: annotation),
+                    valueIsType(resolved, annotation)
+                else { return false }
             } else if parameter.defaultValue == nil {
                 return false
             }
         }
         return remaining.isEmpty
+    }
+
+    /// A host-extension init fits only when labels align AND every
+    /// argument's RUNTIME type satisfies the parameter annotation.
+    func extensionInitFits(_ decl: InitializerDeclSyntax, args: CallArguments) -> Bool {
+        let metadata = initializerMetadata(for: decl)
+        return runtimeArgumentsFitDeclaredTypes(
+            metadata.parameters,
+            args: args,
+            genericParameterNames: Set(metadata.genericParameters),
+            genericConformanceRequirements:
+                metadata.genericConformanceRequirements)
+    }
+
+    /// All generated constructor adapters dispatch on the callee's runtime
+    /// constructor property. Keeping this extraction shared prevents each
+    /// semantic surface from growing its own host/type identity cases.
+    func runtimeConstructorName(
+        constructedBy callee: RuntimeValue
+    ) -> String? {
+        RuntimeMetatype.name(of: callee)
+    }
+
+    /// A type constructor fed a collection-backed `start` plus an integer
+    /// `count` is a read-only buffer window. The trace/live registries expose
+    /// catch-all constructors for unknown SDK types, so this structural
+    /// adapter must run before those recorders can erase the backing values.
+    /// Dispatch is on constructor shape and argument capabilities, never a
+    /// pointer type-name allowlist.
+    func collectionBackedBufferWindow(
+        constructedBy callee: RuntimeValue,
+        args: CallArguments
+    ) -> RuntimeValue? {
+        guard let constructorName = runtimeConstructorName(
+                constructedBy: callee),
+              GeneratedUnsafeMemorySurface.isBufferType(constructorName),
+              let count = args.labeled("count")?.intValue else {
+            return nil
+        }
+        guard let start = args.labeled("start")?.unwrappedOptionalOrSelf else {
+            return count == 0
+                ? .native(RuntimeCollectionBackedBuffer([])) : nil
+        }
+        if let elements = start.arrayValue {
+            return .native(RuntimeCollectionBackedBuffer(
+                Array(elements.prefix(max(0, count)))))
+        }
+        if case .host(let payload) = start,
+           let pointer = payload as? RuntimeCollectionBackedPointer {
+            guard let buffer = try? pointer.window(count: count) else {
+                return nil
+            }
+            return .native(buffer)
+        }
+        return nil
+    }
+
+    /// Pointer conversion is an unsafe-memory semantic, but eligibility is
+    /// generated from the stdlib interface's `_Pointer` metadata. A registry
+    /// catch-all can therefore never steal `UnsafeRawPointer(typedPointer)`,
+    /// while an unrelated one-argument host constructor remains untouched.
+    func collectionBackedRawPointerConversion(
+        constructedBy callee: RuntimeValue,
+        args: CallArguments
+    ) -> RuntimeValue? {
+        guard let constructorName = runtimeConstructorName(
+                constructedBy: callee),
+              GeneratedUnsafeMemorySurface.isRawPointerType(constructorName),
+              args.arguments.count == 1,
+              let source = args.arguments.first?.value.unwrappedOptionalOrSelf,
+              case .host(let payload) = source,
+              let cursor = payload as? any HostRawMemoryCursor,
+              let raw = try? cursor.advancedRawMemory(byByteOffset: 0)
+        else { return nil }
+        return .native(raw as Any)
     }
 
     func invoke(_ callee: RuntimeValue, with args: CallArguments, node: some SyntaxProtocol) throws -> RuntimeValue {
@@ -66,6 +244,14 @@ extension Interpreter {
             break // user code: `inout` slots flow through to bindParameters
         default:
             args = args.unwrappingInoutSlots()
+        }
+        if let pointer = collectionBackedRawPointerConversion(
+            constructedBy: callee, args: args) {
+            return pointer
+        }
+        if let buffer = collectionBackedBufferWindow(
+            constructedBy: callee, args: args) {
+            return buffer
         }
         switch callee {
         case .nilValue:
@@ -187,6 +373,12 @@ extension Interpreter {
                     }
                 }
             }
+            if let generated = try RuntimeUnicodeDecodingConstructor.invoke(
+                named: function.name,
+                arguments: args
+            ) {
+                return generated
+            }
             do {
                 return try function.invoke(args, self)
             } catch let e as RuntimeError where e.line == 0 {
@@ -276,6 +468,12 @@ extension Interpreter {
             return .native(ChainedImplicitCall(base: chained.base, member: chained.member, arguments: args))
         case .host(let any) where any is HostTypeMarker:
             let marker = any as! HostTypeMarker
+            if let generated = try RuntimeUnicodeDecodingConstructor.invoke(
+                named: marker.name,
+                arguments: args
+            ) {
+                return generated
+            }
             if assumesCompiledImports, marker.name.contains("."),
                let ctor = registry?.constructor(named: marker.name) {
                 // Macro-generated NESTED types called as constructors
@@ -315,6 +513,11 @@ extension Interpreter {
         in closure: ClosureExprSyntax,
         parameters: [ClosureValue.Parameter]
     ) -> Set<String> {
+        let programState = currentProgramState
+        let closureID = Syntax(closure).id
+        if let cached = programState?.closureOuterReferenceCache[closureID] {
+            return cached
+        }
         var references: Set<String> = []
 
         func patternNames(_ pattern: PatternSyntax) -> Set<String> {
@@ -557,6 +760,7 @@ extension Interpreter {
             initialBound.formUnion(captures.map { $0.name.text })
         }
         collectItems(closure.statements, bound: initialBound)
+        programState?.closureOuterReferenceCache[closureID] = references
         return references
     }
 
@@ -572,10 +776,7 @@ extension Interpreter {
                 || current.methods[name] != nil {
                 return true
             }
-            symbol = current.superclassName.flatMap {
-                guard case .type(let parent)? = globals.lookup($0) else { return nil }
-                return parent
-            }
+            symbol = interpretedSuperclass(of: current)
         }
         for conformance in transitiveConformances(of: instance.symbol) {
             if let ext = hostExtensionSymbols[conformance],
@@ -942,11 +1143,28 @@ extension Interpreter {
         defer {
             evaluationTaskContext.leaveProgramState(programState)
         }
+        lexicalSourceModuleFrames.append(closure.sourceModuleName)
+        defer { lexicalSourceModuleFrames.removeLast() }
         let invocation = try resolvedInvocation(
             for: closure, arguments: args)
         let effectiveArguments = invocation.arguments
         let calleeExecutor = contextualExecutor ?? invocation.executor
         try requireSynchronousActorInvocationAccess(to: calleeExecutor)
+        // Structurally prepared, side-effect-free scalar helpers need none of
+        // the mutable frame/environment machinery below. Labels and declared
+        // parameter coercions are still resolved through the shared binder.
+        if let prepared = preparedScalarFunction(for: closure),
+           let arguments = try preparedScalarArguments(
+                of: closure, from: effectiveArguments),
+           let value = try prepared.execute(
+                arguments: arguments,
+                receiver: closure.captured.lookup("self"),
+                interpreter: self) {
+            if let returnTypeName = closure.returnTypeName {
+                return try resolveAnnotated(value, typeName: returnTypeName)
+            }
+            return value
+        }
         callDepth += 1
         defer { callDepth -= 1 }
         let previousExecutor = evaluationTaskContext.currentExecutor
@@ -1087,7 +1305,7 @@ extension Interpreter {
         let unbound = closure.genericParameters.filter { env.lookup($0) == nil }
         guard !unbound.isEmpty else { return }
         for parameter in closure.parameters {
-            guard let declared = parameter.typeAnnotation?.trimmedDescription,
+            guard let declared = parameter.typeName,
                   declared.contains("->"),
                   unbound.contains(where: { declared.contains($0) }) else { continue }
             let argument = args.labeled(parameter.label ?? parameter.name)
@@ -1096,7 +1314,7 @@ extension Interpreter {
             let declaredParams = Self.functionTypeParameterList(declared)
             guard declaredParams.count == argClosure.parameters.count else { continue }
             for (declaredType, argParameter) in zip(declaredParams, argClosure.parameters) {
-                guard let actual = argParameter.typeAnnotation?.trimmedDescription else { continue }
+                guard let actual = argParameter.typeName else { continue }
                 unifyGeneric(declaredType, actual, unbound: unbound, into: env)
             }
         }
@@ -1402,8 +1620,7 @@ extension Interpreter {
             let accepts: (Int) -> Bool = { index in
                 let parameter = closure.parameters[index]
                 return parameter.isBuilderAttributed
-                    || parameter.typeAnnotation?.trimmedDescription
-                        .contains("->") == true
+                    || parameter.typeName?.contains("->") == true
             }
             if let index = bound.indices.first(where: {
                 bound[$0] == nil && accepts($0)

@@ -35,9 +35,16 @@ public struct CallArguments {
     }
 
     public var arguments: [Argument]
+    /// Stable syntax position of the source call that produced these
+    /// arguments. Host adapters use it only for semantics whose identity is
+    /// owned by the call site (for example SwiftUI lifecycle modifiers).
+    public let sourceSiteID: UInt64?
 
-    public init(arguments: [Argument] = []) {
+    public init(
+        arguments: [Argument] = [], sourceSiteID: UInt64? = nil
+    ) {
         self.arguments = arguments
+        self.sourceSiteID = sourceSiteID
     }
 
     public var isEmpty: Bool { arguments.isEmpty }
@@ -108,6 +115,10 @@ public protocol EvalContext: AnyObject {
     /// builds may physically host every instruction on MainActor while still
     /// preserving source-level executor hops through this identity.
     var sourceExecutor: RuntimeExecutorKind { get }
+    /// Structural identity contributed by enclosing collection builders.
+    /// Interpreter-backed SwiftUI adapters use this to distinguish sibling
+    /// rows created at one source call site.
+    var currentViewIdentityPath: String { get }
     func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     /// Enter interpreted code from a synchronous external host callback such
     /// as a SwiftUI action. Interpreter-backed contexts override this entry to
@@ -214,6 +225,13 @@ public protocol EvalContext: AnyObject {
     /// on slice exhaustion, and never charges the caller's step budget.
     func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     func callBuilderClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> [RuntimeValue]
+    /// Bracket one element of a host-materialized, therefore known-finite,
+    /// iteration. Interpreter contexts give the element an independent
+    /// bounded budget; other embedders simply execute it. The element body
+    /// itself remains bounded, so this cannot hide an infinite callback.
+    func withKnownFiniteHostIteration<T>(
+        _ operation: () throws -> T
+    ) throws -> T
     /// Resolve a static member supplied by an interpreted extension while a
     /// host coercion is running. Interpreter-backed contexts bind this lookup
     /// to the current program entry; other embedders have no source extension
@@ -221,6 +239,12 @@ public protocol EvalContext: AnyObject {
     func sourceStaticMember(
         named member: String, ofType typeName: String
     ) throws -> RuntimeValue?
+    /// Compare values with source-declared and synthesized equality when the
+    /// context owns interpreted declarations. Native collection storage uses
+    /// this witness for Set elements and Dictionary keys.
+    func collectionStorageValuesAreEqual(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> Bool
     /// Runtime type services for parsed host declarations. Embedders get a
     /// complete primitive/container implementation by default; Interpreter
     /// augments it with source symbols and registry-owned opaque types.
@@ -231,6 +255,7 @@ public protocol EvalContext: AnyObject {
 
 extension EvalContext {
     public var sourceExecutor: RuntimeExecutorKind { .mainActor }
+    public var currentViewIdentityPath: String { "" }
 
     /// Compatibility fallback for non-interpreter embedders. The interpreter
     /// supplies the task-aware implementation; legacy contexts preserve their
@@ -270,10 +295,22 @@ extension EvalContext {
         nil
     }
 
+    public func withKnownFiniteHostIteration<T>(
+        _ operation: () throws -> T
+    ) throws -> T {
+        try operation()
+    }
+
     public func sourceStaticMember(
         named member: String, ofType typeName: String
     ) throws -> RuntimeValue? {
         nil
+    }
+
+    public func collectionStorageValuesAreEqual(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> Bool {
+        try Builtins.areEqual(lhs, rhs)
     }
 
     public func spawnDetachedTask(
@@ -411,6 +448,9 @@ public protocol HostRegistry: AnyObject {
     /// Real implementations for C functions worth answering truthfully
     /// (uname fills real host values). nil falls to the inert absorber.
     func cFunction(named name: String) -> HostFunction?
+    /// SDK/module global values (`NSApp`) emitted from importer metadata.
+    /// This precedes the unknown-uppercase-type absorber.
+    func hostGlobal(named name: String) -> RuntimeValue?
     /// The value an absorbed C call yields — registries return writable
     /// bags so out-parameter structs (utsname) can be filled.
     func absorbedCValue(named name: String) -> RuntimeValue?
@@ -425,6 +465,11 @@ public protocol HostRegistry: AnyObject {
     /// Members on host-native values the core can't know (GeometryProxy.size,
     /// CGSize.width, …). Return nil for unknown names.
     func hostMember(_ name: String, on value: Any) -> RuntimeValue?
+    /// Last-resort dynamic-member behavior for opaque imported values. This is
+    /// deliberately separate from declared/bridged members: explicit member
+    /// access may use it, while implicit-self lookup must continue searching
+    /// lexical globals, imported functions, and constructors first.
+    func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue?
     /// Parsed property contract, consulted before the legacy dynamic member
     /// hook. Registries can migrate one declaration at a time.
     func hostProperty(named name: String, on value: Any) -> HostProperty?
@@ -445,6 +490,11 @@ public protocol HostRegistry: AnyObject {
     /// a recorded node → its constructor name) so user extensions of host
     /// types dispatch on stubs. Nil when unknown.
     func hostTypeName(of value: Any) -> String?
+    /// Registry-owned imported-type matching. This complements the core's
+    /// primitive/source type system for generated SDK values and for opaque
+    /// imported reference bags whose concrete class is unavailable on the
+    /// interpreter's host platform.
+    func hostValue(_ value: Any, matchesImportedType typeName: String) -> Bool
     /// Native ABI metadata for imported C/SDK value types. The interpreter
     /// derives source-struct layouts itself, but only the compiled host bridge
     /// can answer this without guessing for types it imports.
@@ -480,13 +530,18 @@ extension HostRegistry {
     public var compilerPreflightSyntheticSignatures: [HostSignature] { [] }
     public var compilerPreflightSyntheticTypes: [CompilerPreflightHostType] { [] }
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
+    public func hostGlobal(named name: String) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
+    public func hostValue(
+        _ value: Any, matchesImportedType typeName: String
+    ) -> Bool { false }
     public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }
     public func hostProtocolCandidates(of value: Any) -> [String] { [] }
     public func hostMutatedCopy(
         settingMember name: String, on value: Any, to newValue: RuntimeValue
     ) throws -> Any? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
+    public func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostProperty(named name: String, on value: Any) -> HostProperty? { nil }
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostMemberHasWorkerOperation(

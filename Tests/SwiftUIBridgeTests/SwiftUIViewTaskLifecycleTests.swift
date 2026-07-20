@@ -31,30 +31,19 @@ private final class WeakLifecycleReference<Value: AnyObject> {
 @Suite(.serialized)
 struct SwiftUIViewTaskLifecycleTests {
     @MainActor
-    private static var processLifetimeLifecycleWindows: [NSWindow] = []
-
-    @MainActor
     private func makeLifecycleWindow() -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false)
-        // Window transform animations can outlive an individual test and race
-        // AppKit teardown in the next test process-lifetime fixture. The tests
-        // exercise SwiftUI lifecycle semantics, not window presentation.
-        window.animationBehavior = .none
-        Self.processLifetimeLifecycleWindows.append(window)
+        HeadlessWindowTestLifetime.retain(window)
         return window
     }
 
     @MainActor
     private func retireLifecycleWindow(_ window: NSWindow) async {
-        window.contentView = nil
-        // Closing a test window starts an AppKit transform-animation teardown
-        // that can race the next test's autorelease-pool drain. Retaining the
-        // now-empty headless window keeps that process-global implementation
-        // detail out of the interpreter lifecycle assertion below.
+        HeadlessWindowTestLifetime.retire(window)
         await Task.yield()
     }
 

@@ -42,13 +42,42 @@ public struct DictValue: @preconcurrency CustomStringConvertible {
     public var count: Int { keys.count }
     public var isEmpty: Bool { keys.isEmpty }
 
+    /// Gives generated standard-library adapters the dictionary's parallel
+    /// storage without exposing either array as source-level API.
+    mutating func withMutableStorage(
+        _ mutation: (inout [RuntimeValue], inout [RuntimeValue]) -> Void
+    ) {
+        var mutableKeys = keys
+        var mutableValues = values
+        mutation(&mutableKeys, &mutableValues)
+        keys = mutableKeys
+        values = mutableValues
+    }
+
+    private func matchingKeyIndex(
+        _ key: RuntimeValue,
+        by areEqual: (RuntimeValue, RuntimeValue) throws -> Bool
+    ) throws -> Int? {
+        for (index, existing) in keys.enumerated()
+        where try areEqual(existing, key) {
+            return index
+        }
+        return nil
+    }
+
     /// Storage lookup that distinguishes an absent key from a present value
     /// whose own value is `Optional.none`.
     public func value(forKey key: RuntimeValue) throws -> RuntimeValue? {
-        for (index, existing) in keys.enumerated() where try Builtins.areEqual(existing, key) {
-            return values[index]
-        }
-        return nil
+        try value(forKey: key, by: Builtins.areEqual)
+    }
+
+    public func value(
+        forKey key: RuntimeValue,
+        by areEqual: (RuntimeValue, RuntimeValue) throws -> Bool
+    ) throws -> RuntimeValue? {
+        guard let index = try matchingKeyIndex(key, by: areEqual)
+        else { return nil }
+        return values[index]
     }
 
     /// Legacy internal lookup used by mutation/algebra paths. Source-level
@@ -58,8 +87,23 @@ public struct DictValue: @preconcurrency CustomStringConvertible {
         try value(forKey: key) ?? .nilValue
     }
 
+    public func lookup(
+        _ key: RuntimeValue,
+        by areEqual: (RuntimeValue, RuntimeValue) throws -> Bool
+    ) throws -> RuntimeValue {
+        try value(forKey: key, by: areEqual) ?? .nilValue
+    }
+
     public mutating func update(_ key: RuntimeValue, to value: RuntimeValue) throws {
-        for (index, existing) in keys.enumerated() where try Builtins.areEqual(existing, key) {
+        try update(key, to: value, by: Builtins.areEqual)
+    }
+
+    public mutating func update(
+        _ key: RuntimeValue,
+        to value: RuntimeValue,
+        by areEqual: (RuntimeValue, RuntimeValue) throws -> Bool
+    ) throws {
+        if let index = try matchingKeyIndex(key, by: areEqual) {
             if value.isNil {
                 keys.remove(at: index)
                 values.remove(at: index)
@@ -74,14 +118,39 @@ public struct DictValue: @preconcurrency CustomStringConvertible {
         }
     }
 
+    /// Removes one equal-key entry and returns its prior value. Generated
+    /// dictionary adapters supply the source member spelling and call shape.
+    mutating func removeEntry(
+        forKey key: RuntimeValue
+    ) throws -> RuntimeValue? {
+        try removeEntry(forKey: key, by: Builtins.areEqual)
+    }
+
+    mutating func removeEntry(
+        forKey key: RuntimeValue,
+        by areEqual: (RuntimeValue, RuntimeValue) throws -> Bool
+    ) throws -> RuntimeValue? {
+        guard let index = try matchingKeyIndex(key, by: areEqual)
+        else { return nil }
+        keys.remove(at: index)
+        return values.remove(at: index)
+    }
+
     /// Store a value without interpreting `Optional.none` as the dictionary
     /// subscript setter's outer nil. For `[Key: Value?]`, a typed `Value?.none`
     /// is a present value; only the untyped nil literal removes the entry.
     public mutating func setValue(
         _ key: RuntimeValue, to value: RuntimeValue
     ) throws {
-        for (index, existing) in keys.enumerated()
-        where try Builtins.areEqual(existing, key) {
+        try setValue(key, to: value, by: Builtins.areEqual)
+    }
+
+    public mutating func setValue(
+        _ key: RuntimeValue,
+        to value: RuntimeValue,
+        by areEqual: (RuntimeValue, RuntimeValue) throws -> Bool
+    ) throws {
+        if let index = try matchingKeyIndex(key, by: areEqual) {
             values[index] = value
             return
         }
@@ -97,6 +166,14 @@ public struct DictValue: @preconcurrency CustomStringConvertible {
         _ key: RuntimeValue, to value: RuntimeValue
     ) throws {
         try setValue(key, to: value)
+    }
+
+    public mutating func setLiteralEntry(
+        _ key: RuntimeValue,
+        to value: RuntimeValue,
+        by areEqual: (RuntimeValue, RuntimeValue) throws -> Bool
+    ) throws {
+        try setValue(key, to: value, by: areEqual)
     }
 
     public var description: String {

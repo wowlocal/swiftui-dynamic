@@ -34,19 +34,64 @@ enum ObjCTrampoline {
 
     /// ObjC classes reachable under their Swift OR Foundation name.
     private static func resolveClass(_ name: String) -> NSObject.Type? {
-        guard allowedClasses.contains(name) else { return nil }
         for candidate in [name, "NS" + name] {
-            if let cls = NSClassFromString(candidate) as? NSObject.Type {
+            if let cls = NSClassFromString(candidate) as? NSObject.Type,
+               allowedClasses.contains(name) || supportsProjectDataAsset(cls) {
                 return cls
             }
         }
         return nil
     }
 
+    /// Clang-imported SDK declarations do not appear in a swiftinterface.
+    /// Recognize the immutable data-asset contract from Objective-C runtime
+    /// metadata instead of growing a constructor branch per SDK type.
+    private static func supportsProjectDataAsset(_ cls: NSObject.Type) -> Bool {
+        let getters = ["name", "data", "typeIdentifier"].allSatisfy { name in
+            class_getInstanceMethod(cls, Selector(name)).map {
+                methodEncodingObjectOnly($0, expectedArgs: 0)
+            } ?? false
+        }
+        let initializerShapes = [
+            ("initWithName:", 1),
+            ("initWithName:bundle:", 2),
+        ]
+        return getters && initializerShapes.contains { selectorName, arity in
+            class_getInstanceMethod(cls, Selector(selectorName)).map {
+                methodEncodingObjectOnly($0, expectedArgs: arity)
+            } ?? false
+        }
+    }
+
+    /// Constructor lookup restricted to classes that prove the immutable
+    /// data-asset property/initializer contract through Objective-C metadata.
+    /// Trace-mode callers use this narrower capability instead of admitting
+    /// every unrelated class on the general Objective-C allowlist.
+    static func projectDataAssetConstructor(named name: String) -> HostFunction? {
+        guard let cls = resolveClass(name), supportsProjectDataAsset(cls) else {
+            return nil
+        }
+        return constructor(named: name)
+    }
+
     /// `RelativeDateTimeFormatter()` — no-argument construction.
     static func constructor(named name: String) -> HostFunction? {
         guard let cls = resolveClass(name) else { return nil }
         return HostFunction(name: name) { args, _ in
+            if supportsProjectDataAsset(cls) {
+                guard (1...2).contains(args.arguments.count),
+                      args.arguments.allSatisfy({ $0.label == "name" || $0.label == "bundle" }),
+                      let assetName = args.labeled("name")?.stringValue else {
+                    throw RuntimeError(
+                        message: "\(name)(…): expected name: and optional bundle:")
+                }
+                guard let asset = BundleBox.projectDataAsset(named: assetName) else {
+                    return .none(wrappedTypeName: name)
+                }
+                return .some(
+                    .native(ObjCBox(ProjectDataAssetObject(asset))),
+                    wrappedTypeName: name)
+            }
             if name == "UserDefaults" || name == "NSUserDefaults",
                args.labeled("suiteName")?.stringValue != nil {
                 return .native(ObjCBox(ephemeralDefaults))
@@ -419,6 +464,22 @@ enum ObjCTrampoline {
             return .native(ObjCBox(nsObject))
         }
         return .void
+    }
+}
+
+/// NSObject-shaped stand-in for an immutable catalog data entry. Existing
+/// runtime metadata dispatch serves its properties, so the adapter adds no
+/// hand-written member table.
+@objcMembers
+private final class ProjectDataAssetObject: NSObject {
+    let name: String
+    let data: Data
+    let typeIdentifier: String
+
+    init(_ resource: BundleBox.DataAssetResource) {
+        name = resource.name
+        data = resource.data
+        typeIdentifier = resource.typeIdentifier
     }
 }
 

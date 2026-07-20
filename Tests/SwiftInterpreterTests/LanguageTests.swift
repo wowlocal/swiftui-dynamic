@@ -311,6 +311,33 @@ private func eval(_ source: String) throws -> RuntimeValue {
         """
         #expect(try eval(source).stringValue == "11 3")
     }
+
+    @Test func dictionaryUsesDeclaredStructKeyEquality() throws {
+        let source = """
+        struct Key: Hashable {
+            let bytes: [Int]
+
+            static func == (lhs: Key, rhs: Key) -> Bool {
+                lhs.bytes == rhs.bytes
+            }
+
+            func hash(into hasher: inout Hasher) {
+                hasher.combine(bytes.count)
+            }
+        }
+
+        var index: [Key: [Int]] = [:]
+        index[Key(bytes: [1, 2]), default: []].append(7)
+        index[Key(bytes: [1, 2]), default: []].append(8)
+        let found = index[Key(bytes: [1, 2])]?.count ?? -1
+        let same = index == [Key(bytes: [1, 2]): [7, 8]]
+        let removed = index.removeValue(
+            forKey: Key(bytes: [1, 2]))?.count ?? -1
+        "\\(index.count)|\\(found)|\\(same)|\\(removed)"
+        """
+
+        #expect(try eval(source).stringValue == "0|2|true|2")
+    }
 }
 
 @Suite struct StdlibTests {
@@ -398,6 +425,432 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "base+child")
     }
 
+    /// A wrapper can inherit an unavailable SDK/package class with the same
+    /// basename (`Client: Vendor.Client`). Dropping the imported module
+    /// qualifier must not bind the wrapper as its own interpreted parent.
+    @Test func moduleQualifiedSameBasenameSuperclassRemainsHostBound() throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+        import VendorKit
+
+        final class Client: VendorKit.Client {}
+        """)
+
+        let client = try #require(interpreter.structSymbols.first {
+            $0.name == "Client"
+        })
+        #expect(client.superclassName == "VendorKit.Client")
+        #expect(client.superclassSymbol == nil)
+        #expect(try interpreter.staticMember("unavailable", of: client) == nil)
+    }
+
+    /// A subclass inherits the superclass's complete overload family. Call
+    /// syntax must choose within that family after seeing the arguments,
+    /// rather than binding whichever inherited declaration was collected
+    /// first as a bare member value.
+    @Test func inheritedOverloadFamilyUsesCallShape() throws {
+        let source = """
+        class Base {
+            func label() -> String {
+                "empty"
+            }
+
+            func label(_ value: String) -> String {
+                value
+            }
+        }
+
+        final class Child: Base {}
+        Child().label("chosen")
+        """
+
+        #expect(try eval(source).stringValue == "chosen")
+    }
+
+    @Test func inheritedOverloadFamilyUsesRuntimeType() throws {
+        let source = """
+        struct Slice {}
+
+        class Base {
+            func matches(_ value: [Int]) -> String {
+                "array"
+            }
+
+            func matches(_ value: Slice) -> String {
+                "slice"
+            }
+        }
+
+        final class Child: Base {}
+        Child().matches(Slice())
+        """
+
+        #expect(try eval(source).stringValue == "slice")
+    }
+
+    /// A candidate with an unfilled required positional parameter is not a
+    /// match merely because the supplied positional count fits its capacity.
+    /// SwiftSoup's Element overloads differ by exactly this third argument.
+    @Test func initializerOverloadRejectsMissingUnlabeledArgument() throws {
+        let source = """
+        final class Tag {}
+
+        final class Element {
+            let marker: Int
+
+            init(
+                _ tag: Tag, _ bytes: [Int], _ attributes: Int,
+                skip: Bool = false
+            ) {
+                marker = 1
+            }
+
+            init(_ tag: Tag, _ bytes: [Int], skip: Bool = false) {
+                marker = 2
+            }
+        }
+
+        Element(Tag(), [], skip: false).marker
+        """
+
+        #expect(try eval(source).intValue == 2)
+    }
+
+    @Test func dynamicSelfFindsInheritedStaticMethod() throws {
+        let source = """
+        class Base {
+            static func identify(_ value: Int) -> Int {
+                value
+            }
+
+            func resolved() -> Int {
+                Self.identify(42)
+            }
+        }
+
+        final class Child: Base {}
+        Child().resolved()
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
+    /// A stored static property's initializer closure retains its declaring
+    /// type as lexical scope, including unqualified sibling static members.
+    @Test func staticPropertyClosureSeesSiblingStaticMember() throws {
+        let source = """
+        final class Box {
+            let value: Int
+            init(_ value: Int) { self.value = value }
+        }
+
+        final class Catalog {
+            private static let seed = Box(42)
+            private static let selected: Box = {
+                seed
+            }()
+
+            static func value() -> Int {
+                selected.value
+            }
+        }
+
+        Catalog.value()
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
+    /// A stored static property's ordinary expression has the same lexical
+    /// sibling-static lookup as an initializer closure.
+    @Test func staticPropertyExpressionSeesSiblingStaticMember() throws {
+        let source = """
+        final class Box {
+            let value: Int
+            init(_ value: Int) { self.value = value }
+        }
+
+        final class Catalog {
+            private static let seeds = [1: Box(42)]
+            private static let selected = seeds[1]!
+
+            static func value() -> Int {
+                selected.value
+            }
+        }
+
+        Catalog.value()
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
+    /// A bare reference to the enclosing nominal keeps that lexical identity
+    /// even when another imported module later declares the same base name.
+    @Test func lexicalTypeNameWinsOverLaterModuleCollision() throws {
+        let source = """
+        // swift-interpreter-source-module Parser
+        final class Entry {
+            let bytes: [UInt8]
+
+            private init(_ bytes: [UInt8]) {
+                self.bytes = bytes
+            }
+
+            static func make(_ bytes: [UInt8]) -> Entry {
+                Entry(bytes)
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-source-module Models
+        struct Entry {
+            let marker: String
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-module Parser
+        Parser.Entry.make([65, 66, 67]).bytes.count
+        """
+
+        #expect(try eval(source).intValue == 3)
+    }
+
+    /// Unqualified sibling type annotations and references are bound in the
+    /// declaration's source module, not to a same-named nominal from a later
+    /// flattened module.
+    @Test func siblingTypeLookupUsesItsSourceModule() throws {
+        let source = """
+        // swift-interpreter-source-module Parser
+        final class Node {
+            let value: Int
+
+            init(_ value: Int) {
+                self.value = value
+            }
+        }
+
+        final class Builder {
+            func build() -> Node {
+                let node: Node = .init(20)
+                return Node(node.value + 22)
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-source-module Models
+        struct Node {
+            let marker: String
+
+            init(_ marker: String) {
+                self.marker = marker
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-module Parser
+        Parser.Builder().build().value
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
+    /// Optional class elements survive assignment into and retrieval from a
+    /// collection built inside a stored static property's initializer.
+    @Test func staticOptionalArrayLookupPreservesClassElement() throws {
+        let source = """
+        final class Box {
+            let value: Int
+            init(_ value: Int) { self.value = value }
+        }
+
+        final class Catalog {
+            private static let seed = Box(42)
+            private static let lookup: [Box?] = {
+                var result = [Box?](repeating: nil, count: 3)
+                result[1] = seed
+                result[2] = Box(7)
+                return result
+            }()
+
+            static func selected() -> Box? {
+                lookup[1]
+            }
+
+            static func value() -> Int {
+                selected()!.value
+            }
+        }
+
+        Catalog.value()
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
+    /// A fully-qualified nested raw-value enum remains the same enum case
+    /// when it is bound to a function parameter.
+    @Test func qualifiedNestedEnumParameterPreservesRawValue() throws {
+        let source = """
+        enum Token {
+            final class Tag {
+                enum ID: UInt16 {
+                    case none = 0
+                    case chosen = 1
+                }
+            }
+        }
+
+        final class Catalog {
+            private static let values = [0, 42]
+
+            static func value(for id: Token.Tag.ID) -> Int {
+                values[Int(id.rawValue)]
+            }
+        }
+
+        Catalog.value(for: .chosen)
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
+    /// An already-resolved nested enum case fits a parameter spelled with
+    /// the same qualified type path during overload selection.
+    @Test func qualifiedNestedEnumArgumentFitsQualifiedParameter() throws {
+        let source = """
+        enum Token {
+            final class Tag {
+                enum ID: UInt16 {
+                    case none = 0
+                    case chosen = 1
+                }
+            }
+        }
+
+        final class Catalog {
+            private static let values = [0, 42]
+
+            static func value(for id: Token.Tag.ID) -> Int? {
+                values[Int(id.rawValue)]
+            }
+        }
+
+        Catalog.value(for: Token.Tag.ID.chosen)!
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
+    /// A typed local initialized through optional binding preserves the bound
+    /// class reference when it is cached and returned after the branch.
+    @Test func typedLocalAssignedFromOptionalBindingPreservesReference() throws {
+        let source = """
+        final class Model {
+            let value: Int
+            init(_ value: Int) { self.value = value }
+        }
+
+        final class Catalog {
+            static func lookup(_ id: Int) -> Model? {
+                id == 1 ? Model(42) : nil
+            }
+        }
+
+        final class Resolver {
+            var cached: Model? = nil
+
+            func resolve(_ id: Int) -> Model {
+                if let cached {
+                    return cached
+                }
+
+                let resolved: Model
+                if let fast = Catalog.lookup(id) {
+                    resolved = fast
+                } else {
+                    resolved = Model(-1)
+                }
+                cached = resolved
+                return resolved
+            }
+        }
+
+        Resolver().resolve(1).value
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
+    /// Fixed-width integers share the runtime's scalar representation but
+    /// retain their declared nominal type for overload fitting.
+    @Test func fixedWidthIntegerOverloadFitsRuntimeScalar() throws {
+        let source = """
+        struct Matcher {
+            func contains(_ values: [UInt8]) -> String {
+                "array"
+            }
+
+            func contains(_ value: UInt8) -> String {
+                "byte"
+            }
+        }
+
+        Matcher().contains(UInt8(112))
+        """
+
+        #expect(try eval(source).stringValue == "byte")
+    }
+
+    /// `Array(sequence)` materializes an interpreted integer-indexed
+    /// Collection through its structural witnesses, just as `for in` does.
+    @Test func arrayConstructorMaterializesInterpretedCollection() throws {
+        let source = """
+        struct Window: RandomAccessCollection {
+            let storage: [Int]
+            var startIndex: Int { 1 }
+            var endIndex: Int { 3 }
+
+            func index(after value: Int) -> Int {
+                value + 1
+            }
+
+            subscript(position: Int) -> Int {
+                storage[position]
+            }
+        }
+
+        Array(Window(storage: [10, 20, 30, 40]))
+        """
+
+        let result = try eval(source).arrayValue
+        #expect(result?.compactMap(\.intValue) == [20, 30])
+    }
+
+    /// Collection's interface-provided `first` getter remains available to
+    /// an interpreted conformer that only declares the protocol witnesses.
+    @Test func generatedCollectionDefaultSuppliesFirstProperty() throws {
+        let source = """
+        struct Window: RandomAccessCollection {
+            let storage: [Int]
+            var startIndex: Int { 1 }
+            var endIndex: Int { 3 }
+
+            func index(after value: Int) -> Int {
+                value + 1
+            }
+
+            subscript(position: Int) -> Int {
+                storage[position]
+            }
+        }
+
+        Window(storage: [10, 20, 30, 40]).first ?? -1
+        """
+
+        #expect(try eval(source).intValue == 20)
+    }
+
     @Test func superInitializerPopulatesInheritedStorage() throws {
         let source = """
         class Base {
@@ -421,6 +874,32 @@ private func eval(_ source: String) throws -> RuntimeValue {
         "\\(value.id)|\\(value.title)|\\(value.note)"
         """
         #expect(try eval(source).stringValue == "7|native|child")
+    }
+
+    @Test func nestedSuperclassWinsOverSameNamedGlobal() throws {
+        let source = """
+        class Tag {
+            init(_ value: Int) {}
+        }
+        class Token {
+            private init() {}
+
+            class Tag: Token {
+                override init() {
+                    super.init()
+                }
+            }
+
+            final class EndTag: Tag {
+                override init() {
+                    super.init()
+                }
+            }
+        }
+        _ = Token.EndTag()
+        "nested"
+        """
+        #expect(try eval(source).stringValue == "nested")
     }
 
     @Test func hostSuperclassInitIsInertAndIUOIsNil() throws {
@@ -702,6 +1181,10 @@ private func eval(_ source: String) throws -> RuntimeValue {
         """
         #expect(try eval(source).intValue == 2)
         #expect(try eval(#""abc".distance(from: "abc".startIndex, to: "abc".endIndex)"#).intValue == 3)
+        #expect(try eval("""
+            let text = "abc"
+            text.startIndex < text.endIndex && text.endIndex > text.startIndex
+            """).boolValue == true)
         #expect(throws: RuntimeError.self) {
             try eval(#""ab".index("ab".startIndex, offsetBy: 99)"#)
         }
@@ -976,6 +1459,162 @@ private func eval(_ source: String) throws -> RuntimeValue {
         "\\(items.zIndex(items[1])) \\(items.middle())"
         """
         #expect(try eval(source).stringValue == "2.0 1")
+    }
+
+    @Test func incompatibleArrayExtensionOverloadDefersToNativeMethod() throws {
+        let source = """
+        struct Record {}
+
+        extension Array where Element == Record {
+            func sorted(by keyword: String) -> Self {
+                _ = keyword.trimmingCharacters(in: .whitespaces)
+                return self
+            }
+        }
+
+        [3, 1, 2].sorted { $0 < $1 }.first!
+        """
+        #expect(try eval(source).intValue == 1)
+    }
+
+    @Test func unavailableContiguousStorageRunsDeclaredFallback() throws {
+        let source = """
+        let values = [1, 2, 3]
+        let result = values.withContiguousStorageIfAvailable { _ in 99 }
+            ?? values.count
+        result
+        """
+        #expect(try eval(source).intValue == 3)
+    }
+
+    @Test func readOnlyUnsafeBufferRetainsBackingCollection() throws {
+        let source = """
+        final class Reader {
+            let input: UnsafeBufferPointer<Int>
+
+            init(_ values: [Int]) {
+                var base: UnsafePointer<Int>? = nil
+                values.withUnsafeBufferPointer { buffer in
+                    base = buffer.baseAddress
+                }
+                input = UnsafeBufferPointer(
+                    start: base, count: values.count)
+            }
+        }
+
+        let reader = Reader([65, 66])
+        reader.input[0] + reader.input[1]
+        """
+        #expect(try eval(source).intValue == 131)
+    }
+
+    @Test func convenienceInitializerRetainsUTF8BufferCollection() throws {
+        let source = """
+        extension String {
+            var utf8Array: [UInt8] {
+                if let out = self.utf8.withContiguousStorageIfAvailable({ _ in
+                    [UInt8]()
+                }) {
+                    return out
+                }
+                return Array(self.utf8)
+            }
+        }
+
+        final class Reader {
+            let input: UnsafeBufferPointer<UInt8>
+
+            init(_ values: [UInt8]) {
+                var base: UnsafePointer<UInt8>? = nil
+                values.withUnsafeBufferPointer { buffer in
+                    base = buffer.baseAddress
+                }
+                input = UnsafeBufferPointer(
+                    start: base, count: values.count)
+            }
+
+            convenience init(_ value: String) {
+                self.init(value.utf8Array)
+            }
+        }
+
+        let reader = Reader("AB")
+        reader.input[0] + reader.input[1]
+        """
+        #expect(try eval(source).intValue == 131)
+    }
+
+    @Test func inferredArrayRepeatingInitializerUsesAnnotatedElementType() throws {
+        let source = """
+        final class Trie {
+            var children: [Trie?] = .init(repeating: nil, count: 256)
+        }
+
+        let root = Trie()
+        root.children[44] = Trie()
+        root.children[44] != nil
+        """
+        #expect(try eval(source).boolValue == true)
+    }
+
+    @Test func arraySubscriptPreservesDeclaredElementTypeForExtensions() throws {
+        let source = """
+        extension UInt8 {
+            var isSpace: Bool { self == 32 }
+        }
+
+        let bytes: [UInt8] = [32]
+        bytes[0].isSpace
+        """
+        #expect(try eval(source).boolValue == true)
+    }
+
+    @Test func optionalChainPreservesDeclaredWrappedTypeForExtensions() throws {
+        let source = """
+        extension UInt8 {
+            var isSpace: Bool { self == 32 }
+        }
+
+        let bytes: [UInt8] = [32]
+        bytes.first?.isSpace ?? false
+        """
+        #expect(try eval(source).boolValue == true)
+    }
+
+    @Test func uint64CarrierSupportsBitPackingOperators() throws {
+        let source = """
+        var value: UInt64 = 0
+        var shift: UInt64 = 0
+        let byte: UInt8 = 44
+        value |= UInt64(byte) << shift
+        shift &+= 8
+        Int(value) + Int(shift)
+        """
+        #expect(try eval(source).intValue == 52)
+    }
+
+    @Test func interpretedIntegerIndexedCollectionSupportsForIn() throws {
+        let source = """
+        struct Slice: RandomAccessCollection {
+            let storage: [Int]
+            let start: Int
+            let end: Int
+
+            var startIndex: Int { 0 }
+            var endIndex: Int { end - start }
+
+            subscript(position: Int) -> Int {
+                storage[start + position]
+            }
+        }
+
+        var total = 0
+        for value in Slice(storage: [3, 5, 7], start: 1, end: 3) {
+            total += value
+        }
+        total
+        """
+        #expect(try eval(source).intValue == 12)
     }
 
     @Test func sugarTypedArrayFilterOverloadRetainsStaticEmptyType() throws {

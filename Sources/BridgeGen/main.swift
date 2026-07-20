@@ -1392,6 +1392,179 @@ if let stdlibFile {
     sweepMemberFile(stdlibFile)
 }
 
+/// Unsafe-memory APIs need runtime semantics that their declarations cannot
+/// execute inside `RuntimeValue`, but the TYPES eligible for those semantics
+/// are still interface facts. Derive them from `_Pointer` conformance and the
+/// structural `init(start:pointer?, count:Int)` buffer shape so evaluator
+/// dispatch never grows a hand-maintained SDK type-name list.
+struct UnsafeMemorySurface {
+    let pointerTypes: [String]
+    let rawPointerTypes: [String]
+    let bufferTypes: [String]
+    let bufferRebindingMembers: [(name: String, metatypeLabel: String)]
+}
+
+func unsafeMemorySurface(in file: SourceFileSyntax?) -> UnsafeMemorySurface {
+    guard let file else {
+        return UnsafeMemorySurface(
+            pointerTypes: [], rawPointerTypes: [], bufferTypes: [],
+            bufferRebindingMembers: [])
+    }
+
+    func nominalName(_ raw: String) -> String {
+        var name = normalize(raw)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        while name.hasSuffix("?") || name.hasSuffix("!") {
+            name.removeLast()
+        }
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return name.split(separator: ".").last.map(String.init) ?? name
+    }
+
+    func inheritsPointer(_ clause: InheritanceClauseSyntax?) -> Bool {
+        clause?.inheritedTypes.contains(where: {
+            normalize($0.type.trimmedDescription)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .hasSuffix("_Pointer")
+        }) == true
+    }
+
+    var nominals: [String: StructDeclSyntax] = [:]
+    var pointerTypes = Set<String>()
+    var extensions: [ExtensionDeclSyntax] = []
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item else { continue }
+        if let nominal = declaration.as(StructDeclSyntax.self) {
+            let name = nominal.name.text
+            nominals[name] = nominal
+            if inheritsPointer(nominal.inheritanceClause) {
+                pointerTypes.insert(name)
+            }
+        } else if let extensionDecl = declaration.as(ExtensionDeclSyntax.self) {
+            extensions.append(extensionDecl)
+        }
+    }
+    for extensionDecl in extensions where inheritsPointer(
+        extensionDecl.inheritanceClause)
+    {
+        pointerTypes.insert(nominalName(
+            extensionDecl.extendedType.trimmedDescription))
+    }
+
+    let rawPointerTypes = Set(pointerTypes.filter { name in
+        guard let nominal = nominals[name],
+              nominal.genericParameterClause == nil else { return false }
+        return nominal.memberBlock.members.contains { member in
+            guard let alias = member.decl.as(TypeAliasDeclSyntax.self),
+                  alias.name.text == "Pointee" else { return false }
+            return nominalName(alias.initializer.value.trimmedDescription)
+                == "UInt8"
+        }
+    })
+
+    let bufferTypes = Set(nominals.compactMap { name, nominal -> String? in
+        let hasBufferInitializer = nominal.memberBlock.members.contains {
+            member in
+            guard let initializer = member.decl.as(InitializerDeclSyntax.self)
+            else { return false }
+            let parameters = initializer.signature.parameterClause.parameters
+            guard parameters.count == 2 else { return false }
+            let first = parameters[parameters.startIndex]
+            let second = parameters[parameters.index(after: parameters.startIndex)]
+            let pointerType = nominalName(first.type.trimmedDescription)
+            return first.firstName.text == "start"
+                && pointerTypes.contains(pointerType)
+                && second.firstName.text == "count"
+                && nominalName(second.type.trimmedDescription) == "Int"
+        }
+        return hasBufferInitializer ? name : nil
+    })
+
+    var bufferRebindingMembers = Set<String>()
+    func collectBufferRebindingMembers(
+        from members: MemberBlockItemListSyntax
+    ) {
+        for member in members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  let result = function.signature.returnClause?.type,
+                  bufferTypes.contains(nominalName(
+                    result.trimmedDescription)) else {
+                continue
+            }
+            let parameters = function.signature.parameterClause.parameters
+            guard parameters.count == 1, let parameter = parameters.first else {
+                continue
+            }
+            let genericNames = Set(
+                function.genericParameterClause?.parameters.map(
+                    \.name.text) ?? [])
+            let parameterType = normalize(parameter.type.trimmedDescription)
+            guard parameterType.hasSuffix(".Type"),
+                  genericNames.contains(String(parameterType.dropLast(
+                    ".Type".count))) else {
+                continue
+            }
+            bufferRebindingMembers.insert(
+                function.name.text + "\u{0}" + parameter.firstName.text)
+        }
+    }
+    for (name, nominal) in nominals where bufferTypes.contains(name) {
+        collectBufferRebindingMembers(from: nominal.memberBlock.members)
+    }
+    for extensionDecl in extensions where bufferTypes.contains(nominalName(
+        extensionDecl.extendedType.trimmedDescription))
+    {
+        collectBufferRebindingMembers(
+            from: extensionDecl.memberBlock.members)
+    }
+    let sortedBufferRebindingMembers = bufferRebindingMembers.sorted().map {
+        let pieces = $0.split(separator: "\u{0}", omittingEmptySubsequences: false)
+        return (name: String(pieces[0]), metatypeLabel: String(pieces[1]))
+    }
+
+    return UnsafeMemorySurface(
+        pointerTypes: pointerTypes.sorted(),
+        rawPointerTypes: rawPointerTypes.sorted(),
+        bufferTypes: bufferTypes.sorted(),
+        bufferRebindingMembers: sortedBufferRebindingMembers)
+}
+
+let generatedUnsafeMemorySurface = unsafeMemorySurface(in: stdlibFile)
+let generatedUnicodeDecodingSurface = unicodeDecodingSurface(in: stdlibFile)
+let generatedIntegerIndexCollectionDefaults =
+    integerIndexCollectionDefaults(in: stdlibFile)
+let generatedNativeIndexMotionDefaults =
+    nativeIndexMotionDefaults(in: stdlibFile)
+let generatedIndexSearchDefaults =
+    indexSearchDefaults(in: stdlibFile)
+let generatedBooleanIndexEndpointEqualityCollectionDefaults =
+    booleanIndexEndpointEqualityCollectionDefaults(in: stdlibFile)
+let generatedOptionalElementCollectionDefaults =
+    optionalElementCollectionDefaults(in: stdlibFile)
+let generatedOptionalLastRemovalCollectionDefaults =
+    optionalLastRemovalCollectionDefaults(in: stdlibFile)
+let generatedRequiredEndpointRemovalCollectionDefaults =
+    requiredEndpointRemovalCollectionDefaults(in: stdlibFile)
+let generatedElementGenericCollectionNominals =
+    elementGenericCollectionNominals(in: stdlibFile)
+let generatedMaterializableSequenceProtocolNames =
+    materializableSequenceProtocolNames(in: stdlibFile)
+let generatedRepeatedElementSequenceFactories =
+    repeatedElementSequenceFactories(in: stdlibFile)
+let generatedNativeWritableStringCollectionViews =
+    nativeWritableStringCollectionViews(in: stdlibFile)
+let generatedNativeCollectionCarrierDefaults =
+    nativeCollectionCarrierDefaults(in: stdlibFile)
+let generatedNativeCollectionCarrierScalarVoidMutations =
+    generatedNativeCollectionCarrierDefaults.scalarVoidMutations
+let generatedNativeDictionaryKeyOptionalValueMutations =
+    generatedNativeCollectionCarrierDefaults
+        .dictionaryKeyOptionalValueMutations
+let generatedRangeRemovalMutations =
+    rangeRemovalMutations(in: stdlibFile)
+
 // Charts owns the axis value-plane carriers (DateBins/NumberBins) —
 // interpreted axis builders read `.thresholds` and hand the dates back
 // to real AxisMarks. Same sweep, same receiver gates.
@@ -1542,6 +1715,8 @@ if let jsonReportPath {
 // MARK: - Emit
 
 guard emitMode else { exit(0) }
+
+let cMemoryGeneration = try generateCMemoryBridge(sdkPath: sdk)
 
 func entryCode(_ variant: Variant) -> String {
     let specs = variant.params
@@ -1904,6 +2079,947 @@ membersOutput += "}\n"
 let membersPath = "Sources/SwiftUIBridge/Generated/GeneratedMembers.swift"
 try membersOutput.write(toFile: membersPath, atomically: true, encoding: .utf8)
 print("wrote \(membersPath) (\(sortedProperties.count) properties, \(sortedMembers.count) method variants)")
+
+let bufferRebindingEntries = generatedUnsafeMemorySurface
+    .bufferRebindingMembers.map {
+        "        \(String(reflecting: $0.name)): "
+            + "\(String(reflecting: $0.metatypeLabel))"
+    }.joined(separator: ",\n")
+let bufferRebindingLiteral = bufferRebindingEntries.isEmpty
+    ? "[:]"
+    : "[\n\(bufferRebindingEntries),\n    ]"
+let unsafeMemoryOutput = """
+// GENERATED by BridgeGen from the active Swift standard-library swiftinterface.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+enum GeneratedUnsafeMemorySurface {
+    static let pointerTypeNames: Set<String> = Set(\(String(reflecting:
+        generatedUnsafeMemorySurface.pointerTypes)))
+    static let rawPointerTypeNames: Set<String> = Set(\(String(reflecting:
+        generatedUnsafeMemorySurface.rawPointerTypes)))
+    static let bufferTypeNames: Set<String> = Set(\(String(reflecting:
+        generatedUnsafeMemorySurface.bufferTypes)))
+    static let bufferRebindingMetatypeLabels: [String: String] = \(bufferRebindingLiteral)
+
+    static func isPointerType(_ name: String) -> Bool {
+        pointerTypeNames.contains(canonicalTypeName(name))
+    }
+
+    static func isRawPointerType(_ name: String) -> Bool {
+        rawPointerTypeNames.contains(canonicalTypeName(name))
+    }
+
+    static func isBufferType(_ name: String) -> Bool {
+        bufferTypeNames.contains(canonicalTypeName(name))
+    }
+
+    static func bufferRebindingMetatypeLabel(for name: String) -> String? {
+        bufferRebindingMetatypeLabels[name]
+    }
+
+    private static func canonicalTypeName(_ rawName: String) -> String {
+        var name = rawName
+        for prefix in ["Swift."] where name.hasPrefix(prefix) {
+            name.removeFirst(prefix.count)
+        }
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return name
+    }
+}
+""" + "\n"
+let unsafeMemoryPath =
+    "Sources/SwiftInterpreter/Generated/GeneratedUnsafeMemorySurface.swift"
+try unsafeMemoryOutput.write(
+    toFile: unsafeMemoryPath, atomically: true, encoding: .utf8)
+print("wrote \(unsafeMemoryPath) (\(generatedUnsafeMemorySurface.pointerTypes.count) pointer, \(generatedUnsafeMemorySurface.bufferTypes.count) buffer types)")
+
+var unicodeDecodingOutput = """
+// GENERATED by BridgeGen from the active Swift standard-library swiftinterface.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+enum GeneratedUnicodeDecodingSurface {
+    struct Initializer {
+        let codeUnitsLabel: String
+        let encodingLabel: String
+    }
+
+    static func initializers(named rawName: String) -> [Initializer] {
+        switch canonicalTypeName(rawName) {
+""" + "\n"
+for (typeName, initializers) in Dictionary(
+    grouping: generatedUnicodeDecodingSurface.initializers,
+    by: \.typeName
+).sorted(by: { $0.key < $1.key }) {
+    let values = initializers.sorted {
+        ($0.codeUnitsLabel, $0.encodingLabel)
+            < ($1.codeUnitsLabel, $1.encodingLabel)
+    }.map {
+        "Initializer(codeUnitsLabel: \(String(reflecting: $0.codeUnitsLabel)), "
+            + "encodingLabel: \(String(reflecting: $0.encodingLabel)))"
+    }.joined(separator: ", ")
+    unicodeDecodingOutput += """
+        case \(String(reflecting: typeName)):
+            return [\(values)]
+""" + "\n"
+}
+unicodeDecodingOutput += """
+        default:
+            return []
+        }
+    }
+
+    static func decode(
+        _ codeUnits: [UInt64],
+        as rawEncodingTypeName: String
+    ) -> String? {
+        switch canonicalTypeName(rawEncodingTypeName) {
+""" + "\n"
+for encoding in generatedUnicodeDecodingSurface.encodings {
+    let cases = encoding.sourceSpellings
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
+    unicodeDecodingOutput += """
+        case \(cases):
+            return decode(codeUnits, as: \(encoding.typeName).self)
+""" + "\n"
+}
+unicodeDecodingOutput += """
+        default:
+            return nil
+        }
+    }
+
+    private static func decode<Encoding: _UnicodeEncoding>(
+        _ codeUnits: [UInt64],
+        as encoding: Encoding.Type
+    ) -> String {
+        String(
+            decoding: codeUnits.map {
+                Encoding.CodeUnit(truncatingIfNeeded: $0)
+            },
+            as: encoding)
+    }
+
+    private static func canonicalTypeName(_ rawName: String) -> String {
+        var name = rawName
+        if name.hasPrefix("Swift.") {
+            name.removeFirst("Swift.".count)
+        }
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return name
+    }
+}
+""" + "\n"
+let unicodeDecodingPath =
+    "Sources/SwiftInterpreter/Generated/GeneratedUnicodeDecodingSurface.swift"
+try unicodeDecodingOutput.write(
+    toFile: unicodeDecodingPath, atomically: true, encoding: .utf8)
+print(
+    "wrote \(unicodeDecodingPath) "
+        + "(\(generatedUnicodeDecodingSurface.initializers.count) initializers, "
+        + "\(generatedUnicodeDecodingSurface.encodings.count) encodings)")
+
+var generatedCollectionPropertyProtocols: [String: Set<String>] = [:]
+for property in generatedBooleanIndexEndpointEqualityCollectionDefaults {
+    generatedCollectionPropertyProtocols[property.memberName, default: []]
+        .formUnion(property.eligibleProtocolNames)
+}
+for property in generatedOptionalElementCollectionDefaults {
+    generatedCollectionPropertyProtocols[property.memberName, default: []]
+        .formUnion(property.eligibleProtocolNames)
+}
+let generatedCollectionPropertyProtocolRows =
+    generatedCollectionPropertyProtocols.sorted { $0.key < $1.key }.map {
+        memberName, protocolNames in
+        "        \(String(reflecting: memberName)): Set(["
+            + protocolNames.sorted().map(String.init(reflecting:))
+                .joined(separator: ", ")
+            + "]),"
+    }.joined(separator: "\n")
+
+var collectionDefaultsOutput = """
+// GENERATED by BridgeGen from the active Swift standard-library swiftinterface.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+enum GeneratedCollectionDefaultSurface {
+    private static let elementGenericCollectionNominalNames: Set<String> = Set([
+        \(generatedElementGenericCollectionNominals
+            .map(String.init(reflecting:)).joined(separator: ", "))
+    ])
+
+    static func usesElementGenericParameter(
+        nominalName: String
+    ) -> Bool {
+        elementGenericCollectionNominalNames.contains(nominalName)
+    }
+
+    private static let materializableSequenceProtocolNames: Set<String> = Set([
+        \(generatedMaterializableSequenceProtocolNames
+            .map(String.init(reflecting:)).joined(separator: ", "))
+    ])
+
+    static func isMaterializableSequenceProtocol(
+        named rawName: String
+    ) -> Bool {
+        var name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["any ", "some "] where name.hasPrefix(prefix) {
+            name.removeFirst(prefix.count)
+            name = name.trimmingCharacters(in: .whitespaces)
+        }
+        if name.hasPrefix("Swift.") {
+            name.removeFirst("Swift.".count)
+        }
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return materializableSequenceProtocolNames.contains(name)
+    }
+""" + "\n"
+collectionDefaultsOutput += """
+
+    static let repeatedElementSequenceFactoryNames: Set<String> = Set([
+        \(generatedRepeatedElementSequenceFactories
+            .map(\.functionName).map(String.init(reflecting:))
+            .joined(separator: ", "))
+    ])
+
+    @MainActor
+    static func repeatedElementSequenceFactory(
+        named name: String
+    ) -> HostFunction? {
+        switch name {
+""" + "\n"
+for factory in generatedRepeatedElementSequenceFactories {
+    let elementArgument = factory.elementArgumentLabel.map {
+        "args.labeled(\(String(reflecting: $0)))"
+    } ?? "args.positional(0)"
+    let countArgument = factory.countArgumentLabel.map {
+        "args.labeled(\(String(reflecting: $0)))"
+    } ?? "args.positional(1)"
+    collectionDefaultsOutput += """
+        case \(String(reflecting: factory.functionName)):
+            return HostFunction(name: name) { args, _ in
+                guard args.arguments.count == 2,
+                      let element = \(elementArgument),
+                      let count = \(countArgument)?.intValue,
+                      count >= 0 else {
+                    throw RuntimeError(
+                        message: "generated repeated-element sequence argument mismatch")
+                }
+                return .native(
+                    [RuntimeValue](repeating: element, count: count))
+            }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        default:
+            return nil
+        }
+    }
+""" + "\n"
+collectionDefaultsOutput += """
+
+    @MainActor
+    static func nativeWritableStringCollectionView(
+        named name: String,
+        on owner: String
+    ) -> RuntimeValue? {
+        switch name {
+""" + "\n"
+for view in generatedNativeWritableStringCollectionViews {
+    collectionDefaultsOutput += """
+        case \(String(reflecting: view.propertyName)):
+            return .native(owner.\(view.propertyName).map {
+                RuntimeValue.native(String($0))
+            })
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        default:
+            return nil
+        }
+    }
+
+    private static let nativeWritableStringCollectionViewNames: Set<String> =
+        Set([\(generatedNativeWritableStringCollectionViews
+            .map(\.propertyName).map(String.init(reflecting:))
+            .joined(separator: ", "))])
+
+    static func isNativeWritableStringCollectionView(
+        named name: String
+    ) -> Bool {
+        nativeWritableStringCollectionViewNames.contains(name)
+    }
+
+    @MainActor
+    static func replacingNativeWritableStringCollectionView(
+        named name: String,
+        in owner: String,
+        with replacement: RuntimeValue
+    ) throws -> String? {
+        switch name {
+""" + "\n"
+for view in generatedNativeWritableStringCollectionViews {
+    collectionDefaultsOutput += """
+        case \(String(reflecting: view.propertyName)):
+            guard let elements = replacement.arrayValue else {
+                throw RuntimeError(
+                    message: "generated writable String collection view needs an array")
+            }
+            var projected = ""
+            for element in elements {
+                guard let fragment = element.stringValue,
+                      fragment.\(view.propertyName).count == 1 else {
+                    throw RuntimeError(
+                        message: "generated writable String collection view element mismatch")
+                }
+                projected += fragment
+            }
+            var result = owner
+            result.\(view.propertyName) = projected.\(view.propertyName)
+            return result
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        default:
+            return nil
+        }
+    }
+
+    private static let propertyProtocols: [String: Set<String>] = [
+\(generatedCollectionPropertyProtocolRows)
+    ]
+
+    static func suppliesProperty(
+        named name: String,
+        conformances: Set<String>
+    ) -> Bool {
+        guard let eligible = propertyProtocols[name] else { return false }
+        return !conformances.isDisjoint(with: eligible)
+    }
+
+    @MainActor
+    static func member(
+        named name: String,
+        conformances: Set<String>
+    ) -> HostFunction? {
+""" + "\n"
+for (memberName, defaults) in Dictionary(
+    grouping: generatedIntegerIndexCollectionDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    let protocols = Set(defaults.flatMap(\.eligibleProtocolNames)).sorted()
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: memberName)),
+           !conformances.isDisjoint(with: Set([\(protocols)])) {
+            return HostFunction(name: name) { args, _ in
+""" + "\n"
+    for rule in defaults {
+        let argument = rule.argumentLabel.map {
+            "args.labeled(\(String(reflecting: $0)))"
+        } ?? "args.positional(0)"
+        let operationArgument = rule.indexOperationLabel.map {
+            "\($0): \(rule.distance)"
+        } ?? String(rule.distance)
+        collectionDefaultsOutput += """
+                if !conformances.isDisjoint(with: Set([\(
+                    rule.eligibleProtocolNames.sorted()
+                        .map(String.init(reflecting:))
+                        .joined(separator: ", "))])),
+                   args.arguments.count == 1,
+                   let index = \(argument)?.intValue {
+                    return .native(index.\(rule.indexOperationName)(
+                        \(operationArgument)))
+                }
+""" + "\n"
+    }
+    collectionDefaultsOutput += """
+                throw RuntimeError(
+                    message: "generated collection default argument mismatch")
+            }
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        return nil
+    }
+
+    @MainActor
+    static func nativeIndexMotionMember(
+        named name: String,
+        receiver: RuntimeValue
+    ) -> HostFunction? {
+""" + "\n"
+for (memberName, defaults) in Dictionary(
+    grouping: generatedNativeIndexMotionDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: memberName)) {
+            return HostFunction(name: name) { args, _ in
+""" + "\n"
+    for rule in defaults {
+        let arguments = rule.argumentLabels.enumerated().map {
+            index, label in
+            label.map {
+                "args.labeled(\(String(reflecting: $0)))"
+            } ?? "args.positional(\(index))"
+        }
+        switch rule.kind {
+        case .successor, .predecessor:
+            let distance = rule.kind == .successor ? 1 : -1
+            collectionDefaultsOutput += """
+                if args.arguments.count == 1,
+                   let index = \(arguments[0]) {
+                    return try moveNativeIndex(
+                        in: receiver, from: index, by: \(distance))
+                }
+""" + "\n"
+        case .offset:
+            collectionDefaultsOutput += """
+                if args.arguments.count == 2,
+                   let index = \(arguments[0]),
+                   let distance = \(arguments[1])?.intValue {
+                    return try moveNativeIndex(
+                        in: receiver, from: index, by: distance)
+                }
+""" + "\n"
+        case .limitedOffset:
+            collectionDefaultsOutput += """
+                if args.arguments.count == 3,
+                   let index = \(arguments[0]),
+                   let distance = \(arguments[1])?.intValue,
+                   let limit = \(arguments[2]) {
+                    return try limitedNativeIndex(
+                        in: receiver, from: index,
+                        by: distance, limitedBy: limit)
+                }
+""" + "\n"
+        }
+    }
+    collectionDefaultsOutput += """
+                throw RuntimeError(
+                    message: "generated native index motion argument mismatch")
+            }
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        return nil
+    }
+
+    @MainActor
+    private static func moveNativeIndex(
+        in receiver: RuntimeValue,
+        from indexValue: RuntimeValue,
+        by distance: Int
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            guard case .host(let payload) = indexValue,
+                  let index = payload as? String.Index else {
+                throw RuntimeError(
+                    message: "generated string index motion needs String.Index")
+            }
+            let limit = distance >= 0 ? string.endIndex : string.startIndex
+            guard let moved = string.index(
+                index, offsetBy: distance, limitedBy: limit) else {
+                throw RuntimeError(
+                    message: "generated string index motion is out of bounds")
+            }
+            return .native(moved)
+        }
+        if receiver.arrayValue != nil,
+           let index = indexValue.intValue {
+            return .native(index + distance)
+        }
+        throw RuntimeError(
+            message: "generated native index motion needs an indexed carrier")
+    }
+
+    @MainActor
+    private static func limitedNativeIndex(
+        in receiver: RuntimeValue,
+        from indexValue: RuntimeValue,
+        by distance: Int,
+        limitedBy limitValue: RuntimeValue
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            guard case .host(let indexPayload) = indexValue,
+                  let index = indexPayload as? String.Index,
+                  case .host(let limitPayload) = limitValue,
+                  let limit = limitPayload as? String.Index else {
+                throw RuntimeError(
+                    message: "generated limited string motion needs String.Index")
+            }
+            guard let moved = string.index(
+                index, offsetBy: distance, limitedBy: limit) else {
+                return .none(wrappedTypeName: "String.Index")
+            }
+            return .some(
+                .native(moved), wrappedTypeName: "String.Index")
+        }
+        if receiver.arrayValue != nil,
+           let index = indexValue.intValue,
+           let limit = limitValue.intValue {
+            let delta = limit - index
+            let crossesLimit = distance > 0
+                ? delta >= 0 && delta < distance
+                : delta <= 0 && distance < delta
+            guard !crossesLimit else {
+                return .none(wrappedTypeName: "Int")
+            }
+            return .some(
+                .native(index + distance), wrappedTypeName: "Int")
+        }
+        throw RuntimeError(
+            message: "generated limited index motion needs an indexed carrier")
+    }
+
+    private enum NativeIndexSearchDirection {
+        case forward
+        case backward
+    }
+
+    @MainActor
+    static func nativeIndexSearchMember(
+        named name: String,
+        receiver: RuntimeValue
+    ) -> HostFunction? {
+""" + "\n"
+
+for (memberName, defaults) in Dictionary(
+    grouping: generatedIndexSearchDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: memberName)) {
+            return HostFunction(name: name) { args, context in
+""" + "\n"
+    for rule in defaults {
+        switch rule.argumentKind {
+        case .element:
+            let argument = rule.argumentLabel.map {
+                "args.labeled(\(String(reflecting: $0)))"
+            } ?? "args.positional(0)"
+            collectionDefaultsOutput += """
+                if args.arguments.count == 1,
+                   let target = \(argument) {
+                    return try firstNativeIndex(
+                        in: receiver,
+                        direction: .\(rule.direction.rawValue),
+                        where: { try Builtins.areEqual($0, target) })
+                }
+""" + "\n"
+        case .predicate:
+            let labeledClosure = rule.argumentLabel.map {
+                "args.closure(labeled: \(String(reflecting: $0)))"
+            } ?? "nil"
+            collectionDefaultsOutput += """
+                if args.arguments.count == 1,
+                   let predicate = \(labeledClosure)
+                    ?? args.firstUnlabeledClosure
+                    ?? args.positional(0)?.closureValue {
+                    return try firstNativeIndex(
+                        in: receiver,
+                        direction: .\(rule.direction.rawValue),
+                        where: {
+                            try context.callClosure(
+                                predicate, arguments: [$0]).boolValue == true
+                        })
+                }
+""" + "\n"
+        }
+    }
+    collectionDefaultsOutput += """
+                throw RuntimeError(
+                    message: "generated index search argument mismatch")
+            }
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        return nil
+    }
+
+    @MainActor
+    private static func firstNativeIndex(
+        in receiver: RuntimeValue,
+        direction: NativeIndexSearchDirection,
+        where matches: (RuntimeValue) throws -> Bool
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            switch direction {
+            case .forward:
+                var index = string.startIndex
+                while index != string.endIndex {
+                    if try matches(.native(String(string[index]))) {
+                        return .some(
+                            .native(index), wrappedTypeName: "String.Index")
+                    }
+                    string.formIndex(after: &index)
+                }
+            case .backward:
+                var index = string.endIndex
+                while index != string.startIndex {
+                    string.formIndex(before: &index)
+                    if try matches(.native(String(string[index]))) {
+                        return .some(
+                            .native(index), wrappedTypeName: "String.Index")
+                    }
+                }
+            }
+            return .none(wrappedTypeName: "String.Index")
+        }
+        if let array = receiver.arrayValue {
+            let indices: AnySequence<Int> = switch direction {
+            case .forward: AnySequence(array.indices)
+            case .backward: AnySequence(array.indices.reversed())
+            }
+            for index in indices where try matches(array[index]) {
+                return .some(
+                    .native(index), wrappedTypeName: "Int")
+            }
+            return .none(wrappedTypeName: "Int")
+        }
+        throw RuntimeError(
+            message: "generated index search needs an indexed carrier")
+    }
+
+    @MainActor
+    static func property(
+        named name: String,
+        conformances: Set<String>,
+        receiver: RuntimeValue,
+        interpreter: Interpreter
+    ) throws -> RuntimeValue? {
+""" + "\n"
+for (memberName, defaults) in Dictionary(
+    grouping: generatedBooleanIndexEndpointEqualityCollectionDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: memberName)) {
+""" + "\n"
+    for rule in defaults {
+        let protocols = rule.eligibleProtocolNames.sorted()
+            .map(String.init(reflecting:))
+            .joined(separator: ", ")
+        collectionDefaultsOutput += """
+            if !conformances.isDisjoint(with: Set([\(protocols)])),
+               let endpointsEqual = try interpreter
+                .interpretedIntegerIndexedCollectionEndpointsAreEqual(
+                    receiver,
+                    leftMemberName: \(String(reflecting: rule.leftEndpointName)),
+                    rightMemberName: \(String(reflecting: rule.rightEndpointName))) {
+                return .native(endpointsEqual)
+            }
+""" + "\n"
+    }
+    collectionDefaultsOutput += """
+        }
+""" + "\n"
+}
+for (memberName, defaults) in Dictionary(
+    grouping: generatedOptionalElementCollectionDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    let projections = Set(defaults.map(\.projection))
+    precondition(
+        projections.count == 1,
+        "one collection member cannot project both endpoints")
+    let projection = projections.first!.rawValue
+    let protocols = Set(defaults.flatMap(\.eligibleProtocolNames)).sorted()
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: memberName)),
+           !conformances.isDisjoint(with: Set([\(protocols)])),
+           let elements = try interpreter
+            .interpretedIntegerIndexedCollectionElements(receiver) {
+            guard let element = elements.\(projection) else { return .none() }
+            return element.liftedToOptional()
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        return nil
+    }
+
+    static let optionalLastRemovalProtocols: [String: Set<String>] = [
+""" + "\n"
+for (memberName, defaults) in Dictionary(
+    grouping: generatedOptionalLastRemovalCollectionDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    let protocols = Set(defaults.flatMap(\.eligibleProtocolNames)).sorted()
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
+    collectionDefaultsOutput += """
+        \(String(reflecting: memberName)): Set([\(protocols)]),
+""" + "\n"
+}
+collectionDefaultsOutput += """
+    ]
+
+    static func optionallyRemovesLast(named memberName: String) -> Bool {
+        optionalLastRemovalProtocols[memberName] != nil
+    }
+
+    enum NativeCollectionEndpoint {
+        case first
+        case last
+    }
+
+    private static let requiredEndpointRemovals:
+        [String: NativeCollectionEndpoint] = [
+""" + "\n"
+for (memberName, defaults) in Dictionary(
+    grouping: generatedRequiredEndpointRemovalCollectionDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    let endpoints = Set(defaults.map(\.endpoint))
+    precondition(
+        endpoints.count == 1,
+        "one required collection removal cannot target both endpoints")
+    collectionDefaultsOutput += """
+        \(String(reflecting: memberName)): .\(endpoints.first!.rawValue),
+""" + "\n"
+}
+collectionDefaultsOutput += """
+    ]
+
+    static func requiredEndpointRemoval(
+        named memberName: String
+    ) -> NativeCollectionEndpoint? {
+        requiredEndpointRemovals[memberName]
+    }
+
+    enum NativeCarrierKind {
+        case array
+        case dictionary
+        case set
+    }
+
+    private static let nativeCarrierScalarVoidMutationNames:
+        [NativeCarrierKind: Set<String>] = [
+""" + "\n"
+for carrierKind in NativeCollectionCarrierKind.allCases {
+    let names = Set(generatedNativeCollectionCarrierScalarVoidMutations
+        .filter { $0.carrierKind == carrierKind }
+        .map(\.memberName))
+        .sorted()
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
+    collectionDefaultsOutput += """
+        .\(carrierKind.rawValue): Set([\(names)]),
+""" + "\n"
+}
+collectionDefaultsOutput += """
+    ]
+
+    static func isNativeCarrierScalarVoidMutation(
+        named memberName: String,
+        carrierKind: NativeCarrierKind
+    ) -> Bool {
+        nativeCarrierScalarVoidMutationNames[carrierKind]?
+            .contains(memberName) == true
+    }
+""" + "\n"
+let nativeDictionaryKeyOptionalValueMutationNames =
+    generatedNativeDictionaryKeyOptionalValueMutations
+        .map(\.memberName).sorted()
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
+collectionDefaultsOutput += """
+
+    private static let nativeDictionaryKeyOptionalValueMutationNames:
+        Set<String> = Set([\(nativeDictionaryKeyOptionalValueMutationNames)])
+
+    static func isNativeDictionaryKeyOptionalValueMutation(
+        named memberName: String
+    ) -> Bool {
+        nativeDictionaryKeyOptionalValueMutationNames.contains(memberName)
+    }
+
+    @MainActor
+    static func invokeNativeDictionaryKeyOptionalValueMutation(
+        named name: String,
+        arguments: CallArguments,
+        carrier: inout DictValue,
+        interpreter: Interpreter
+    ) throws -> RuntimeValue {
+""" + "\n"
+for mutation in generatedNativeDictionaryKeyOptionalValueMutations {
+    let argument = mutation.argumentLabel.map {
+        "arguments.labeled(\(String(reflecting: $0)))"
+    } ?? "arguments.positional(0)"
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: mutation.memberName)),
+           arguments.arguments.count == 1,
+           let key = \(argument) {
+            return .optional(try carrier.removeEntry(
+                forKey: key,
+                by: interpreter.collectionStorageValuesAreEqual))
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        throw RuntimeError(
+            message: "generated native dictionary key mutation argument mismatch")
+    }
+""" + "\n"
+for carrierKind in NativeCollectionCarrierKind.allCases {
+    let carrierType: String
+    switch carrierKind {
+    case .array: carrierType = "[RuntimeValue]"
+    case .dictionary: carrierType = "DictValue"
+    case .set: carrierType = "RuntimeSetValue"
+    }
+    collectionDefaultsOutput += """
+
+    @MainActor
+    static func invokeNativeCarrierScalarVoidMutation(
+        named name: String,
+        arguments: CallArguments,
+        carrier: inout \(carrierType)
+    ) throws -> Bool {
+""" + "\n"
+    for mutation in generatedNativeCollectionCarrierScalarVoidMutations
+    where mutation.carrierKind == carrierKind {
+        let argument = mutation.argumentLabel.map {
+            "arguments.labeled(\(String(reflecting: $0)))"
+        } ?? "arguments.positional(0)"
+        let valueProjection = switch mutation.argumentKind {
+        case .integer: "intValue"
+        case .boolean: "boolValue"
+        }
+        let invocationArgument = mutation.argumentLabel.map {
+            "\($0): value"
+        } ?? "value"
+        func appendInvocation(
+            condition: String,
+            defaultLiteral: String? = nil
+        ) {
+            collectionDefaultsOutput += "        if \(condition) {\n"
+            if let defaultLiteral {
+                collectionDefaultsOutput +=
+                    "            let value = \(defaultLiteral)\n"
+            }
+            switch carrierKind {
+            case .array:
+                collectionDefaultsOutput += """
+            carrier.\(mutation.memberName)(\(invocationArgument))
+""" + "\n"
+            case .dictionary:
+                collectionDefaultsOutput += """
+            carrier.withMutableStorage { keys, values in
+                keys.\(mutation.memberName)(\(invocationArgument))
+                values.\(mutation.memberName)(\(invocationArgument))
+            }
+""" + "\n"
+            case .set:
+                collectionDefaultsOutput += """
+            carrier.withMutableElements { elements in
+                elements.\(mutation.memberName)(\(invocationArgument))
+            }
+""" + "\n"
+            }
+            collectionDefaultsOutput += """
+            return true
+        }
+""" + "\n"
+        }
+
+        appendInvocation(condition:
+            "name == \(String(reflecting: mutation.memberName)), "
+                + "arguments.arguments.count == 1, "
+                + "let value = \(argument)?.\(valueProjection)")
+        let defaultLiteral: String? = switch mutation.defaultValue {
+        case .integer(let value): String(value)
+        case .boolean(let value): String(value)
+        case nil: nil
+        }
+        if let defaultLiteral {
+            appendInvocation(
+                condition:
+                    "name == \(String(reflecting: mutation.memberName)), "
+                        + "arguments.arguments.isEmpty",
+                defaultLiteral: defaultLiteral)
+        }
+    }
+    collectionDefaultsOutput += """
+        if nativeCarrierScalarVoidMutationNames[.\(carrierKind.rawValue)]?
+            .contains(name) == true {
+            throw RuntimeError(
+                message: "generated native \(carrierKind.rawValue) mutation argument mismatch")
+        }
+        return false
+    }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+}
+""" + "\n"
+let collectionDefaultsPath =
+    "Sources/SwiftInterpreter/Generated/GeneratedCollectionDefaultSurface.swift"
+try collectionDefaultsOutput.write(
+    toFile: collectionDefaultsPath, atomically: true, encoding: .utf8)
+print(
+    "wrote \(collectionDefaultsPath) "
+        + "(\(generatedIntegerIndexCollectionDefaults.count) methods, "
+        + "\(generatedNativeIndexMotionDefaults.count) native index motions, "
+        + "\(generatedIndexSearchDefaults.count) index searches, "
+        + "\(generatedBooleanIndexEndpointEqualityCollectionDefaults.count) Boolean endpoint properties, "
+        + "\(generatedOptionalElementCollectionDefaults.count) properties, "
+        + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "
+        + "\(generatedRequiredEndpointRemovalCollectionDefaults.count) required endpoint removals, "
+        + "\(generatedElementGenericCollectionNominals.count) element-generic collections, "
+        + "\(generatedMaterializableSequenceProtocolNames.count) Sequence protocols, "
+        + "\(generatedRepeatedElementSequenceFactories.count) repeated-element factories, "
+        + "\(generatedNativeWritableStringCollectionViews.count) writable String collection views, "
+        + "\(generatedNativeCollectionCarrierScalarVoidMutations.count) native carrier scalar mutations, "
+        + "\(generatedNativeDictionaryKeyOptionalValueMutations.count) dictionary key mutations)")
+
+let rangeRemovalMembers = Dictionary(
+    grouping: generatedRangeRemovalMutations,
+    by: \.memberName
+).mapValues { mutations in
+    mutations.map(\.protocolName).sorted()
+}
+let rangeRemovalEntries = rangeRemovalMembers.sorted(by: {
+    $0.key < $1.key
+}).map { memberName, protocols in
+    "\(String(reflecting: memberName)): Set(\(String(reflecting: protocols)))"
+}.joined(separator: ", ")
+let rangeMutationOutput = """
+// GENERATED by BridgeGen from the active Swift standard-library swiftinterface.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+enum GeneratedRangeMutationSurface {
+    static let rangeRemovalProtocols: [String: Set<String>] = [
+        \(rangeRemovalEntries)
+    ]
+
+    static func removesRange(named memberName: String) -> Bool {
+        rangeRemovalProtocols[memberName] != nil
+    }
+}
+""" + "\n"
+let rangeMutationPath =
+    "Sources/SwiftInterpreter/Generated/GeneratedRangeMutationSurface.swift"
+try rangeMutationOutput.write(
+    toFile: rangeMutationPath, atomically: true, encoding: .utf8)
+print(
+    "wrote \(rangeMutationPath) "
+        + "(\(generatedRangeRemovalMutations.count) range removals)")
+
+let cMemoryPath =
+    "Sources/SwiftUIBridge/Generated/GeneratedCMemoryBridge.swift"
+try cMemoryGeneration.output.write(
+    toFile: cMemoryPath, atomically: true, encoding: .utf8)
+print("wrote \(cMemoryPath) (\(cMemoryGeneration.functionNames.count) relative-pointer functions)")
 
 let platformPath = "Sources/SwiftUIBridge/Generated/GeneratedPlatformBridge.swift"
 try platformGeneration.output.write(

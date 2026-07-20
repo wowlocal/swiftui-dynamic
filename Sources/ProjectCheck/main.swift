@@ -153,6 +153,7 @@ try? fm.createDirectory(atPath: extractionRoot, withIntermediateDirectories: tru
 
 struct Unit {
     let name: String
+    let projectRoot: String
     let sources: [String] // file paths
     let totalBytes: Int
 }
@@ -196,7 +197,11 @@ for entry in rootEntries.sorted() {
     let bytes = files.compactMap { try? fm.attributesOfItem(atPath: $0)[.size] as? Int }.reduce(0, +)
     let name = URL(fileURLWithPath: directory).lastPathComponent
     if let filter, !name.localizedCaseInsensitiveContains(filter) { continue }
-    units.append(Unit(name: name, sources: files, totalBytes: bytes))
+    units.append(Unit(
+        name: name,
+        projectRoot: URL(fileURLWithPath: directory).standardizedFileURL.path,
+        sources: files,
+        totalBytes: bytes))
 }
 
 // Real open-source apps cloned into External/oss/<name> (LOOP.md step 9:
@@ -212,7 +217,11 @@ for entry in ((try? fm.contentsOfDirectory(atPath: ossRoot)) ?? []).sorted() {
     let bytes = files.compactMap { try? fm.attributesOfItem(atPath: $0)[.size] as? Int }.reduce(0, +)
     let name = "oss:" + entry
     if let filter, !name.localizedCaseInsensitiveContains(filter) { continue }
-    units.append(Unit(name: name, sources: files, totalBytes: bytes))
+    units.append(Unit(
+        name: name,
+        projectRoot: URL(fileURLWithPath: directory).standardizedFileURL.path,
+        sources: files,
+        totalBytes: bytes))
 }
 
 // Smallest first: the ladder climbs from simple to challenging. Sharding is
@@ -236,7 +245,7 @@ let totalUnitCount = units.count
 // MARK: - Run
 
 func mergedSource(of unit: Unit) -> String {
-    ProjectMaterial.mergedSource(files: unit.sources)
+    ProjectMaterial.mergedSource(at: unit.projectRoot, files: unit.sources)
 }
 
 /// Collapse an error message into a class: strip positions and quoted names

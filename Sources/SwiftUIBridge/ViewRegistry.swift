@@ -39,6 +39,9 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func cFunction(named name: String) -> HostFunction? {
+        if let memory = GeneratedCMemoryBridge.function(named: name) {
+            return memory
+        }
         if let generated = GeneratedPlatformBridge.globalFunction(
             named: name,
             fallbackRuntime: generatedPlatformFallbacks
@@ -75,6 +78,7 @@ public final class ViewRegistry: HostRegistry {
     /// One registry owns one sandbox/blob container — the fresh-container
     /// guarantee is per registry, never process-global.
     let fileManagerBox = FileManagerBox()
+    let applicationShells = FrameworkApplicationShellStore()
 
     public func storeBlob(_ value: RuntimeValue, at path: String) {
         fileManagerBox.blobStore[path] = value
@@ -82,6 +86,21 @@ public final class ViewRegistry: HostRegistry {
 
     public func hostObjectConstructor(named name: String) -> HostFunction? {
         bridgeHostObjectConstructor(named: name, fileManager: fileManagerBox)
+    }
+
+    public func hostGlobal(named name: String) -> RuntimeValue? {
+        GeneratedPlatformBridge.globalValue(
+            named: name, applicationShells: applicationShells)
+    }
+
+    public func hostValue(
+        _ value: Any, matchesImportedType typeName: String
+    ) -> Bool {
+        if GeneratedPlatformBridge.value(value, matchesType: typeName) {
+            return true
+        }
+        guard value is UIKitStub else { return false }
+        return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
     }
 
     public func hostMemberHasWorkerOperation(
@@ -224,7 +243,7 @@ public final class ViewRegistry: HostRegistry {
                     views.append(view)
                 }
             }
-            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+            if RenderDiagnostics.traceEnabled {
                 FileHandle.standardError.write(Data(
                     "MAKELAYOUT \(instance.symbol.name) children=\(children.count) views=\(views.count)\n".utf8))
             }

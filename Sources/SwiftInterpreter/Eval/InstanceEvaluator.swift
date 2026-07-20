@@ -26,7 +26,7 @@ extension Interpreter {
     /// (custom @resultBuilders' buildBlock), view-typed ones group as views.
     func builderValue(for property: StructSymbol.StoredProperty, closure: ClosureValue) throws -> RuntimeValue {
         let items = try callBuilderClosure(closure, arguments: [])
-        let annotation = property.typeAnnotation?.trimmedDescription ?? ""
+        let annotation = property.typeName ?? ""
         if annotation.hasPrefix("[") {
             return .native(items)
         }
@@ -45,12 +45,7 @@ extension Interpreter {
         var guardSet: Set<ObjectIdentifier> = []
         while let symbol = current, guardSet.insert(ObjectIdentifier(symbol)).inserted {
             chain.append(symbol)
-            if let superName = symbol.superclassName,
-               case .type(let parent)? = globals.lookup(superName) {
-                current = parent
-            } else {
-                current = nil
-            }
+            current = interpretedSuperclass(of: symbol)
         }
         var seen: Set<String> = []
         var merged: [StructSymbol.StoredProperty] = []
@@ -78,12 +73,7 @@ extension Interpreter {
             if let error = candidate.executorOwnedDeinitializerError {
                 return error
             }
-            if let superName = candidate.superclassName,
-               case .type(let parent)? = globals.lookup(superName) {
-                current = parent
-            } else {
-                current = nil
-            }
+            current = interpretedSuperclass(of: candidate)
         }
         return nil
     }
@@ -107,14 +97,14 @@ extension Interpreter {
         let notifying = Set(symbol.notifyingPropertyNames)
         for property in inheritedStoredProperties(of: symbol) {
             // Optional-typed properties without initializers are nil.
-            let annotationText = property.typeAnnotation?.trimmedDescription ?? ""
+            let annotationText = property.typeName ?? ""
             var value: RuntimeValue = RuntimeOptionalValue.wrappedType(in: annotationText) != nil
                 ? .none(forTypeAnnotation: annotationText) : .void
             if property.isLazy, let initializer = property.initializer {
                 // Lazy defaults evaluate on first access with self bound.
                 let box = Box(
                     .native(LazyMemberSeed(
-                        initializer: initializer, annotation: property.typeAnnotation)),
+                        initializer: initializer, typeName: property.typeName)),
                     declaredTypeName: annotationText,
                     referenceOwnership: property.referenceOwnership)
                 instance.properties[property.name] = box
@@ -126,7 +116,7 @@ extension Interpreter {
                 do {
                     value = try resolveAnnotated(
                         try evaluate(initializer, in: selfEnvironment(.type(symbol))),
-                        annotation: property.typeAnnotation
+                        typeName: property.typeName
                     )
                 } catch is InterpretedThrow {
                     // Headless resource construction can legitimately throw;
@@ -141,7 +131,7 @@ extension Interpreter {
                 // wrapper metadata receive a synthesized fresh identity.
                 var seen: Set<String> = []
                 value = (try? synthesizedFreshValue(
-                    typeName: property.typeAnnotation?.trimmedDescription ?? "",
+                    typeName: property.typeName ?? "",
                     seen: &seen)) ?? .nilValue
             }
             let box = Box(
@@ -187,13 +177,12 @@ extension Interpreter {
         for symbol: StructSymbol
     ) -> [InitializerDeclSyntax] {
         guard symbol.initializers.isEmpty else { return symbol.initializers }
-        var parentName = symbol.superclassName
+        var parent = interpretedSuperclass(of: symbol)
         var walked: Set<ObjectIdentifier> = []
-        while let name = parentName,
-              case .type(let parent)? = globals.lookup(name),
-              walked.insert(ObjectIdentifier(parent)).inserted {
-            if !parent.initializers.isEmpty { return parent.initializers }
-            parentName = parent.superclassName
+        while let candidate = parent,
+              walked.insert(ObjectIdentifier(candidate)).inserted {
+            if !candidate.initializers.isEmpty { return candidate.initializers }
+            parent = interpretedSuperclass(of: candidate)
         }
         return []
     }
@@ -268,7 +257,8 @@ extension Interpreter {
                     // inherit their initializers: unmatched labeled
                     // arguments bind as properties so later reads
                     // (`size` in sceneDidLoad) see the passed values.
-                    if let superName = symbol.superclassName, !isInterpretedType(superName) {
+                    if symbol.superclassName != nil,
+                       interpretedSuperclass(of: symbol) == nil {
                         instance.properties[label] = Box(argument.value.copiedForValueSemantics())
                         assigned.insert(label)
                         continue
@@ -296,16 +286,16 @@ extension Interpreter {
                     // `.constant("")` — a binding to a fixed value.
                     instance.properties[label] = Box(try resolveAnnotated(
                         call.arguments.positional(0) ?? .void,
-                        annotation: property.typeAnnotation).copiedForValueSemantics())
+                        typeName: property.typeName).copiedForValueSemantics())
                 } else if let closure = argument.value.closureValue,
                           property.isBuilderClosure,
-                          !(property.typeAnnotation?.trimmedDescription.contains("->") ?? false) {
+                          !(property.typeName?.contains("->") ?? false) {
                     // Labeled trailing onto a builder property.
                     box.value = try builderValue(for: property, closure: closure)
                         .copiedForValueSemantics()
                 } else {
                     box.value = try resolveAnnotated(
-                        argument.value, annotation: property.typeAnnotation)
+                        argument.value, typeName: property.typeName)
                         .copiedForValueSemantics()
                 }
             }
@@ -338,7 +328,7 @@ extension Interpreter {
                         throw RuntimeError(message: message)
                     }
                     assigned.insert(property.name)
-                    let functionTyped = property.typeAnnotation?.trimmedDescription.contains("->") ?? false
+                    let functionTyped = property.typeName?.contains("->") ?? false
                     if property.isBuilderClosure && !functionTyped {
                         // Builder property — build now (array or grouped views).
                         let closure = argument.value.closureValue!
@@ -518,15 +508,239 @@ extension Interpreter {
         return .instance(instance)
     }
 
-    /// Overloaded methods pick by call shape; nil when nothing fits.
-    func chooseFunction(from candidates: [FunctionDeclSyntax], for args: CallArguments) -> FunctionDeclSyntax? {
-        let arguments = ArgumentShape(args)
-        for candidate in candidates {
-            if functionMetadata(for: candidate).shape.matches(arguments) {
-                return candidate
-            }
+    /// Whether a declared result type supplies an immediately chained
+    /// instance member. Swift uses this constraint to disambiguate overloads
+    /// that differ only in result type (`make().member`). Keep the test over
+    /// declaration structure rather than over either API identity.
+    private func functionResultDeclaresMember(
+        _ function: FunctionDeclSyntax,
+        named memberName: String
+    ) -> Bool {
+        guard var typeName = functionMetadata(for: function).returnTypeName?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !typeName.isEmpty else {
+            return false
         }
-        return nil
+        while let wrapped = RuntimeOptionalValue.wrappedType(in: typeName) {
+            typeName = wrapped
+        }
+        if let generic = typeName.firstIndex(of: "<") {
+            typeName = String(typeName[..<generic])
+        }
+
+        func structDeclaresMember(_ symbol: StructSymbol) -> Bool {
+            var current: StructSymbol? = symbol
+            while let candidate = current {
+                if candidate.methods[memberName] != nil
+                    || candidate.computedProperties[memberName] != nil
+                    || candidate.storedProperty(named: memberName) != nil {
+                    return true
+                }
+                for conformance in transitiveConformances(of: candidate) {
+                    if hostExtensionSymbols[conformance]?.methods[memberName] != nil
+                        || hostExtensionSymbols[conformance]?
+                            .computedProperties[memberName] != nil {
+                        return true
+                    }
+                }
+                current = interpretedSuperclass(of: candidate)
+            }
+            return false
+        }
+
+        let lexicalOwner = lexicalOwner(of: function.id) as? StructSymbol
+        switch typeValue(named: typeName, within: lexicalOwner) {
+        case .type(let symbol):
+            return structDeclaresMember(symbol)
+        case .enumType(let symbol):
+            if symbol.methods[memberName] != nil
+                || symbol.computedProperties[memberName] != nil {
+                return true
+            }
+            return symbol.conformances.contains { conformance in
+                hostExtensionSymbols[conformance]?.methods[memberName] != nil
+                    || hostExtensionSymbols[conformance]?
+                        .computedProperties[memberName] != nil
+            }
+        default:
+            return hostExtensionSymbols[typeName]?.methods[memberName] != nil
+                || hostExtensionSymbols[typeName]?
+                    .computedProperties[memberName] != nil
+        }
+    }
+
+    /// The candidates whose declared call shape fits, narrowed by positive
+    /// runtime argument types when those types are conclusive.
+    func functionsFittingCall(
+        from candidates: [FunctionDeclSyntax],
+        args: CallArguments
+    ) -> [FunctionDeclSyntax] {
+        let arguments = ArgumentShape(args)
+        let shaped = candidates.filter {
+            functionMetadata(for: $0).shape.matches(arguments)
+        }
+        // Native overload ranking prefers a value that already has the
+        // parameter's runtime type over a candidate reachable only through a
+        // conversion. In particular, `[Element]` must select an array
+        // overload even when an earlier `Set<Element>` overload could be
+        // constructed from the same collection.
+        let exact = shaped.filter {
+            let metadata = functionMetadata(for: $0)
+            return runtimeArgumentsFitDeclaredTypes(
+                metadata.parameters,
+                args: args,
+                genericParameterNames: Set(metadata.genericParameters),
+                genericConformanceRequirements:
+                    metadata.genericConformanceRequirements,
+                allowValueCoercion: false)
+        }
+        if !exact.isEmpty { return exact }
+        let typed = shaped.filter {
+            let metadata = functionMetadata(for: $0)
+            return runtimeArgumentsFitDeclaredTypes(
+                metadata.parameters,
+                args: args,
+                genericParameterNames: Set(metadata.genericParameters),
+                genericConformanceRequirements:
+                    metadata.genericConformanceRequirements)
+        }
+        return typed.isEmpty ? shaped : typed
+    }
+
+    /// Operator calls bind operands positionally even though their declaration
+    /// parameters are conventionally named `lhs` and `rhs`. They also have no
+    /// dynamically callable fallback: a concrete type mismatch rejects the
+    /// overload instead of selecting an arbitrary declaration of equal arity.
+    func operatorFunctionsFittingRuntimeTypes(
+        from candidates: [FunctionDeclSyntax],
+        args: CallArguments
+    ) -> [FunctionDeclSyntax] {
+        return candidates.filter { declaration in
+            let metadata = functionMetadata(for: declaration)
+            guard metadata.parameters.count == args.arguments.count else {
+                return false
+            }
+            let positional = CallArguments(arguments: zip(
+                metadata.parameters, args.arguments
+            ).map { parameter, argument in
+                .init(label: parameter.label, value: argument.value)
+            })
+            return runtimeArgumentsFitDeclaredTypes(
+                metadata.parameters,
+                args: positional,
+                genericParameterNames: Set(metadata.genericParameters),
+                genericConformanceRequirements:
+                    metadata.genericConformanceRequirements)
+        }
+    }
+
+    /// Overloaded methods pick by call shape, then positive runtime argument
+    /// types, and, when the call is the base of a member access, by that
+    /// result-member constraint. If every typed check is inconclusive, retain
+    /// the historical shape-only fallback for opaque imported values.
+    func chooseFunction(
+        from candidates: [FunctionDeclSyntax],
+        for args: CallArguments,
+        contextualResultMember: String? = nil
+    ) -> FunctionDeclSyntax? {
+        let viable = functionsFittingCall(from: candidates, args: args)
+        if let contextualResultMember,
+           let constrained = viable.first(where: {
+               functionResultDeclaresMember(
+                   $0, named: contextualResultMember)
+           }) {
+            return constrained
+        }
+        return viable.first
+    }
+
+    /// Shape first, then positive runtime parameter types. Source modules can
+    /// contribute overloads with identical labels (`parse(String)`,
+    /// `parse(Data)`, `parse(URL)`); selecting an arbitrary same-shaped body
+    /// loses native overload semantics. The shaped fallback preserves the
+    /// interpreter's compatibility behavior for genuinely opaque values.
+    func chooseFunctionByRuntimeTypes(
+        from candidates: [FunctionDeclSyntax],
+        for args: CallArguments,
+        contextualResultMember: String? = nil
+    ) -> FunctionDeclSyntax? {
+        chooseFunction(
+            from: candidates,
+            for: args,
+            contextualResultMember: contextualResultMember)
+    }
+
+    /// A structural override signature. Subclasses replace only the inherited
+    /// declaration with the same labels, parameter types, generic arity, and
+    /// effects; differently shaped siblings remain in the overload family.
+    private func methodOverrideSignature(
+        _ declaration: FunctionDeclSyntax
+    ) -> String {
+        let metadata = functionMetadata(for: declaration)
+        let parameters = metadata.parameters.map { parameter in
+            let type = (parameter.typeName ?? "_").filter { !$0.isWhitespace }
+            return "\(parameter.label ?? "_"):\(type)"
+                + (parameter.isVariadic ? "..." : "")
+                + (parameter.isIsolated ? ":isolated" : "")
+        }.joined(separator: ",")
+        return "\(metadata.genericParameters.count)|\(parameters)"
+            + "|async:\(metadata.isAsync)|throws:\(metadata.isThrowing)"
+    }
+
+    /// Merge an inherited overload family from child to base. All declarations
+    /// at one level survive (including return-type overloads); a child level
+    /// shadows only matching structural override signatures in its ancestors.
+    private func inheritedMethodOverloads(
+        named name: String,
+        on symbol: StructSymbol,
+        table: KeyPath<StructSymbol, [String: [FunctionDeclSyntax]]>
+    ) -> [FunctionDeclSyntax]? {
+        var result: [FunctionDeclSyntax] = []
+        var shadowed = Set<String>()
+        var candidate: StructSymbol? = symbol
+        var walked = Set<ObjectIdentifier>()
+        while let owner = candidate,
+              walked.insert(ObjectIdentifier(owner)).inserted {
+            let level = owner[keyPath: table][name] ?? []
+            result.append(contentsOf: level.filter {
+                !shadowed.contains(methodOverrideSignature($0))
+            })
+            shadowed.formUnion(level.map(methodOverrideSignature))
+            candidate = interpretedSuperclass(of: owner)
+        }
+        return result.isEmpty ? nil : result
+    }
+
+    /// Instance lookup retains inherited overload siblings while honoring
+    /// structural overrides from the most-derived declaration level.
+    func instanceMethodOverloads(
+        named name: String, on instance: Instance
+    ) -> [FunctionDeclSyntax]? {
+        inheritedMethodOverloads(
+            named: name, on: instance.symbol, table: \.methods)
+    }
+
+    /// Static lookup follows the same overload/override rule as instances.
+    func staticMethodOverloads(
+        named name: String, on symbol: StructSymbol
+    ) -> [FunctionDeclSyntax]? {
+        inheritedMethodOverloads(
+            named: name, on: symbol, table: \.staticMethods)
+    }
+
+    /// Excludes running declarations only among overloads that compete for
+    /// this call shape. A unique shaped declaration is ordinary recursion,
+    /// even when differently-shaped siblings share its base name. Multiple
+    /// shaped declarations still route around active bodies so return-type or
+    /// same-shape delegation cannot cycle forever.
+    func functionsAvailableForCall(
+        from candidates: [FunctionDeclSyntax],
+        args: CallArguments
+    ) -> [FunctionDeclSyntax] {
+        let fitting = functionsFittingCall(from: candidates, args: args)
+        let pool = fitting.isEmpty ? candidates : fitting
+        guard pool.count > 1 else { return pool }
+        return pool.filter { !activeFunctionBodies.contains($0.id) }
     }
 
     /// `init(from decoder:)` / `init(coder:)` — only decoders reach these.
@@ -623,7 +837,8 @@ extension Interpreter {
             throw RuntimeError(message: "'\(instance.symbol.name)' has no body property")
         }
         var pushedLexicalOwner = false
-        if let id = computed.declarationID, let owner = declLexicalOwners[id] {
+        if let id = computed.declarationID,
+           let owner = lexicalOwner(of: id) {
             lexicalOwnerFrames.append(owner)
             pushedLexicalOwner = true
         }
@@ -655,8 +870,6 @@ extension Interpreter {
         // Mark before executing user code: a deinitializer cannot re-enter
         // itself through a release caused by its own cleanup.
         instance.didRunDeinitializer = true
-        var byName: [String: StructSymbol] = [:]
-        for symbol in structSymbols { byName[symbol.name] = symbol }
         var cursor: StructSymbol? = instance.symbol
         var hops = 0
         while let symbol = cursor, hops < 16 {
@@ -672,7 +885,7 @@ extension Interpreter {
                 closure.executorPreference = symbol.deinitializerExecutor
                 _ = try? callClosure(closure, arguments: [])
             }
-            cursor = symbol.superclassName.flatMap { byName[$0] }
+            cursor = interpretedSuperclass(of: symbol)
             hops += 1
         }
     }
@@ -694,7 +907,7 @@ extension Interpreter {
             var typedEnvironment = false
             switch property.wrapper {
             case .environmentObject:
-                typeName = property.typeAnnotation?.trimmedDescription ?? ""
+                typeName = property.typeName ?? ""
             case .environment(let name) where name.first?.isUppercase == true:
                 typeName = name
                 typedEnvironment = true
@@ -760,7 +973,7 @@ extension Interpreter {
                    let initializer = declared.initializer,
                    let value = try? evaluate(initializer, in: globals) {
                     box.value = ((try? resolveAnnotated(
-                        value, annotation: declared.typeAnnotation)) ?? value)
+                        value, typeName: declared.typeName)) ?? value)
                         .copiedForValueSemantics()
                     continue
                 }
@@ -776,7 +989,7 @@ extension Interpreter {
                     box.value = value.copiedForValueSemantics()
                     continue
                 }
-                let typeName = property.typeAnnotation?.trimmedDescription ?? ""
+                let typeName = property.typeName ?? ""
                 var seen: Set<String> = []
                 box.value = ((try? synthesizedFreshValue(
                     typeName: typeName, seen: &seen)) ?? .nilValue)
@@ -853,7 +1066,7 @@ extension Interpreter {
             for parameter in initializerMetadata(for: initializer).parameters
             where parameter.defaultValue == nil {
                 let label = parameter.label ?? "_"
-                let typeName = parameter.typeAnnotation?.trimmedDescription
+                let typeName = parameter.typeName
                     ?? "Any"
                 let value: RuntimeValue
                 if let constraint = symbol.genericParameters[typeName] {
@@ -871,7 +1084,7 @@ extension Interpreter {
         } else {
             for property in symbol.storedProperties
             where property.initializer == nil && !property.isBuilderClosure {
-                let typeName = property.typeAnnotation?.trimmedDescription ?? ""
+                let typeName = property.typeName ?? ""
                 switch property.wrapper {
                 case .none:
                     if let constraint = symbol.genericParameters[typeName] {
@@ -1009,16 +1222,18 @@ extension Interpreter {
             ?? candidates.first
     }
 
-    /// Whether a name resolves to an interpreted struct/class/enum symbol
-    /// (as opposed to a host framework type like SKScene).
-    func isInterpretedType(_ name: String) -> Bool {
-        if case .type? = globals.lookup(name) { return true }
-        if case .enumType? = globals.lookup(name) { return true }
-        return false
-    }
-
     static let doubleFamilyTypeNames: Set<String> = [
         "Double", "CGFloat", "Float", "TimeInterval", "Float32", "Float64",
+    ]
+
+    /// Fixed-width integer declarations share RuntimeValue's exact-in-range
+    /// `Int` carrier. Keep their nominal spellings available to overload
+    /// fitting even though the storage representation is intentionally
+    /// unified.
+    static let integerFamilyTypeNames: Set<String> = [
+        "Int", "Int8", "Int16", "Int32", "Int64",
+        "UInt", "UInt8", "UInt16", "UInt32", "UInt64",
+        "NSInteger", "NSUInteger",
     ]
 
     static func rangeAnnotation(_ rawName: String) -> (name: String, bound: String)? {
@@ -1062,6 +1277,11 @@ extension Interpreter {
     func resolveAnnotated(_ value: RuntimeValue, annotation: TypeSyntax?) throws -> RuntimeValue {
         guard let annotation else { return value }
         return try resolveAnnotated(value, typeName: annotation.trimmedDescription)
+    }
+
+    func resolveAnnotated(_ value: RuntimeValue, typeName: String?) throws -> RuntimeValue {
+        guard let typeName else { return value }
+        return try resolveAnnotated(value, typeName: typeName)
     }
 
     func resolveAnnotated(
@@ -1183,6 +1403,27 @@ extension Interpreter {
             return .native(Double(i))
         }
 
+        // `[Item]` — contextual `.init(repeating:count:)` constructs the
+        // annotated collection before element coercion. This path is shared
+        // by every inferred Array type; it must not degrade to the empty
+        // collection used for an unresolved marker.
+        if typeName.hasPrefix("["), typeName.hasSuffix("]"), !typeName.contains(":"),
+           case .host(let payload) = value,
+           let call = payload as? ImplicitMemberCall,
+           call.name == "init" {
+            let elementType = String(typeName.dropFirst().dropLast())
+            if call.arguments.isEmpty {
+                return .native([RuntimeValue]())
+            }
+            if let repeated = call.arguments.labeled("repeating"),
+               let count = call.arguments.labeled("count")?.intValue {
+                let element = try resolveAnnotated(repeated, typeName: elementType)
+                return .native((0..<max(0, count)).map { _ in
+                    element.copiedForValueSemantics()
+                })
+            }
+        }
+
         // `[Item]` — resolve each element against the element type.
         if typeName.hasPrefix("["), typeName.hasSuffix("]"), !typeName.contains(":"),
            let array = value.arrayValue {
@@ -1262,6 +1503,19 @@ extension Interpreter {
         var scopedEnum = enumSymbols[typeName]
         var scopedStruct: StructSymbol?
         if case .type(let symbol)? = globals.lookup(typeName) { scopedStruct = symbol }
+        if let qualified = lexicallyVisibleType(
+               named: typeName, from: lexicalOwnerFrames.last) {
+            switch qualified {
+            case .enumType(let symbol):
+                scopedEnum = symbol
+                scopedStruct = nil
+            case .type(let symbol):
+                scopedStruct = symbol
+                scopedEnum = nil
+            default:
+                break
+            }
+        }
         if let owner = lexicalOwnerFrames.last {
             let nested = (owner as? StructSymbol)?.nestedTypes[typeName]
                 ?? (owner as? EnumSymbol)?.nestedTypes[typeName]

@@ -182,6 +182,15 @@ extension Interpreter {
                 "generated concurrency function name drifted from its adapter")
             globals.define(sourceName, .hostFunction(function))
         }
+        for sourceName in GeneratedCollectionDefaultSurface
+                .repeatedElementSequenceFactoryNames.sorted() {
+            guard let function = GeneratedCollectionDefaultSurface
+                    .repeatedElementSequenceFactory(named: sourceName) else {
+                preconditionFailure(
+                    "generated repeated-element factory lost its adapter")
+            }
+            globals.define(sourceName, .hostFunction(function))
+        }
         for (name, function) in Self.typedMathBuiltins {
             globals.define(name, .hostFunction(function))
         }
@@ -304,7 +313,9 @@ extension Interpreter {
                 var dict = DictValue()
                 for pair in pairs {
                     if let tuple = pair.tupleValue, tuple.values.count == 2 {
-                        try dict.update(tuple.values[0], to: tuple.values[1])
+                        try dict.update(
+                            tuple.values[0], to: tuple.values[1],
+                            by: ctx.collectionStorageValuesAreEqual)
                     }
                 }
                 return .native(dict)
@@ -314,9 +325,13 @@ extension Interpreter {
                 var dict = DictValue()
                 for element in elements {
                     let key = try ctx.callClosure(by, arguments: [element])
-                    var bucket = (try dict.lookup(key)).arrayValue ?? []
+                    var bucket = (try dict.lookup(
+                        key, by: ctx.collectionStorageValuesAreEqual))
+                        .arrayValue ?? []
                     bucket.append(element)
-                    try dict.update(key, to: .native(bucket))
+                    try dict.update(
+                        key, to: .native(bucket),
+                        by: ctx.collectionStorageValuesAreEqual)
                 }
                 return .native(dict)
             }
@@ -379,7 +394,12 @@ extension Interpreter {
         define("UInt64") { args, _ in
             // Exact 64-bit carrier (interpreted next() overflows Int):
             // `UInt64(drand48() * Double(UInt64.max))` needs true UInt64.
-            guard let value = args.positional(0) else { return .native(UInt64(0) as Any) }
+            guard let value = args.positional(0) ?? args.labeled("bitPattern")
+            else { return .native(UInt64(0) as Any) }
+            if case .host(let any) = value,
+               let pointer = any as? any HostRawMemoryCursor {
+                return .native(UInt64(pointer.rawMemoryAddress) as Any)
+            }
             if case .host(let any) = value, let u = any as? UInt64 { return .native(u) }
             if let d = value.doubleValue {
                 return .native(UInt64(d.isFinite ? max(0, min(d, Double(UInt64.max))) : 0))
@@ -388,10 +408,18 @@ extension Interpreter {
             return .native(UInt64(0))
         }
         define("Int", intrinsic: .intConversion) { args, _ in
-            guard let value = args.positional(0) ?? args.labeled("exactly") else {
+            guard let value = args.positional(0) ?? args.labeled("exactly")
+                ?? args.labeled("bitPattern") else {
                 return .none(wrappedTypeName: "Int")
             }
             let exact = args.labeled("exactly") != nil
+            if case .host(let any) = value,
+               let pointer = any as? any HostRawMemoryCursor {
+                guard pointer.rawMemoryAddress <= UInt(Int.max) else {
+                    throw RuntimeError(message: "pointer address overflows Int.max")
+                }
+                return .native(Int(pointer.rawMemoryAddress))
+            }
             if case .host(let any) = value, let u = any as? UInt64 {
                 // Interpreted UInt64 carriers narrow when they fit (Int is
                 // the value model); oversized reads throw like native traps.
@@ -517,18 +545,24 @@ extension Interpreter {
             }
             throw RuntimeError(message: "CGFloat needs a number")
         }
-        define("Array") { args, _ in
+        define("Array") { args, ctx in
             if let element = args.labeled("repeating"), let count = args.labeled("count")?.intValue {
                 return .native([RuntimeValue](repeating: element, count: max(0, count)))
             }
             guard let value = args.positional(0) else { return .native([RuntimeValue]()) }
             if let range = value.rangeValue, let values = range.integerValues() { return .native(values) }
-            if let array = value.arrayValue { return .native(array) }
-            if let set = value.setValue { return .native(set.elements) }
+            if let collection = value.collectionElements {
+                return .native(collection)
+            }
             // Array("abc") splits into characters (single-char strings,
             // our character model): Array(constant)[i] indexes real chars.
             if let s = value.stringValue {
                 return .native(s.map { RuntimeValue.native(String($0)) })
+            }
+            if let interpreter = ctx as? Interpreter,
+               let collection = try interpreter
+                .interpretedIntegerIndexedCollectionElements(value) {
+                return .native(collection)
             }
             return .native([value])
         }
@@ -547,6 +581,10 @@ extension Interpreter {
                 elements = integers
             } else if let string = value.stringValue {
                 elements = string.map { .native(String($0)) }
+            } else if let interpreter = ctx as? Interpreter,
+                      let collection = try interpreter
+                        .interpretedIntegerIndexedCollectionElements(value) {
+                elements = collection
             } else {
                 throw RuntimeError(message:
                     "Set needs a Sequence value, got \(ctx.hostTypeName(of: value)): "
@@ -588,11 +626,22 @@ extension Interpreter {
         }
         // UInt64 is NOT in this list — it has a true 64-bit host carrier
         // above (the seeded-RNG genre needs exact UInt64).
-        for intType in ["UInt8", "UInt16", "UInt32", "Int8", "Int16", "Int32", "Int64"] {
+        for intType in [
+            "UInt", "UInt8", "UInt16", "UInt32",
+            "Int8", "Int16", "Int32", "Int64",
+        ] {
             define(intType) { args, _ in
                 // Fixed-width conversions: our integer model is Int.
                 let value = args.labeled("truncatingIfNeeded") ?? args.labeled("clamping")
                     ?? args.labeled("bitPattern") ?? args.labeled("exactly") ?? args.positional(0)
+                if case .host(let any)? = value,
+                   let pointer = any as? any HostRawMemoryCursor {
+                    guard pointer.rawMemoryAddress <= UInt(Int.max) else {
+                        throw RuntimeError(message:
+                            "pointer address overflows interpreter integer storage")
+                    }
+                    return .native(Int(pointer.rawMemoryAddress))
+                }
                 if let i = value?.intValue { return .native(i) }
                 if let d = value?.doubleValue {
                     // Clamp instead of native-trapping on out-of-Int doubles.

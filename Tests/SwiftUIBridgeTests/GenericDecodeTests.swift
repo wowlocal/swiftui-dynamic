@@ -193,6 +193,33 @@ import SwiftInterpreter
         #expect(tuple.values[1].stringValue == "Sun Dog")
         #expect(tuple.values[2].stringValue == "<p>hello</p>")
     }
+
+    @Test func materializedCustomDecodeElementsHaveIndependentFiniteBudgets() throws {
+        let payload = "[" + (0..<30).map { "\"\($0)\"" }.joined(separator: ",") + "]"
+        let source = """
+        struct ParsedValue: Decodable {
+            let value: String
+
+            init(from decoder: Decoder) {
+                let container = try! decoder.singleValueContainer()
+                value = try! container.decode(String.self)
+                var cursor = 0
+                while cursor < 1_000 {
+                    cursor += 1
+                }
+            }
+        }
+
+        let data = \(String(reflecting: payload)).data(using: .utf8)!
+        let values = try! JSONDecoder().decode([ParsedValue].self, from: data)
+        (values.count, values.last!.value)
+        """
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 30)
+        #expect(tuple.values[1].stringValue == "29")
+    }
 }
 
 /// Module-qualified extensions and shadowed stdlib statics (iteration 193):
@@ -870,7 +897,79 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 /// .publisher.decode → sink populates @Published; $published projections
 /// deliver the CURRENT value synchronously in replay (the doctrine fork);
 /// Bundle.module resolves committed resources.
-@Suite struct BundledResourcePipelineTests {
+@Suite(.serialized) struct BundledResourcePipelineTests {
+    @Test func dataAssetReadsDatasetMetadataAndBytes() throws {
+        let previousRoot = BundleBox.projectResourceRoot
+        let root = NSTemporaryDirectory() + "data-asset-probe-\(UUID().uuidString)"
+        let sourcePath = root + "/Sources/Probe.swift"
+        let datasetPath = root + "/Resources/Assets.xcassets/Words.dataset"
+        try FileManager.default.createDirectory(
+            atPath: root + "/Sources", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: datasetPath, withIntermediateDirectories: true)
+        defer {
+            BundleBox.projectResourceRoot = previousRoot
+            try? FileManager.default.removeItem(atPath: root)
+        }
+        try "first\nsecond".write(
+            toFile: datasetPath + "/Words.txt", atomically: true, encoding: .utf8)
+        try #"{"data":[{"filename":"Words.txt","idiom":"universal","universal-type-identifier":"public.plain-text"}],"info":{"author":"xcode","version":1}}"#
+            .write(toFile: datasetPath + "/Contents.json", atomically: true, encoding: .utf8)
+        try "let assetText = String(decoding: NSDataAsset(name: \"Words\", bundle: Bundle.main)!.data, as: UTF8.self)"
+            .write(toFile: sourcePath, atomically: true, encoding: .utf8)
+
+        let source = ProjectMaterial.mergedSource(at: root, files: [sourcePath])
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+
+        #expect(interpreter.globals.lookup("assetText")?.stringValue == "first\nsecond")
+    }
+
+    @Test func traceConstructorAdmissionStaysDataAssetScoped() throws {
+        let registry = TraceRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let existingDefaultsGateway: Set<String> = [
+            "UserDefaults", "NSUserDefaults",
+        ]
+        let unrelatedAllowlistedClasses = ObjCTrampoline.allowedClasses
+            .subtracting(existingDefaultsGateway)
+            .filter {
+                ObjCTrampoline.projectDataAssetConstructor(named: $0) == nil
+            }
+
+        #expect(!unrelatedAllowlistedClasses.isEmpty)
+        for name in unrelatedAllowlistedClasses {
+            let constructor = try #require(registry.constructor(named: name))
+            let value = try constructor.invoke(CallArguments(), interpreter)
+            #expect(!(value.hostPayload is ObjCBox))
+        }
+    }
+
+    @Test func bundlePathResolvesProjectResourceByCallShape() throws {
+        let previousRoot = BundleBox.projectResourceRoot
+        let root = NSTemporaryDirectory() + "bundle-path-probe-\(UUID().uuidString)"
+        let sourcePath = root + "/Sources/Probe.swift"
+        let resourcePath = root + "/Resources/cacert.pem"
+        try FileManager.default.createDirectory(
+            atPath: root + "/Sources", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: root + "/Resources", withIntermediateDirectories: true)
+        defer {
+            BundleBox.projectResourceRoot = previousRoot
+            try? FileManager.default.removeItem(atPath: root)
+        }
+        try "certificate".write(
+            toFile: resourcePath, atomically: true, encoding: .utf8)
+        try "let resourcePath = Bundle.main.path(forResource: \"cacert\", ofType: \"pem\")!"
+            .write(toFile: sourcePath, atomically: true, encoding: .utf8)
+
+        let source = ProjectMaterial.mergedSource(at: root, files: [sourcePath])
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+
+        #expect(interpreter.globals.lookup("resourcePath")?.stringValue == resourcePath)
+    }
+
     @Test func bundleResourceRidesPublisherIntoPublished() throws {
         NetworkBridge.policy = .replay(fixturesDirectory: NSTemporaryDirectory())
         defer { NetworkBridge.policy = .absorbed }

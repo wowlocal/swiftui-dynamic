@@ -69,11 +69,16 @@ extension Interpreter {
             return false
         }
         if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
+        if typeName.hasPrefix("Swift.") {
+            typeName.removeFirst("Swift.".count)
+        }
         if typeName == "Any" || typeName == "AnyObject" { return !value.isNil }
         if value.isOptional { return false }
         if value.isNil { return false }
         switch value {
-        case .int: return ["Int", "Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
+        case .int:
+            return Self.integerFamilyTypeNames.contains(typeName)
+                || ["Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
         case .double: return ["Double", "CGFloat", "TimeInterval", "Float", "NSNumber"].contains(typeName)
         case .bool: return typeName == "Bool" || typeName == "NSNumber"
         case .string: return ["String", "NSString"].contains(typeName)
@@ -97,8 +102,7 @@ extension Interpreter {
                     var seen = Set<String>()
                     return protocolReaches(conformance, target: typeName, seen: &seen)
                 }) { return true }
-                guard let superName = current.superclassName,
-                      case .type(let parent)? = globals.lookup(superName) else { break }
+                guard let parent = interpretedSuperclass(of: current) else { break }
                 symbol = parent
             }
             return false
@@ -154,7 +158,25 @@ extension Interpreter {
             node: node)
     }
 
-    func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
+    func evaluateCall(
+        _ call: FunctionCallExprSyntax,
+        in env: Environment,
+        contextualResultMember: String? = nil,
+        declaredResultType: ((String?) -> Void)? = nil
+    ) throws -> RuntimeValue {
+        func reportDeclaredResult(of callee: RuntimeValue) {
+            switch callee {
+            case .closure(let closure):
+                declaredResultType?(closure.returnTypeName)
+            case .type(let symbol):
+                declaredResultType?(symbol.name)
+            case .enumType(let symbol):
+                declaredResultType?(symbol.name)
+            default:
+                break
+            }
+        }
+
         let calleeMetadata = callSiteMetadata(for: call).callee
         // `ModifiedContent(content: self, modifier: TitleFont(size: 16))` —
         // the explicit ViewModifier application (MovieSwiftUI's titleStyle).
@@ -196,64 +218,95 @@ extension Interpreter {
             // Evaluate the receiver once, before arguments (native order).
             // Special mutation dispatch receives this value and only probes
             // an lvalue after confirming the receiver/method shape.
-            let baseValue = try evaluate(baseExpr, in: env)
+            var evaluatedBaseTypeName: String?
+            let baseValue: RuntimeValue
+            if let baseCall = baseExpr.as(FunctionCallExprSyntax.self) {
+                baseValue = try evaluateCall(
+                    baseCall,
+                    in: env,
+                    contextualResultMember: name,
+                    declaredResultType: { evaluatedBaseTypeName = $0 })
+            } else {
+                baseValue = try evaluate(baseExpr, in: env)
+            }
+            let declaredBaseTypeName = evaluatedBaseTypeName
+                ?? declaredMemberReceiverTypeName(for: baseExpr, in: env)
             // A call continuing an Optional chain dispatches the METHOD on
             // the payload, then lifts the result. This matters for names that
             // also have a property spelling (`array?.first(where:)`): member
             // lookup alone would otherwise return `first`'s value and try to
             // call that element. Optional's own members stay on the wrapper.
             var specialBaseValue = baseValue
-            var liftsSpecialResult = false
+            var liftsMemberResult = false
             if !Self.optionalIntrinsicMemberNames.contains(name),
                case .optional(let optional) = baseValue,
                let wrapped = optional.wrapped {
                 specialBaseValue = wrapped
-                liftsSpecialResult = !optional.isImplicitlyUnwrapped
+                liftsMemberResult = !optional.isImplicitlyUnwrapped
             }
             if let result = try specialMemberCall(
                 name, base: baseExpr, baseValue: specialBaseValue,
-                call: call, in: env) {
-                return liftsSpecialResult ? result.liftedToOptional() : result
+                call: call, in: env,
+                declaredBaseTypeName: declaredBaseTypeName) {
+                return liftsMemberResult ? result.liftedToOptional() : result
             }
             // Methods dispatch from call syntax, where labels disambiguate
             // overloads and a host-superclass property can coexist with a
             // same-named subclass method (`window` vs `window(_:)`).
-            if case .instance(let instance) = baseValue,
-               let overloads = instance.symbol.methods[name],
+            if case .instance(let instance) = specialBaseValue,
+               let overloads = instanceMethodOverloads(
+                   named: name, on: instance),
                shouldDirectlyDispatchInstanceCall(
                    named: name, on: instance, overloads: overloads
                ) {
                 let args = try collectArguments(of: call, in: env)
-                // A single declaration may recurse legitimately. Running-
-                // body exclusion only disambiguates overload sets.
-                let available = overloads.count > 1
-                    ? overloads.filter { !activeFunctionBodies.contains($0.id) }
-                    : overloads
-                if available.isEmpty {
-                    // Every overload is already running (send#StoreTask ↔
-                    // send#Task mutual delegation): the device's return-type
-                    // dispatch found a runtime path we can't — absorb.
-                    return .native(ChainedImplicitCall(
-                        base: baseValue, member: name, arguments: args))
-                }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = functionMetadata(for: method).body {
-                    let closure = makeFunctionClosure(
-                        method, body: body, captured: instanceMethodEnvironment(instance))
-                    return try invoke(.closure(closure), with: args, node: call)
+                let fitting = functionsFittingCall(
+                    from: overloads, args: args)
+                if !fitting.isEmpty {
+                    let available = functionsAvailableForCall(
+                        from: fitting, args: args)
+                    if available.isEmpty {
+                        // Every fitting overload is already running
+                        // (send#StoreTask ↔ send#Task mutual delegation):
+                        // absorb the return-type dispatch path we cannot see.
+                        let result = RuntimeValue.native(ChainedImplicitCall(
+                            base: specialBaseValue, member: name, arguments: args))
+                        return liftsMemberResult
+                            ? result.liftedToOptional() : result
+                    }
+                    if let method = chooseFunction(
+                        from: available,
+                        for: args,
+                        contextualResultMember: contextualResultMember
+                    ) ?? available.first,
+                       let body = functionMetadata(for: method).body {
+                        let closure = makeFunctionClosure(
+                            method, body: body,
+                            captured: instanceMethodEnvironment(instance))
+                        let result = try invoke(
+                            .closure(closure), with: args, node: call)
+                        return liftsMemberResult
+                            ? result.liftedToOptional() : result
+                    }
                 }
             }
             // STATIC overloads pick by call shape too:
             // KioskRow.label(_:systemSymbol:) vs label(_:icon:).
             if case .type(let symbol) = baseValue,
-               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+               let overloads = staticMethodOverloads(
+                   named: name, on: symbol), overloads.count > 1 {
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: baseValue, member: name, arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
@@ -268,19 +321,29 @@ extension Interpreter {
                 // `Sort.allCases(for:)` must not invoke the synthesized
                 // CaseIterable ARRAY (the collision rule at call sites).
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: baseValue, member: name, arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.enumType(symbol)))
                     return try invoke(.closure(closure), with: args, node: call)
                 }
             }
-            let callee = try accessMember(name, on: baseValue, node: member, env: env)
+            let callee = try accessMember(
+                name,
+                on: baseValue,
+                node: member,
+                env: env,
+                declaredTypeName: declaredBaseTypeName)
             let args = try collectArguments(of: call, in: env)
             // A nil PROPERTY at a call site never throws (nil-call absorbs),
             // so the collision rescue below can't fire — pre-check it. The
@@ -291,6 +354,7 @@ extension Interpreter {
                let method = registry?.hostMethod(name, on: any) {
                 return try invoke(method, with: args, node: call)
             }
+            reportDeclaredResult(of: callee)
             do {
                 return try invoke(callee, with: args, node: call)
             } catch let bindingError as RuntimeError
@@ -304,9 +368,14 @@ extension Interpreter {
                 // SAME-SYMBOL form first: FoodTruckModel's stored dict
                 // `dailyOrderSummaries` beside `dailyOrderSummaries(cityID:)`.
                 if case .instance(let instance) = baseValue {
-                    let own = (instance.symbol.methods[name] ?? [])
-                        .filter { !activeFunctionBodies.contains($0.id) }
-                    if let method = chooseFunction(from: own, for: args),
+                    let family = functionsAvailableForCall(
+                        from: instanceMethodOverloads(
+                            named: name, on: instance) ?? [],
+                        args: args)
+                    if let method = chooseFunction(
+                        from: family,
+                        for: args,
+                        contextualResultMember: contextualResultMember),
                        let body = functionMetadata(for: method).body {
                         let closure = makeFunctionClosure(
                             method, body: body, captured: instanceMethodEnvironment(instance))
@@ -315,10 +384,14 @@ extension Interpreter {
                     for conformance in transitiveConformances(of: instance.symbol) {
                         guard let proto = hostExtensionSymbols[conformance],
                               let overloads = proto.methods[name] else { continue }
-                        let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                        let available = functionsAvailableForCall(
+                            from: overloads, args: args)
                         // Only a FITTING overload rescues — a wrong-shaped
                         // sibling must fall through to the modifier retry.
-                        guard let method = chooseFunction(from: available, for: args),
+                        guard let method = chooseFunction(
+                            from: available,
+                            for: args,
+                            contextualResultMember: contextualResultMember),
                               let body = functionMetadata(for: method).body else {
                             continue
                         }
@@ -371,33 +444,67 @@ extension Interpreter {
             if let overloads = globalFunctionOverloads[name], overloads.count > 1,
                env.box(for: name, before: globals) == nil {
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: .implicitMember(name), member: "call", arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunctionByRuntimeTypes(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(method, body: body, captured: globals)
                     return try invoke(.closure(closure), with: args, node: call)
                 }
             }
+            // Bare calls inside a host-type extension use the same combined
+            // source/imported overload family as `self.member(...)`. Member
+            // lookup alone has no argument types and otherwise re-enters a
+            // single source declaration even when its runtime parameter type
+            // cannot fit the delegating call.
+            if let selfValue = env.lookup("self"),
+               selfValue.hostPayload != nil,
+               let overloads = try hostExtensionMethodOverloads(
+                   named: name,
+                   on: selfValue,
+                   // An implicit-self call retains the extension's lexical
+                   // receiver type even when its Objective-C payload has no
+                   // nominal runtime identity. Do not apply this recovery to
+                   // explicit receivers: a different host value used inside
+                   // the extension must dispatch by its own declared/runtime
+                   // type.
+                   declaredTypeName: (lexicalOwnerFrames.last as? StructSymbol)
+                       .flatMap { lexicalHost in
+                           hostExtensionSymbols[lexicalHost.name]
+                               === lexicalHost ? lexicalHost.name : nil
+                       }
+               ) {
+                let args = try collectArguments(of: call, in: env)
+                let target = try resolveHostExtensionMethodTarget(
+                    overloads, arguments: args)
+                return try invoke(target, with: args, node: call)
+            }
             if case .instance(let instance)? = env.lookup("self"),
-               let overloads = instance.symbol.methods[name],
+               let overloads = instanceMethodOverloads(
+                   named: name, on: instance),
                shouldDirectlyDispatchImplicitSelfCall(
                    named: name, on: instance, overloads: overloads
                ) {
                 let args = try collectArguments(of: call, in: env)
-                // Preserve recursion for a unique method; only overload sets
-                // route around the currently executing declaration.
-                let available = overloads.count > 1
-                    ? overloads.filter { !activeFunctionBodies.contains($0.id) }
-                    : overloads
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: .instance(instance), member: name, arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let methodEnvironment = methodIsMutating(method)
                         ? selfEnvironment(.instance(instance))
@@ -408,14 +515,20 @@ extension Interpreter {
                 }
             }
             if case .type(let symbol)? = env.lookup("self"),
-               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+               let overloads = staticMethodOverloads(
+                   named: name, on: symbol), overloads.count > 1 {
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                let available = functionsAvailableForCall(
+                    from: overloads, args: args)
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: .type(symbol), member: name, arguments: args))
                 }
-                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
                    let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
@@ -425,6 +538,7 @@ extension Interpreter {
         }
         let callee = try evaluate(calleeMetadata.expression, in: env)
         let args = try collectArguments(of: call, in: env)
+        reportDeclaredResult(of: callee)
         return try invoke(callee, with: args, node: call)
     }
 
@@ -438,11 +552,18 @@ extension Interpreter {
         on instance: Instance,
         overloads: [FunctionDeclSyntax]
     ) -> Bool {
-        if overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
+        if overloads.count > 1
+            || instance.symbol.computedProperties[name] != nil
+            || GeneratedCollectionDefaultSurface.suppliesProperty(
+                named: name,
+                conformances: Set(transitiveConformances(
+                    of: instance.symbol))) {
             return true
         }
-        guard let superclassName = instance.symbol.superclassName,
-              !isInterpretedType(superclassName) else { return false }
+        guard instance.symbol.superclassName != nil,
+              interpretedSuperclass(of: instance.symbol) == nil else {
+            return false
+        }
         return overloads.allSatisfy { method in
             functionMetadata(for: method).parameters.contains {
                 $0.defaultValue == nil
@@ -483,7 +604,7 @@ extension Interpreter {
     func mutatingInstanceMethods(
         named name: String, on instance: Instance
     ) -> [FunctionDeclSyntax] {
-        var methods = instance.symbol.methods[name] ?? []
+        var methods = instanceMethodOverloads(named: name, on: instance) ?? []
         for conformance in transitiveConformances(of: instance.symbol) {
             if let defaults = hostExtensionSymbols[conformance]?.methods[name] {
                 methods.append(contentsOf: defaults)
@@ -500,7 +621,8 @@ extension Interpreter {
         base: ExprSyntax,
         baseValue: RuntimeValue,
         call: FunctionCallExprSyntax,
-        in env: Environment
+        in env: Environment,
+        declaredBaseTypeName: String? = nil
     ) throws -> RuntimeValue? {
         // `.modifier(TitleFont(size: 16))` — a custom ViewModifier applies
         // by RUNNING its body(content:), with the modifier's OWN
@@ -520,17 +642,17 @@ extension Interpreter {
                 return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
             }
         }
-        // Same-module extensions and imported members form one overload set.
-        // Defer the decision until arguments are evaluated instead of letting
-        // bare member lookup make a source-only choice.
-        if let overloads = try typedHostExtensionMethodOverloads(
+        // Host-type source extensions, plus any imported peer, form one
+        // overload set. Defer the decision until arguments are evaluated
+        // instead of letting bare member lookup choose the first declaration.
+        if let overloads = try hostExtensionMethodOverloads(
             named: name,
             on: baseValue,
-            declaredTypeName: declaredMemberReceiverTypeName(
-                for: base, in: env)
+            declaredTypeName: declaredBaseTypeName
+                ?? declaredMemberReceiverTypeName(for: base, in: env)
         ) {
             let args = try collectArguments(of: call, in: env)
-            let target = try resolveTypedHostExtensionMethodTarget(
+            let target = try resolveHostExtensionMethodTarget(
                 overloads, arguments: args)
             return try invoke(target, with: args, node: call)
         }
@@ -592,6 +714,34 @@ extension Interpreter {
             _ = try collectArguments(of: call, in: env) // evaluate (empty) args for side effects
             try relocating(call) { try target.writeOwned(.native(!current), self) }
             return .void
+        }
+
+        let requiredEndpointRemoval = GeneratedCollectionDefaultSurface
+            .requiredEndpointRemoval(named: name)
+
+        // The active standard-library interface supplies the semantic
+        // endpoint for required zero-argument collection removals. Native
+        // String and Array carriers share that generated rule and differ only
+        // in how their erased storage is copied back through the lvalue.
+        if let endpoint = requiredEndpointRemoval,
+           call.arguments.isEmpty,
+           call.trailingClosure == nil,
+           call.additionalTrailingClosures.isEmpty,
+           var text = baseValue.stringValue,
+           let target = try? resolveLValue(base, in: env) {
+            _ = try collectArguments(of: call, in: env)
+            guard !text.isEmpty else {
+                throw error(call, "endpoint removal on an empty String")
+            }
+            let removed: Character
+            switch endpoint {
+            case .first: removed = text.removeFirst()
+            case .last: removed = text.removeLast()
+            }
+            try relocating(call) {
+                try target.writeOwned(.native(text), self)
+            }
+            return .native(String(removed))
         }
 
         // `url.path(percentEncoded:)` — the modern METHOD collides with the
@@ -731,11 +881,56 @@ extension Interpreter {
             return .void
         }
 
+        let nativeDictionaryKeyOptionalValueMutation =
+            GeneratedCollectionDefaultSurface
+                .isNativeDictionaryKeyOptionalValueMutation(named: name)
+        if nativeDictionaryKeyOptionalValueMutation,
+           var dictionary = baseValue.dictValue,
+           let target = try? resolveLValue(base, in: env) {
+            let args = try collectArguments(of: call, in: env)
+            let result = try GeneratedCollectionDefaultSurface
+                .invokeNativeDictionaryKeyOptionalValueMutation(
+                    named: name,
+                    arguments: args,
+                    carrier: &dictionary,
+                    interpreter: self)
+            try relocating(call) {
+                try target.writeCanonicalOwned(.native(dictionary), self)
+            }
+            return result
+        }
+
+        let nativeDictionaryCarrierScalarVoidMutation =
+            GeneratedCollectionDefaultSurface
+                .isNativeCarrierScalarVoidMutation(
+                    named: name, carrierKind: .dictionary)
+        if nativeDictionaryCarrierScalarVoidMutation,
+           var dictionary = baseValue.dictValue,
+           let target = try? resolveLValue(base, in: env) {
+            let args = try collectArguments(of: call, in: env)
+            guard try GeneratedCollectionDefaultSurface
+                .invokeNativeCarrierScalarVoidMutation(
+                    named: name, arguments: args, carrier: &dictionary)
+            else {
+                return nil
+            }
+            try relocating(call) {
+                try target.writeCanonicalOwned(.native(dictionary), self)
+            }
+            return .void
+        }
+
         let setMutating = [
             "insert", "update", "remove", "removeAll", "formUnion",
             "formIntersection", "subtract", "formSymmetricDifference",
         ]
-        if setMutating.contains(name), var set = baseValue.setValue,
+        let nativeSetCarrierScalarVoidMutation =
+            GeneratedCollectionDefaultSurface
+                .isNativeCarrierScalarVoidMutation(
+                    named: name, carrierKind: .set)
+        if (setMutating.contains(name)
+                || nativeSetCarrierScalarVoidMutation),
+           var set = baseValue.setValue,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             let elementType = set.elementTypeName ?? target.annotatedElementType()
@@ -750,7 +945,7 @@ extension Interpreter {
                     throw error(call, "Set.insert needs a member")
                 }
                 let insertion = try set.insert(
-                    resolved(member), by: setElementsAreEqual)
+                    resolved(member), by: collectionStorageValuesAreEqual)
                 result = .native(TupleValue(
                     labels: ["inserted", "memberAfterInsert"],
                     values: [.native(insertion.inserted), insertion.memberAfterInsert]))
@@ -759,15 +954,19 @@ extension Interpreter {
                     throw error(call, "Set.update(with:) needs a member")
                 }
                 let value = try resolved(member)
-                let old = try set.remove(value, by: setElementsAreEqual)
-                _ = try set.insert(value, by: setElementsAreEqual)
+                let old = try set.remove(
+                    value, by: collectionStorageValuesAreEqual)
+                _ = try set.insert(
+                    value, by: collectionStorageValuesAreEqual)
                 result = .optional(old, wrappedTypeName: elementType)
             case "remove":
                 guard let member = args.positional(0) else {
                     throw error(call, "Set.remove needs a member")
                 }
                 result = .optional(
-                    try set.remove(resolved(member), by: setElementsAreEqual),
+                    try set.remove(
+                        resolved(member),
+                        by: collectionStorageValuesAreEqual),
                     wrappedTypeName: elementType)
             case "removeAll":
                 if let closure = args.closure(labeled: "where")
@@ -778,19 +977,30 @@ extension Interpreter {
                 set = RuntimeSetValue(elementTypeName: set.elementTypeName)
                 result = .void
             default:
+                if nativeSetCarrierScalarVoidMutation,
+                   try GeneratedCollectionDefaultSurface
+                    .invokeNativeCarrierScalarVoidMutation(
+                        named: name, arguments: args, carrier: &set) {
+                    result = .void
+                    break
+                }
                 guard let otherValue = args.positional(0) else {
                     throw error(call, "Set.\(name) needs a sequence")
                 }
                 let other = try setOperationElements(otherValue)
                 switch name {
                 case "formUnion":
-                    set = try set.union(other, by: setElementsAreEqual)
+                    set = try set.union(
+                        other, by: collectionStorageValuesAreEqual)
                 case "formIntersection":
-                    set = try set.intersection(other, by: setElementsAreEqual)
+                    set = try set.intersection(
+                        other, by: collectionStorageValuesAreEqual)
                 case "subtract":
-                    set = try set.subtracting(other, by: setElementsAreEqual)
+                    set = try set.subtracting(
+                        other, by: collectionStorageValuesAreEqual)
                 default:
-                    set = try set.symmetricDifference(other, by: setElementsAreEqual)
+                    set = try set.symmetricDifference(
+                        other, by: collectionStorageValuesAreEqual)
                 }
                 result = .void
             }
@@ -801,7 +1011,17 @@ extension Interpreter {
         }
 
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
-        if mutating.contains(name),
+        let removesRange = GeneratedRangeMutationSurface.removesRange(
+            named: name)
+        let optionallyRemovesLast = GeneratedCollectionDefaultSurface
+            .optionallyRemovesLast(named: name)
+        let nativeArrayCarrierScalarVoidMutation =
+            GeneratedCollectionDefaultSurface
+                .isNativeCarrierScalarVoidMutation(
+                    named: name, carrierKind: .array)
+        if (mutating.contains(name) || removesRange || optionallyRemovesLast
+                || requiredEndpointRemoval != nil
+                || nativeArrayCarrierScalarVoidMutation),
            var array = baseValue.arrayValue,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
@@ -812,9 +1032,25 @@ extension Interpreter {
                 guard let elementType else { return value }
                 return try resolveAnnotated(value, typeName: elementType)
             }
+            if let endpoint = requiredEndpointRemoval,
+               args.arguments.isEmpty {
+                guard !array.isEmpty else {
+                    throw error(call, "endpoint removal on an empty Array")
+                }
+                let removed: RuntimeValue
+                switch endpoint {
+                case .first: removed = array.removeFirst()
+                case .last: removed = array.removeLast()
+                }
+                try relocating(call) {
+                    try target.writeCanonicalOwned(.native(array), self)
+                }
+                return removed
+            }
             switch name {
             case "append":
-                if let contents = args.labeled("contentsOf")?.arrayValue {
+                if let source = args.labeled("contentsOf"),
+                   let contents = try materializedCollectionElements(source) {
                     array.append(contentsOf: try contents.map(resolved))
                 } else if let value = args.positional(0) {
                     array.append(try resolved(value))
@@ -822,7 +1058,8 @@ extension Interpreter {
                     throw error(call, "append needs a value")
                 }
             case "insert":
-                if let contents = args.labeled("contentsOf")?.arrayValue,
+                if let source = args.labeled("contentsOf"),
+                   let contents = try materializedCollectionElements(source),
                    let index = args.labeled("at")?.intValue,
                    index >= 0, index <= array.count {
                     array.insert(contentsOf: try contents.map(resolved), at: index)
@@ -865,31 +1102,85 @@ extension Interpreter {
                     array = []
                 }
             case "removeFirst":
-                guard !array.isEmpty else { throw error(call, "removeFirst on an empty array") }
-                let removed = array.removeFirst()
-                try relocating(call) {
-                    try target.writeCanonicalOwned(.native(array), self)
+                guard let count = args.positional(0)?.intValue,
+                      count >= 0, count <= array.count else {
+                    throw error(call, "invalid Array prefix removal count")
                 }
-                return removed
+                array.removeFirst(count)
             case "removeLast":
-                guard !array.isEmpty else { throw error(call, "removeLast on an empty array") }
-                let removed = array.removeLast()
-                try relocating(call) {
-                    try target.writeCanonicalOwned(.native(array), self)
+                guard let count = args.positional(0)?.intValue,
+                      count >= 0, count <= array.count else {
+                    throw error(call, "invalid Array suffix removal count")
                 }
-                return removed
+                array.removeLast(count)
             case "sort":
+                let comparatorClosure = args.closure(labeled: "by")
+                    ?? args.firstUnlabeledClosure
+                let comparatorValue = args.labeled("by")
+                    ?? args.positional(0)
                 var failure: Error?
                 array.sort { a, b in
                     if failure != nil { return false }
-                    // Declared `static func <` (Comparable) dispatches, like
-                    // infix and the XCTAssert gateways.
-                    do { return try evaluateBinary("<", a, b).boolValue == true }
-                    catch { failure = error; return false }
+                    do {
+                        if let comparatorClosure {
+                            return try callClosure(
+                                comparatorClosure,
+                                arguments: [a, b]).boolValue == true
+                        }
+                        if let comparatorValue {
+                            let comparison = try invoke(
+                                comparatorValue,
+                                with: CallArguments(arguments: [
+                                    .init(label: nil, value: a),
+                                    .init(label: nil, value: b),
+                                ]),
+                                node: call)
+                            return comparison.boolValue == true
+                        }
+                        // The argument-free Comparable form dispatches a
+                        // declared `static func <`, like infix expressions
+                        // and assertion gateways.
+                        return try evaluateBinary("<", a, b).boolValue == true
+                    } catch {
+                        failure = error
+                        return false
+                    }
                 }
                 if let failure { throw failure }
             default:
-                return nil
+                if nativeArrayCarrierScalarVoidMutation,
+                   try GeneratedCollectionDefaultSurface
+                    .invokeNativeCarrierScalarVoidMutation(
+                        named: name, arguments: args, carrier: &array) {
+                    break
+                }
+                if optionallyRemovesLast {
+                    guard args.arguments.isEmpty else {
+                        throw error(
+                            call,
+                            "generated optional last removal takes no arguments")
+                    }
+                    guard let removed = array.popLast() else {
+                        return .none(wrappedTypeName: elementType)
+                    }
+                    try relocating(call) {
+                        try target.writeCanonicalOwned(.native(array), self)
+                    }
+                    return removed.liftedToOptional(
+                        wrappedTypeName: elementType)
+                }
+                guard removesRange,
+                      args.arguments.count == 1,
+                      let range = args.positional(0)?.rangeValue?
+                        .halfOpenIntRange,
+                      range.lowerBound >= 0,
+                      range.lowerBound <= range.upperBound,
+                      range.upperBound <= array.count else {
+                    throw error(
+                        call,
+                        "generated range removal needs valid Array indices")
+                }
+                array.removeSubrange(range)
             }
             try relocating(call) {
                 try target.writeCanonicalOwned(.native(array), self)

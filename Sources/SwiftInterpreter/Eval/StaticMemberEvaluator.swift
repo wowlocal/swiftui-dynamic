@@ -24,7 +24,7 @@ extension Interpreter {
             return .native(RuntimeTaskLocalProjection(
                 key: declaration.key,
                 defaultValue: defaultValue,
-                valueTypeName: declaration.typeAnnotation?.trimmedDescription
+                valueTypeName: declaration.typeName
                     ?? HostRuntimeTypeSystem.typeName(of: defaultValue)))
         }
         if let bound = evaluationTaskContext.taskLocals.value(
@@ -48,7 +48,7 @@ extension Interpreter {
             raw = try evaluate(initializer, in: environment)
         } else {
             raw = .none(forTypeAnnotation:
-                declaration.typeAnnotation?.trimmedDescription ?? "")
+                declaration.typeName ?? "")
         }
         let resolved = try resolveAnnotated(
             raw, annotation: declaration.typeAnnotation)
@@ -57,7 +57,28 @@ extension Interpreter {
         return resolved.copiedForValueSemantics()
     }
 
+    /// Static member lookup follows the interpreted superclass chain just as
+    /// instance lookup does. Storage and caches belong to the declaration
+    /// owner, while inherited methods/computed properties receive the
+    /// original concrete metatype as dynamic `Self`.
     func staticMember(_ name: String, of symbol: StructSymbol) throws -> RuntimeValue? {
+        var declarationOwner: StructSymbol? = symbol
+        while let owner = declarationOwner {
+            if let value = try declaredStaticMember(
+                name, of: owner, dynamicType: symbol) {
+                return value
+            }
+            declarationOwner = interpretedSuperclass(of: owner)
+        }
+        return try protocolExtensionStaticMethod(
+            name, onConformingType: symbol)
+    }
+
+    private func declaredStaticMember(
+        _ name: String,
+        of symbol: StructSymbol,
+        dynamicType: StructSymbol
+    ) throws -> RuntimeValue? {
         if let taskLocal = try sourceTaskLocalMember(
             name,
             declarations: symbol.taskLocalProperties,
@@ -69,12 +90,12 @@ extension Interpreter {
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
             var raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
-            var value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+            var value = try resolveAnnotated(raw, typeName: property.typeName)
                 .copiedForValueSemantics()
             if property.referenceOwnership != .strong {
                 let box = Box(
                     value,
-                    declaredTypeName: property.typeAnnotation?.trimmedDescription,
+                    declaredTypeName: property.typeName,
                     referenceOwnership: property.referenceOwnership)
                 symbol.staticReferenceBoxes[name] = box
                 // The initializer result has no source-level strong owner.
@@ -90,7 +111,8 @@ extension Interpreter {
             // `static var currentMonth: Date { … }` — evaluated fresh each
             // read (no caching: getters may depend on time or other state);
             // self is the TYPE, so bare sibling statics resolve.
-            return try evaluateComputed(computed, selfValue: .type(symbol), name: name)
+            return try evaluateComputed(
+                computed, selfValue: .type(dynamicType), name: name)
         }
         if let overloads = symbol.staticMethods[name], let first = overloads.first {
             // Static context: `self`/`Self` and bare sibling statics
@@ -101,7 +123,9 @@ extension Interpreter {
                 ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? first)
                 : first
             if let body = functionMetadata(for: method).body {
-                return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol))))
+                return .closure(makeFunctionClosure(
+                    method, body: body,
+                    captured: selfEnvironment(.type(dynamicType))))
             }
         }
         if let attribute = symbol.staticWrapped[name],
@@ -145,8 +169,7 @@ extension Interpreter {
             }
             return .nilValue
         }
-        return try protocolExtensionStaticMethod(
-            name, onConformingType: symbol)
+        return nil
     }
 
     /// A concrete conformer inherits a uniquely named protocol-extension
@@ -194,12 +217,12 @@ extension Interpreter {
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
             var raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
-            var value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+            var value = try resolveAnnotated(raw, typeName: property.typeName)
                 .copiedForValueSemantics()
             if property.referenceOwnership != .strong {
                 let box = Box(
                     value,
-                    declaredTypeName: property.typeAnnotation?.trimmedDescription,
+                    declaredTypeName: property.typeName,
                     referenceOwnership: property.referenceOwnership)
                 symbol.staticReferenceBoxes[name] = box
                 raw = .void

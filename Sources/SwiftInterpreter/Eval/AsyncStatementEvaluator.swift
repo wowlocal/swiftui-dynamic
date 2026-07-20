@@ -280,8 +280,11 @@ extension Interpreter {
             let resolved = try hint.map {
                 try resolveAnnotated(value, typeName: $0)
             } ?? value
+            let declaredTypeName = hint
+                ?? declaredMemberReceiverTypeName(
+                    for: initializer, in: env)
             env.define(
-                name, resolved, declaredTypeName: hint,
+                name, resolved, declaredTypeName: declaredTypeName,
                 isMutableBinding: isMutableBinding)
         }
     }
@@ -480,7 +483,7 @@ extension Interpreter {
                         throw error(optionalBinding, "'let _' needs an initializer")
                     }
                     let value = try await evaluateSuspending(initializer, in: bindings)
-                    guard value.unwrappedOptionalOrSelf != nil else { return false }
+                    guard value.optionalBindingPayload != nil else { return false }
                     continue
                 }
 
@@ -501,7 +504,7 @@ extension Interpreter {
                 if let names = tupleNames,
                    let initializer = optionalBinding.initializer?.value {
                     let value = try await evaluateSuspending(initializer, in: bindings)
-                    guard let unwrapped = value.unwrappedOptionalOrSelf,
+                    guard let unwrapped = value.optionalBindingPayload,
                           let tuple = unwrapped.tupleValue,
                           tuple.values.count == names.count else { return false }
                     for (name, elementValue) in zip(names, tuple.values) {
@@ -521,8 +524,10 @@ extension Interpreter {
                 } else {
                     value = try resolveIdentifier(name, in: bindings, node: optionalBinding)
                 }
-                guard let unwrapped = value.unwrappedOptionalOrSelf else { return false }
-                bindings.define(name, unwrapped)
+                guard let unwrapped = value.optionalBindingPayload else { return false }
+                bindings.define(
+                    name, unwrapped,
+                    declaredTypeName: value.optionalBindingDeclaredTypeName)
 
             case .matchingPattern(let matching):
                 let subject = try await evaluateSuspending(
@@ -758,10 +763,8 @@ extension Interpreter {
                 throw error(forStatement.sequence, "for-in requires an integer range")
             }
             elements = values
-        } else if let array = sequence.arrayValue {
-            elements = array
-        } else if let set = sequence.setValue {
-            elements = set.elements
+        } else if let materialized = try materializedCollectionElements(sequence) {
+            elements = materialized
         } else if case .host(let any) = sequence,
                   any is InertCallable || any is ChainedImplicitCall
                     || any is ImplicitMemberCall {
@@ -770,8 +773,6 @@ extension Interpreter {
             elements = []
         } else if case .hostFunction = sequence {
             elements = []
-        } else if case .host(let any) = sequence, let bytes = any as? Data {
-            elements = bytes.map { .native(Int($0)) }
         } else if let dictionary = sequence.dictValue {
             elements = zip(dictionary.keys, dictionary.values).map { key, value in
                 .native(TupleValue(
@@ -970,15 +971,23 @@ extension Interpreter {
     private func executeWhileSuspending(
         _ whileStatement: WhileStmtSyntax, in env: Environment
     ) async throws -> StatementResult {
+        var iteration = 0
         while true {
-            try checkRuntimeCancellation()
-            try tick(whileStatement)
-            let child = Environment(parent: env)
-            guard try await conditionsHoldSuspending(
-                whileStatement.conditions, in: env,
-                bindingInto: child) else { break }
-            let result = try await executeBlockSuspending(
-                whileStatement.body.statements, in: child)
+            iteration += 1
+            let result: StatementResult? = try await
+                withBoundedLoopIterationSlice(
+                    iteration, node: whileStatement
+                ) {
+                    try checkRuntimeCancellation()
+                    try tick(whileStatement)
+                    let child = Environment(parent: env)
+                    guard try await conditionsHoldSuspending(
+                        whileStatement.conditions, in: env,
+                        bindingInto: child) else { return nil }
+                    return try await executeBlockSuspending(
+                        whileStatement.body.statements, in: child)
+                }
+            guard let result else { break }
             switch result {
             case .normal, .continueLoop:
                 continue
@@ -997,23 +1006,38 @@ extension Interpreter {
     private func executeRepeatSuspending(
         _ repeatStatement: RepeatStmtSyntax, in env: Environment
     ) async throws -> StatementResult {
+        var iteration = 0
         while true {
-            try checkRuntimeCancellation()
-            try tick(repeatStatement)
-            let child = Environment(parent: env)
-            let result = try await executeBlockSuspending(
-                repeatStatement.body.statements, in: child)
+            iteration += 1
+            let outcome: (result: StatementResult, repeats: Bool) = try await
+                withBoundedLoopIterationSlice(
+                    iteration, node: repeatStatement
+                ) {
+                    try checkRuntimeCancellation()
+                    try tick(repeatStatement)
+                    let child = Environment(parent: env)
+                    let result = try await executeBlockSuspending(
+                        repeatStatement.body.statements, in: child)
+                    switch result {
+                    case .normal, .continueLoop:
+                        let repeats = try await evaluateSuspending(
+                            repeatStatement.condition,
+                            in: env).boolValue == true
+                        return (result, repeats)
+                    case .breakLoop, .returnValue:
+                        return (result, false)
+                    }
+                }
+            let result = outcome.result
             switch result {
             case .normal, .continueLoop:
-                break
+                guard outcome.repeats else { return .normal(.void) }
+                continue
             case .breakLoop:
                 return .normal(.void)
             case .returnValue:
                 return result
             }
-            guard try await evaluateSuspending(
-                repeatStatement.condition, in: env).boolValue == true else { break }
         }
-        return .normal(.void)
     }
 }

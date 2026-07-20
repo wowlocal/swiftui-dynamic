@@ -294,6 +294,25 @@ struct HostSignatureTests {
         }
     }
 
+    @Test func genericParameterBindsThroughBindingWrappedValue() throws {
+        let interpreter = Interpreter()
+        let signature = try HostSignature(
+            parsing: "func consume<T>(_ value: Binding<T?>)"
+        )
+        let binding = BindingStub(box: Box(
+            .none(wrappedTypeName: "String")
+        ))
+
+        let match = signature.match(
+            arguments: CallArguments(arguments: [
+                .init(label: nil, value: .native(binding)),
+            ]),
+            in: interpreter
+        )
+
+        #expect(match?.genericBindings["T"] == "String")
+    }
+
     @Test func overloadsPreferExactTypesAndRejectAmbiguity() throws {
         let interpreter = Interpreter()
         let integer = try HostFunction(

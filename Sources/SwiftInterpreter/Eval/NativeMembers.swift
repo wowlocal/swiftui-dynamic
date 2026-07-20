@@ -40,7 +40,7 @@ extension Interpreter {
             return try arrayMember(
                 name,
                 array,
-                elementTypeName: RuntimeDeclaredType.arrayElementTypeName(
+                elementTypeName: RuntimeDeclaredType.arrayPayloadElementTypeName(
                     in: declaredTypeName))
         case .set(let set):
             return try setMember(name, set)
@@ -136,7 +136,8 @@ extension Interpreter {
                     throw RuntimeError(message: "Set.contains needs a value or closure")
                 }
                 if let self {
-                    return .native(try set.contains(target, by: self.setElementsAreEqual))
+                    return .native(try set.contains(
+                        target, by: self.collectionStorageValuesAreEqual))
                 }
                 return .native(try set.contains(target, by: Builtins.areEqual))
             })
@@ -149,14 +150,17 @@ extension Interpreter {
                 let result: RuntimeSetValue
                 switch name {
                 case "union":
-                    result = try set.union(other, by: self.setElementsAreEqual)
+                    result = try set.union(
+                        other, by: self.collectionStorageValuesAreEqual)
                 case "intersection":
-                    result = try set.intersection(other, by: self.setElementsAreEqual)
+                    result = try set.intersection(
+                        other, by: self.collectionStorageValuesAreEqual)
                 case "subtracting":
-                    result = try set.subtracting(other, by: self.setElementsAreEqual)
+                    result = try set.subtracting(
+                        other, by: self.collectionStorageValuesAreEqual)
                 default:
                     result = try set.symmetricDifference(
-                        other, by: self.setElementsAreEqual)
+                        other, by: self.collectionStorageValuesAreEqual)
                 }
                 return .native(result)
             })
@@ -170,10 +174,12 @@ extension Interpreter {
                 let other = try self.setOperationElements(otherValue)
                 let otherSet = try self.makeRuntimeSet(other)
                 let allLeftInRight = try elements.allSatisfy {
-                    try otherSet.contains($0, by: self.setElementsAreEqual)
+                    try otherSet.contains(
+                        $0, by: self.collectionStorageValuesAreEqual)
                 }
                 let allRightInLeft = try otherSet.elements.allSatisfy {
-                    try set.contains($0, by: self.setElementsAreEqual)
+                    try set.contains(
+                        $0, by: self.collectionStorageValuesAreEqual)
                 }
                 switch name {
                 case "isSubset": return .native(allLeftInRight)
@@ -184,7 +190,8 @@ extension Interpreter {
                     return .native(allRightInLeft && elements.count > otherSet.elements.count)
                 default:
                     return .native(try elements.allSatisfy {
-                        try !otherSet.contains($0, by: self.setElementsAreEqual)
+                        try !otherSet.contains(
+                            $0, by: self.collectionStorageValuesAreEqual)
                     })
                 }
             })
@@ -217,6 +224,60 @@ extension Interpreter {
     /// This is the compatibility path for opaque framework values. Swift-shaped
     /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
+        if let buffer = any as? RuntimeCollectionBackedBuffer {
+            if let label = GeneratedUnsafeMemorySurface
+                .bufferRebindingMetatypeLabel(for: name) {
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let typeName = RuntimeMetatype.name(
+                        of: args.labeled(label) ?? args.positional(0)) else {
+                        throw EvalMessage(
+                            text: "memory binding needs a scalar metatype")
+                    }
+                    return .native(try buffer.bindingMemory(to: typeName))
+                })
+            }
+            switch name {
+            case "count":
+                return .native(buffer.elements.count)
+            case "isEmpty":
+                return .native(buffer.elements.isEmpty)
+            case "baseAddress":
+                return buffer.baseAddress.map {
+                    .some(.native($0), wrappedTypeName: "UnsafePointer")
+                } ?? .none(wrappedTypeName: "UnsafePointer")
+            default:
+                return try arrayMember(
+                    name, buffer.elements,
+                    elementTypeName: buffer.elementTypeName)
+            }
+        }
+        if let pointer = any as? RuntimeCollectionBackedPointer {
+            switch name {
+            case "advanced":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let distance = (args.labeled("by")
+                        ?? args.positional(0))?.intValue else {
+                        throw EvalMessage(text: "advanced(by:) needs an integer")
+                    }
+                    return .native(pointer.advanced(by: distance))
+                })
+            case "pointee":
+                return try pointer.element(atRelativeIndex: 0)
+            case "load":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let metatype = args.labeled("as") ?? args.positional(0)
+                    else {
+                        throw EvalMessage(text: "load(as:) needs a scalar metatype")
+                    }
+                    guard let typeName = RuntimeMetatype.name(of: metatype) else {
+                        throw EvalMessage(text: "load(as:) needs a scalar metatype")
+                    }
+                    return try pointer.loadedValue(typeName: typeName)
+                })
+            default:
+                return nil
+            }
+        }
         if let group = any as? RuntimeTaskGroup {
             return try sourceTaskGroupMember(name, on: group)
         }
@@ -644,30 +705,28 @@ extension Interpreter {
         _ array: [RuntimeValue],
         elementTypeName: String? = nil
     ) throws -> RuntimeValue? {
+        if let generated = GeneratedCollectionDefaultSurface
+            .nativeIndexMotionMember(
+                named: name, receiver: .native(array)) {
+            return .hostFunction(generated)
+        }
+        if let generated = GeneratedCollectionDefaultSurface
+            .nativeIndexSearchMember(
+                named: name, receiver: .native(array)) {
+            return .hostFunction(generated)
+        }
         switch name {
         case "count": return .native(array.count)
         case "isEmpty": return .native(array.isEmpty)
-        case "first": return .optional(array.first)
-        case "last": return .optional(array.last)
+        case "first":
+            return .optional(
+                array.first, wrappedTypeName: elementTypeName)
+        case "last":
+            return .optional(
+                array.last, wrappedTypeName: elementTypeName)
         case "indices": return .native(0..<array.count)
         case "startIndex": return .native(0)
         case "endIndex": return .native(array.count)
-        case "index":
-            // `index(after:)` / `index(before:)` / `index(_:offsetBy:)` —
-            // integer index arithmetic (MakeItSo's computeOrder genre).
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                if let after = args.labeled("after")?.intValue {
-                    return .native(after + 1)
-                }
-                if let before = args.labeled("before")?.intValue {
-                    return .native(before - 1)
-                }
-                if let base = args.positional(0)?.intValue,
-                   let offset = args.labeled("offsetBy")?.intValue {
-                    return .native(base + offset)
-                }
-                throw EvalMessage(text: "index(...) needs integer arguments")
-            })
         case "elementsEqual":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let other = args.positional(0)?.arrayValue, other.count == array.count else {
@@ -678,6 +737,33 @@ extension Interpreter {
                 }
                 return .native(true)
             })
+        case "withContiguousStorageIfAvailable":
+            // The interpreter owns value arrays, not a stable addressable
+            // buffer. This API is explicitly a capability query: returning
+            // nil makes source execute its declared collection fallback
+            // instead of treating an absorbing pointer marker as success.
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .none()
+            })
+        case "withUnsafeBufferPointer":
+            // The immutable carrier retains both values and their declared
+            // element ABI, so a source buffer stored after this callback can
+            // keep safe collection-backed pointer semantics without leaking
+            // the callback's temporary machine address.
+            return .hostFunction(HostFunction(name: name) { args, context in
+                let body = try Self.requiredClosure(args, name)
+                return try context.callClosure(
+                    body, arguments: [
+                        .native(RuntimeCollectionBackedBuffer(
+                            array, elementTypeName: elementTypeName)),
+                    ])
+            })
+        case "baseAddress":
+            // A materialized read-only buffer intentionally exposes no raw
+            // address. Source pointer fast paths then execute their declared
+            // scalar fallback; only the scoped buffer proxy above can mint a
+            // collection-backed pointer during construction.
+            return .none(wrappedTypeName: "UnsafePointer")
 
         case "flatMap":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
@@ -865,23 +951,6 @@ extension Interpreter {
                 }
                 return .native(false)
             })
-        case "firstIndex":
-            return .hostFunction(HostFunction(name: name) { args, ctx in
-                if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
-                    for (index, element) in array.enumerated()
-                    where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
-                        return .some(.native(index), wrappedTypeName: "Int")
-                    }
-                    return .none(wrappedTypeName: "Int")
-                }
-                guard let target = args.labeled("of") else {
-                    throw RuntimeError(message: "firstIndex needs of: or where:")
-                }
-                for (index, element) in array.enumerated() where try Builtins.areEqual(element, target) {
-                    return .some(.native(index), wrappedTypeName: "Int")
-                }
-                return .none(wrappedTypeName: "Int")
-            })
         case "joined":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 let separator = args.labeled("separator")?.stringValue ?? ""
@@ -965,6 +1034,10 @@ extension Interpreter {
     ) throws -> RuntimeValue {
         if let closure = (args.closure(labeled: "transform") ?? args.firstUnlabeledClosure
                             ?? args.positional(0)?.closureValue) {
+            if element.isNil, closure.skipsBodyForNilFirstArgument {
+                interpreter?.recordPreparedOptionalChainNilSkip()
+                return .none()
+            }
             return try ctx.callClosure(closure, arguments: [element])
         }
         if case .host(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
@@ -1051,6 +1124,21 @@ extension Interpreter {
     }
 
     private func stringMember(_ name: String, _ string: String) -> RuntimeValue? {
+        if let generated = GeneratedCollectionDefaultSurface
+            .nativeIndexMotionMember(
+                named: name, receiver: .native(string)) {
+            return .hostFunction(generated)
+        }
+        if let generated = GeneratedCollectionDefaultSurface
+            .nativeIndexSearchMember(
+                named: name, receiver: .native(string)) {
+            return .hostFunction(generated)
+        }
+        if let generated = GeneratedCollectionDefaultSurface
+            .nativeWritableStringCollectionView(
+                named: name, on: string) {
+            return generated
+        }
         switch name {
         case "count": return .native(string.count)
         case "isEmpty": return .native(string.isEmpty)
@@ -1178,10 +1266,6 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { args, _ in
                 .native(args.positional(0)?.stringValue == string)
             })
-        case "unicodeScalars":
-            // Scalars as single-char strings (our character model): count,
-            // iteration, and allSatisfy work through array machinery.
-            return .native(string.unicodeScalars.map { RuntimeValue.native(String($0)) })
         case "description", "localizedDescription":
             return .native(string)
         case "debugDescription":
@@ -1227,19 +1311,6 @@ extension Interpreter {
             // fall back to utf8, the corpus's only ask).
             return .hostFunction(HostFunction(name: name) { _, _ in
                 .native(string.data(using: .utf8))
-            })
-        case "index":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                guard case .host(let any)? = args.positional(0),
-                      let base = any as? String.Index else {
-                    throw RuntimeError(message: "index(_:offsetBy:) needs a String.Index")
-                }
-                let offset = (args.labeled("offsetBy") ?? args.positional(1))?.intValue ?? 0
-                let limit = offset >= 0 ? string.endIndex : string.startIndex
-                guard let moved = string.index(base, offsetBy: offset, limitedBy: limit) else {
-                    throw RuntimeError(message: "String index offset out of bounds")
-                }
-                return .native(moved)
             })
         case "distance":
             return .hostFunction(HostFunction(name: name) { args, _ in

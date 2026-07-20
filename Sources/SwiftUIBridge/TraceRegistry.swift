@@ -2,6 +2,18 @@ import Darwin
 import Foundation
 import SwiftInterpreter
 
+public struct TraceLifecycleIdentity: Hashable {
+    public let sourceSiteID: UInt64
+    public let modifier: String
+    public let viewIdentityPath: String
+    public let restartToken: String?
+}
+
+public struct TraceLifecycle {
+    public let identity: TraceLifecycleIdentity
+    public let closure: ClosureValue
+}
+
 /// A recorded render-tree node — what the trace registry produces instead of
 /// real SwiftUI views, so tests can assert structure headlessly.
 public final class TraceNode: InertCallable {
@@ -18,14 +30,24 @@ public final class TraceNode: InertCallable {
     public var environmentModels: [String: Instance] = [:]
     public var instance: Instance?
     /// `.task`/`.onAppear` closures, retained for LiveCheck's probe to fire.
-    public var lifecycle: [ClosureValue] = []
+    public var lifecycle: [TraceLifecycle] = []
+    /// Headless launch has no layout engine, but viewport-materialized
+    /// containers still must not make every deeply covered child lifecycle-
+    /// visible. LiveCheck consumes this many logical rows from the initial
+    /// viewport while continuing to walk every row for string coverage.
+    public var initialLifecycleRowCapacity: Int?
     /// Opaque host objects (`UIPanGestureRecognizer()`, …) are recorded as
     /// nodes but behave like the mutable objects they stand for: property
     /// writes land here and read back (`gesture.name = id … gesture.name`).
     public var config: [String: RuntimeValue] = [:]
+    /// Generic constructors without view-building closures may represent
+    /// imported objects. Their unknown members remain concrete, memoized
+    /// recorder values instead of being mistaken for arbitrary modifiers.
+    var absorbsUnknownMembers = false
 
-    init(kind: String) {
+    init(kind: String, absorbsUnknownMembers: Bool = false) {
         self.kind = kind
+        self.absorbsUnknownMembers = absorbsUnknownMembers
     }
 
     public func findAll(_ kind: String) -> [TraceNode] {
@@ -43,7 +65,20 @@ public final class TraceRegistry: HostRegistry {
     /// Nested `Task {}` bodies are scheduled, never run synchronously.
     var taskDepth = 0
     let fileManagerBox = FileManagerBox()
+    let applicationShells = FrameworkApplicationShellStore()
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
+
+    /// Swiftinterface metadata exposes List's builder but not its lazy,
+    /// viewport-owned lifecycle semantics. Keep that missing SwiftUI magic in
+    /// one explicit allowlist. This is the first instance of the pattern;
+    /// future viewport-materialized containers join this table instead of
+    /// growing per-callback branches.
+    private static let initialLifecycleRowCapacityByContainer: [String: Int] = [
+        // The trace canvas is 844pt tall and an interactive iOS row is at
+        // least 44pt. Nineteen is therefore a conservative upper bound on
+        // rows that can be visible before scrolling, independent of app data.
+        "List": Int(844 / 44),
+    ]
 
     public init() {}
 
@@ -51,7 +86,26 @@ public final class TraceRegistry: HostRegistry {
         .native(TraceNode(kind: name)) // writable bag: out-params fill
     }
 
+    public func hostGlobal(named name: String) -> RuntimeValue? {
+        GeneratedPlatformBridge.globalValue(
+            named: name, applicationShells: applicationShells)
+    }
+
+    public func hostValue(
+        _ value: Any, matchesImportedType typeName: String
+    ) -> Bool {
+        if GeneratedPlatformBridge.value(value, matchesType: typeName) {
+            return true
+        }
+        guard let node = value as? TraceNode,
+              node.absorbsUnknownMembers else { return false }
+        return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
+    }
+
     public func cFunction(named name: String) -> HostFunction? {
+        if let memory = GeneratedCMemoryBridge.function(named: name) {
+            return memory
+        }
         if let generated = GeneratedPlatformBridge.globalFunction(
             named: name,
             fallbackRuntime: generatedPlatformFallbacks
@@ -105,6 +159,29 @@ public final class TraceRegistry: HostRegistry {
         return String(index)
     }
 
+    /// A host collection has already been materialized before this entry, so
+    /// every builder row is finite in cardinality while retaining its own
+    /// ordinary infinite-work guard. Identity salting and budget slicing are
+    /// applied uniformly to every registry constructor that expands data.
+    @MainActor
+    private static func finiteBuilderRows(
+        _ content: ClosureValue,
+        element: RuntimeValue,
+        salt: String,
+        context: EvalContext
+    ) throws -> [RuntimeValue] {
+        try context.withKnownFiniteHostIteration {
+            if let interpreter = context as? Interpreter {
+                return try interpreter.withViewIdentitySalt(salt) {
+                    try context.callBuilderClosure(
+                        content, arguments: [element])
+                }
+            }
+            return try context.callBuilderClosure(
+                content, arguments: [element])
+        }
+    }
+
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? {
         guard case .replay = NetworkBridge.policy else { return nil }
         return .native(ValuePublisherBox(.success(current)))
@@ -120,6 +197,11 @@ public final class TraceRegistry: HostRegistry {
         }
         if name == "UserDefaults" || name == "NSUserDefaults" {
             return ObjCTrampoline.constructor(named: name)
+        }
+        if let dataAsset = ObjCTrampoline.projectDataAssetConstructor(
+            named: name
+        ) {
+            return dataAsset
         }
         switch name {
         case "Text", "Image", "Spacer", "Divider", "Toggle", "TextField", "Slider":
@@ -321,14 +403,8 @@ public final class TraceRegistry: HostRegistry {
                 }
                 for (index, element) in elements.enumerated() {
                     let salt = Self.identitySalt(of: element, index: index)
-                    let rows: [RuntimeValue]
-                    if let interpreter = ctx as? Interpreter {
-                        rows = try interpreter.withViewIdentitySalt(salt) {
-                            try ctx.callBuilderClosure(content, arguments: [element])
-                        }
-                    } else {
-                        rows = try ctx.callBuilderClosure(content, arguments: [element])
-                    }
+                    let rows = try Self.finiteBuilderRows(
+                        content, element: element, salt: salt, context: ctx)
                     node.children += try rows.map(Self.node)
                 }
                 return .native(node)
@@ -341,7 +417,13 @@ public final class TraceRegistry: HostRegistry {
             // errors surface truthfully instead of becoming fake recorders.
             guard name.first?.isUppercase == true else { return nil }
             return HostFunction(name: name) { args, ctx in
-                let node = TraceNode(kind: name)
+                let node = TraceNode(
+                    kind: name,
+                    absorbsUnknownMembers: !args.arguments.contains {
+                        $0.value.closureValue != nil
+                    })
+                node.initialLifecycleRowCapacity =
+                    Self.initialLifecycleRowCapacityByContainer[name]
                 var data: RuntimeValue?
                 for argument in args.arguments {
                     if case .host(let any) = argument.value, let stub = any as? BindingStub {
@@ -354,14 +436,9 @@ public final class TraceRegistry: HostRegistry {
                         if let data, let elements = try? Self.elements(of: data) {
                             for (index, element) in elements.enumerated() {
                                 let salt = Self.identitySalt(of: element, index: index)
-                                let rows: [RuntimeValue]
-                                if let interpreter = ctx as? Interpreter {
-                                    rows = try interpreter.withViewIdentitySalt(salt) {
-                                        try ctx.callBuilderClosure(closure, arguments: [element])
-                                    }
-                                } else {
-                                    rows = try ctx.callBuilderClosure(closure, arguments: [element])
-                                }
+                                let rows = try Self.finiteBuilderRows(
+                                    closure, element: element, salt: salt,
+                                    context: ctx)
                                 node.children += try rows.map(Self.node)
                             }
                         } else if closure.parameters.isEmpty {
@@ -422,7 +499,19 @@ public final class TraceRegistry: HostRegistry {
             if name == "task" || name == "onAppear",
                let closure = args.arguments.compactMap({ $0.value.closureValue }).first,
                closure.parameters.isEmpty {
-                node.lifecycle.append(closure)
+                // SwiftUI owns lifecycle by structural view identity, not by
+                // the callback's ordinal in a freshly rendered tree. The
+                // syntax call site distinguishes sibling modifiers, the
+                // collection path distinguishes ForEach rows, and task(id:)
+                // contributes its documented restart token.
+                node.lifecycle.append(TraceLifecycle(
+                    identity: TraceLifecycleIdentity(
+                        sourceSiteID: args.sourceSiteID ?? closure.sourceSiteID,
+                        modifier: name,
+                        viewIdentityPath: ctx.currentViewIdentityPath,
+                        restartToken: name == "task"
+                            ? args.labeled("id")?.stringified : nil),
+                    closure: closure))
             }
             if Self.builderModifiers.contains(name) {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content
@@ -501,17 +590,6 @@ public final class TraceRegistry: HostRegistry {
         return .native(node)
     }
 
-    /// Constructed host OBJECTS (UIPanGestureRecognizer(), AVPlayer(), …)
-    /// vs recorded views: UIKit-ish constructor prefixes get property-bag
-    /// member semantics; view kinds keep modifier chaining.
-    static func isHostObjectKind(_ kind: String) -> Bool {
-        for prefix in ["UI", "NS", "CA", "AV", "CL", "MK", "WK", "SK", "PH"]
-        where kind.hasPrefix(prefix) && kind.count > 2 {
-            return true
-        }
-        return false
-    }
-
     public func hostProperty(named name: String, on value: Any) -> HostProperty? {
         bridgeHostProperty(name, on: value)
     }
@@ -519,13 +597,6 @@ public final class TraceRegistry: HostRegistry {
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
         if let node = value as? TraceNode, let stored = node.config[name] {
             return stored
-        }
-        if let node = value as? TraceNode, Self.isHostObjectKind(node.kind) {
-            // Members of hosted objects read as memoized chained bags, so
-            // `context.view.frame = x` round-trips and calls absorb.
-            let fresh = RuntimeValue.native(TraceNode(kind: "\(node.kind).\(name)"))
-            node.config[name] = fresh
-            return fresh
         }
         if value is TraceNode {
             // Unknown store-query objects (realm.objects(...)) act like a
@@ -555,8 +626,27 @@ public final class TraceRegistry: HostRegistry {
             default: break
             }
         }
-        return bridgeHostMember(
-            name, on: value, fileManager: fileManagerBox)
+        if let bridged = bridgeHostMember(
+            name, on: value, fileManager: fileManagerBox,
+            applicationShells: applicationShells)
+        {
+            return bridged
+        }
+        return nil
+    }
+
+    public func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue? {
+        guard let node = value as? TraceNode, node.absorbsUnknownMembers else {
+            return nil
+        }
+        // Members of opaque imported objects read as memoized chained bags,
+        // so `context.view.frame = x` round-trips and calls absorb. This hook
+        // runs only after declared/bridged capabilities have declined.
+        let fresh = RuntimeValue.native(TraceNode(
+            kind: "\(node.kind).\(name)",
+            absorbsUnknownMembers: true))
+        node.config[name] = fresh
+        return fresh
     }
 
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {

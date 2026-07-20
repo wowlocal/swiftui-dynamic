@@ -263,11 +263,11 @@ public final class Box {
 @MainActor
 public final class LazyGlobal {
     public let initializer: ExprSyntax?
-    public let annotation: TypeSyntax?
+    public let typeName: String?
 
-    public init(initializer: ExprSyntax?, annotation: TypeSyntax?) {
+    public init(initializer: ExprSyntax?, typeName: String?) {
         self.initializer = initializer
-        self.annotation = annotation
+        self.typeName = typeName
     }
 }
 
@@ -276,11 +276,11 @@ public final class LazyGlobal {
 @MainActor
 public final class ComputedGlobal {
     public let accessor: CodeBlockItemListSyntax
-    public let annotation: TypeSyntax?
+    public let typeName: String?
 
-    public init(accessor: CodeBlockItemListSyntax, annotation: TypeSyntax?) {
+    public init(accessor: CodeBlockItemListSyntax, typeName: String?) {
         self.accessor = accessor
-        self.annotation = annotation
+        self.typeName = typeName
     }
 }
 

@@ -20,7 +20,7 @@ extension Interpreter {
         }
         guard let propertyName,
               case .instance(let instance)? = env.lookup("self") else { return nil }
-        return instance.symbol.storedProperty(named: propertyName)?.typeAnnotation?.trimmedDescription
+        return instance.symbol.storedProperty(named: propertyName)?.typeName
     }
 
     func evaluateInfix(_ infix: InfixOperatorExprSyntax, in env: Environment) throws -> RuntimeValue {
@@ -84,7 +84,8 @@ extension Interpreter {
             case .notOptional:
                 return lhs
             }
-        case "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=":
+        case "+=", "-=", "*=", "/=", "%=", "&+=", "&-=", "&*=",
+             "&=", "|=", "^=", "<<=", ">>=":
             let target = try resolveLValue(infix.leftOperand, in: env)
             var rhs = try evaluate(infix.rightOperand, in: env)
             let current = try target.read(self)
@@ -159,17 +160,44 @@ extension Interpreter {
             do {
                 return try relocating(infix) { try Builtins.binary(op, adoptedLhs, adoptedRhs) }
             } catch let builtinError as RuntimeError where !builtinError.fatal {
-                if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) {
+                if let viaDeclared = try declaredOperatorValue(
+                    op,
+                    lhs,
+                    rhs,
+                    lhsDeclaredTypeName: declaredMemberReceiverTypeName(
+                        for: infix.leftOperand, in: env),
+                    rhsDeclaredTypeName: declaredMemberReceiverTypeName(
+                        for: infix.rightOperand, in: env)) {
                     return viaDeclared
                 }
                 // User-defined infix operators (`|>` pipe-forward, `~=`
-                // overloads) — top-level operator functions.
-                if case .closure(let closure)? = globals.lookup(op) {
+                // overloads) — top-level operator functions. Source
+                // declarations dispatch through their overload family so an
+                // unrelated same-shaped declaration cannot win merely
+                // because it was defined last.
+                let operatorArguments = CallArguments(arguments: [
+                    .init(label: nil, value: lhs),
+                    .init(label: nil, value: rhs),
+                ])
+                if let overloads = globalFunctionOverloads[op] {
+                    let fitting = operatorFunctionsFittingRuntimeTypes(
+                        from: overloads, args: operatorArguments)
+                    let available = fitting.count > 1
+                        ? fitting.filter {
+                            !activeFunctionBodies.contains($0.id)
+                        }
+                        : fitting
+                    if let method = available.first,
+                       let body = functionMetadata(for: method).body {
+                        let closure = makeFunctionClosure(
+                            method, body: body, captured: globals)
+                        return try callWithArguments(
+                            closure, args: operatorArguments, node: nil)
+                    }
+                } else if case .closure(let closure)? = globals.lookup(op) {
                     return try callWithArguments(
                         closure,
-                        args: CallArguments(arguments: [
-                            .init(label: nil, value: lhs), .init(label: nil, value: rhs),
-                        ]),
+                        args: operatorArguments,
                         node: nil)
                 }
                 // Ecosystem operators from EXTERNAL modules: `|>` is
@@ -315,6 +343,10 @@ extension Interpreter {
         /// `size.width = 300` — value-type member write-through: mutate a
         /// copy via the registry, re-write the base (state boxes notify).
         case hostValueMember(LValue, String)
+        /// A generated mutable collection projection owned by native String.
+        /// Reads expose the view's elements through the interpreter's array
+        /// carrier; writes rebuild the compiled view and copy out the String.
+        case nativeWritableStringCollectionView(LValue, String)
         /// `ChatClient.shared = …` — static stored properties (including
         /// host-type extension statics) write to the symbol's static cache.
         case staticProperty(StructSymbol, String)
@@ -334,17 +366,13 @@ extension Interpreter {
             case .box(let box):
                 return box.declaredTypeName
             case .instanceProperty(let instance, let name):
-                return instance.symbol.storedProperty(named: name)?
-                    .typeAnnotation?.trimmedDescription
+                return instance.symbol.storedProperty(named: name)?.typeName
             case .instanceValueProperty(_, let symbol, let name):
-                return symbol.storedProperty(named: name)?
-                    .typeAnnotation?.trimmedDescription
+                return symbol.storedProperty(named: name)?.typeName
             case .staticProperty(let symbol, let name):
-                return symbol.staticProperties[name]?
-                    .typeAnnotation?.trimmedDescription
+                return symbol.staticProperties[name]?.typeName
             case .enumStaticProperty(let symbol, let name):
-                return symbol.staticProperties[name]?
-                    .typeAnnotation?.trimmedDescription
+                return symbol.staticProperties[name]?.typeName
             case .element(let base, _):
                 return base.annotatedElementType()
             case .dictElement(let base, _, _):
@@ -393,7 +421,7 @@ extension Interpreter {
                     return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
                 }
                 if let superName = instance.symbol.superclassName,
-                   !interpreter.isInterpretedType(superName) {
+                   interpreter.interpretedSuperclass(of: instance.symbol) == nil {
                     return .native(ChainedImplicitCall(
                         base: .implicitMember(superName), member: name, arguments: CallArguments()))
                 }
@@ -425,7 +453,9 @@ extension Interpreter {
                 guard let dict = current.dictValue else {
                     throw EvalMessage(text: "dictionary lvalue contains \(current.stringified), not a dictionary")
                 }
-                let found = try dict.value(forKey: key)
+                let found = try dict.value(
+                    forKey: key,
+                    by: interpreter.collectionStorageValuesAreEqual)
                 // `sales[key, default: 0] += v` — missing keys read the
                 // default before the mutation, exactly like native.
                 if let found { return found }
@@ -461,6 +491,15 @@ extension Interpreter {
                     throw EvalMessage(text: "no readable member '\(name)'")
                 }
                 return member
+            case .nativeWritableStringCollectionView(let base, let name):
+                guard let owner = try base.read(interpreter).stringValue,
+                      let view = GeneratedCollectionDefaultSurface
+                        .nativeWritableStringCollectionView(
+                            named: name, on: owner) else {
+                    throw EvalMessage(
+                        text: "no readable generated String view '\(name)'")
+                }
+                return view
             case .forceUnwrapped(let base):
                 guard let value = try base.read(interpreter)
                     .unwrappedOptionalOrSelf else {
@@ -546,7 +585,7 @@ extension Interpreter {
                     }
                     let resolved = resolvingAnnotation
                         ? try interpreter.resolveAnnotated(
-                            incoming, annotation: property?.typeAnnotation)
+                            incoming, typeName: property?.typeName)
                         : incoming
                     let storedValue = stored(resolved)
                     let observerKey = Interpreter.ObserverKey(
@@ -599,8 +638,8 @@ extension Interpreter {
                         value: value)
                     return
                 }
-                if let superName = instance.symbol.superclassName,
-                   !interpreter.isInterpretedType(superName) {
+                if instance.symbol.superclassName != nil,
+                   interpreter.interpretedSuperclass(of: instance.symbol) == nil {
                     // Inherited HOST-superclass properties (NSPanel.title):
                     // writes create the box, later reads see the value.
                     instance.properties[name] = Box(stored(value))
@@ -680,10 +719,13 @@ extension Interpreter {
                     return false
                 }()
                 if removesEntry {
-                    try dict.update(stored(resolvedKey), to: .nilValue)
+                    try dict.update(
+                        stored(resolvedKey), to: .nilValue,
+                        by: interpreter.collectionStorageValuesAreEqual)
                 } else {
                     try dict.setValue(
-                        stored(resolvedKey), to: stored(resolvedValue))
+                        stored(resolvedKey), to: stored(resolvedValue),
+                        by: interpreter.collectionStorageValuesAreEqual)
                 }
                 try base.writeCanonicalOwned(.native(dict), interpreter)
             case .tupleElement(let base, let index):
@@ -771,6 +813,19 @@ extension Interpreter {
                 } else {
                     try base.writeCanonicalOwned(.native(mutated), interpreter)
                 }
+            case .nativeWritableStringCollectionView(let base, let name):
+                guard let owner = try base.read(interpreter).stringValue,
+                      let mutated = try GeneratedCollectionDefaultSurface
+                        .replacingNativeWritableStringCollectionView(
+                            named: name, in: owner, with: value) else {
+                    throw EvalMessage(
+                        text: "cannot assign generated String view '\(name)'")
+                }
+                if resolvingAnnotation {
+                    try base.writeOwned(.native(mutated), interpreter)
+                } else {
+                    try base.writeCanonicalOwned(.native(mutated), interpreter)
+                }
             case .forceUnwrapped(let base):
                 if !resolvingAnnotation,
                    case .optional(let optional) = try base.read(interpreter) {
@@ -798,7 +853,11 @@ extension Interpreter {
     /// <=/>/>= from a declared `<`. nil when neither operand's type
     /// declares the operator.
     func declaredOperatorValue(
-        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+        _ op: String,
+        _ lhs: RuntimeValue,
+        _ rhs: RuntimeValue,
+        lhsDeclaredTypeName: String? = nil,
+        rhsDeclaredTypeName: String? = nil
     ) throws -> RuntimeValue? {
         func operatorHome(_ value: RuntimeValue) -> (StructSymbol?, EnumSymbol?) {
             if case .instance(let instance) = value { return (instance.symbol, nil) }
@@ -814,6 +873,37 @@ extension Interpreter {
                 if let method = enumSym?.staticMethods[name]?.first {
                     return (method, .enumType(enumSym!))
                 }
+            }
+            for declaredTypeName in [
+                lhsDeclaredTypeName, rhsDeclaredTypeName,
+            ] {
+                guard let nominal = RuntimeDeclaredType.nominalTypeName(
+                    declaredTypeName),
+                      let symbol = hostExtensionSymbols[nominal],
+                      let overloads = symbol.staticMethods[name] else {
+                    continue
+                }
+                let operandTypes = [
+                    lhsDeclaredTypeName, rhsDeclaredTypeName,
+                ]
+                let method = overloads.first(where: { declaration in
+                    let parameters = functionMetadata(
+                        for: declaration).parameters
+                    guard parameters.count == operandTypes.count else {
+                        return false
+                    }
+                    return zip(parameters, operandTypes).allSatisfy {
+                        parameter, operandType in
+                        guard let parameterType = parameter.typeName,
+                              let operandType else {
+                            return false
+                        }
+                        return HostSignature.equivalentTypeName(
+                            parameterType, operandType)
+                    }
+                }) ?? overloads.first
+                guard let method else { continue }
+                return (method, .type(symbol))
             }
             return nil
         }
@@ -939,12 +1029,26 @@ extension Interpreter {
             }
             return true
         }
+        if let l = lhs.dictValue, let r = rhs.dictValue {
+            guard l.count == r.count else { return false }
+            for (key, value) in zip(l.keys, l.values) {
+                guard let other = try r.value(
+                    forKey: key, by: collectionStorageValuesAreEqual)
+                else { return false }
+                let pair = try equalsViaDeclaredOperator(
+                    value, other, node: node)
+                    ?? ((try? Builtins.areEqual(value, other)) ?? false)
+                if !pair { return false }
+            }
+            return true
+        }
         return nil
     }
 
-    /// Equality used by Set storage. Unlike the low-level builtin fallback,
-    /// this includes declared and synthesized equality for source values.
-    func setElementsAreEqual(
+    /// Equality used by native collection storage. Unlike the low-level
+    /// builtin fallback, this includes declared and synthesized equality for
+    /// source values, as required by Set elements and Dictionary keys.
+    public func collectionStorageValuesAreEqual(
         _ lhs: RuntimeValue, _ rhs: RuntimeValue
     ) throws -> Bool {
         try equalsViaDeclaredOperator(lhs, rhs, node: nil)
@@ -958,7 +1062,8 @@ extension Interpreter {
         let elementType = explicitType
             ?? (observedTypes.count == 1 ? observedTypes.first : nil)
         return try RuntimeSetValue.deduplicating(
-            elements, elementTypeName: elementType, by: setElementsAreEqual)
+            elements, elementTypeName: elementType,
+            by: collectionStorageValuesAreEqual)
     }
 
     private func isSynthesizableStruct(_ value: RuntimeValue) -> Bool {
@@ -1100,6 +1205,14 @@ extension Interpreter {
         if expr.is(DiscardAssignmentExprSyntax.self) {
             return .box(Box(.void))
         }
+        // A mutating call reached through optional chaining gets here only
+        // after call dispatch has proved the optional contains a payload.
+        // Reuse the optional-preserving read/modify/write edge so the changed
+        // payload is stored back as some instead of flattening its owner.
+        if let chaining = expr.as(OptionalChainingExprSyntax.self) {
+            return .forceUnwrapped(try resolveLValue(
+                chaining.expression, in: env, access: access))
+        }
         if let ref = expr.as(DeclReferenceExprSyntax.self) {
             let name = ref.baseName.text
             if Interpreter.traceStateCells, name == "statusesState" {
@@ -1116,8 +1229,8 @@ extension Interpreter {
                 if instance.box(for: canonical) != nil || instance.symbol.computedProperties[canonical] != nil {
                     return .instanceProperty(instance, canonical)
                 }
-                if let superName = instance.symbol.superclassName,
-                   !isInterpretedType(superName) {
+                if instance.symbol.superclassName != nil,
+                   interpretedSuperclass(of: instance.symbol) == nil {
                     // Inherited host-superclass property (`title = …` in an
                     // NSPanel subclass) — the write absorbs into a box.
                     return .instanceProperty(instance, canonical)
@@ -1292,12 +1405,19 @@ extension Interpreter {
                     return .tupleElement(owner, index)
                 }
             }
+            let memberName = member.declName.baseName.text
+            if baseValue.stringValue != nil,
+               GeneratedCollectionDefaultSurface
+                .isNativeWritableStringCollectionView(named: memberName),
+               let owner = optionalPayloadOwner
+                ?? (try? resolveLValue(base, in: env)) {
+                return .nativeWritableStringCollectionView(owner, memberName)
+            }
             if case .host(let any) = baseValue {
                 // `binding.wrappedValue = …` writes straight through the box.
                 if let stub = any as? BindingStub, member.declName.baseName.text == "wrappedValue" {
                     return .box(stub.box)
                 }
-                let memberName = member.declName.baseName.text
                 if hasRuntimeAsyncStreamMember(memberName, on: any) {
                     return .hostProperty(any, memberName)
                 }

@@ -12,6 +12,20 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("10 - 2 - 3").intValue == 5)
     }
 
+    @Test func customGroupBelowStandardAssignmentPrecedence() throws {
+        let source = """
+        precedencegroup ColumnAssignment {
+            associativity: left
+            assignment: true
+            lowerThan: AssignmentPrecedence
+        }
+        infix operator <- : ColumnAssignment
+        func <- (lhs: Int, rhs: Int) -> Int { lhs - rhs }
+        1 <- 2 + 3
+        """
+        #expect(try eval(source).intValue == -4)
+    }
+
     @Test func integerDivisionAndPromotion() throws {
         #expect(try eval("10 / 4").intValue == 2)
         #expect(try eval("10.0 / 4").doubleValue == 2.5)
@@ -101,6 +115,89 @@ private func eval(_ source: String) throws -> RuntimeValue {
         "\\(extensionCalls)|\\(nilResult)|\\(stringResult)|\\(optionalResult)"
         """
         #expect(try eval(source).stringValue == "2|session|file.txt|trace.log")
+    }
+
+    /// Source-only extension overload families must also remain unresolved
+    /// until the call supplies concrete argument types.
+    @Test func sourceExtensionOverloadsUseArgumentTypes() throws {
+        let source = """
+        extension String {
+            func classified(_ value: [Int]?) -> String { "array" }
+            func classified(_ value: String?) -> String { "string" }
+        }
+
+        "\\("base".classified("value"))|\\("base".classified([1]))"
+        """
+
+        #expect(try eval(source).stringValue == "string|array")
+    }
+
+    @Test func sourceMethodOverloadsPreferExactRuntimeTypes() throws {
+        let source = """
+        final class Machine {
+            func inspect(_ value: Set<[Int]>) -> String { "set" }
+            func inspect(_ value: [Int]) -> String { "array" }
+        }
+
+        Machine().inspect([1, 2])
+        """
+
+        #expect(try eval(source).stringValue == "array")
+    }
+
+    @Test func inheritedArrayOverloadKeepsNodeElements() throws {
+        let source = """
+        open class Node {
+            weak var parentNode: Node?
+            var childNodes: [Node] = []
+
+            func addChildren(_ children: Node...) {
+                addChildren(children)
+            }
+
+            func addChildren(_ children: [Node]) {
+                for child in children { reparentChild(child) }
+            }
+
+            func addChildren(_ index: Int, _ children: Node...) {
+                addChildren(index, children)
+            }
+
+            func addChildren(_ index: Int, _ children: [Node]) {
+                for child in children.reversed() {
+                    reparentChild(child)
+                    childNodes.insert(child, at: index)
+                }
+            }
+
+            func reparentChild(_ child: Node) {
+                if child.parentNode == nil { child.parentNode = self }
+            }
+        }
+
+        final class Element: Node {}
+
+        let parent: Node? = Element()
+        let nodes: [Node] = [Element()]
+        parent?.addChildren(0, nodes)
+        parent?.childNodes.count ?? -1
+        """
+
+        #expect(try eval(source).intValue == 1)
+    }
+
+    @Test func constrainedGenericExtensionInitializerRequiresConformance() throws {
+        let source = """
+        extension String {
+            init<S: Sequence>(_ values: S) {
+                self = "sequence"
+            }
+        }
+
+        "\\(String(2))|\\(String([1, 2]))"
+        """
+
+        #expect(try eval(source).stringValue == "2|sequence")
     }
 
     @Test func sourceAndImportedMemberOverloadsMatchInAsyncSession() async throws {

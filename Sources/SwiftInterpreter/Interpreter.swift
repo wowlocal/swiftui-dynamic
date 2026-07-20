@@ -306,12 +306,19 @@ public final class Interpreter {
     /// Kept as a white-box metric so parity tests can prove that optimized
     /// semantics, rather than the tree-walking fallback, were exercised.
     private(set) var preparedFiniteLoopPlanCount = 0
+    /// Nil collection elements whose structurally pure optional-chain
+    /// transform returned none without allocating an invocation frame.
+    private(set) var preparedOptionalChainNilSkipCount = 0
     var coreFunctionIntrinsics: [
         ObjectIdentifier: (function: HostFunction, intrinsic: CoreFunctionIntrinsic)
     ] = [:]
 
     func recordPreparedFiniteLoopPlan() {
         preparedFiniteLoopPlanCount += 1
+    }
+
+    func recordPreparedOptionalChainNilSkip() {
+        preparedOptionalChainNilSkipCount += 1
     }
 
     func registerCoreFunctionIntrinsic(
@@ -367,7 +374,14 @@ public final class Interpreter {
     /// declaration-first: direct conformances precede inherited ones).
     func transitiveConformances(of symbol: StructSymbol) -> [String] {
         var out: [String] = []
-        var queue = symbol.conformances
+        var queue: [String] = []
+        var current: StructSymbol? = symbol
+        var walked = Set<ObjectIdentifier>()
+        while let candidate = current,
+              walked.insert(ObjectIdentifier(candidate)).inserted {
+            queue.append(contentsOf: candidate.conformances)
+            current = interpretedSuperclass(of: candidate)
+        }
         var seen = Set<String>()
         while !queue.isEmpty {
             let name = queue.removeFirst()
@@ -609,6 +623,9 @@ public final class Interpreter {
         get { evaluationTaskContext.viewIdentitySalts }
         set { evaluationTaskContext.viewIdentitySalts = newValue }
     }
+    public var currentViewIdentityPath: String {
+        viewIdentitySalts.joined(separator: "/")
+    }
 
     /// Bracket a builder-row evaluation with the element's identity, so
     /// per-view state cells key by (site, element) instead of site alone.
@@ -638,6 +655,10 @@ public final class Interpreter {
         _modify { yield &activeProgramState.declarationLexicalOwners }
     }
 
+    func lexicalOwner(of declarationID: SyntaxIdentifier) -> AnyObject? {
+        activeProgramState.lexicalOwner(of: declarationID)
+    }
+
     func programStateOwningDeclaration(
         _ declarationID: SyntaxIdentifier?
     ) -> RuntimeProgramState? {
@@ -650,6 +671,13 @@ public final class Interpreter {
     var lexicalOwnerFrames: [AnyObject] {
         get { evaluationTaskContext.lexicalOwnerFrames }
         set { evaluationTaskContext.lexicalOwnerFrames = newValue }
+    }
+    var lexicalSourceModuleFrames: [String?] {
+        get { evaluationTaskContext.lexicalSourceModuleFrames }
+        set { evaluationTaskContext.lexicalSourceModuleFrames = newValue }
+    }
+    var currentLexicalSourceModuleName: String? {
+        lexicalSourceModuleFrames.last ?? nil
     }
     /// The statically proven actor context for a closure expression. Source
     /// top-level execution is MainActor-owned; an explicit `nil` frame means
@@ -688,6 +716,134 @@ public final class Interpreter {
             }
         }
         return nil
+    }
+
+    /// Resolve a nominal name from a declaration's lexical type scopes before
+    /// consulting the merged global environment. Swift binds `EndTag: Tag`
+    /// inside `Token` to `Token.Tag`, even when another source file declares
+    /// an unrelated top-level `Tag`.
+    func lexicallyVisibleType(
+        named name: String, from owner: AnyObject?,
+        sourceModuleName: String? = nil
+    ) -> RuntimeValue? {
+        let components = name.split(separator: ".").map(String.init)
+        guard let first = components.first else { return nil }
+
+        func nestedType(
+            named component: String, in value: RuntimeValue
+        ) -> RuntimeValue? {
+            switch value {
+            case .type(let symbol):
+                return symbol.nestedTypes[component]
+            case .enumType(let symbol):
+                return symbol.nestedTypes[component]
+            default:
+                return nil
+            }
+        }
+
+        func globallyVisibleType(
+            named components: ArraySlice<String>
+        ) -> RuntimeValue? {
+            guard !components.isEmpty else { return nil }
+            for prefixCount in stride(
+                from: components.count, through: 1, by: -1
+            ) {
+                let prefix = components.prefix(prefixCount).joined(separator: ".")
+                guard var resolved = typeValue(named: prefix) else { continue }
+                var matched = true
+                for component in components.dropFirst(prefixCount) {
+                    guard let nested = nestedType(
+                        named: component, in: resolved
+                    ) else {
+                        matched = false
+                        break
+                    }
+                    resolved = nested
+                }
+                if matched { return resolved }
+            }
+            return nil
+        }
+
+        var current = owner
+        var seen: Set<ObjectIdentifier> = []
+        var root: RuntimeValue?
+        while let scope = current,
+              seen.insert(ObjectIdentifier(scope)).inserted {
+            if let symbol = scope as? StructSymbol {
+                if let nested = symbol.nestedTypes[first] {
+                    root = nested
+                    break
+                }
+                current = symbol.lexicalTypeOwner
+            } else if let symbol = scope as? EnumSymbol {
+                if let nested = symbol.nestedTypes[first] {
+                    root = nested
+                    break
+                }
+                current = symbol.lexicalTypeOwner
+            } else {
+                current = nil
+            }
+        }
+        if let root {
+            var resolved = root
+            for component in components.dropFirst() {
+                guard let nested = nestedType(named: component, in: resolved)
+                else { return nil }
+                resolved = nested
+            }
+            return resolved
+        }
+
+        if let module = sourceModuleName ?? currentLexicalSourceModuleName,
+           let resolved = globallyVisibleType(
+               named: ArraySlice([module] + components)) {
+            return resolved
+        }
+        if let resolved = globallyVisibleType(named: components[...]) {
+            return resolved
+        }
+        if components.count > 1,
+           first == "Swift"
+            || currentProgramMetadata?.importedModuleNames.contains(first)
+                == true {
+            return globallyVisibleType(named: components.dropFirst())
+        }
+        return nil
+    }
+
+    /// The identity-bound interpreted superclass, if one exists. Host
+    /// superclass names deliberately return nil and retain their inert host
+    /// behavior. The weak cache avoids repeating lexical lookup throughout
+    /// initialization, dispatch, casting, and teardown.
+    func interpretedSuperclass(of symbol: StructSymbol) -> StructSymbol? {
+        if let parent = symbol.superclassSymbol {
+            guard parent !== symbol else {
+                symbol.superclassSymbol = nil
+                return nil
+            }
+            return parent
+        }
+        guard let name = symbol.superclassName,
+              case .type(let parent)? = lexicallyVisibleType(
+                named: name, from: symbol.lexicalTypeOwner),
+              parent !== symbol else {
+            return nil
+        }
+        symbol.superclassSymbol = parent
+        return parent
+    }
+
+    /// Bind superclass identities after all declarations and deferred
+    /// extensions are materialized, making forward sibling declarations
+    /// independent of source-file order.
+    func resolveInterpretedSuperclassSymbols() {
+        for symbol in structSymbols where symbol.superclassName != nil {
+            symbol.superclassSymbol = nil
+            _ = interpretedSuperclass(of: symbol)
+        }
     }
 
     /// Persistence is the LIVE-probe contract (LiveCheck's multi-pass render

@@ -87,20 +87,20 @@ struct InterpretedLayout: Layout {
 
     @MainActor
     private static func subviewArray(_ subviews: Subviews, for name: String) -> RuntimeValue {
-        if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+        if RenderDiagnostics.traceEnabled {
             FileHandle.standardError.write(Data("LAYOUT \(name) subviews=\(subviews.count)\n".utf8))
         }
         let boxes: [RuntimeValue] = subviews.enumerated().map { index, subview in
             .native(LayoutSubviewBox(
                 place: { point, anchor, proposal in
-                    if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                    if RenderDiagnostics.traceEnabled {
                         FileHandle.standardError.write(Data(
                             "PLACE[\(name) #\(index)] at=\(point) anchor=(\(anchor.x),\(anchor.y))\n".utf8))
                     }
                     subview.place(at: point, anchor: anchor, proposal: proposal)
                 },
                 sizeThatFits: { proposal in
-                    if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                    if RenderDiagnostics.traceEnabled {
                         FileHandle.standardError.write(Data(
                             "SIZEQ[\(name) #\(index)] -> \(subview.sizeThatFits(proposal))\n".utf8))
                     }

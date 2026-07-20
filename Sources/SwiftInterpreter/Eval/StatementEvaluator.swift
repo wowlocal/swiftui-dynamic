@@ -109,14 +109,17 @@ extension Interpreter {
             let declarationMetadata = propertyMetadata(for: varDecl)
             let referenceOwnership = declarationMetadata.referenceOwnership
             let isMutableBinding = declarationMetadata.isMutable
-            func sharedAnnotation(startingAt index: Int) -> TypeSyntax? {
+            func sharedTypeName(startingAt index: Int) -> String? {
                 for later in allBindings[index...] {
-                    if let type = later.typeAnnotation?.type { return type }
+                    if let typeName = propertyMetadata(for: later).typeName {
+                        return typeName
+                    }
                     if later.initializer != nil { return nil }
                 }
                 return nil
             }
             for (bindingIndex, binding) in allBindings.enumerated() {
+                let bindingMetadata = propertyMetadata(for: binding)
                 // `let _ = sideEffect()` — evaluate for effect, no binding.
                 if binding.pattern.is(WildcardPatternSyntax.self) {
                     if let initializer = binding.initializer?.value {
@@ -156,10 +159,10 @@ extension Interpreter {
                     let result = try executeBlock(accessors.getter, in: Environment(parent: env))
                     switch result {
                     case .normal(let value), .returnValue(let value):
-                        let typeName = binding.typeAnnotation?.type.trimmedDescription
+                        let typeName = bindingMetadata.typeName
                         env.define(
                             ident.identifier.text,
-                            try resolveAnnotated(value, annotation: binding.typeAnnotation?.type),
+                            try resolveAnnotated(value, typeName: typeName),
                             declaredTypeName: typeName,
                             isMutableBinding: isMutableBinding)
                     default:
@@ -179,8 +182,8 @@ extension Interpreter {
                             isMutableBinding: isMutableBinding)
                         continue
                     }
-                    let annotationText = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
-                        .trimmedDescription ?? ""
+                    let annotationText = bindingMetadata.typeName
+                        ?? sharedTypeName(startingAt: bindingIndex) ?? ""
                     if RuntimeOptionalValue.wrappedType(in: annotationText) != nil {
                         env.define(
                             ident.identifier.text,
@@ -202,15 +205,23 @@ extension Interpreter {
                     }
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
                 }
-                let hint = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
-                    .trimmedDescription
+                let hint = bindingMetadata.typeName
+                    ?? sharedTypeName(startingAt: bindingIndex)
                 let value = try withExpectedAnnotation(hint) { try evaluate(initializer, in: env) }
                 let resolved = try hint.map {
                     try resolveAnnotated(value, typeName: $0)
                 } ?? value
+                // Swift infers an unannotated local's static type from its
+                // initializer. Preserve any type provenance the evaluator can
+                // recover from that expression (notably typed collection and
+                // pointer subscripts) so a boxed scalar can still dispatch its
+                // source extensions after runtime representation erases it.
+                let declaredTypeName = hint
+                    ?? declaredMemberReceiverTypeName(
+                        for: initializer, in: env)
                 env.define(
                     ident.identifier.text, resolved,
-                    declaredTypeName: hint,
+                    declaredTypeName: declaredTypeName,
                     referenceOwnership: referenceOwnership,
                     isMutableBinding: isMutableBinding)
             }
@@ -362,7 +373,7 @@ extension Interpreter {
                         throw error(optionalBinding, "'let _' needs an initializer")
                     }
                     guard try evaluate(initializer, in: bindings)
-                        .unwrappedOptionalOrSelf != nil else { return false }
+                        .optionalBindingPayload != nil else { return false }
                     continue
                 }
                 // `if let (a, b) = pair` — tuple destructuring. The pattern
@@ -383,7 +394,7 @@ extension Interpreter {
                 }
                 if let names = tupleNames, let initializer = optionalBinding.initializer?.value {
                     let value = try evaluate(initializer, in: bindings)
-                    guard let unwrapped = value.unwrappedOptionalOrSelf,
+                    guard let unwrapped = value.optionalBindingPayload,
                           let tuple = unwrapped.tupleValue,
                           tuple.values.count == names.count else { return false }
                     for (name, elementValue) in zip(names, tuple.values) {
@@ -402,8 +413,10 @@ extension Interpreter {
                     // `if let x` shorthand
                     value = try resolveIdentifier(name, in: bindings, node: optionalBinding)
                 }
-                guard let unwrapped = value.unwrappedOptionalOrSelf else { return false }
-                bindings.define(name, unwrapped)
+                guard let unwrapped = value.optionalBindingPayload else { return false }
+                bindings.define(
+                    name, unwrapped,
+                    declaredTypeName: value.optionalBindingDeclaredTypeName)
             case .matchingPattern(let matching):
                 // `if case .loading = state` — rides the switch matcher.
                 let subject = try evaluate(matching.initializer.value, in: bindings)
@@ -541,10 +554,8 @@ extension Interpreter {
                 throw error(forStmt.sequence, "for-in requires an integer range")
             }
             elements = values
-        } else if let array = sequence.arrayValue {
-            elements = array
-        } else if let set = sequence.setValue {
-            elements = set.elements
+        } else if let materialized = try materializedCollectionElements(sequence) {
+            elements = materialized
         } else if case .host(let any) = sequence,
                   any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             // Unknowable host collections (Activity<T>.activities on a fresh
@@ -558,8 +569,6 @@ extension Interpreter {
             // A bound host member in sequence position (stub.allKeys) is
             // equally unknowable — real code can't iterate a function.
             elements = []
-        } else if case .host(let dataAny) = sequence, let bytes = dataAny as? Data {
-            elements = bytes.map { .native(Int($0)) } // byte collection
         } else if let dict = sequence.dictValue {
             // `for (id, count) in sales` — native Dictionary iteration
             // yields (key, value) tuples, in the dict's stable order.
@@ -616,11 +625,21 @@ extension Interpreter {
     }
 
     private func executeWhile(_ whileStmt: WhileStmtSyntax, in env: Environment) throws -> StatementResult {
+        var iteration = 0
         while true {
-            try tick(whileStmt)
-            let child = Environment(parent: env)
-            guard try conditionsHold(whileStmt.conditions, in: env, bindingInto: child) else { break }
-            let result = try executeBlock(whileStmt.body.statements, in: child)
+            iteration += 1
+            let result: StatementResult? = try withBoundedLoopIterationSlice(
+                iteration, node: whileStmt
+            ) {
+                try tick(whileStmt)
+                let child = Environment(parent: env)
+                guard try conditionsHold(
+                    whileStmt.conditions, in: env,
+                    bindingInto: child) else { return nil }
+                return try executeBlock(
+                    whileStmt.body.statements, in: child)
+            }
+            guard let result else { break }
             switch result {
             case .normal, .continueLoop: continue
             case .breakLoop: return .normal(.void)
@@ -636,18 +655,35 @@ extension Interpreter {
     /// inside the body are not visible to it. `continue` falls through to the
     /// condition check, exactly as native `repeat`/`while` does.
     private func executeRepeat(_ repeatStmt: RepeatStmtSyntax, in env: Environment) throws -> StatementResult {
+        var iteration = 0
         while true {
-            try tick(repeatStmt)
-            let child = Environment(parent: env)
-            let result = try executeBlock(repeatStmt.body.statements, in: child)
+            iteration += 1
+            let outcome: (result: StatementResult, repeats: Bool) =
+                try withBoundedLoopIterationSlice(
+                    iteration, node: repeatStmt
+                ) {
+                    try tick(repeatStmt)
+                    let child = Environment(parent: env)
+                    let result = try executeBlock(
+                        repeatStmt.body.statements, in: child)
+                    switch result {
+                    case .normal, .continueLoop:
+                        let repeats = try evaluate(
+                            repeatStmt.condition, in: env).boolValue == true
+                        return (result, repeats)
+                    case .breakLoop, .returnValue:
+                        return (result, false)
+                    }
+                }
+            let result = outcome.result
             switch result {
-            case .normal, .continueLoop: break
+            case .normal, .continueLoop:
+                guard outcome.repeats else { return .normal(.void) }
+                continue
             case .breakLoop: return .normal(.void)
             case .returnValue: return result
             }
-            guard try evaluate(repeatStmt.condition, in: env).boolValue == true else { break }
         }
-        return .normal(.void)
     }
 
     // MARK: - ViewBuilder mode

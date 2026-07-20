@@ -288,12 +288,28 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func withKnownFiniteHostIteration<T>(
+        _ operation: () throws -> T
+    ) throws -> T {
+        try bound {
+            try interpreter.withKnownFiniteHostIteration(operation)
+        }
+    }
+
     func sourceStaticMember(
         named member: String, ofType typeName: String
     ) throws -> RuntimeValue? {
         try bound {
             try interpreter.sourceStaticMember(
                 named: member, ofType: typeName)
+        }
+    }
+
+    func collectionStorageValuesAreEqual(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> Bool {
+        try bound {
+            try interpreter.collectionStorageValuesAreEqual(lhs, rhs)
         }
     }
 
@@ -410,8 +426,13 @@ extension Interpreter: EvalContext {
     public func hostValue(
         _ value: RuntimeValue, matchesType typeName: String
     ) -> Bool {
-        HostRuntimeTypeSystem.matches(value, type: typeName)
-            || valueIsType(value, typeName)
+        if HostRuntimeTypeSystem.matches(value, type: typeName)
+            || valueIsType(value, typeName) {
+            return true
+        }
+        guard case .host(let any) = value else { return false }
+        return registry?.hostValue(
+            any, matchesImportedType: typeName) == true
     }
 
     public func hostValue(
@@ -1099,5 +1120,11 @@ extension Interpreter: EvalContext {
         let args = CallArguments(arguments: arguments.map { .init(label: nil, value: $0) })
         try bindParameters(of: closure, to: args, into: env, node: nil)
         return try collectBuilderViews(closure.body, in: env)
+    }
+
+    public func withKnownFiniteHostIteration<T>(
+        _ operation: () throws -> T
+    ) throws -> T {
+        try withFiniteIterationSlice(operation)
     }
 }

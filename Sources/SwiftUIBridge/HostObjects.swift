@@ -193,6 +193,49 @@ public enum BundleResources {
 }
 
 final class BundleBox {
+    struct DataAssetResource {
+        let name: String
+        let data: Data
+        let typeIdentifier: String
+    }
+
+    private struct DataAssetContents: Decodable {
+        struct Entry: Decodable {
+            let filename: String?
+            let idiom: String?
+            let typeIdentifier: String?
+
+            enum CodingKeys: String, CodingKey {
+                case filename, idiom
+                case typeIdentifier = "universal-type-identifier"
+            }
+        }
+
+        let data: [Entry]
+    }
+
+    private struct ResourceRequest {
+        let name: String
+        let extensionName: String?
+        let returnsPath: Bool
+
+        init?(_ arguments: CallArguments) {
+            guard arguments.arguments.contains(where: { $0.label == "forResource" }),
+                  let name = arguments.labeled("forResource")?.stringValue else {
+                return nil
+            }
+            self.name = name
+            let extensionLabel = arguments.arguments.contains(where: { $0.label == "ofType" })
+                ? "ofType" : "withExtension"
+            extensionName = arguments.labeled(extensionLabel)?.stringValue
+            returnsPath = extensionLabel == "ofType"
+        }
+
+        func value(for url: URL) -> RuntimeValue {
+            returnsPath ? .native(url.path) : .native(url)
+        }
+    }
+
     /// The MERGE's project root: bundled resources (SPM Resources/ dirs,
     /// asset JSON) resolve against the repo's committed files — the same
     /// bytes the compiled app ships in Bundle.module.
@@ -204,14 +247,58 @@ final class BundleBox {
         guard let root = projectResourceRoot else { return nil }
         var target = name
         if let ext, !ext.isEmpty, !target.hasSuffix(".\(ext)") { target += ".\(ext)" }
+        target = target.replacingOccurrences(of: "\\", with: "/")
         let skip: Set<String> = [".git", ".build", "DerivedData", "__MACOSX", "Tests"]
         guard let walker = FileManager.default.enumerator(atPath: root) else { return nil }
         for case let path as String in walker {
             if skip.contains(where: { path.contains($0) }) { continue }
             let file = (path as NSString).lastPathComponent
-            if file == target || (ext == nil && (file as NSString).deletingPathExtension == target) {
+            if path == target || path.hasSuffix("/\(target)")
+                || file == target
+                || (ext == nil && (file as NSString).deletingPathExtension == target) {
                 return URL(fileURLWithPath: root + "/" + path)
             }
+        }
+        return nil
+    }
+
+    static func projectResource(
+        for arguments: CallArguments,
+        fallback: (String, String?) -> URL?
+    ) -> RuntimeValue? {
+        guard let request = ResourceRequest(arguments) else { return nil }
+        let url = projectResource(
+            named: request.name, extension: request.extensionName)
+            ?? fallback(request.name, request.extensionName)
+        return url.map(request.value(for:))
+    }
+
+    /// Resolve a data entry from an uncompiled asset catalog by its catalog
+    /// metadata. The runtime adapter keys on the Objective-C interface shape;
+    /// this lookup keys on `.dataset` structure, never a type or asset name.
+    static func projectDataAsset(named name: String) -> DataAssetResource? {
+        guard let root = projectResourceRoot else { return nil }
+        let datasetName = "\(name.split(separator: "/").last.map(String.init) ?? name).dataset"
+        let skip: Set<String> = [".git", ".build", "DerivedData", "__MACOSX", "Tests"]
+        guard let walker = FileManager.default.enumerator(atPath: root) else { return nil }
+        for case let path as String in walker {
+            let components = path.split(separator: "/").map(String.init)
+            guard !components.contains(where: skip.contains),
+                  components.last == datasetName else { continue }
+            let directory = URL(fileURLWithPath: root).appendingPathComponent(path)
+            let metadataURL = directory.appendingPathComponent("Contents.json")
+            guard let metadataData = try? Data(contentsOf: metadataURL),
+                  let metadata = try? JSONDecoder().decode(
+                    DataAssetContents.self, from: metadataData) else { continue }
+            let entry = metadata.data.first(where: { $0.idiom == "universal" })
+                ?? metadata.data.first
+            guard let entry, let filename = entry.filename,
+                  let data = try? Data(
+                    contentsOf: directory.appendingPathComponent(filename)) else { continue }
+            return DataAssetResource(
+                name: name,
+                data: data,
+                typeIdentifier: entry.typeIdentifier ?? "public.data")
         }
         return nil
     }
@@ -1144,8 +1231,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                     let resource = (args.labeled("forResource") ?? args.positional(0))?.stringValue ?? ""
                     let ext = args.labeled("withExtension")?.stringValue ?? ""
                     if let real = BundleBox.projectResource(
-                        named: resource, extension: ext.isEmpty ? nil : ext) {
-                        return .native(real)
+                        for: args,
+                        fallback: BundleResources.url(forResource:extension:)) {
+                        return real
                     }
                     if resource.contains("Info"), resource.hasSuffix(".plist") || ext == "plist" {
                         let url = box.fileManager.sandboxRoot
@@ -1164,12 +1252,6 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                             (seeded as NSDictionary).write(to: url, atomically: true)
                         }
                         return .native(url)
-                    }
-                    // The checkout's own Resources — what Bundle.module
-                    // ships compiled (LiveCheck sets the roots).
-                    if let found = BundleResources.url(
-                        forResource: resource, extension: ext.isEmpty ? nil : ext) {
-                        return .native(found)
                     }
                     return .native(ChainedImplicitCall(
                         base: .implicitMember("Bundle"), member: name, arguments: args))
@@ -1201,7 +1283,12 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 })
             }
             return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(ChainedImplicitCall(
+                if let resource = BundleBox.projectResource(
+                    for: args,
+                    fallback: BundleResources.url(forResource:extension:)) {
+                    return resource
+                }
+                return .native(ChainedImplicitCall(
                     base: .implicitMember("Bundle"), member: name, arguments: args))
             })
         }
@@ -1812,8 +1899,15 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
             return false
         }
     }
-    if value is AppStub || value is WindowStub || value is WindowSceneStub || value is ScreenStub {
-        return true // app/window shell config (delegate, activationPolicy…) — accepted
+    if let shell = value as? GeneratedPlatformValue,
+       shell.semanticRoles.contains(.applicationShell) {
+        // Framework-created application/window/scene objects are configurable
+        // bags only after generated properties decline the write.
+        shell.config[name] = newValue
+        return true
+    }
+    if value is ScreenStub {
+        return true // screen-shell config is accepted headlessly
     }
     if value is GraphicsContextStub || value is PathDrawStub {
         return true // `context.opacity = 0.5` — draw state accepted, no surface

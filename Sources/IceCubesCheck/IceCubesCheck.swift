@@ -233,6 +233,8 @@ struct IceCubesCheckMain {
         let paths = try paths()
         let oracle = try FixtureOracle(directory: paths.fixtures)
         Interpreter.interpretsAsPlatform = "iOS"
+        LiveCheckSupport.traceLifecycle =
+            ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1"
         NetworkBridge.policy = .replay(fixturesDirectory: paths.fixtures)
         NetworkBridge.requestLog = []
         defer { NetworkBridge.policy = .absorbed }
@@ -255,6 +257,7 @@ struct IceCubesCheckMain {
         let fixtures: String
         let appFiles: [String]
         let packageFiles: [String]
+        let sourceModules: [String: String]
     }
 
     private static func paths() throws -> Paths {
@@ -262,15 +265,37 @@ struct IceCubesCheckMain {
         let app = root + "/External/oss/IceCubesApp"
         let fixtures = root + "/Fixtures/mastodon-public-timeline"
         let packages = app + "/Packages"
+        let twinBuild = root + "/Examples/IceCubesNativeTwin/.build"
+        let buildDescription = twinBuild
+            + "/arm64-apple-ios-macabi/debug/description.json"
         guard FileManager.default.fileExists(atPath: app),
               FileManager.default.fileExists(atPath: fixtures),
               let packageNames = try? FileManager.default.contentsOfDirectory(atPath: packages)
         else {
             throw RuntimeError(message: "IceCubes sources or fixtures are missing under \(root)")
         }
-        let packageFiles = packageNames.sorted().flatMap {
+        let localPackageFiles = packageNames.sorted().flatMap {
             ProjectMaterial.swiftFiles(under: packages + "/\($0)/Sources")
         }
+        // SwiftPM's native build plan is the source-of-truth for remote
+        // dependency target membership. The shared adapter follows imported
+        // Module.freeGlobal references and verifies each member against that
+        // module's compiled source inventory; no package/API identity lives
+        // in this instrument.
+        let externalPackageFiles: [String]
+        let sourceModules: [String: String]
+        if FileManager.default.fileExists(atPath: buildDescription) {
+            externalPackageFiles = try ProjectMaterial.swiftFiles(
+                inSwiftPMBuildDescriptionAt: buildDescription,
+                requiredBy: localPackageFiles)
+            sourceModules = try ProjectMaterial.sourceModuleNames(
+                inSwiftPMBuildDescriptionAt: buildDescription)
+        } else {
+            externalPackageFiles = []
+            sourceModules = [:]
+        }
+        let packageFiles = Array(Set(
+            localPackageFiles + externalPackageFiles)).sorted()
         let appFiles = ProjectMaterial.swiftFiles(under: app + "/IceCubesApp")
             + ProjectMaterial.swiftFiles(under: app + "/IceCubesAppIntents")
         guard !packageFiles.isEmpty, !appFiles.isEmpty else {
@@ -278,12 +303,14 @@ struct IceCubesCheckMain {
         }
         return Paths(
             root: root, app: app, fixtures: fixtures,
-            appFiles: appFiles.sorted(), packageFiles: packageFiles.sorted())
+            appFiles: appFiles.sorted(), packageFiles: packageFiles.sorted(),
+            sourceModules: sourceModules)
     }
 
     private static func shellRung(paths: Paths, oracle: FixtureOracle) throws -> RungRecord {
         let source = ProjectMaterial.mergedSource(
-            at: paths.app, files: paths.packageFiles + paths.appFiles)
+            at: paths.app, files: paths.packageFiles + paths.appFiles,
+            sourceModules: paths.sourceModules)
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let normalized = strings.map(FixtureOracle.normalize)
         var problems: [String] = []
@@ -310,7 +337,9 @@ struct IceCubesCheckMain {
     private static func renderRungs(
         paths: Paths, oracle: FixtureOracle
     ) throws -> [RungRecord] {
-        let source = ProjectMaterial.mergedSource(at: paths.app, files: paths.packageFiles)
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles,
+            sourceModules: paths.sourceModules)
             + renderProbeSource(includeDetailAndAccount: true)
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let normalized = strings.map(FixtureOracle.normalize)
@@ -432,12 +461,118 @@ struct IceCubesCheckMain {
         }
 
         let __iceFetcher = __IceFixtureFetcher(statuses: __icePublicStatuses)
+        let __iceFirstRowModel = StatusRowViewModel(
+            status: __icePublicStatuses[0],
+            client: __iceClient,
+            routerPath: __iceRouter,
+            filterContext: .pub)
+
+        func __iceSoupPipeline(_ htmlValue: String) -> String {
+            var stage = "parse"
+            do {
+                let document = try SwiftSoup.parse(htmlValue)
+                stage = "settings"
+                document.outputSettings(
+                    OutputSettings().prettyPrint(pretty: false))
+                stage = "select-quote"
+                try document.select("p.quote-inline").remove()
+                stage = "select-br"
+                try document.select("br").after("\\n")
+                stage = "select-p"
+                try document.select("p").after("\\n\\n")
+                stage = "html"
+                let html = try document.html()
+                stage = "clean"
+                let text = try SwiftSoup.clean(
+                    html, "", Whitelist.none(),
+                    OutputSettings().prettyPrint(pretty: false)) ?? ""
+                stage = "unescape"
+                return (try? Entities.unescape(text)) ?? text
+            } catch {
+                return "__ice-pipeline-failed-" + stage + "-" + String(describing: error)
+            }
+        }
+
+        @MainActor
+        struct __IceRowModelProbe: View {
+            @State var viewModel: StatusRowViewModel
+
+            var body: some View {
+                Text("__ice-row-model-" + viewModel.finalStatus.account.username)
+                Text("__ice-row-name-" + viewModel.finalStatus.account.safeDisplayName)
+                Text("__ice-row-raw-" + viewModel.finalStatus.content.asRawText)
+                Text("__ice-row-markdown-" + viewModel.finalStatus.content.asMarkdown)
+                Text(__iceSoupPipeline(viewModel.finalStatus.content.htmlValue))
+            }
+        }
+
+        @MainActor
+        struct __IceFetcherStateProbe<Fetcher>: View where Fetcher: StatusesFetcher {
+            @State private var fetcher: Fetcher
+
+            init(fetcher: Fetcher) {
+                _fetcher = .init(initialValue: fetcher)
+            }
+
+            var body: some View {
+                switch fetcher.statusesState {
+                case .loading:
+                    Text("__ice-generic-state-loading")
+                case .display:
+                    Text("__ice-generic-state-display")
+                case .displayWithGaps:
+                    Text("__ice-generic-state-gaps")
+                case .error:
+                    Text("__ice-generic-state-error")
+                }
+            }
+        }
+
+        @MainActor
+        struct __IceFetcherRowsProbe<Fetcher>: View where Fetcher: StatusesFetcher {
+            @State private var fetcher: Fetcher
+
+            init(fetcher: Fetcher) {
+                _fetcher = .init(initialValue: fetcher)
+            }
+
+            var body: some View {
+                switch fetcher.statusesState {
+                case .loading:
+                    Text("__ice-rows-loading")
+                case .display(let statuses, _):
+                    Text("__ice-rows-display")
+                    ForEach(statuses) { status in
+                        Text("__ice-row-" + status.account.username)
+                    }
+                case .displayWithGaps:
+                    Text("__ice-rows-gaps")
+                case .error:
+                    Text("__ice-rows-error")
+                }
+            }
+        }
 
         @\u{6D}ain
         struct __IceCubesR1Probe: App {
             var body: some Scene {
                 WindowGroup {
                     VStack {
+                        switch __iceFetcher.statusesState {
+                        case .loading:
+                            Text("__ice-direct-state-loading")
+                        case .display:
+                            Text("__ice-direct-state-display")
+                        case .displayWithGaps:
+                            Text("__ice-direct-state-gaps")
+                        case .error:
+                            Text("__ice-direct-state-error")
+                        }
+                        __IceFetcherStateProbe(fetcher: __iceFetcher)
+                        __IceFetcherRowsProbe(fetcher: __iceFetcher)
+                        __IceRowModelProbe(viewModel: __iceFirstRowModel)
+                        StatusRowHeaderView(viewModel: __iceFirstRowModel)
+                        StatusRowContentView(viewModel: __iceFirstRowModel)
                         SwiftUI.List {
                             StatusesListView(
                                 fetcher: __iceFetcher,
@@ -468,7 +603,9 @@ struct IceCubesCheckMain {
         Interpreter.interpretsAsPlatform = "iOS"
         NetworkBridge.policy = .replay(fixturesDirectory: paths.fixtures)
         defer { NetworkBridge.policy = .absorbed }
-        let source = ProjectMaterial.mergedSource(at: paths.app, files: paths.packageFiles)
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles,
+            sourceModules: paths.sourceModules)
             + renderProbeSource(includeDetailAndAccount: false)
 
         try FileManager.default.createDirectory(

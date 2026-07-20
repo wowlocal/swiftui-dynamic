@@ -25,10 +25,91 @@ nonisolated enum RuntimeDeclaredType {
         return nil
     }
 
+    /// Element type retained by a runtime array payload. Besides the literal
+    /// `Array` spellings admitted by physical-worker checks, interpreted
+    /// collection operations can materialize other nominal collection shells
+    /// into the same payload. BridgeGen proves which one-argument nominals use
+    /// that argument as `Collection.Element` from the active swiftinterface.
+    static func arrayPayloadElementTypeName(
+        in declaredTypeName: String?
+    ) -> String? {
+        if let element = arrayElementTypeName(in: declaredTypeName) {
+            return element
+        }
+        guard let declaredTypeName,
+              let application = singleGenericApplication(declaredTypeName),
+              let nominalName = nominalTypeName(application.nominal),
+              GeneratedCollectionDefaultSurface.usesElementGenericParameter(
+                nominalName: nominalName)
+        else { return nil }
+        return application.argument
+    }
+
+    private static func singleGenericApplication(
+        _ rawTypeName: String
+    ) -> (nominal: String, argument: String)? {
+        let text = rawTypeName.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        guard let opening = text.firstIndex(of: "<"),
+              text.last == ">"
+        else { return nil }
+
+        let nominal = String(text[..<opening]).trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        let argumentStart = text.index(after: opening)
+        let argumentEnd = text.index(before: text.endIndex)
+        let argumentText = String(text[argumentStart..<argumentEnd])
+        var angleDepth = 0
+        var squareDepth = 0
+        var parenthesisDepth = 0
+        for character in argumentText {
+            switch character {
+            case "<": angleDepth += 1
+            case ">":
+                guard angleDepth > 0 else { return nil }
+                angleDepth -= 1
+            case "[": squareDepth += 1
+            case "]":
+                guard squareDepth > 0 else { return nil }
+                squareDepth -= 1
+            case "(": parenthesisDepth += 1
+            case ")":
+                guard parenthesisDepth > 0 else { return nil }
+                parenthesisDepth -= 1
+            case "," where angleDepth == 0 && squareDepth == 0
+                && parenthesisDepth == 0:
+                return nil
+            default: break
+            }
+        }
+        guard !nominal.isEmpty,
+              angleDepth == 0,
+              squareDepth == 0,
+              parenthesisDepth == 0
+        else { return nil }
+        let argument = argumentText.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        return argument.isEmpty ? nil : (nominal, argument)
+    }
+
     static func nominalTypeName(_ typeName: String?) -> String? {
         guard let typeName else { return nil }
-        let text = typeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = typeName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
+        while text.hasSuffix("?") || text.hasSuffix("!") {
+            text = String(text.dropLast()).trimmingCharacters(
+                in: .whitespacesAndNewlines)
+        }
+        while text.hasPrefix("Optional<"), text.hasSuffix(">") {
+            text = String(text.dropFirst("Optional<".count).dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if text.hasPrefix("["), text.hasSuffix("]") {
+            return text.contains(":") ? "Dictionary" : "Array"
+        }
+        if let generic = text.firstIndex(of: "<") {
+            text = String(text[..<generic])
+        }
         return text.split(separator: ".").last.map(String.init)
     }
 }

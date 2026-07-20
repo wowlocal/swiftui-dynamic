@@ -50,24 +50,33 @@ private final class GeneratedPlatformRawMemory: HostRawMemory,
 final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntimeEquatable,
     CustomStringConvertible
 {
+    enum SemanticRole: Hashable {
+        /// Framework-owned application/window/scene objects configured by the
+        /// headless launch environment rather than constructed by source.
+        case applicationShell
+    }
+
     let framework: String
     let typeName: String
     let isValueType: Bool
     var payload: Any?
     var config: [String: RuntimeValue]
+    let semanticRoles: Set<SemanticRole>
 
     init(
         framework: String,
         typeName: String,
         isValueType: Bool,
         payload: Any?,
-        config: [String: RuntimeValue] = [:]
+        config: [String: RuntimeValue] = [:],
+        semanticRoles: Set<SemanticRole> = []
     ) {
         self.framework = framework
         self.typeName = typeName
         self.isValueType = isValueType
         self.payload = payload
         self.config = config
+        self.semanticRoles = semanticRoles
     }
 
     var description: String {
@@ -81,7 +90,8 @@ final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntim
             typeName: typeName,
             isValueType: true,
             payload: payload,
-            config: config.mapValues { $0.copiedForValueSemantics() })
+            config: config.mapValues { $0.copiedForValueSemantics() },
+            semanticRoles: semanticRoles)
     }
 
     func runtimeEquals(_ other: Any) -> Bool? {
@@ -116,6 +126,119 @@ final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntim
             return (payload as AnyObject) === (other as AnyObject)
         }
         return nil
+    }
+}
+
+/// Per-interpreter application objects. SDK interfaces describe the members
+/// of NSApplication/UIApplication, but not the launch environment's ownership
+/// or timing: the process singleton must not run/terminate the verifier, and a
+/// storyboard-created AppKit main menu exists before delegate launch hooks.
+///
+/// This is the complete interface-inexpressible application-shell allowlist.
+/// Its members are generated platform values, so constructors, methods,
+/// properties, types, and coercions continue to dispatch from BridgeGen
+/// metadata rather than accumulating another handwritten application API.
+final class FrameworkApplicationShellStore {
+    private struct LaunchObject {
+        let member: String
+        let type: String
+        let isOptional: Bool
+    }
+
+    private struct Specification {
+        let framework: String
+        let applicationType: String
+        let windowType: String
+        let sceneType: String?
+        let controllerType: String?
+        let viewType: String?
+        let launchObjects: [LaunchObject]
+    }
+
+    private static let specifications: [String: Specification] = [
+        "NSApplication": Specification(
+            framework: "AppKit",
+            applicationType: "NSApplication",
+            windowType: "NSWindow",
+            sceneType: nil,
+            controllerType: nil,
+            viewType: nil,
+            // Main.storyboard is loaded before will/did-finish-launching, but
+            // neither that ownership nor its non-nil timing is in the SDK
+            // declaration `var mainMenu: NSMenu?`.
+            launchObjects: [LaunchObject(
+                member: "mainMenu", type: "NSMenu", isOptional: true)]),
+        "UIApplication": Specification(
+            framework: "UIKit",
+            applicationType: "UIApplication",
+            windowType: "UIWindow",
+            sceneType: "UIWindowScene",
+            controllerType: "UIViewController",
+            viewType: "UIView",
+            launchObjects: []),
+    ]
+
+    private var applications: [String: GeneratedPlatformValue] = [:]
+
+    func sharedApplication(ofType typeName: String) -> GeneratedPlatformValue? {
+        guard let specification = Self.specifications[typeName] else { return nil }
+        if let application = applications[typeName] { return application }
+
+        func shellValue(_ type: String) -> GeneratedPlatformValue {
+            GeneratedPlatformValue(
+                framework: specification.framework,
+                typeName: type,
+                isValueType: GeneratedPlatformBridge.isValueType(
+                    framework: specification.framework, type: type),
+                payload: nil,
+                semanticRoles: [.applicationShell])
+        }
+
+        let application = shellValue(specification.applicationType)
+        let window = shellValue(specification.windowType)
+        let windowValue = RuntimeValue.native(window)
+        application.config["windows"] = .native([windowValue])
+        application.config["keyWindow"] = .some(
+            windowValue, wrappedTypeName: specification.windowType)
+        application.config["mainWindow"] = .some(
+            windowValue, wrappedTypeName: specification.windowType)
+        window.config["isKeyWindow"] = .native(true)
+
+        if let controllerType = specification.controllerType {
+            let controllerShell = shellValue(controllerType)
+            if let viewType = specification.viewType {
+                let view = RuntimeValue.native(shellValue(viewType))
+                controllerShell.config["view"] = .some(
+                    view, wrappedTypeName: viewType)
+                controllerShell.config["viewIfLoaded"] = .some(
+                    view, wrappedTypeName: viewType)
+            }
+            let controller = RuntimeValue.native(controllerShell)
+            window.config["rootViewController"] = .some(
+                controller, wrappedTypeName: controllerType)
+            window.config["rootController"] = controller
+        }
+
+        if let sceneType = specification.sceneType {
+            let scene = shellValue(sceneType)
+            scene.config["windows"] = .native([windowValue])
+            scene.config["keyWindow"] = .some(
+                windowValue, wrappedTypeName: specification.windowType)
+            scene.config["activationState"] = .implicitMember("foregroundActive")
+            application.config["connectedScenes"] = .native([
+                RuntimeValue.native(scene),
+            ])
+        }
+
+        for launchObject in specification.launchObjects {
+            let value = RuntimeValue.native(shellValue(launchObject.type))
+            application.config[launchObject.member] = launchObject.isOptional
+                ? .some(value, wrappedTypeName: launchObject.type)
+                : value
+        }
+
+        applications[typeName] = application
+        return application
     }
 }
 
@@ -204,6 +327,16 @@ struct GeneratedPlatformGlobalFunctionEntry {
     }
 }
 
+struct GeneratedPlatformGlobalPropertyEntry {
+    typealias Get = @MainActor () throws -> RuntimeValue
+
+    let framework: String
+    let name: String
+    let resultType: String
+    let isImplicitlyUnwrapped: Bool
+    let get: Get
+}
+
 /// Per-registry state for deterministic opposite-platform behavior inferred
 /// from generated global-function families. Keeping this beside the registry
 /// isolates one interpreter session's context stack from every other session.
@@ -270,6 +403,7 @@ struct GeneratedPlatformPropertyEntry {
     let framework: String
     let type: String
     let resultType: String
+    let isImplicitlyUnwrapped: Bool
     let contract: HostProperty
 }
 
@@ -280,6 +414,7 @@ struct GeneratedPlatformStaticPropertyEntry {
     let type: String
     let name: String
     let resultType: String
+    let isImplicitlyUnwrapped: Bool
     let get: Get
 }
 
@@ -303,6 +438,7 @@ enum GeneratedPlatformBridge {
     private static let properties = buildProperties()
     private static let staticMethods = buildStaticMethods()
     private static let globalFunctions = buildGlobalFunctions()
+    private static let globalProperties = buildGlobalProperties()
     private static let globalFallbackEffects = inferGlobalFallbackEffects(
         from: globalFunctions)
     private static let staticProperties = buildStaticProperties()
@@ -548,6 +684,45 @@ enum GeneratedPlatformBridge {
         return nil
     }
 
+    static func globalValue(
+        named name: String,
+        applicationShells: FrameworkApplicationShellStore
+    ) -> RuntimeValue? {
+        guard let entries = globalProperties[name], !entries.isEmpty else {
+            return nil
+        }
+        for framework in frameworkPreference {
+            guard let entry = entries.first(where: { $0.framework == framework }) else {
+                continue
+            }
+            let valueType = optionalWrappedType(entry.resultType) ?? entry.resultType
+            if let application = applicationShells.sharedApplication(
+                ofType: valueType) {
+                let value = RuntimeValue.native(application)
+                return applyingImplicitlyUnwrappedOptional(
+                    .some(value, wrappedTypeName: valueType),
+                    resultType: entry.resultType,
+                    isImplicitlyUnwrapped: entry.isImplicitlyUnwrapped)
+            }
+            guard frameworkIsNative(entry.framework) else {
+                return applyingImplicitlyUnwrappedOptional(
+                    fallbackResult(
+                        framework: entry.framework, type: entry.resultType),
+                    resultType: entry.resultType,
+                    isImplicitlyUnwrapped: entry.isImplicitlyUnwrapped)
+            }
+            do {
+                return applyingImplicitlyUnwrappedOptional(
+                    try entry.get(), resultType: entry.resultType,
+                    isImplicitlyUnwrapped: entry.isImplicitlyUnwrapped)
+            } catch {
+                preconditionFailure(
+                    "generated \(entry.framework) global property '\(name)' threw \(error)")
+            }
+        }
+        return nil
+    }
+
     /// A value minted by one framework's sweep can be a type OWNED by
     /// another (MKMapCamera.centerCoordinate returns CoreLocation's
     /// CLLocationCoordinate2D) — member lookup searches the owning
@@ -642,7 +817,10 @@ enum GeneratedPlatformBridge {
                     framework: framework, type: type, member: name)
                 if let property = staticProperties[key] {
                     if frameworkIsNative(framework) {
-                        return try? property.get()
+                        return try? applyingImplicitlyUnwrappedOptional(
+                            property.get(), resultType: property.resultType,
+                            isImplicitlyUnwrapped:
+                                property.isImplicitlyUnwrapped)
                     }
                     return staticPropertyFallback(property)
                 }
@@ -699,6 +877,45 @@ enum GeneratedPlatformBridge {
 
     static func isPlatformNominal(framework: String, type: String) -> Bool {
         owningFramework(ofType: type, preferring: framework) != nil
+    }
+
+    /// Match a concrete generated carrier through its metadata-derived
+    /// superclass graph. This is registry type-system data, not Swift type
+    /// identity: opposite-platform values deliberately have no SDK payload.
+    static func value(_ value: Any, matchesType rawType: String) -> Bool {
+        guard let platform = value as? GeneratedPlatformValue else {
+            return false
+        }
+        let expected = generatedNominalName(rawType)
+        return typeCandidates(
+            framework: platform.framework, type: platform.typeName
+        ).contains { generatedNominalName($0) == expected }
+    }
+
+    /// An opaque imported object may stand in for a generated reference
+    /// nominal only when that framework is absent on this host. Generated
+    /// dispatch then takes its typed inert path and never attempts a native
+    /// cast. Value types stay strict because their observable data shape is
+    /// encoded by the interface and must be coercible.
+    static func acceptsOpaqueReference(for rawType: String) -> Bool {
+        let type = generatedNominalName(rawType)
+        guard let owner = owningFramework(
+            ofType: type, preferring: frameworkPreference[0]
+        ) else { return false }
+        return !frameworkIsNative(owner)
+            && nominalKinds[GeneratedPlatformTypeKey(
+                framework: owner, type: type)] == false
+    }
+
+    private static func generatedNominalName(_ rawType: String) -> String {
+        var type = (optionalWrappedType(rawType) ?? rawType)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        for framework in frameworkPreference
+        where type.hasPrefix(framework + ".") {
+            type.removeFirst(framework.count + 1)
+            break
+        }
+        return canonicalTypeName(type)
     }
 
     /// The framework whose sweep DECLARED a type. A member of one framework
@@ -763,6 +980,34 @@ enum GeneratedPlatformBridge {
         }
     }
 
+    /// Swift symbol graphs preserve imported `T!` spelling even though the
+    /// executable bridge contract uses `T?`. Reapply that source semantic at
+    /// the shared dispatch boundary so native payloads, inert fallbacks, and
+    /// configured launch-shell values all behave identically.
+    private static func applyingImplicitlyUnwrappedOptional(
+        _ value: RuntimeValue,
+        resultType: String,
+        isImplicitlyUnwrapped: Bool
+    ) -> RuntimeValue {
+        guard isImplicitlyUnwrapped else { return value }
+        let wrappedType = optionalWrappedType(resultType) ?? resultType
+        switch value {
+        case .optional(let optional):
+            return .optional(
+                optional.wrapped,
+                wrappedTypeName: optional.wrappedTypeName ?? wrappedType,
+                isImplicitlyUnwrapped: true)
+        case .nilValue:
+            return .none(
+                wrappedTypeName: wrappedType,
+                isImplicitlyUnwrapped: true)
+        default:
+            return .some(
+                value, wrappedTypeName: wrappedType,
+                isImplicitlyUnwrapped: true)
+        }
+    }
+
     /// Static SDK strings are commonly identity-bearing constants rather than
     /// user-visible empty text (URL schemes, notification names, pasteboard
     /// types, and similar tokens). On the opposite platform their bytes are
@@ -776,8 +1021,11 @@ enum GeneratedPlatformBridge {
             in: .whitespacesAndNewlines)
         guard resultType == "String" || resultType == "Substring"
                 || resultType == "Character" else {
-            return fallbackResult(
-                framework: property.framework, type: property.resultType)
+            return applyingImplicitlyUnwrappedOptional(
+                fallbackResult(
+                    framework: property.framework, type: property.resultType),
+                resultType: property.resultType,
+                isImplicitlyUnwrapped: property.isImplicitlyUnwrapped)
         }
         return .native(ChainedImplicitCall(
             base: .implicitMember("\(property.framework).\(property.type)"),
@@ -889,11 +1137,28 @@ enum GeneratedPlatformBridge {
         }
     }
 
+    static func registerGlobalProperty(
+        _ table: inout [String: [GeneratedPlatformGlobalPropertyEntry]],
+        framework: String,
+        name: String,
+        resultType: String,
+        isImplicitlyUnwrapped: Bool,
+        get: @escaping GeneratedPlatformGlobalPropertyEntry.Get
+    ) {
+        table[name, default: []].append(GeneratedPlatformGlobalPropertyEntry(
+            framework: framework,
+            name: name,
+            resultType: resultType,
+            isImplicitlyUnwrapped: isImplicitlyUnwrapped,
+            get: get))
+    }
+
     static func registerProperty(
         _ table: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry],
         framework: String,
         declaration: String,
         resultType: String,
+        isImplicitlyUnwrapped: Bool = false,
         get: @escaping GeneratedPlatformPropertyEntry.Get,
         set: GeneratedPlatformPropertyEntry.Set?
     ) {
@@ -930,18 +1195,29 @@ enum GeneratedPlatformBridge {
                             message: "generated platform property receiver mismatch",
                             fatal: true)
                     }
-                    if let stored = base.config[signature.name] { return stored }
-                    guard frameworkIsNative(framework), let payload = base.payload else {
-                        return fallbackResult(framework: framework, type: resultType)
+                    if let stored = base.config[signature.name] {
+                        return applyingImplicitlyUnwrappedOptional(
+                            stored, resultType: resultType,
+                            isImplicitlyUnwrapped: isImplicitlyUnwrapped)
                     }
-                    return try get(payload)
+                    guard frameworkIsNative(framework), let payload = base.payload else {
+                        return applyingImplicitlyUnwrappedOptional(
+                            fallbackResult(framework: framework, type: resultType),
+                            resultType: resultType,
+                            isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+                    }
+                    return applyingImplicitlyUnwrappedOptional(
+                        try get(payload), resultType: resultType,
+                        isImplicitlyUnwrapped: isImplicitlyUnwrapped)
                 },
                 set: propertySetter)
             let key = GeneratedPlatformMemberKey(
                 framework: framework, type: type, member: signature.name)
             table[key] = GeneratedPlatformPropertyEntry(
                 framework: framework, type: type,
-                resultType: resultType, contract: contract)
+                resultType: resultType,
+                isImplicitlyUnwrapped: isImplicitlyUnwrapped,
+                contract: contract)
         } catch {
             preconditionFailure(
                 "BridgeGen emitted an invalid platform property '\(declaration)': \(error)")
@@ -954,13 +1230,16 @@ enum GeneratedPlatformBridge {
         type: String,
         name: String,
         resultType: String,
+        isImplicitlyUnwrapped: Bool = false,
         get: @escaping GeneratedPlatformStaticPropertyEntry.Get
     ) {
         table[GeneratedPlatformMemberKey(
             framework: framework, type: type, member: name)] =
             GeneratedPlatformStaticPropertyEntry(
                 framework: framework, type: type, name: name,
-                resultType: resultType, get: get)
+                resultType: resultType,
+                isImplicitlyUnwrapped: isImplicitlyUnwrapped,
+                get: get)
     }
 
     static func registerEnumValue(

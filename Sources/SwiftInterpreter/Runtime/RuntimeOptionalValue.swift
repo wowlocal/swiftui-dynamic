@@ -125,6 +125,44 @@ extension RuntimeValue {
         }
     }
 
+    /// Payload used specifically by `if let` / `guard let`. An explicitly
+    /// present Optional keeps its wrapped value, including an opaque host
+    /// object. A bare import absorber has no runtime receiver and therefore
+    /// takes the deterministic-absence path. An absorbed member rooted in a
+    /// concrete receiver remains an opaque present value: collapsing it to
+    /// nil invents a failed host lookup (for example, an unavailable package
+    /// extension on an otherwise-real Foundation value).
+    public var optionalBindingPayload: RuntimeValue? {
+        switch optionalState {
+        case .some(let wrapped, _):
+            return wrapped
+        case .none:
+            return nil
+        case .notOptional:
+            switch self {
+            case .host(let chain as ChainedImplicitCall):
+                return chain.base.hasConcreteAbsorbedReceiver ? self : nil
+            case .host(let value) where value is ImplicitMemberCall:
+                return nil
+            case .hostFunction, .implicitMember:
+                return nil
+            default:
+                return self
+            }
+        }
+    }
+
+    /// Static type of a present Optional's payload. `if let` and `guard let`
+    /// create a new non-Optional binding, but that binding must retain this
+    /// type for extension and overload selection after the runtime payload has
+    /// erased its source scalar or collection shell.
+    public var optionalBindingDeclaredTypeName: String? {
+        guard case .some(_, let wrappedTypeName) = optionalState else {
+            return nil
+        }
+        return wrappedTypeName
+    }
+
     public var isOptional: Bool {
         if case .optional = self { return true }
         return false
@@ -140,6 +178,30 @@ extension RuntimeValue {
             return .none(wrappedTypeName: wrappedTypeName)
         default:
             return .some(self, wrappedTypeName: wrappedTypeName)
+        }
+    }
+}
+
+private extension RuntimeValue {
+    /// Whether an absorbed chain ultimately starts from a runtime value rather
+    /// than an unresolved import, host type marker, or synthesized void.
+    /// Dispatch is structural: no SDK type or member identity is involved.
+    var hasConcreteAbsorbedReceiver: Bool {
+        switch self {
+        case .host(let chain as ChainedImplicitCall):
+            return chain.base.hasConcreteAbsorbedReceiver
+        case .host(let value):
+            return !(value is InertCallable
+                || value is ImplicitMemberCall
+                || value is HostTypeMarker)
+        case .int, .double, .bool, .string, .array, .dictionary, .tuple,
+             .range, .set, .instance, .enumCase:
+            return true
+        case .optional(let optional):
+            return optional.wrapped?.hasConcreteAbsorbedReceiver == true
+        case .void, .nilValue, .closure, .hostFunction, .type, .enumType,
+             .implicitMember:
+            return false
         }
     }
 }

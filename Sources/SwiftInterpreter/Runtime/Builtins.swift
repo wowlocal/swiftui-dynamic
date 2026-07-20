@@ -7,6 +7,50 @@ import Foundation
 /// evaluator re-throws them with the operator node's source location.
 @MainActor
 public enum Builtins {
+    private enum ObjectIdentityOperand {
+        case interpreted(Instance)
+        case host(AnyObject)
+        case nilReference
+        case invalid
+    }
+
+    /// Swift's identity operators accept `AnyObject?`, so an optional is a
+    /// conversion around the reference rather than a distinct identity-bearing
+    /// value. Normalize that conversion before comparing the underlying
+    /// interpreted or host objects; two nil object references are identical.
+    private static func objectIdentityOperand(
+        _ value: RuntimeValue
+    ) -> ObjectIdentityOperand {
+        switch value {
+        case .optional(let optional):
+            guard let wrapped = optional.wrapped else { return .nilReference }
+            return objectIdentityOperand(wrapped)
+        case .nilValue:
+            return .nilReference
+        case .instance(let instance):
+            return .interpreted(instance)
+        case .host(let value):
+            return .host(value as AnyObject)
+        default:
+            return .invalid
+        }
+    }
+
+    private static func objectsAreIdentical(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) -> Bool {
+        switch (objectIdentityOperand(lhs), objectIdentityOperand(rhs)) {
+        case (.interpreted(let left), .interpreted(let right)):
+            return left === right
+        case (.host(let left), .host(let right)):
+            return left === right
+        case (.nilReference, .nilReference):
+            return true
+        default:
+            return false
+        }
+    }
+
     /// A decoded integer operation. The tree evaluator still resolves source
     /// spellings on demand, while prepared semantic IR stores this compact tag
     /// and avoids repeating String dispatch in every loop iteration.
@@ -138,7 +182,110 @@ public enum Builtins {
         }
     }
 
+    private static func isUInt64Carrier(_ value: RuntimeValue) -> Bool {
+        if case .host(let payload) = value { return payload is UInt64 }
+        return false
+    }
+
+    private static func uint64Operand(_ value: RuntimeValue) -> UInt64? {
+        if case .host(let payload) = value, let integer = payload as? UInt64 {
+            return integer
+        }
+        if let integer = value.intValue, integer >= 0 {
+            return UInt64(integer)
+        }
+        return nil
+    }
+
+    /// UInt64 is retained as a host carrier because values above Int.max are
+    /// observable in hashes/RNGs. Once either operand has that carrier, keep
+    /// the entire fixed-width integer operation in the unsigned domain rather
+    /// than dropping into the Int-only operator table.
+    private static func uint64Binary(
+        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> RuntimeValue? {
+        guard isUInt64Carrier(lhs) || isUInt64Carrier(rhs) else { return nil }
+        guard let left = uint64Operand(lhs), let right = uint64Operand(rhs) else {
+            throw EvalMessage(text: "'\(op)' requires UInt64-compatible operands")
+        }
+        switch op {
+        case "+", "-", "*":
+            let result: (partialValue: UInt64, overflow: Bool)
+            switch op {
+            case "+": result = left.addingReportingOverflow(right)
+            case "-": result = left.subtractingReportingOverflow(right)
+            default: result = left.multipliedReportingOverflow(by: right)
+            }
+            guard !result.overflow else { throw EvalMessage(text: "integer overflow") }
+            return .native(result.partialValue)
+        case "/":
+            guard right != 0 else { throw EvalMessage(text: "division by zero") }
+            return .native(left / right)
+        case "%":
+            guard right != 0 else { throw EvalMessage(text: "division by zero") }
+            return .native(left % right)
+        case "&+": return .native(left &+ right)
+        case "&-": return .native(left &- right)
+        case "&*": return .native(left &* right)
+        case "&": return .native(left & right)
+        case "|": return .native(left | right)
+        case "^": return .native(left ^ right)
+        case "<<": return .native(right >= 64 ? 0 : left << right)
+        case ">>": return .native(right >= 64 ? 0 : left >> right)
+        case "==": return .native(left == right)
+        case "!=": return .native(left != right)
+        case "<": return .native(left < right)
+        case "<=": return .native(left <= right)
+        case ">": return .native(left > right)
+        case ">=": return .native(left >= right)
+        default: return nil
+        }
+    }
+
+    /// Pointer arithmetic dispatches on a stride capability supplied by the
+    /// carrier, never on an SDK or runtime type identity.
+    private static func stridedMemoryBinary(
+        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> RuntimeValue? {
+        func cursor(_ value: RuntimeValue) -> (any HostStridedMemoryCursor)? {
+            guard case .host(let payload) = value else { return nil }
+            return payload as? any HostStridedMemoryCursor
+        }
+
+        switch op {
+        case "+":
+            if let base = cursor(lhs), let offset = rhs.intValue {
+                let advanced = try base.advancedMemory(
+                    byElementOffset: offset)
+                return .native(advanced as Any)
+            }
+            if let offset = lhs.intValue, let base = cursor(rhs) {
+                let advanced = try base.advancedMemory(
+                    byElementOffset: offset)
+                return .native(advanced as Any)
+            }
+        case "-":
+            if let base = cursor(lhs), let offset = rhs.intValue {
+                let (negated, overflow) = 0.subtractingReportingOverflow(
+                    offset)
+                guard !overflow else {
+                    throw EvalMessage(text: "integer overflow")
+                }
+                let advanced = try base.advancedMemory(
+                    byElementOffset: negated)
+                return .native(advanced as Any)
+            }
+        default:
+            break
+        }
+        return nil
+    }
+
     static func binary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue {
+        if let pointer = try stridedMemoryBinary(op, lhs, rhs) {
+            return pointer
+        }
+        if let unsigned = try uint64Binary(op, lhs, rhs) { return unsigned }
         let usesDecimal: Bool = {
             if case .host(let any) = lhs, any is Decimal { return true }
             if case .host(let any) = rhs, any is Decimal { return true }
@@ -201,17 +348,7 @@ public enum Builtins {
         case "<", "<=", ">", ">=":
             return .native(try compare(op, lhs, rhs))
         case "===", "!==":
-            // Identity: interpreted instances are class-backed, host
-            // objects compare by reference; everything else is not
-            // identical.
-            let same: Bool = {
-                if case .instance(let l) = lhs, case .instance(let r) = rhs { return l === r }
-                if case .host(let l) = lhs, case .host(let r) = rhs,
-                   let lo = l as? AnyObject, let ro = r as? AnyObject {
-                    return lo === ro
-                }
-                return false
-            }()
+            let same = objectsAreIdentical(lhs, rhs)
             return .native(op == "===" ? same : !same)
         case "&+", "&-", "&*":
             // Overflow operators (protobuf hashing, bit mixers): true
@@ -273,6 +410,12 @@ public enum Builtins {
             // Hosted-object truths negate from their fresh-state reading.
             if let fresh = unknowableBool(value) { return .native(!fresh) }
             throw EvalMessage(text: "'!' requires a Bool operand, got \(value.stringified)")
+        case "~":
+            if case .host(let payload) = value, let integer = payload as? UInt64 {
+                return .native(~integer)
+            }
+            if let integer = value.intValue { return .native(~integer) }
+            throw EvalMessage(text: "'~' requires an integer operand")
         default:
             throw EvalMessage(text: "unsupported prefix operator '\(op)'")
         }
@@ -907,6 +1050,19 @@ public enum Builtins {
         }
         if case .host(let ra) = rhs, let r = ra as? Date, let l = lhs.doubleValue {
             return try compare(op, .native(l), .native(r.timeIntervalSince1970))
+        }
+        // String.Index is a real Comparable host value. Swift may encode the
+        // start and end of the same bridged string in different internal
+        // domains (`0[any]`, `N[utf8/utf16]`), but native comparison still
+        // defines their collection order.
+        if case .host(let la) = lhs, let l = la as? String.Index,
+           case .host(let ra) = rhs, let r = ra as? String.Index {
+            switch op {
+            case "<": return l < r
+            case "<=": return l <= r
+            case ">": return l > r
+            default: return l >= r
+            }
         }
         if let l = lhs.stringValue, let r = rhs.stringValue {
             switch op {

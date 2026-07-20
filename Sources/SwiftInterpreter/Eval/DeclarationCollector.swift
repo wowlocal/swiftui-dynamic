@@ -80,9 +80,8 @@ extension Interpreter {
                     name,
                     .native(LazyGlobal(
                         initializer: bindingMetadata.initializer,
-                        annotation: bindingMetadata.typeAnnotation)),
-                    declaredTypeName:
-                        bindingMetadata.typeAnnotation?.trimmedDescription,
+                        typeName: bindingMetadata.typeName)),
+                    declaredTypeName: bindingMetadata.typeName,
                     referenceOwnership: ownership)
             }
             return
@@ -101,17 +100,15 @@ extension Interpreter {
                     name,
                     .native(ComputedGlobal(
                         accessor: accessors.getter,
-                        annotation: bindingMetadata.typeAnnotation)),
-                    declaredTypeName:
-                        bindingMetadata.typeAnnotation?.trimmedDescription)
+                        typeName: bindingMetadata.typeName)),
+                    declaredTypeName: bindingMetadata.typeName)
             } else {
                 globals.define(
                     name,
                     .native(LazyGlobal(
                         initializer: bindingMetadata.initializer,
-                        annotation: bindingMetadata.typeAnnotation)),
-                    declaredTypeName:
-                        bindingMetadata.typeAnnotation?.trimmedDescription,
+                        typeName: bindingMetadata.typeName)),
+                    declaredTypeName: bindingMetadata.typeName,
                     referenceOwnership: declarationMetadata.referenceOwnership)
             }
         }
@@ -182,6 +179,7 @@ extension Interpreter {
                 }
                 for (name, nested) in stranded.nestedTypes
                 where symbol.nestedTypes[name] == nil {
+                    bindLexicalOwner(of: nested, to: symbol)
                     symbol.nestedTypes[name] = nested
                 }
                 for initializer in stranded.initializers {
@@ -222,6 +220,7 @@ extension Interpreter {
                 }
                 for (name, nested) in stranded.nestedTypes
                 where symbol.nestedTypes[name] == nil {
+                    bindLexicalOwner(of: nested, to: symbol)
                     symbol.nestedTypes[name] = nested
                 }
                 for initializer in stranded.initializers {
@@ -359,6 +358,26 @@ extension Interpreter {
     private func collectStruct(_ node: StructDeclSyntax) throws {
         let symbol = try makeStructSymbol(node)
         registerTypeSymbol(symbol)
+        registerSourceModuleType(.type(symbol), declaration: node)
+    }
+
+    /// Build-material provenance, rather than a framework/type-name list,
+    /// owns qualified source declarations after multiple modules are flattened
+    /// into one interpreter program.
+    private func registerSourceModuleType(
+        _ value: RuntimeValue,
+        declaration: some SyntaxProtocol
+    ) {
+        guard let moduleName = currentProgramMetadata?.sourceModuleName(
+            at: declaration.positionAfterSkippingLeadingTrivia)
+        else { return }
+        let typeName: String
+        switch value {
+        case .type(let symbol): typeName = symbol.name
+        case .enumType(let symbol): typeName = symbol.name
+        default: return
+        }
+        globals.define("\(moduleName).\(typeName)", value)
     }
 
     /// Duplicate type names (multi-target repos declare ContentView per
@@ -412,14 +431,18 @@ extension Interpreter {
     ]
 
     private func collectClass(_ node: ClassDeclSyntax) throws {
-        registerTypeSymbol(try makeClassLikeSymbol(node))
+        let symbol = try makeClassLikeSymbol(node)
+        registerTypeSymbol(symbol)
+        registerSourceModuleType(.type(symbol), declaration: node)
     }
 
     /// Actors share the nominal-member collector with classes but retain their
     /// language kind. Instance allocation assigns the runtime actor identity;
     /// isolated member closures then enter that actor's logical executor.
     private func collectActor(_ node: ActorDeclSyntax) throws {
-        registerTypeSymbol(try makeClassLikeSymbol(node))
+        let symbol = try makeClassLikeSymbol(node)
+        registerTypeSymbol(symbol)
+        registerSourceModuleType(.type(symbol), declaration: node)
     }
 
     func makeClassLikeSymbol(
@@ -535,6 +558,7 @@ extension Interpreter {
                 // Nested types register under `Outer.Name` (for annotations)
                 // and the bare name when unclaimed (for in-scope references).
                 let nested = try makeEnumSymbol(nestedEnum)
+                nested.lexicalTypeOwner = symbol
                 symbol.nestedTypes[nested.name] = .enumType(nested)
                 enumSymbols["\(symbol.name).\(nested.name)"] = nested
                 // Bare-name registration is FIRST-WINS, never a union:
@@ -566,6 +590,32 @@ extension Interpreter {
     }
 
     private func registerNestedType(_ nestedSymbol: StructSymbol, in symbol: StructSymbol) {
+        nestedSymbol.lexicalTypeOwner = symbol
+        symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
+        structSymbols.append(nestedSymbol)
+        globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
+        if globals.lookup(nestedSymbol.name) == nil {
+            globals.define(nestedSymbol.name, .type(nestedSymbol))
+        }
+    }
+
+    private func bindLexicalOwner(
+        of nested: RuntimeValue, to owner: AnyObject
+    ) {
+        switch nested {
+        case .type(let symbol):
+            symbol.lexicalTypeOwner = owner
+        case .enumType(let symbol):
+            symbol.lexicalTypeOwner = owner
+        default:
+            break
+        }
+    }
+
+    private func registerNestedType(
+        _ nestedSymbol: StructSymbol, in symbol: EnumSymbol
+    ) {
+        nestedSymbol.lexicalTypeOwner = symbol
         symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
         structSymbols.append(nestedSymbol)
         globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
@@ -721,7 +771,7 @@ extension Interpreter {
             } else if isStaticDecl {
                 let referenceOwnership = declarationMetadata.referenceOwnership
                 symbol.staticStoragePolicies[name] = .init(
-                    typeName: bindingMetadata.typeAnnotation?.trimmedDescription,
+                    typeName: bindingMetadata.typeName,
                     referenceOwnership: referenceOwnership)
                 if let initializer = bindingMetadata.initializer {
                     symbol.staticProperties[name] = .init(
@@ -747,7 +797,7 @@ extension Interpreter {
                 var stateLikeDefault: ExprSyntax?
                 if bindingMetadata.initializer == nil,
                    hasAttribute(varDecl.attributes, named: "FocusState"),
-                   bindingMetadata.typeAnnotation?.trimmedDescription == "Bool" {
+                   bindingMetadata.typeName == "Bool" {
                     stateLikeDefault = ExprSyntax(BooleanLiteralExprSyntax(literal: .keyword(.false)))
                 }
                 var stored = StructSymbol.StoredProperty(
@@ -789,10 +839,12 @@ extension Interpreter {
             // (Rayon + mRayon both ship `enum UIBridge`): members UNION —
             // separate targets never collide on device.
             union(symbol, into: existing)
+            registerSourceModuleType(.enumType(existing), declaration: node)
             return
         }
         enumSymbols[symbol.name] = symbol
         globals.define(symbol.name, .enumType(symbol))
+        registerSourceModuleType(.enumType(symbol), declaration: node)
     }
 
     /// Union `symbol`'s members into `existing` (sibling-target namespaces).
@@ -806,6 +858,7 @@ extension Interpreter {
             existing.methods[name, default: []].append(contentsOf: overloads)
         }
         for (name, overloads) in symbol.staticMethods {
+            for decl in overloads { declLexicalOwners[decl.id] = existing }
             existing.staticMethods[name, default: []].append(contentsOf: overloads)
         }
         for (name, property) in symbol.staticProperties
@@ -833,6 +886,7 @@ extension Interpreter {
         }
         for (name, nested) in symbol.nestedTypes
         where existing.nestedTypes[name] == nil {
+            bindLexicalOwner(of: nested, to: existing)
             existing.nestedTypes[name] = nested
         }
         for initializer in symbol.initializers {
@@ -1027,6 +1081,7 @@ extension Interpreter {
             // dotted name and the bare name when unclaimed, mirroring the
             // struct path.
             let nested = try makeEnumSymbol(nestedEnum)
+            nested.lexicalTypeOwner = symbol
             symbol.nestedTypes[nested.name] = .enumType(nested)
             enumSymbols["\(symbol.name).\(nested.name)"] = nested
             if enumSymbols[nested.name] == nil { enumSymbols[nested.name] = nested }
@@ -1036,20 +1091,10 @@ extension Interpreter {
             }
         case .structure(let nestedStruct):
             let nestedSymbol = try makeStructSymbol(nestedStruct)
-            symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
-            structSymbols.append(nestedSymbol)
-            globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
-            if globals.lookup(nestedSymbol.name) == nil {
-                globals.define(nestedSymbol.name, .type(nestedSymbol))
-            }
+            registerNestedType(nestedSymbol, in: symbol)
         case .classType(let nestedClass):
             let nestedSymbol = try makeClassLikeSymbol(nestedClass)
-            symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
-            structSymbols.append(nestedSymbol)
-            globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
-            if globals.lookup(nestedSymbol.name) == nil {
-                globals.define(nestedSymbol.name, .type(nestedSymbol))
-            }
+            registerNestedType(nestedSymbol, in: symbol)
         case .actor, .deinitializer, .subscriptDeclaration, .typeAlias,
              .enumCase, .protocolType, .other:
             return
@@ -1176,7 +1221,11 @@ extension Interpreter {
         closure.programState = programState
         closure.functionDeclID = node.id
         let lexicalOwner = programState?.declarationLexicalOwners[node.id]
-            ?? declLexicalOwners[node.id]
+            ?? lexicalOwner(of: node.id)
+            // Local declarations are not members in the program index, but
+            // they still inherit the nominal lexical context of the running
+            // source body (so `Self` keeps its declaration-site meaning).
+            ?? lexicalOwnerFrames.last
         closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
         closure.debugName = metadata.name
@@ -1231,7 +1280,7 @@ extension Interpreter {
             programPlan: programPlan)
         closure.programState = programState
         let lexicalOwner = programState?.declarationLexicalOwners[node.id]
-            ?? declLexicalOwners[node.id]
+            ?? lexicalOwner(of: node.id)
             ?? fallbackLexicalOwner
         let actorInitializer =
             (lexicalOwner as? StructSymbol)?.isActor == true

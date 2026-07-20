@@ -194,6 +194,14 @@ private final class NativeARCChild {
     }
 }
 
+private final class NativeIdentityNode {
+    weak var parent: NativeIdentityNode?
+
+    func owns(_ child: NativeIdentityNode) -> Bool {
+        child.parent === self
+    }
+}
+
 private let interpretedARCPrelude = #"""
 var events: [String] = []
 
@@ -1118,6 +1126,33 @@ struct ARCSemanticsTests {
             child.parent = parent
         }
         events.joined(separator: ",")
+        """#)
+
+        #expect(interpreted == native)
+    }
+
+    @Test func optionalClassIdentityMatchesNativeSwift() throws {
+        let parent = NativeIdentityNode()
+        let child = NativeIdentityNode()
+        child.parent = parent
+        let missingLeft: NativeIdentityNode? = nil
+        let missingRight: NativeIdentityNode? = nil
+        let native = "\(child.parent === parent)|\(parent.owns(child))|\(missingLeft === missingRight)|\(child.parent !== parent)"
+
+        let interpreted = try evaluateARC(#"""
+        final class IdentityNode {
+            weak var parent: IdentityNode?
+
+            func owns(_ child: IdentityNode) -> Bool {
+                child.parent === self
+            }
+        }
+        let parent = IdentityNode()
+        let child = IdentityNode()
+        child.parent = parent
+        let missingLeft: IdentityNode? = nil
+        let missingRight: IdentityNode? = nil
+        "\(child.parent === parent)|\(parent.owns(child))|\(missingLeft === missingRight)|\(child.parent !== parent)"
         """#)
 
         #expect(interpreted == native)

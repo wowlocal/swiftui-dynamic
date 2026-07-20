@@ -6,6 +6,25 @@ import SwiftInterpreter
 /// the tree — scenario assertions check that fixture-derived content
 /// (movie titles, status authors) actually reached the UI.
 public enum LiveCheckSupport {
+    /// Mutable traversal state for one viewport-materialized container. A
+    /// ForEach fan establishes logical row boundaries; later siblings in the
+    /// same builder (the common trailing pagination row) consume the same
+    /// launch viewport. Nested collections inside a row receive no cursor and
+    /// therefore cannot consume their parent's row budget.
+    private final class InitialLifecycleViewport {
+        var remainingRows: Int
+        var encounteredRows = false
+
+        init(capacity: Int) {
+            remainingRows = capacity
+        }
+
+        func consumeRow() -> Bool {
+            defer { if remainingRows > 0 { remainingRows -= 1 } }
+            return remainingRows > 0
+        }
+    }
+
     /// Diagnostics from the last probe run — scenario failure messages
     /// surface them so the histogram names the next class precisely.
     public private(set) static var lastRootSymbol = ""
@@ -154,7 +173,7 @@ public enum LiveCheckSupport {
         // until quiescent; the cap only guards against ping-pong loops, and
         // the break below exits as soon as a pass adds nothing.
         var strings: [String] = []
-        var firedCount = 0
+        var firedLifecycle: Set<TraceLifecycleIdentity> = []
         for renderPass in 0..<8 {
             // Deliver main-queue hops queued at the END of the previous
             // pass (a dispatch fired INSIDE another dispatch's delivery —
@@ -166,16 +185,19 @@ public enum LiveCheckSupport {
             }
             let root = try renderRoot!()
             var passStrings: [String] = []
-            var lifecycle: [ClosureValue] = []
+            var lifecycle: [TraceLifecycle] = []
             var passActions: [ClosureValue] = []
             try collect(interpreter, root, into: &passStrings, lifecycle: &lifecycle, actions: &passActions)
             let grew = passStrings.count > strings.count
             strings = passStrings
-            let pending = lifecycle.dropFirst(firedCount)
+            let pending = lifecycle.filter {
+                firedLifecycle.insert($0.identity).inserted
+            }
             if pending.isEmpty && !grew {
                 break
             }
-            for closure in pending {
+            for entry in pending {
+                let closure = entry.closure
                 if traceLifecycle {
                     let head = closure.body.description
                         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -191,7 +213,6 @@ public enum LiveCheckSupport {
                 }
                 lastLifecycleFired += 1
             }
-            firedCount = lifecycle.count
             // Drain main-queue hops before the next render pass:
             // `DispatchQueue.main.async` (SwiftUIFlux's Store.dispatch)
             // bridges through Task{@MainActor}, which never runs inside a
@@ -210,7 +231,7 @@ public enum LiveCheckSupport {
             for position in 0..<actionCount {
                 var current: [ClosureValue] = []
                 var discardStrings: [String] = []
-                var discardLifecycle: [ClosureValue] = []
+                var discardLifecycle: [TraceLifecycle] = []
                 try collect(interpreter, try renderRoot!(), into: &discardStrings,
                             lifecycle: &discardLifecycle, actions: &current)
                 guard !current.isEmpty else { break }
@@ -220,7 +241,7 @@ public enum LiveCheckSupport {
                     current[position % current.count], arguments: [])
             }
             var finalStrings: [String] = []
-            var discardLifecycle: [ClosureValue] = []
+            var discardLifecycle: [TraceLifecycle] = []
             var discardActions: [ClosureValue] = []
             try collect(interpreter, try renderRoot!(), into: &finalStrings,
                         lifecycle: &discardLifecycle, actions: &discardActions)
@@ -238,16 +259,23 @@ public enum LiveCheckSupport {
 
     private static func collect(
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
-        lifecycle: inout [ClosureValue],
+        lifecycle: inout [TraceLifecycle],
         actions: inout [ClosureValue],
-        environment: [String: Instance] = [:], depth: Int = 0
+        environment: [String: Instance] = [:], depth: Int = 0,
+        lifecycleEnabled: Bool = true,
+        initialViewport: InitialLifecycleViewport? = nil
     ) throws {
-        // IceCubes' composition (scene → tabs → navigation → timeline →
-        // list → rows) nests past 16; rows vanished silently at the old cap.
-        guard depth < 48 else { return }
+        // Keep a finite guard for malformed recursive Views while allowing
+        // valid type-erased branches to nest beyond ordinary app-shell depth.
+        guard depth < 128 else { return }
         strings.append(contentsOf: node.args)
-        lifecycle.append(contentsOf: node.lifecycle)
+        if lifecycleEnabled {
+            lifecycle.append(contentsOf: node.lifecycle)
+        }
         actions.append(contentsOf: node.actions.values)
+        let initialViewport = node.initialLifecycleRowCapacity.map {
+            InitialLifecycleViewport(capacity: $0)
+        } ?? initialViewport
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         if node.optionalCoverage {
@@ -255,16 +283,20 @@ public enum LiveCheckSupport {
             // body skips (the screen never rendered), never fails the walk.
             do {
                 var optionalStrings: [String] = []
-                var optionalLifecycle: [ClosureValue] = []
+                var optionalLifecycle: [TraceLifecycle] = []
                 var optionalActions: [ClosureValue] = []
                 let probe = TraceNode(kind: node.kind)
                 probe.args = node.args
                 probe.children = node.children
                 probe.instance = node.instance
                 probe.environmentModels = node.environmentModels
+                probe.initialLifecycleRowCapacity =
+                    node.initialLifecycleRowCapacity
                 try collectRequired(interpreter, probe, into: &optionalStrings,
                                     lifecycle: &optionalLifecycle, actions: &optionalActions,
-                                    environment: environment, depth: depth)
+                                    environment: environment, depth: depth,
+                                    lifecycleEnabled: lifecycleEnabled,
+                                    initialViewport: initialViewport)
                 strings += optionalStrings
                 lifecycle += optionalLifecycle
                 actions += optionalActions
@@ -274,17 +306,25 @@ public enum LiveCheckSupport {
             return
         }
         try collectRequired(interpreter, node, into: &strings, lifecycle: &lifecycle,
-                            actions: &actions, environment: environment, depth: depth)
+                            actions: &actions, environment: environment, depth: depth,
+                            lifecycleEnabled: lifecycleEnabled,
+                            initialViewport: initialViewport)
     }
 
     private static func collectRequired(
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
-        lifecycle: inout [ClosureValue],
+        lifecycle: inout [TraceLifecycle],
         actions: inout [ClosureValue],
-        environment: [String: Instance] = [:], depth: Int = 0
+        environment: [String: Instance] = [:], depth: Int = 0,
+        lifecycleEnabled: Bool = true,
+        initialViewport: InitialLifecycleViewport? = nil
     ) throws {
         if let instance = node.instance {
-            if traceLifecycle, ["TimelineView", "TimelineListView", "StatusesListView"].contains(instance.symbol.name) {
+            if traceLifecycle, [
+                "TimelineView", "TimelineListView", "StatusesListView",
+                "StatusRowView", "StatusRowHeaderView", "StatusRowContentView",
+                "StatusRowTextView",
+            ].contains(instance.symbol.name) {
                 let vm = instance.box(for: "viewModel")?.value ?? instance.box(for: "fetcher")?.value ?? .void
                 var vmID = "-"
                 if case .instance(let model) = vm {
@@ -304,11 +344,31 @@ public enum LiveCheckSupport {
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
             try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,
-                        actions: &actions, environment: environment, depth: depth + 1)
+                        actions: &actions, environment: environment, depth: depth + 1,
+                        lifecycleEnabled: lifecycleEnabled,
+                        initialViewport: initialViewport)
+        }
+        if node.kind == "ForEach", let initialViewport {
+            initialViewport.encounteredRows = true
+            for child in node.children {
+                let rowIsVisible = initialViewport.consumeRow()
+                try collect(
+                    interpreter, child, into: &strings,
+                    lifecycle: &lifecycle, actions: &actions,
+                    environment: environment, depth: depth + 1,
+                    lifecycleEnabled: lifecycleEnabled && rowIsVisible,
+                    initialViewport: nil)
+            }
+            return
         }
         for child in node.children {
+            let childConsumesRow = initialViewport?.encounteredRows == true
+            let childIsVisible = childConsumesRow
+                ? initialViewport!.consumeRow() : true
             try collect(interpreter, child, into: &strings, lifecycle: &lifecycle,
-                        actions: &actions, environment: environment, depth: depth + 1)
+                        actions: &actions, environment: environment, depth: depth + 1,
+                        lifecycleEnabled: lifecycleEnabled && childIsVisible,
+                        initialViewport: childConsumesRow ? nil : initialViewport)
         }
     }
 }

@@ -41,4 +41,56 @@ import Testing
         let result = try Interpreter().run(source: source)
         #expect(result.stringValue == "7 ab")
     }
+
+    /// Distilled from SwiftSoup's pointer arithmetic colliding with its
+    /// unrelated `StringBuilder + StringBuilder` declaration. Native Swift
+    /// selects the only overload whose parameter types accept both operands.
+    @Test func globalOperatorOverloadUsesRuntimeArgumentTypes() throws {
+        let source = """
+        struct Cursor {
+            let offset: Int
+        }
+
+        struct Builder {}
+
+        func +(lhs: Cursor, rhs: Int) -> Int {
+            lhs.offset + rhs
+        }
+
+        func +(lhs: Builder, rhs: Builder) -> Int {
+            -100
+        }
+
+        Cursor(offset: 40) + 2
+        """
+
+        let result = try Interpreter().run(source: source)
+        #expect(result.intValue == 42)
+    }
+
+    /// A generic parameter inside a concrete outer type does not erase that
+    /// outer type during overload selection. SwiftSoup declares generic
+    /// collection operators that must not capture unrelated pointer operands.
+    @Test func genericOperatorOverloadRequiresItsConcreteOuterType() throws {
+        let source = """
+        struct Cursor {
+            let offset: Int
+        }
+
+        struct Box<Element> {}
+
+        func +<Element, Other>(lhs: Box<Element>, rhs: Other) -> Int {
+            -100
+        }
+
+        func +(lhs: Cursor, rhs: Int) -> Int {
+            lhs.offset + rhs
+        }
+
+        Cursor(offset: 40) + 2
+        """
+
+        let result = try Interpreter().run(source: source)
+        #expect(result.intValue == 42)
+    }
 }

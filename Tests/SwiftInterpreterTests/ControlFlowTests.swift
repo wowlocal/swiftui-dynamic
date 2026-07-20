@@ -79,6 +79,19 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "abc")
     }
 
+    @Test func forInSubstringIteratesCharacters() throws {
+        let source = """
+        func containsDot(_ value: Substring) -> Bool {
+            for character in value {
+                if character == "." { return true }
+            }
+            return false
+        }
+        containsDot("p.quote-inline"[...])
+        """
+        #expect(try eval(source).boolValue == true)
+    }
+
     @Test func switchCastPatternsRejectUnrelatedSourceTypes() throws {
         let source = """
         protocol Action {}
@@ -128,6 +141,22 @@ private func eval(_ source: String) throws -> RuntimeValue {
         } catch let e as RuntimeError {
             #expect(e.message.contains("budget"))
         }
+    }
+
+    @Test func finiteWhileIterationsHaveIndependentSyntaxSlices() throws {
+        let source = """
+        var cursor = 0
+        var checksum = 0
+        while cursor < 20_000 {
+            checksum += cursor & 7
+            cursor += 1
+        }
+        (cursor, checksum)
+        """
+
+        let tuple = try #require(try eval(source).tupleValue)
+        #expect(tuple.values[0].intValue == 20_000)
+        #expect(tuple.values[1].intValue == 70_000)
     }
 
     @Test func nestedFiniteLoopsReceiveBoundedPerIterationSlices() throws {

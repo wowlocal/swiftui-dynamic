@@ -132,7 +132,8 @@ import Testing
             styleMask: .borderless,
             backing: .buffered,
             defer: false)
-        defer { window.close() }
+        HeadlessWindowTestLifetime.retain(window)
+        defer { HeadlessWindowTestLifetime.retire(window) }
         window.contentView = hostingView
         window.orderFrontRegardless()
 

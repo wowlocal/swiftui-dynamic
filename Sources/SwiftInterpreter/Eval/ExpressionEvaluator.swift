@@ -88,7 +88,7 @@ extension Interpreter {
         // evaluated node, so a ~25-deep `as()` chain was pure overhead.
         switch expr.kind {
         case .integerLiteralExpr:
-            return .native(try integerValue(of: expr.cast(IntegerLiteralExprSyntax.self)))
+            return try integerLiteralValue(of: expr.cast(IntegerLiteralExprSyntax.self))
         case .floatLiteralExpr:
             let lit = expr.cast(FloatLiteralExprSyntax.self)
             guard let d = Double(lit.literal.text.filter { $0 != "_" }) else {
@@ -112,22 +112,39 @@ extension Interpreter {
                     try relocating(element) {
                         try value.setLiteralEntry(
                             try evaluate(element.key, in: env),
-                            to: try evaluate(element.value, in: env))
+                            to: try evaluate(element.value, in: env),
+                            by: collectionStorageValuesAreEqual)
                     }
                 }
             }
             return .native(value)
         case .declReferenceExpr:
             let ref = expr.cast(DeclReferenceExprSyntax.self)
+            // Swift parses the boundless range expression as a bare binary
+            // operator reference. Preserve that language-level shape as a
+            // range value so every collection subscript can apply its
+            // existing whole-slice semantics.
+            if case .binaryOperator("...") = ref.baseName.tokenKind {
+                return .native(RuntimeRangeValue())
+            }
             return try resolveIdentifier(ref.baseName.text, in: env, node: ref)
         case .memberAccessExpr:
             let member = expr.cast(MemberAccessExprSyntax.self)
             guard let base = member.base else {
                 return .implicitMember(member.declName.baseName.text)
             }
-            let baseValue = try evaluate(base, in: env)
+            let memberName = member.declName.baseName.text
+            let baseValue: RuntimeValue
+            if let call = base.as(FunctionCallExprSyntax.self) {
+                baseValue = try evaluateCall(
+                    call,
+                    in: env,
+                    contextualResultMember: memberName)
+            } else {
+                baseValue = try evaluate(base, in: env)
+            }
             return try accessMember(
-                member.declName.baseName.text, on: baseValue, node: member, env: env)
+                memberName, on: baseValue, node: member, env: env)
         case .functionCallExpr:
             return try evaluateCall(expr.cast(FunctionCallExprSyntax.self), in: env)
         case .closureExpr:
@@ -246,14 +263,18 @@ extension Interpreter {
             return .native(KeyPathStub(components: components))
         case .superExpr:
             if case .instance(let instance)? = env.lookup("self") {
-                return .native(SuperReference(instance: instance))
+                let dispatchOwner = lexicalOwnerFrames.reversed()
+                    .compactMap { $0 as? StructSymbol }
+                    .first ?? instance.symbol
+                return .native(SuperReference(
+                    instance: instance, dispatchOwner: dispatchOwner))
             }
             // STATIC contexts (`static func fetchRequest() { super
             // .fetchRequest() }` on an NSManagedObject subclass): the host
             // superclass's statics absorb — a type marker carries the name.
             if case .type(let symbol)? = env.lookup("self"),
                let superName = symbol.superclassName {
-                if case .type(let parent)? = globals.lookup(superName) {
+                if let parent = interpretedSuperclass(of: symbol) {
                     return .type(parent)
                 }
                 return .native(HostTypeMarker(name: superName))
@@ -312,17 +333,42 @@ extension Interpreter {
             // Dynamic casts: give the target type a chance to resolve markers,
             // bridge numerics, and otherwise pass the value through
             // (optimistic `as?` — documented divergence).
-            let value = try evaluate(asExpr.expression, in: env)
-            if asExpr.questionOrExclamationMark?.text == "?", value.isNil {
-                return .none(wrappedTypeName: asExpr.type.trimmedDescription)
-            }
+            var value = try evaluate(asExpr.expression, in: env)
             var typeName = asExpr.type.trimmedDescription
+            let isConditionalCast = asExpr.questionOrExclamationMark?.text == "?"
+            let isForcedCast = asExpr.questionOrExclamationMark?.text == "!"
+            let targetIsOptional = RuntimeOptionalValue.wrappedType(
+                in: typeName) != nil
+            // Dynamic casts from an Optional source to a non-Optional target
+            // open every source wrapper first. `as?` then re-wraps the cast
+            // result, while `as!` returns the concrete payload (or traps for
+            // `.none`) just like native Swift.
+            if (isConditionalCast || isForcedCast), !targetIsOptional {
+                peelSourceOptionals: while true {
+                    switch value.optionalState {
+                    case .some(let wrapped, _):
+                        value = wrapped
+                    case .none:
+                        if isConditionalCast {
+                            return .none(wrappedTypeName: typeName)
+                        }
+                        throw error(
+                            asExpr,
+                            "forced cast cannot unwrap a nil Optional")
+                    case .notOptional:
+                        break peelSourceOptionals
+                    }
+                }
+            }
+            if isConditionalCast, value.isNil {
+                return .none(wrappedTypeName: typeName)
+            }
             if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
             // A DEFINITE mismatch is nil when both sides are declared in
             // this merge (`action as? AsyncAction` over a plain Action —
             // the SwiftUIFlux dispatch genre); host values and unknown
             // types keep the optimistic pass-through divergence.
-            if asExpr.questionOrExclamationMark?.text == "?" {
+            if isConditionalCast {
                 let checkable: Bool
                 switch value {
                 case .instance, .enumCase: checkable = true
@@ -338,14 +384,14 @@ extension Interpreter {
             case "Double", "CGFloat", "TimeInterval":
                 if let d = value.doubleValue {
                     let converted = RuntimeValue.native(d)
-                    return asExpr.questionOrExclamationMark?.text == "?"
+                    return isConditionalCast
                         ? converted.liftedToOptional(wrappedTypeName: typeName)
                         : converted
                 }
             case "Int":
                 if let d = value.doubleValue {
                     let converted = RuntimeValue.native(Int(d))
-                    return asExpr.questionOrExclamationMark?.text == "?"
+                    return isConditionalCast
                         ? converted.liftedToOptional(wrappedTypeName: typeName)
                         : converted
                 }
@@ -353,7 +399,7 @@ extension Interpreter {
                 break
             }
             let casted = try resolveAnnotated(value, typeName: typeName)
-            if asExpr.questionOrExclamationMark?.text == "?" {
+            if isConditionalCast {
                 return casted.liftedToOptional(wrappedTypeName: typeName)
             }
             return casted

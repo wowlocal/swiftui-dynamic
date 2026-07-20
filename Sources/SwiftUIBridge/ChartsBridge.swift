@@ -321,7 +321,7 @@ extension ViewRegistry {
             }
         guard let spec = specs.first else {
             // No bridgeable AxisMarks in the builder — real default axes.
-            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+            if RenderDiagnostics.traceEnabled {
                 FileHandle.standardError.write(Data(
                     "CHART axis builder produced no AxisMarks; default axes render\n".utf8))
             }
@@ -384,7 +384,7 @@ extension ViewRegistry {
 /// ForEach) compose first: modifying the group IS the builder semantics.
 @MainActor
 func chartContentMember(_ name: String, on value: Any) -> RuntimeValue? {
-    if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil,
+    if RenderDiagnostics.traceEnabled,
        name == "foregroundStyle" {
         var detail = String(describing: type(of: value))
         if let chain = value as? ChainedImplicitCall {
@@ -593,7 +593,7 @@ func axisValueMember(_ name: String, on value: Any) -> RuntimeValue? {
                 if case .hostFunction(let function)? = args.positional(0) { return function.name }
                 return nil
             }()
-            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+            if RenderDiagnostics.traceEnabled {
                 FileHandle.standardError.write(Data(
                     "AXISVALUE .as arg=\(String(describing: args.positional(0)).prefix(80)) typeName=\(typeName ?? "nil") asDouble=\(String(describing: axisValue.as(Double.self)))\n".utf8))
             }

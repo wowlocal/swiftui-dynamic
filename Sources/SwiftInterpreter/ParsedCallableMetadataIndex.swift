@@ -149,13 +149,24 @@ nonisolated struct ParsedCallableShape: Sendable {
     let parameterCount: Int
     let labels: Set<String>
     let wildcardCount: Int
+    /// Number of ordinary positional arguments needed to reach the last
+    /// required `_` parameter. This differs from merely counting required
+    /// wildcards when an earlier positional parameter has a default.
+    let minimumUnlabeledCount: Int
     let requiredLabels: [String]
 
     func matches(_ arguments: Interpreter.ArgumentShape) -> Bool {
         guard arguments.count <= parameterCount,
               arguments.labels.isSubset(of: labels),
               arguments.unlabeledCount <= wildcardCount else { return false }
-        var missingRequired = 0
+        // An unlabeled trailing closure can fill one otherwise-missing
+        // parameter, regardless of whether that parameter has an external
+        // label. Share one budget across both positional and labeled holes.
+        var missingRequired = max(
+            0, minimumUnlabeledCount - arguments.unlabeledCount)
+        if missingRequired > arguments.unlabeledTrailingCount {
+            return false
+        }
         for label in requiredLabels where !arguments.labels.contains(label) {
             missingRequired += 1
             if missingRequired > arguments.unlabeledTrailingCount {
@@ -164,6 +175,15 @@ nonisolated struct ParsedCallableShape: Sendable {
         }
         return true
     }
+}
+
+/// A protocol bound attached directly to a generic parameter. Associated-type
+/// and same-type requirements are retained by Swift's source type checker but
+/// cannot identify the root runtime value on their own; direct conformance
+/// bounds can participate in dynamic overload selection without guessing.
+nonisolated struct ParsedGenericConformanceRequirement: Sendable, Hashable {
+    let genericParameterName: String
+    let protocolTypeName: String
 }
 
 nonisolated struct ParsedFunctionMetadata: Sendable {
@@ -175,6 +195,8 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
     let returnTypeName: String?
     let isBuilder: Bool
     let genericParameters: [String]
+    let genericConformanceRequirements:
+        [ParsedGenericConformanceRequirement]
     let attributeNames: [String]
     let modifierNames: [String]
     let sourceFunctionName: String
@@ -202,6 +224,10 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
             || attributeNames.contains(where: { $0.hasSuffix("Builder") })
         genericParameters = declaration.genericParameterClause?.parameters
             .map(\.name.text) ?? []
+        genericConformanceRequirements =
+            parsedGenericConformanceRequirements(
+                genericParameterClause: declaration.genericParameterClause,
+                genericWhereClause: declaration.genericWhereClause)
         self.attributeNames = attributeNames
         self.modifierNames = modifierNames
         sourceFunctionName = declaration.name.text + "("
@@ -227,6 +253,9 @@ nonisolated struct ParsedInitializerMetadata: Sendable {
     let body: CodeBlockSyntax?
     let attributeNames: [String]
     let modifierNames: [String]
+    let genericParameters: [String]
+    let genericConformanceRequirements:
+        [ParsedGenericConformanceRequirement]
     let isAsync: Bool
     let isThrowing: Bool
     let isFailable: Bool
@@ -244,6 +273,12 @@ nonisolated struct ParsedInitializerMetadata: Sendable {
         body = declaration.body
         self.attributeNames = attributeNames
         self.modifierNames = modifierNames
+        genericParameters = declaration.genericParameterClause?.parameters
+            .map(\.name.text) ?? []
+        genericConformanceRequirements =
+            parsedGenericConformanceRequirements(
+                genericParameterClause: declaration.genericParameterClause,
+                genericWhereClause: declaration.genericWhereClause)
         isAsync = declaration.signature.effectSpecifiers?.asyncSpecifier != nil
         isThrowing = declaration.signature.effectSpecifiers?.throwsClause != nil
         isFailable = declaration.optionalMark != nil
@@ -327,7 +362,8 @@ nonisolated struct ParsedSubscriptMetadata: Sendable {
             return ClosureValue.Parameter(
                 name: (parameter.secondName ?? parameter.firstName).text
                     .trimmingCharacters(in: backticks),
-                label: firstName == "_" ? nil : firstName,
+                label: parameter.secondName == nil || firstName == "_"
+                    ? nil : firstName,
                 defaultValue: parameter.defaultValue?.value,
                 typeAnnotation: parameter.type)
         }
@@ -376,6 +412,54 @@ private nonisolated final class ParsedCallableMetadataCollector: SyntaxVisitor {
     }
 }
 
+private nonisolated func parsedGenericConformanceRequirements(
+    genericParameterClause: GenericParameterClauseSyntax?,
+    genericWhereClause: GenericWhereClauseSyntax?
+) -> [ParsedGenericConformanceRequirement] {
+    let genericParameterNames = Set(
+        genericParameterClause?.parameters.map(\.name.text) ?? [])
+    guard !genericParameterNames.isEmpty else { return [] }
+
+    func protocolNames(_ raw: String) -> [String] {
+        raw.split(separator: "&").compactMap { component in
+            var name = component.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            for prefix in ["any ", "some "] where name.hasPrefix(prefix) {
+                name.removeFirst(prefix.count)
+                name = name.trimmingCharacters(in: .whitespaces)
+            }
+            return name.isEmpty ? nil : name
+        }
+    }
+
+    var requirements = Set<ParsedGenericConformanceRequirement>()
+    for parameter in genericParameterClause?.parameters ?? [] {
+        guard let inheritedType = parameter.inheritedType else { continue }
+        for protocolName in protocolNames(
+            inheritedType.trimmedDescription) {
+            requirements.insert(ParsedGenericConformanceRequirement(
+                genericParameterName: parameter.name.text,
+                protocolTypeName: protocolName))
+        }
+    }
+    for requirement in genericWhereClause?.requirements ?? [] {
+        guard let conformance = requirement.requirement.as(
+            ConformanceRequirementSyntax.self) else { continue }
+        let parameterName = conformance.leftType.trimmedDescription
+        guard genericParameterNames.contains(parameterName) else { continue }
+        for protocolName in protocolNames(
+            conformance.rightType.trimmedDescription) {
+            requirements.insert(ParsedGenericConformanceRequirement(
+                genericParameterName: parameterName,
+                protocolTypeName: protocolName))
+        }
+    }
+    return requirements.sorted {
+        ($0.genericParameterName, $0.protocolTypeName)
+            < ($1.genericParameterName, $1.protocolTypeName)
+    }
+}
+
 private nonisolated func parsedAttributeNames(
     _ attributes: AttributeListSyntax
 ) -> [String] {
@@ -412,12 +496,16 @@ private nonisolated func parsedCallableShape(
 ) -> ParsedCallableShape {
     var labels: Set<String> = []
     var wildcardCount = 0
+    var minimumUnlabeledCount = 0
     var requiredLabels: [String] = []
     for parameter in parameters {
         let label = parameter.firstName.text
         labels.insert(label)
         if label == "_" {
             wildcardCount += 1
+            if parameter.defaultValue == nil, parameter.ellipsis == nil {
+                minimumUnlabeledCount = wildcardCount
+            }
         } else if parameter.defaultValue == nil {
             requiredLabels.append(label)
         }
@@ -426,5 +514,6 @@ private nonisolated func parsedCallableShape(
         parameterCount: parameters.count,
         labels: labels,
         wildcardCount: wildcardCount,
+        minimumUnlabeledCount: minimumUnlabeledCount,
         requiredLabels: requiredLabels)
 }

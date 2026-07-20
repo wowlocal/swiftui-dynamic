@@ -2190,7 +2190,8 @@ enum Corpus {
                     Button("Done") {
                         UIApplication.shared.closeKeyboard()
                         UIApplication.shared.rootController().view.tag = 7
-                        status = UIApplication.shared.canOpenURL("https://x.co") ? "openable" : "sandboxed"
+                        let url = URL(string: "https://x.co")!
+                        status = UIApplication.shared.canOpenURL(url) ? "openable" : "sandboxed"
                     }
                 }
             }
@@ -2914,6 +2915,44 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// AppKit storyboard launch semantics: the SDK exposes `mainMenu` as an
+    /// Optional property, but a storyboard-backed application has installed
+    /// its framework-owned menu before delegate launch callbacks run. The
+    /// shell object is inert; its NSApplication/NSMenu surface remains the
+    /// generated AppKit contract.
+    @Test func appKitStoryboardMainMenuPrecedesLaunchHook() throws {
+        let source = """
+        import AppKit
+
+        final class MenuBootstrap {
+            static let shared = MenuBootstrap()
+            let itemCount: Int
+
+            private init() {
+                guard let menu = NSApp.mainMenu else {
+                    fatalError("storyboard menu missing during launch")
+                }
+                itemCount = menu.items.count
+            }
+        }
+
+        class AppDelegate: NSObject, NSApplicationDelegate {
+            func applicationDidFinishLaunching(_ notification: Notification) {
+                _ = MenuBootstrap.shared
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text("menu items \\(MenuBootstrap.shared.itemCount)")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(
+            source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// swift-composable-architecture (iteration 143): enums are namespaces
     /// as often as value types — `TestCase.Cases` is an enum NESTED inside
     /// an enum (the Integration app iterates
@@ -3247,6 +3286,15 @@ enum Corpus {
 
         enum UIBridge {
             static func toggleSidebar() -> String { "toggled" }
+            static func openFileContainer() -> String {
+                UIBridge.presentError(with: "missing")
+            }
+        }
+
+        extension UIBridge {
+            static func presentError(with message: String) -> String {
+                "presented: \\(message)"
+            }
         }
 
         struct GradientView: View {
@@ -3268,6 +3316,7 @@ enum Corpus {
                 let checks = [
                     UIBridge.toggleSidebar() == "toggled",
                     UIBridge.open(url: URL(string: "https://a.b")!) == "opened",
+                    UIBridge.openFileContainer() == "presented: missing",
                 ]
                 if checks.contains(false) { fatalError("namespace union broken") }
                 return GradientView()
@@ -4312,6 +4361,69 @@ enum Corpus {
         }
         """
         let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
+    /// A source extension on an imported host type participates in the
+    /// imported overload family even when it contributes only one method.
+    /// A same-shaped recursive call whose runtime argument is not a metatype
+    /// must fall through to the opaque imported member instead of re-entering
+    /// the source declaration forever.
+    @Test func singleHostExtensionOverloadFallsBackOnRuntimeTypeMismatch() throws {
+        let source = """
+        import Foundation
+
+        struct Model {}
+        struct Request {}
+
+        extension UIImage {
+            func count<T>(for entity: T.Type) -> Int {
+                _ = count(for: Request())
+                return 1
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let image: UIImage = UIImage()
+                return Text("count \\(image.count(for: Model.self))")
+            }
+        }
+        """
+
+        let report = try HeadlessVerifier.verify(
+            source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
+    /// Lexical type recovery belongs only to implicit-self calls. An explicit
+    /// receiver inside one host extension dispatches by that value's own host
+    /// type, even when another host extension declares the same member shape.
+    @Test func explicitHostReceiverDoesNotInheritLexicalExtensionType() throws {
+        let source = """
+        import Foundation
+
+        extension String {
+            func decorated(_ suffix: String) -> String {
+                self + suffix
+            }
+        }
+
+        extension URL {
+            func decorated(_ suffix: String) -> String {
+                "value".decorated(suffix)
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text(URL(string: "https://example.com")!.decorated("!"))
+            }
+        }
+        """
+
+        let report = try HeadlessVerifier.verify(
+            source: source, lazyTopLevelGlobals: true)
         #expect(report.nodeCount >= 1)
     }
 
