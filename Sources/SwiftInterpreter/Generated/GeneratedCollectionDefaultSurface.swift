@@ -33,6 +33,64 @@ enum GeneratedCollectionDefaultSurface {
     }
 
     @MainActor
+    static func nativeForwardIndexSearchMember(
+        named name: String,
+        receiver: RuntimeValue
+    ) -> HostFunction? {
+        if name == "firstIndex" {
+            return HostFunction(name: name) { args, context in
+                if args.arguments.count == 1,
+                   let target = args.labeled("of") {
+                    return try firstNativeForwardIndex(
+                        in: receiver,
+                        where: { try Builtins.areEqual($0, target) })
+                }
+                if args.arguments.count == 1,
+                   let predicate = args.closure(labeled: "where")
+                    ?? args.firstUnlabeledClosure
+                    ?? args.positional(0)?.closureValue {
+                    return try firstNativeForwardIndex(
+                        in: receiver,
+                        where: {
+                            try context.callClosure(
+                                predicate, arguments: [$0]).boolValue == true
+                        })
+                }
+                throw RuntimeError(
+                    message: "generated forward index search argument mismatch")
+            }
+        }
+        return nil
+    }
+
+    @MainActor
+    private static func firstNativeForwardIndex(
+        in receiver: RuntimeValue,
+        where matches: (RuntimeValue) throws -> Bool
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            var index = string.startIndex
+            while index != string.endIndex {
+                if try matches(.native(String(string[index]))) {
+                    return .some(
+                        .native(index), wrappedTypeName: "String.Index")
+                }
+                string.formIndex(after: &index)
+            }
+            return .none(wrappedTypeName: "String.Index")
+        }
+        if let array = receiver.arrayValue {
+            for (index, element) in array.enumerated()
+            where try matches(element) {
+                return .some(.native(index), wrappedTypeName: "Int")
+            }
+            return .none(wrappedTypeName: "Int")
+        }
+        throw RuntimeError(
+            message: "generated forward index search needs an indexed carrier")
+    }
+
+    @MainActor
     static func property(
         named name: String,
         conformances: Set<String>,

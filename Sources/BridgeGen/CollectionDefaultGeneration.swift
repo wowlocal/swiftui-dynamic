@@ -28,6 +28,19 @@ struct OptionalLastRemovalCollectionDefault: Hashable {
     let memberName: String
 }
 
+enum ForwardIndexSearchArgumentKind: String, Hashable {
+    case element
+    case predicate
+}
+
+struct ForwardIndexSearchDefault: Hashable {
+    let protocolName: String
+    let eligibleProtocolNames: [String]
+    let memberName: String
+    let argumentLabel: String?
+    let argumentKind: ForwardIndexSearchArgumentKind
+}
+
 /// A no-result mutation declared directly by the standard-library nominal
 /// that backs one of the interpreter's native collection carriers. The
 /// supported argument shape is deliberately structural: BridgeGen can
@@ -252,6 +265,130 @@ func integerIndexCollectionDefaults(
     return defaults.sorted {
         ($0.protocolName, $0.memberName, $0.argumentLabel ?? "")
             < ($1.protocolName, $1.memberName, $1.argumentLabel ?? "")
+    }
+}
+
+/// Finds Collection-extension searches that walk from startIndex to endIndex,
+/// return the current index on the first match, and otherwise return nil.
+/// Both an equatable element and a throwing predicate are structural argument
+/// shapes; their declaration spellings remain generated metadata.
+func forwardIndexSearchDefaults(
+    in file: SourceFileSyntax?
+) -> [ForwardIndexSearchDefault] {
+    guard let file else { return [] }
+    let refinementEligibility = protocolRefinementEligibility(in: file)
+
+    func canonical(_ raw: String) -> String {
+        normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func containsSubsequence(
+        _ sequence: [String], in tokens: [String]
+    ) -> Bool {
+        guard !sequence.isEmpty, sequence.count <= tokens.count else {
+            return false
+        }
+        for start in 0...(tokens.count - sequence.count)
+        where Array(tokens[start..<(start + sequence.count)]) == sequence {
+            return true
+        }
+        return false
+    }
+
+    let protocolNames = Set(file.statements.compactMap { item -> String? in
+        guard case .decl(let declaration) = item.item,
+              let protocolDeclaration = declaration.as(
+                ProtocolDeclSyntax.self
+              ) else { return nil }
+        return canonical(protocolDeclaration.name.text)
+    })
+
+    func argumentKind(
+        _ parameter: FunctionParameterSyntax
+    ) -> ForwardIndexSearchArgumentKind? {
+        if canonical(parameter.type.trimmedDescription) == "Self.Element" {
+            return .element
+        }
+        guard let functionType = parameter.type.as(FunctionTypeSyntax.self),
+              functionType.parameters.count == 1,
+              let input = functionType.parameters.first,
+              canonical(input.type.trimmedDescription) == "Self.Element",
+              canonical(functionType.returnClause.type.trimmedDescription)
+                == "Bool"
+        else { return nil }
+        return .predicate
+    }
+
+    func rule(
+        protocolName: String,
+        function: FunctionDeclSyntax
+    ) -> ForwardIndexSearchDefault? {
+        let parameters = Array(
+            function.signature.parameterClause.parameters)
+        guard function.modifiers.contains(where: {
+                  $0.name.text == "public"
+              }),
+              !function.modifiers.contains(where: {
+                  $0.name.text == "mutating"
+              }),
+              parameters.count == 1,
+              let parameter = parameters.first,
+              let kind = argumentKind(parameter),
+              canonical(function.signature.returnClause?.type
+                  .trimmedDescription ?? "") == "Self.Index?",
+              let body = function.body
+        else { return nil }
+
+        let tokens = body.tokens(viewMode: .sourceAccurate).map(\.text)
+        let localName = parameter.secondName?.text
+            ?? parameter.firstName.text
+        guard tokens.contains("startIndex"),
+              tokens.contains("endIndex"),
+              tokens.contains(localName),
+              containsSubsequence(
+                ["formIndex", "(", "after", ":"], in: tokens),
+              containsSubsequence(["return", "nil"], in: tokens)
+        else { return nil }
+        if kind == .element, !tokens.contains("==") {
+            return nil
+        }
+
+        return ForwardIndexSearchDefault(
+            protocolName: protocolName,
+            eligibleProtocolNames: refinementEligibility[protocolName]
+                ?? [protocolName],
+            memberName: function.name.text,
+            argumentLabel: parameter.firstName.text == "_"
+                ? nil : parameter.firstName.text,
+            argumentKind: kind)
+    }
+
+    var defaults = Set<ForwardIndexSearchDefault>()
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item,
+              let extensionDeclaration = declaration.as(
+                  ExtensionDeclSyntax.self
+              ) else { continue }
+        let protocolName = canonical(
+            extensionDeclaration.extendedType.trimmedDescription)
+        guard protocolNames.contains(protocolName) else { continue }
+        for member in extensionDeclaration.memberBlock.members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  let discovered = rule(
+                    protocolName: protocolName, function: function)
+            else { continue }
+            defaults.insert(discovered)
+        }
+    }
+
+    return defaults.sorted {
+        (
+            $0.protocolName, $0.memberName, $0.argumentKind.rawValue,
+            $0.argumentLabel ?? ""
+        ) < (
+            $1.protocolName, $1.memberName, $1.argumentKind.rawValue,
+            $1.argumentLabel ?? ""
+        )
     }
 }
 

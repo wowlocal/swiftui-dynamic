@@ -698,6 +698,11 @@ extension Interpreter {
         _ array: [RuntimeValue],
         elementTypeName: String? = nil
     ) throws -> RuntimeValue? {
+        if let generated = GeneratedCollectionDefaultSurface
+            .nativeForwardIndexSearchMember(
+                named: name, receiver: .native(array)) {
+            return .hostFunction(generated)
+        }
         switch name {
         case "count": return .native(array.count)
         case "isEmpty": return .native(array.isEmpty)
@@ -950,23 +955,6 @@ extension Interpreter {
                 }
                 return .native(false)
             })
-        case "firstIndex":
-            return .hostFunction(HostFunction(name: name) { args, ctx in
-                if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
-                    for (index, element) in array.enumerated()
-                    where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
-                        return .some(.native(index), wrappedTypeName: "Int")
-                    }
-                    return .none(wrappedTypeName: "Int")
-                }
-                guard let target = args.labeled("of") else {
-                    throw RuntimeError(message: "firstIndex needs of: or where:")
-                }
-                for (index, element) in array.enumerated() where try Builtins.areEqual(element, target) {
-                    return .some(.native(index), wrappedTypeName: "Int")
-                }
-                return .none(wrappedTypeName: "Int")
-            })
         case "joined":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 let separator = args.labeled("separator")?.stringValue ?? ""
@@ -1136,6 +1124,11 @@ extension Interpreter {
     }
 
     private func stringMember(_ name: String, _ string: String) -> RuntimeValue? {
+        if let generated = GeneratedCollectionDefaultSurface
+            .nativeForwardIndexSearchMember(
+                named: name, receiver: .native(string)) {
+            return .hostFunction(generated)
+        }
         switch name {
         case "count": return .native(string.count)
         case "isEmpty": return .native(string.isEmpty)

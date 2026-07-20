@@ -1535,6 +1535,8 @@ let generatedUnsafeMemorySurface = unsafeMemorySurface(in: stdlibFile)
 let generatedUnicodeDecodingSurface = unicodeDecodingSurface(in: stdlibFile)
 let generatedIntegerIndexCollectionDefaults =
     integerIndexCollectionDefaults(in: stdlibFile)
+let generatedForwardIndexSearchDefaults =
+    forwardIndexSearchDefaults(in: stdlibFile)
 let generatedOptionalElementCollectionDefaults =
     optionalElementCollectionDefaults(in: stdlibFile)
 let generatedOptionalLastRemovalCollectionDefaults =
@@ -2266,6 +2268,91 @@ collectionDefaultsOutput += """
     }
 
     @MainActor
+    static func nativeForwardIndexSearchMember(
+        named name: String,
+        receiver: RuntimeValue
+    ) -> HostFunction? {
+""" + "\n"
+for (memberName, defaults) in Dictionary(
+    grouping: generatedForwardIndexSearchDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: memberName)) {
+            return HostFunction(name: name) { args, context in
+""" + "\n"
+    for rule in defaults {
+        switch rule.argumentKind {
+        case .element:
+            let argument = rule.argumentLabel.map {
+                "args.labeled(\(String(reflecting: $0)))"
+            } ?? "args.positional(0)"
+            collectionDefaultsOutput += """
+                if args.arguments.count == 1,
+                   let target = \(argument) {
+                    return try firstNativeForwardIndex(
+                        in: receiver,
+                        where: { try Builtins.areEqual($0, target) })
+                }
+""" + "\n"
+        case .predicate:
+            let labeledClosure = rule.argumentLabel.map {
+                "args.closure(labeled: \(String(reflecting: $0)))"
+            } ?? "nil"
+            collectionDefaultsOutput += """
+                if args.arguments.count == 1,
+                   let predicate = \(labeledClosure)
+                    ?? args.firstUnlabeledClosure
+                    ?? args.positional(0)?.closureValue {
+                    return try firstNativeForwardIndex(
+                        in: receiver,
+                        where: {
+                            try context.callClosure(
+                                predicate, arguments: [$0]).boolValue == true
+                        })
+                }
+""" + "\n"
+        }
+    }
+    collectionDefaultsOutput += """
+                throw RuntimeError(
+                    message: "generated forward index search argument mismatch")
+            }
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        return nil
+    }
+
+    @MainActor
+    private static func firstNativeForwardIndex(
+        in receiver: RuntimeValue,
+        where matches: (RuntimeValue) throws -> Bool
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            var index = string.startIndex
+            while index != string.endIndex {
+                if try matches(.native(String(string[index]))) {
+                    return .some(
+                        .native(index), wrappedTypeName: "String.Index")
+                }
+                string.formIndex(after: &index)
+            }
+            return .none(wrappedTypeName: "String.Index")
+        }
+        if let array = receiver.arrayValue {
+            for (index, element) in array.enumerated()
+            where try matches(element) {
+                return .some(.native(index), wrappedTypeName: "Int")
+            }
+            return .none(wrappedTypeName: "Int")
+        }
+        throw RuntimeError(
+            message: "generated forward index search needs an indexed carrier")
+    }
+
+    @MainActor
     static func property(
         named name: String,
         conformances: Set<String>,
@@ -2423,6 +2510,7 @@ try collectionDefaultsOutput.write(
 print(
     "wrote \(collectionDefaultsPath) "
         + "(\(generatedIntegerIndexCollectionDefaults.count) methods, "
+        + "\(generatedForwardIndexSearchDefaults.count) index searches, "
         + "\(generatedOptionalElementCollectionDefaults.count) properties, "
         + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "
         + "\(generatedElementGenericCollectionNominals.count) element-generic collections, "

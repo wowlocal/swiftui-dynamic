@@ -33,6 +33,19 @@ import Testing
         #expect(value.stringValue == "2|2")
     }
 
+    @Test func generatedForwardIndexSearchPreservesStringIndices() throws {
+        let source = """
+        let text = "p.quote-inline"
+        let dot = text.firstIndex(of: ".")!
+        let quote = text.firstIndex(where: { $0 == "q" })!
+        "\\(text.distance(from: text.startIndex, to: dot))|"
+            + "\\(text.distance(from: text.startIndex, to: quote))"
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "1|2")
+    }
+
     @Test func generatedIndexMotionServesInterpretedCollection() throws {
         let source = """
         struct Bytes: RandomAccessCollection {
