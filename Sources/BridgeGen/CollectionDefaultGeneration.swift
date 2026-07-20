@@ -708,7 +708,7 @@ func indexSearchDefaults(
             direction: advances ? .forward : .backward)
     }
 
-    var defaults = Set<IndexSearchDefault>()
+    var candidates: [(protocolName: String, function: FunctionDeclSyntax)] = []
     for item in file.statements {
         guard case .decl(let declaration) = item.item,
               let extensionDeclaration = declaration.as(
@@ -718,11 +718,66 @@ func indexSearchDefaults(
             extensionDeclaration.extendedType.trimmedDescription)
         guard protocolNames.contains(protocolName) else { continue }
         for member in extensionDeclaration.memberBlock.members {
-            guard let function = member.decl.as(FunctionDeclSyntax.self),
-                  let discovered = rule(
-                    protocolName: protocolName, function: function)
+            guard let function = member.decl.as(FunctionDeclSyntax.self)
             else { continue }
-            defaults.insert(discovered)
+            candidates.append((protocolName, function))
+        }
+    }
+
+    var defaults = Set(candidates.compactMap {
+        rule(protocolName: $0.protocolName, function: $0.function)
+    })
+
+    // An element-search overload may delegate to an already discovered
+    // predicate search through an equality closure (the stdlib's reverse
+    // Equatable search has this shape). Inherit direction from the called
+    // structural rule; neither overload's declaration name is authored here.
+    let predicateRules = defaults.filter { $0.argumentKind == .predicate }
+    for candidate in candidates {
+        let function = candidate.function
+        let parameters = Array(
+            function.signature.parameterClause.parameters)
+        guard function.modifiers.contains(where: {
+                  $0.name.text == "public"
+              }),
+              !function.modifiers.contains(where: {
+                  $0.name.text == "mutating"
+              }),
+              parameters.count == 1,
+              let parameter = parameters.first,
+              argumentKind(parameter) == .element,
+              canonical(function.signature.returnClause?.type
+                  .trimmedDescription ?? "") == "Self.Index?",
+              let body = function.body
+        else { continue }
+
+        let tokens = body.tokens(viewMode: .sourceAccurate).map(\.text)
+        let localName = parameter.secondName?.text
+            ?? parameter.firstName.text
+        for predicateRule in predicateRules
+        where predicateRule.protocolName == candidate.protocolName {
+            var callPrefix = [predicateRule.memberName, "("]
+            if let label = predicateRule.argumentLabel {
+                callPrefix += [label, ":"]
+            }
+            let directEquality = callPrefix
+                + ["{", "$0", "==", localName, "}", ")"]
+            let reversedEquality = callPrefix
+                + ["{", localName, "==", "$0", "}", ")"]
+            guard containsSubsequence(directEquality, in: tokens)
+                    || containsSubsequence(reversedEquality, in: tokens)
+            else { continue }
+
+            defaults.insert(IndexSearchDefault(
+                protocolName: candidate.protocolName,
+                eligibleProtocolNames:
+                    refinementEligibility[candidate.protocolName]
+                        ?? [candidate.protocolName],
+                memberName: function.name.text,
+                argumentLabel: parameter.firstName.text == "_"
+                    ? nil : parameter.firstName.text,
+                argumentKind: .element,
+                direction: predicateRule.direction))
         }
     }
 

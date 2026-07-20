@@ -263,6 +263,13 @@ enum GeneratedCollectionDefaultSurface {
         if name == "lastIndex" {
             return HostFunction(name: name) { args, context in
                 if args.arguments.count == 1,
+                   let target = args.labeled("of") {
+                    return try firstNativeIndex(
+                        in: receiver,
+                        direction: .backward,
+                        where: { try Builtins.areEqual($0, target) })
+                }
+                if args.arguments.count == 1,
                    let predicate = args.closure(labeled: "where")
                     ?? args.firstUnlabeledClosure
                     ?? args.positional(0)?.closureValue {
