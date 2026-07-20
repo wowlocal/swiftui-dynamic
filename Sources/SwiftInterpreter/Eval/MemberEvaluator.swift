@@ -221,11 +221,8 @@ extension Interpreter {
         if let value = try lexicallyEnclosingTypeMember(name) {
             return value
         }
-        let sourceModuleName = currentProgramMetadata?.sourceModuleName(
-            at: node.positionAfterSkippingLeadingTrivia)
-        if let value = lexicallyVisibleType(
-            named: name, from: lexicalOwnerFrames.last,
-            sourceModuleName: sourceModuleName) {
+        if let module = currentLexicalSourceModuleName,
+           let value = typeValue(named: "\(module).\(name)") {
             return value
         }
         if let box = globals.box(for: name) { return try force(box) }

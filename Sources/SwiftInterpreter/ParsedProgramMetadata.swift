@@ -67,9 +67,20 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
 
     func sourceModuleName(at position: AbsolutePosition) -> String? {
         let offset = position.utf8Offset
-        return sourceModuleRegions.first {
-            $0.utf8Range.contains(offset)
-        }?.moduleName
+        var lowerBound = 0
+        var upperBound = sourceModuleRegions.count
+        while lowerBound < upperBound {
+            let index = lowerBound + (upperBound - lowerBound) / 2
+            let region = sourceModuleRegions[index]
+            if offset < region.utf8Range.lowerBound {
+                upperBound = index
+            } else if offset >= region.utf8Range.upperBound {
+                lowerBound = index + 1
+            } else {
+                return region.moduleName
+            }
+        }
+        return nil
     }
 
     /// Generated start/end directives bracket exact SwiftPM compiler inputs.
