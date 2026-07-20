@@ -157,6 +157,21 @@ extension HostSignature {
 
         if let application = genericApplication(type) {
             switch application.name {
+            case "Binding" where application.arguments.count == 1:
+                guard case .host(let payload) = value,
+                      let binding = payload as? BindingStub else {
+                    return context.hostValue(value, matchesType: type)
+                        ? 14 : nil
+                }
+                return matchType(
+                    binding.box.value,
+                    against: application.arguments[0],
+                    genericNames: genericNames,
+                    bindings: &bindings,
+                    representatives: &representatives,
+                    context: context,
+                    mayBind: mayBind
+                ).map { $0 + 4 }
             case "Optional" where application.arguments.count == 1:
                 let wrappedType = application.arguments[0]
                 switch value.optionalState {
