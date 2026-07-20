@@ -118,6 +118,47 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "string|array")
     }
 
+    @Test func inheritedArrayOverloadKeepsNodeElements() throws {
+        let source = """
+        open class Node {
+            weak var parentNode: Node?
+            var childNodes: [Node] = []
+
+            func addChildren(_ children: Node...) {
+                addChildren(children)
+            }
+
+            func addChildren(_ children: [Node]) {
+                for child in children { reparentChild(child) }
+            }
+
+            func addChildren(_ index: Int, _ children: Node...) {
+                addChildren(index, children)
+            }
+
+            func addChildren(_ index: Int, _ children: [Node]) {
+                for child in children.reversed() {
+                    reparentChild(child)
+                    childNodes.insert(child, at: index)
+                }
+            }
+
+            func reparentChild(_ child: Node) {
+                if child.parentNode == nil { child.parentNode = self }
+            }
+        }
+
+        final class Element: Node {}
+
+        let parent: Node? = Element()
+        let nodes: [Node] = [Element()]
+        parent?.addChildren(0, nodes)
+        parent?.childNodes.count ?? -1
+        """
+
+        #expect(try eval(source).intValue == 1)
+    }
+
     @Test func constrainedGenericExtensionInitializerRequiresConformance() throws {
         let source = """
         extension String {

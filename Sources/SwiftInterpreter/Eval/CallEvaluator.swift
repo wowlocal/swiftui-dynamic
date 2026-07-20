@@ -237,23 +237,23 @@ extension Interpreter {
             // lookup alone would otherwise return `first`'s value and try to
             // call that element. Optional's own members stay on the wrapper.
             var specialBaseValue = baseValue
-            var liftsSpecialResult = false
+            var liftsMemberResult = false
             if !Self.optionalIntrinsicMemberNames.contains(name),
                case .optional(let optional) = baseValue,
                let wrapped = optional.wrapped {
                 specialBaseValue = wrapped
-                liftsSpecialResult = !optional.isImplicitlyUnwrapped
+                liftsMemberResult = !optional.isImplicitlyUnwrapped
             }
             if let result = try specialMemberCall(
                 name, base: baseExpr, baseValue: specialBaseValue,
                 call: call, in: env,
                 declaredBaseTypeName: declaredBaseTypeName) {
-                return liftsSpecialResult ? result.liftedToOptional() : result
+                return liftsMemberResult ? result.liftedToOptional() : result
             }
             // Methods dispatch from call syntax, where labels disambiguate
             // overloads and a host-superclass property can coexist with a
             // same-named subclass method (`window` vs `window(_:)`).
-            if case .instance(let instance) = baseValue,
+            if case .instance(let instance) = specialBaseValue,
                let overloads = instanceMethodOverloads(
                    named: name, on: instance),
                shouldDirectlyDispatchInstanceCall(
@@ -269,8 +269,10 @@ extension Interpreter {
                         // Every fitting overload is already running
                         // (send#StoreTask ↔ send#Task mutual delegation):
                         // absorb the return-type dispatch path we cannot see.
-                        return .native(ChainedImplicitCall(
-                            base: baseValue, member: name, arguments: args))
+                        let result = RuntimeValue.native(ChainedImplicitCall(
+                            base: specialBaseValue, member: name, arguments: args))
+                        return liftsMemberResult
+                            ? result.liftedToOptional() : result
                     }
                     if let method = chooseFunction(
                         from: available,
@@ -281,8 +283,10 @@ extension Interpreter {
                         let closure = makeFunctionClosure(
                             method, body: body,
                             captured: instanceMethodEnvironment(instance))
-                        return try invoke(
+                        let result = try invoke(
                             .closure(closure), with: args, node: call)
+                        return liftsMemberResult
+                            ? result.liftedToOptional() : result
                     }
                 }
             }
