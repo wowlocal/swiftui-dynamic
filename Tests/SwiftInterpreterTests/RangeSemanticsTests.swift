@@ -149,6 +149,16 @@ private func rangeEval(_ source: String) throws -> RuntimeValue {
         #expect(try rangeEval(source).stringValue == "6:20,30:ab:cd")
     }
 
+    @Test func unboundedRangeSubscriptsReturnWholeCollectionSlices() throws {
+        let source = """
+        func copy(_ value: Substring) -> String { String(value) }
+        let text = "p.quote-inline"
+        let numbers = [10, 20, 30]
+        "\\(copy(text[...])):\\(numbers[...].count)"
+        """
+        #expect(try rangeEval(source).stringValue == "p.quote-inline:3")
+    }
+
     @Test func descendingRangeProducesLocatedError() throws {
         do {
             _ = try rangeEval("3..<0")

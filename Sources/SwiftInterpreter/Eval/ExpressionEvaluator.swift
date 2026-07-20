@@ -119,6 +119,13 @@ extension Interpreter {
             return .native(value)
         case .declReferenceExpr:
             let ref = expr.cast(DeclReferenceExprSyntax.self)
+            // Swift parses the boundless range expression as a bare binary
+            // operator reference. Preserve that language-level shape as a
+            // range value so every collection subscript can apply its
+            // existing whole-slice semantics.
+            if case .binaryOperator("...") = ref.baseName.tokenKind {
+                return .native(RuntimeRangeValue())
+            }
             return try resolveIdentifier(ref.baseName.text, in: env, node: ref)
         case .memberAccessExpr:
             let member = expr.cast(MemberAccessExprSyntax.self)
