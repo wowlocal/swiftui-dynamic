@@ -836,16 +836,8 @@ extension Interpreter {
         guard let computed = bodyProperty(of: instance.symbol) else {
             throw RuntimeError(message: "'\(instance.symbol.name)' has no body property")
         }
-        var pushedLexicalOwner = false
-        if let id = computed.declarationID,
-           let owner = lexicalOwner(of: id) {
-            lexicalOwnerFrames.append(owner)
-            pushedLexicalOwner = true
-        }
-        defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
-        let views = try collectBuilderViews(
-            computed.accessor, in: selfEnvironment(.instance(instance)))
-        return try groupViews(views)
+        return try evaluateComputedViewBody(
+            computed, selfValue: .instance(instance), name: "body")
     }
 
     /// Call an instance method with positional arguments — the bridge's entry
@@ -1479,13 +1471,9 @@ extension Interpreter {
             return (owner as? StructSymbol)?.nestedTypes[typeName] != nil
                 || (owner as? EnumSymbol)?.nestedTypes[typeName] != nil
         }()
-        let globalDeclaredType: Bool = {
-            switch globals.lookup(typeName) {
-            case .type, .enumType: return true
-            default: return false
-            }
-        }()
-        if enumSymbols[typeName] == nil, !globalDeclaredType,
+        let visibleDeclaredType = lexicallyVisibleType(
+            named: typeName, from: lexicalOwnerFrames.last)
+        if visibleDeclaredType == nil,
            !ownerHasNested, aliasHeads[typeName] != nil {
             var canonical = typeName
             var hops = 0
@@ -1500,9 +1488,8 @@ extension Interpreter {
         // nested types AND member typealiases first (WebRepositoryTests'
         // `typealias API = TestWebRepository.API` beats whichever same-named
         // nested enum claimed the bare global slot).
-        var scopedEnum = enumSymbols[typeName]
+        var scopedEnum: EnumSymbol?
         var scopedStruct: StructSymbol?
-        if case .type(let symbol)? = globals.lookup(typeName) { scopedStruct = symbol }
         if let qualified = lexicallyVisibleType(
                named: typeName, from: lexicalOwnerFrames.last) {
             switch qualified {

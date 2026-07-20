@@ -377,6 +377,14 @@ extension Interpreter {
         case .enumType(let symbol): typeName = symbol.name
         default: return
         }
+        let identity: ObjectIdentifier
+        switch value {
+        case .type(let symbol): identity = ObjectIdentifier(symbol)
+        case .enumType(let symbol): identity = ObjectIdentifier(symbol)
+        default: return
+        }
+        sourceModuleNamesByNominalIdentity[identity, default: []]
+            .insert(moduleName)
         globals.define("\(moduleName).\(typeName)", value)
     }
 

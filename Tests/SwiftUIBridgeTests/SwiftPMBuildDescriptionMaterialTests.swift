@@ -158,11 +158,127 @@ struct SwiftPMBuildDescriptionMaterialTests {
         #expect(merged.contains("// swift-interpreter-module Dependency"))
         #expect(merged.contains(
             "// swift-interpreter-source-module Dependency"))
-        #expect(!merged.contains("import Dependency"))
+        #expect(!merged.contains("\nimport Dependency\n"))
         try interpreter.run(source: merged)
         #expect(interpreter.globals.lookup("dependencyResult")?.stringValue
             == "resolved-dependency")
         #expect(interpreter.globals.lookup("dependencyModelValue")?.intValue
             == 42)
+    }
+
+    /// IceCubes' StatusKit imports SwiftUI.Text while the flattened dependency
+    /// slice also contains Markdown.Text. A native two-module probe prints
+    /// "visible": merely compiling HiddenMarkdown beside App does not import
+    /// its nominal into App's lexical scope.
+    @Test
+    func unqualifiedNominalRespectsFileImportsAcrossFlattenedModules() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiftpm-import-visibility-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let visible = root.appendingPathComponent("VisibleUI/Text.swift")
+        let app = root.appendingPathComponent("App/Screen.swift")
+        let hidden = root.appendingPathComponent("HiddenMarkdown/Text.swift")
+        for file in [visible, app, hidden] {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+        }
+        try """
+            struct Text {
+                let marker: String
+                init(_ value: String) { marker = "visible" }
+            }
+            """.write(to: visible, atomically: true, encoding: .utf8)
+        try """
+            import VisibleUI
+            struct Screen {
+                var selectedTextMarker: String { Text("").marker }
+            }
+            """.write(to: app, atomically: true, encoding: .utf8)
+        try """
+            struct Text {
+                let marker: String
+                init(_ value: String) { marker = "hidden" }
+            }
+            """.write(to: hidden, atomically: true, encoding: .utf8)
+
+        let merged = ProjectMaterial.mergedSource(
+            files: [visible.path, app.path, hidden.path],
+            sourceModules: [
+                visible.path: "VisibleUI",
+                hidden.path: "HiddenMarkdown",
+            ])
+        #expect(!merged.contains("\nimport VisibleUI\n"))
+        #expect(merged.contains(
+            "// swift-interpreter-source-import VisibleUI"))
+        #expect(merged.contains("// swift-interpreter-source-file"))
+        let result = try Interpreter().run(
+            source: merged + "\nScreen().selectedTextMarker")
+        #expect(result.stringValue == "visible")
+    }
+
+    @Test
+    func hostImportedNominalWinsOverUnimportedFlattenedSourceType() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("host-import-visibility-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let app = root.appendingPathComponent("App/Screen.swift")
+        let hidden = root.appendingPathComponent("HiddenMarkdown/Text.swift")
+        for file in [app, hidden] {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+        }
+        try """
+            import SwiftUI
+            struct Screen: View {
+                var body: some View { Text("visible-host") }
+            }
+            """.write(to: app, atomically: true, encoding: .utf8)
+        try """
+            struct Text {
+                init(_ value: String) {}
+            }
+            """.write(to: hidden, atomically: true, encoding: .utf8)
+
+        let merged = ProjectMaterial.mergedSource(
+            files: [app.path, hidden.path],
+            sourceModules: [hidden.path: "HiddenMarkdown"])
+        let strings = try LiveCheckSupport.renderedStrings(source: merged)
+        #expect(strings.contains("visible-host"))
+    }
+
+    @Test
+    func appendedInlineSourceRetainsItsOwnHostImports() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("inline-import-visibility-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let hidden = root.appendingPathComponent("HiddenMarkdown/Text.swift")
+        try FileManager.default.createDirectory(
+            at: hidden.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try """
+            struct Text {
+                init(_ value: String) {}
+            }
+            """.write(to: hidden, atomically: true, encoding: .utf8)
+
+        let dependency = ProjectMaterial.mergedSource(
+            files: [hidden.path],
+            sourceModules: [hidden.path: "HiddenMarkdown"])
+        let probe = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+            struct ProbeView: View {
+                var body: some View { Text("inline-visible-host") }
+            }
+            """,
+            moduleName: "Probe")
+        let strings = try LiveCheckSupport.renderedStrings(
+            source: dependency + probe)
+
+        #expect(strings.contains("inline-visible-host"))
     }
 }

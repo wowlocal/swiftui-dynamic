@@ -404,11 +404,15 @@ public enum ProjectMaterial {
         var merged = ""
         var imports: Set<String> = []
         for source in manifest.sources {
+            var sourceImports: Set<String> = []
             let stripped = interpreterProjection(
                 of: source.source,
-                recordingImportsIn: &imports
+                recordingImportsIn: &sourceImports
             )
-            merged += sourceModuleStart(manifest.buildTarget.moduleName)
+            imports.formUnion(sourceImports)
+            merged += sourceRegionStart(
+                moduleName: manifest.buildTarget.moduleName,
+                imports: sourceImports)
                 + "\n// FILE: \(source.fileName)\n" + stripped + "\n"
                 + sourceModuleEnd
         }
@@ -449,27 +453,48 @@ public enum ProjectMaterial {
             {
                 continue
             }
+            var sourceImports: Set<String> = []
             let stripped = interpreterProjection(
                 of: content,
-                recordingImportsIn: &imports
+                recordingImportsIn: &sourceImports
             )
+            imports.formUnion(sourceImports)
             let canonicalPath = URL(fileURLWithPath: path)
                 .standardizedFileURL.resolvingSymlinksInPath().path
             let moduleName = sourceModules[canonicalPath]
                 ?? sourceModules[path]
-            if let moduleName {
-                merged += sourceModuleStart(moduleName)
-            }
+            merged += sourceRegionStart(
+                moduleName: moduleName, imports: sourceImports)
             merged += "\n// FILE: \(URL(fileURLWithPath: path).lastPathComponent)\n"
                 + stripped + "\n"
-            if moduleName != nil {
-                merged += sourceModuleEnd
-            }
+            merged += sourceModuleEnd
         }
         merged += moduleProvenance(for: imports)
         // Source-distributed state libraries the app imports but doesn't
         // vendor get their distilled core appended (LibraryShims).
         merged += LibraryShims.shims(importedIn: imports, mergedSource: merged)
+        return merged
+    }
+
+    /// Project one in-memory Swift file with the same import and module
+    /// provenance as disk-backed compiler inputs. Instruments can append the
+    /// result to a larger merge without placing the inline file in the
+    /// lexical scope of whichever source happened to precede it.
+    public static func mergedSource(
+        source: String,
+        moduleName: String? = nil
+    ) -> String {
+        var imports: Set<String> = []
+        let stripped = interpreterProjection(
+            of: source,
+            recordingImportsIn: &imports)
+        var merged = sourceRegionStart(
+            moduleName: moduleName, imports: imports)
+        merged += "\n// FILE: <inline>.swift\n" + stripped + "\n"
+        merged += sourceModuleEnd
+        merged += moduleProvenance(for: imports)
+        merged += LibraryShims.shims(
+            importedIn: imports, mergedSource: merged)
         return merged
     }
 
@@ -486,8 +511,18 @@ public enum ProjectMaterial {
     private static let sourceModuleEnd =
         "\n// swift-interpreter-source-module-end\n"
 
-    private static func sourceModuleStart(_ moduleName: String) -> String {
-        "\n// swift-interpreter-source-module \(moduleName)"
+    private static func sourceRegionStart(
+        moduleName: String?,
+        imports: Set<String>
+    ) -> String {
+        let provenance = imports.sorted().map {
+            "// swift-interpreter-source-import \($0)"
+        }.joined(separator: "\n")
+        let start = moduleName.map {
+            "// swift-interpreter-source-module \($0)"
+        } ?? "// swift-interpreter-source-file"
+        return "\n" + start
+            + (provenance.isEmpty ? "" : "\n" + provenance)
     }
 
     fileprivate static func isSafeProjectRelativeSwiftPath(
@@ -571,7 +606,7 @@ public enum ProjectMaterial {
         from mergedSource: String
     ) -> [CompilerPreflightSource]? {
         let marker = "// FILE: "
-        let sourceModuleMarker = "// swift-interpreter-source-module "
+        let sourceRegionMarker = "// swift-interpreter-source-"
         var sections: [(fileName: String, lines: [Substring])] = []
         var currentFileName: String?
         var currentLines: [Substring] = []
@@ -589,7 +624,7 @@ public enum ProjectMaterial {
             } else if currentLines.contains(where: {
                 let prefix = $0.trimmingCharacters(in: .whitespaces)
                 return !prefix.isEmpty
-                    && !prefix.hasPrefix(sourceModuleMarker)
+                    && !prefix.hasPrefix(sourceRegionMarker)
             }) {
                 return nil
             }

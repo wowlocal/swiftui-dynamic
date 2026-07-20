@@ -66,6 +66,10 @@ final class EvaluationTaskContext {
     /// intentional: a closure outside generated source-module regions must
     /// not inherit an unrelated caller's module lookup scope.
     var lexicalSourceModuleFrames: [String?] = []
+    /// Exact file import sets parallel to `lexicalSourceModuleFrames`.
+    /// Optional frames deliberately prevent a callback declared outside a
+    /// source-module region from inheriting its caller's imports.
+    var lexicalSourceImportFrames: [Set<String>?] = []
     /// Static executor context of the currently evaluated source declaration.
     /// A `nil` frame is intentional: a plain/nonisolated declaration may run
     /// dynamically on MainActor without making closures formed in its body
@@ -124,6 +128,7 @@ final class EvaluationTaskContext {
             && programStateFrames.isEmpty
             && lexicalOwnerFrames.isEmpty
             && lexicalSourceModuleFrames.isEmpty
+            && lexicalSourceImportFrames.isEmpty
             && lexicalExecutorFrames.isEmpty
             && expectedAnnotationStack.isEmpty
             && enclosingReturnAnnotations.isEmpty
@@ -173,6 +178,7 @@ final class EvaluationTaskContext {
         programStateFrames.removeAll(keepingCapacity: false)
         lexicalOwnerFrames.removeAll(keepingCapacity: false)
         lexicalSourceModuleFrames.removeAll(keepingCapacity: false)
+        lexicalSourceImportFrames.removeAll(keepingCapacity: false)
         lexicalExecutorFrames.removeAll(keepingCapacity: false)
         expectedAnnotationStack.removeAll(keepingCapacity: false)
         enclosingReturnAnnotations.removeAll(keepingCapacity: false)

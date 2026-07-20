@@ -57,6 +57,30 @@ import SwiftInterpreter
         #expect((tuple.values[1].intValue ?? 0) > 1000)
     }
 
+    @Test func generatedWritableFoundationReferencePropertyRoundTrips() throws {
+        #expect(
+            GeneratedFoundationReferenceProperties.declarationsByKey[
+                "URLSession.sessionDescription"]
+                == "var URLSession.sessionDescription: String? { get set }")
+        let box = URLSessionBox(generatedReferenceTypeName: "URLSession")
+        #expect(box.generatedReferenceTypeName == "URLSession")
+        #expect(
+            GeneratedReferencePropertySupport.property(
+                "sessionDescription", on: box) != nil)
+        #expect(
+            ViewRegistry().hostProperty(
+                named: "sessionDescription", on: box) != nil)
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+            let session = URLSession(
+                configuration: URLSessionConfiguration.default)
+            session.sessionDescription = "Nuke URLSession"
+            session.sessionDescription
+            """)
+        #expect(
+            result.unwrappedOptionalOrSelf?.stringValue
+                == "Nuke URLSession")
+    }
+
     @Test func replayMissThrowsHonestly() throws {
         NetworkBridge.policy = .replay(fixturesDirectory: Self.fixturesRoot + "/tmdb-popular")
         defer { NetworkBridge.policy = .absorbed }
