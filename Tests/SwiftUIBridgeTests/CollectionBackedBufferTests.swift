@@ -694,6 +694,29 @@ import Testing
             .contains("Hello there friend") == true)
     }
 
+    /// IceCubes' `HTMLString.init(from:)` performs DOM edits before its
+    /// text-only clean. Pin that complete pipeline to the first recorded
+    /// public status, whose leading symbol exercises SwiftSoup's UTF-8 path.
+    @Test func swiftSoupRecordedStatusPipelineRetainsText() throws {
+        let value = try swiftSoupEvaluation(
+            "<p>⭕Des familles ont été prises dans des nuages de gaz "
+                + "lacrymogènes lancés par la police lors d’un tournoi de foot.</p>",
+            suffix: """
+            document.outputSettings(
+                OutputSettings().prettyPrint(pretty: false))
+            try document.select("p.quote-inline").remove()
+            try document.select("br").after("\\n")
+            try document.select("p").after("\\n\\n")
+            let html = try document.html()
+            let text = try SwiftSoup.clean(
+                html, "", Whitelist.none(),
+                OutputSettings().prettyPrint(pretty: false)) ?? ""
+            (try? Entities.unescape(text)) ?? text
+            """)
+        #expect(value.stringValue?
+            .contains("⭕Des familles ont été prises") == true)
+    }
+
     private func swiftSoupText(_ html: String) throws -> String? {
         try swiftSoupEvaluation(
             html, suffix: "try document.text()\n").stringValue
