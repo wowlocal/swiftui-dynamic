@@ -679,6 +679,21 @@ import Testing
         #expect(value.stringValue == "alpha")
     }
 
+    /// IceCubes' `HTMLString.init(from:)` sanitizes parsed markup through a
+    /// text-only whitelist before assigning `asRawText`. SwiftSoup's native
+    /// CleanerTest pins this same contract: discarded elements retain their
+    /// descendant text nodes.
+    @Test func swiftSoupTextOnlyCleanerRetainsDescendantText() throws {
+        let value = try swiftSoupEvaluation(
+            "<p>Hello <strong>there</strong> friend</p>", suffix: """
+            try SwiftSoup.clean(
+                try document.html(), "", Whitelist.none(),
+                OutputSettings().prettyPrint(pretty: false))
+            """)
+        #expect(value.unwrappedOptionalOrSelf?.stringValue?
+            .contains("Hello there friend") == true)
+    }
+
     private func swiftSoupText(_ html: String) throws -> String? {
         try swiftSoupEvaluation(
             html, suffix: "try document.text()\n").stringValue
