@@ -225,8 +225,13 @@ enum GeneratedCollectionDefaultSurface {
             message: "generated limited index motion needs an indexed carrier")
     }
 
+    private enum NativeIndexSearchDirection {
+        case forward
+        case backward
+    }
+
     @MainActor
-    static func nativeForwardIndexSearchMember(
+    static func nativeIndexSearchMember(
         named name: String,
         receiver: RuntimeValue
     ) -> HostFunction? {
@@ -234,53 +239,90 @@ enum GeneratedCollectionDefaultSurface {
             return HostFunction(name: name) { args, context in
                 if args.arguments.count == 1,
                    let target = args.labeled("of") {
-                    return try firstNativeForwardIndex(
+                    return try firstNativeIndex(
                         in: receiver,
+                        direction: .forward,
                         where: { try Builtins.areEqual($0, target) })
                 }
                 if args.arguments.count == 1,
                    let predicate = args.closure(labeled: "where")
                     ?? args.firstUnlabeledClosure
                     ?? args.positional(0)?.closureValue {
-                    return try firstNativeForwardIndex(
+                    return try firstNativeIndex(
                         in: receiver,
+                        direction: .forward,
                         where: {
                             try context.callClosure(
                                 predicate, arguments: [$0]).boolValue == true
                         })
                 }
                 throw RuntimeError(
-                    message: "generated forward index search argument mismatch")
+                    message: "generated index search argument mismatch")
+            }
+        }
+        if name == "lastIndex" {
+            return HostFunction(name: name) { args, context in
+                if args.arguments.count == 1,
+                   let predicate = args.closure(labeled: "where")
+                    ?? args.firstUnlabeledClosure
+                    ?? args.positional(0)?.closureValue {
+                    return try firstNativeIndex(
+                        in: receiver,
+                        direction: .backward,
+                        where: {
+                            try context.callClosure(
+                                predicate, arguments: [$0]).boolValue == true
+                        })
+                }
+                throw RuntimeError(
+                    message: "generated index search argument mismatch")
             }
         }
         return nil
     }
 
     @MainActor
-    private static func firstNativeForwardIndex(
+    private static func firstNativeIndex(
         in receiver: RuntimeValue,
+        direction: NativeIndexSearchDirection,
         where matches: (RuntimeValue) throws -> Bool
     ) throws -> RuntimeValue {
         if let string = receiver.stringValue {
-            var index = string.startIndex
-            while index != string.endIndex {
-                if try matches(.native(String(string[index]))) {
-                    return .some(
-                        .native(index), wrappedTypeName: "String.Index")
+            switch direction {
+            case .forward:
+                var index = string.startIndex
+                while index != string.endIndex {
+                    if try matches(.native(String(string[index]))) {
+                        return .some(
+                            .native(index), wrappedTypeName: "String.Index")
+                    }
+                    string.formIndex(after: &index)
                 }
-                string.formIndex(after: &index)
+            case .backward:
+                var index = string.endIndex
+                while index != string.startIndex {
+                    string.formIndex(before: &index)
+                    if try matches(.native(String(string[index]))) {
+                        return .some(
+                            .native(index), wrappedTypeName: "String.Index")
+                    }
+                }
             }
             return .none(wrappedTypeName: "String.Index")
         }
         if let array = receiver.arrayValue {
-            for (index, element) in array.enumerated()
-            where try matches(element) {
-                return .some(.native(index), wrappedTypeName: "Int")
+            let indices: AnySequence<Int> = switch direction {
+            case .forward: AnySequence(array.indices)
+            case .backward: AnySequence(array.indices.reversed())
+            }
+            for index in indices where try matches(array[index]) {
+                return .some(
+                    .native(index), wrappedTypeName: "Int")
             }
             return .none(wrappedTypeName: "Int")
         }
         throw RuntimeError(
-            message: "generated forward index search needs an indexed carrier")
+            message: "generated index search needs an indexed carrier")
     }
 
     @MainActor

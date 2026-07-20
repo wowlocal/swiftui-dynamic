@@ -48,17 +48,23 @@ struct RequiredEndpointRemovalCollectionDefault: Hashable {
     let endpoint: RequiredEndpointRemoval
 }
 
-enum ForwardIndexSearchArgumentKind: String, Hashable {
+enum IndexSearchArgumentKind: String, Hashable {
     case element
     case predicate
 }
 
-struct ForwardIndexSearchDefault: Hashable {
+enum IndexSearchDirection: String, Hashable {
+    case forward
+    case backward
+}
+
+struct IndexSearchDefault: Hashable {
     let protocolName: String
     let eligibleProtocolNames: [String]
     let memberName: String
     let argumentLabel: String?
-    let argumentKind: ForwardIndexSearchArgumentKind
+    let argumentKind: IndexSearchArgumentKind
+    let direction: IndexSearchDirection
 }
 
 enum NativeIndexMotionKind: String, Hashable {
@@ -601,13 +607,15 @@ func nativeIndexMotionDefaults(
     }
 }
 
-/// Finds Collection-extension searches that walk from startIndex to endIndex,
-/// return the current index on the first match, and otherwise return nil.
-/// Both an equatable element and a throwing predicate are structural argument
-/// shapes; their declaration spellings remain generated metadata.
-func forwardIndexSearchDefaults(
+/// Finds Collection-extension searches that walk between the collection's
+/// endpoints, return the current index on the first match, and otherwise
+/// return nil. The direction comes from `formIndex(after:)` or
+/// `formIndex(before:)`; both an equatable element and a throwing predicate
+/// are structural argument shapes. Declaration spellings remain generated
+/// metadata.
+func indexSearchDefaults(
     in file: SourceFileSyntax?
-) -> [ForwardIndexSearchDefault] {
+) -> [IndexSearchDefault] {
     guard let file else { return [] }
     let refinementEligibility = protocolRefinementEligibility(in: file)
 
@@ -638,7 +646,7 @@ func forwardIndexSearchDefaults(
 
     func argumentKind(
         _ parameter: FunctionParameterSyntax
-    ) -> ForwardIndexSearchArgumentKind? {
+    ) -> IndexSearchArgumentKind? {
         if canonical(parameter.type.trimmedDescription) == "Self.Element" {
             return .element
         }
@@ -655,7 +663,7 @@ func forwardIndexSearchDefaults(
     func rule(
         protocolName: String,
         function: FunctionDeclSyntax
-    ) -> ForwardIndexSearchDefault? {
+    ) -> IndexSearchDefault? {
         let parameters = Array(
             function.signature.parameterClause.parameters)
         guard function.modifiers.contains(where: {
@@ -675,28 +683,32 @@ func forwardIndexSearchDefaults(
         let tokens = body.tokens(viewMode: .sourceAccurate).map(\.text)
         let localName = parameter.secondName?.text
             ?? parameter.firstName.text
+        let advances = containsSubsequence(
+            ["formIndex", "(", "after", ":"], in: tokens)
+        let retreats = containsSubsequence(
+            ["formIndex", "(", "before", ":"], in: tokens)
         guard tokens.contains("startIndex"),
               tokens.contains("endIndex"),
               tokens.contains(localName),
-              containsSubsequence(
-                ["formIndex", "(", "after", ":"], in: tokens),
+              advances != retreats,
               containsSubsequence(["return", "nil"], in: tokens)
         else { return nil }
         if kind == .element, !tokens.contains("==") {
             return nil
         }
 
-        return ForwardIndexSearchDefault(
+        return IndexSearchDefault(
             protocolName: protocolName,
             eligibleProtocolNames: refinementEligibility[protocolName]
                 ?? [protocolName],
             memberName: function.name.text,
             argumentLabel: parameter.firstName.text == "_"
                 ? nil : parameter.firstName.text,
-            argumentKind: kind)
+            argumentKind: kind,
+            direction: advances ? .forward : .backward)
     }
 
-    var defaults = Set<ForwardIndexSearchDefault>()
+    var defaults = Set<IndexSearchDefault>()
     for item in file.statements {
         guard case .decl(let declaration) = item.item,
               let extensionDeclaration = declaration.as(
@@ -716,10 +728,12 @@ func forwardIndexSearchDefaults(
 
     return defaults.sorted {
         (
-            $0.protocolName, $0.memberName, $0.argumentKind.rawValue,
+            $0.protocolName, $0.memberName, $0.direction.rawValue,
+            $0.argumentKind.rawValue,
             $0.argumentLabel ?? ""
         ) < (
-            $1.protocolName, $1.memberName, $1.argumentKind.rawValue,
+            $1.protocolName, $1.memberName, $1.direction.rawValue,
+            $1.argumentKind.rawValue,
             $1.argumentLabel ?? ""
         )
     }

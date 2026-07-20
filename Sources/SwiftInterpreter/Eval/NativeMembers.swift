@@ -711,7 +711,7 @@ extension Interpreter {
             return .hostFunction(generated)
         }
         if let generated = GeneratedCollectionDefaultSurface
-            .nativeForwardIndexSearchMember(
+            .nativeIndexSearchMember(
                 named: name, receiver: .native(array)) {
             return .hostFunction(generated)
         }
@@ -1126,7 +1126,7 @@ extension Interpreter {
             return .hostFunction(generated)
         }
         if let generated = GeneratedCollectionDefaultSurface
-            .nativeForwardIndexSearchMember(
+            .nativeIndexSearchMember(
                 named: name, receiver: .native(string)) {
             return .hostFunction(generated)
         }

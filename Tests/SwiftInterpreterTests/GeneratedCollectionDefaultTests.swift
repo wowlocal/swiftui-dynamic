@@ -95,6 +95,21 @@ import Testing
         #expect(value.stringValue == "1|2")
     }
 
+    /// SwiftSoup's XML stack lookup uses the BidirectionalCollection default
+    /// that walks from `endIndex` with `formIndex(before:)`.
+    @Test func generatedBackwardIndexSearchPreservesCarrierIndices() throws {
+        let source = """
+        let values = [1, 2, 3, 2]
+        let lastTwo = values.lastIndex(where: { $0 == 2 })!
+        let text = "abca"
+        let lastA = text.lastIndex(where: { $0 == "a" })!
+        "\\(lastTwo)|\\(text.distance(from: text.startIndex, to: lastA))"
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "3|3")
+    }
+
     @Test func generatedNativeIndexMotionPreservesCarrierIndices() throws {
         let source = """
         let text = "p.quote-inline"
