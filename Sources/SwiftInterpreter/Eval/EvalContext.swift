@@ -426,8 +426,13 @@ extension Interpreter: EvalContext {
     public func hostValue(
         _ value: RuntimeValue, matchesType typeName: String
     ) -> Bool {
-        HostRuntimeTypeSystem.matches(value, type: typeName)
-            || valueIsType(value, typeName)
+        if HostRuntimeTypeSystem.matches(value, type: typeName)
+            || valueIsType(value, typeName) {
+            return true
+        }
+        guard case .host(let any) = value else { return false }
+        return registry?.hostValue(
+            any, matchesImportedType: typeName) == true
     }
 
     public func hostValue(

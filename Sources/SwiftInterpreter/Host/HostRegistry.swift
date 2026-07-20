@@ -490,6 +490,11 @@ public protocol HostRegistry: AnyObject {
     /// a recorded node → its constructor name) so user extensions of host
     /// types dispatch on stubs. Nil when unknown.
     func hostTypeName(of value: Any) -> String?
+    /// Registry-owned imported-type matching. This complements the core's
+    /// primitive/source type system for generated SDK values and for opaque
+    /// imported reference bags whose concrete class is unavailable on the
+    /// interpreter's host platform.
+    func hostValue(_ value: Any, matchesImportedType typeName: String) -> Bool
     /// Native ABI metadata for imported C/SDK value types. The interpreter
     /// derives source-struct layouts itself, but only the compiled host bridge
     /// can answer this without guessing for types it imports.
@@ -527,6 +532,9 @@ extension HostRegistry {
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostGlobal(named name: String) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
+    public func hostValue(
+        _ value: Any, matchesImportedType typeName: String
+    ) -> Bool { false }
     public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }
     public func hostProtocolCandidates(of value: Any) -> [String] { [] }
     public func hostMutatedCopy(

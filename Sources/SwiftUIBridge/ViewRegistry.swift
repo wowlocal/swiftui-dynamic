@@ -93,6 +93,16 @@ public final class ViewRegistry: HostRegistry {
             named: name, applicationShells: applicationShells)
     }
 
+    public func hostValue(
+        _ value: Any, matchesImportedType typeName: String
+    ) -> Bool {
+        if GeneratedPlatformBridge.value(value, matchesType: typeName) {
+            return true
+        }
+        guard value is UIKitStub else { return false }
+        return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
+    }
+
     public func hostMemberHasWorkerOperation(
         _ name: String,
         onStaticMember staticMember: String,

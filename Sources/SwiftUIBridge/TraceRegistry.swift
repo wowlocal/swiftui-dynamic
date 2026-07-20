@@ -91,6 +91,17 @@ public final class TraceRegistry: HostRegistry {
             named: name, applicationShells: applicationShells)
     }
 
+    public func hostValue(
+        _ value: Any, matchesImportedType typeName: String
+    ) -> Bool {
+        if GeneratedPlatformBridge.value(value, matchesType: typeName) {
+            return true
+        }
+        guard let node = value as? TraceNode,
+              node.absorbsUnknownMembers else { return false }
+        return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
+    }
+
     public func cFunction(named name: String) -> HostFunction? {
         if let memory = GeneratedCMemoryBridge.function(named: name) {
             return memory

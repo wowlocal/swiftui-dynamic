@@ -403,6 +403,33 @@ import AppKit
     }
 
 #if canImport(AppKit)
+    @Test func oppositePlatformReferenceArgumentsAcceptGeneratedAndOpaqueImportedValues() throws {
+        let source = """
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+        parent.addSubview(UIView(frame: CGRect(x: 1, y: 1, width: 2, height: 2)))
+        parent.addSubview(ExternalController().contentView)
+        true
+        """
+
+        for registry: any HostRegistry in [ViewRegistry(), TraceRegistry()] {
+            let result = try Interpreter(registry: registry).run(source: source)
+            #expect(result.boolValue == true)
+        }
+    }
+
+    @Test func opaqueImportedReferencesDoNotBypassNativeReferenceTypes() throws {
+        let source = """
+        let parent = NSView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+        parent.addSubview(ExternalController().contentView)
+        """
+
+        for registry: any HostRegistry in [ViewRegistry(), TraceRegistry()] {
+            #expect(throws: RuntimeError.self) {
+                _ = try Interpreter(registry: registry).run(source: source)
+            }
+        }
+    }
+
     @Test func oppositePlatformImplicitStaticFactoryUsesReturnTypeContext() throws {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

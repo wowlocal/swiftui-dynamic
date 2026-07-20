@@ -879,6 +879,45 @@ enum GeneratedPlatformBridge {
         owningFramework(ofType: type, preferring: framework) != nil
     }
 
+    /// Match a concrete generated carrier through its metadata-derived
+    /// superclass graph. This is registry type-system data, not Swift type
+    /// identity: opposite-platform values deliberately have no SDK payload.
+    static func value(_ value: Any, matchesType rawType: String) -> Bool {
+        guard let platform = value as? GeneratedPlatformValue else {
+            return false
+        }
+        let expected = generatedNominalName(rawType)
+        return typeCandidates(
+            framework: platform.framework, type: platform.typeName
+        ).contains { generatedNominalName($0) == expected }
+    }
+
+    /// An opaque imported object may stand in for a generated reference
+    /// nominal only when that framework is absent on this host. Generated
+    /// dispatch then takes its typed inert path and never attempts a native
+    /// cast. Value types stay strict because their observable data shape is
+    /// encoded by the interface and must be coercible.
+    static func acceptsOpaqueReference(for rawType: String) -> Bool {
+        let type = generatedNominalName(rawType)
+        guard let owner = owningFramework(
+            ofType: type, preferring: frameworkPreference[0]
+        ) else { return false }
+        return !frameworkIsNative(owner)
+            && nominalKinds[GeneratedPlatformTypeKey(
+                framework: owner, type: type)] == false
+    }
+
+    private static func generatedNominalName(_ rawType: String) -> String {
+        var type = (optionalWrappedType(rawType) ?? rawType)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        for framework in frameworkPreference
+        where type.hasPrefix(framework + ".") {
+            type.removeFirst(framework.count + 1)
+            break
+        }
+        return canonicalTypeName(type)
+    }
+
     /// The framework whose sweep DECLARED a type. A member of one framework
     /// can return a type owned by another (MKMapCamera.centerCoordinate is
     /// CoreLocation's CLLocationCoordinate2D) — results are minted under the
