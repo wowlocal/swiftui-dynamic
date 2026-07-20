@@ -791,9 +791,12 @@ import Testing
         _ html: String, additionalSource: String = "", suffix: String
     ) throws -> RuntimeValue {
         let root = FileManager.default.currentDirectoryPath
-        let files = ProjectMaterial.swiftFiles(
-            under: root
-                + "/Examples/IceCubesNativeTwin/.build/checkouts/SwiftSoup/Sources")
+        let sourceRoot = root + "/.build/checkouts/SwiftSoup/Sources"
+        let files = ProjectMaterial.swiftFiles(under: sourceRoot)
+        guard !files.isEmpty else {
+            throw RuntimeError(message:
+                "SwiftSoup fixture sources are missing from \(sourceRoot)")
+        }
         let source = ProjectMaterial.mergedSource(
             files: files,
             sourceModules: Dictionary(uniqueKeysWithValues: files.map {

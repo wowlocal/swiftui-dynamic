@@ -26,6 +26,11 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.2"),
+        // The bridge tests interpret SwiftSoup's source as IceCubes package
+        // material. Keep that fixture in the root package graph so a fresh
+        // checkout has the exact source instead of relying on a nested
+        // example's untracked `.build` directory.
+        .package(url: "https://github.com/scinfu/SwiftSoup.git", exact: "2.13.6"),
     ],
     targets: [
         .target(
@@ -136,7 +141,10 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftUIBridgeTests",
-            dependencies: ["SwiftUIBridge"],
+            dependencies: [
+                "SwiftUIBridge",
+                .product(name: "SwiftSoup", package: "SwiftSoup"),
+            ],
             exclude: ["Corpus"],
             swiftSettings: mainActorByDefault
         ),
