@@ -1034,6 +1034,10 @@ extension Interpreter {
     ) throws -> RuntimeValue {
         if let closure = (args.closure(labeled: "transform") ?? args.firstUnlabeledClosure
                             ?? args.positional(0)?.closureValue) {
+            if element.isNil, closure.skipsBodyForNilFirstArgument {
+                interpreter?.recordPreparedOptionalChainNilSkip()
+                return .none()
+            }
             return try ctx.callClosure(closure, arguments: [element])
         }
         if case .host(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,

@@ -103,6 +103,11 @@ public final class ClosureValue {
 
     public let parameters: [Parameter]
     public let body: CodeBlockItemListSyntax
+    /// A single postfix chain rooted at `parameter?` cannot evaluate any
+    /// member, call, subscript, or argument when that parameter is nil.
+    /// Collection transforms use this syntax-derived capability to preserve
+    /// Optional semantics without constructing a source invocation frame.
+    let skipsBodyForNilFirstArgument: Bool
     /// Stable within one parsed program and shared by fresh closure values
     /// formed from the same source body on later render passes.
     public var sourceSiteID: UInt64 {
@@ -221,6 +226,8 @@ public final class ClosureValue {
     ) {
         self.parameters = parameters
         self.body = body
+        self.skipsBodyForNilFirstArgument = Self.isOptionalChainRootedAtFirstArgument(
+            body: body, parameters: parameters)
         self.captured = captured
         self.isBuilder = isBuilder
         self.returnType = returnType
@@ -231,6 +238,47 @@ public final class ClosureValue {
         self.programMetadata = resolvedMetadata
         self.sourceModuleName = resolvedMetadata?.sourceModuleName(
             at: body.positionAfterSkippingLeadingTrivia)
+    }
+
+    private static func isOptionalChainRootedAtFirstArgument(
+        body: CodeBlockItemListSyntax,
+        parameters: [Parameter]
+    ) -> Bool {
+        guard parameters.count <= 1,
+              body.count == 1,
+              let item = body.first,
+              case .expr(let expression) = item.item else {
+            return false
+        }
+        let parameterName = parameters.first?.name ?? "$0"
+
+        func reachesDirectOptionalChain(_ expression: ExprSyntax) -> Bool {
+            if let chaining = expression.as(OptionalChainingExprSyntax.self),
+               let reference = chaining.expression.as(
+                   DeclReferenceExprSyntax.self) {
+                return reference.baseName.text == parameterName
+                    && reference.argumentNames == nil
+            }
+            if let call = expression.as(FunctionCallExprSyntax.self) {
+                return reachesDirectOptionalChain(call.calledExpression)
+            }
+            if let member = expression.as(MemberAccessExprSyntax.self),
+               let base = member.base {
+                return reachesDirectOptionalChain(base)
+            }
+            if let subscriptCall = expression.as(SubscriptCallExprSyntax.self) {
+                return reachesDirectOptionalChain(
+                    subscriptCall.calledExpression)
+            }
+            if let specialization = expression.as(
+                GenericSpecializationExprSyntax.self) {
+                return reachesDirectOptionalChain(
+                    specialization.expression)
+            }
+            return false
+        }
+
+        return reachesDirectOptionalChain(expression)
     }
 }
 

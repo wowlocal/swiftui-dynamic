@@ -308,6 +308,35 @@ struct OptionalSemanticsTests {
         #expect(flat.wrapped == nil)
     }
 
+    /// Native Swift prints 1112: optional chaining invokes `touch()` only for
+    /// the present element. The skip metric pins the prepared nil path used by
+    /// wide optional-backed tries without changing observable call semantics.
+    @Test func arrayMapSkipsPureOptionalChainForNilElements() throws {
+        let interpreter = Interpreter()
+        let result = try interpreter.run(source: """
+        final class Box {
+            static var calls = 0
+
+            func touch() -> Int {
+                Box.calls += 1
+                return 42
+            }
+        }
+
+        let box = Box()
+        let values: [Box?] = [nil, box, nil]
+        let mapped = values.map { $0?.touch() }
+        (mapped.count == 3 ? 1000 : 0)
+            + (mapped[0] == nil ? 100 : 0)
+            + (mapped[1] == 42 ? 10 : 0)
+            + (mapped[2] == nil ? 1 : 0)
+            + Box.calls
+        """)
+
+        #expect(result.intValue == 1112)
+        #expect(interpreter.preparedOptionalChainNilSkipCount == 2)
+    }
+
     @Test func assignmentAndForceUnwrapPreserveAnnotatedStorage() throws {
         let assigned = try evaluateOptionalSemantics("""
         var value: Int?

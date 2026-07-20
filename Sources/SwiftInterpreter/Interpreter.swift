@@ -306,12 +306,19 @@ public final class Interpreter {
     /// Kept as a white-box metric so parity tests can prove that optimized
     /// semantics, rather than the tree-walking fallback, were exercised.
     private(set) var preparedFiniteLoopPlanCount = 0
+    /// Nil collection elements whose structurally pure optional-chain
+    /// transform returned none without allocating an invocation frame.
+    private(set) var preparedOptionalChainNilSkipCount = 0
     var coreFunctionIntrinsics: [
         ObjectIdentifier: (function: HostFunction, intrinsic: CoreFunctionIntrinsic)
     ] = [:]
 
     func recordPreparedFiniteLoopPlan() {
         preparedFiniteLoopPlanCount += 1
+    }
+
+    func recordPreparedOptionalChainNilSkip() {
+        preparedOptionalChainNilSkipCount += 1
     }
 
     func registerCoreFunctionIntrinsic(
