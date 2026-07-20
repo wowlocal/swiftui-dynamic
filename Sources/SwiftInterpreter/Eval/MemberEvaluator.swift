@@ -1055,8 +1055,8 @@ extension Interpreter {
         if let string = value.stringValue {
             return string.map { .native(String($0)) }
         }
-        if let range = value.rangeValue?.halfOpenIntRange {
-            return range.map(RuntimeValue.native)
+        if let range = value.rangeValue {
+            return range.integerValues()
         }
         return try interpretedIntegerIndexedCollectionElements(value)
     }

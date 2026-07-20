@@ -760,12 +760,8 @@ extension Interpreter {
                 throw error(forStatement.sequence, "for-in requires an integer range")
             }
             elements = values
-        } else if let array = sequence.arrayValue {
-            elements = array
-        } else if let set = sequence.setValue {
-            elements = set.elements
-        } else if let interpreted = try interpretedIntegerIndexedCollectionElements(sequence) {
-            elements = interpreted
+        } else if let materialized = try materializedCollectionElements(sequence) {
+            elements = materialized
         } else if case .host(let any) = sequence,
                   any is InertCallable || any is ChainedImplicitCall
                     || any is ImplicitMemberCall {
@@ -774,8 +770,6 @@ extension Interpreter {
             elements = []
         } else if case .hostFunction = sequence {
             elements = []
-        } else if case .host(let any) = sequence, let bytes = any as? Data {
-            elements = bytes.map { .native(Int($0)) }
         } else if let dictionary = sequence.dictValue {
             elements = zip(dictionary.keys, dictionary.values).map { key, value in
                 .native(TupleValue(

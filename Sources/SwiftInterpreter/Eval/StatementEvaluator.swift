@@ -543,12 +543,8 @@ extension Interpreter {
                 throw error(forStmt.sequence, "for-in requires an integer range")
             }
             elements = values
-        } else if let array = sequence.arrayValue {
-            elements = array
-        } else if let set = sequence.setValue {
-            elements = set.elements
-        } else if let interpreted = try interpretedIntegerIndexedCollectionElements(sequence) {
-            elements = interpreted
+        } else if let materialized = try materializedCollectionElements(sequence) {
+            elements = materialized
         } else if case .host(let any) = sequence,
                   any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             // Unknowable host collections (Activity<T>.activities on a fresh
@@ -562,8 +558,6 @@ extension Interpreter {
             // A bound host member in sequence position (stub.allKeys) is
             // equally unknowable — real code can't iterate a function.
             elements = []
-        } else if case .host(let dataAny) = sequence, let bytes = dataAny as? Data {
-            elements = bytes.map { .native(Int($0)) } // byte collection
         } else if let dict = sequence.dictValue {
             // `for (id, count) in sales` — native Dictionary iteration
             // yields (key, value) tuples, in the dict's stable order.
