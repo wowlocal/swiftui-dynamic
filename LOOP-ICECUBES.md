@@ -64,6 +64,34 @@ they must never regress, but they no longer set direction.
   gated sha; never let gated work queue behind an absent steward; main stays
   green — revert-first if a landing turns it red.
 
+## Gate regressions CONTINUOUSLY, not just at iteration close (user directive 2026-07-20)
+
+"Gate at iteration close" is worthless when the iteration never closes. The
+2026-07-20 incident proves it: a `Date(timeIntervalSince1970:)` regression (the
+lane's init-matching work started requiring init arguments to match STORED
+PROPERTIES, which breaks SDK labeled inits like `Date`) sat undetected through
+**67 unlanded commits / 12.5h**, discovered only when the steward finally ran a
+full gate — by then it blocked the entire batch from landing. A long climb MUST
+verify regressions along the way:
+
+- **Run the fast suite FREQUENTLY — never more than ~5 commits or ~30 minutes
+  apart.** `swift test` (prebuilt, seconds-to-minutes) over the backstop boards
+  (concurrency parity, HostSignature, corpus micro-programs) after every
+  green-step batch. This is `LOOP.md` step 1's health check run CONTINUOUSLY, not
+  once at iteration start. The suite is cheap; a buried regression is not.
+- **A RED backstop STOPS feature work.** If any backstop board regresses, fix it
+  before the next feature commit. A regression caught within 2–3 commits is a
+  one-line bisect; buried in dozens it blocks everything and costs a full gate to
+  even locate.
+- **The clean-detached FULL gate at close is the LAST check, never the FIRST.**
+  If the close gate is the first time the suite ran this iteration, the iteration
+  was already too long.
+- **Cap iteration size by TIME, not just by rung.** If you cannot land a
+  gate-green batch within ~1–2 hours, the iteration is too big: land the
+  gate-green foundational slice you already have (additive capability is landable
+  before the rung moves) and continue. Never accumulate a multi-hour unlanded,
+  un-gated pile — it hides regressions and blocks the batch.
+
 ## The instrument: `swift run IceCubesCheck` — bootstrap it first
 
 Per-screen rung ladder, strictly-improving total-rungs score, same discipline as
