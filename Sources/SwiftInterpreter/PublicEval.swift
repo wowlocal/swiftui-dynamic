@@ -141,15 +141,59 @@ extension Interpreter {
 
     /// Collect the scene's views (builder semantics) with the App as self.
     public func sceneViews(app: Instance, sceneBody: CodeBlockItemListSyntax) throws -> [RuntimeValue] {
-        try collectBuilderViews(sceneBody, in: selfEnvironment(.instance(app)))
+        try withDetachedSourceContext(
+            at: sceneBody.positionAfterSkippingLeadingTrivia,
+            owner: app.symbol,
+            programState: app.programState
+        ) {
+            try collectBuilderViews(
+                sceneBody, in: selfEnvironment(.instance(app)))
+        }
     }
 
     /// Evaluate the declared root expression with the APP INSTANCE as self —
     /// `.environmentObject(appAccountsManager)` sees the App's own
     /// stored/@StateObject properties, exactly as at launch.
     public func evaluateAppRootExpression(_ expression: ExprSyntax, app: Instance?) throws -> RuntimeValue {
-        guard let app else { return try evaluate(expression, in: globals) }
-        return try evaluate(expression, in: selfEnvironment(.instance(app)))
+        try withDetachedSourceContext(
+            at: expression.positionAfterSkippingLeadingTrivia,
+            owner: app?.symbol,
+            programState: app?.programState ?? compatibilityProgramState
+        ) {
+            guard let app else { return try evaluate(expression, in: globals) }
+            return try evaluate(
+                expression, in: selfEnvironment(.instance(app)))
+        }
+    }
+
+    /// Bridge-facing launch APIs detach syntax from its declaring accessor.
+    /// Re-enter the immutable program, nominal, and per-file source context so
+    /// later evaluation has the same lexical visibility as ordinary accessor
+    /// dispatch. This is property-based provenance recovery: the syntax byte
+    /// position selects its compiler module and imports without naming an SDK
+    /// or source nominal.
+    private func withDetachedSourceContext<T>(
+        at sourcePosition: AbsolutePosition,
+        owner: StructSymbol?,
+        programState: RuntimeProgramState?,
+        _ operation: () throws -> T
+    ) throws -> T {
+        evaluationTaskContext.enterProgramState(programState)
+        defer { evaluationTaskContext.leaveProgramState(programState) }
+
+        let metadata = programState?.programPlan?.metadata
+            ?? currentProgramMetadata
+        lexicalSourceModuleFrames.append(
+            metadata?.sourceModuleName(at: sourcePosition))
+        lexicalSourceImportFrames.append(
+            metadata?.sourceImportedModuleNames(at: sourcePosition))
+        if let owner { lexicalOwnerFrames.append(owner) }
+        defer {
+            if owner != nil { lexicalOwnerFrames.removeLast() }
+            lexicalSourceImportFrames.removeLast()
+            lexicalSourceModuleFrames.removeLast()
+        }
+        return try operation()
     }
 
     private static let sceneContainers: Set<String> = [

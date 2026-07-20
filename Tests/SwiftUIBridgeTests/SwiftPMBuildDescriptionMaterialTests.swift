@@ -281,4 +281,47 @@ struct SwiftPMBuildDescriptionMaterialTests {
 
         #expect(strings.contains("inline-visible-host"))
     }
+
+    /// IceCubes' R1 probe is appended as its own source projection and launches
+    /// through an `App` scene. The scene harness extracts the `WindowGroup`
+    /// trailing closure for later evaluation; that detached syntax must retain
+    /// the declaring file's imports just like an escaped source closure does.
+    /// A native two-module probe resolves this `Text` to SwiftUI.Text, never the
+    /// unimported dependency nominal with the same unqualified name.
+    @Test
+    func extractedAppSceneRetainsInlineSourceImports() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("scene-import-visibility-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let hidden = root.appendingPathComponent("HiddenMarkdown/Text.swift")
+        try FileManager.default.createDirectory(
+            at: hidden.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try """
+            struct Text {
+                init(_ value: String) {}
+            }
+            """.write(to: hidden, atomically: true, encoding: .utf8)
+
+        let dependency = ProjectMaterial.mergedSource(
+            files: [hidden.path],
+            sourceModules: [hidden.path: "HiddenMarkdown"])
+        let probe = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+            @main struct ProbeApp: App {
+                var body: some Scene {
+                    WindowGroup {
+                        Text("scene-visible-host")
+                    }
+                }
+            }
+            """,
+            moduleName: "Probe")
+        let strings = try LiveCheckSupport.renderedStrings(
+            source: dependency + probe)
+
+        #expect(strings.contains("scene-visible-host"),
+                "detached scene lost its source imports: \(strings), root \(LiveCheckSupport.lastRootSymbol)")
+    }
 }
