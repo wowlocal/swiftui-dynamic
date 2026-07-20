@@ -193,6 +193,28 @@ public enum BundleResources {
 }
 
 final class BundleBox {
+    private struct ResourceRequest {
+        let name: String
+        let extensionName: String?
+        let returnsPath: Bool
+
+        init?(_ arguments: CallArguments) {
+            guard arguments.arguments.contains(where: { $0.label == "forResource" }),
+                  let name = arguments.labeled("forResource")?.stringValue else {
+                return nil
+            }
+            self.name = name
+            let extensionLabel = arguments.arguments.contains(where: { $0.label == "ofType" })
+                ? "ofType" : "withExtension"
+            extensionName = arguments.labeled(extensionLabel)?.stringValue
+            returnsPath = extensionLabel == "ofType"
+        }
+
+        func value(for url: URL) -> RuntimeValue {
+            returnsPath ? .native(url.path) : .native(url)
+        }
+    }
+
     /// The MERGE's project root: bundled resources (SPM Resources/ dirs,
     /// asset JSON) resolve against the repo's committed files — the same
     /// bytes the compiled app ships in Bundle.module.
@@ -204,16 +226,30 @@ final class BundleBox {
         guard let root = projectResourceRoot else { return nil }
         var target = name
         if let ext, !ext.isEmpty, !target.hasSuffix(".\(ext)") { target += ".\(ext)" }
+        target = target.replacingOccurrences(of: "\\", with: "/")
         let skip: Set<String> = [".git", ".build", "DerivedData", "__MACOSX", "Tests"]
         guard let walker = FileManager.default.enumerator(atPath: root) else { return nil }
         for case let path as String in walker {
             if skip.contains(where: { path.contains($0) }) { continue }
             let file = (path as NSString).lastPathComponent
-            if file == target || (ext == nil && (file as NSString).deletingPathExtension == target) {
+            if path == target || path.hasSuffix("/\(target)")
+                || file == target
+                || (ext == nil && (file as NSString).deletingPathExtension == target) {
                 return URL(fileURLWithPath: root + "/" + path)
             }
         }
         return nil
+    }
+
+    static func projectResource(
+        for arguments: CallArguments,
+        fallback: (String, String?) -> URL?
+    ) -> RuntimeValue? {
+        guard let request = ResourceRequest(arguments) else { return nil }
+        let url = projectResource(
+            named: request.name, extension: request.extensionName)
+            ?? fallback(request.name, request.extensionName)
+        return url.map(request.value(for:))
     }
 
     let bundle: Foundation.Bundle
@@ -1144,8 +1180,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                     let resource = (args.labeled("forResource") ?? args.positional(0))?.stringValue ?? ""
                     let ext = args.labeled("withExtension")?.stringValue ?? ""
                     if let real = BundleBox.projectResource(
-                        named: resource, extension: ext.isEmpty ? nil : ext) {
-                        return .native(real)
+                        for: args,
+                        fallback: BundleResources.url(forResource:extension:)) {
+                        return real
                     }
                     if resource.contains("Info"), resource.hasSuffix(".plist") || ext == "plist" {
                         let url = box.fileManager.sandboxRoot
@@ -1164,12 +1201,6 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                             (seeded as NSDictionary).write(to: url, atomically: true)
                         }
                         return .native(url)
-                    }
-                    // The checkout's own Resources — what Bundle.module
-                    // ships compiled (LiveCheck sets the roots).
-                    if let found = BundleResources.url(
-                        forResource: resource, extension: ext.isEmpty ? nil : ext) {
-                        return .native(found)
                     }
                     return .native(ChainedImplicitCall(
                         base: .implicitMember("Bundle"), member: name, arguments: args))
@@ -1201,7 +1232,12 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 })
             }
             return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(ChainedImplicitCall(
+                if let resource = BundleBox.projectResource(
+                    for: args,
+                    fallback: BundleResources.url(forResource:extension:)) {
+                    return resource
+                }
+                return .native(ChainedImplicitCall(
                     base: .implicitMember("Bundle"), member: name, arguments: args))
             })
         }

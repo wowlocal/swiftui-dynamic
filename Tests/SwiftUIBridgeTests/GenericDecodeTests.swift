@@ -898,6 +898,31 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 /// deliver the CURRENT value synchronously in replay (the doctrine fork);
 /// Bundle.module resolves committed resources.
 @Suite struct BundledResourcePipelineTests {
+    @Test func bundlePathResolvesProjectResourceByCallShape() throws {
+        let previousRoot = BundleBox.projectResourceRoot
+        let root = NSTemporaryDirectory() + "bundle-path-probe-\(UUID().uuidString)"
+        let sourcePath = root + "/Sources/Probe.swift"
+        let resourcePath = root + "/Resources/cacert.pem"
+        try FileManager.default.createDirectory(
+            atPath: root + "/Sources", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: root + "/Resources", withIntermediateDirectories: true)
+        defer {
+            BundleBox.projectResourceRoot = previousRoot
+            try? FileManager.default.removeItem(atPath: root)
+        }
+        try "certificate".write(
+            toFile: resourcePath, atomically: true, encoding: .utf8)
+        try "let resourcePath = Bundle.main.path(forResource: \"cacert\", ofType: \"pem\")!"
+            .write(toFile: sourcePath, atomically: true, encoding: .utf8)
+
+        let source = ProjectMaterial.mergedSource(at: root, files: [sourcePath])
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+
+        #expect(interpreter.globals.lookup("resourcePath")?.stringValue == resourcePath)
+    }
+
     @Test func bundleResourceRidesPublisherIntoPublished() throws {
         NetworkBridge.policy = .replay(fixturesDirectory: NSTemporaryDirectory())
         defer { NetworkBridge.policy = .absorbed }
