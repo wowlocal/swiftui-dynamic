@@ -106,13 +106,24 @@ import SwiftInterpreter
         store.box(for: "query")?.value = .native("Lon")
         _ = try interpreter.callMethod(named: "queryChanged", on: store, arguments: [])
 
-        try await Task.sleep(for: .milliseconds(450))
+        // The debounce itself is 350 ms. Under the full parallel backstop,
+        // the main-queue delivery can be runnable but not scheduled at a
+        // fixed 450 ms wall-clock checkpoint. Wait boundedly for the
+        // observable result instead of racing the scheduler.
+        for _ in 0..<40 {
+            if store.box(for: "suggestions")?.value.arrayValue?.count == 1,
+               NetworkBridge.requestLog.count == 1 {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
 
         let suggestions = try #require(store.box(for: "suggestions")?.value.arrayValue)
         #expect(suggestions.count == 1)
         #expect(NetworkBridge.requestLog.count == 1)
-        #expect(NetworkBridge.requestLog[0].contains("name=Lon"))
-        #expect(NetworkBridge.requestLog[0].contains("count=6"))
+        let request = try #require(NetworkBridge.requestLog.first)
+        #expect(request.contains("name=Lon"))
+        #expect(request.contains("count=6"))
     }
 
     @Test func clearAndDismissControlsResetSearchState() throws {
