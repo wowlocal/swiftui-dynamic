@@ -272,6 +272,30 @@ enum GeneratedCollectionDefaultSurface {
             .contains(memberName) == true
     }
 
+    private static let nativeDictionaryKeyOptionalValueMutationNames:
+        Set<String> = Set(["removeValue"])
+
+    static func isNativeDictionaryKeyOptionalValueMutation(
+        named memberName: String
+    ) -> Bool {
+        nativeDictionaryKeyOptionalValueMutationNames.contains(memberName)
+    }
+
+    @MainActor
+    static func invokeNativeDictionaryKeyOptionalValueMutation(
+        named name: String,
+        arguments: CallArguments,
+        carrier: inout DictValue
+    ) throws -> RuntimeValue {
+        if name == "removeValue",
+           arguments.arguments.count == 1,
+           let key = arguments.labeled("forKey") {
+            return .optional(try carrier.removeEntry(forKey: key))
+        }
+        throw RuntimeError(
+            message: "generated native dictionary key mutation argument mismatch")
+    }
+
     @MainActor
     static func invokeNativeCarrierIntegerVoidMutation(
         named name: String,

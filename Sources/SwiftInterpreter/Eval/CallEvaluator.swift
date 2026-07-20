@@ -822,6 +822,24 @@ extension Interpreter {
             return .void
         }
 
+        let nativeDictionaryKeyOptionalValueMutation =
+            GeneratedCollectionDefaultSurface
+                .isNativeDictionaryKeyOptionalValueMutation(named: name)
+        if nativeDictionaryKeyOptionalValueMutation,
+           var dictionary = baseValue.dictValue,
+           let target = try? resolveLValue(base, in: env) {
+            let args = try collectArguments(of: call, in: env)
+            let result = try GeneratedCollectionDefaultSurface
+                .invokeNativeDictionaryKeyOptionalValueMutation(
+                    named: name,
+                    arguments: args,
+                    carrier: &dictionary)
+            try relocating(call) {
+                try target.writeCanonicalOwned(.native(dictionary), self)
+            }
+            return result
+        }
+
         let nativeDictionaryCarrierIntegerVoidMutation =
             GeneratedCollectionDefaultSurface
                 .isNativeCarrierIntegerVoidMutation(

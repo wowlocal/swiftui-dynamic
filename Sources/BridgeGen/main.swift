@@ -1547,8 +1547,13 @@ let generatedOptionalLastRemovalCollectionDefaults =
     optionalLastRemovalCollectionDefaults(in: stdlibFile)
 let generatedElementGenericCollectionNominals =
     elementGenericCollectionNominals(in: stdlibFile)
+let generatedNativeCollectionCarrierDefaults =
+    nativeCollectionCarrierDefaults(in: stdlibFile)
 let generatedNativeCollectionCarrierIntegerVoidMutations =
-    nativeCollectionCarrierIntegerVoidMutations(in: stdlibFile)
+    generatedNativeCollectionCarrierDefaults.integerVoidMutations
+let generatedNativeDictionaryKeyOptionalValueMutations =
+    generatedNativeCollectionCarrierDefaults
+        .dictionaryKeyOptionalValueMutations
 let generatedRangeRemovalMutations =
     rangeRemovalMutations(in: stdlibFile)
 
@@ -2629,6 +2634,46 @@ collectionDefaultsOutput += """
             .contains(memberName) == true
     }
 """ + "\n"
+let nativeDictionaryKeyOptionalValueMutationNames =
+    generatedNativeDictionaryKeyOptionalValueMutations
+        .map(\.memberName).sorted()
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
+collectionDefaultsOutput += """
+
+    private static let nativeDictionaryKeyOptionalValueMutationNames:
+        Set<String> = Set([\(nativeDictionaryKeyOptionalValueMutationNames)])
+
+    static func isNativeDictionaryKeyOptionalValueMutation(
+        named memberName: String
+    ) -> Bool {
+        nativeDictionaryKeyOptionalValueMutationNames.contains(memberName)
+    }
+
+    @MainActor
+    static func invokeNativeDictionaryKeyOptionalValueMutation(
+        named name: String,
+        arguments: CallArguments,
+        carrier: inout DictValue
+    ) throws -> RuntimeValue {
+""" + "\n"
+for mutation in generatedNativeDictionaryKeyOptionalValueMutations {
+    let argument = mutation.argumentLabel.map {
+        "arguments.labeled(\(String(reflecting: $0)))"
+    } ?? "arguments.positional(0)"
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: mutation.memberName)),
+           arguments.arguments.count == 1,
+           let key = \(argument) {
+            return .optional(try carrier.removeEntry(forKey: key))
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        throw RuntimeError(
+            message: "generated native dictionary key mutation argument mismatch")
+    }
+""" + "\n"
 for carrierKind in NativeCollectionCarrierKind.allCases {
     let carrierType: String
     switch carrierKind {
@@ -2708,7 +2753,8 @@ print(
         + "\(generatedOptionalElementCollectionDefaults.count) properties, "
         + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "
         + "\(generatedElementGenericCollectionNominals.count) element-generic collections, "
-        + "\(generatedNativeCollectionCarrierIntegerVoidMutations.count) native carrier mutations)")
+        + "\(generatedNativeCollectionCarrierIntegerVoidMutations.count) native carrier integer mutations, "
+        + "\(generatedNativeDictionaryKeyOptionalValueMutations.count) dictionary key mutations)")
 
 let rangeRemovalMembers = Dictionary(
     grouping: generatedRangeRemovalMutations,

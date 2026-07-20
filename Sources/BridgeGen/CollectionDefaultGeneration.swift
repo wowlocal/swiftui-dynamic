@@ -80,6 +80,17 @@ struct NativeCollectionCarrierIntegerVoidMutation: Hashable {
     let argumentLabel: String?
 }
 
+struct NativeDictionaryKeyOptionalValueMutation: Hashable {
+    let memberName: String
+    let argumentLabel: String?
+}
+
+struct NativeCollectionCarrierDefaults {
+    let integerVoidMutations: [NativeCollectionCarrierIntegerVoidMutation]
+    let dictionaryKeyOptionalValueMutations:
+        [NativeDictionaryKeyOptionalValueMutation]
+}
+
 /// Builds the refinement closure for protocols declared in an interface. A
 /// default declared on a protocol is also eligible for every protocol that
 /// transitively refines it, even though interpreted conformers only carry the
@@ -970,16 +981,19 @@ func elementGenericCollectionNominals(
     return candidates.intersection(conformingNominals).sorted()
 }
 
-/// Discovers native operations that can be emitted as direct calls on the
-/// interpreter's array, dictionary, and set carriers. Their nominals are
-/// derived from the host type itself; this is not an authored stdlib
-/// type-name branch.
-/// Generated calls are compiled against the active toolchain, so signature
-/// drift fails BridgeGen's build instead of surfacing in an app session.
-func nativeCollectionCarrierIntegerVoidMutations(
+/// Discovers native operations that can be emitted against the interpreter's
+/// array, dictionary, and set carriers. Carrier identities come from their
+/// host types. Mutation semantics are admitted by declaration/body shape:
+/// integer no-result forwarding, or a Dictionary wrapper that forwards one
+/// Key through stored backing state and returns an optional Value.
+func nativeCollectionCarrierDefaults(
     in file: SourceFileSyntax?
-) -> [NativeCollectionCarrierIntegerVoidMutation] {
-    guard let file else { return [] }
+) -> NativeCollectionCarrierDefaults {
+    guard let file else {
+        return NativeCollectionCarrierDefaults(
+            integerVoidMutations: [],
+            dictionaryKeyOptionalValueMutations: [])
+    }
 
     func canonical(_ raw: String) -> String {
         normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -998,21 +1012,83 @@ func nativeCollectionCarrierIntegerVoidMutations(
         nominalName(String(reflecting: [Never: Never].self)): .dictionary,
         nominalName(String(reflecting: Set<Never>.self)): .set,
     ]
-    var mutations = Set<NativeCollectionCarrierIntegerVoidMutation>()
+    var genericParameterNamesByNominal: [String: [String]] = [:]
+    var storedPropertyNamesByNominal: [String: Set<String>] = [:]
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item,
+              let nominal = declaration.as(StructDeclSyntax.self),
+              carrierKindsByNominal[nominal.name.text] != nil
+        else { continue }
+        genericParameterNamesByNominal[nominal.name.text] =
+            nominal.genericParameterClause?.parameters.map(\.name.text) ?? []
+        for member in nominal.memberBlock.members {
+            guard let variable = member.decl.as(VariableDeclSyntax.self)
+            else { continue }
+            for binding in variable.bindings {
+                if let identifier = binding.pattern.as(
+                    IdentifierPatternSyntax.self) {
+                    storedPropertyNamesByNominal[
+                        nominal.name.text, default: []
+                    ].insert(identifier.identifier.text)
+                }
+            }
+        }
+    }
+
+    func forwardsSingleArgumentThroughStoredProperty(
+        _ function: FunctionDeclSyntax,
+        parameter: FunctionParameterSyntax,
+        storedPropertyNames: Set<String>
+    ) -> Bool {
+        guard let body = function.body,
+              body.statements.count == 1,
+              let item = body.statements.first,
+              case .stmt(let statement) = item.item,
+              let returned = statement.as(ReturnStmtSyntax.self)?.expression,
+              let call = returned.as(FunctionCallExprSyntax.self),
+              call.trailingClosure == nil,
+              call.additionalTrailingClosures.isEmpty,
+              call.arguments.count == 1,
+              let forwardedArgument = call.arguments.first,
+              let member = call.calledExpression.as(
+                  MemberAccessExprSyntax.self),
+              let storage = member.base?.as(DeclReferenceExprSyntax.self),
+              storedPropertyNames.contains(storage.baseName.text),
+              member.declName.baseName.text == function.name.text,
+              forwardedArgument.label?.text
+                == (parameter.firstName.text == "_"
+                    ? nil : parameter.firstName.text),
+              let forwardedValue = forwardedArgument.expression.as(
+                  DeclReferenceExprSyntax.self)
+        else { return false }
+        let localName = parameter.secondName?.text
+            ?? parameter.firstName.text
+        return forwardedValue.baseName.text == localName
+    }
+
+    var integerVoidMutations =
+        Set<NativeCollectionCarrierIntegerVoidMutation>()
+    var dictionaryKeyOptionalValueMutations =
+        Set<NativeDictionaryKeyOptionalValueMutation>()
     for item in file.statements {
         guard case .decl(let declaration) = item.item else { continue }
         let members: MemberBlockItemListSyntax
         let carrierKind: NativeCollectionCarrierKind
+        let carrierNominalName: String
         if let nominal = declaration.as(StructDeclSyntax.self),
            let matchedKind = carrierKindsByNominal[nominal.name.text] {
             members = nominal.memberBlock.members
             carrierKind = matchedKind
+            carrierNominalName = nominal.name.text
         } else if let extensionDeclaration = declaration.as(
-                    ExtensionDeclSyntax.self),
-                  let matchedKind = carrierKindsByNominal[nominalName(
-                    extensionDeclaration.extendedType.trimmedDescription)] {
+                    ExtensionDeclSyntax.self) {
+            let matchedName = nominalName(
+                extensionDeclaration.extendedType.trimmedDescription)
+            guard let matchedKind = carrierKindsByNominal[matchedName]
+            else { continue }
             members = extensionDeclaration.memberBlock.members
             carrierKind = matchedKind
+            carrierNominalName = matchedName
         } else {
             continue
         }
@@ -1022,8 +1098,7 @@ func nativeCollectionCarrierIntegerVoidMutations(
             else { continue }
             let returnType = canonical(function.signature.returnClause?.type
                 .trimmedDescription ?? "Void")
-            guard
-                  function.modifiers.contains(where: {
+            guard function.modifiers.contains(where: {
                       $0.name.text == "public"
                   }),
                   function.modifiers.contains(where: {
@@ -1034,27 +1109,55 @@ func nativeCollectionCarrierIntegerVoidMutations(
                   }),
                   function.genericParameterClause == nil,
                   function.genericWhereClause == nil,
-                  function.signature.effectSpecifiers == nil,
-                  returnType == "Void" || returnType == "()"
+                  function.signature.effectSpecifiers == nil
             else { continue }
 
             let parameters = Array(
                 function.signature.parameterClause.parameters)
-            guard parameters.count == 1,
-                  canonical(parameters[0].type.trimmedDescription) == "Int",
-                  parameters[0].defaultValue == nil
-            else { continue }
+            if (returnType == "Void" || returnType == "()"),
+               parameters.count == 1,
+               canonical(parameters[0].type.trimmedDescription) == "Int",
+               parameters[0].defaultValue == nil {
+                integerVoidMutations.insert(
+                    NativeCollectionCarrierIntegerVoidMutation(
+                        carrierKind: carrierKind,
+                        memberName: function.name.text,
+                        argumentLabel: parameters[0].firstName.text == "_"
+                            ? nil : parameters[0].firstName.text))
+            }
 
-            mutations.insert(NativeCollectionCarrierIntegerVoidMutation(
-                carrierKind: carrierKind,
-                memberName: function.name.text,
-                argumentLabel: parameters[0].firstName.text == "_"
-                    ? nil : parameters[0].firstName.text))
+            let genericParameters =
+                genericParameterNamesByNominal[carrierNominalName] ?? []
+            if carrierKind == .dictionary,
+               genericParameters.count == 2,
+               parameters.count == 1,
+               canonical(parameters[0].type.trimmedDescription)
+                    == genericParameters[0],
+               parameters[0].defaultValue == nil,
+               returnType == genericParameters[1] + "?",
+               forwardsSingleArgumentThroughStoredProperty(
+                   function,
+                   parameter: parameters[0],
+                   storedPropertyNames:
+                    storedPropertyNamesByNominal[carrierNominalName] ?? []) {
+                dictionaryKeyOptionalValueMutations.insert(
+                    NativeDictionaryKeyOptionalValueMutation(
+                        memberName: function.name.text,
+                        argumentLabel: parameters[0].firstName.text == "_"
+                            ? nil : parameters[0].firstName.text))
+            }
         }
     }
 
-    return mutations.sorted {
-        ($0.carrierKind.rawValue, $0.memberName, $0.argumentLabel ?? "")
-            < ($1.carrierKind.rawValue, $1.memberName, $1.argumentLabel ?? "")
-    }
+    return NativeCollectionCarrierDefaults(
+        integerVoidMutations: integerVoidMutations.sorted {
+            ($0.carrierKind.rawValue, $0.memberName, $0.argumentLabel ?? "")
+                < ($1.carrierKind.rawValue, $1.memberName,
+                    $1.argumentLabel ?? "")
+        },
+        dictionaryKeyOptionalValueMutations:
+            dictionaryKeyOptionalValueMutations.sorted {
+                ($0.memberName, $0.argumentLabel ?? "")
+                    < ($1.memberName, $1.argumentLabel ?? "")
+            })
 }

@@ -86,6 +86,19 @@ public struct DictValue: @preconcurrency CustomStringConvertible {
         }
     }
 
+    /// Removes one equal-key entry and returns its prior value. Generated
+    /// dictionary adapters supply the source member spelling and call shape.
+    mutating func removeEntry(
+        forKey key: RuntimeValue
+    ) throws -> RuntimeValue? {
+        for (index, existing) in keys.enumerated()
+        where try Builtins.areEqual(existing, key) {
+            keys.remove(at: index)
+            return values.remove(at: index)
+        }
+        return nil
+    }
+
     /// Store a value without interpreting `Optional.none` as the dictionary
     /// subscript setter's outer nil. For `[Key: Value?]`, a typed `Value?.none`
     /// is a present value; only the untyped nil literal removes the entry.

@@ -33,6 +33,26 @@ import Testing
         #expect(value.stringValue == "2|2")
     }
 
+    @Test func generatedDictionaryKeyRemovalWritesBackAndReturnsValue() throws {
+        let source = """
+        final class Cache {
+            var values = ["present": 7]
+
+            func take(_ key: String) -> Int? {
+                values.removeValue(forKey: key)
+            }
+        }
+
+        let cache = Cache()
+        let removed = cache.take("present") ?? -1
+        let missing = cache.take("missing") == nil
+        "\\(removed)|\\(cache.values.count)|\\(missing)"
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "7|0|true")
+    }
+
     @Test func generatedForwardIndexSearchPreservesStringIndices() throws {
         let source = """
         let text = "p.quote-inline"
