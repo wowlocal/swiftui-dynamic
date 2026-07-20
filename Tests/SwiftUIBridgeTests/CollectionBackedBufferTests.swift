@@ -374,6 +374,38 @@ import Testing
         #expect(value.intValue == 1_101)
     }
 
+    /// An enum associated-value pattern retains the payload's declared array
+    /// element type through a scoped buffer and a derived buffer window.
+    @Test func enumPayloadBufferRetainsItsElementType() throws {
+        let source = """
+        extension UInt8 {
+            var isMarker: Bool { self == 65 }
+        }
+
+        enum Backing {
+            case array([UInt8])
+        }
+
+        func hasMarker(_ backing: Backing) -> Bool {
+            switch backing {
+            case .array(let array):
+                return array.withUnsafeBufferPointer { buffer in
+                    let slice = UnsafeBufferPointer(
+                        start: buffer.baseAddress, count: array.count)
+                    guard let base = slice.baseAddress else { return false }
+                    let byte = base[0]
+                    return byte.isMarker
+                }
+            }
+        }
+
+        hasMarker(.array([65]))
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.boolValue == true)
+    }
+
     /// Distilled from SwiftSoup's `StringBuilder.toString()` storage shape.
     @Test func stringDecodingInitializerAcceptsUTF8Collection() throws {
         let source = """

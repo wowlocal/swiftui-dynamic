@@ -211,9 +211,17 @@ extension Interpreter {
                 let resolved = try hint.map {
                     try resolveAnnotated(value, typeName: $0)
                 } ?? value
+                // Swift infers an unannotated local's static type from its
+                // initializer. Preserve any type provenance the evaluator can
+                // recover from that expression (notably typed collection and
+                // pointer subscripts) so a boxed scalar can still dispatch its
+                // source extensions after runtime representation erases it.
+                let declaredTypeName = hint
+                    ?? declaredMemberReceiverTypeName(
+                        for: initializer, in: env)
                 env.define(
                     ident.identifier.text, resolved,
-                    declaredTypeName: hint,
+                    declaredTypeName: declaredTypeName,
                     referenceOwnership: referenceOwnership,
                     isMutableBinding: isMutableBinding)
             }

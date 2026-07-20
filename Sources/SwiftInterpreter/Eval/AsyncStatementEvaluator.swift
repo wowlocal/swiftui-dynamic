@@ -280,8 +280,11 @@ extension Interpreter {
             let resolved = try hint.map {
                 try resolveAnnotated(value, typeName: $0)
             } ?? value
+            let declaredTypeName = hint
+                ?? declaredMemberReceiverTypeName(
+                    for: initializer, in: env)
             env.define(
-                name, resolved, declaredTypeName: hint,
+                name, resolved, declaredTypeName: declaredTypeName,
                 isMutableBinding: isMutableBinding)
         }
     }
