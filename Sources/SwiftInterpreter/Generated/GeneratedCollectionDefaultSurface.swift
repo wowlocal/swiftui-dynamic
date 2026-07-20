@@ -257,18 +257,18 @@ enum GeneratedCollectionDefaultSurface {
         case set
     }
 
-    private static let nativeCarrierIntegerVoidMutationNames:
+    private static let nativeCarrierScalarVoidMutationNames:
         [NativeCarrierKind: Set<String>] = [
-        .array: Set(["reserveCapacity"]),
-        .dictionary: Set(["reserveCapacity"]),
-        .set: Set(["reserveCapacity"]),
+        .array: Set(["removeAll", "reserveCapacity"]),
+        .dictionary: Set(["removeAll", "reserveCapacity"]),
+        .set: Set(["removeAll", "reserveCapacity"]),
     ]
 
-    static func isNativeCarrierIntegerVoidMutation(
+    static func isNativeCarrierScalarVoidMutation(
         named memberName: String,
         carrierKind: NativeCarrierKind
     ) -> Bool {
-        nativeCarrierIntegerVoidMutationNames[carrierKind]?
+        nativeCarrierScalarVoidMutationNames[carrierKind]?
             .contains(memberName) == true
     }
 
@@ -297,18 +297,25 @@ enum GeneratedCollectionDefaultSurface {
     }
 
     @MainActor
-    static func invokeNativeCarrierIntegerVoidMutation(
+    static func invokeNativeCarrierScalarVoidMutation(
         named name: String,
         arguments: CallArguments,
         carrier: inout [RuntimeValue]
     ) throws -> Bool {
-        if name == "reserveCapacity",
-           arguments.arguments.count == 1,
-           let value = arguments.positional(0)?.intValue {
+        if name == "removeAll", arguments.arguments.count == 1, let value = arguments.labeled("keepingCapacity")?.boolValue {
+            carrier.removeAll(keepingCapacity: value)
+            return true
+        }
+        if name == "removeAll", arguments.arguments.isEmpty {
+            let value = false
+            carrier.removeAll(keepingCapacity: value)
+            return true
+        }
+        if name == "reserveCapacity", arguments.arguments.count == 1, let value = arguments.positional(0)?.intValue {
             carrier.reserveCapacity(value)
             return true
         }
-        if nativeCarrierIntegerVoidMutationNames[.array]?
+        if nativeCarrierScalarVoidMutationNames[.array]?
             .contains(name) == true {
             throw RuntimeError(
                 message: "generated native array mutation argument mismatch")
@@ -317,21 +324,34 @@ enum GeneratedCollectionDefaultSurface {
     }
 
     @MainActor
-    static func invokeNativeCarrierIntegerVoidMutation(
+    static func invokeNativeCarrierScalarVoidMutation(
         named name: String,
         arguments: CallArguments,
         carrier: inout DictValue
     ) throws -> Bool {
-        if name == "reserveCapacity",
-           arguments.arguments.count == 1,
-           let value = arguments.positional(0)?.intValue {
+        if name == "removeAll", arguments.arguments.count == 1, let value = arguments.labeled("keepingCapacity")?.boolValue {
+            carrier.withMutableStorage { keys, values in
+                keys.removeAll(keepingCapacity: value)
+                values.removeAll(keepingCapacity: value)
+            }
+            return true
+        }
+        if name == "removeAll", arguments.arguments.isEmpty {
+            let value = false
+            carrier.withMutableStorage { keys, values in
+                keys.removeAll(keepingCapacity: value)
+                values.removeAll(keepingCapacity: value)
+            }
+            return true
+        }
+        if name == "reserveCapacity", arguments.arguments.count == 1, let value = arguments.positional(0)?.intValue {
             carrier.withMutableStorage { keys, values in
                 keys.reserveCapacity(value)
                 values.reserveCapacity(value)
             }
             return true
         }
-        if nativeCarrierIntegerVoidMutationNames[.dictionary]?
+        if nativeCarrierScalarVoidMutationNames[.dictionary]?
             .contains(name) == true {
             throw RuntimeError(
                 message: "generated native dictionary mutation argument mismatch")
@@ -340,20 +360,31 @@ enum GeneratedCollectionDefaultSurface {
     }
 
     @MainActor
-    static func invokeNativeCarrierIntegerVoidMutation(
+    static func invokeNativeCarrierScalarVoidMutation(
         named name: String,
         arguments: CallArguments,
         carrier: inout RuntimeSetValue
     ) throws -> Bool {
-        if name == "reserveCapacity",
-           arguments.arguments.count == 1,
-           let value = arguments.positional(0)?.intValue {
+        if name == "removeAll", arguments.arguments.count == 1, let value = arguments.labeled("keepingCapacity")?.boolValue {
+            carrier.withMutableElements { elements in
+                elements.removeAll(keepingCapacity: value)
+            }
+            return true
+        }
+        if name == "removeAll", arguments.arguments.isEmpty {
+            let value = false
+            carrier.withMutableElements { elements in
+                elements.removeAll(keepingCapacity: value)
+            }
+            return true
+        }
+        if name == "reserveCapacity", arguments.arguments.count == 1, let value = arguments.positional(0)?.intValue {
             carrier.withMutableElements { elements in
                 elements.reserveCapacity(value)
             }
             return true
         }
-        if nativeCarrierIntegerVoidMutationNames[.set]?
+        if nativeCarrierScalarVoidMutationNames[.set]?
             .contains(name) == true {
             throw RuntimeError(
                 message: "generated native set mutation argument mismatch")

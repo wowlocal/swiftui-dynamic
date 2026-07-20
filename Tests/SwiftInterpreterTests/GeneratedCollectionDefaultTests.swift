@@ -53,6 +53,19 @@ import Testing
         #expect(value.stringValue == "7|0|true")
     }
 
+    @Test func generatedNativeScalarVoidMutationUsesExplicitAndDefaultArguments() throws {
+        let source = """
+        var explicit = ["present": 1]
+        explicit.removeAll(keepingCapacity: true)
+        var defaulted = ["present": 2]
+        defaulted.removeAll()
+        "\\(explicit.count)|\\(defaulted.count)"
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "0|0")
+    }
+
     @Test func generatedForwardIndexSearchPreservesStringIndices() throws {
         let source = """
         let text = "p.quote-inline"

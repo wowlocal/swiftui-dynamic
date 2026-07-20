@@ -840,16 +840,16 @@ extension Interpreter {
             return result
         }
 
-        let nativeDictionaryCarrierIntegerVoidMutation =
+        let nativeDictionaryCarrierScalarVoidMutation =
             GeneratedCollectionDefaultSurface
-                .isNativeCarrierIntegerVoidMutation(
+                .isNativeCarrierScalarVoidMutation(
                     named: name, carrierKind: .dictionary)
-        if nativeDictionaryCarrierIntegerVoidMutation,
+        if nativeDictionaryCarrierScalarVoidMutation,
            var dictionary = baseValue.dictValue,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             guard try GeneratedCollectionDefaultSurface
-                .invokeNativeCarrierIntegerVoidMutation(
+                .invokeNativeCarrierScalarVoidMutation(
                     named: name, arguments: args, carrier: &dictionary)
             else {
                 return nil
@@ -864,12 +864,12 @@ extension Interpreter {
             "insert", "update", "remove", "removeAll", "formUnion",
             "formIntersection", "subtract", "formSymmetricDifference",
         ]
-        let nativeSetCarrierIntegerVoidMutation =
+        let nativeSetCarrierScalarVoidMutation =
             GeneratedCollectionDefaultSurface
-                .isNativeCarrierIntegerVoidMutation(
+                .isNativeCarrierScalarVoidMutation(
                     named: name, carrierKind: .set)
         if (setMutating.contains(name)
-                || nativeSetCarrierIntegerVoidMutation),
+                || nativeSetCarrierScalarVoidMutation),
            var set = baseValue.setValue,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
@@ -913,9 +913,9 @@ extension Interpreter {
                 set = RuntimeSetValue(elementTypeName: set.elementTypeName)
                 result = .void
             default:
-                if nativeSetCarrierIntegerVoidMutation,
+                if nativeSetCarrierScalarVoidMutation,
                    try GeneratedCollectionDefaultSurface
-                    .invokeNativeCarrierIntegerVoidMutation(
+                    .invokeNativeCarrierScalarVoidMutation(
                         named: name, arguments: args, carrier: &set) {
                     result = .void
                     break
@@ -947,12 +947,12 @@ extension Interpreter {
             named: name)
         let optionallyRemovesLast = GeneratedCollectionDefaultSurface
             .optionallyRemovesLast(named: name)
-        let nativeArrayCarrierIntegerVoidMutation =
+        let nativeArrayCarrierScalarVoidMutation =
             GeneratedCollectionDefaultSurface
-                .isNativeCarrierIntegerVoidMutation(
+                .isNativeCarrierScalarVoidMutation(
                     named: name, carrierKind: .array)
         if (mutating.contains(name) || removesRange || optionallyRemovesLast
-                || nativeArrayCarrierIntegerVoidMutation),
+                || nativeArrayCarrierScalarVoidMutation),
            var array = baseValue.arrayValue,
            let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
@@ -1066,9 +1066,9 @@ extension Interpreter {
                 }
                 if let failure { throw failure }
             default:
-                if nativeArrayCarrierIntegerVoidMutation,
+                if nativeArrayCarrierScalarVoidMutation,
                    try GeneratedCollectionDefaultSurface
-                    .invokeNativeCarrierIntegerVoidMutation(
+                    .invokeNativeCarrierScalarVoidMutation(
                         named: name, arguments: args, carrier: &array) {
                     break
                 }

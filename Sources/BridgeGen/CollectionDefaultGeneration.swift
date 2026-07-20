@@ -74,10 +74,22 @@ enum NativeCollectionCarrierKind: String, CaseIterable, Hashable {
     case set
 }
 
-struct NativeCollectionCarrierIntegerVoidMutation: Hashable {
+enum NativeCollectionCarrierScalarArgumentKind: String, Hashable {
+    case integer
+    case boolean
+}
+
+enum NativeCollectionCarrierScalarDefault: Hashable {
+    case integer(Int)
+    case boolean(Bool)
+}
+
+struct NativeCollectionCarrierScalarVoidMutation: Hashable {
     let carrierKind: NativeCollectionCarrierKind
     let memberName: String
     let argumentLabel: String?
+    let argumentKind: NativeCollectionCarrierScalarArgumentKind
+    let defaultValue: NativeCollectionCarrierScalarDefault?
 }
 
 struct NativeDictionaryKeyOptionalValueMutation: Hashable {
@@ -86,7 +98,7 @@ struct NativeDictionaryKeyOptionalValueMutation: Hashable {
 }
 
 struct NativeCollectionCarrierDefaults {
-    let integerVoidMutations: [NativeCollectionCarrierIntegerVoidMutation]
+    let scalarVoidMutations: [NativeCollectionCarrierScalarVoidMutation]
     let dictionaryKeyOptionalValueMutations:
         [NativeDictionaryKeyOptionalValueMutation]
 }
@@ -984,14 +996,14 @@ func elementGenericCollectionNominals(
 /// Discovers native operations that can be emitted against the interpreter's
 /// array, dictionary, and set carriers. Carrier identities come from their
 /// host types. Mutation semantics are admitted by declaration/body shape:
-/// integer no-result forwarding, or a Dictionary wrapper that forwards one
+/// scalar no-result operations, or a Dictionary wrapper that forwards one
 /// Key through stored backing state and returns an optional Value.
 func nativeCollectionCarrierDefaults(
     in file: SourceFileSyntax?
 ) -> NativeCollectionCarrierDefaults {
     guard let file else {
         return NativeCollectionCarrierDefaults(
-            integerVoidMutations: [],
+            scalarVoidMutations: [],
             dictionaryKeyOptionalValueMutations: [])
     }
 
@@ -1005,6 +1017,44 @@ func nativeCollectionCarrierDefaults(
             name = String(name[..<generic])
         }
         return name.split(separator: ".").last.map(String.init) ?? name
+    }
+
+    func scalarArgument(
+        _ parameter: FunctionParameterSyntax
+    ) -> (
+        kind: NativeCollectionCarrierScalarArgumentKind,
+        defaultValue: NativeCollectionCarrierScalarDefault?
+    )? {
+        let kind: NativeCollectionCarrierScalarArgumentKind
+        switch canonical(parameter.type.trimmedDescription) {
+        case "Int": kind = .integer
+        case "Bool": kind = .boolean
+        default: return nil
+        }
+        guard let expression = parameter.defaultValue?.value else {
+            return (kind, nil)
+        }
+        switch kind {
+        case .integer:
+            if let literal = expression.as(IntegerLiteralExprSyntax.self),
+               let value = Int(literal.literal.text.replacingOccurrences(
+                   of: "_", with: "")) {
+                return (kind, .integer(value))
+            }
+            if let prefix = expression.as(PrefixOperatorExprSyntax.self),
+               prefix.operator.text == "-",
+               let literal = prefix.expression.as(
+                   IntegerLiteralExprSyntax.self),
+               let value = Int(literal.literal.text.replacingOccurrences(
+                   of: "_", with: "")) {
+                return (kind, .integer(-value))
+            }
+        case .boolean:
+            if let literal = expression.as(BooleanLiteralExprSyntax.self) {
+                return (kind, .boolean(literal.literal.text == "true"))
+            }
+        }
+        return nil
     }
 
     let carrierKindsByNominal: [String: NativeCollectionCarrierKind] = [
@@ -1066,8 +1116,8 @@ func nativeCollectionCarrierDefaults(
         return forwardedValue.baseName.text == localName
     }
 
-    var integerVoidMutations =
-        Set<NativeCollectionCarrierIntegerVoidMutation>()
+    var scalarVoidMutations =
+        Set<NativeCollectionCarrierScalarVoidMutation>()
     var dictionaryKeyOptionalValueMutations =
         Set<NativeDictionaryKeyOptionalValueMutation>()
     for item in file.statements {
@@ -1116,14 +1166,15 @@ func nativeCollectionCarrierDefaults(
                 function.signature.parameterClause.parameters)
             if (returnType == "Void" || returnType == "()"),
                parameters.count == 1,
-               canonical(parameters[0].type.trimmedDescription) == "Int",
-               parameters[0].defaultValue == nil {
-                integerVoidMutations.insert(
-                    NativeCollectionCarrierIntegerVoidMutation(
+               let scalar = scalarArgument(parameters[0]) {
+                scalarVoidMutations.insert(
+                    NativeCollectionCarrierScalarVoidMutation(
                         carrierKind: carrierKind,
                         memberName: function.name.text,
                         argumentLabel: parameters[0].firstName.text == "_"
-                            ? nil : parameters[0].firstName.text))
+                            ? nil : parameters[0].firstName.text,
+                        argumentKind: scalar.kind,
+                        defaultValue: scalar.defaultValue))
             }
 
             let genericParameters =
@@ -1150,10 +1201,14 @@ func nativeCollectionCarrierDefaults(
     }
 
     return NativeCollectionCarrierDefaults(
-        integerVoidMutations: integerVoidMutations.sorted {
-            ($0.carrierKind.rawValue, $0.memberName, $0.argumentLabel ?? "")
-                < ($1.carrierKind.rawValue, $1.memberName,
-                    $1.argumentLabel ?? "")
+        scalarVoidMutations: scalarVoidMutations.sorted {
+            (
+                $0.carrierKind.rawValue, $0.memberName,
+                $0.argumentLabel ?? "", $0.argumentKind.rawValue
+            ) < (
+                $1.carrierKind.rawValue, $1.memberName,
+                $1.argumentLabel ?? "", $1.argumentKind.rawValue
+            )
         },
         dictionaryKeyOptionalValueMutations:
             dictionaryKeyOptionalValueMutations.sorted {
