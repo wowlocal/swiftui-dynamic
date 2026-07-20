@@ -1311,6 +1311,25 @@ extension Interpreter {
                         return try await invokeSuspending(
                             .closure(closure), with: args, node: call)
                     }
+                    for conformance in transitiveConformances(
+                        of: instance.symbol
+                    ) {
+                        guard let protocolSymbol =
+                                hostExtensionSymbols[conformance],
+                              let overloads = protocolSymbol.methods[name]
+                        else { continue }
+                        let available = functionsAvailableForCall(
+                            from: overloads, args: args)
+                        guard let method = chooseFunction(
+                            from: available, for: args),
+                              let body = functionMetadata(for: method).body
+                        else { continue }
+                        let closure = makeFunctionClosure(
+                            method, body: body,
+                            captured: instanceMethodEnvironment(instance))
+                        return try await invokeSuspending(
+                            .closure(closure), with: args, node: call)
+                    }
                 }
                 if let any = baseValue.hostPayload,
                    let method = registry?.hostMethod(name, on: any) {
