@@ -11,6 +11,27 @@ enum GeneratedCollectionDefaultSurface {
         elementGenericCollectionNominalNames.contains(nominalName)
     }
 
+    private static let materializableSequenceProtocolNames: Set<String> = Set([
+        "BidirectionalCollection", "Collection", "LazyCollectionProtocol", "LazySequenceProtocol", "MutableCollection", "RandomAccessCollection", "RangeReplaceableCollection", "Sequence", "StringProtocol", "_AnyCollectionProtocol", "_ArrayBufferProtocol", "_ArrayProtocol"
+    ])
+
+    static func isMaterializableSequenceProtocol(
+        named rawName: String
+    ) -> Bool {
+        var name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["any ", "some "] where name.hasPrefix(prefix) {
+            name.removeFirst(prefix.count)
+            name = name.trimmingCharacters(in: .whitespaces)
+        }
+        if name.hasPrefix("Swift.") {
+            name.removeFirst("Swift.".count)
+        }
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return materializableSequenceProtocolNames.contains(name)
+    }
+
     @MainActor
     static func nativeWritableStringCollectionView(
         named name: String,

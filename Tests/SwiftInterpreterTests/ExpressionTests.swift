@@ -103,6 +103,20 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "2|session|file.txt|trace.log")
     }
 
+    @Test func constrainedGenericExtensionInitializerRequiresConformance() throws {
+        let source = """
+        extension String {
+            init<S: Sequence>(_ values: S) {
+                self = "sequence"
+            }
+        }
+
+        "\\(String(2))|\\(String([1, 2]))"
+        """
+
+        #expect(try eval(source).stringValue == "2|sequence")
+    }
+
     @Test func sourceAndImportedMemberOverloadsMatchInAsyncSession() async throws {
         let source = """
         var extensionCalls = 0

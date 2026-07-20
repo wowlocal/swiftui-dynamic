@@ -71,6 +71,41 @@ extension Interpreter {
         return outer
     }
 
+    private func directGenericParameterName(
+        in annotation: String,
+        genericParameterNames: Set<String>
+    ) -> String? {
+        var name = annotation.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in [
+            "__owned ", "inout ", "borrowing ", "consuming ",
+            "sending ", "isolated ",
+        ] where name.hasPrefix(prefix) {
+            name.removeFirst(prefix.count)
+            name = name.trimmingCharacters(in: .whitespaces)
+        }
+        return genericParameterNames.contains(name) ? name : nil
+    }
+
+    /// Dynamic evidence for a direct generic protocol bound. Interpreted
+    /// conformers use the ordinary runtime type relation. Native sequence
+    /// carriers use their materialization property, gated by the generated
+    /// stdlib protocol-refinement set rather than a protocol-name branch.
+    private func runtimeValue(
+        _ value: RuntimeValue,
+        satisfies requirement: ParsedGenericConformanceRequirement
+    ) -> Bool {
+        if valueIsType(value, requirement.protocolTypeName) { return true }
+        guard GeneratedCollectionDefaultSurface
+            .isMaterializableSequenceProtocol(
+                named: requirement.protocolTypeName) else { return false }
+        if value.dictValue != nil { return true }
+        do {
+            return try materializedCollectionElements(value) != nil
+        } catch {
+            return false
+        }
+    }
+
     /// Positive runtime type fitting for source overload candidates. Call
     /// shape alone is insufficient when independently compiled source files
     /// contribute same-shaped overloads; concrete parameter annotations must
@@ -78,7 +113,9 @@ extension Interpreter {
     func runtimeArgumentsFitDeclaredTypes(
         _ parameters: [ClosureValue.Parameter],
         args: CallArguments,
-        genericParameterNames: Set<String> = []
+        genericParameterNames: Set<String> = [],
+        genericConformanceRequirements:
+            [ParsedGenericConformanceRequirement] = []
     ) -> Bool {
         var remaining = args.arguments
         for parameter in parameters {
@@ -89,6 +126,18 @@ extension Interpreter {
                     !$0.isLetter && !$0.isNumber && $0 != "_"
                 }.map(String.init))
                 if !identifiers.isDisjoint(with: genericParameterNames) {
+                    if let genericParameterName = directGenericParameterName(
+                        in: annotation,
+                        genericParameterNames: genericParameterNames) {
+                        let requirements = genericConformanceRequirements
+                            .filter {
+                                $0.genericParameterName
+                                    == genericParameterName
+                            }
+                        guard requirements.allSatisfy({
+                            runtimeValue(argument.value, satisfies: $0)
+                        }) else { return false }
+                    }
                     if let outer = concreteGenericOuterType(
                         in: annotation,
                         genericParameterNames: genericParameterNames
@@ -112,11 +161,13 @@ extension Interpreter {
     /// A host-extension init fits only when labels align AND every
     /// argument's RUNTIME type satisfies the parameter annotation.
     func extensionInitFits(_ decl: InitializerDeclSyntax, args: CallArguments) -> Bool {
-        runtimeArgumentsFitDeclaredTypes(
-            initializerMetadata(for: decl).parameters,
+        let metadata = initializerMetadata(for: decl)
+        return runtimeArgumentsFitDeclaredTypes(
+            metadata.parameters,
             args: args,
-            genericParameterNames: Set(
-                decl.genericParameterClause?.parameters.map(\.name.text) ?? []))
+            genericParameterNames: Set(metadata.genericParameters),
+            genericConformanceRequirements:
+                metadata.genericConformanceRequirements)
     }
 
     /// All generated constructor adapters dispatch on the callee's runtime

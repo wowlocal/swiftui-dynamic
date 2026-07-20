@@ -294,6 +294,21 @@ private func protocolRefinementEligibility(
     })
 }
 
+/// Protocol constraints that imply Sequence semantics. The root identity and
+/// every refining protocol come from the active interface, allowing runtime
+/// overload selection to ask whether a native carrier can satisfy the
+/// constraint without maintaining an SDK protocol-name ladder.
+func materializableSequenceProtocolNames(
+    in file: SourceFileSyntax?
+) -> [String] {
+    guard let file else { return [] }
+    let sequenceName = normalize(String(
+        reflecting: (any Sequence).self))
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    return protocolRefinementEligibility(in: file)[sequenceName]
+        ?? [sequenceName]
+}
+
 /// Finds constrained protocol-extension defaults whose returned index is
 /// computed solely by invoking an integer-distance operation on the supplied
 /// index. The active stdlib currently uses this shape to synthesize index

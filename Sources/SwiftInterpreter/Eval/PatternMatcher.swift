@@ -490,7 +490,9 @@ extension Interpreter {
                     && runtimeArgumentsFitDeclaredTypes(
                         metadata.parameters,
                         args: args,
-                        genericParameterNames: Set(metadata.genericParameters))
+                        genericParameterNames: Set(metadata.genericParameters),
+                        genericConformanceRequirements:
+                            metadata.genericConformanceRequirements)
             }),
                let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(home))
@@ -506,7 +508,9 @@ extension Interpreter {
                     && runtimeArgumentsFitDeclaredTypes(
                         metadata.parameters,
                         args: args,
-                        genericParameterNames: Set(metadata.genericParameters))
+                        genericParameterNames: Set(metadata.genericParameters),
+                        genericConformanceRequirements:
+                            metadata.genericConformanceRequirements)
             }),
                let body = functionMetadata(for: function).body {
                 let closure = makeFunctionClosure(function, body: body, captured: globals)

@@ -584,7 +584,9 @@ extension Interpreter {
             return runtimeArgumentsFitDeclaredTypes(
                 metadata.parameters,
                 args: args,
-                genericParameterNames: Set(metadata.genericParameters))
+                genericParameterNames: Set(metadata.genericParameters),
+                genericConformanceRequirements:
+                    metadata.genericConformanceRequirements)
         }
         return typed.isEmpty ? shaped : typed
     }
@@ -610,7 +612,9 @@ extension Interpreter {
             return runtimeArgumentsFitDeclaredTypes(
                 metadata.parameters,
                 args: positional,
-                genericParameterNames: Set(metadata.genericParameters))
+                genericParameterNames: Set(metadata.genericParameters),
+                genericConformanceRequirements:
+                    metadata.genericConformanceRequirements)
         }
     }
 

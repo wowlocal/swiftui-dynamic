@@ -1547,6 +1547,8 @@ let generatedOptionalLastRemovalCollectionDefaults =
     optionalLastRemovalCollectionDefaults(in: stdlibFile)
 let generatedElementGenericCollectionNominals =
     elementGenericCollectionNominals(in: stdlibFile)
+let generatedMaterializableSequenceProtocolNames =
+    materializableSequenceProtocolNames(in: stdlibFile)
 let generatedNativeWritableStringCollectionViews =
     nativeWritableStringCollectionViews(in: stdlibFile)
 let generatedNativeCollectionCarrierDefaults =
@@ -2247,6 +2249,28 @@ enum GeneratedCollectionDefaultSurface {
     ) -> Bool {
         elementGenericCollectionNominalNames.contains(nominalName)
     }
+
+    private static let materializableSequenceProtocolNames: Set<String> = Set([
+        \(generatedMaterializableSequenceProtocolNames
+            .map(String.init(reflecting:)).joined(separator: ", "))
+    ])
+
+    static func isMaterializableSequenceProtocol(
+        named rawName: String
+    ) -> Bool {
+        var name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["any ", "some "] where name.hasPrefix(prefix) {
+            name.removeFirst(prefix.count)
+            name = name.trimmingCharacters(in: .whitespaces)
+        }
+        if name.hasPrefix("Swift.") {
+            name.removeFirst("Swift.".count)
+        }
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return materializableSequenceProtocolNames.contains(name)
+    }
 """ + "\n"
 collectionDefaultsOutput += """
 
@@ -2850,6 +2874,7 @@ print(
         + "\(generatedOptionalElementCollectionDefaults.count) properties, "
         + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "
         + "\(generatedElementGenericCollectionNominals.count) element-generic collections, "
+        + "\(generatedMaterializableSequenceProtocolNames.count) Sequence protocols, "
         + "\(generatedNativeWritableStringCollectionViews.count) writable String collection views, "
         + "\(generatedNativeCollectionCarrierScalarVoidMutations.count) native carrier scalar mutations, "
         + "\(generatedNativeDictionaryKeyOptionalValueMutations.count) dictionary key mutations)")

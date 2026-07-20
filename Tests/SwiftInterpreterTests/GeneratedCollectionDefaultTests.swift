@@ -68,10 +68,14 @@ import Testing
 
     @Test func generatedWritableStringCollectionViewWritesBack() throws {
         let source = """
-        var text = ""
-        let scalars = "A⭕".unicodeScalars
-        text.unicodeScalars.append(contentsOf: scalars)
-        text
+        func copiedScalars<S: Sequence>(_ scalars: S) -> String
+        where S.Iterator.Element == UnicodeScalar {
+            var text = ""
+            text.unicodeScalars.append(contentsOf: scalars)
+            return text
+        }
+
+        copiedScalars("A⭕".unicodeScalars)
         """
 
         let value = try Interpreter().run(source: source)
