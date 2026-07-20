@@ -513,6 +513,11 @@ extension Interpreter {
         in closure: ClosureExprSyntax,
         parameters: [ClosureValue.Parameter]
     ) -> Set<String> {
+        let programState = currentProgramState
+        let closureID = Syntax(closure).id
+        if let cached = programState?.closureOuterReferenceCache[closureID] {
+            return cached
+        }
         var references: Set<String> = []
 
         func patternNames(_ pattern: PatternSyntax) -> Set<String> {
@@ -755,6 +760,7 @@ extension Interpreter {
             initialBound.formUnion(captures.map { $0.name.text })
         }
         collectItems(closure.statements, bound: initialBound)
+        programState?.closureOuterReferenceCache[closureID] = references
         return references
     }
 

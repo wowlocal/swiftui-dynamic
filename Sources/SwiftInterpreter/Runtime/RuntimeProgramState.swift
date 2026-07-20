@@ -46,6 +46,10 @@ final class RuntimeProgramState {
     var dependencyCache: [String: RuntimeValue] = [:]
     var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]
     var declarationLexicalOwners: [SyntaxIdentifier: AnyObject] = [:]
+    /// Free-variable names are a property of the parsed closure site. Cache
+    /// only that immutable analysis; every closure formation still builds a
+    /// fresh environment and resolves the current boxes and values into it.
+    var closureOuterReferenceCache: [SyntaxIdentifier: Set<String>] = [:]
     var preparedScalarFunctions:
         [SyntaxIdentifier: PreparedScalarFunctionCache] = [:]
     var pendingDottedExtensions: [ExtensionDeclSyntax] = []

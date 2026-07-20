@@ -86,6 +86,20 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 6)
     }
 
+    /// Re-forming one parsed closure site may reuse lexical name analysis,
+    /// but each invocation must still capture that invocation's value.
+    @Test func repeatedClosureSiteCapturesFreshInvocationValues() throws {
+        let source = """
+        func make(_ value: Int) -> () -> Int {
+            { value }
+        }
+        let first = make(2)
+        let second = make(7)
+        first() * 10 + second()
+        """
+        #expect(try eval(source).intValue == 27)
+    }
+
     /// Native Swift 6 strict-concurrency probe: a nested closure that uses
     /// `$local.flag` retains the body-local `@Bindable` storage and writes
     /// through to its observable model (`true`).
