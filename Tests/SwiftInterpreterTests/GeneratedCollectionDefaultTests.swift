@@ -16,6 +16,23 @@ import Testing
         #expect(value.intValue == 3)
     }
 
+    @Test func generatedNativeDictionaryAndSetMutationsPreserveContents() throws {
+        let source = """
+        var dictionary = ["first": 1]
+        dictionary.reserveCapacity(64)
+        dictionary["second"] = 2
+
+        var set: Set<Int> = [1]
+        set.reserveCapacity(64)
+        set.insert(2)
+
+        "\\(dictionary.count)|\\(set.count)"
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "2|2")
+    }
+
     @Test func generatedIndexMotionServesInterpretedCollection() throws {
         let source = """
         struct Bytes: RandomAccessCollection {

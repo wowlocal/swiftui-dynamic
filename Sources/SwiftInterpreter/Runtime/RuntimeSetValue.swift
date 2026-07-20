@@ -23,6 +23,14 @@ public struct RuntimeSetValue: @preconcurrency CustomStringConvertible {
         self.elementTypeName = elementTypeName
     }
 
+    /// Gives generated standard-library adapters mutable access to the
+    /// deterministic storage while preserving the Set wrapper's invariants.
+    mutating func withMutableElements(
+        _ mutation: (inout [RuntimeValue]) -> Void
+    ) {
+        mutation(&elements)
+    }
+
     public static func deduplicating(
         _ values: [RuntimeValue], elementTypeName: String? = nil,
         by areEqual: Equality

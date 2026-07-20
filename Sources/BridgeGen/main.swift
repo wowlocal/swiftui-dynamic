@@ -1541,8 +1541,8 @@ let generatedOptionalLastRemovalCollectionDefaults =
     optionalLastRemovalCollectionDefaults(in: stdlibFile)
 let generatedElementGenericCollectionNominals =
     elementGenericCollectionNominals(in: stdlibFile)
-let generatedNativeArrayCarrierIntegerVoidMutations =
-    nativeArrayCarrierIntegerVoidMutations(in: stdlibFile)
+let generatedNativeCollectionCarrierIntegerVoidMutations =
+    nativeCollectionCarrierIntegerVoidMutations(in: stdlibFile)
 let generatedRangeRemovalMutations =
     rangeRemovalMutations(in: stdlibFile)
 
@@ -2319,47 +2319,101 @@ collectionDefaultsOutput += """
         optionalLastRemovalProtocols[memberName] != nil
     }
 
-    static let nativeArrayCarrierIntegerVoidMutationNames: Set<String> = Set([
-        \(Set(generatedNativeArrayCarrierIntegerVoidMutations.map(\.memberName))
-            .sorted().map(String.init(reflecting:)).joined(separator: ", "))
-    ])
-
-    static func isNativeArrayCarrierIntegerVoidMutation(
-        named memberName: String
-    ) -> Bool {
-        nativeArrayCarrierIntegerVoidMutationNames.contains(memberName)
+    enum NativeCarrierKind {
+        case array
+        case dictionary
+        case set
     }
 
-    @MainActor
-    static func invokeNativeArrayCarrierIntegerVoidMutation(
-        named name: String,
-        arguments: CallArguments,
-        array: inout [RuntimeValue]
-    ) throws -> Bool {
+    private static let nativeCarrierIntegerVoidMutationNames:
+        [NativeCarrierKind: Set<String>] = [
 """ + "\n"
-for mutation in generatedNativeArrayCarrierIntegerVoidMutations {
-    let argument = mutation.argumentLabel.map {
-        "arguments.labeled(\(String(reflecting: $0)))"
-    } ?? "arguments.positional(0)"
-    let invocationArgument = mutation.argumentLabel.map {
-        "\($0): value"
-    } ?? "value"
+for carrierKind in NativeCollectionCarrierKind.allCases {
+    let names = Set(generatedNativeCollectionCarrierIntegerVoidMutations
+        .filter { $0.carrierKind == carrierKind }
+        .map(\.memberName))
+        .sorted()
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
     collectionDefaultsOutput += """
-        if name == \(String(reflecting: mutation.memberName)),
-           arguments.arguments.count == 1,
-           let value = \(argument)?.intValue {
-            array.\(mutation.memberName)(\(invocationArgument))
-            return true
-        }
+        .\(carrierKind.rawValue): Set([\(names)]),
 """ + "\n"
 }
 collectionDefaultsOutput += """
-        if nativeArrayCarrierIntegerVoidMutationNames.contains(name) {
+    ]
+
+    static func isNativeCarrierIntegerVoidMutation(
+        named memberName: String,
+        carrierKind: NativeCarrierKind
+    ) -> Bool {
+        nativeCarrierIntegerVoidMutationNames[carrierKind]?
+            .contains(memberName) == true
+    }
+""" + "\n"
+for carrierKind in NativeCollectionCarrierKind.allCases {
+    let carrierType: String
+    switch carrierKind {
+    case .array: carrierType = "[RuntimeValue]"
+    case .dictionary: carrierType = "DictValue"
+    case .set: carrierType = "RuntimeSetValue"
+    }
+    collectionDefaultsOutput += """
+
+    @MainActor
+    static func invokeNativeCarrierIntegerVoidMutation(
+        named name: String,
+        arguments: CallArguments,
+        carrier: inout \(carrierType)
+    ) throws -> Bool {
+""" + "\n"
+    for mutation in generatedNativeCollectionCarrierIntegerVoidMutations
+    where mutation.carrierKind == carrierKind {
+        let argument = mutation.argumentLabel.map {
+            "arguments.labeled(\(String(reflecting: $0)))"
+        } ?? "arguments.positional(0)"
+        let invocationArgument = mutation.argumentLabel.map {
+            "\($0): value"
+        } ?? "value"
+        collectionDefaultsOutput += """
+        if name == \(String(reflecting: mutation.memberName)),
+           arguments.arguments.count == 1,
+           let value = \(argument)?.intValue {
+""" + "\n"
+        switch carrierKind {
+        case .array:
+            collectionDefaultsOutput += """
+            carrier.\(mutation.memberName)(\(invocationArgument))
+""" + "\n"
+        case .dictionary:
+            collectionDefaultsOutput += """
+            carrier.withMutableStorage { keys, values in
+                keys.\(mutation.memberName)(\(invocationArgument))
+                values.\(mutation.memberName)(\(invocationArgument))
+            }
+""" + "\n"
+        case .set:
+            collectionDefaultsOutput += """
+            carrier.withMutableElements { elements in
+                elements.\(mutation.memberName)(\(invocationArgument))
+            }
+""" + "\n"
+        }
+        collectionDefaultsOutput += """
+            return true
+        }
+""" + "\n"
+    }
+    collectionDefaultsOutput += """
+        if nativeCarrierIntegerVoidMutationNames[.\(carrierKind.rawValue)]?
+            .contains(name) == true {
             throw RuntimeError(
-                message: "generated native array mutation argument mismatch")
+                message: "generated native \(carrierKind.rawValue) mutation argument mismatch")
         }
         return false
     }
+""" + "\n"
+}
+collectionDefaultsOutput += """
 }
 """ + "\n"
 let collectionDefaultsPath =
@@ -2372,7 +2426,7 @@ print(
         + "\(generatedOptionalElementCollectionDefaults.count) properties, "
         + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "
         + "\(generatedElementGenericCollectionNominals.count) element-generic collections, "
-        + "\(generatedNativeArrayCarrierIntegerVoidMutations.count) native array mutations)")
+        + "\(generatedNativeCollectionCarrierIntegerVoidMutations.count) native carrier mutations)")
 
 let rangeRemovalMembers = Dictionary(
     grouping: generatedRangeRemovalMutations,

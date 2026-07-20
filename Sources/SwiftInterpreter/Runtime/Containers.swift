@@ -42,6 +42,18 @@ public struct DictValue: @preconcurrency CustomStringConvertible {
     public var count: Int { keys.count }
     public var isEmpty: Bool { keys.isEmpty }
 
+    /// Gives generated standard-library adapters the dictionary's parallel
+    /// storage without exposing either array as source-level API.
+    mutating func withMutableStorage(
+        _ mutation: (inout [RuntimeValue], inout [RuntimeValue]) -> Void
+    ) {
+        var mutableKeys = keys
+        var mutableValues = values
+        mutation(&mutableKeys, &mutableValues)
+        keys = mutableKeys
+        values = mutableValues
+    }
+
     /// Storage lookup that distinguishes an absent key from a present value
     /// whose own value is `Optional.none`.
     public func value(forKey key: RuntimeValue) throws -> RuntimeValue? {

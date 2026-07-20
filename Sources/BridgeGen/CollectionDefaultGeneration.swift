@@ -29,11 +29,19 @@ struct OptionalLastRemovalCollectionDefault: Hashable {
 }
 
 /// A no-result mutation declared directly by the standard-library nominal
-/// that backs the interpreter's native array carrier. The supported argument
-/// shape is deliberately structural: BridgeGen can forward every public,
+/// that backs one of the interpreter's native collection carriers. The
+/// supported argument shape is deliberately structural: BridgeGen can
+/// forward every public,
 /// synchronous, one-`Int` mutation with no return value without learning an
 /// SDK member name.
-struct NativeArrayCarrierIntegerVoidMutation: Hashable {
+enum NativeCollectionCarrierKind: String, CaseIterable, Hashable {
+    case array
+    case dictionary
+    case set
+}
+
+struct NativeCollectionCarrierIntegerVoidMutation: Hashable {
+    let carrierKind: NativeCollectionCarrierKind
     let memberName: String
     let argumentLabel: String?
 }
@@ -547,13 +555,14 @@ func elementGenericCollectionNominals(
 }
 
 /// Discovers native operations that can be emitted as direct calls on the
-/// interpreter's `[RuntimeValue]` carrier. The carrier nominal is derived
-/// from the host type itself; it is not an authored stdlib type-name branch.
+/// interpreter's array, dictionary, and set carriers. Their nominals are
+/// derived from the host type itself; this is not an authored stdlib
+/// type-name branch.
 /// Generated calls are compiled against the active toolchain, so signature
 /// drift fails BridgeGen's build instead of surfacing in an app session.
-func nativeArrayCarrierIntegerVoidMutations(
+func nativeCollectionCarrierIntegerVoidMutations(
     in file: SourceFileSyntax?
-) -> [NativeArrayCarrierIntegerVoidMutation] {
+) -> [NativeCollectionCarrierIntegerVoidMutation] {
     guard let file else { return [] }
 
     func canonical(_ raw: String) -> String {
@@ -568,19 +577,26 @@ func nativeArrayCarrierIntegerVoidMutations(
         return name.split(separator: ".").last.map(String.init) ?? name
     }
 
-    let carrierNominal = nominalName(String(reflecting: [Never].self))
-    var mutations = Set<NativeArrayCarrierIntegerVoidMutation>()
+    let carrierKindsByNominal: [String: NativeCollectionCarrierKind] = [
+        nominalName(String(reflecting: [Never].self)): .array,
+        nominalName(String(reflecting: [Never: Never].self)): .dictionary,
+        nominalName(String(reflecting: Set<Never>.self)): .set,
+    ]
+    var mutations = Set<NativeCollectionCarrierIntegerVoidMutation>()
     for item in file.statements {
         guard case .decl(let declaration) = item.item else { continue }
         let members: MemberBlockItemListSyntax
+        let carrierKind: NativeCollectionCarrierKind
         if let nominal = declaration.as(StructDeclSyntax.self),
-           nominal.name.text == carrierNominal {
+           let matchedKind = carrierKindsByNominal[nominal.name.text] {
             members = nominal.memberBlock.members
+            carrierKind = matchedKind
         } else if let extensionDeclaration = declaration.as(
                     ExtensionDeclSyntax.self),
-                  nominalName(extensionDeclaration.extendedType
-                    .trimmedDescription) == carrierNominal {
+                  let matchedKind = carrierKindsByNominal[nominalName(
+                    extensionDeclaration.extendedType.trimmedDescription)] {
             members = extensionDeclaration.memberBlock.members
+            carrierKind = matchedKind
         } else {
             continue
         }
@@ -613,7 +629,8 @@ func nativeArrayCarrierIntegerVoidMutations(
                   parameters[0].defaultValue == nil
             else { continue }
 
-            mutations.insert(NativeArrayCarrierIntegerVoidMutation(
+            mutations.insert(NativeCollectionCarrierIntegerVoidMutation(
+                carrierKind: carrierKind,
                 memberName: function.name.text,
                 argumentLabel: parameters[0].firstName.text == "_"
                     ? nil : parameters[0].firstName.text))
@@ -621,7 +638,7 @@ func nativeArrayCarrierIntegerVoidMutations(
     }
 
     return mutations.sorted {
-        ($0.memberName, $0.argumentLabel ?? "")
-            < ($1.memberName, $1.argumentLabel ?? "")
+        ($0.carrierKind.rawValue, $0.memberName, $0.argumentLabel ?? "")
+            < ($1.carrierKind.rawValue, $1.memberName, $1.argumentLabel ?? "")
     }
 }
