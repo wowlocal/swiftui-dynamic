@@ -46,6 +46,34 @@ import Testing
         #expect(value.stringValue == "1|2")
     }
 
+    @Test func generatedNativeIndexMotionPreservesCarrierIndices() throws {
+        let source = """
+        let text = "p.quote-inline"
+        let dot = text.firstIndex(of: ".")!
+        let afterDot = text.index(after: dot)
+        let beforeAfter = text.index(before: afterDot)
+        let jumped = text.index(text.startIndex, offsetBy: 2)
+        let limitedJump = text.index(
+            text.startIndex, offsetBy: 2, limitedBy: text.endIndex)!
+        let limitedMiss = text.index(
+            text.startIndex, offsetBy: 20, limitedBy: text.endIndex) == nil
+        let values = [10, 20, 30]
+        "\\(text.distance(from: text.startIndex, to: afterDot))|"
+            + "\\(text.distance(from: text.startIndex, to: beforeAfter))|"
+            + "\\(text.distance(from: text.startIndex, to: jumped))|"
+            + "\\(text.distance(from: text.startIndex, to: limitedJump))|"
+            + "\\(limitedMiss)|"
+            + "\\(values.index(after: values.startIndex))|"
+            + "\\(values.index(before: values.endIndex))|"
+            + "\\(values.index(values.startIndex, offsetBy: 2))|"
+            + "\\(values.index(values.startIndex, offsetBy: 2, limitedBy: values.endIndex)!)|"
+            + "\\(values.index(values.startIndex, offsetBy: 4, limitedBy: values.endIndex) == nil)"
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "2|1|2|2|true|1|2|2|2|true")
+    }
+
     @Test func generatedIndexMotionServesInterpretedCollection() throws {
         let source = """
         struct Bytes: RandomAccessCollection {

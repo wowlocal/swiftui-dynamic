@@ -699,6 +699,11 @@ extension Interpreter {
         elementTypeName: String? = nil
     ) throws -> RuntimeValue? {
         if let generated = GeneratedCollectionDefaultSurface
+            .nativeIndexMotionMember(
+                named: name, receiver: .native(array)) {
+            return .hostFunction(generated)
+        }
+        if let generated = GeneratedCollectionDefaultSurface
             .nativeForwardIndexSearchMember(
                 named: name, receiver: .native(array)) {
             return .hostFunction(generated)
@@ -715,22 +720,6 @@ extension Interpreter {
         case "indices": return .native(0..<array.count)
         case "startIndex": return .native(0)
         case "endIndex": return .native(array.count)
-        case "index":
-            // `index(after:)` / `index(before:)` / `index(_:offsetBy:)` —
-            // integer index arithmetic (MakeItSo's computeOrder genre).
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                if let after = args.labeled("after")?.intValue {
-                    return .native(after + 1)
-                }
-                if let before = args.labeled("before")?.intValue {
-                    return .native(before - 1)
-                }
-                if let base = args.positional(0)?.intValue,
-                   let offset = args.labeled("offsetBy")?.intValue {
-                    return .native(base + offset)
-                }
-                throw EvalMessage(text: "index(...) needs integer arguments")
-            })
         case "elementsEqual":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let other = args.positional(0)?.arrayValue, other.count == array.count else {
@@ -1125,6 +1114,11 @@ extension Interpreter {
 
     private func stringMember(_ name: String, _ string: String) -> RuntimeValue? {
         if let generated = GeneratedCollectionDefaultSurface
+            .nativeIndexMotionMember(
+                named: name, receiver: .native(string)) {
+            return .hostFunction(generated)
+        }
+        if let generated = GeneratedCollectionDefaultSurface
             .nativeForwardIndexSearchMember(
                 named: name, receiver: .native(string)) {
             return .hostFunction(generated)
@@ -1305,19 +1299,6 @@ extension Interpreter {
             // fall back to utf8, the corpus's only ask).
             return .hostFunction(HostFunction(name: name) { _, _ in
                 .native(string.data(using: .utf8))
-            })
-        case "index":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                guard case .host(let any)? = args.positional(0),
-                      let base = any as? String.Index else {
-                    throw RuntimeError(message: "index(_:offsetBy:) needs a String.Index")
-                }
-                let offset = (args.labeled("offsetBy") ?? args.positional(1))?.intValue ?? 0
-                let limit = offset >= 0 ? string.endIndex : string.startIndex
-                guard let moved = string.index(base, offsetBy: offset, limitedBy: limit) else {
-                    throw RuntimeError(message: "String index offset out of bounds")
-                }
-                return .native(moved)
             })
         case "distance":
             return .hostFunction(HostFunction(name: name) { args, _ in

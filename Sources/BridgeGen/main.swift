@@ -1535,6 +1535,8 @@ let generatedUnsafeMemorySurface = unsafeMemorySurface(in: stdlibFile)
 let generatedUnicodeDecodingSurface = unicodeDecodingSurface(in: stdlibFile)
 let generatedIntegerIndexCollectionDefaults =
     integerIndexCollectionDefaults(in: stdlibFile)
+let generatedNativeIndexMotionDefaults =
+    nativeIndexMotionDefaults(in: stdlibFile)
 let generatedForwardIndexSearchDefaults =
     forwardIndexSearchDefaults(in: stdlibFile)
 let generatedOptionalElementCollectionDefaults =
@@ -2268,11 +2270,143 @@ collectionDefaultsOutput += """
     }
 
     @MainActor
+    static func nativeIndexMotionMember(
+        named name: String,
+        receiver: RuntimeValue
+    ) -> HostFunction? {
+""" + "\n"
+for (memberName, defaults) in Dictionary(
+    grouping: generatedNativeIndexMotionDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    collectionDefaultsOutput += """
+        if name == \(String(reflecting: memberName)) {
+            return HostFunction(name: name) { args, _ in
+""" + "\n"
+    for rule in defaults {
+        let arguments = rule.argumentLabels.enumerated().map {
+            index, label in
+            label.map {
+                "args.labeled(\(String(reflecting: $0)))"
+            } ?? "args.positional(\(index))"
+        }
+        switch rule.kind {
+        case .successor, .predecessor:
+            let distance = rule.kind == .successor ? 1 : -1
+            collectionDefaultsOutput += """
+                if args.arguments.count == 1,
+                   let index = \(arguments[0]) {
+                    return try moveNativeIndex(
+                        in: receiver, from: index, by: \(distance))
+                }
+""" + "\n"
+        case .offset:
+            collectionDefaultsOutput += """
+                if args.arguments.count == 2,
+                   let index = \(arguments[0]),
+                   let distance = \(arguments[1])?.intValue {
+                    return try moveNativeIndex(
+                        in: receiver, from: index, by: distance)
+                }
+""" + "\n"
+        case .limitedOffset:
+            collectionDefaultsOutput += """
+                if args.arguments.count == 3,
+                   let index = \(arguments[0]),
+                   let distance = \(arguments[1])?.intValue,
+                   let limit = \(arguments[2]) {
+                    return try limitedNativeIndex(
+                        in: receiver, from: index,
+                        by: distance, limitedBy: limit)
+                }
+""" + "\n"
+        }
+    }
+    collectionDefaultsOutput += """
+                throw RuntimeError(
+                    message: "generated native index motion argument mismatch")
+            }
+        }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        return nil
+    }
+
+    @MainActor
+    private static func moveNativeIndex(
+        in receiver: RuntimeValue,
+        from indexValue: RuntimeValue,
+        by distance: Int
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            guard case .host(let payload) = indexValue,
+                  let index = payload as? String.Index else {
+                throw RuntimeError(
+                    message: "generated string index motion needs String.Index")
+            }
+            let limit = distance >= 0 ? string.endIndex : string.startIndex
+            guard let moved = string.index(
+                index, offsetBy: distance, limitedBy: limit) else {
+                throw RuntimeError(
+                    message: "generated string index motion is out of bounds")
+            }
+            return .native(moved)
+        }
+        if receiver.arrayValue != nil,
+           let index = indexValue.intValue {
+            return .native(index + distance)
+        }
+        throw RuntimeError(
+            message: "generated native index motion needs an indexed carrier")
+    }
+
+    @MainActor
+    private static func limitedNativeIndex(
+        in receiver: RuntimeValue,
+        from indexValue: RuntimeValue,
+        by distance: Int,
+        limitedBy limitValue: RuntimeValue
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            guard case .host(let indexPayload) = indexValue,
+                  let index = indexPayload as? String.Index,
+                  case .host(let limitPayload) = limitValue,
+                  let limit = limitPayload as? String.Index else {
+                throw RuntimeError(
+                    message: "generated limited string motion needs String.Index")
+            }
+            guard let moved = string.index(
+                index, offsetBy: distance, limitedBy: limit) else {
+                return .none(wrappedTypeName: "String.Index")
+            }
+            return .some(
+                .native(moved), wrappedTypeName: "String.Index")
+        }
+        if receiver.arrayValue != nil,
+           let index = indexValue.intValue,
+           let limit = limitValue.intValue {
+            let delta = limit - index
+            let crossesLimit = distance > 0
+                ? delta >= 0 && delta < distance
+                : delta <= 0 && distance < delta
+            guard !crossesLimit else {
+                return .none(wrappedTypeName: "Int")
+            }
+            return .some(
+                .native(index + distance), wrappedTypeName: "Int")
+        }
+        throw RuntimeError(
+            message: "generated limited index motion needs an indexed carrier")
+    }
+
+    @MainActor
     static func nativeForwardIndexSearchMember(
         named name: String,
         receiver: RuntimeValue
     ) -> HostFunction? {
 """ + "\n"
+
 for (memberName, defaults) in Dictionary(
     grouping: generatedForwardIndexSearchDefaults,
     by: \.memberName
@@ -2510,6 +2644,7 @@ try collectionDefaultsOutput.write(
 print(
     "wrote \(collectionDefaultsPath) "
         + "(\(generatedIntegerIndexCollectionDefaults.count) methods, "
+        + "\(generatedNativeIndexMotionDefaults.count) native index motions, "
         + "\(generatedForwardIndexSearchDefaults.count) index searches, "
         + "\(generatedOptionalElementCollectionDefaults.count) properties, "
         + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "

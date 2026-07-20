@@ -33,6 +33,111 @@ enum GeneratedCollectionDefaultSurface {
     }
 
     @MainActor
+    static func nativeIndexMotionMember(
+        named name: String,
+        receiver: RuntimeValue
+    ) -> HostFunction? {
+        if name == "index" {
+            return HostFunction(name: name) { args, _ in
+                if args.arguments.count == 3,
+                   let index = args.positional(0),
+                   let distance = args.labeled("offsetBy")?.intValue,
+                   let limit = args.labeled("limitedBy") {
+                    return try limitedNativeIndex(
+                        in: receiver, from: index,
+                        by: distance, limitedBy: limit)
+                }
+                if args.arguments.count == 2,
+                   let index = args.positional(0),
+                   let distance = args.labeled("offsetBy")?.intValue {
+                    return try moveNativeIndex(
+                        in: receiver, from: index, by: distance)
+                }
+                if args.arguments.count == 1,
+                   let index = args.labeled("before") {
+                    return try moveNativeIndex(
+                        in: receiver, from: index, by: -1)
+                }
+                if args.arguments.count == 1,
+                   let index = args.labeled("after") {
+                    return try moveNativeIndex(
+                        in: receiver, from: index, by: 1)
+                }
+                throw RuntimeError(
+                    message: "generated native index motion argument mismatch")
+            }
+        }
+        return nil
+    }
+
+    @MainActor
+    private static func moveNativeIndex(
+        in receiver: RuntimeValue,
+        from indexValue: RuntimeValue,
+        by distance: Int
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            guard case .host(let payload) = indexValue,
+                  let index = payload as? String.Index else {
+                throw RuntimeError(
+                    message: "generated string index motion needs String.Index")
+            }
+            let limit = distance >= 0 ? string.endIndex : string.startIndex
+            guard let moved = string.index(
+                index, offsetBy: distance, limitedBy: limit) else {
+                throw RuntimeError(
+                    message: "generated string index motion is out of bounds")
+            }
+            return .native(moved)
+        }
+        if receiver.arrayValue != nil,
+           let index = indexValue.intValue {
+            return .native(index + distance)
+        }
+        throw RuntimeError(
+            message: "generated native index motion needs an indexed carrier")
+    }
+
+    @MainActor
+    private static func limitedNativeIndex(
+        in receiver: RuntimeValue,
+        from indexValue: RuntimeValue,
+        by distance: Int,
+        limitedBy limitValue: RuntimeValue
+    ) throws -> RuntimeValue {
+        if let string = receiver.stringValue {
+            guard case .host(let indexPayload) = indexValue,
+                  let index = indexPayload as? String.Index,
+                  case .host(let limitPayload) = limitValue,
+                  let limit = limitPayload as? String.Index else {
+                throw RuntimeError(
+                    message: "generated limited string motion needs String.Index")
+            }
+            guard let moved = string.index(
+                index, offsetBy: distance, limitedBy: limit) else {
+                return .none(wrappedTypeName: "String.Index")
+            }
+            return .some(
+                .native(moved), wrappedTypeName: "String.Index")
+        }
+        if receiver.arrayValue != nil,
+           let index = indexValue.intValue,
+           let limit = limitValue.intValue {
+            let delta = limit - index
+            let crossesLimit = distance > 0
+                ? delta >= 0 && delta < distance
+                : delta <= 0 && distance < delta
+            guard !crossesLimit else {
+                return .none(wrappedTypeName: "Int")
+            }
+            return .some(
+                .native(index + distance), wrappedTypeName: "Int")
+        }
+        throw RuntimeError(
+            message: "generated limited index motion needs an indexed carrier")
+    }
+
+    @MainActor
     static func nativeForwardIndexSearchMember(
         named name: String,
         receiver: RuntimeValue

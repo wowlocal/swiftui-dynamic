@@ -41,6 +41,19 @@ struct ForwardIndexSearchDefault: Hashable {
     let argumentKind: ForwardIndexSearchArgumentKind
 }
 
+enum NativeIndexMotionKind: String, Hashable {
+    case successor
+    case predecessor
+    case offset
+    case limitedOffset
+}
+
+struct NativeIndexMotionDefault: Hashable {
+    let memberName: String
+    let argumentLabels: [String?]
+    let kind: NativeIndexMotionKind
+}
+
 /// A no-result mutation declared directly by the standard-library nominal
 /// that backs one of the interpreter's native collection carriers. The
 /// supported argument shape is deliberately structural: BridgeGen can
@@ -265,6 +278,133 @@ func integerIndexCollectionDefaults(
     return defaults.sorted {
         ($0.protocolName, $0.memberName, $0.argumentLabel ?? "")
             < ($1.protocolName, $1.memberName, $1.argumentLabel ?? "")
+    }
+}
+
+/// Finds the index-returning requirements of the protocol that structurally
+/// owns a collection index (an associated Index, index-typed endpoints, and an
+/// Index-to-Element subscript), plus the reverse step introduced by its
+/// refinements. Native carriers can then preserve their real index
+/// representation while member names and labels continue to come from the
+/// active standard-library interface.
+func nativeIndexMotionDefaults(
+    in file: SourceFileSyntax?
+) -> [NativeIndexMotionDefault] {
+    guard let file else { return [] }
+    let refinementEligibility = protocolRefinementEligibility(in: file)
+
+    func canonical(_ raw: String) -> String {
+        normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    let protocols = file.statements.compactMap {
+        item -> ProtocolDeclSyntax? in
+        guard case .decl(let declaration) = item.item else { return nil }
+        return declaration.as(ProtocolDeclSyntax.self)
+    }
+
+    func structurallyOwnsCollectionIndex(
+        _ declaration: ProtocolDeclSyntax
+    ) -> Bool {
+        let members = declaration.memberBlock.members
+        let ownsIndex = members.contains { member in
+            guard let associated = member.decl.as(
+                AssociatedTypeDeclSyntax.self
+            ) else { return false }
+            return associated.name.text == "Index"
+                && !associated.modifiers.contains {
+                    $0.name.text == "override"
+                }
+        }
+        let ownsElement = members.contains { member in
+            guard let associated = member.decl.as(
+                AssociatedTypeDeclSyntax.self
+            ) else { return false }
+            return associated.name.text == "Element"
+        }
+        let indexEndpoints = members.reduce(into: 0) { count, member in
+            guard let variable = member.decl.as(VariableDeclSyntax.self)
+            else { return }
+            count += variable.bindings.filter {
+                canonical($0.typeAnnotation?.type.trimmedDescription ?? "")
+                    == "Self.Index"
+            }.count
+        }
+        let indexedElementSubscript = members.contains { member in
+            guard let subscriptDeclaration = member.decl.as(
+                SubscriptDeclSyntax.self
+            ) else { return false }
+            let parameters = Array(
+                subscriptDeclaration.parameterClause.parameters)
+            return parameters.count == 1
+                && canonical(parameters[0].type.trimmedDescription)
+                    == "Self.Index"
+                && canonical(subscriptDeclaration.returnClause.type
+                    .trimmedDescription) == "Self.Element"
+        }
+        return ownsIndex && ownsElement && indexEndpoints >= 2
+            && indexedElementSubscript
+    }
+
+    func labels(
+        _ parameters: [FunctionParameterSyntax]
+    ) -> [String?] {
+        parameters.map {
+            $0.firstName.text == "_" ? nil : $0.firstName.text
+        }
+    }
+
+    var defaults = Set<NativeIndexMotionDefault>()
+    for root in protocols where structurallyOwnsCollectionIndex(root) {
+        let rootName = canonical(root.name.text)
+        let eligible = Set(refinementEligibility[rootName] ?? [rootName])
+        for declaration in protocols
+        where eligible.contains(canonical(declaration.name.text)) {
+            let isRoot = canonical(declaration.name.text) == rootName
+            for member in declaration.memberBlock.members {
+                guard let function = member.decl.as(FunctionDeclSyntax.self)
+                else { continue }
+                let parameters = Array(
+                    function.signature.parameterClause.parameters)
+                let parameterTypes = parameters.map {
+                    canonical($0.type.trimmedDescription)
+                }
+                let returnType = canonical(
+                    function.signature.returnClause?.type
+                        .trimmedDescription ?? "")
+                let kind: NativeIndexMotionKind?
+                switch (parameterTypes, returnType) {
+                case (["Self.Index"], "Self.Index"):
+                    if isRoot {
+                        kind = .successor
+                    } else if !function.modifiers.contains(where: {
+                        $0.name.text == "override"
+                    }) {
+                        kind = .predecessor
+                    } else {
+                        kind = nil
+                    }
+                case (["Self.Index", "Int"], "Self.Index"):
+                    kind = .offset
+                case (["Self.Index", "Int", "Self.Index"], "Self.Index?"):
+                    kind = .limitedOffset
+                default:
+                    kind = nil
+                }
+                guard let kind else { continue }
+                defaults.insert(NativeIndexMotionDefault(
+                    memberName: function.name.text,
+                    argumentLabels: labels(parameters),
+                    kind: kind))
+            }
+        }
+    }
+
+    return defaults.sorted {
+        ($0.memberName, $0.kind.rawValue, $0.argumentLabels
+            .map { $0 ?? "" }.joined(separator: ":"))
+            < ($1.memberName, $1.kind.rawValue, $1.argumentLabels
+                .map { $0 ?? "" }.joined(separator: ":"))
     }
 }
 
