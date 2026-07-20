@@ -1497,6 +1497,8 @@ extension Interpreter {
         defer {
             evaluationTaskContext.leaveProgramState(programState)
         }
+        lexicalSourceModuleFrames.append(closure.sourceModuleName)
+        defer { lexicalSourceModuleFrames.removeLast() }
         let invocation = try resolvedInvocation(
             for: closure, arguments: args)
         let effectiveArguments = invocation.arguments

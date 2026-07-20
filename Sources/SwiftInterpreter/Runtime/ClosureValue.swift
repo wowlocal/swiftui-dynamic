@@ -188,6 +188,10 @@ public final class ClosureValue {
     /// declaration fact without consulting whichever program the facade ran
     /// most recently.
     public internal(set) var programMetadata: ParsedProgramMetadata?
+    /// Source-module ownership of this declaration body. Flattened compiler
+    /// inputs retain ordinary Swift lexical lookup by carrying this immutable
+    /// declaration property through escaped and nested closures.
+    public internal(set) var sourceModuleName: String?
     /// Immutable target-specific declaration/member selection retained with
     /// the source closure. External callback entries reuse this exact object
     /// rather than resolving branches through current facade state.
@@ -223,7 +227,10 @@ public final class ClosureValue {
         self.returnTypeName = returnTypeName ?? returnType?.trimmedDescription
         self.builderReturnsArray = self.returnTypeName?.hasPrefix("[") == true
         self.programPlan = programPlan
-        self.programMetadata = programPlan?.metadata ?? programMetadata
+        let resolvedMetadata = programPlan?.metadata ?? programMetadata
+        self.programMetadata = resolvedMetadata
+        self.sourceModuleName = resolvedMetadata?.sourceModuleName(
+            at: body.positionAfterSkippingLeadingTrivia)
     }
 }
 

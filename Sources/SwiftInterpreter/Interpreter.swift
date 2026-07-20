@@ -665,6 +665,13 @@ public final class Interpreter {
         get { evaluationTaskContext.lexicalOwnerFrames }
         set { evaluationTaskContext.lexicalOwnerFrames = newValue }
     }
+    var lexicalSourceModuleFrames: [String?] {
+        get { evaluationTaskContext.lexicalSourceModuleFrames }
+        set { evaluationTaskContext.lexicalSourceModuleFrames = newValue }
+    }
+    var currentLexicalSourceModuleName: String? {
+        lexicalSourceModuleFrames.last ?? nil
+    }
     /// The statically proven actor context for a closure expression. Source
     /// top-level execution is MainActor-owned; an explicit `nil` frame means
     /// the active declaration has no actor isolation even if it was invoked
@@ -709,7 +716,8 @@ public final class Interpreter {
     /// inside `Token` to `Token.Tag`, even when another source file declares
     /// an unrelated top-level `Tag`.
     func lexicallyVisibleType(
-        named name: String, from owner: AnyObject?
+        named name: String, from owner: AnyObject?,
+        sourceModuleName: String? = nil
     ) -> RuntimeValue? {
         let components = name.split(separator: ".").map(String.init)
         guard let first = components.first else { return nil }
@@ -725,6 +733,30 @@ public final class Interpreter {
             default:
                 return nil
             }
+        }
+
+        func globallyVisibleType(
+            named components: ArraySlice<String>
+        ) -> RuntimeValue? {
+            guard !components.isEmpty else { return nil }
+            for prefixCount in stride(
+                from: components.count, through: 1, by: -1
+            ) {
+                let prefix = components.prefix(prefixCount).joined(separator: ".")
+                guard var resolved = typeValue(named: prefix) else { continue }
+                var matched = true
+                for component in components.dropFirst(prefixCount) {
+                    guard let nested = nestedType(
+                        named: component, in: resolved
+                    ) else {
+                        matched = false
+                        break
+                    }
+                    resolved = nested
+                }
+                if matched { return resolved }
+            }
+            return nil
         }
 
         var current = owner
@@ -748,25 +780,31 @@ public final class Interpreter {
                 current = nil
             }
         }
-        if root == nil {
-            root = typeValue(named: first)
+        if let root {
+            var resolved = root
+            for component in components.dropFirst() {
+                guard let nested = nestedType(named: component, in: resolved)
+                else { return nil }
+                resolved = nested
+            }
+            return resolved
         }
 
-        var remaining = components.dropFirst()
-        if root == nil, components.count > 1,
+        if let module = sourceModuleName ?? currentLexicalSourceModuleName,
+           let resolved = globallyVisibleType(
+               named: ArraySlice([module] + components)) {
+            return resolved
+        }
+        if let resolved = globallyVisibleType(named: components[...]) {
+            return resolved
+        }
+        if components.count > 1,
            first == "Swift"
             || currentProgramMetadata?.importedModuleNames.contains(first)
                 == true {
-            root = typeValue(named: components[1])
-            remaining = components.dropFirst(2)
+            return globallyVisibleType(named: components.dropFirst())
         }
-        guard var resolved = root else { return nil }
-        for component in remaining {
-            guard let nested = nestedType(named: component, in: resolved)
-            else { return nil }
-            resolved = nested
-        }
-        return resolved
+        return nil
     }
 
     /// The identity-bound interpreted superclass, if one exists. Host

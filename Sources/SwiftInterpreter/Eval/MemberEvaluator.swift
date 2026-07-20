@@ -221,6 +221,13 @@ extension Interpreter {
         if let value = try lexicallyEnclosingTypeMember(name) {
             return value
         }
+        let sourceModuleName = currentProgramMetadata?.sourceModuleName(
+            at: node.positionAfterSkippingLeadingTrivia)
+        if let value = lexicallyVisibleType(
+            named: name, from: lexicalOwnerFrames.last,
+            sourceModuleName: sourceModuleName) {
+            return value
+        }
         if let box = globals.box(for: name) { return try force(box) }
         // Operator-function references (`reduce(0, +)`, `sorted(by: >)`) —
         // real Swift passes the global operator function; ours applies the

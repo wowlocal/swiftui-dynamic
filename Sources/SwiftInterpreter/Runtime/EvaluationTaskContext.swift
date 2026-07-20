@@ -62,6 +62,10 @@ final class EvaluationTaskContext {
     /// state and must resolve declarations against that exact state.
     var programStateFrames: [RuntimeProgramState] = []
     var lexicalOwnerFrames: [AnyObject] = []
+    /// Exact source module of each executing declaration. Optional frames are
+    /// intentional: a closure outside generated source-module regions must
+    /// not inherit an unrelated caller's module lookup scope.
+    var lexicalSourceModuleFrames: [String?] = []
     /// Static executor context of the currently evaluated source declaration.
     /// A `nil` frame is intentional: a plain/nonisolated declaration may run
     /// dynamically on MainActor without making closures formed in its body
@@ -119,6 +123,7 @@ final class EvaluationTaskContext {
             && callStackNames.isEmpty
             && programStateFrames.isEmpty
             && lexicalOwnerFrames.isEmpty
+            && lexicalSourceModuleFrames.isEmpty
             && lexicalExecutorFrames.isEmpty
             && expectedAnnotationStack.isEmpty
             && enclosingReturnAnnotations.isEmpty
@@ -167,6 +172,7 @@ final class EvaluationTaskContext {
         callStackNames.removeAll(keepingCapacity: false)
         programStateFrames.removeAll(keepingCapacity: false)
         lexicalOwnerFrames.removeAll(keepingCapacity: false)
+        lexicalSourceModuleFrames.removeAll(keepingCapacity: false)
         lexicalExecutorFrames.removeAll(keepingCapacity: false)
         expectedAnnotationStack.removeAll(keepingCapacity: false)
         enclosingReturnAnnotations.removeAll(keepingCapacity: false)

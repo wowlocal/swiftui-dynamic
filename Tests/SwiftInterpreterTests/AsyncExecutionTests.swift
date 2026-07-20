@@ -74,6 +74,43 @@ struct AsyncExecutionTests {
         return try #require(instance.box(for: property)?.value.arrayValue).compactMap(\.stringValue)
     }
 
+    @Test func asyncSiblingTypeLookupUsesItsSourceModule() async throws {
+        let source = """
+        // swift-interpreter-source-module Parser
+        final class Node {
+            let value: Int
+
+            init(_ value: Int) {
+                self.value = value
+            }
+        }
+
+        final class Builder {
+            func build() async -> Node {
+                let node: Node = .init(20)
+                return Node(node.value + 22)
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-source-module Models
+        struct Node {
+            let marker: String
+
+            init(_ marker: String) {
+                self.marker = marker
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-module Parser
+        await Parser.Builder().build().value
+        """
+
+        let result = try await Interpreter().runAsync(source: source)
+        #expect(result.intValue == 42)
+    }
+
     @Test func asyncMutatingStructMethodCopiesOutLikeNativeSwift() async throws {
         let nativeOriginal = NativeAsyncCounter(value: 1)
         var nativeCopy = nativeOriginal

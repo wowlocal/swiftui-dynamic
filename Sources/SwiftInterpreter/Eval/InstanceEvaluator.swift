@@ -1503,8 +1503,7 @@ extension Interpreter {
         var scopedEnum = enumSymbols[typeName]
         var scopedStruct: StructSymbol?
         if case .type(let symbol)? = globals.lookup(typeName) { scopedStruct = symbol }
-        if typeName.contains("."),
-           let qualified = lexicallyVisibleType(
+        if let qualified = lexicallyVisibleType(
                named: typeName, from: lexicalOwnerFrames.last) {
             switch qualified {
             case .enumType(let symbol):

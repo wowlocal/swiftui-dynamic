@@ -597,6 +597,45 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 3)
     }
 
+    /// Unqualified sibling type annotations and references are bound in the
+    /// declaration's source module, not to a same-named nominal from a later
+    /// flattened module.
+    @Test func siblingTypeLookupUsesItsSourceModule() throws {
+        let source = """
+        // swift-interpreter-source-module Parser
+        final class Node {
+            let value: Int
+
+            init(_ value: Int) {
+                self.value = value
+            }
+        }
+
+        final class Builder {
+            func build() -> Node {
+                let node: Node = .init(20)
+                return Node(node.value + 22)
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-source-module Models
+        struct Node {
+            let marker: String
+
+            init(_ marker: String) {
+                self.marker = marker
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-module Parser
+        Parser.Builder().build().value
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
     /// Optional class elements survive assignment into and retrieval from a
     /// collection built inside a stored static property's initializer.
     @Test func staticOptionalArrayLookupPreservesClassElement() throws {
