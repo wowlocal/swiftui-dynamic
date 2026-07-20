@@ -75,6 +75,33 @@ import SwiftUIBridge
                 "root should come from the scene rung, got \(LiveCheckSupport.lastRootSymbol)")
     }
 
+    /// IceCubes' scene/list/row composition exceeds the old traversal depth
+    /// even though the branch is finite. `AnyView` makes this recursive shape
+    /// valid native SwiftUI; the terminal text must remain observable.
+    @Test func finiteViewBranchCanExceedFortyEightLevels() throws {
+        let rendered = try LiveCheckSupport.renderedStrings(source: """
+        struct FiniteNest: View {
+            let remaining: Int
+
+            var body: some View {
+                if remaining == 0 {
+                    AnyView(Text("deep marker"))
+                } else {
+                    AnyView(FiniteNest(remaining: remaining - 1))
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                FiniteNest(remaining: 56)
+            }
+        }
+        """)
+
+        #expect(rendered.contains("deep marker"))
+    }
+
     @Test func interpreterHostUsesAppOwnedRootArguments() throws {
         let source = """
         final class Model: ObservableObject {

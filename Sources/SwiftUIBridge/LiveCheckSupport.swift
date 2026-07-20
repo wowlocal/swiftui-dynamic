@@ -265,9 +265,9 @@ public enum LiveCheckSupport {
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil
     ) throws {
-        // IceCubes' composition (scene → tabs → navigation → timeline →
-        // list → rows) nests past 16; rows vanished silently at the old cap.
-        guard depth < 48 else { return }
+        // Keep a finite guard for malformed recursive Views while allowing
+        // valid type-erased branches to nest beyond ordinary app-shell depth.
+        guard depth < 128 else { return }
         strings.append(contentsOf: node.args)
         if lifecycleEnabled {
             lifecycle.append(contentsOf: node.lifecycle)
