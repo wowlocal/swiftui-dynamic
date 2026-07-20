@@ -468,7 +468,19 @@ extension Interpreter {
             if let selfValue = env.lookup("self"),
                selfValue.hostPayload != nil,
                let overloads = try hostExtensionMethodOverloads(
-                   named: name, on: selfValue
+                   named: name,
+                   on: selfValue,
+                   // An implicit-self call retains the extension's lexical
+                   // receiver type even when its Objective-C payload has no
+                   // nominal runtime identity. Do not apply this recovery to
+                   // explicit receivers: a different host value used inside
+                   // the extension must dispatch by its own declared/runtime
+                   // type.
+                   declaredTypeName: (lexicalOwnerFrames.last as? StructSymbol)
+                       .flatMap { lexicalHost in
+                           hostExtensionSymbols[lexicalHost.name]
+                               === lexicalHost ? lexicalHost.name : nil
+                       }
                ) {
                 let args = try collectArguments(of: call, in: env)
                 let target = try resolveHostExtensionMethodTarget(

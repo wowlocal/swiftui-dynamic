@@ -739,14 +739,6 @@ extension Interpreter {
                 appendTypeName("Array")
             }
         }
-        // Host payloads can erase their nominal role (an Objective-C bag has
-        // no Swift type name), but a bare call inside a source extension still
-        // has the extension's lexical receiver type. Preserve that compiler
-        // fact when assembling the source/imported overload family.
-        if let lexicalHost = lexicalOwnerFrames.last as? StructSymbol,
-           hostExtensionSymbols[lexicalHost.name] === lexicalHost {
-            appendTypeName(lexicalHost.name)
-        }
         if let typeName = registry?.hostTypeName(of: payload) {
             appendTypeName(typeName)
         }

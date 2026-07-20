@@ -4386,6 +4386,37 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// Lexical type recovery belongs only to implicit-self calls. An explicit
+    /// receiver inside one host extension dispatches by that value's own host
+    /// type, even when another host extension declares the same member shape.
+    @Test func explicitHostReceiverDoesNotInheritLexicalExtensionType() throws {
+        let source = """
+        import Foundation
+
+        extension String {
+            func decorated(_ suffix: String) -> String {
+                self + suffix
+            }
+        }
+
+        extension URL {
+            func decorated(_ suffix: String) -> String {
+                "value".decorated(suffix)
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text(URL(string: "https://example.com")!.decorated("!"))
+            }
+        }
+        """
+
+        let report = try HeadlessVerifier.verify(
+            source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// MochiDiffusion (iteration 148): three URL/Observation classes —
     /// mutating `url.append(path:directoryHint:)` writes through the lvalue;
     /// `url.path(percentEncoded:)` (METHOD) collides with the legacy `path`
