@@ -925,6 +925,26 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("assetText")?.stringValue == "first\nsecond")
     }
 
+    @Test func traceConstructorAdmissionStaysDataAssetScoped() throws {
+        let registry = TraceRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let existingDefaultsGateway: Set<String> = [
+            "UserDefaults", "NSUserDefaults",
+        ]
+        let unrelatedAllowlistedClasses = ObjCTrampoline.allowedClasses
+            .subtracting(existingDefaultsGateway)
+            .filter {
+                ObjCTrampoline.projectDataAssetConstructor(named: $0) == nil
+            }
+
+        #expect(!unrelatedAllowlistedClasses.isEmpty)
+        for name in unrelatedAllowlistedClasses {
+            let constructor = try #require(registry.constructor(named: name))
+            let value = try constructor.invoke(CallArguments(), interpreter)
+            #expect(!(value.hostPayload is ObjCBox))
+        }
+    }
+
     @Test func bundlePathResolvesProjectResourceByCallShape() throws {
         let previousRoot = BundleBox.projectResourceRoot
         let root = NSTemporaryDirectory() + "bundle-path-probe-\(UUID().uuidString)"

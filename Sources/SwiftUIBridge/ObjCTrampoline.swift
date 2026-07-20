@@ -63,6 +63,17 @@ enum ObjCTrampoline {
         }
     }
 
+    /// Constructor lookup restricted to classes that prove the immutable
+    /// data-asset property/initializer contract through Objective-C metadata.
+    /// Trace-mode callers use this narrower capability instead of admitting
+    /// every unrelated class on the general Objective-C allowlist.
+    static func projectDataAssetConstructor(named name: String) -> HostFunction? {
+        guard let cls = resolveClass(name), supportsProjectDataAsset(cls) else {
+            return nil
+        }
+        return constructor(named: name)
+    }
+
     /// `RelativeDateTimeFormatter()` — no-argument construction.
     static func constructor(named name: String) -> HostFunction? {
         guard let cls = resolveClass(name) else { return nil }
