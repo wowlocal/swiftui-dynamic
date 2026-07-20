@@ -103,6 +103,141 @@ struct NativeCollectionCarrierDefaults {
         [NativeDictionaryKeyOptionalValueMutation]
 }
 
+/// A nested String collection view whose accessor supports in-place mutation.
+/// The element is projected through a public one-argument String initializer;
+/// the setter then provides a compiled copy-out path to the owning String.
+struct NativeWritableStringCollectionView: Hashable {
+    let propertyName: String
+    let viewTypeName: String
+    let elementTypeName: String
+}
+
+/// Discovers String properties that expose a mutable nested collection view.
+/// No property identity is authored here: the owner identity comes from the
+/// interpreter's native String carrier, while getter/setter/_modify access,
+/// RangeReplaceableCollection conformance, Element, and its String projection
+/// all come from the active standard-library interface.
+func nativeWritableStringCollectionViews(
+    in file: SourceFileSyntax?
+) -> [NativeWritableStringCollectionView] {
+    guard let file else { return [] }
+
+    func canonical(_ raw: String) -> String {
+        normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func isPublic(_ modifiers: DeclModifierListSyntax) -> Bool {
+        modifiers.contains { $0.name.text == "public" }
+    }
+
+    let stringName = canonical(String(reflecting: String.self))
+    let rangeReplaceableCollectionName = canonical(String(
+        reflecting: (any RangeReplaceableCollection).self))
+    var stringMemberBlocks: [MemberBlockItemListSyntax] = []
+    var extensions: [ExtensionDeclSyntax] = []
+
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item else { continue }
+        if let nominal = declaration.as(StructDeclSyntax.self),
+           canonical(nominal.name.text) == stringName {
+            stringMemberBlocks.append(nominal.memberBlock.members)
+        } else if let extensionDeclaration = declaration.as(
+                    ExtensionDeclSyntax.self) {
+            extensions.append(extensionDeclaration)
+            if canonical(extensionDeclaration.extendedType
+                .trimmedDescription) == stringName {
+                stringMemberBlocks.append(
+                    extensionDeclaration.memberBlock.members)
+            }
+        }
+    }
+
+    var stringInitializableElementTypes = Set<String>()
+    var propertyViews: [(propertyName: String, viewTypeName: String)] = []
+    for members in stringMemberBlocks {
+        for member in members {
+            if let initializer = member.decl.as(
+                InitializerDeclSyntax.self),
+               isPublic(initializer.modifiers),
+               initializer.optionalMark == nil,
+               initializer.genericParameterClause == nil,
+               initializer.genericWhereClause == nil {
+                let parameters = Array(
+                    initializer.signature.parameterClause.parameters)
+                if parameters.count == 1 {
+                    stringInitializableElementTypes.insert(canonical(
+                        parameters[0].type.trimmedDescription))
+                }
+                continue
+            }
+
+            guard let variable = member.decl.as(VariableDeclSyntax.self),
+                  isPublic(variable.modifiers),
+                  !variable.modifiers.contains(where: {
+                      $0.name.text == "static" || $0.name.text == "class"
+                  }),
+                  variable.bindings.count == 1,
+                  let binding = variable.bindings.first,
+                  let identifier = binding.pattern.as(
+                      IdentifierPatternSyntax.self),
+                  let viewType = binding.typeAnnotation?.type,
+                  canonical(viewType.trimmedDescription)
+                    .hasPrefix(stringName + "."),
+                  let accessorBlock = binding.accessorBlock,
+                  case .accessors(let accessors) = accessorBlock.accessors
+            else { continue }
+            let accessorNames = Set(
+                accessors.map(\.accessorSpecifier.text))
+            guard accessorNames.isSuperset(of: ["get", "set", "_modify"])
+            else { continue }
+            propertyViews.append((
+                propertyName: identifier.identifier.text,
+                viewTypeName: canonical(viewType.trimmedDescription)))
+        }
+    }
+
+    var rangeReplaceableViewTypes = Set<String>()
+    var elementTypesByView: [String: Set<String>] = [:]
+    for extensionDeclaration in extensions {
+        let viewTypeName = canonical(
+            extensionDeclaration.extendedType.trimmedDescription)
+        if extensionDeclaration.inheritanceClause?.inheritedTypes.contains(
+            where: {
+                canonical($0.type.trimmedDescription)
+                    == rangeReplaceableCollectionName
+            }) == true {
+            rangeReplaceableViewTypes.insert(viewTypeName)
+        }
+        for member in extensionDeclaration.memberBlock.members {
+            guard let alias = member.decl.as(TypeAliasDeclSyntax.self),
+                  isPublic(alias.modifiers),
+                  alias.name.text == "Element"
+            else { continue }
+            elementTypesByView[viewTypeName, default: []].insert(canonical(
+                alias.initializer.value.trimmedDescription))
+        }
+    }
+
+    var views = Set<NativeWritableStringCollectionView>()
+    for property in propertyViews
+    where rangeReplaceableViewTypes.contains(property.viewTypeName) {
+        guard let elementTypes = elementTypesByView[property.viewTypeName]
+        else { continue }
+        for elementType in elementTypes
+        where stringInitializableElementTypes.contains(elementType) {
+            views.insert(NativeWritableStringCollectionView(
+                propertyName: property.propertyName,
+                viewTypeName: property.viewTypeName,
+                elementTypeName: elementType))
+        }
+    }
+
+    return views.sorted {
+        ($0.propertyName, $0.viewTypeName, $0.elementTypeName)
+            < ($1.propertyName, $1.viewTypeName, $1.elementTypeName)
+    }
+}
+
 /// Builds the refinement closure for protocols declared in an interface. A
 /// default declared on a protocol is also eligible for every protocol that
 /// transitively refines it, even though interpreted conformers only carry the

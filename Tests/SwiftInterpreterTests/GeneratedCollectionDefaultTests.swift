@@ -66,6 +66,18 @@ import Testing
         #expect(value.stringValue == "0|0")
     }
 
+    @Test func generatedWritableStringCollectionViewWritesBack() throws {
+        let source = """
+        var text = ""
+        let scalars = "A⭕".unicodeScalars
+        text.unicodeScalars.append(contentsOf: scalars)
+        text
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "A⭕")
+    }
+
     @Test func generatedForwardIndexSearchPreservesStringIndices() throws {
         let source = """
         let text = "p.quote-inline"

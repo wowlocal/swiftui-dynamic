@@ -343,6 +343,10 @@ extension Interpreter {
         /// `size.width = 300` — value-type member write-through: mutate a
         /// copy via the registry, re-write the base (state boxes notify).
         case hostValueMember(LValue, String)
+        /// A generated mutable collection projection owned by native String.
+        /// Reads expose the view's elements through the interpreter's array
+        /// carrier; writes rebuild the compiled view and copy out the String.
+        case nativeWritableStringCollectionView(LValue, String)
         /// `ChatClient.shared = …` — static stored properties (including
         /// host-type extension statics) write to the symbol's static cache.
         case staticProperty(StructSymbol, String)
@@ -489,6 +493,15 @@ extension Interpreter {
                     throw EvalMessage(text: "no readable member '\(name)'")
                 }
                 return member
+            case .nativeWritableStringCollectionView(let base, let name):
+                guard let owner = try base.read(interpreter).stringValue,
+                      let view = GeneratedCollectionDefaultSurface
+                        .nativeWritableStringCollectionView(
+                            named: name, on: owner) else {
+                    throw EvalMessage(
+                        text: "no readable generated String view '\(name)'")
+                }
+                return view
             case .forceUnwrapped(let base):
                 guard let value = try base.read(interpreter)
                     .unwrappedOptionalOrSelf else {
@@ -793,6 +806,19 @@ extension Interpreter {
                 guard let mutated = try interpreter.registry?.hostMutatedCopy(
                     settingMember: name, on: any, to: assignedValue) else {
                     throw EvalMessage(text: "cannot assign to '\(name)' on \(baseValue.stringified)")
+                }
+                if resolvingAnnotation {
+                    try base.writeOwned(.native(mutated), interpreter)
+                } else {
+                    try base.writeCanonicalOwned(.native(mutated), interpreter)
+                }
+            case .nativeWritableStringCollectionView(let base, let name):
+                guard let owner = try base.read(interpreter).stringValue,
+                      let mutated = try GeneratedCollectionDefaultSurface
+                        .replacingNativeWritableStringCollectionView(
+                            named: name, in: owner, with: value) else {
+                    throw EvalMessage(
+                        text: "cannot assign generated String view '\(name)'")
                 }
                 if resolvingAnnotation {
                     try base.writeOwned(.native(mutated), interpreter)
@@ -1363,12 +1389,19 @@ extension Interpreter {
                     return .tupleElement(owner, index)
                 }
             }
+            let memberName = member.declName.baseName.text
+            if baseValue.stringValue != nil,
+               GeneratedCollectionDefaultSurface
+                .isNativeWritableStringCollectionView(named: memberName),
+               let owner = optionalPayloadOwner
+                ?? (try? resolveLValue(base, in: env)) {
+                return .nativeWritableStringCollectionView(owner, memberName)
+            }
             if case .host(let any) = baseValue {
                 // `binding.wrappedValue = …` writes straight through the box.
                 if let stub = any as? BindingStub, member.declName.baseName.text == "wrappedValue" {
                     return .box(stub.box)
                 }
-                let memberName = member.declName.baseName.text
                 if hasRuntimeAsyncStreamMember(memberName, on: any) {
                     return .hostProperty(any, memberName)
                 }

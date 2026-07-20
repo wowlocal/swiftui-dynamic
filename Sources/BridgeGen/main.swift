@@ -1547,6 +1547,8 @@ let generatedOptionalLastRemovalCollectionDefaults =
     optionalLastRemovalCollectionDefaults(in: stdlibFile)
 let generatedElementGenericCollectionNominals =
     elementGenericCollectionNominals(in: stdlibFile)
+let generatedNativeWritableStringCollectionViews =
+    nativeWritableStringCollectionViews(in: stdlibFile)
 let generatedNativeCollectionCarrierDefaults =
     nativeCollectionCarrierDefaults(in: stdlibFile)
 let generatedNativeCollectionCarrierScalarVoidMutations =
@@ -2245,6 +2247,75 @@ enum GeneratedCollectionDefaultSurface {
     ) -> Bool {
         elementGenericCollectionNominalNames.contains(nominalName)
     }
+""" + "\n"
+collectionDefaultsOutput += """
+
+    @MainActor
+    static func nativeWritableStringCollectionView(
+        named name: String,
+        on owner: String
+    ) -> RuntimeValue? {
+        switch name {
+""" + "\n"
+for view in generatedNativeWritableStringCollectionViews {
+    collectionDefaultsOutput += """
+        case \(String(reflecting: view.propertyName)):
+            return .native(owner.\(view.propertyName).map {
+                RuntimeValue.native(String($0))
+            })
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        default:
+            return nil
+        }
+    }
+
+    private static let nativeWritableStringCollectionViewNames: Set<String> =
+        Set([\(generatedNativeWritableStringCollectionViews
+            .map(\.propertyName).map(String.init(reflecting:))
+            .joined(separator: ", "))])
+
+    static func isNativeWritableStringCollectionView(
+        named name: String
+    ) -> Bool {
+        nativeWritableStringCollectionViewNames.contains(name)
+    }
+
+    @MainActor
+    static func replacingNativeWritableStringCollectionView(
+        named name: String,
+        in owner: String,
+        with replacement: RuntimeValue
+    ) throws -> String? {
+        switch name {
+""" + "\n"
+for view in generatedNativeWritableStringCollectionViews {
+    collectionDefaultsOutput += """
+        case \(String(reflecting: view.propertyName)):
+            guard let elements = replacement.arrayValue else {
+                throw RuntimeError(
+                    message: "generated writable String collection view needs an array")
+            }
+            var projected = ""
+            for element in elements {
+                guard let fragment = element.stringValue,
+                      fragment.\(view.propertyName).count == 1 else {
+                    throw RuntimeError(
+                        message: "generated writable String collection view element mismatch")
+                }
+                projected += fragment
+            }
+            var result = owner
+            result.\(view.propertyName) = projected.\(view.propertyName)
+            return result
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        default:
+            return nil
+        }
+    }
 
     private static let propertyProtocols: [String: Set<String>] = [
 \(generatedCollectionPropertyProtocolRows)
@@ -2779,6 +2850,7 @@ print(
         + "\(generatedOptionalElementCollectionDefaults.count) properties, "
         + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "
         + "\(generatedElementGenericCollectionNominals.count) element-generic collections, "
+        + "\(generatedNativeWritableStringCollectionViews.count) writable String collection views, "
         + "\(generatedNativeCollectionCarrierScalarVoidMutations.count) native carrier scalar mutations, "
         + "\(generatedNativeDictionaryKeyOptionalValueMutations.count) dictionary key mutations)")
 

@@ -1123,6 +1123,11 @@ extension Interpreter {
                 named: name, receiver: .native(string)) {
             return .hostFunction(generated)
         }
+        if let generated = GeneratedCollectionDefaultSurface
+            .nativeWritableStringCollectionView(
+                named: name, on: string) {
+            return generated
+        }
         switch name {
         case "count": return .native(string.count)
         case "isEmpty": return .native(string.isEmpty)
@@ -1250,10 +1255,6 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { args, _ in
                 .native(args.positional(0)?.stringValue == string)
             })
-        case "unicodeScalars":
-            // Scalars as single-char strings (our character model): count,
-            // iteration, and allSatisfy work through array machinery.
-            return .native(string.unicodeScalars.map { RuntimeValue.native(String($0)) })
         case "description", "localizedDescription":
             return .native(string)
         case "debugDescription":

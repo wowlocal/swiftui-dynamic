@@ -11,6 +11,59 @@ enum GeneratedCollectionDefaultSurface {
         elementGenericCollectionNominalNames.contains(nominalName)
     }
 
+    @MainActor
+    static func nativeWritableStringCollectionView(
+        named name: String,
+        on owner: String
+    ) -> RuntimeValue? {
+        switch name {
+        case "unicodeScalars":
+            return .native(owner.unicodeScalars.map {
+                RuntimeValue.native(String($0))
+            })
+        default:
+            return nil
+        }
+    }
+
+    private static let nativeWritableStringCollectionViewNames: Set<String> =
+        Set(["unicodeScalars"])
+
+    static func isNativeWritableStringCollectionView(
+        named name: String
+    ) -> Bool {
+        nativeWritableStringCollectionViewNames.contains(name)
+    }
+
+    @MainActor
+    static func replacingNativeWritableStringCollectionView(
+        named name: String,
+        in owner: String,
+        with replacement: RuntimeValue
+    ) throws -> String? {
+        switch name {
+        case "unicodeScalars":
+            guard let elements = replacement.arrayValue else {
+                throw RuntimeError(
+                    message: "generated writable String collection view needs an array")
+            }
+            var projected = ""
+            for element in elements {
+                guard let fragment = element.stringValue,
+                      fragment.unicodeScalars.count == 1 else {
+                    throw RuntimeError(
+                        message: "generated writable String collection view element mismatch")
+                }
+                projected += fragment
+            }
+            var result = owner
+            result.unicodeScalars = projected.unicodeScalars
+            return result
+        default:
+            return nil
+        }
+    }
+
     private static let propertyProtocols: [String: Set<String>] = [
         "first": Set(["BidirectionalCollection", "Collection", "LazyCollectionProtocol", "MutableCollection", "RandomAccessCollection", "RangeReplaceableCollection", "StringProtocol", "_AnyCollectionProtocol", "_ArrayBufferProtocol", "_ArrayProtocol"]),
         "isEmpty": Set(["BidirectionalCollection", "Collection", "LazyCollectionProtocol", "MutableCollection", "RandomAccessCollection", "RangeReplaceableCollection", "StringProtocol", "_AnyCollectionProtocol", "_ArrayBufferProtocol", "_ArrayProtocol"]),
