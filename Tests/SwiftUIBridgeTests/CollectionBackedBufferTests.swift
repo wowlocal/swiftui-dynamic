@@ -623,7 +623,26 @@ import Testing
             + "lacrymogènes lancés par la police lors d’un tournoi de foot.")
     }
 
+    /// A parsed HTML fragment returns nodes, not the integer indices used
+    /// internally while maintaining the child array.
+    @Test func swiftSoupFragmentReturnsNodeCollection() throws {
+        let value = try swiftSoupEvaluation(
+            "<p>alpha</p>", suffix: """
+            let paragraph = try document.select("p").first()!
+            let nodes = try Parser.parseFragment("\\n\\n", paragraph.parent(), [])
+            nodes.count * 100 + (nodes[0] is Node ? 1 : 0)
+            """)
+        #expect(value.intValue == 101)
+    }
+
     private func swiftSoupText(_ html: String) throws -> String? {
+        try swiftSoupEvaluation(
+            html, suffix: "try document.text()\n").stringValue
+    }
+
+    private func swiftSoupEvaluation(
+        _ html: String, suffix: String
+    ) throws -> RuntimeValue {
         let root = FileManager.default.currentDirectoryPath
         let files = ProjectMaterial.swiftFiles(
             under: root
@@ -634,10 +653,9 @@ import Testing
                 ($0, "SwiftSoup")
             })) + "\n\n// swift-interpreter-module SwiftSoup\n"
             + "let document = try SwiftSoup.parse(\(String(reflecting: html)))\n"
-            + "try document.text()\n"
+            + suffix
 
-        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
-        return value.stringValue
+        return try Interpreter(registry: TraceRegistry()).run(source: source)
     }
 
 }
