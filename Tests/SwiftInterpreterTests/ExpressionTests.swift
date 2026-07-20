@@ -118,6 +118,19 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "string|array")
     }
 
+    @Test func sourceMethodOverloadsPreferExactRuntimeTypes() throws {
+        let source = """
+        final class Machine {
+            func inspect(_ value: Set<[Int]>) -> String { "set" }
+            func inspect(_ value: [Int]) -> String { "array" }
+        }
+
+        Machine().inspect([1, 2])
+        """
+
+        #expect(try eval(source).stringValue == "array")
+    }
+
     @Test func inheritedArrayOverloadKeepsNodeElements() throws {
         let source = """
         open class Node {

@@ -579,6 +579,22 @@ extension Interpreter {
         let shaped = candidates.filter {
             functionMetadata(for: $0).shape.matches(arguments)
         }
+        // Native overload ranking prefers a value that already has the
+        // parameter's runtime type over a candidate reachable only through a
+        // conversion. In particular, `[Element]` must select an array
+        // overload even when an earlier `Set<Element>` overload could be
+        // constructed from the same collection.
+        let exact = shaped.filter {
+            let metadata = functionMetadata(for: $0)
+            return runtimeArgumentsFitDeclaredTypes(
+                metadata.parameters,
+                args: args,
+                genericParameterNames: Set(metadata.genericParameters),
+                genericConformanceRequirements:
+                    metadata.genericConformanceRequirements,
+                allowValueCoercion: false)
+        }
+        if !exact.isEmpty { return exact }
         let typed = shaped.filter {
             let metadata = functionMetadata(for: $0)
             return runtimeArgumentsFitDeclaredTypes(

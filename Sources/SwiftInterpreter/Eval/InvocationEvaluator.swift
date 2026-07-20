@@ -117,7 +117,8 @@ extension Interpreter {
         args: CallArguments,
         genericParameterNames: Set<String> = [],
         genericConformanceRequirements:
-            [ParsedGenericConformanceRequirement] = []
+            [ParsedGenericConformanceRequirement] = [],
+        allowValueCoercion: Bool = true
     ) -> Bool {
         var remaining = args.arguments
         for parameter in parameters {
@@ -149,6 +150,7 @@ extension Interpreter {
                     continue
                 }
                 if valueIsType(argument.value, annotation) { continue }
+                guard allowValueCoercion else { return false }
                 guard let resolved = try? resolveAnnotated(
                     argument.value, typeName: annotation),
                     valueIsType(resolved, annotation)
