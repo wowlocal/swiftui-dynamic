@@ -294,10 +294,10 @@ extension Interpreter {
         throw error(node, "unresolved identifier '\(name)'")
     }
 
-    /// Finds static members in the current nominal's lexical namespace and
-    /// each enclosing nominal. The ownership links are collected from source
-    /// nesting, so this dispatch is structural rather than keyed to a type or
-    /// member identity.
+    /// Finds the current nominal's own type identity or a static member in its
+    /// lexical namespace, then walks each enclosing nominal. The ownership
+    /// links are collected from source nesting, so this dispatch is structural
+    /// rather than keyed to a type or member identity.
     private func lexicallyEnclosingTypeMember(
         _ name: String
     ) throws -> RuntimeValue? {
@@ -306,11 +306,13 @@ extension Interpreter {
         while let current = owner,
               visited.insert(ObjectIdentifier(current)).inserted {
             if let symbol = current as? StructSymbol {
+                if name == symbol.name { return .type(symbol) }
                 if let value = try staticMember(name, of: symbol) {
                     return value
                 }
                 owner = symbol.lexicalTypeOwner
             } else if let symbol = current as? EnumSymbol {
+                if name == symbol.name { return .enumType(symbol) }
                 if let value = try staticMember(name, of: symbol) {
                     return value
                 }

@@ -539,6 +539,37 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 42)
     }
 
+    /// A bare reference to the enclosing nominal keeps that lexical identity
+    /// even when another imported module later declares the same base name.
+    @Test func lexicalTypeNameWinsOverLaterModuleCollision() throws {
+        let source = """
+        // swift-interpreter-source-module Parser
+        final class Entry {
+            let bytes: [UInt8]
+
+            private init(_ bytes: [UInt8]) {
+                self.bytes = bytes
+            }
+
+            static func make(_ bytes: [UInt8]) -> Entry {
+                Entry(bytes)
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-source-module Models
+        struct Entry {
+            let marker: String
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-module Parser
+        Parser.Entry.make([65, 66, 67]).bytes.count
+        """
+
+        #expect(try eval(source).intValue == 3)
+    }
+
     /// Optional class elements survive assignment into and retrieval from a
     /// collection built inside a stored static property's initializer.
     @Test func staticOptionalArrayLookupPreservesClassElement() throws {
