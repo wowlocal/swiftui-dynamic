@@ -127,9 +127,11 @@ extension RuntimeValue {
 
     /// Payload used specifically by `if let` / `guard let`. An explicitly
     /// present Optional keeps its wrapped value, including an opaque host
-    /// object. A bare absorbing marker is an unknown imported Optional whose
-    /// fresh deterministic state is absence; considering it known-present
-    /// incorrectly bypasses the source's declared fallback path.
+    /// object. A bare import absorber has no runtime receiver and therefore
+    /// takes the deterministic-absence path. An absorbed member rooted in a
+    /// concrete receiver remains an opaque present value: collapsing it to
+    /// nil invents a failed host lookup (for example, an unavailable package
+    /// extension on an otherwise-real Foundation value).
     public var optionalBindingPayload: RuntimeValue? {
         switch optionalState {
         case .some(let wrapped, _):
@@ -138,10 +140,10 @@ extension RuntimeValue {
             return nil
         case .notOptional:
             switch self {
+            case .host(let chain as ChainedImplicitCall):
+                return chain.base.hasConcreteAbsorbedReceiver ? self : nil
             case .host(let value)
-                where value is InertCallable
-                    || value is ChainedImplicitCall
-                    || value is ImplicitMemberCall:
+                where value is InertCallable || value is ImplicitMemberCall:
                 return nil
             case .hostFunction, .implicitMember:
                 return nil
@@ -177,6 +179,30 @@ extension RuntimeValue {
             return .none(wrappedTypeName: wrappedTypeName)
         default:
             return .some(self, wrappedTypeName: wrappedTypeName)
+        }
+    }
+}
+
+private extension RuntimeValue {
+    /// Whether an absorbed chain ultimately starts from a runtime value rather
+    /// than an unresolved import, host type marker, or synthesized void.
+    /// Dispatch is structural: no SDK type or member identity is involved.
+    var hasConcreteAbsorbedReceiver: Bool {
+        switch self {
+        case .host(let chain as ChainedImplicitCall):
+            return chain.base.hasConcreteAbsorbedReceiver
+        case .host(let value):
+            return !(value is InertCallable
+                || value is ImplicitMemberCall
+                || value is HostTypeMarker)
+        case .int, .double, .bool, .string, .array, .dictionary, .tuple,
+             .range, .set, .instance, .enumCase:
+            return true
+        case .optional(let optional):
+            return optional.wrapped?.hasConcreteAbsorbedReceiver == true
+        case .void, .nilValue, .closure, .hostFunction, .type, .enumType,
+             .implicitMember:
+            return false
         }
     }
 }

@@ -52,6 +52,22 @@ import Testing
         #expect(value.intValue == 2)
     }
 
+    @Test func absorbedOptionalMemberOnConcreteHostRetainsOpaqueValue() throws {
+        let source = """
+        import Foundation
+
+        if let value = Date().unavailablePackageExtension() {
+            1
+        } else {
+            2
+        }
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: source, lazyTopLevelGlobals: true)
+        #expect(value.intValue == 1)
+    }
+
     @Test func collectionBackedBytePointerSupportsRawSearch() throws {
         let source = """
         import Darwin
