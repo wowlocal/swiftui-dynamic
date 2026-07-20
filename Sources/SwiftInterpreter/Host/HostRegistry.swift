@@ -448,6 +448,9 @@ public protocol HostRegistry: AnyObject {
     /// Real implementations for C functions worth answering truthfully
     /// (uname fills real host values). nil falls to the inert absorber.
     func cFunction(named name: String) -> HostFunction?
+    /// SDK/module global values (`NSApp`) emitted from importer metadata.
+    /// This precedes the unknown-uppercase-type absorber.
+    func hostGlobal(named name: String) -> RuntimeValue?
     /// The value an absorbed C call yields — registries return writable
     /// bags so out-parameter structs (utsname) can be filled.
     func absorbedCValue(named name: String) -> RuntimeValue?
@@ -522,6 +525,7 @@ extension HostRegistry {
     public var compilerPreflightSyntheticSignatures: [HostSignature] { [] }
     public var compilerPreflightSyntheticTypes: [CompilerPreflightHostType] { [] }
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
+    public func hostGlobal(named name: String) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
     public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }
     public func hostProtocolCandidates(of value: Any) -> [String] { [] }

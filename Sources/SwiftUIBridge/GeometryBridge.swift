@@ -166,12 +166,6 @@ struct ScreenStub {
     }
 }
 
-/// `UIApplication.shared.windows.first?.safeAreaInsets…` — one window with
-/// zero insets is the honest macOS analog.
-struct AppStub {}
-struct WindowStub {}
-struct WindowSceneStub {}
-
 /// UIKit hosting island (`window.rootViewController`, its `.view`, …):
 /// property writes round-trip, unknown reads/calls chain more stubs — the
 /// hosted view-controller machinery is inert but configurable.
@@ -309,7 +303,8 @@ public enum MainQueueDrain {
 func bridgeHostMember(
     _ name: String,
     on value: Any,
-    fileManager: FileManagerBox
+    fileManager: FileManagerBox,
+    applicationShells: FrameworkApplicationShellStore
 ) -> RuntimeValue? {
     if let marker = value as? HostTypeMarker,
        marker.name == "FileManager", name == "default" {
@@ -392,6 +387,15 @@ func bridgeHostMember(
         }
     }
     if let marker = value as? HostTypeMarker {
+        // Framework application singletons are launch-environment objects,
+        // not ordinary native calls: running or terminating the real process
+        // would destroy the verifier. The per-registry shell still exposes
+        // the generated SDK surface for its declared platform type.
+        if name == "shared",
+           let application = applicationShells.sharedApplication(
+               ofType: marker.name) {
+            return .native(application)
+        }
         // `Color.white`, `Color.gray` — real Color values, so user
         // `extension Color { … }` members can dispatch on them.
         if marker.name == "Color", let color = Coerce.colorLike(.implicitMember(name)) {
@@ -430,8 +434,6 @@ func bridgeHostMember(
             return .native(ScreenStub())
         case ("DispatchQueue", "main"):
             return .native(MainQueueStub())
-        case ("UIApplication", "shared"), ("NSApplication", "shared"):
-            return .native(AppStub())
         case ("CGSize", "zero"):
             return .native(CGSize.zero)
         case ("CGPoint", "zero"):
@@ -581,56 +583,6 @@ func bridgeHostMember(
         }
         stub.config[name] = fresh
         return fresh
-    }
-    if value is AppStub {
-        switch name {
-        case "run", "terminate", "activate", "deactivate", "stop", "finishLaunching":
-            // The render pipeline IS the run loop — lifecycle calls no-op.
-            return .hostFunction(HostFunction(name: name) { _, _ in .void })
-        case "alternateIconName":
-            return .none(wrappedTypeName: "String") // fresh install: primary icon
-        case "setAlternateIconName":
-            return .hostFunction(HostFunction(name: name) { _, _ in .void })
-        case "windows": return .native([RuntimeValue.native(WindowStub())])
-        case "connectedScenes": return .native([RuntimeValue.native(WindowSceneStub())])
-        case "mainWindow", "keyWindow": return .native(WindowStub())
-        case "canOpenURL":
-            // URL schemes resolve on real devices; the richer branch renders.
-            return .hostFunction(HostFunction(name: "canOpenURL") { _, _ in .native(true) })
-        case "open":
-            return .hostFunction(HostFunction(name: "open") { _, _ in .void })
-        case "terminate":
-            // Quitting the host would kill the verifier/demo — inert.
-            return .hostFunction(HostFunction(name: "terminate") { _, _ in .void })
-        case "sendAction":
-            // Keyboard dismissal (`sendAction(#selector(resignFirstResponder)…)`)
-            // and responder-chain pokes — no responder chain exists; inert.
-            return .hostFunction(HostFunction(name: "sendAction") { _, _ in .void })
-        default: return nil
-        }
-    }
-    if value is WindowSceneStub {
-        switch name {
-        case "activationState": return .implicitMember("foregroundActive")
-        case "screen": return .native(ScreenStub())
-        case "keyWindow", "windows": return name == "windows"
-            ? .native([RuntimeValue.native(WindowStub())])
-            : .native(WindowStub())
-        default: return nil
-        }
-    }
-    if value is WindowStub {
-        if name == "safeAreaInsets" { return .native(EdgeInsets()) }
-        if name == "isKeyWindow" { return .native(true) } // ours is the only window
-        if name == "frame" || name == "bounds" { return .native(ScreenStub().bounds) }
-        if name == "rootViewController" || name == "rootController" {
-            return .native(UIKitStub())
-        }
-        if name == "tag" { return .native(0) }
-        if name == "close" {
-            return .hostFunction(HostFunction(name: "close") { _, _ in .void })
-        }
-        return nil
     }
     if let insets = value as? EdgeInsets {
         switch name {
@@ -927,7 +879,9 @@ extension ViewRegistry {
     }
 
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
-        bridgeHostMember(name, on: value, fileManager: fileManagerBox)
+        bridgeHostMember(
+            name, on: value, fileManager: fileManagerBox,
+            applicationShells: applicationShells)
     }
 
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
@@ -1129,12 +1083,9 @@ func bridgeHostProtocolCandidates(of value: Any) -> [String] {
 func bridgeHostTypeName(of value: Any) -> String? {
     switch value {
     case is RuntimeTaskHandle: return "Task"
-    case is AppStub: return "UIApplication"
     case is ResultBox: return "Result"
     case is CurrentValueSubjectBox: return "CurrentValueSubject"
     case is BundleBox: return "Bundle"
-    case is WindowStub: return "UIWindow"
-    case is WindowSceneStub: return "UIWindowScene"
     case is ScreenStub: return "UIScreen"
     case is Color: return "Color"
     case is Alignment: return "Alignment"

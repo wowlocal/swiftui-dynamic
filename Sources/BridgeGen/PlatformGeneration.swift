@@ -11,6 +11,7 @@ struct PlatformCoverageSection: Encodable {
     let emittedStaticProperties: Int
     let emittedStaticMethods: Int
     let emittedGlobalFunctions: Int
+    let emittedGlobalProperties: Int
     let emittedEnumValues: Int
     let emittedSignatures: [String]
     let blockers: [String: Int]
@@ -49,6 +50,7 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         deployments: ["macOS": (15, 0)],
         roots: [
             "NSApplication", "NSResponder", "NSWindow", "NSScreen",
+            "NSMenu", "NSMenuItem",
             "NSView", "NSControl", "NSViewController", "NSAppearance",
             "NSColor", "NSColorSpace", "NSColorSpaceName", "NSFont",
             "NSImage", "NSImageRep", "NSBitmapImageRep", "NSBezierPath",
@@ -243,6 +245,7 @@ private struct PlatformProperty {
     let resultType: String
     let nativeResultType: String
     let pointerKind: PlatformPointerKind?
+    let isImplicitlyUnwrapped: Bool
     let isSettable: Bool
     let isStatic: Bool
 
@@ -253,6 +256,19 @@ private struct PlatformProperty {
     }
 
     var signatureKey: String { "\(framework)|\(declaration)" }
+}
+
+private struct PlatformGlobalProperty {
+    let framework: String
+    let name: String
+    let resultType: String
+    let nativeResultType: String
+    let pointerKind: PlatformPointerKind?
+    let isImplicitlyUnwrapped: Bool
+
+    var signatureKey: String {
+        "\(framework)|global var \(name): \(resultType)"
+    }
 }
 
 private struct PlatformEnumValue {
@@ -277,6 +293,7 @@ private struct ParsedPlatformFramework {
     let methods: [PlatformCallable]
     let staticMethods: [PlatformCallable]
     let globalFunctions: [PlatformCallable]
+    let globalProperties: [PlatformGlobalProperty]
     let properties: [PlatformProperty]
     let staticProperties: [PlatformProperty]
     let enumValues: [PlatformEnumValue]
@@ -319,6 +336,7 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
                 + framework.methods.map(\.signatureKey)
                 + framework.staticMethods.map(\.signatureKey)
                 + framework.globalFunctions.map(\.signatureKey)
+                + framework.globalProperties.map(\.signatureKey)
                 + framework.properties.map(\.signatureKey)
                 + framework.staticProperties.map(\.signatureKey)
         ).sorted()
@@ -331,6 +349,7 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
             emittedStaticProperties: framework.staticProperties.count,
             emittedStaticMethods: framework.staticMethods.count,
             emittedGlobalFunctions: framework.globalFunctions.count,
+            emittedGlobalProperties: framework.globalProperties.count,
             emittedEnumValues: framework.enumValues.count,
             emittedSignatures: signatures,
             blockers: framework.blockers)
@@ -340,6 +359,7 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
                 + "\(framework.properties.count + framework.staticProperties.count) properties, "
                 + "\(framework.methods.count + framework.staticMethods.count) methods, "
                 + "\(framework.globalFunctions.count) global functions, "
+                + "\(framework.globalProperties.count) global properties, "
                 + "\(framework.enumValues.count) contextual values")
     }
     return PlatformGenerationResult(
@@ -409,6 +429,7 @@ private func parsePlatformFramework(
     var methods: [PlatformCallable] = []
     var staticMethods: [PlatformCallable] = []
     var globalFunctions: [PlatformCallable] = []
+    var globalProperties: [PlatformGlobalProperty] = []
     var properties: [PlatformProperty] = []
     var staticProperties: [PlatformProperty] = []
     var enumValues: [PlatformEnumValue] = []
@@ -416,6 +437,47 @@ private func parsePlatformFramework(
     var callableSeen = Set<String>()
     var propertySeen = Set<String>()
     var enumSeen = Set<String>()
+
+    // Clang-imported framework globals are values, not unknown uppercase
+    // nominal names (`NSApp` is the canonical example). A global joins the
+    // selected type tier when its result references one of that tier's
+    // nominals. Primitive macro constants remain with the C-import absorber;
+    // this also avoids pretending symbol graphs carry their macro payloads.
+    for symbol in graph.symbols where symbol.kind.identifier == "swift.var" {
+        guard symbol.pathComponents.count == 1,
+              platformSymbolIsAvailable(symbol, for: spec),
+              let variable = parsePlatformDecl(symbol.declaration)?
+                .as(VariableDeclSyntax.self),
+              let binding = variable.bindings.first,
+              let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+              let rawType = binding.typeAnnotation?.type.trimmedDescription
+        else { continue }
+        let name = platformIdentifier(pattern.identifier.text)
+        guard name.first?.isLetter == true, !name.hasPrefix("_") else { continue }
+        let nativeResultType = platformNativeType(rawType)
+        let pointerKind = platformPointerKind(nativeResultType)
+        let resultType = pointerKind == nil
+            ? platformContractType(nativeResultType)
+            : platformPointerContractType(nativeResultType)
+        guard platformTypeIsSupported(
+            resultType, framework: spec.name, selectedTypes: selectedTypes)
+                || pointerKind != nil,
+              platformTypeReferencesSelected(
+                resultType, selectedTypes: selectedTypes)
+        else {
+            blockers["global property \(resultType)", default: 0] += 1
+            continue
+        }
+        globalProperties.append(PlatformGlobalProperty(
+            framework: spec.name,
+            name: name,
+            resultType: resultType,
+            nativeResultType: nativeResultType,
+            pointerKind: pointerKind,
+            isImplicitlyUnwrapped: rawType
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .hasSuffix("!")))
+    }
 
     // Clang-imported frameworks expose module functions alongside, rather
     // than beneath, their nominals. Emit every mechanically bridgeable public
@@ -635,6 +697,9 @@ private func parsePlatformFramework(
                 receiverIsValueType: nominal.kind.isValueType,
                 name: name, resultType: resultType,
                 nativeResultType: nativeResultType, pointerKind: pointerKind,
+                isImplicitlyUnwrapped: rawType
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .hasSuffix("!"),
                 isSettable: isSettable, isStatic: isStatic)
             if propertySeen.insert(property.signatureKey).inserted {
                 if isStatic { staticProperties.append(property) }
@@ -699,6 +764,7 @@ private func parsePlatformFramework(
         methods: methods.sorted { $0.signatureKey < $1.signatureKey },
         staticMethods: staticMethods.sorted { $0.signatureKey < $1.signatureKey },
         globalFunctions: globalFunctions.sorted { $0.signatureKey < $1.signatureKey },
+        globalProperties: globalProperties.sorted { $0.signatureKey < $1.signatureKey },
         properties: properties.sorted { $0.signatureKey < $1.signatureKey },
         staticProperties: staticProperties.sorted { $0.signatureKey < $1.signatureKey },
         enumValues: enumValues.sorted {
@@ -1153,6 +1219,7 @@ private func emitPlatformBridge(
     let methodGroups = frameworks.map { ($0.spec.name, $0.methods) }
     let staticMethodGroups = frameworks.map { ($0.spec.name, $0.staticMethods) }
     let globalFunctionGroups = frameworks.map { ($0.spec.name, $0.globalFunctions) }
+    let globalPropertyGroups = frameworks.map { ($0.spec.name, $0.globalProperties) }
     let propertyGroups = frameworks.map { ($0.spec.name, $0.properties) }
     let staticPropertyGroups = frameworks.map { ($0.spec.name, $0.staticProperties) }
     let enumGroups = frameworks.map { ($0.spec.name, $0.enumValues) }
@@ -1178,6 +1245,11 @@ private func emitPlatformBridge(
         tableType: "[String: [GeneratedPlatformGlobalFunctionEntry]]",
         groups: globalFunctionGroups,
         entry: emitPlatformGlobalFunction)
+    output += emitBuilder(
+        name: "GlobalProperties",
+        tableType: "[String: [GeneratedPlatformGlobalPropertyEntry]]",
+        groups: globalPropertyGroups,
+        entry: emitPlatformGlobalProperty)
     output += emitBuilder(
         name: "Properties",
         tableType: "[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]",
@@ -1357,6 +1429,28 @@ private func emitPlatformGlobalFunction(_ value: PlatformCallable) -> String {
     """
 }
 
+private func emitPlatformGlobalProperty(_ value: PlatformGlobalProperty) -> String {
+    let result: String
+    if value.pointerKind != nil {
+        result = "generatedPlatformPointerResult(`\(value.name)`, owner: nil, declaredType: \(swiftLiteral(value.resultType)))"
+    } else {
+        result = "generatedPlatformResult(`\(value.name)`, framework: \(swiftLiteral(value.framework)), declaredType: \(swiftLiteral(value.resultType)))"
+    }
+    return """
+            registerGlobalProperty(
+                &t, framework: \(swiftLiteral(value.framework)),
+                name: \(swiftLiteral(value.name)),
+                resultType: \(swiftLiteral(value.resultType)),
+                isImplicitlyUnwrapped: \(value.isImplicitlyUnwrapped)) {
+    #if canImport(\(value.framework))
+                return \(result)
+    #else
+                preconditionFailure("\(value.framework) global getter invoked off-platform")
+    #endif
+            }
+    """
+}
+
 private func emitPlatformStaticMethod(_ value: PlatformCallable) -> String {
     let arguments = platformCallArguments(value.params)
     let call = "\(value.receiverType).`\(value.name)`(\(arguments))"
@@ -1384,6 +1478,9 @@ private func emitPlatformStaticMethod(_ value: PlatformCallable) -> String {
 }
 
 private func emitPlatformProperty(_ value: PlatformProperty) -> String {
+    let iuoArgument = value.isImplicitlyUnwrapped
+        ? "\n            isImplicitlyUnwrapped: true,"
+        : ""
     let setter: String
     if value.isSettable {
         let binding = value.receiverIsValueType ? "var" : "let"
@@ -1410,7 +1507,8 @@ private func emitPlatformProperty(_ value: PlatformProperty) -> String {
             registerProperty(
                 &t, framework: \(swiftLiteral(value.framework)),
                 declaration: \(swiftLiteral(value.declaration)),
-                resultType: \(swiftLiteral(value.resultType)), get: { base in
+                resultType: \(swiftLiteral(value.resultType)),\(iuoArgument)
+                get: { base in
     #if canImport(\(value.framework))
                     guard let receiver = base as? \(value.nativeReceiverType) else {
                         throw RuntimeError(message: "generated \(value.framework) property receiver mismatch", fatal: true)
@@ -1424,12 +1522,16 @@ private func emitPlatformProperty(_ value: PlatformProperty) -> String {
 }
 
 private func emitPlatformStaticProperty(_ value: PlatformProperty) -> String {
-    """
+    let iuoArgument = value.isImplicitlyUnwrapped
+        ? "\n            isImplicitlyUnwrapped: true,"
+        : ""
+    return """
             registerStaticProperty(
                 &t, framework: \(swiftLiteral(value.framework)),
                 type: \(swiftLiteral(value.receiverType)),
                 name: \(swiftLiteral(value.name)),
-                resultType: \(swiftLiteral(value.resultType))) {
+                resultType: \(swiftLiteral(value.resultType)),\(iuoArgument)
+                get: {
     #if canImport(\(value.framework))
                 generatedPlatformResult(
                     \(value.receiverType).`\(value.name)`,
@@ -1438,7 +1540,7 @@ private func emitPlatformStaticProperty(_ value: PlatformProperty) -> String {
     #else
                 preconditionFailure("\(value.framework) getter invoked off-platform")
     #endif
-            }
+            })
     """
 }
 

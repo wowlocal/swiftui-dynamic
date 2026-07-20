@@ -2190,7 +2190,8 @@ enum Corpus {
                     Button("Done") {
                         UIApplication.shared.closeKeyboard()
                         UIApplication.shared.rootController().view.tag = 7
-                        status = UIApplication.shared.canOpenURL("https://x.co") ? "openable" : "sandboxed"
+                        let url = URL(string: "https://x.co")!
+                        status = UIApplication.shared.canOpenURL(url) ? "openable" : "sandboxed"
                     }
                 }
             }
@@ -2911,6 +2912,44 @@ enum Corpus {
         }
         """
         let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
+    /// AppKit storyboard launch semantics: the SDK exposes `mainMenu` as an
+    /// Optional property, but a storyboard-backed application has installed
+    /// its framework-owned menu before delegate launch callbacks run. The
+    /// shell object is inert; its NSApplication/NSMenu surface remains the
+    /// generated AppKit contract.
+    @Test func appKitStoryboardMainMenuPrecedesLaunchHook() throws {
+        let source = """
+        import AppKit
+
+        final class MenuBootstrap {
+            static let shared = MenuBootstrap()
+            let itemCount: Int
+
+            private init() {
+                guard let menu = NSApp.mainMenu else {
+                    fatalError("storyboard menu missing during launch")
+                }
+                itemCount = menu.items.count
+            }
+        }
+
+        class AppDelegate: NSObject, NSApplicationDelegate {
+            func applicationDidFinishLaunching(_ notification: Notification) {
+                _ = MenuBootstrap.shared
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text("menu items \\(MenuBootstrap.shared.itemCount)")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(
+            source: source, lazyTopLevelGlobals: true)
         #expect(report.nodeCount >= 1)
     }
 

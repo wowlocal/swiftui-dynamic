@@ -65,6 +65,7 @@ public final class TraceRegistry: HostRegistry {
     /// Nested `Task {}` bodies are scheduled, never run synchronously.
     var taskDepth = 0
     let fileManagerBox = FileManagerBox()
+    let applicationShells = FrameworkApplicationShellStore()
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
 
     /// Swiftinterface metadata exposes List's builder but not its lazy,
@@ -83,6 +84,11 @@ public final class TraceRegistry: HostRegistry {
 
     public func absorbedCValue(named name: String) -> RuntimeValue? {
         .native(TraceNode(kind: name)) // writable bag: out-params fill
+    }
+
+    public func hostGlobal(named name: String) -> RuntimeValue? {
+        GeneratedPlatformBridge.globalValue(
+            named: name, applicationShells: applicationShells)
     }
 
     public func cFunction(named name: String) -> HostFunction? {
@@ -603,7 +609,8 @@ public final class TraceRegistry: HostRegistry {
             }
         }
         if let bridged = bridgeHostMember(
-            name, on: value, fileManager: fileManagerBox)
+            name, on: value, fileManager: fileManagerBox,
+            applicationShells: applicationShells)
         {
             return bridged
         }

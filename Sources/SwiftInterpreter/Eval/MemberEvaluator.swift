@@ -247,6 +247,9 @@ extension Interpreter {
                 break
             }
         }
+        if let value = registry?.hostGlobal(named: name) {
+            return value
+        }
         // SDK symbol graphs include imported module functions whose names are
         // conventionally uppercase (MTLCreateSystemDefaultDevice, UIGraphics…)
         // even though they are values, not types. Give an explicitly

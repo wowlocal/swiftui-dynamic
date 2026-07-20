@@ -1899,8 +1899,15 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
             return false
         }
     }
-    if value is AppStub || value is WindowStub || value is WindowSceneStub || value is ScreenStub {
-        return true // app/window shell config (delegate, activationPolicy…) — accepted
+    if let shell = value as? GeneratedPlatformValue,
+       shell.semanticRoles.contains(.applicationShell) {
+        // Framework-created application/window/scene objects are configurable
+        // bags only after generated properties decline the write.
+        shell.config[name] = newValue
+        return true
+    }
+    if value is ScreenStub {
+        return true // screen-shell config is accepted headlessly
     }
     if value is GraphicsContextStub || value is PathDrawStub {
         return true // `context.opacity = 0.5` — draw state accepted, no surface
