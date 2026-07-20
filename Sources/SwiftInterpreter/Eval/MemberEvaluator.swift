@@ -290,10 +290,15 @@ extension Interpreter {
                 .allSatisfy({ $0.isUppercase || $0 == "_" || $0.isNumber }) {
                 return .implicitMember(name)
             }
-            return .hostFunction(HostFunction(name: name) { [weak self] _, _ in
-                self?.registry?.absorbedCValue(named: name)
-                    ?? .native(ChainedImplicitCall(
-                        base: .implicitMember(name), member: "call", arguments: CallArguments()))
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                // Preserve unresolved-import provenance in the result. A
+                // registry's generic host-object recorder represents a value
+                // that was actually constructed; using it here made `if let`
+                // unable to distinguish a missing imported result from that
+                // concrete opaque object.
+                .native(ChainedImplicitCall(
+                    base: .implicitMember(name), member: "call",
+                    arguments: args))
             })
         }
         throw error(node, "unresolved identifier '\(name)'")

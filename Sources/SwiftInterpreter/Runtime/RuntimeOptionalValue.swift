@@ -142,8 +142,7 @@ extension RuntimeValue {
             switch self {
             case .host(let chain as ChainedImplicitCall):
                 return chain.base.hasConcreteAbsorbedReceiver ? self : nil
-            case .host(let value)
-                where value is InertCallable || value is ImplicitMemberCall:
+            case .host(let value) where value is ImplicitMemberCall:
                 return nil
             case .hostFunction, .implicitMember:
                 return nil

@@ -68,6 +68,20 @@ import Testing
         #expect(value.intValue == 1)
     }
 
+    @Test func absorbedImportedConstructorRetainsOpaqueValue() throws {
+        let source = """
+        if let value = ExternalPackageClient() {
+            1
+        } else {
+            2
+        }
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: source, lazyTopLevelGlobals: true)
+        #expect(value.intValue == 1)
+    }
+
     @Test func collectionBackedBytePointerSupportsRawSearch() throws {
         let source = """
         import Darwin
