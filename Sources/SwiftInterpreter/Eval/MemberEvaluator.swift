@@ -722,9 +722,9 @@ extension Interpreter {
     }
 
     /// Recover the source type of a member receiver without attaching type
-    /// metadata to every RuntimeValue. A standard-library `filter` preserves
-    /// its receiver's element type, so a chained call retains the same static
-    /// array type even when the intermediate result is empty.
+    /// metadata to every RuntimeValue. Native array-payload subscripting
+    /// produces the declared element type, while a standard-library `filter`
+    /// preserves its receiver's array type even when the result is empty.
     func declaredMemberReceiverTypeName(
         for expression: ExprSyntax,
         in environment: Environment
@@ -766,11 +766,16 @@ extension Interpreter {
                 member.declName.baseName.text))?.value
         }
 
-        if let subscriptCall = expression.as(SubscriptCallExprSyntax.self),
-           let base = storedValue(for: subscriptCall.calledExpression),
-           case .host(let payload) = base,
-           let readable = payload as? any RuntimeIntegerSubscriptReadable {
-            return readable.runtimeElementTypeName
+        if let subscriptCall = expression.as(SubscriptCallExprSyntax.self) {
+            if let base = storedValue(for: subscriptCall.calledExpression),
+               case .host(let payload) = base,
+               let readable = payload as? any RuntimeIntegerSubscriptReadable {
+                return readable.runtimeElementTypeName
+            }
+            let collectionTypeName = declaredMemberReceiverTypeName(
+                for: subscriptCall.calledExpression, in: environment)
+            return RuntimeDeclaredType.arrayPayloadElementTypeName(
+                in: collectionTypeName)
         }
         if let call = expression.as(FunctionCallExprSyntax.self),
            let member = call.calledExpression.as(
