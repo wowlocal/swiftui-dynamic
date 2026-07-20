@@ -166,6 +166,70 @@ struct SwiftPMBuildDescriptionMaterialTests {
             == 42)
     }
 
+    /// A compiled Swift target that directly imports a Clang module cannot be
+    /// interpreted from its Swift files alone. Keep it opaque while still
+    /// selecting a pure-Swift sibling from the same build description.
+    @Test
+    func directClangDependencyRemainsACompiledImport() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiftpm-clang-boundary-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let app = root.appendingPathComponent("App/App.swift")
+        let pure = root.appendingPathComponent("PureKit/Pure.swift")
+        let backed = root.appendingPathComponent("ParserKit/Parser.swift")
+        let moduleMap = root.appendingPathComponent(
+            "NativeParser/include/module.modulemap")
+        for file in [app, pure, backed, moduleMap] {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+        }
+        try """
+            import PureKit
+            import ParserKit
+            let pureValue = PureValue.answer
+            let parsedValue = NativeParserWrapper.parse("fixture")
+            """.write(to: app, atomically: true, encoding: .utf8)
+        try "struct PureValue { static let answer = 42 }\n"
+            .write(to: pure, atomically: true, encoding: .utf8)
+        try """
+            import NativeParser
+            struct NativeParserWrapper {
+                static func parse(_ value: String) -> String {
+                    native_parse(value)
+                }
+            }
+            """.write(to: backed, atomically: true, encoding: .utf8)
+        try "module NativeParser { header \"NativeParser.h\" }\n"
+            .write(to: moduleMap, atomically: true, encoding: .utf8)
+
+        let description = root.appendingPathComponent("description.json")
+        let payload: [String: Any] = [
+            "swiftCommands": [
+                "C.App.module": [
+                    "moduleName": "App", "sources": [app.path],
+                ],
+                "C.PureKit.module": [
+                    "moduleName": "PureKit", "sources": [pure.path],
+                ],
+                "C.ParserKit.module": [
+                    "moduleName": "ParserKit", "sources": [backed.path],
+                    "otherArguments": [
+                        "-Xcc", "-fmodule-map-file=\(moduleMap.path)",
+                    ],
+                ],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: payload)
+            .write(to: description, options: .atomic)
+
+        let dependencies = try ProjectMaterial.swiftFiles(
+            inSwiftPMBuildDescriptionAt: description.path,
+            requiredBy: [app.path])
+        #expect(dependencies == [pure.path])
+    }
+
     /// IceCubes' StatusKit imports SwiftUI.Text while the flattened dependency
     /// slice also contains Markdown.Text. A native two-module probe prints
     /// "visible": merely compiling HiddenMarkdown beside App does not import

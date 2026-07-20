@@ -134,6 +134,7 @@ private struct SwiftPMBuildDescriptionMaterial: Decodable {
     struct Command: Decodable {
         let moduleName: String
         let sources: [String]
+        let otherArguments: [String]?
     }
 
     let swiftCommands: [String: Command]
@@ -212,6 +213,7 @@ public enum ProjectMaterial {
         requiredBy rootFiles: [String]
     ) throws -> [String] {
         let modules = try swiftPMBuildModules(at: path)
+        let clangModuleNames = clangModuleNames(in: modules)
         var sourcesByModule: [String: Set<String>] = [:]
         for module in modules {
             sourcesByModule[module.name, default: []]
@@ -227,6 +229,7 @@ public enum ProjectMaterial {
         var selectedModules: Set<String> = []
         var selectedFiles: Set<String> = []
         var declarationsByModule: [String: Set<String>] = [:]
+        var directlyClangBackedByModule: [String: Bool] = [:]
 
         func source(at sourcePath: String) throws -> String {
             guard let source = try? String(
@@ -255,6 +258,22 @@ public enum ProjectMaterial {
             return discovered
         }
 
+        func isDirectlyClangBacked(
+            _ moduleName: String,
+            sources moduleSources: Set<String>
+        ) throws -> Bool {
+            if let cached = directlyClangBackedByModule[moduleName] {
+                return cached
+            }
+            let backed = try moduleSources.contains { moduleSource in
+                !Interpreter.sourceModuleUsage(
+                    in: try source(at: moduleSource))
+                    .importedModuleNames.isDisjoint(with: clangModuleNames)
+            }
+            directlyClangBackedByModule[moduleName] = backed
+            return backed
+        }
+
         func select(
             moduleName: String,
             sources moduleSources: Set<String>
@@ -275,6 +294,9 @@ public enum ProjectMaterial {
             }) {
                 guard let moduleSources = sourcesByModule[reference.moduleName]
                 else { continue }
+                guard try !isDirectlyClangBacked(
+                    reference.moduleName, sources: moduleSources)
+                else { continue }
                 guard try declarations(
                     in: reference.moduleName,
                     sources: moduleSources
@@ -285,6 +307,8 @@ public enum ProjectMaterial {
             }
             for moduleName in usage.importedModuleNames.sorted() {
                 guard let moduleSources = sourcesByModule[moduleName],
+                      try !isDirectlyClangBacked(
+                        moduleName, sources: moduleSources),
                       !usage.unqualifiedReferences.isDisjoint(with:
                         try declarations(
                             in: moduleName,
@@ -299,6 +323,41 @@ public enum ProjectMaterial {
     private struct SwiftPMBuildModule {
         let name: String
         let sources: [String]
+        let moduleMapPaths: [String]
+    }
+
+    /// A Swift target that directly imports a Clang module is not a
+    /// self-contained interpreter input. SwiftPM's module-map arguments are
+    /// compiler evidence for that boundary: leave the target as an opaque
+    /// compiled import instead of executing only its Swift half with inert C
+    /// functions and fabricating scalar results.
+    private static func clangModuleNames(
+        in modules: [SwiftPMBuildModule]
+    ) -> Set<String> {
+        var names: Set<String> = []
+        for path in Set(modules.flatMap(\.moduleMapPaths)).sorted() {
+            guard let contents = try? String(
+                contentsOfFile: path, encoding: .utf8)
+            else { continue }
+            for line in contents.split(separator: "\n") {
+                let words = line.split(whereSeparator: { $0.isWhitespace })
+                let candidate: Substring?
+                if words.first == "module", words.count >= 2 {
+                    candidate = words[1]
+                } else if words.count >= 3,
+                          words[0] == "framework", words[1] == "module" {
+                    candidate = words[2]
+                } else {
+                    candidate = nil
+                }
+                guard let candidate else { continue }
+                let name = candidate.prefix {
+                    $0.isLetter || $0.isNumber || $0 == "_"
+                }
+                if !name.isEmpty { names.insert(String(name)) }
+            }
+        }
+        return names
     }
 
     private static func swiftPMBuildModules(
@@ -341,9 +400,26 @@ public enum ProjectMaterial {
                 }
                 files.insert(sourceURL.path)
             }
+            var moduleMapPaths: Set<String> = []
+            let arguments = command.otherArguments ?? []
+            var expectsModuleMapPath = false
+            for argument in arguments {
+                if expectsModuleMapPath {
+                    moduleMapPaths.insert(URL(fileURLWithPath: argument)
+                        .standardizedFileURL.resolvingSymlinksInPath().path)
+                    expectsModuleMapPath = false
+                } else if argument == "-fmodule-map-file" {
+                    expectsModuleMapPath = true
+                } else if argument.hasPrefix("-fmodule-map-file=") {
+                    let path = String(argument.dropFirst(
+                        "-fmodule-map-file=".count))
+                    moduleMapPaths.insert(URL(fileURLWithPath: path)
+                        .standardizedFileURL.resolvingSymlinksInPath().path)
+                }
+            }
             modules.append(SwiftPMBuildModule(
-                name: command.moduleName,
-                sources: files.sorted()))
+                name: command.moduleName, sources: files.sorted(),
+                moduleMapPaths: moduleMapPaths.sorted()))
         }
         return modules
     }
