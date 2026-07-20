@@ -819,10 +819,17 @@ public final class Interpreter {
     /// behavior. The weak cache avoids repeating lexical lookup throughout
     /// initialization, dispatch, casting, and teardown.
     func interpretedSuperclass(of symbol: StructSymbol) -> StructSymbol? {
-        if let parent = symbol.superclassSymbol { return parent }
+        if let parent = symbol.superclassSymbol {
+            guard parent !== symbol else {
+                symbol.superclassSymbol = nil
+                return nil
+            }
+            return parent
+        }
         guard let name = symbol.superclassName,
               case .type(let parent)? = lexicallyVisibleType(
-                named: name, from: symbol.lexicalTypeOwner) else {
+                named: name, from: symbol.lexicalTypeOwner),
+              parent !== symbol else {
             return nil
         }
         symbol.superclassSymbol = parent

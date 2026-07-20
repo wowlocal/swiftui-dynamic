@@ -425,6 +425,25 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "base+child")
     }
 
+    /// A wrapper can inherit an unavailable SDK/package class with the same
+    /// basename (`Client: Vendor.Client`). Dropping the imported module
+    /// qualifier must not bind the wrapper as its own interpreted parent.
+    @Test func moduleQualifiedSameBasenameSuperclassRemainsHostBound() throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+        import VendorKit
+
+        final class Client: VendorKit.Client {}
+        """)
+
+        let client = try #require(interpreter.structSymbols.first {
+            $0.name == "Client"
+        })
+        #expect(client.superclassName == "VendorKit.Client")
+        #expect(client.superclassSymbol == nil)
+        #expect(try interpreter.staticMember("unavailable", of: client) == nil)
+    }
+
     /// A subclass inherits the superclass's complete overload family. Call
     /// syntax must choose within that family after seeing the arguments,
     /// rather than binding whichever inherited declaration was collected
