@@ -794,6 +794,11 @@ func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
        let property = GeneratedPlatformBridge.property(name, on: platform) {
         return property
     }
+    if let carrier = value as? GeneratedReferencePropertyCarrier,
+       let property = GeneratedReferencePropertySupport.property(
+           name, on: carrier) {
+        return property
+    }
     if let property = hostObjectProperty(name, on: value) { return property }
     // Preserve hand-normalized reads (notably URLComponents.queryItems), but
     // put swept writable SDK properties behind their generated contract.
@@ -1081,6 +1086,9 @@ func bridgeHostProtocolCandidates(of value: Any) -> [String] {
 }
 
 func bridgeHostTypeName(of value: Any) -> String? {
+    if let carrier = value as? GeneratedReferencePropertyCarrier {
+        return carrier.generatedReferenceTypeName
+    }
     switch value {
     case is RuntimeTaskHandle: return "Task"
     case is ResultBox: return "Result"

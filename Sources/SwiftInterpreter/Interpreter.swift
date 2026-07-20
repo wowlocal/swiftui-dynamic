@@ -260,6 +260,11 @@ public final class Interpreter {
         _read { yield activeProgramState.enumSymbols }
         _modify { yield &activeProgramState.enumSymbols }
     }
+    var sourceModuleNamesByNominalIdentity:
+        [ObjectIdentifier: Set<String>] {
+        _read { yield activeProgramState.sourceModuleNamesByNominalIdentity }
+        _modify { yield &activeProgramState.sourceModuleNamesByNominalIdentity }
+    }
     /// Env-object models constructed as fresh-store stand-ins (one per type,
     /// so every view reading the type sees the same instance).
     var synthesizedEnvironmentModels: [String: Instance] {
@@ -679,6 +684,13 @@ public final class Interpreter {
     var currentLexicalSourceModuleName: String? {
         lexicalSourceModuleFrames.last ?? nil
     }
+    var lexicalSourceImportFrames: [Set<String>?] {
+        get { evaluationTaskContext.lexicalSourceImportFrames }
+        set { evaluationTaskContext.lexicalSourceImportFrames = newValue }
+    }
+    var currentLexicalSourceImportedModuleNames: Set<String>? {
+        lexicalSourceImportFrames.last ?? nil
+    }
     /// The statically proven actor context for a closure expression. Source
     /// top-level execution is MainActor-owned; an explicit `nil` frame means
     /// the active declaration has no actor isolation even if it was invoked
@@ -718,13 +730,27 @@ public final class Interpreter {
         return nil
     }
 
+    func sourceModuleNames(owning value: RuntimeValue) -> Set<String> {
+        let identity: ObjectIdentifier
+        switch value {
+        case .type(let symbol):
+            identity = ObjectIdentifier(symbol)
+        case .enumType(let symbol):
+            identity = ObjectIdentifier(symbol)
+        default:
+            return []
+        }
+        return sourceModuleNamesByNominalIdentity[identity] ?? []
+    }
+
     /// Resolve a nominal name from a declaration's lexical type scopes before
     /// consulting the merged global environment. Swift binds `EndTag: Tag`
     /// inside `Token` to `Token.Tag`, even when another source file declares
     /// an unrelated top-level `Tag`.
     func lexicallyVisibleType(
         named name: String, from owner: AnyObject?,
-        sourceModuleName: String? = nil
+        sourceModuleName: String? = nil,
+        sourceImportedModuleNames: Set<String>? = nil
     ) -> RuntimeValue? {
         let components = name.split(separator: ".").map(String.init)
         guard let first = components.first else { return nil }
@@ -797,19 +823,62 @@ public final class Interpreter {
             return resolved
         }
 
-        if let module = sourceModuleName ?? currentLexicalSourceModuleName,
+        let lexicalModule = sourceModuleName ?? currentLexicalSourceModuleName
+        let hasFileScopedImports = sourceImportedModuleNames != nil
+            || currentLexicalSourceImportedModuleNames != nil
+        let lexicalImports = sourceImportedModuleNames
+            ?? currentLexicalSourceImportedModuleNames
+            ?? currentProgramMetadata?.importedModuleNames
+            ?? ["Swift"]
+        if let module = lexicalModule,
            let resolved = globallyVisibleType(
                named: ArraySlice([module] + components)) {
             return resolved
         }
-        if let resolved = globallyVisibleType(named: components[...]) {
-            return resolved
+
+        var importedNominalIsAmbiguous = false
+        if components.count == 1,
+           lexicalModule != nil || hasFileScopedImports {
+            var identities: Set<ObjectIdentifier> = []
+            var candidates: [RuntimeValue] = []
+            for importedModule in lexicalImports.sorted()
+            where importedModule != lexicalModule {
+                guard let candidate = globallyVisibleType(
+                    named: ArraySlice([importedModule] + components))
+                else { continue }
+                let identity: ObjectIdentifier
+                switch candidate {
+                case .type(let symbol): identity = ObjectIdentifier(symbol)
+                case .enumType(let symbol): identity = ObjectIdentifier(symbol)
+                default: continue
+                }
+                if identities.insert(identity).inserted {
+                    candidates.append(candidate)
+                }
+            }
+            if candidates.count == 1 { return candidates[0] }
+            importedNominalIsAmbiguous = candidates.count > 1
         }
+
         if components.count > 1,
-           first == "Swift"
-            || currentProgramMetadata?.importedModuleNames.contains(first)
-                == true {
+           first == lexicalModule || lexicalImports.contains(first) {
+            if let resolved = globallyVisibleType(named: components[...]) {
+                return resolved
+            }
             return globallyVisibleType(named: components.dropFirst())
+        }
+
+        if importedNominalIsAmbiguous { return nil }
+        if let resolved = globallyVisibleType(named: components[...]) {
+            // A bare nominal owned by some other flattened compiler module is
+            // not visible merely because all modules share one Environment.
+            // Same-module and explicitly imported candidates were exhausted
+            // above; unowned snippet/shim declarations keep legacy lookup.
+            if lexicalModule != nil || hasFileScopedImports,
+               !sourceModuleNames(owning: resolved).isEmpty {
+                return nil
+            }
+            return resolved
         }
         return nil
     }

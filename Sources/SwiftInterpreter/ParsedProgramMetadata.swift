@@ -2,7 +2,8 @@ import Foundation
 import SwiftSyntax
 
 private nonisolated struct ParsedSourceModuleRegion: Sendable {
-    let moduleName: String
+    let moduleName: String?
+    let importedModuleNames: Set<String>
     let utf8Range: Range<Int>
 }
 
@@ -66,6 +67,18 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
     }
 
     func sourceModuleName(at position: AbsolutePosition) -> String? {
+        sourceModuleRegion(at: position)?.moduleName
+    }
+
+    func sourceImportedModuleNames(
+        at position: AbsolutePosition
+    ) -> Set<String>? {
+        sourceModuleRegion(at: position)?.importedModuleNames
+    }
+
+    private func sourceModuleRegion(
+        at position: AbsolutePosition
+    ) -> ParsedSourceModuleRegion? {
         let offset = position.utf8Offset
         var lowerBound = 0
         var upperBound = sourceModuleRegions.count
@@ -77,7 +90,7 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
             } else if offset >= region.utf8Range.upperBound {
                 lowerBound = index + 1
             } else {
-                return region.moduleName
+                return region
             }
         }
         return nil
@@ -91,10 +104,16 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
         in source: String
     ) -> [ParsedSourceModuleRegion] {
         let startPrefix = "// swift-interpreter-source-module "
+        let fileStartDirective = "// swift-interpreter-source-file"
+        let importPrefix = "// swift-interpreter-source-import "
         let endDirective = "// swift-interpreter-source-module-end"
         let bytes = Array(source.utf8)
         var result: [ParsedSourceModuleRegion] = []
-        var active: (moduleName: String, start: Int)?
+        var active: (
+            moduleName: String?,
+            importedModuleNames: Set<String>,
+            start: Int
+        )?
         var lineStart = 0
 
         while lineStart <= bytes.count {
@@ -104,21 +123,39 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
             }
             let line = String(decoding: bytes[lineStart..<lineEnd], as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if line.hasPrefix(startPrefix) {
+            if line == fileStartDirective {
+                active = (
+                    nil,
+                    ["Swift"],
+                    min(lineEnd + 1, bytes.count))
+            } else if line.hasPrefix(startPrefix) {
                 let moduleName = String(line.dropFirst(startPrefix.count))
                 if !moduleName.isEmpty,
                    moduleName.allSatisfy({
                        $0.isLetter || $0.isNumber || $0 == "_"
                    })
                 {
-                    active = (moduleName, min(lineEnd + 1, bytes.count))
+                    active = (
+                        Optional(moduleName),
+                        ["Swift"],
+                        min(lineEnd + 1, bytes.count))
                 } else {
                     active = nil
+                }
+            } else if line.hasPrefix(importPrefix), active != nil {
+                let moduleName = String(line.dropFirst(importPrefix.count))
+                if !moduleName.isEmpty,
+                   moduleName.allSatisfy({
+                       $0.isLetter || $0.isNumber || $0 == "_"
+                   })
+                {
+                    active?.importedModuleNames.insert(moduleName)
                 }
             } else if line == endDirective, let region = active {
                 if region.start < lineStart {
                     result.append(ParsedSourceModuleRegion(
                         moduleName: region.moduleName,
+                        importedModuleNames: region.importedModuleNames,
                         utf8Range: region.start..<lineStart))
                 }
                 active = nil

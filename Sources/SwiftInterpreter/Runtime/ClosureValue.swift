@@ -197,6 +197,10 @@ public final class ClosureValue {
     /// inputs retain ordinary Swift lexical lookup by carrying this immutable
     /// declaration property through escaped and nested closures.
     public internal(set) var sourceModuleName: String?
+    /// File-scoped imports visible where this closure was declared. Flattened
+    /// programs retain them independently from the union of imports used to
+    /// assemble the whole source projection.
+    public internal(set) var sourceImportedModuleNames: Set<String>?
     /// Immutable target-specific declaration/member selection retained with
     /// the source closure. External callback entries reuse this exact object
     /// rather than resolving branches through current facade state.
@@ -236,8 +240,11 @@ public final class ClosureValue {
         self.programPlan = programPlan
         let resolvedMetadata = programPlan?.metadata ?? programMetadata
         self.programMetadata = resolvedMetadata
+        let sourcePosition = body.positionAfterSkippingLeadingTrivia
         self.sourceModuleName = resolvedMetadata?.sourceModuleName(
-            at: body.positionAfterSkippingLeadingTrivia)
+            at: sourcePosition)
+        self.sourceImportedModuleNames = resolvedMetadata?
+            .sourceImportedModuleNames(at: sourcePosition)
     }
 
     private static func isOptionalChainRootedAtFirstArgument(

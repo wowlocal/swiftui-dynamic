@@ -31,6 +31,11 @@ final class RuntimeProgramState {
 
     var structSymbols: [StructSymbol] = []
     var enumSymbols: [String: EnumSymbol] = [:]
+    /// Compiler-input ownership for nominal identities. One enum identity may
+    /// intentionally represent unioned sibling-module namespace declarations,
+    /// so ownership is a set rather than a single textual module name.
+    var sourceModuleNamesByNominalIdentity:
+        [ObjectIdentifier: Set<String>] = [:]
     var hostExtensionSymbols: [String: StructSymbol] = [:] {
         didSet { hostExtensionLocalRevision &+= 1 }
     }

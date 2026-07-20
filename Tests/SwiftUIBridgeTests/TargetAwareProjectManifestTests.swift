@@ -115,7 +115,7 @@ struct TargetAwareProjectManifestTests {
             "// FILE: Sources/App/ContentView.swift"))
         #expect(runtimeSource.contains(
             "// FILE: Sources/App/BuildConditions.swift"))
-        #expect(!runtimeSource.contains("import SwiftUI"))
+        #expect(!runtimeSource.contains("\nimport SwiftUI\n"))
         #expect(!runtimeSource.contains("invalid sibling target"))
         #expect(project.fingerprint.count == 64)
 

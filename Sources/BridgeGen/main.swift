@@ -619,6 +619,8 @@ for file in interfaceFiles {
 // SwiftUI parameters reuse the exact same selected nominal set.
 let platformGeneration = try generatePlatformBridge()
 platformTypeFrameworks = platformGeneration.typeFrameworks
+let foundationReferencePropertyGeneration =
+    try generateFoundationReferenceProperties()
 
 // MARK: - Sweep
 
@@ -3025,6 +3027,15 @@ let platformPath = "Sources/SwiftUIBridge/Generated/GeneratedPlatformBridge.swif
 try platformGeneration.output.write(
     toFile: platformPath, atomically: true, encoding: .utf8)
 print("wrote \(platformPath)")
+
+let foundationReferencePropertyPath =
+    "Sources/SwiftUIBridge/Generated/GeneratedFoundationReferenceProperties.swift"
+try foundationReferencePropertyGeneration.output.write(
+    toFile: foundationReferencePropertyPath,
+    atomically: true, encoding: .utf8)
+print(
+    "wrote \(foundationReferencePropertyPath) "
+        + "(\(foundationReferencePropertyGeneration.propertyCount) properties)")
 
 // MARK: - Emit compiler-preflight host module
 

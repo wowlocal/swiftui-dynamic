@@ -221,8 +221,15 @@ public final class CurrentValueSubjectBox {
 
 /// `URLSession.shared` and friends.
 public final class URLSessionBox {
-    public init() {}
+    let generatedReferenceTypeName: String
+    var generatedReferencePropertyValues: [String: RuntimeValue] = [:]
+
+    public init(generatedReferenceTypeName: String) {
+        self.generatedReferenceTypeName = generatedReferenceTypeName
+    }
 }
+
+extension URLSessionBox: GeneratedReferencePropertyCarrier {}
 
 /// Combine's fire-only subject: subscribers registered by `sink` receive
 /// `send(_:)` values inline (synchronous delivery, the replay doctrine).
@@ -678,7 +685,8 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
     }
     if let marker = value as? HostTypeMarker, marker.name == "URLSession", name == "shared" {
-        return .native(URLSessionBox())
+        return .native(URLSessionBox(
+            generatedReferenceTypeName: marker.name))
     }
     if let subject = value as? CurrentValueSubjectBox {
         switch name {
@@ -1240,7 +1248,7 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
             // URLSession(configuration:) — the box; interpreted URLProtocol
             // subclasses are consulted globally by data(), so the
             // configuration's protocolClasses need no threading.
-            .native(URLSessionBox())
+            .native(URLSessionBox(generatedReferenceTypeName: name))
         }
     case "URLComponents":
         return HostFunction(name: name) { args, _ in

@@ -221,11 +221,19 @@ extension Interpreter {
         if let value = try lexicallyEnclosingTypeMember(name) {
             return value
         }
-        if let module = currentLexicalSourceModuleName,
-           let value = typeValue(named: "\(module).\(name)") {
+        if let value = lexicallyVisibleType(
+            named: name, from: lexicalOwnerFrames.last
+        ) {
             return value
         }
-        if let box = globals.box(for: name) { return try force(box) }
+        if let box = globals.box(for: name) {
+            let value = try force(box)
+            if (currentLexicalSourceModuleName == nil
+                    && currentLexicalSourceImportedModuleNames == nil)
+                || sourceModuleNames(owning: value).isEmpty {
+                return value
+            }
+        }
         // Operator-function references (`reduce(0, +)`, `sorted(by: >)`) —
         // real Swift passes the global operator function; ours applies the
         // builtin table. User-declared operator functions won above (globals).
@@ -1304,14 +1312,28 @@ extension Interpreter {
 
     private func withAccessorContext<T>(
         declarationID: SyntaxIdentifier?,
+        sourcePosition: AbsolutePosition,
         executor calleeExecutor: RuntimeExecutorKind?,
         selfValue: RuntimeValue,
         name: String,
         _ operation: (Environment) throws -> T
     ) throws -> T {
-        let programState = programStateOwningDeclaration(declarationID)
+        let programState = accessorProgramState(
+            declarationID: declarationID, selfValue: selfValue)
         evaluationTaskContext.enterProgramState(programState)
         defer { evaluationTaskContext.leaveProgramState(programState) }
+        let sourceMetadata = programState?.programPlan?.metadata
+            ?? currentProgramMetadata
+        let sourceModuleName = sourceMetadata?.sourceModuleName(
+            at: sourcePosition)
+        let sourceImportedModuleNames = sourceMetadata?
+            .sourceImportedModuleNames(at: sourcePosition)
+        lexicalSourceModuleFrames.append(sourceModuleName)
+        lexicalSourceImportFrames.append(sourceImportedModuleNames)
+        defer {
+            lexicalSourceImportFrames.removeLast()
+            lexicalSourceModuleFrames.removeLast()
+        }
         let previousExecutor = evaluationTaskContext.currentExecutor
         if let calleeExecutor {
             evaluationTaskContext.currentExecutor = calleeExecutor
@@ -1357,22 +1379,56 @@ extension Interpreter {
         }
         return try withAccessorContext(
             declarationID: computed.declarationID,
+            sourcePosition: computed.accessor.positionAfterSkippingLeadingTrivia,
             executor: executor,
             selfValue: selfValue,
             name: name,
             operation)
     }
 
+    /// Host-driven property reads can outlive the evaluator entry that made
+    /// their receiver. The receiver retains its exact program capability, so
+    /// accessor lookup must recover declaration and source-module provenance
+    /// from that capability instead of whichever facade run is current.
+    private func accessorProgramState(
+        declarationID: SyntaxIdentifier?, selfValue: RuntimeValue
+    ) -> RuntimeProgramState? {
+        let receiverState: RuntimeProgramState?
+        if case .instance(let instance) = selfValue {
+            receiverState = instance.programState
+        } else {
+            receiverState = nil
+        }
+        if let declarationID,
+           let owningState = receiverState?.stateOwningDeclaration(
+               declarationID) {
+            return owningState
+        }
+        return receiverState ?? programStateOwningDeclaration(declarationID)
+    }
+
     private func withAccessorContextSuspending<T>(
         declarationID: SyntaxIdentifier?,
+        sourcePosition: AbsolutePosition,
         executor calleeExecutor: RuntimeExecutorKind?,
         selfValue: RuntimeValue,
         name: String,
         _ operation: (Environment) async throws -> T
     ) async throws -> T {
-        let programState = programStateOwningDeclaration(declarationID)
+        let programState = accessorProgramState(
+            declarationID: declarationID, selfValue: selfValue)
         evaluationTaskContext.enterProgramState(programState)
         defer { evaluationTaskContext.leaveProgramState(programState) }
+        let sourceMetadata = programState?.programPlan?.metadata
+            ?? currentProgramMetadata
+        lexicalSourceModuleFrames.append(
+            sourceMetadata?.sourceModuleName(at: sourcePosition))
+        lexicalSourceImportFrames.append(
+            sourceMetadata?.sourceImportedModuleNames(at: sourcePosition))
+        defer {
+            lexicalSourceImportFrames.removeLast()
+            lexicalSourceModuleFrames.removeLast()
+        }
         let previousExecutor = evaluationTaskContext.currentExecutor
         if let calleeExecutor {
             evaluationTaskContext.currentExecutor = calleeExecutor
@@ -1421,6 +1477,7 @@ extension Interpreter {
         }
         return try await withAccessorContextSuspending(
             declarationID: computed.declarationID,
+            sourcePosition: computed.accessor.positionAfterSkippingLeadingTrivia,
             executor: executor,
             selfValue: selfValue,
             name: name,
@@ -1441,6 +1498,7 @@ extension Interpreter {
         }
         return try withAccessorContext(
             declarationID: member.declarationID,
+            sourcePosition: member.getter.positionAfterSkippingLeadingTrivia,
             executor: executor,
             selfValue: selfValue,
             name: "\(symbolName).subscript",
@@ -1461,6 +1519,7 @@ extension Interpreter {
         }
         return try await withAccessorContextSuspending(
             declarationID: member.declarationID,
+            sourcePosition: member.getter.positionAfterSkippingLeadingTrivia,
             executor: executor,
             selfValue: selfValue,
             name: "\(symbolName).subscript",
@@ -1523,6 +1582,32 @@ extension Interpreter {
                 throw RuntimeError(message:
                     "control flow escaped computed property '\(name)'")
             }
+        }
+    }
+
+    /// `View.body` inherits SwiftUI's result builder from the protocol even
+    /// when the concrete witness omits an explicit `@ViewBuilder`. Keep that
+    /// protocol-supplied semantic while entering the ordinary accessor
+    /// context for isolation, owning program state, and file imports.
+    func evaluateComputedViewBody(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String
+    ) throws -> RuntimeValue {
+        if let failure = computed.unsupportedCoroutineReadError {
+            throw failure
+        }
+        if computed.isAsync && evaluationTaskContext.isAsyncSession {
+            throw RuntimeError(
+                message: "async computed property '\(name)' requires an "
+                    + "awaited suspending entry",
+                fatal: true)
+        }
+        return try withComputedPropertyContext(
+            computed, selfValue: selfValue, name: name
+        ) { env in
+            let views = try collectBuilderViews(computed.accessor, in: env)
+            return try groupViews(views)
         }
     }
 

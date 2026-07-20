@@ -91,7 +91,7 @@ private struct FixtureOracle {
 
 @main
 struct IceCubesCheckMain {
-    private static let workerTimeout: TimeInterval = 85
+    private static let workerTimeout: TimeInterval = 160
     private static let screenSize = NSSize(width: 900, height: 700)
 
     static func main() throws {
@@ -136,9 +136,7 @@ struct IceCubesCheckMain {
             }
         }
         var records: [RungRecord] = []
-        for job in jobs {
-            records += runTimedWorker(job)
-        }
+        records += runTimedWorkers(jobs)
         if let filter {
             records = records.filter { $0.name.localizedCaseInsensitiveContains(filter) }
         }
@@ -182,51 +180,87 @@ struct IceCubesCheckMain {
         }
     }
 
-    private static func runTimedWorker(_ worker: String) -> [RungRecord] {
-        let resultURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("icecubes-check-\(UUID().uuidString).json")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
-        process.arguments = ["--worker", worker, "--result", resultURL.path]
-        process.environment = ProcessInfo.processInfo.environment
-        do {
-            try process.run()
-        } catch {
-            return expectedRungs(for: worker).map {
-                RungRecord(name: $0, passed: false, message: "could not start worker: \(error)")
+    private struct TimedWorker {
+        let name: String
+        let process: Process
+        let resultURL: URL
+        let deadline: Date
+    }
+
+    /// Each screen remains process-isolated, but independent screens run
+    /// concurrently so deeper real lifecycle coverage does not make the
+    /// complete deterministic board exceed its three-minute contract.
+    private static func runTimedWorkers(_ workers: [String]) -> [RungRecord] {
+        var launched: [TimedWorker] = []
+        var recordsByWorker: [String: [RungRecord]] = [:]
+        for worker in workers {
+            let resultURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent(
+                    "icecubes-check-\(UUID().uuidString).json")
+            let process = Process()
+            process.executableURL = URL(
+                fileURLWithPath: CommandLine.arguments[0])
+            process.arguments = [
+                "--worker", worker, "--result", resultURL.path,
+            ]
+            process.environment = ProcessInfo.processInfo.environment
+            do {
+                try process.run()
+                launched.append(TimedWorker(
+                    name: worker,
+                    process: process,
+                    resultURL: resultURL,
+                    deadline: Date().addingTimeInterval(workerTimeout)))
+            } catch {
+                recordsByWorker[worker] = expectedRungs(for: worker).map {
+                    RungRecord(
+                        name: $0, passed: false,
+                        message: "could not start worker: \(error)")
+                }
             }
         }
 
-        let deadline = Date().addingTimeInterval(workerTimeout)
-        while process.isRunning, Date() < deadline {
+        while launched.contains(where: {
+            $0.process.isRunning && Date() < $0.deadline
+        }) {
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
         }
-        if process.isRunning {
-            process.terminate()
-            let grace = Date().addingTimeInterval(2)
-            while process.isRunning, Date() < grace {
-                RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-            }
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            return expectedRungs(for: worker).map {
-                RungRecord(
-                    name: $0, passed: false,
-                    message: "\(worker) screen worker exceeded \(Int(workerTimeout))s")
-            }
-        }
 
-        defer { try? FileManager.default.removeItem(at: resultURL) }
-        guard process.terminationStatus == 0,
-              let data = try? Data(contentsOf: resultURL),
-              let records = try? JSONDecoder().decode([RungRecord].self, from: data)
-        else {
-            return expectedRungs(for: worker).map {
-                RungRecord(
-                    name: $0, passed: false,
-                    message: "\(worker) worker exited \(process.terminationStatus) without a result")
+        for worker in launched {
+            let process = worker.process
+            defer { try? FileManager.default.removeItem(at: worker.resultURL) }
+            if process.isRunning {
+                process.terminate()
+                let grace = Date().addingTimeInterval(2)
+                while process.isRunning, Date() < grace {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+                }
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                recordsByWorker[worker.name] = expectedRungs(
+                    for: worker.name).map {
+                    RungRecord(
+                        name: $0, passed: false,
+                        message: "\(worker.name) screen worker exceeded \(Int(workerTimeout))s")
+                }
+                continue
             }
+
+            guard process.terminationStatus == 0,
+                  let data = try? Data(contentsOf: worker.resultURL),
+                  let records = try? JSONDecoder().decode(
+                    [RungRecord].self, from: data)
+            else {
+                recordsByWorker[worker.name] = expectedRungs(
+                    for: worker.name).map {
+                    RungRecord(
+                        name: $0, passed: false,
+                        message: "\(worker.name) worker exited \(process.terminationStatus) without a result")
+                }
+                continue
+            }
+            recordsByWorker[worker.name] = records
         }
-        return records
+        return workers.flatMap { recordsByWorker[$0] ?? [] }
     }
 
     private static func runWorker(_ worker: String) throws -> [RungRecord] {
@@ -340,7 +374,9 @@ struct IceCubesCheckMain {
         let source = ProjectMaterial.mergedSource(
             at: paths.app, files: paths.packageFiles,
             sourceModules: paths.sourceModules)
-            + renderProbeSource(includeDetailAndAccount: true)
+            + ProjectMaterial.mergedSource(
+                source: renderProbeSource(includeDetailAndAccount: true),
+                moduleName: "IceCubesCheckProbe")
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let normalized = strings.map(FixtureOracle.normalize)
         if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
@@ -438,6 +474,17 @@ struct IceCubesCheckMain {
                     AccountDetailView(account: __iceTrendingStatuses[0].account)
             """ : ""
         return """
+
+        import Account
+        import AppAccount
+        import DesignSystem
+        import Env
+        import Foundation
+        import Models
+        import NetworkClient
+        import StatusKit
+        import SwiftSoup
+        import SwiftUI
 
         let __iceDecoder = JSONDecoder()
         __iceDecoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -606,7 +653,9 @@ struct IceCubesCheckMain {
         let source = ProjectMaterial.mergedSource(
             at: paths.app, files: paths.packageFiles,
             sourceModules: paths.sourceModules)
-            + renderProbeSource(includeDetailAndAccount: false)
+            + ProjectMaterial.mergedSource(
+                source: renderProbeSource(includeDetailAndAccount: false),
+                moduleName: "IceCubesCheckProbe")
 
         try FileManager.default.createDirectory(
             atPath: directory, withIntermediateDirectories: true)
