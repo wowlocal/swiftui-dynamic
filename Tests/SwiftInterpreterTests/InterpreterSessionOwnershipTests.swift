@@ -193,6 +193,28 @@ struct InterpreterSessionOwnershipTests {
         #expect(originSymbol.methods["newerMember"] == nil)
     }
 
+    @Test func visibleHostExtensionSnapshotCachesUntilLineageChanges() {
+        let parent = RuntimeProgramState()
+        let stringSymbol = StructSymbol(
+            name: "String", conformsToView: false)
+        parent.hostExtensionSymbols["String"] = stringSymbol
+        let child = RuntimeProgramState(hostExtensionParent: parent)
+
+        let initial = child.visibleHostExtensionSymbols
+        let repeated = child.visibleHostExtensionSymbols
+
+        #expect(initial["String"] === stringSymbol)
+        #expect(repeated["String"] === stringSymbol)
+        #expect(child.visibleHostExtensionMaterializationCount == 1)
+
+        let integerSymbol = StructSymbol(
+            name: "Int", conformsToView: false)
+        parent.hostExtensionSymbols["Int"] = integerSymbol
+
+        #expect(child.visibleHostExtensionSymbols["Int"] === integerSymbol)
+        #expect(child.visibleHostExtensionMaterializationCount == 2)
+    }
+
     @Test func expressionOnlyRunsDoNotRetainEmptyProgramStateLineage() throws {
         let interpreter = Interpreter()
         _ = try interpreter.run(source: "0")

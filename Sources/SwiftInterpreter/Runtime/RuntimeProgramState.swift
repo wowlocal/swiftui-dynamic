@@ -31,7 +31,17 @@ final class RuntimeProgramState {
 
     var structSymbols: [StructSymbol] = []
     var enumSymbols: [String: EnumSymbol] = [:]
-    var hostExtensionSymbols: [String: StructSymbol] = [:]
+    var hostExtensionSymbols: [String: StructSymbol] = [:] {
+        didSet { hostExtensionLocalRevision &+= 1 }
+    }
+    private var hostExtensionLocalRevision: UInt64 = 0
+    private var visibleHostExtensionRevision: UInt64 = 0
+    private var visibleHostExtensionCache: (
+        localRevision: UInt64,
+        parentRevision: UInt64,
+        symbols: [String: StructSymbol]
+    )?
+    private(set) var visibleHostExtensionMaterializationCount = 0
     var protocolInheritance: [String: [String]] = [:]
     var dependencyCache: [String: RuntimeValue] = [:]
     var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]
@@ -68,16 +78,22 @@ final class RuntimeProgramState {
     /// provenance. A later compatibility run therefore searches the
     /// one-way state lineage, with the newest declaration winning.
     var visibleHostExtensionSymbols: [String: StructSymbol] {
-        var lineage: [RuntimeProgramState] = []
-        var cursor: RuntimeProgramState? = self
-        while let state = cursor {
-            lineage.append(state)
-            cursor = state.hostExtensionParent
+        let parentSymbols = hostExtensionParent?
+            .visibleHostExtensionSymbols ?? [:]
+        let parentRevision = hostExtensionParent?
+            .visibleHostExtensionRevision ?? 0
+        if let cached = visibleHostExtensionCache,
+           cached.localRevision == hostExtensionLocalRevision,
+           cached.parentRevision == parentRevision {
+            return cached.symbols
         }
-        var result: [String: StructSymbol] = [:]
-        for state in lineage.reversed() {
-            result.merge(state.hostExtensionSymbols) { _, newer in newer }
-        }
+
+        var result = parentSymbols
+        result.merge(hostExtensionSymbols) { _, newer in newer }
+        visibleHostExtensionMaterializationCount += 1
+        visibleHostExtensionRevision &+= 1
+        visibleHostExtensionCache = (
+            hostExtensionLocalRevision, parentRevision, result)
         return result
     }
 
