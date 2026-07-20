@@ -81,7 +81,7 @@ import SwiftInterpreter
         #expect(ViewRegistry().modifier(named: "contentTransition") != nil)
     }
 
-    @Test func suggestionsDebounceAndReachTheModel() async throws {
+    @Test func suggestionsDebounceAndReachTheModel() throws {
         let root = repositoryRoot()
         let source = ProjectMaterial.mergedSource(
             at: root.appendingPathComponent("Examples/Atmosphere").path
@@ -92,7 +92,15 @@ import SwiftInterpreter
         NetworkBridge.requestLog = []
         defer { NetworkBridge.policy = .absorbed }
 
-        let interpreter = Interpreter(registry: ViewRegistry())
+        // The wall-clock policy has its own focused scheduling coverage.
+        // This model test uses the same ViewRegistry surface with the
+        // verifier's explicit-drain policy, so unrelated MainActor/compiler
+        // work cannot starve its debounce in a parallel gate worker.
+        MainQueueDrain.reset()
+        defer { MainQueueDrain.reset() }
+        let interpreter = Interpreter(registry: ViewRegistry(
+            mainQueueDeliveryMode: .deterministicDrain
+        ))
         try interpreter.run(source: source, lazyTopLevelGlobals: true)
         let symbol = try #require(interpreter.rootViewSymbol())
         guard case .instance(let rootView) = try interpreter.instantiateRoot(symbol),
@@ -106,17 +114,7 @@ import SwiftInterpreter
         store.box(for: "query")?.value = .native("Lon")
         _ = try interpreter.callMethod(named: "queryChanged", on: store, arguments: [])
 
-        // The debounce itself is 350 ms. Under the full parallel backstop,
-        // the main-queue delivery can be runnable but not scheduled at a
-        // fixed 450 ms wall-clock checkpoint. Wait boundedly for the
-        // observable result instead of racing the scheduler.
-        for _ in 0..<40 {
-            if store.box(for: "suggestions")?.value.arrayValue?.count == 1,
-               NetworkBridge.requestLog.count == 1 {
-                break
-            }
-            try await Task.sleep(for: .milliseconds(50))
-        }
+        MainQueueDrain.drain()
 
         let suggestions = try #require(store.box(for: "suggestions")?.value.arrayValue)
         #expect(suggestions.count == 1)
