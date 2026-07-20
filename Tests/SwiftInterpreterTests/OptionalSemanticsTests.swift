@@ -254,6 +254,36 @@ struct OptionalSemanticsTests {
         #expect(bound.intValue == 9)
     }
 
+    @Test func dynamicCastsMatchNativeOptionalShape() throws {
+        let interpreted = try evaluateOptionalSemantics(#"""
+        class Node {}
+        class Element: Node {
+            func isBlock() -> Bool { false }
+        }
+
+        let plainParent: Node? = Node()
+        let elementParent: Node? = Element()
+        let plainBranch = if (plainParent as? Element) != nil {
+            "element"
+        } else {
+            "plain"
+        }
+        let elementBranch = if (elementParent as? Element) != nil {
+            "element"
+        } else {
+            "plain"
+        }
+        let forcedBranch = if (elementParent as! Element).isBlock() {
+            "block"
+        } else {
+            "inline"
+        }
+        "\(plainBranch)|\(elementBranch)|\(forcedBranch)"
+        """#)
+
+        #expect(interpreted.stringValue == "plain|element|inline")
+    }
+
     @Test func mapAddsALayerWhileFlatMapFlattens() throws {
         let mapped = try evaluateOptionalSemantics(#"""
         let value: Int? = 1

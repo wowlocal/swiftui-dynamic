@@ -336,15 +336,25 @@ extension Interpreter {
             var value = try evaluate(asExpr.expression, in: env)
             var typeName = asExpr.type.trimmedDescription
             let isConditionalCast = asExpr.questionOrExclamationMark?.text == "?"
+            let isForcedCast = asExpr.questionOrExclamationMark?.text == "!"
             let targetIsOptional = RuntimeOptionalValue.wrappedType(
                 in: typeName) != nil
-            if isConditionalCast, !targetIsOptional {
+            // Dynamic casts from an Optional source to a non-Optional target
+            // open every source wrapper first. `as?` then re-wraps the cast
+            // result, while `as!` returns the concrete payload (or traps for
+            // `.none`) just like native Swift.
+            if (isConditionalCast || isForcedCast), !targetIsOptional {
                 peelSourceOptionals: while true {
                     switch value.optionalState {
                     case .some(let wrapped, _):
                         value = wrapped
                     case .none:
-                        return .none(wrappedTypeName: typeName)
+                        if isConditionalCast {
+                            return .none(wrappedTypeName: typeName)
+                        }
+                        throw error(
+                            asExpr,
+                            "forced cast cannot unwrap a nil Optional")
                     case .notOptional:
                         break peelSourceOptionals
                     }
