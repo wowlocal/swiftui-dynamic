@@ -6,6 +6,25 @@ import SwiftInterpreter
 /// the tree — scenario assertions check that fixture-derived content
 /// (movie titles, status authors) actually reached the UI.
 public enum LiveCheckSupport {
+    /// Mutable traversal state for one viewport-materialized container. A
+    /// ForEach fan establishes logical row boundaries; later siblings in the
+    /// same builder (the common trailing pagination row) consume the same
+    /// launch viewport. Nested collections inside a row receive no cursor and
+    /// therefore cannot consume their parent's row budget.
+    private final class InitialLifecycleViewport {
+        var remainingRows: Int
+        var encounteredRows = false
+
+        init(capacity: Int) {
+            remainingRows = capacity
+        }
+
+        func consumeRow() -> Bool {
+            defer { if remainingRows > 0 { remainingRows -= 1 } }
+            return remainingRows > 0
+        }
+    }
+
     /// Diagnostics from the last probe run — scenario failure messages
     /// surface them so the histogram names the next class precisely.
     public private(set) static var lastRootSymbol = ""
@@ -242,14 +261,21 @@ public enum LiveCheckSupport {
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
         lifecycle: inout [TraceLifecycle],
         actions: inout [ClosureValue],
-        environment: [String: Instance] = [:], depth: Int = 0
+        environment: [String: Instance] = [:], depth: Int = 0,
+        lifecycleEnabled: Bool = true,
+        initialViewport: InitialLifecycleViewport? = nil
     ) throws {
         // IceCubes' composition (scene → tabs → navigation → timeline →
         // list → rows) nests past 16; rows vanished silently at the old cap.
         guard depth < 48 else { return }
         strings.append(contentsOf: node.args)
-        lifecycle.append(contentsOf: node.lifecycle)
+        if lifecycleEnabled {
+            lifecycle.append(contentsOf: node.lifecycle)
+        }
         actions.append(contentsOf: node.actions.values)
+        let initialViewport = node.initialLifecycleRowCapacity.map {
+            InitialLifecycleViewport(capacity: $0)
+        } ?? initialViewport
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         if node.optionalCoverage {
@@ -264,9 +290,13 @@ public enum LiveCheckSupport {
                 probe.children = node.children
                 probe.instance = node.instance
                 probe.environmentModels = node.environmentModels
+                probe.initialLifecycleRowCapacity =
+                    node.initialLifecycleRowCapacity
                 try collectRequired(interpreter, probe, into: &optionalStrings,
                                     lifecycle: &optionalLifecycle, actions: &optionalActions,
-                                    environment: environment, depth: depth)
+                                    environment: environment, depth: depth,
+                                    lifecycleEnabled: lifecycleEnabled,
+                                    initialViewport: initialViewport)
                 strings += optionalStrings
                 lifecycle += optionalLifecycle
                 actions += optionalActions
@@ -276,14 +306,18 @@ public enum LiveCheckSupport {
             return
         }
         try collectRequired(interpreter, node, into: &strings, lifecycle: &lifecycle,
-                            actions: &actions, environment: environment, depth: depth)
+                            actions: &actions, environment: environment, depth: depth,
+                            lifecycleEnabled: lifecycleEnabled,
+                            initialViewport: initialViewport)
     }
 
     private static func collectRequired(
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
         lifecycle: inout [TraceLifecycle],
         actions: inout [ClosureValue],
-        environment: [String: Instance] = [:], depth: Int = 0
+        environment: [String: Instance] = [:], depth: Int = 0,
+        lifecycleEnabled: Bool = true,
+        initialViewport: InitialLifecycleViewport? = nil
     ) throws {
         if let instance = node.instance {
             if traceLifecycle, [
@@ -310,11 +344,31 @@ public enum LiveCheckSupport {
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
             try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,
-                        actions: &actions, environment: environment, depth: depth + 1)
+                        actions: &actions, environment: environment, depth: depth + 1,
+                        lifecycleEnabled: lifecycleEnabled,
+                        initialViewport: initialViewport)
+        }
+        if node.kind == "ForEach", let initialViewport {
+            initialViewport.encounteredRows = true
+            for child in node.children {
+                let rowIsVisible = initialViewport.consumeRow()
+                try collect(
+                    interpreter, child, into: &strings,
+                    lifecycle: &lifecycle, actions: &actions,
+                    environment: environment, depth: depth + 1,
+                    lifecycleEnabled: lifecycleEnabled && rowIsVisible,
+                    initialViewport: nil)
+            }
+            return
         }
         for child in node.children {
+            let childConsumesRow = initialViewport?.encounteredRows == true
+            let childIsVisible = childConsumesRow
+                ? initialViewport!.consumeRow() : true
             try collect(interpreter, child, into: &strings, lifecycle: &lifecycle,
-                        actions: &actions, environment: environment, depth: depth + 1)
+                        actions: &actions, environment: environment, depth: depth + 1,
+                        lifecycleEnabled: lifecycleEnabled && childIsVisible,
+                        initialViewport: childConsumesRow ? nil : initialViewport)
         }
     }
 }

@@ -31,6 +31,11 @@ public final class TraceNode: InertCallable {
     public var instance: Instance?
     /// `.task`/`.onAppear` closures, retained for LiveCheck's probe to fire.
     public var lifecycle: [TraceLifecycle] = []
+    /// Headless launch has no layout engine, but viewport-materialized
+    /// containers still must not make every deeply covered child lifecycle-
+    /// visible. LiveCheck consumes this many logical rows from the initial
+    /// viewport while continuing to walk every row for string coverage.
+    public var initialLifecycleRowCapacity: Int?
     /// Opaque host objects (`UIPanGestureRecognizer()`, …) are recorded as
     /// nodes but behave like the mutable objects they stand for: property
     /// writes land here and read back (`gesture.name = id … gesture.name`).
@@ -56,6 +61,18 @@ public final class TraceRegistry: HostRegistry {
     var taskDepth = 0
     let fileManagerBox = FileManagerBox()
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
+
+    /// Swiftinterface metadata exposes List's builder but not its lazy,
+    /// viewport-owned lifecycle semantics. Keep that missing SwiftUI magic in
+    /// one explicit allowlist. This is the first instance of the pattern;
+    /// future viewport-materialized containers join this table instead of
+    /// growing per-callback branches.
+    private static let initialLifecycleRowCapacityByContainer: [String: Int] = [
+        // The trace canvas is 844pt tall and an interactive iOS row is at
+        // least 44pt. Nineteen is therefore a conservative upper bound on
+        // rows that can be visible before scrolling, independent of app data.
+        "List": Int(844 / 44),
+    ]
 
     public init() {}
 
@@ -374,6 +391,8 @@ public final class TraceRegistry: HostRegistry {
             guard name.first?.isUppercase == true else { return nil }
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: name)
+                node.initialLifecycleRowCapacity =
+                    Self.initialLifecycleRowCapacityByContainer[name]
                 var data: RuntimeValue?
                 for argument in args.arguments {
                     if case .host(let any) = argument.value, let stub = any as? BindingStub {

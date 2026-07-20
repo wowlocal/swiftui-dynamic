@@ -112,6 +112,53 @@ import SwiftInterpreter
                 "sibling rows shared one lifecycle identity: \(strings)")
     }
 
+    /// Distilled from IceCubes' StatusesListView + NextPageView. A native
+    /// List materializes only its initial viewport, so the trailing paging
+    /// task is still off-screen at launch even though visible row callbacks
+    /// have begun. The trace walk may cover every row's strings, but it must
+    /// not turn deep coverage into lifecycle visibility.
+    @Test func lazyListDoesNotFireOffscreenPaginationTaskAtLaunch() throws {
+        let source = """
+        final class Model {
+            var visibleRows = 0
+            var pageLoads = 0
+        }
+        let model = Model()
+
+        struct NextPageRow: View {
+            let model: Model
+            var body: some View {
+                Text("next page")
+                    .task { model.pageLoads += 1 }
+            }
+        }
+
+        @main struct DemoApp: App {
+            var body: some Scene {
+                WindowGroup {
+                    VStack {
+                        List {
+                            ForEach(0..<24, id: \\.self) { value in
+                                Text("row \\(value)")
+                                    .onAppear { model.visibleRows += 1 }
+                            }
+                            NextPageRow(model: model)
+                        }
+                        Text("lifecycle \\(model.visibleRows)|\\(model.pageLoads)")
+                    }
+                }
+            }
+        }
+        """
+
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let summary = try #require(strings.first { $0.hasPrefix("lifecycle ") })
+        #expect(summary.hasSuffix("|0"),
+                "off-screen paging task fired at launch: \(strings)")
+        #expect(summary != "lifecycle 0|0",
+                "initially visible rows never appeared: \(strings)")
+    }
+
     @Test func taskIdentityRestartsWhenItsIDChanges() throws {
         let source = """
         final class Model {
