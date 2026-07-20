@@ -311,7 +311,27 @@ extension Interpreter {
         while let current = owner,
               visited.insert(ObjectIdentifier(current)).inserted {
             if let symbol = current as? StructSymbol {
-                if name == symbol.name { return .type(symbol) }
+                if name == symbol.name {
+                    // An extension of an SDK/host type owns members, not the
+                    // nominal itself. A reference to the extended type from
+                    // inside its body must therefore keep using the native
+                    // constructor (including labels unrelated to storage),
+                    // rather than memberwise-constructing the synthetic
+                    // extension symbol.
+                    if hostExtensionSymbols[symbol.name] === symbol,
+                       let global = globals.lookup(name) {
+                        if case .type(let globalSymbol) = global,
+                           globalSymbol === symbol {
+                            return .type(symbol)
+                        }
+                        return global
+                    }
+                    if hostExtensionSymbols[symbol.name] === symbol,
+                       let constructor = registry?.constructor(named: name) {
+                        return .hostFunction(constructor)
+                    }
+                    return .type(symbol)
+                }
                 if let value = try staticMember(name, of: symbol) {
                     return value
                 }

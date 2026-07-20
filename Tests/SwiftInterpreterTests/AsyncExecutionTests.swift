@@ -111,6 +111,26 @@ struct AsyncExecutionTests {
         #expect(result.intValue == 42)
     }
 
+    @Test func hostExtensionCanConstructExtendedTypeAfterSuspension() async throws {
+        let source = """
+        extension Date {
+            static var fixed: Date {
+                Date(timeIntervalSince1970: 123)
+            }
+        }
+
+        func readFixedDate() async -> Double {
+            await Task.yield()
+            return Date.fixed.timeIntervalSince1970
+        }
+
+        await readFixedDate()
+        """
+
+        let result = try await Interpreter().runAsync(source: source)
+        #expect(result.doubleValue == 123)
+    }
+
     @Test func asyncMutatingStructMethodCopiesOutLikeNativeSwift() async throws {
         let nativeOriginal = NativeAsyncCounter(value: 1)
         var nativeCopy = nativeOriginal
