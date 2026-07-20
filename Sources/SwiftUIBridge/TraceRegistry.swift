@@ -173,9 +173,7 @@ public final class TraceRegistry: HostRegistry {
         if let platform = GeneratedPlatformBridge.constructor(named: name) {
             return platform
         }
-        if name == "UserDefaults" || name == "NSUserDefaults" {
-            return ObjCTrampoline.constructor(named: name)
-        }
+        if let objc = ObjCTrampoline.constructor(named: name) { return objc }
         switch name {
         case "Text", "Image", "Spacer", "Divider", "Toggle", "TextField", "Slider":
             return HostFunction(name: name) { args, _ in

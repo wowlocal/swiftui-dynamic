@@ -193,6 +193,27 @@ public enum BundleResources {
 }
 
 final class BundleBox {
+    struct DataAssetResource {
+        let name: String
+        let data: Data
+        let typeIdentifier: String
+    }
+
+    private struct DataAssetContents: Decodable {
+        struct Entry: Decodable {
+            let filename: String?
+            let idiom: String?
+            let typeIdentifier: String?
+
+            enum CodingKeys: String, CodingKey {
+                case filename, idiom
+                case typeIdentifier = "universal-type-identifier"
+            }
+        }
+
+        let data: [Entry]
+    }
+
     private struct ResourceRequest {
         let name: String
         let extensionName: String?
@@ -250,6 +271,36 @@ final class BundleBox {
             named: request.name, extension: request.extensionName)
             ?? fallback(request.name, request.extensionName)
         return url.map(request.value(for:))
+    }
+
+    /// Resolve a data entry from an uncompiled asset catalog by its catalog
+    /// metadata. The runtime adapter keys on the Objective-C interface shape;
+    /// this lookup keys on `.dataset` structure, never a type or asset name.
+    static func projectDataAsset(named name: String) -> DataAssetResource? {
+        guard let root = projectResourceRoot else { return nil }
+        let datasetName = "\(name.split(separator: "/").last.map(String.init) ?? name).dataset"
+        let skip: Set<String> = [".git", ".build", "DerivedData", "__MACOSX", "Tests"]
+        guard let walker = FileManager.default.enumerator(atPath: root) else { return nil }
+        for case let path as String in walker {
+            let components = path.split(separator: "/").map(String.init)
+            guard !components.contains(where: skip.contains),
+                  components.last == datasetName else { continue }
+            let directory = URL(fileURLWithPath: root).appendingPathComponent(path)
+            let metadataURL = directory.appendingPathComponent("Contents.json")
+            guard let metadataData = try? Data(contentsOf: metadataURL),
+                  let metadata = try? JSONDecoder().decode(
+                    DataAssetContents.self, from: metadataData) else { continue }
+            let entry = metadata.data.first(where: { $0.idiom == "universal" })
+                ?? metadata.data.first
+            guard let entry, let filename = entry.filename,
+                  let data = try? Data(
+                    contentsOf: directory.appendingPathComponent(filename)) else { continue }
+            return DataAssetResource(
+                name: name,
+                data: data,
+                typeIdentifier: entry.typeIdentifier ?? "public.data")
+        }
+        return nil
     }
 
     let bundle: Foundation.Bundle

@@ -897,7 +897,34 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 /// .publisher.decode → sink populates @Published; $published projections
 /// deliver the CURRENT value synchronously in replay (the doctrine fork);
 /// Bundle.module resolves committed resources.
-@Suite struct BundledResourcePipelineTests {
+@Suite(.serialized) struct BundledResourcePipelineTests {
+    @Test func dataAssetReadsDatasetMetadataAndBytes() throws {
+        let previousRoot = BundleBox.projectResourceRoot
+        let root = NSTemporaryDirectory() + "data-asset-probe-\(UUID().uuidString)"
+        let sourcePath = root + "/Sources/Probe.swift"
+        let datasetPath = root + "/Resources/Assets.xcassets/Words.dataset"
+        try FileManager.default.createDirectory(
+            atPath: root + "/Sources", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: datasetPath, withIntermediateDirectories: true)
+        defer {
+            BundleBox.projectResourceRoot = previousRoot
+            try? FileManager.default.removeItem(atPath: root)
+        }
+        try "first\nsecond".write(
+            toFile: datasetPath + "/Words.txt", atomically: true, encoding: .utf8)
+        try #"{"data":[{"filename":"Words.txt","idiom":"universal","universal-type-identifier":"public.plain-text"}],"info":{"author":"xcode","version":1}}"#
+            .write(toFile: datasetPath + "/Contents.json", atomically: true, encoding: .utf8)
+        try "let assetText = String(decoding: NSDataAsset(name: \"Words\", bundle: Bundle.main)!.data, as: UTF8.self)"
+            .write(toFile: sourcePath, atomically: true, encoding: .utf8)
+
+        let source = ProjectMaterial.mergedSource(at: root, files: [sourcePath])
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+
+        #expect(interpreter.globals.lookup("assetText")?.stringValue == "first\nsecond")
+    }
+
     @Test func bundlePathResolvesProjectResourceByCallShape() throws {
         let previousRoot = BundleBox.projectResourceRoot
         let root = NSTemporaryDirectory() + "bundle-path-probe-\(UUID().uuidString)"
