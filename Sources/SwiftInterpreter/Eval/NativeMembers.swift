@@ -136,7 +136,8 @@ extension Interpreter {
                     throw RuntimeError(message: "Set.contains needs a value or closure")
                 }
                 if let self {
-                    return .native(try set.contains(target, by: self.setElementsAreEqual))
+                    return .native(try set.contains(
+                        target, by: self.collectionStorageValuesAreEqual))
                 }
                 return .native(try set.contains(target, by: Builtins.areEqual))
             })
@@ -149,14 +150,17 @@ extension Interpreter {
                 let result: RuntimeSetValue
                 switch name {
                 case "union":
-                    result = try set.union(other, by: self.setElementsAreEqual)
+                    result = try set.union(
+                        other, by: self.collectionStorageValuesAreEqual)
                 case "intersection":
-                    result = try set.intersection(other, by: self.setElementsAreEqual)
+                    result = try set.intersection(
+                        other, by: self.collectionStorageValuesAreEqual)
                 case "subtracting":
-                    result = try set.subtracting(other, by: self.setElementsAreEqual)
+                    result = try set.subtracting(
+                        other, by: self.collectionStorageValuesAreEqual)
                 default:
                     result = try set.symmetricDifference(
-                        other, by: self.setElementsAreEqual)
+                        other, by: self.collectionStorageValuesAreEqual)
                 }
                 return .native(result)
             })
@@ -170,10 +174,12 @@ extension Interpreter {
                 let other = try self.setOperationElements(otherValue)
                 let otherSet = try self.makeRuntimeSet(other)
                 let allLeftInRight = try elements.allSatisfy {
-                    try otherSet.contains($0, by: self.setElementsAreEqual)
+                    try otherSet.contains(
+                        $0, by: self.collectionStorageValuesAreEqual)
                 }
                 let allRightInLeft = try otherSet.elements.allSatisfy {
-                    try set.contains($0, by: self.setElementsAreEqual)
+                    try set.contains(
+                        $0, by: self.collectionStorageValuesAreEqual)
                 }
                 switch name {
                 case "isSubset": return .native(allLeftInRight)
@@ -184,7 +190,8 @@ extension Interpreter {
                     return .native(allRightInLeft && elements.count > otherSet.elements.count)
                 default:
                     return .native(try elements.allSatisfy {
-                        try !otherSet.contains($0, by: self.setElementsAreEqual)
+                        try !otherSet.contains(
+                            $0, by: self.collectionStorageValuesAreEqual)
                     })
                 }
             })

@@ -228,6 +228,12 @@ public protocol EvalContext: AnyObject {
     func sourceStaticMember(
         named member: String, ofType typeName: String
     ) throws -> RuntimeValue?
+    /// Compare values with source-declared and synthesized equality when the
+    /// context owns interpreted declarations. Native collection storage uses
+    /// this witness for Set elements and Dictionary keys.
+    func collectionStorageValuesAreEqual(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> Bool
     /// Runtime type services for parsed host declarations. Embedders get a
     /// complete primitive/container implementation by default; Interpreter
     /// augments it with source symbols and registry-owned opaque types.
@@ -287,6 +293,12 @@ extension EvalContext {
         named member: String, ofType typeName: String
     ) throws -> RuntimeValue? {
         nil
+    }
+
+    public func collectionStorageValuesAreEqual(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> Bool {
+        try Builtins.areEqual(lhs, rhs)
     }
 
     public func spawnDetachedTask(

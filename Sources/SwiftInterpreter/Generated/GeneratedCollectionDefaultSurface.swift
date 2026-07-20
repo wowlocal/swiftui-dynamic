@@ -359,12 +359,15 @@ enum GeneratedCollectionDefaultSurface {
     static func invokeNativeDictionaryKeyOptionalValueMutation(
         named name: String,
         arguments: CallArguments,
-        carrier: inout DictValue
+        carrier: inout DictValue,
+        interpreter: Interpreter
     ) throws -> RuntimeValue {
         if name == "removeValue",
            arguments.arguments.count == 1,
            let key = arguments.labeled("forKey") {
-            return .optional(try carrier.removeEntry(forKey: key))
+            return .optional(try carrier.removeEntry(
+                forKey: key,
+                by: interpreter.collectionStorageValuesAreEqual))
         }
         throw RuntimeError(
             message: "generated native dictionary key mutation argument mismatch")

@@ -457,7 +457,9 @@ extension Interpreter {
                 guard let dict = current.dictValue else {
                     throw EvalMessage(text: "dictionary lvalue contains \(current.stringified), not a dictionary")
                 }
-                let found = try dict.value(forKey: key)
+                let found = try dict.value(
+                    forKey: key,
+                    by: interpreter.collectionStorageValuesAreEqual)
                 // `sales[key, default: 0] += v` — missing keys read the
                 // default before the mutation, exactly like native.
                 if let found { return found }
@@ -721,10 +723,13 @@ extension Interpreter {
                     return false
                 }()
                 if removesEntry {
-                    try dict.update(stored(resolvedKey), to: .nilValue)
+                    try dict.update(
+                        stored(resolvedKey), to: .nilValue,
+                        by: interpreter.collectionStorageValuesAreEqual)
                 } else {
                     try dict.setValue(
-                        stored(resolvedKey), to: stored(resolvedValue))
+                        stored(resolvedKey), to: stored(resolvedValue),
+                        by: interpreter.collectionStorageValuesAreEqual)
                 }
                 try base.writeCanonicalOwned(.native(dict), interpreter)
             case .tupleElement(let base, let index):
@@ -1028,12 +1033,26 @@ extension Interpreter {
             }
             return true
         }
+        if let l = lhs.dictValue, let r = rhs.dictValue {
+            guard l.count == r.count else { return false }
+            for (key, value) in zip(l.keys, l.values) {
+                guard let other = try r.value(
+                    forKey: key, by: collectionStorageValuesAreEqual)
+                else { return false }
+                let pair = try equalsViaDeclaredOperator(
+                    value, other, node: node)
+                    ?? ((try? Builtins.areEqual(value, other)) ?? false)
+                if !pair { return false }
+            }
+            return true
+        }
         return nil
     }
 
-    /// Equality used by Set storage. Unlike the low-level builtin fallback,
-    /// this includes declared and synthesized equality for source values.
-    func setElementsAreEqual(
+    /// Equality used by native collection storage. Unlike the low-level
+    /// builtin fallback, this includes declared and synthesized equality for
+    /// source values, as required by Set elements and Dictionary keys.
+    public func collectionStorageValuesAreEqual(
         _ lhs: RuntimeValue, _ rhs: RuntimeValue
     ) throws -> Bool {
         try equalsViaDeclaredOperator(lhs, rhs, node: nil)
@@ -1047,7 +1066,8 @@ extension Interpreter {
         let elementType = explicitType
             ?? (observedTypes.count == 1 ? observedTypes.first : nil)
         return try RuntimeSetValue.deduplicating(
-            elements, elementTypeName: elementType, by: setElementsAreEqual)
+            elements, elementTypeName: elementType,
+            by: collectionStorageValuesAreEqual)
     }
 
     private func isSynthesizableStruct(_ value: RuntimeValue) -> Bool {

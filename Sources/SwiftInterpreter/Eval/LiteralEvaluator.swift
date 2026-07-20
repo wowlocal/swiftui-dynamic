@@ -263,7 +263,10 @@ extension Interpreter {
             throw error(call, "array index out of range")
         }
         if let dict = base.dictValue {
-            let found = try relocating(call) { try dict.value(forKey: index) }
+            let found = try relocating(call) {
+                try dict.value(
+                    forKey: index, by: collectionStorageValuesAreEqual)
+            }
             // Dictionary's `default:` subscript returns Value, not Value?.
             // Its @autoclosure runs only for a missing key on the read path.
             if let defaultExpr = call.arguments.first(where: {

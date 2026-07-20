@@ -311,6 +311,33 @@ private func eval(_ source: String) throws -> RuntimeValue {
         """
         #expect(try eval(source).stringValue == "11 3")
     }
+
+    @Test func dictionaryUsesDeclaredStructKeyEquality() throws {
+        let source = """
+        struct Key: Hashable {
+            let bytes: [Int]
+
+            static func == (lhs: Key, rhs: Key) -> Bool {
+                lhs.bytes == rhs.bytes
+            }
+
+            func hash(into hasher: inout Hasher) {
+                hasher.combine(bytes.count)
+            }
+        }
+
+        var index: [Key: [Int]] = [:]
+        index[Key(bytes: [1, 2]), default: []].append(7)
+        index[Key(bytes: [1, 2]), default: []].append(8)
+        let found = index[Key(bytes: [1, 2])]?.count ?? -1
+        let same = index == [Key(bytes: [1, 2]): [7, 8]]
+        let removed = index.removeValue(
+            forKey: Key(bytes: [1, 2]))?.count ?? -1
+        "\\(index.count)|\\(found)|\\(same)|\\(removed)"
+        """
+
+        #expect(try eval(source).stringValue == "0|2|true|2")
+    }
 }
 
 @Suite struct StdlibTests {

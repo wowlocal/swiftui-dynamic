@@ -112,7 +112,8 @@ extension Interpreter {
                     try relocating(element) {
                         try value.setLiteralEntry(
                             try evaluate(element.key, in: env),
-                            to: try evaluate(element.value, in: env))
+                            to: try evaluate(element.value, in: env),
+                            by: collectionStorageValuesAreEqual)
                     }
                 }
             }

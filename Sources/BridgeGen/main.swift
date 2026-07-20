@@ -2749,7 +2749,8 @@ collectionDefaultsOutput += """
     static func invokeNativeDictionaryKeyOptionalValueMutation(
         named name: String,
         arguments: CallArguments,
-        carrier: inout DictValue
+        carrier: inout DictValue,
+        interpreter: Interpreter
     ) throws -> RuntimeValue {
 """ + "\n"
 for mutation in generatedNativeDictionaryKeyOptionalValueMutations {
@@ -2760,7 +2761,9 @@ for mutation in generatedNativeDictionaryKeyOptionalValueMutations {
         if name == \(String(reflecting: mutation.memberName)),
            arguments.arguments.count == 1,
            let key = \(argument) {
-            return .optional(try carrier.removeEntry(forKey: key))
+            return .optional(try carrier.removeEntry(
+                forKey: key,
+                by: interpreter.collectionStorageValuesAreEqual))
         }
 """ + "\n"
 }

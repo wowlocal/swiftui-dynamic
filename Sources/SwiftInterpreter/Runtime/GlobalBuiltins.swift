@@ -304,7 +304,9 @@ extension Interpreter {
                 var dict = DictValue()
                 for pair in pairs {
                     if let tuple = pair.tupleValue, tuple.values.count == 2 {
-                        try dict.update(tuple.values[0], to: tuple.values[1])
+                        try dict.update(
+                            tuple.values[0], to: tuple.values[1],
+                            by: ctx.collectionStorageValuesAreEqual)
                     }
                 }
                 return .native(dict)
@@ -314,9 +316,13 @@ extension Interpreter {
                 var dict = DictValue()
                 for element in elements {
                     let key = try ctx.callClosure(by, arguments: [element])
-                    var bucket = (try dict.lookup(key)).arrayValue ?? []
+                    var bucket = (try dict.lookup(
+                        key, by: ctx.collectionStorageValuesAreEqual))
+                        .arrayValue ?? []
                     bucket.append(element)
-                    try dict.update(key, to: .native(bucket))
+                    try dict.update(
+                        key, to: .native(bucket),
+                        by: ctx.collectionStorageValuesAreEqual)
                 }
                 return .native(dict)
             }

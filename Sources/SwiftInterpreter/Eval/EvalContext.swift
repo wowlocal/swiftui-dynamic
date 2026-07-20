@@ -305,6 +305,14 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func collectionStorageValuesAreEqual(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> Bool {
+        try bound {
+            try interpreter.collectionStorageValuesAreEqual(lhs, rhs)
+        }
+    }
+
     func hostTypeName(of value: RuntimeValue) -> String {
         bound { interpreter.hostTypeName(of: value) }
     }

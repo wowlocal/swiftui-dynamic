@@ -833,7 +833,8 @@ extension Interpreter {
                 .invokeNativeDictionaryKeyOptionalValueMutation(
                     named: name,
                     arguments: args,
-                    carrier: &dictionary)
+                    carrier: &dictionary,
+                    interpreter: self)
             try relocating(call) {
                 try target.writeCanonicalOwned(.native(dictionary), self)
             }
@@ -885,7 +886,7 @@ extension Interpreter {
                     throw error(call, "Set.insert needs a member")
                 }
                 let insertion = try set.insert(
-                    resolved(member), by: setElementsAreEqual)
+                    resolved(member), by: collectionStorageValuesAreEqual)
                 result = .native(TupleValue(
                     labels: ["inserted", "memberAfterInsert"],
                     values: [.native(insertion.inserted), insertion.memberAfterInsert]))
@@ -894,15 +895,19 @@ extension Interpreter {
                     throw error(call, "Set.update(with:) needs a member")
                 }
                 let value = try resolved(member)
-                let old = try set.remove(value, by: setElementsAreEqual)
-                _ = try set.insert(value, by: setElementsAreEqual)
+                let old = try set.remove(
+                    value, by: collectionStorageValuesAreEqual)
+                _ = try set.insert(
+                    value, by: collectionStorageValuesAreEqual)
                 result = .optional(old, wrappedTypeName: elementType)
             case "remove":
                 guard let member = args.positional(0) else {
                     throw error(call, "Set.remove needs a member")
                 }
                 result = .optional(
-                    try set.remove(resolved(member), by: setElementsAreEqual),
+                    try set.remove(
+                        resolved(member),
+                        by: collectionStorageValuesAreEqual),
                     wrappedTypeName: elementType)
             case "removeAll":
                 if let closure = args.closure(labeled: "where")
@@ -926,13 +931,17 @@ extension Interpreter {
                 let other = try setOperationElements(otherValue)
                 switch name {
                 case "formUnion":
-                    set = try set.union(other, by: setElementsAreEqual)
+                    set = try set.union(
+                        other, by: collectionStorageValuesAreEqual)
                 case "formIntersection":
-                    set = try set.intersection(other, by: setElementsAreEqual)
+                    set = try set.intersection(
+                        other, by: collectionStorageValuesAreEqual)
                 case "subtract":
-                    set = try set.subtracting(other, by: setElementsAreEqual)
+                    set = try set.subtracting(
+                        other, by: collectionStorageValuesAreEqual)
                 default:
-                    set = try set.symmetricDifference(other, by: setElementsAreEqual)
+                    set = try set.symmetricDifference(
+                        other, by: collectionStorageValuesAreEqual)
                 }
                 result = .void
             }
