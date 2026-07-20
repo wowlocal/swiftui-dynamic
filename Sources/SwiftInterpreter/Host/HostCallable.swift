@@ -104,11 +104,31 @@ public final class HostFunction {
         self.init(
             name: name,
             invoke: invoke,
+            workerOperationIfSupported: { arguments, context in
+                try workerOperation(arguments, context)
+            })
+    }
+
+    /// Argument-sensitive counterpart for a host member whose source name
+    /// covers both worker-safe and confined-only shapes. Returning `nil`
+    /// preserves the ordinary implementation without submitting a job.
+    public convenience init(
+        name: String,
+        invoke: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> RuntimeValue,
+        workerOperationIfSupported: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> HostWorkerOperation?
+    ) {
+        self.init(
+            name: name,
+            invoke: invoke,
             tracksHostOperation: false,
             hasWorkerOperation: true,
             asyncInvoke: { arguments, context in
                 if let value = try await context.runHostWorkerOperation(
-                    { try workerOperation(arguments, context) }) {
+                    {
+                        try workerOperationIfSupported(arguments, context)
+                    }) {
                     return value
                 }
                 return try invoke(arguments, context)
