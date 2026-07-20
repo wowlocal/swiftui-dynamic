@@ -1607,7 +1607,8 @@ extension Interpreter {
                 on: wrapped,
                 node: node,
                 env: env,
-                deferringAsyncHostProperty: deferringAsyncHostProperty)
+                deferringAsyncHostProperty: deferringAsyncHostProperty,
+                declaredTypeName: optional.wrappedTypeName)
             if optional.isImplicitlyUnwrapped && !explicitlyChained {
                 return member
             }

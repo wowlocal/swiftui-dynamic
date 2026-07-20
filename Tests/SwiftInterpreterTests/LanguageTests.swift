@@ -1484,6 +1484,18 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).boolValue == true)
     }
 
+    @Test func optionalChainPreservesDeclaredWrappedTypeForExtensions() throws {
+        let source = """
+        extension UInt8 {
+            var isSpace: Bool { self == 32 }
+        }
+
+        let bytes: [UInt8] = [32]
+        bytes.first?.isSpace ?? false
+        """
+        #expect(try eval(source).boolValue == true)
+    }
+
     @Test func uint64CarrierSupportsBitPackingOperators() throws {
         let source = """
         var value: UInt64 = 0
