@@ -635,6 +635,18 @@ import Testing
         #expect(value.intValue == 101)
     }
 
+    /// `Node.reparentChild` compares its weak optional parent with `self`
+    /// before removing the fragment node. Exercise that public DOM path, not
+    /// only the lower-level fragment parser that produces the node collection.
+    @Test func swiftSoupAfterReparentsFragmentNodes() throws {
+        let value = try swiftSoupEvaluation(
+            "<p>alpha</p>", suffix: """
+            try document.select("p").after("\\n\\n")
+            try document.text()
+            """)
+        #expect(value.stringValue == "alpha")
+    }
+
     private func swiftSoupText(_ html: String) throws -> String? {
         try swiftSoupEvaluation(
             html, suffix: "try document.text()\n").stringValue
