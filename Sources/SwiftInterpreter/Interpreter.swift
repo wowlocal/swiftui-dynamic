@@ -946,6 +946,10 @@ public final class Interpreter {
         _read { yield activeProgramState.pendingDottedExtensions }
         _modify { yield &activeProgramState.pendingDottedExtensions }
     }
+    var nonNominalExtensionTypeNames: Set<String> {
+        _read { yield activeProgramState.nonNominalExtensionTypeNames }
+        _modify { yield &activeProgramState.nonNominalExtensionTypeNames }
+    }
     /// Top-level typealias heads (`LoadableSubject` → `Binding`), for
     /// canonicalizing extension targets before resolution.
     var aliasHeads: [String: String] {

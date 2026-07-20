@@ -58,6 +58,11 @@ final class RuntimeProgramState {
     var preparedScalarFunctions:
         [SyntaxIdentifier: PreparedScalarFunctionCache] = [:]
     var pendingDottedExtensions: [ExtensionDeclSyntax] = []
+    /// Extension target names proven by their declaring file's module/import
+    /// provenance not to denote an interpreted nominal. These are host types
+    /// or protocols, even if an unrelated flattened module declares a
+    /// same-spelled nominal.
+    var nonNominalExtensionTypeNames: Set<String> = []
     var aliasHeads: [String: String] = [:]
     var pendingMemberAliases: [PendingMemberAlias] = []
     var pendingDeinitializerIsolationChecks:

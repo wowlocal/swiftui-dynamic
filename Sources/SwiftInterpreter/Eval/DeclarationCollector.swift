@@ -144,6 +144,14 @@ extension Interpreter {
     /// extended type NOW resolves migrate into the real symbol.
     func reconcileStrandedExtensions() {
         for (typeName, stranded) in hostExtensionSymbols {
+            // A flattened compiler graph can contain an unrelated nominal
+            // with the same spelling as an imported host type (`SQLite.View`
+            // beside an extension of SwiftUI.View). Collection records the
+            // lexical proof; never migrate those host/protocol members by a
+            // bare-name coincidence during the late repair pass.
+            guard !nonNominalExtensionTypeNames.contains(typeName) else {
+                continue
+            }
             var target = globals.lookup(typeName)
             if target == nil, typeName.contains("."),
                let last = typeName.split(separator: ".").last {
@@ -1132,27 +1140,42 @@ extension Interpreter {
     private func collectExtension(_ node: ExtensionDeclSyntax) throws {
         let metadata = extensionMetadata(for: node)
         let typeName = metadata.extendedTypeName
+        let position = node.positionAfterSkippingLeadingTrivia
+        let sourceModuleName = currentProgramMetadata?.sourceModuleName(
+            at: position)
+        let sourceImportedModuleNames = currentProgramMetadata?
+            .sourceImportedModuleNames(at: position)
+        let hasSourceProvenance = sourceModuleName != nil
+            || sourceImportedModuleNames != nil
+
+        func visibleTarget(named name: String) -> RuntimeValue? {
+            guard hasSourceProvenance else {
+                if let exact = globals.lookup(name) { return exact }
+                if name.contains("."),
+                   let last = name.split(separator: ".").last {
+                    return globals.lookup(String(last))
+                }
+                return nil
+            }
+            return lexicallyVisibleType(
+                named: name,
+                from: nil,
+                sourceModuleName: sourceModuleName,
+                sourceImportedModuleNames: sourceImportedModuleNames)
+        }
         // A DOTTED extended type that doesn't resolve yet may be declared
         // by a LATER extension in the same pass (`extension Pixel.Event`
         // in a file sorting before `extension Pixel { enum Event }`) —
         // defer it; the post-pass retries once every type exists.
-        if globals.lookup(typeName) == nil, typeName.contains("."),
+        if visibleTarget(named: typeName) == nil, typeName.contains("."),
            !deferredExtensionRetry {
             pendingDottedExtensions.append(node)
             return
         }
-        // `extension Models.Visibility` — module-qualified names resolve to
-        // the declared bare type when the FULL (possibly nested-dotted)
-        // name misses; the merge has no modules.
-        var extended = globals.lookup(typeName)
-        if extended == nil, typeName.contains("."),
-           let last = typeName.split(separator: ".").last {
-            switch globals.lookup(String(last)) {
-            case .type(let symbol): extended = .type(symbol)
-            case .enumType(let symbol): extended = .enumType(symbol)
-            default: break
-            }
-        }
+        // Source-module provenance chooses the nominal exactly as the
+        // declaring file can see it. A bare flattened global from another,
+        // unimported module is not an extension target.
+        let extended = visibleTarget(named: typeName)
         switch extended {
         case .type(let symbol):
             mergeExtensionConformances(metadata, into: symbol)
@@ -1176,6 +1199,9 @@ extension Interpreter {
             while let target = aliasHeads[canonical], hops < 8 {
                 canonical = target
                 hops += 1
+            }
+            if hasSourceProvenance {
+                nonNominalExtensionTypeNames.insert(canonical)
             }
             let symbol = mutableHostExtensionSymbol(named: canonical)
             try collectStructMembers(node.memberBlock, into: symbol)

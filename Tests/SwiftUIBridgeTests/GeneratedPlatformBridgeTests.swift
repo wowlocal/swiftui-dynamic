@@ -353,6 +353,24 @@ import AppKit
         #expect(result.intValue == 13)
     }
 
+#if canImport(AppKit)
+    /// A selected platform nominal grows every mechanically bridgeable API
+    /// that accepts it. The opposite-platform fallback exercises the iOS
+    /// signature on macOS without requiring a UIKit runtime payload.
+    @Test func generatedPlatformReferenceParameterCompletesOverloadFamily() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        UIFont.preferredFont(
+            forTextStyle: .body,
+            compatibleWith: nil
+        )
+        """)
+        let font = try #require(
+            result.hostPayload as? GeneratedPlatformValue)
+        #expect(font.framework == "UIKit")
+        #expect(font.typeName == "UIFont")
+    }
+#endif
+
     @Test func optionalPlatformCollectionsNormalizeAsInterpreterArrays() throws {
 #if canImport(AppKit)
         let source = """
