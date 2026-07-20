@@ -695,12 +695,19 @@ import Testing
     }
 
     /// IceCubes' `HTMLString.init(from:)` performs DOM edits before its
-    /// text-only clean. Pin that complete pipeline to the first recorded
-    /// public status, whose leading symbol exercises SwiftSoup's UTF-8 path.
+    /// text-only clean. Models also contributes a later top-level `Tag`; the
+    /// complete SwiftSoup pipeline must retain its own same-named nominal.
     @Test func swiftSoupRecordedStatusPipelineRetainsText() throws {
         let value = try swiftSoupEvaluation(
             "<p>⭕Des familles ont été prises dans des nuages de gaz "
                 + "lacrymogènes lancés par la police lors d’un tournoi de foot.</p>",
+            additionalSource: """
+            // swift-interpreter-source-module Models
+            struct Tag {
+                let marker: String
+            }
+            // swift-interpreter-source-module-end
+            """,
             suffix: """
             document.outputSettings(
                 OutputSettings().prettyPrint(pretty: false))
@@ -723,7 +730,7 @@ import Testing
     }
 
     private func swiftSoupEvaluation(
-        _ html: String, suffix: String
+        _ html: String, additionalSource: String = "", suffix: String
     ) throws -> RuntimeValue {
         let root = FileManager.default.currentDirectoryPath
         let files = ProjectMaterial.swiftFiles(
@@ -733,7 +740,8 @@ import Testing
             files: files,
             sourceModules: Dictionary(uniqueKeysWithValues: files.map {
                 ($0, "SwiftSoup")
-            })) + "\n\n// swift-interpreter-module SwiftSoup\n"
+            })) + "\n\n" + additionalSource
+            + "\n\n// swift-interpreter-module SwiftSoup\n"
             + "let document = try SwiftSoup.parse(\(String(reflecting: html)))\n"
             + suffix
 
