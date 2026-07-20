@@ -104,7 +104,7 @@ extension Interpreter {
                 // Lazy defaults evaluate on first access with self bound.
                 let box = Box(
                     .native(LazyMemberSeed(
-                        initializer: initializer, annotation: property.typeAnnotation)),
+                        initializer: initializer, typeName: property.typeName)),
                     declaredTypeName: annotationText,
                     referenceOwnership: property.referenceOwnership)
                 instance.properties[property.name] = box
@@ -116,7 +116,7 @@ extension Interpreter {
                 do {
                     value = try resolveAnnotated(
                         try evaluate(initializer, in: selfEnvironment(.type(symbol))),
-                        annotation: property.typeAnnotation
+                        typeName: property.typeName
                     )
                 } catch is InterpretedThrow {
                     // Headless resource construction can legitimately throw;
@@ -286,7 +286,7 @@ extension Interpreter {
                     // `.constant("")` — a binding to a fixed value.
                     instance.properties[label] = Box(try resolveAnnotated(
                         call.arguments.positional(0) ?? .void,
-                        annotation: property.typeAnnotation).copiedForValueSemantics())
+                        typeName: property.typeName).copiedForValueSemantics())
                 } else if let closure = argument.value.closureValue,
                           property.isBuilderClosure,
                           !(property.typeName?.contains("->") ?? false) {
@@ -295,7 +295,7 @@ extension Interpreter {
                         .copiedForValueSemantics()
                 } else {
                     box.value = try resolveAnnotated(
-                        argument.value, annotation: property.typeAnnotation)
+                        argument.value, typeName: property.typeName)
                         .copiedForValueSemantics()
                 }
             }
@@ -973,7 +973,7 @@ extension Interpreter {
                    let initializer = declared.initializer,
                    let value = try? evaluate(initializer, in: globals) {
                     box.value = ((try? resolveAnnotated(
-                        value, annotation: declared.typeAnnotation)) ?? value)
+                        value, typeName: declared.typeName)) ?? value)
                         .copiedForValueSemantics()
                     continue
                 }
@@ -1277,6 +1277,11 @@ extension Interpreter {
     func resolveAnnotated(_ value: RuntimeValue, annotation: TypeSyntax?) throws -> RuntimeValue {
         guard let annotation else { return value }
         return try resolveAnnotated(value, typeName: annotation.trimmedDescription)
+    }
+
+    func resolveAnnotated(_ value: RuntimeValue, typeName: String?) throws -> RuntimeValue {
+        guard let typeName else { return value }
+        return try resolveAnnotated(value, typeName: typeName)
     }
 
     func resolveAnnotated(

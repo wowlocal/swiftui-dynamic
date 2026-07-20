@@ -585,7 +585,7 @@ extension Interpreter {
                     }
                     let resolved = resolvingAnnotation
                         ? try interpreter.resolveAnnotated(
-                            incoming, annotation: property?.typeAnnotation)
+                            incoming, typeName: property?.typeName)
                         : incoming
                     let storedValue = stored(resolved)
                     let observerKey = Interpreter.ObserverKey(

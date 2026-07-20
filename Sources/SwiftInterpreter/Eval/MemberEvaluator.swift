@@ -385,7 +385,7 @@ extension Interpreter {
             // Force the lazy member now, with self bound.
             let value = try resolveAnnotated(
                 try evaluate(seed.initializer, in: selfEnvironment(.instance(instance))),
-                annotation: seed.annotation).copiedForValueSemantics()
+                typeName: seed.typeName).copiedForValueSemantics()
             box.value = value
             return value
         }

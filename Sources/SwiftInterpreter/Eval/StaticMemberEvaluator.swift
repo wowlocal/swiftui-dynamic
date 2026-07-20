@@ -90,7 +90,7 @@ extension Interpreter {
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
             var raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
-            var value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+            var value = try resolveAnnotated(raw, typeName: property.typeName)
                 .copiedForValueSemantics()
             if property.referenceOwnership != .strong {
                 let box = Box(
@@ -217,7 +217,7 @@ extension Interpreter {
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
             var raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
-            var value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+            var value = try resolveAnnotated(raw, typeName: property.typeName)
                 .copiedForValueSemantics()
             if property.referenceOwnership != .strong {
                 let box = Box(

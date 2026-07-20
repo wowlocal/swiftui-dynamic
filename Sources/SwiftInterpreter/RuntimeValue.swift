@@ -438,11 +438,11 @@ public final class ObjectWillChangePublisher: InertCallable {
 @MainActor
 public final class LazyMemberSeed {
     public let initializer: ExprSyntax
-    public let annotation: TypeSyntax?
+    public let typeName: String?
 
-    public init(initializer: ExprSyntax, annotation: TypeSyntax?) {
+    public init(initializer: ExprSyntax, typeName: String?) {
         self.initializer = initializer
-        self.annotation = annotation
+        self.typeName = typeName
     }
 }
 
