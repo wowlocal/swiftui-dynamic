@@ -125,6 +125,17 @@ struct OptionalSemanticsTests {
         }
     }
 
+    @Test func optionalChainedArrayMutationWritesBackToSomeStorage() throws {
+        let result = try evaluateOptionalSemantics("""
+        var values: [Int]? = [1, 2, 3]
+        values?.removeAll(keepingCapacity: true)
+        var missing: [Int]? = nil
+        missing?.removeAll(keepingCapacity: true)
+        "\\(values?.count ?? -1)|\\(missing == nil)"
+        """)
+        #expect(result.stringValue == "0|true")
+    }
+
     @Test func payloadContextsUnwrapCallsLValuesAndEnumPatterns() throws {
         let result = try evaluateOptionalSemantics("""
         struct Counter { var value: Int }

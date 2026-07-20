@@ -1163,6 +1163,14 @@ extension Interpreter {
         if expr.is(DiscardAssignmentExprSyntax.self) {
             return .box(Box(.void))
         }
+        // A mutating call reached through optional chaining gets here only
+        // after call dispatch has proved the optional contains a payload.
+        // Reuse the optional-preserving read/modify/write edge so the changed
+        // payload is stored back as some instead of flattening its owner.
+        if let chaining = expr.as(OptionalChainingExprSyntax.self) {
+            return .forceUnwrapped(try resolveLValue(
+                chaining.expression, in: env, access: access))
+        }
         if let ref = expr.as(DeclReferenceExprSyntax.self) {
             let name = ref.baseName.text
             if Interpreter.traceStateCells, name == "statusesState" {
