@@ -571,6 +571,7 @@ public enum ProjectMaterial {
         from mergedSource: String
     ) -> [CompilerPreflightSource]? {
         let marker = "// FILE: "
+        let sourceModuleMarker = "// swift-interpreter-source-module "
         var sections: [(fileName: String, lines: [Substring])] = []
         var currentFileName: String?
         var currentLines: [Substring] = []
@@ -586,7 +587,9 @@ public enum ProjectMaterial {
             if let currentFileName {
                 sections.append((currentFileName, currentLines))
             } else if currentLines.contains(where: {
-                !$0.trimmingCharacters(in: .whitespaces).isEmpty
+                let prefix = $0.trimmingCharacters(in: .whitespaces)
+                return !prefix.isEmpty
+                    && !prefix.hasPrefix(sourceModuleMarker)
             }) {
                 return nil
             }
