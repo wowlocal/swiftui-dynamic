@@ -171,7 +171,7 @@ public enum RuntimeABIMemory {
         var maximumAlignment = 1
         for property in instance.symbol.storedProperties {
             guard property.wrapper == .none,
-                  let typeName = property.typeAnnotation?.trimmedDescription,
+                  let typeName = property.typeName,
                   let field = instance.box(for: property.name)?.value else {
                 throw unsupported("property '\(instance.symbol.name).\(property.name)'")
             }
@@ -219,7 +219,7 @@ public enum RuntimeABIMemory {
         result.reserveCapacity(layout.stride)
         for property in instance.symbol.storedProperties {
             guard property.wrapper == .none,
-                  let typeName = property.typeAnnotation?.trimmedDescription,
+                  let typeName = property.typeName,
                   let field = instance.box(for: property.name)?.value else {
                 throw unsupported("property '\(instance.symbol.name).\(property.name)'")
             }
@@ -320,7 +320,7 @@ extension Interpreter {
         var maximumAlignment = 1
         for property in symbol.storedProperties {
             guard property.wrapper == .none,
-                  let fieldName = property.typeAnnotation?.trimmedDescription else {
+                  let fieldName = property.typeName else {
                 throw RuntimeError(message:
                     "cannot derive ABI layout for '\(symbol.name).\(property.name)'")
             }

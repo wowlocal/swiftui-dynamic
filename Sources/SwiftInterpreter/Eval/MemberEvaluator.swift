@@ -826,9 +826,9 @@ extension Interpreter {
             if case .instance(let instance)? = environment.lookup("self") {
                 let canonical = instance.symbol.canonicalPropertyName(name)
                 return instance.symbol.storedProperty(named: canonical)?
-                    .typeAnnotation?.trimmedDescription
+                    .typeName
                     ?? instance.symbol.computedProperties[canonical]?
-                        .typeAnnotation?.trimmedDescription
+                        .typeName
             }
             return globals.box(for: name)?.declaredTypeName
         }
@@ -838,9 +838,9 @@ extension Interpreter {
             let name = instance.symbol.canonicalPropertyName(
                 member.declName.baseName.text)
             return instance.symbol.storedProperty(named: name)?
-                .typeAnnotation?.trimmedDescription
+                .typeName
                 ?? instance.symbol.computedProperties[name]?
-                    .typeAnnotation?.trimmedDescription
+                    .typeName
         }
         return nil
     }
@@ -1443,7 +1443,7 @@ extension Interpreter {
                let value = try prepared.execute(
                     arguments: [], receiver: selfValue,
                     interpreter: self) {
-                if let typeName = computed.typeAnnotation?.trimmedDescription,
+                if let typeName = computed.typeName,
                    RuntimeOptionalValue.wrappedType(in: typeName) != nil {
                     return try resolveAnnotated(value, typeName: typeName)
                 }
@@ -1452,7 +1452,7 @@ extension Interpreter {
             let result = try executeBlock(computed.accessor, in: env)
             switch result {
             case .normal(let value), .returnValue(let value):
-                if let typeName = computed.typeAnnotation?.trimmedDescription,
+                if let typeName = computed.typeName,
                    RuntimeOptionalValue.wrappedType(in: typeName) != nil {
                     return try resolveAnnotated(value, typeName: typeName)
                 }
@@ -1464,7 +1464,7 @@ extension Interpreter {
                 // (`var title: LocalizedStringKey { .init(name) }`).
                 if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                    call.typeHint == nil,
-                   let typeName = computed.typeAnnotation?.trimmedDescription {
+                   let typeName = computed.typeName {
                     return .native(ImplicitMemberCall(
                         name: call.name, arguments: call.arguments, typeHint: typeName))
                 }
@@ -1497,7 +1497,7 @@ extension Interpreter {
                 computed.accessor, in: env)
             switch result {
             case .normal(let value), .returnValue(let value):
-                if let typeName = computed.typeAnnotation?.trimmedDescription,
+                if let typeName = computed.typeName,
                    RuntimeOptionalValue.wrappedType(in: typeName) != nil {
                     return try resolveAnnotated(value, typeName: typeName)
                 }
@@ -1704,7 +1704,7 @@ extension Interpreter {
                 // can't call nil — the registry modifier applies.
                 if value.isNil, instance.symbol.rendersLikeView,
                    let property = instance.symbol.storedProperty(named: name),
-                   property.typeAnnotation?.trimmedDescription.contains("->") == true,
+                   property.typeName?.contains("->") == true,
                    let registry, let modifier = registry.modifier(named: name) {
                     let wrapped = registry.makeRenderable(instance: instance, interpreter: self)
                     return .hostFunction(HostFunction(name: name) { args, ctx in

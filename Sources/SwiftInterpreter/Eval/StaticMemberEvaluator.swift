@@ -24,7 +24,7 @@ extension Interpreter {
             return .native(RuntimeTaskLocalProjection(
                 key: declaration.key,
                 defaultValue: defaultValue,
-                valueTypeName: declaration.typeAnnotation?.trimmedDescription
+                valueTypeName: declaration.typeName
                     ?? HostRuntimeTypeSystem.typeName(of: defaultValue)))
         }
         if let bound = evaluationTaskContext.taskLocals.value(
@@ -48,7 +48,7 @@ extension Interpreter {
             raw = try evaluate(initializer, in: environment)
         } else {
             raw = .none(forTypeAnnotation:
-                declaration.typeAnnotation?.trimmedDescription ?? "")
+                declaration.typeName ?? "")
         }
         let resolved = try resolveAnnotated(
             raw, annotation: declaration.typeAnnotation)
@@ -95,7 +95,7 @@ extension Interpreter {
             if property.referenceOwnership != .strong {
                 let box = Box(
                     value,
-                    declaredTypeName: property.typeAnnotation?.trimmedDescription,
+                    declaredTypeName: property.typeName,
                     referenceOwnership: property.referenceOwnership)
                 symbol.staticReferenceBoxes[name] = box
                 // The initializer result has no source-level strong owner.
@@ -222,7 +222,7 @@ extension Interpreter {
             if property.referenceOwnership != .strong {
                 let box = Box(
                     value,
-                    declaredTypeName: property.typeAnnotation?.trimmedDescription,
+                    declaredTypeName: property.typeName,
                     referenceOwnership: property.referenceOwnership)
                 symbol.staticReferenceBoxes[name] = box
                 raw = .void

@@ -20,7 +20,7 @@ extension Interpreter {
         }
         guard let propertyName,
               case .instance(let instance)? = env.lookup("self") else { return nil }
-        return instance.symbol.storedProperty(named: propertyName)?.typeAnnotation?.trimmedDescription
+        return instance.symbol.storedProperty(named: propertyName)?.typeName
     }
 
     func evaluateInfix(_ infix: InfixOperatorExprSyntax, in env: Environment) throws -> RuntimeValue {
@@ -366,17 +366,13 @@ extension Interpreter {
             case .box(let box):
                 return box.declaredTypeName
             case .instanceProperty(let instance, let name):
-                return instance.symbol.storedProperty(named: name)?
-                    .typeAnnotation?.trimmedDescription
+                return instance.symbol.storedProperty(named: name)?.typeName
             case .instanceValueProperty(_, let symbol, let name):
-                return symbol.storedProperty(named: name)?
-                    .typeAnnotation?.trimmedDescription
+                return symbol.storedProperty(named: name)?.typeName
             case .staticProperty(let symbol, let name):
-                return symbol.staticProperties[name]?
-                    .typeAnnotation?.trimmedDescription
+                return symbol.staticProperties[name]?.typeName
             case .enumStaticProperty(let symbol, let name):
-                return symbol.staticProperties[name]?
-                    .typeAnnotation?.trimmedDescription
+                return symbol.staticProperties[name]?.typeName
             case .element(let base, _):
                 return base.annotatedElementType()
             case .dictElement(let base, _, _):

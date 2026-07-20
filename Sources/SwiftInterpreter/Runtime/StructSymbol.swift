@@ -37,6 +37,10 @@ public struct ComputedProperty {
     /// The declared result type supplies contextual type information to
     /// implicit-member returns such as `var manager: Manager { .shared }`.
     public let typeAnnotation: TypeSyntax?
+    /// Immutable textual form captured when the symbol is collected. Runtime
+    /// access is hot and must not rebuild a detached SwiftSyntax tree merely
+    /// to recover the same annotation spelling.
+    public let typeName: String?
     /// The pattern binding identifies the declaration's nominal lexical
     /// owner through Interpreter.declLexicalOwners without retaining it.
     public let declarationID: SyntaxIdentifier?
@@ -61,6 +65,7 @@ public struct ComputedProperty {
         self.unsupportedCoroutineModifyError =
             unsupportedCoroutineModifyError
         self.typeAnnotation = typeAnnotation
+        self.typeName = typeAnnotation?.trimmedDescription
         self.declarationID = declarationID
         self.isNonisolated = isNonisolated
     }
@@ -90,6 +95,9 @@ public final class StructSymbol {
         public let wrapper: Wrapper
         public let initializer: ExprSyntax?
         public let typeAnnotation: TypeSyntax?
+        /// Immutable textual form of `typeAnnotation`, captured once during
+        /// declaration collection for runtime type routing and storage.
+        public let typeName: String?
         /// `@ViewBuilder var content: Content` — memberwise init takes a
         /// trailing closure and stores the BUILT view.
         public let isBuilderClosure: Bool
@@ -117,9 +125,30 @@ public final class StructSymbol {
         public var didSetBody: CodeBlockItemListSyntax?
         public var didSetParameter: String = "oldValue"
 
+        public init(
+            name: String,
+            wrapper: Wrapper,
+            initializer: ExprSyntax?,
+            typeAnnotation: TypeSyntax?,
+            isBuilderClosure: Bool,
+            attributeNames: [String],
+            isMutable: Bool,
+            isNonisolated: Bool
+        ) {
+            self.name = name
+            self.wrapper = wrapper
+            self.initializer = initializer
+            self.typeAnnotation = typeAnnotation
+            self.typeName = typeAnnotation?.trimmedDescription
+            self.isBuilderClosure = isBuilderClosure
+            self.attributeNames = attributeNames
+            self.isMutable = isMutable
+            self.isNonisolated = isNonisolated
+        }
+
         /// Function-typed or @ViewBuilder: what a trailing closure can fill.
         public var acceptsTrailingClosure: Bool {
-            isBuilderClosure || (typeAnnotation?.trimmedDescription.contains("->") ?? false)
+            isBuilderClosure || (typeName?.contains("->") ?? false)
         }
 
         public var requiresActorExecutor: Bool {
@@ -202,6 +231,7 @@ public final class StructSymbol {
     public struct StaticProperty {
         public let initializer: ExprSyntax
         public let typeAnnotation: TypeSyntax?
+        public let typeName: String?
         public let referenceOwnership: ReferenceOwnership
 
         public init(
@@ -210,6 +240,7 @@ public final class StructSymbol {
         ) {
             self.initializer = initializer
             self.typeAnnotation = typeAnnotation
+            self.typeName = typeAnnotation?.trimmedDescription
             self.referenceOwnership = referenceOwnership
         }
     }

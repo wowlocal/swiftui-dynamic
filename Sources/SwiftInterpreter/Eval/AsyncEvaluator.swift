@@ -996,7 +996,7 @@ extension Interpreter {
                   computed.setter != nil,
                   !computed.isAsync,
                   !computed.isThrowing,
-                  let typeName = computed.typeAnnotation?.trimmedDescription,
+                  let typeName = computed.typeName,
                   RuntimeOptionalValue.wrappedType(in: typeName) != nil else {
                 return false
             }

@@ -1297,7 +1297,7 @@ extension Interpreter {
         let unbound = closure.genericParameters.filter { env.lookup($0) == nil }
         guard !unbound.isEmpty else { return }
         for parameter in closure.parameters {
-            guard let declared = parameter.typeAnnotation?.trimmedDescription,
+            guard let declared = parameter.typeName,
                   declared.contains("->"),
                   unbound.contains(where: { declared.contains($0) }) else { continue }
             let argument = args.labeled(parameter.label ?? parameter.name)
@@ -1306,7 +1306,7 @@ extension Interpreter {
             let declaredParams = Self.functionTypeParameterList(declared)
             guard declaredParams.count == argClosure.parameters.count else { continue }
             for (declaredType, argParameter) in zip(declaredParams, argClosure.parameters) {
-                guard let actual = argParameter.typeAnnotation?.trimmedDescription else { continue }
+                guard let actual = argParameter.typeName else { continue }
                 unifyGeneric(declaredType, actual, unbound: unbound, into: env)
             }
         }
@@ -1612,8 +1612,7 @@ extension Interpreter {
             let accepts: (Int) -> Bool = { index in
                 let parameter = closure.parameters[index]
                 return parameter.isBuilderAttributed
-                    || parameter.typeAnnotation?.trimmedDescription
-                        .contains("->") == true
+                    || parameter.typeName?.contains("->") == true
             }
             if let index = bound.indices.first(where: {
                 bound[$0] == nil && accepts($0)

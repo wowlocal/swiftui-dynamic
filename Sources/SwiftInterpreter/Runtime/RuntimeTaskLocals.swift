@@ -46,6 +46,7 @@ final class RuntimeTaskLocalDeclaration {
     let key: RuntimeTaskLocalKey
     let initializer: ExprSyntax?
     let typeAnnotation: TypeSyntax?
+    let typeName: String?
     var cachedDefault: RuntimeValue?
 
     init(
@@ -58,6 +59,7 @@ final class RuntimeTaskLocalDeclaration {
             sourceDeclarationID: declarationID, debugName: debugName)
         self.initializer = initializer
         self.typeAnnotation = typeAnnotation
+        self.typeName = typeAnnotation?.trimmedDescription
     }
 }
 

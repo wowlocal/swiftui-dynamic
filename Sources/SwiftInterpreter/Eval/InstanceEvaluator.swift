@@ -26,7 +26,7 @@ extension Interpreter {
     /// (custom @resultBuilders' buildBlock), view-typed ones group as views.
     func builderValue(for property: StructSymbol.StoredProperty, closure: ClosureValue) throws -> RuntimeValue {
         let items = try callBuilderClosure(closure, arguments: [])
-        let annotation = property.typeAnnotation?.trimmedDescription ?? ""
+        let annotation = property.typeName ?? ""
         if annotation.hasPrefix("[") {
             return .native(items)
         }
@@ -97,7 +97,7 @@ extension Interpreter {
         let notifying = Set(symbol.notifyingPropertyNames)
         for property in inheritedStoredProperties(of: symbol) {
             // Optional-typed properties without initializers are nil.
-            let annotationText = property.typeAnnotation?.trimmedDescription ?? ""
+            let annotationText = property.typeName ?? ""
             var value: RuntimeValue = RuntimeOptionalValue.wrappedType(in: annotationText) != nil
                 ? .none(forTypeAnnotation: annotationText) : .void
             if property.isLazy, let initializer = property.initializer {
@@ -131,7 +131,7 @@ extension Interpreter {
                 // wrapper metadata receive a synthesized fresh identity.
                 var seen: Set<String> = []
                 value = (try? synthesizedFreshValue(
-                    typeName: property.typeAnnotation?.trimmedDescription ?? "",
+                    typeName: property.typeName ?? "",
                     seen: &seen)) ?? .nilValue
             }
             let box = Box(
@@ -289,7 +289,7 @@ extension Interpreter {
                         annotation: property.typeAnnotation).copiedForValueSemantics())
                 } else if let closure = argument.value.closureValue,
                           property.isBuilderClosure,
-                          !(property.typeAnnotation?.trimmedDescription.contains("->") ?? false) {
+                          !(property.typeName?.contains("->") ?? false) {
                     // Labeled trailing onto a builder property.
                     box.value = try builderValue(for: property, closure: closure)
                         .copiedForValueSemantics()
@@ -328,7 +328,7 @@ extension Interpreter {
                         throw RuntimeError(message: message)
                     }
                     assigned.insert(property.name)
-                    let functionTyped = property.typeAnnotation?.trimmedDescription.contains("->") ?? false
+                    let functionTyped = property.typeName?.contains("->") ?? false
                     if property.isBuilderClosure && !functionTyped {
                         // Builder property — build now (array or grouped views).
                         let closure = argument.value.closureValue!
@@ -907,7 +907,7 @@ extension Interpreter {
             var typedEnvironment = false
             switch property.wrapper {
             case .environmentObject:
-                typeName = property.typeAnnotation?.trimmedDescription ?? ""
+                typeName = property.typeName ?? ""
             case .environment(let name) where name.first?.isUppercase == true:
                 typeName = name
                 typedEnvironment = true
@@ -989,7 +989,7 @@ extension Interpreter {
                     box.value = value.copiedForValueSemantics()
                     continue
                 }
-                let typeName = property.typeAnnotation?.trimmedDescription ?? ""
+                let typeName = property.typeName ?? ""
                 var seen: Set<String> = []
                 box.value = ((try? synthesizedFreshValue(
                     typeName: typeName, seen: &seen)) ?? .nilValue)
@@ -1066,7 +1066,7 @@ extension Interpreter {
             for parameter in initializerMetadata(for: initializer).parameters
             where parameter.defaultValue == nil {
                 let label = parameter.label ?? "_"
-                let typeName = parameter.typeAnnotation?.trimmedDescription
+                let typeName = parameter.typeName
                     ?? "Any"
                 let value: RuntimeValue
                 if let constraint = symbol.genericParameters[typeName] {
@@ -1084,7 +1084,7 @@ extension Interpreter {
         } else {
             for property in symbol.storedProperties
             where property.initializer == nil && !property.isBuilderClosure {
-                let typeName = property.typeAnnotation?.trimmedDescription ?? ""
+                let typeName = property.typeName ?? ""
                 switch property.wrapper {
                 case .none:
                     if let constraint = symbol.genericParameters[typeName] {
