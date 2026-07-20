@@ -4315,6 +4315,38 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// A source extension on an imported host type participates in the
+    /// imported overload family even when it contributes only one method.
+    /// A same-shaped recursive call whose runtime argument is not a metatype
+    /// must fall through to the opaque imported member instead of re-entering
+    /// the source declaration forever.
+    @Test func singleHostExtensionOverloadFallsBackOnRuntimeTypeMismatch() throws {
+        let source = """
+        import Foundation
+
+        struct Model {}
+        struct Request {}
+
+        extension UIImage {
+            func count<T>(for entity: T.Type) -> Int {
+                _ = count(for: Request())
+                return 1
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let image: UIImage = UIImage()
+                return Text("count \\(image.count(for: Model.self))")
+            }
+        }
+        """
+
+        let report = try HeadlessVerifier.verify(
+            source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// MochiDiffusion (iteration 148): three URL/Observation classes —
     /// mutating `url.append(path:directoryHint:)` writes through the lvalue;
     /// `url.path(percentEncoded:)` (METHOD) collides with the legacy `path`

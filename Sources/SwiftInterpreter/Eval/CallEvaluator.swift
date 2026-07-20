@@ -460,6 +460,21 @@ extension Interpreter {
                     return try invoke(.closure(closure), with: args, node: call)
                 }
             }
+            // Bare calls inside a host-type extension use the same combined
+            // source/imported overload family as `self.member(...)`. Member
+            // lookup alone has no argument types and otherwise re-enters a
+            // single source declaration even when its runtime parameter type
+            // cannot fit the delegating call.
+            if let selfValue = env.lookup("self"),
+               selfValue.hostPayload != nil,
+               let overloads = try hostExtensionMethodOverloads(
+                   named: name, on: selfValue
+               ) {
+                let args = try collectArguments(of: call, in: env)
+                let target = try resolveHostExtensionMethodTarget(
+                    overloads, arguments: args)
+                return try invoke(target, with: args, node: call)
+            }
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instanceMethodOverloads(
                    named: name, on: instance),
