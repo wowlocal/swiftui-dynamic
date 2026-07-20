@@ -201,12 +201,12 @@ public enum ProjectMaterial {
         return result
     }
 
-    /// Load the transitive source-module slice needed by qualified global
-    /// references in `rootFiles`. A module joins only when a root imports it,
-    /// spells `Module.member`, and the build description proves that `member`
-    /// is a top-level declaration of that module. This distinguishes a free
-    /// module global from a same-named namespace type and avoids flattening
-    /// every resolved checkout into one artificial module.
+    /// Load the transitive source-module slice needed by `rootFiles`. An
+    /// imported module joins when a qualified free-global reference or an
+    /// unqualified nominal reference matches one of its top-level
+    /// declarations. Selecting the compiler module brings its complete source
+    /// set, including extension-only sibling files, without flattening every
+    /// resolved checkout into one artificial module.
     public static func swiftFiles(
         inSwiftPMBuildDescriptionAt path: String,
         requiredBy rootFiles: [String]
@@ -238,6 +238,32 @@ public enum ProjectMaterial {
             return source
         }
 
+        func declarations(
+            in moduleName: String,
+            sources moduleSources: Set<String>
+        ) throws -> Set<String> {
+            if let cached = declarationsByModule[moduleName] {
+                return cached
+            }
+            var discovered: Set<String> = []
+            for moduleSource in moduleSources.sorted() {
+                discovered.formUnion(
+                    Interpreter.topLevelDeclarationNames(
+                        in: try source(at: moduleSource)))
+            }
+            declarationsByModule[moduleName] = discovered
+            return discovered
+        }
+
+        func select(
+            moduleName: String,
+            sources moduleSources: Set<String>
+        ) {
+            guard selectedModules.insert(moduleName).inserted else { return }
+            selectedFiles.formUnion(moduleSources)
+            pending.append(contentsOf: moduleSources.sorted())
+        }
+
         while let sourcePath = pending.first {
             pending.removeFirst()
             guard scanned.insert(sourcePath).inserted else { continue }
@@ -249,24 +275,22 @@ public enum ProjectMaterial {
             }) {
                 guard let moduleSources = sourcesByModule[reference.moduleName]
                 else { continue }
-                let declarations: Set<String>
-                if let cached = declarationsByModule[reference.moduleName] {
-                    declarations = cached
-                } else {
-                    var discovered: Set<String> = []
-                    for moduleSource in moduleSources.sorted() {
-                        discovered.formUnion(
-                            Interpreter.topLevelDeclarationNames(
-                                in: try source(at: moduleSource)))
-                    }
-                    declarationsByModule[reference.moduleName] = discovered
-                    declarations = discovered
-                }
-                guard declarations.contains(reference.memberName),
-                      selectedModules.insert(reference.moduleName).inserted
+                guard try declarations(
+                    in: reference.moduleName,
+                    sources: moduleSources
+                ).contains(reference.memberName) else { continue }
+                select(
+                    moduleName: reference.moduleName,
+                    sources: moduleSources)
+            }
+            for moduleName in usage.importedModuleNames.sorted() {
+                guard let moduleSources = sourcesByModule[moduleName],
+                      !usage.unqualifiedReferences.isDisjoint(with:
+                        try declarations(
+                            in: moduleName,
+                            sources: moduleSources))
                 else { continue }
-                selectedFiles.formUnion(moduleSources)
-                pending.append(contentsOf: moduleSources.sorted())
+                select(moduleName: moduleName, sources: moduleSources)
             }
         }
         return selectedFiles.subtracting(roots).sorted()

@@ -11,6 +11,64 @@ import Testing
 @Suite("SwiftPM build-description material", .serialized)
 struct SwiftPMBuildDescriptionMaterialTests {
     @Test
+    func importedUnqualifiedNominalSelectsCompleteModule() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiftpm-imported-surface-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let app = root.appendingPathComponent("App/Sources/App.swift")
+        let value = root.appendingPathComponent(
+            ".build/checkouts/SurfaceKit/Sources/SurfaceKit/Value.swift")
+        let styling = root.appendingPathComponent(
+            ".build/checkouts/SurfaceKit/Sources/SurfaceKit/String+Styling.swift")
+        for file in [app, value, styling] {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+        }
+        try """
+            import SurfaceKit
+            let importedSurface = SurfaceValue.message + "|" + "plain".surfaceStyled
+            """
+            .write(to: app, atomically: true, encoding: .utf8)
+        try "struct SurfaceValue { static let message = \"surface\" }\n"
+            .write(to: value, atomically: true, encoding: .utf8)
+        try "extension String { var surfaceStyled: String { self + \"-styled\" } }\n"
+            .write(to: styling, atomically: true, encoding: .utf8)
+
+        let description = root.appendingPathComponent("description.json")
+        let payload: [String: Any] = [
+            "swiftCommands": [
+                "C.App.module": [
+                    "moduleName": "App",
+                    "sources": [app.path],
+                ],
+                "C.SurfaceKit.module": [
+                    "moduleName": "SurfaceKit",
+                    "sources": [value.path, styling.path],
+                ],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: payload)
+            .write(to: description, options: .atomic)
+
+        let dependencies = try ProjectMaterial.swiftFiles(
+            inSwiftPMBuildDescriptionAt: description.path,
+            requiredBy: [app.path])
+        #expect(dependencies == [styling.path, value.path].sorted())
+
+        let sourceModules = try ProjectMaterial.sourceModuleNames(
+            inSwiftPMBuildDescriptionAt: description.path)
+        let merged = ProjectMaterial.mergedSource(
+            files: [app.path] + dependencies,
+            sourceModules: sourceModules)
+        let interpreter = Interpreter()
+        try interpreter.run(source: merged)
+        #expect(interpreter.globals.lookup("importedSurface")?.stringValue
+            == "surface|plain-styled")
+    }
+
+    @Test
     func compiledDependencySourceJoinsRuntimeProjection() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftpm-material-\(UUID().uuidString)")
