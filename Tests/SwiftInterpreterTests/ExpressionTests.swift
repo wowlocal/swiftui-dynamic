@@ -103,6 +103,21 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "2|session|file.txt|trace.log")
     }
 
+    /// Source-only extension overload families must also remain unresolved
+    /// until the call supplies concrete argument types.
+    @Test func sourceExtensionOverloadsUseArgumentTypes() throws {
+        let source = """
+        extension String {
+            func classified(_ value: [Int]?) -> String { "array" }
+            func classified(_ value: String?) -> String { "string" }
+        }
+
+        "\\("base".classified("value"))|\\("base".classified([1]))"
+        """
+
+        #expect(try eval(source).stringValue == "string|array")
+    }
+
     @Test func constrainedGenericExtensionInitializerRequiresConformance() throws {
         let source = """
         extension String {

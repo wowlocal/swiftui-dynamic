@@ -611,17 +611,17 @@ extension Interpreter {
                 return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
             }
         }
-        // Same-module extensions and imported members form one overload set.
-        // Defer the decision until arguments are evaluated instead of letting
-        // bare member lookup make a source-only choice.
-        if let overloads = try typedHostExtensionMethodOverloads(
+        // Host-type source extensions, plus any imported peer, form one
+        // overload set. Defer the decision until arguments are evaluated
+        // instead of letting bare member lookup choose the first declaration.
+        if let overloads = try hostExtensionMethodOverloads(
             named: name,
             on: baseValue,
             declaredTypeName: declaredBaseTypeName
                 ?? declaredMemberReceiverTypeName(for: base, in: env)
         ) {
             let args = try collectArguments(of: call, in: env)
-            let target = try resolveTypedHostExtensionMethodTarget(
+            let target = try resolveHostExtensionMethodTarget(
                 overloads, arguments: args)
             return try invoke(target, with: args, node: call)
         }

@@ -1126,10 +1126,11 @@ extension Interpreter {
             }
             let baseValue = evaluatedBase
 
-            // Source extensions and typed imported members compete only once
-            // argument types are available. Use the same target resolver as
-            // eager evaluation, then retain suspension-aware invocation.
-            if let overloads = try typedHostExtensionMethodOverloads(
+            // Host-type source extensions, plus any imported peer, compete
+            // only once argument types are available. Use the same target
+            // resolver as eager evaluation, then retain suspension-aware
+            // invocation.
+            if let overloads = try hostExtensionMethodOverloads(
                 named: name,
                 on: baseValue,
                 declaredTypeName: declaredMemberReceiverTypeName(
@@ -1137,7 +1138,7 @@ extension Interpreter {
             ) {
                 let args = try await collectArgumentsSuspending(
                     of: call, in: env)
-                let target = try resolveTypedHostExtensionMethodTarget(
+                let target = try resolveHostExtensionMethodTarget(
                     overloads, arguments: args)
                 return try await invokeSuspending(
                     target,
