@@ -70,6 +70,11 @@ public enum InterpretedEnvironment {
 public enum RenderDiagnostics {
     public private(set) static var errors: [(view: String, error: RuntimeError)] = []
 
+    /// Process-level diagnostic selectors are immutable after launch. Cache
+    /// this once instead of rebuilding and bridging the full environment from
+    /// host-member and layout hot paths.
+    static let traceEnabled = ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil
+
     public static func reset() { errors = [] }
 
     static func record(_ error: RuntimeError, in view: String) {

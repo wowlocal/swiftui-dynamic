@@ -277,7 +277,7 @@ extension ViewRegistry {
             }
             guard !specs.isEmpty else { return .native(AnyView(EmptyView())) }
             let sortBox = args.labeled("sortOrder").flatMap { try? Coerce.bindingBox($0) }
-            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+            if RenderDiagnostics.traceEnabled {
                 FileHandle.standardError.write(Data(
                     "TABLE specs=\(specs.map { ($0.title, $0.keyPath?.components) }) rows=\(rowValues.count) sort=\(String(describing: sortBox?.value))\n".utf8))
             }
@@ -748,7 +748,7 @@ extension ViewRegistry {
             // Chart-content ForEach yields MARKS, not views — pass the
             // real chart contents through for the Chart builder to splice.
             let chartMarks = Self.chartContents(collected)
-            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+            if RenderDiagnostics.traceEnabled {
                 FileHandle.standardError.write(Data(
                     "FOREACH-KINDS elements=\(elements.count) marks=\(chartMarks.count) first=\(collected.first.map { String(describing: $0).prefix(90) } ?? "none")\n".utf8))
             }
@@ -761,7 +761,7 @@ extension ViewRegistry {
                     in: "ForEach")
             }
             let views = try collected.map(Self.anyView)
-            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+            if RenderDiagnostics.traceEnabled {
                 FileHandle.standardError.write(Data("FOREACH elements=\(elements.count) views=\(views.count)\n".utf8))
             }
             return .native(ForEachFan(views: views))

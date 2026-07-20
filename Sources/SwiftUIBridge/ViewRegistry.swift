@@ -227,7 +227,7 @@ public final class ViewRegistry: HostRegistry {
                     views.append(view)
                 }
             }
-            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+            if RenderDiagnostics.traceEnabled {
                 FileHandle.standardError.write(Data(
                     "MAKELAYOUT \(instance.symbol.name) children=\(children.count) views=\(views.count)\n".utf8))
             }
