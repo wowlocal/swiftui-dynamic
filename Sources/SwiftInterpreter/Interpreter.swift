@@ -616,6 +616,9 @@ public final class Interpreter {
         get { evaluationTaskContext.viewIdentitySalts }
         set { evaluationTaskContext.viewIdentitySalts = newValue }
     }
+    public var currentViewIdentityPath: String {
+        viewIdentitySalts.joined(separator: "/")
+    }
 
     /// Bracket a builder-row evaluation with the element's identity, so
     /// per-view state cells key by (site, element) instead of site alone.

@@ -35,9 +35,16 @@ public struct CallArguments {
     }
 
     public var arguments: [Argument]
+    /// Stable syntax position of the source call that produced these
+    /// arguments. Host adapters use it only for semantics whose identity is
+    /// owned by the call site (for example SwiftUI lifecycle modifiers).
+    public let sourceSiteID: UInt64?
 
-    public init(arguments: [Argument] = []) {
+    public init(
+        arguments: [Argument] = [], sourceSiteID: UInt64? = nil
+    ) {
         self.arguments = arguments
+        self.sourceSiteID = sourceSiteID
     }
 
     public var isEmpty: Bool { arguments.isEmpty }
@@ -108,6 +115,10 @@ public protocol EvalContext: AnyObject {
     /// builds may physically host every instruction on MainActor while still
     /// preserving source-level executor hops through this identity.
     var sourceExecutor: RuntimeExecutorKind { get }
+    /// Structural identity contributed by enclosing collection builders.
+    /// Interpreter-backed SwiftUI adapters use this to distinguish sibling
+    /// rows created at one source call site.
+    var currentViewIdentityPath: String { get }
     func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     /// Enter interpreted code from a synchronous external host callback such
     /// as a SwiftUI action. Interpreter-backed contexts override this entry to
@@ -244,6 +255,7 @@ public protocol EvalContext: AnyObject {
 
 extension EvalContext {
     public var sourceExecutor: RuntimeExecutorKind { .mainActor }
+    public var currentViewIdentityPath: String { "" }
 
     /// Compatibility fallback for non-interpreter embedders. The interpreter
     /// supplies the task-aware implementation; legacy contexts preserve their

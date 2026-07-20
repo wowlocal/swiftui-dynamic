@@ -18,7 +18,9 @@ extension Interpreter {
                 sourceProvenance: callArgumentSourceProvenance(
                     of: argument, value: value, in: env)))
         }
-        return CallArguments(arguments: arguments)
+        return CallArguments(
+            arguments: arguments,
+            sourceSiteID: call.id.indexInTree.toOpaque())
     }
 
     /// Proves the narrow bare/unqualified declaration boundary used by

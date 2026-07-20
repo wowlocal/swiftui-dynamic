@@ -154,7 +154,7 @@ public enum LiveCheckSupport {
         // until quiescent; the cap only guards against ping-pong loops, and
         // the break below exits as soon as a pass adds nothing.
         var strings: [String] = []
-        var firedCount = 0
+        var firedLifecycle: Set<TraceLifecycleIdentity> = []
         for renderPass in 0..<8 {
             // Deliver main-queue hops queued at the END of the previous
             // pass (a dispatch fired INSIDE another dispatch's delivery —
@@ -166,16 +166,19 @@ public enum LiveCheckSupport {
             }
             let root = try renderRoot!()
             var passStrings: [String] = []
-            var lifecycle: [ClosureValue] = []
+            var lifecycle: [TraceLifecycle] = []
             var passActions: [ClosureValue] = []
             try collect(interpreter, root, into: &passStrings, lifecycle: &lifecycle, actions: &passActions)
             let grew = passStrings.count > strings.count
             strings = passStrings
-            let pending = lifecycle.dropFirst(firedCount)
+            let pending = lifecycle.filter {
+                firedLifecycle.insert($0.identity).inserted
+            }
             if pending.isEmpty && !grew {
                 break
             }
-            for closure in pending {
+            for entry in pending {
+                let closure = entry.closure
                 if traceLifecycle {
                     let head = closure.body.description
                         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -191,7 +194,6 @@ public enum LiveCheckSupport {
                 }
                 lastLifecycleFired += 1
             }
-            firedCount = lifecycle.count
             // Drain main-queue hops before the next render pass:
             // `DispatchQueue.main.async` (SwiftUIFlux's Store.dispatch)
             // bridges through Task{@MainActor}, which never runs inside a
@@ -210,7 +212,7 @@ public enum LiveCheckSupport {
             for position in 0..<actionCount {
                 var current: [ClosureValue] = []
                 var discardStrings: [String] = []
-                var discardLifecycle: [ClosureValue] = []
+                var discardLifecycle: [TraceLifecycle] = []
                 try collect(interpreter, try renderRoot!(), into: &discardStrings,
                             lifecycle: &discardLifecycle, actions: &current)
                 guard !current.isEmpty else { break }
@@ -220,7 +222,7 @@ public enum LiveCheckSupport {
                     current[position % current.count], arguments: [])
             }
             var finalStrings: [String] = []
-            var discardLifecycle: [ClosureValue] = []
+            var discardLifecycle: [TraceLifecycle] = []
             var discardActions: [ClosureValue] = []
             try collect(interpreter, try renderRoot!(), into: &finalStrings,
                         lifecycle: &discardLifecycle, actions: &discardActions)
@@ -238,7 +240,7 @@ public enum LiveCheckSupport {
 
     private static func collect(
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
-        lifecycle: inout [ClosureValue],
+        lifecycle: inout [TraceLifecycle],
         actions: inout [ClosureValue],
         environment: [String: Instance] = [:], depth: Int = 0
     ) throws {
@@ -255,7 +257,7 @@ public enum LiveCheckSupport {
             // body skips (the screen never rendered), never fails the walk.
             do {
                 var optionalStrings: [String] = []
-                var optionalLifecycle: [ClosureValue] = []
+                var optionalLifecycle: [TraceLifecycle] = []
                 var optionalActions: [ClosureValue] = []
                 let probe = TraceNode(kind: node.kind)
                 probe.args = node.args
@@ -279,7 +281,7 @@ public enum LiveCheckSupport {
 
     private static func collectRequired(
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
-        lifecycle: inout [ClosureValue],
+        lifecycle: inout [TraceLifecycle],
         actions: inout [ClosureValue],
         environment: [String: Instance] = [:], depth: Int = 0
     ) throws {

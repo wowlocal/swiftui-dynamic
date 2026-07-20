@@ -103,6 +103,11 @@ public final class ClosureValue {
 
     public let parameters: [Parameter]
     public let body: CodeBlockItemListSyntax
+    /// Stable within one parsed program and shared by fresh closure values
+    /// formed from the same source body on later render passes.
+    public var sourceSiteID: UInt64 {
+        body.id.indexInTree.toOpaque()
+    }
     public let captured: Environment
     public let isBuilder: Bool
     /// Used to resolve returned `.member` values against known enums.

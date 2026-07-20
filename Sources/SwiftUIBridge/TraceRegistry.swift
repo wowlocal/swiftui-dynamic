@@ -2,6 +2,18 @@ import Darwin
 import Foundation
 import SwiftInterpreter
 
+public struct TraceLifecycleIdentity: Hashable {
+    public let sourceSiteID: UInt64
+    public let modifier: String
+    public let viewIdentityPath: String
+    public let restartToken: String?
+}
+
+public struct TraceLifecycle {
+    public let identity: TraceLifecycleIdentity
+    public let closure: ClosureValue
+}
+
 /// A recorded render-tree node — what the trace registry produces instead of
 /// real SwiftUI views, so tests can assert structure headlessly.
 public final class TraceNode: InertCallable {
@@ -18,7 +30,7 @@ public final class TraceNode: InertCallable {
     public var environmentModels: [String: Instance] = [:]
     public var instance: Instance?
     /// `.task`/`.onAppear` closures, retained for LiveCheck's probe to fire.
-    public var lifecycle: [ClosureValue] = []
+    public var lifecycle: [TraceLifecycle] = []
     /// Opaque host objects (`UIPanGestureRecognizer()`, …) are recorded as
     /// nodes but behave like the mutable objects they stand for: property
     /// writes land here and read back (`gesture.name = id … gesture.name`).
@@ -437,7 +449,19 @@ public final class TraceRegistry: HostRegistry {
             if name == "task" || name == "onAppear",
                let closure = args.arguments.compactMap({ $0.value.closureValue }).first,
                closure.parameters.isEmpty {
-                node.lifecycle.append(closure)
+                // SwiftUI owns lifecycle by structural view identity, not by
+                // the callback's ordinal in a freshly rendered tree. The
+                // syntax call site distinguishes sibling modifiers, the
+                // collection path distinguishes ForEach rows, and task(id:)
+                // contributes its documented restart token.
+                node.lifecycle.append(TraceLifecycle(
+                    identity: TraceLifecycleIdentity(
+                        sourceSiteID: args.sourceSiteID ?? closure.sourceSiteID,
+                        modifier: name,
+                        viewIdentityPath: ctx.currentViewIdentityPath,
+                        restartToken: name == "task"
+                            ? args.labeled("id")?.stringified : nil),
+                    closure: closure))
             }
             if Self.builderModifiers.contains(name) {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content
