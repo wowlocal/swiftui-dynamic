@@ -182,6 +182,15 @@ extension Interpreter {
                 "generated concurrency function name drifted from its adapter")
             globals.define(sourceName, .hostFunction(function))
         }
+        for sourceName in GeneratedCollectionDefaultSurface
+                .repeatedElementSequenceFactoryNames.sorted() {
+            guard let function = GeneratedCollectionDefaultSurface
+                    .repeatedElementSequenceFactory(named: sourceName) else {
+                preconditionFailure(
+                    "generated repeated-element factory lost its adapter")
+            }
+            globals.define(sourceName, .hostFunction(function))
+        }
         for (name, function) in Self.typedMathBuiltins {
             globals.define(name, .hostFunction(function))
         }

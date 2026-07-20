@@ -32,6 +32,32 @@ enum GeneratedCollectionDefaultSurface {
         return materializableSequenceProtocolNames.contains(name)
     }
 
+    static let repeatedElementSequenceFactoryNames: Set<String> = Set([
+        "repeatElement"
+    ])
+
+    @MainActor
+    static func repeatedElementSequenceFactory(
+        named name: String
+    ) -> HostFunction? {
+        switch name {
+        case "repeatElement":
+            return HostFunction(name: name) { args, _ in
+                guard args.arguments.count == 2,
+                      let element = args.positional(0),
+                      let count = args.labeled("count")?.intValue,
+                      count >= 0 else {
+                    throw RuntimeError(
+                        message: "generated repeated-element sequence argument mismatch")
+                }
+                return .native(
+                    [RuntimeValue](repeating: element, count: count))
+            }
+        default:
+            return nil
+        }
+    }
+
     @MainActor
     static func nativeWritableStringCollectionView(
         named name: String,

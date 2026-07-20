@@ -1551,6 +1551,8 @@ let generatedElementGenericCollectionNominals =
     elementGenericCollectionNominals(in: stdlibFile)
 let generatedMaterializableSequenceProtocolNames =
     materializableSequenceProtocolNames(in: stdlibFile)
+let generatedRepeatedElementSequenceFactories =
+    repeatedElementSequenceFactories(in: stdlibFile)
 let generatedNativeWritableStringCollectionViews =
     nativeWritableStringCollectionViews(in: stdlibFile)
 let generatedNativeCollectionCarrierDefaults =
@@ -2276,6 +2278,48 @@ enum GeneratedCollectionDefaultSurface {
 """ + "\n"
 collectionDefaultsOutput += """
 
+    static let repeatedElementSequenceFactoryNames: Set<String> = Set([
+        \(generatedRepeatedElementSequenceFactories
+            .map(\.functionName).map(String.init(reflecting:))
+            .joined(separator: ", "))
+    ])
+
+    @MainActor
+    static func repeatedElementSequenceFactory(
+        named name: String
+    ) -> HostFunction? {
+        switch name {
+""" + "\n"
+for factory in generatedRepeatedElementSequenceFactories {
+    let elementArgument = factory.elementArgumentLabel.map {
+        "args.labeled(\(String(reflecting: $0)))"
+    } ?? "args.positional(0)"
+    let countArgument = factory.countArgumentLabel.map {
+        "args.labeled(\(String(reflecting: $0)))"
+    } ?? "args.positional(1)"
+    collectionDefaultsOutput += """
+        case \(String(reflecting: factory.functionName)):
+            return HostFunction(name: name) { args, _ in
+                guard args.arguments.count == 2,
+                      let element = \(elementArgument),
+                      let count = \(countArgument)?.intValue,
+                      count >= 0 else {
+                    throw RuntimeError(
+                        message: "generated repeated-element sequence argument mismatch")
+                }
+                return .native(
+                    [RuntimeValue](repeating: element, count: count))
+            }
+""" + "\n"
+}
+collectionDefaultsOutput += """
+        default:
+            return nil
+        }
+    }
+""" + "\n"
+collectionDefaultsOutput += """
+
     @MainActor
     static func nativeWritableStringCollectionView(
         named name: String,
@@ -2934,6 +2978,7 @@ print(
         + "\(generatedRequiredEndpointRemovalCollectionDefaults.count) required endpoint removals, "
         + "\(generatedElementGenericCollectionNominals.count) element-generic collections, "
         + "\(generatedMaterializableSequenceProtocolNames.count) Sequence protocols, "
+        + "\(generatedRepeatedElementSequenceFactories.count) repeated-element factories, "
         + "\(generatedNativeWritableStringCollectionViews.count) writable String collection views, "
         + "\(generatedNativeCollectionCarrierScalarVoidMutations.count) native carrier scalar mutations, "
         + "\(generatedNativeDictionaryKeyOptionalValueMutations.count) dictionary key mutations)")

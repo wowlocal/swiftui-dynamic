@@ -121,6 +121,16 @@ struct NativeCollectionCarrierDefaults {
         [NativeDictionaryKeyOptionalValueMutation]
 }
 
+/// A top-level generic factory whose body constructs an element-generic
+/// Collection by forwarding one element and one integer count. Runtime
+/// collection carriers can materialize that finite sequence without naming
+/// either the factory or its returned stdlib nominal by hand.
+struct RepeatedElementSequenceFactory: Hashable {
+    let functionName: String
+    let elementArgumentLabel: String?
+    let countArgumentLabel: String?
+}
+
 /// A nested String collection view whose accessor supports in-place mutation.
 /// The element is projected through a public one-argument String initializer;
 /// the setter then provides a compiled copy-out path to the owning String.
@@ -325,6 +335,126 @@ func materializableSequenceProtocolNames(
         .trimmingCharacters(in: .whitespacesAndNewlines)
     return protocolRefinementEligibility(in: file)[sequenceName]
         ?? [sequenceName]
+}
+
+/// Discovers finite element-repetition factories from the active stdlib.
+/// The admitted shape is deliberately narrow: a public one-generic function
+/// takes an Element and Int, returns an element-generic Collection nominal,
+/// and its sole returned constructor forwards those values in that order.
+func repeatedElementSequenceFactories(
+    in file: SourceFileSyntax?
+) -> [RepeatedElementSequenceFactory] {
+    guard let file else { return [] }
+
+    func canonical(_ raw: String) -> String {
+        normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func unqualified(_ raw: String) -> String {
+        let value = canonical(raw)
+        return value.hasPrefix("Swift.")
+            ? String(value.dropFirst("Swift.".count)) : value
+    }
+
+    func nominalName(_ raw: String) -> String {
+        var value = unqualified(raw)
+        if let generic = value.firstIndex(of: "<") {
+            value = String(value[..<generic])
+        }
+        return value.split(separator: ".").last.map(String.init) ?? value
+    }
+
+    func genericNominal(_ raw: String) -> (
+        nominal: String, argument: String
+    )? {
+        let value = unqualified(raw)
+        guard let opening = value.firstIndex(of: "<"),
+              value.hasSuffix(">") else { return nil }
+        let argumentStart = value.index(after: opening)
+        let argumentEnd = value.index(before: value.endIndex)
+        let argument = canonical(String(
+            value[argumentStart..<argumentEnd]))
+        guard !argument.contains(",") else { return nil }
+        return (
+            nominalName(String(value[..<opening])),
+            unqualified(argument))
+    }
+
+    let elementGenericNominals = Set(
+        elementGenericCollectionNominals(in: file))
+    var factories = Set<RepeatedElementSequenceFactory>()
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item,
+              let function = declaration.as(FunctionDeclSyntax.self),
+              function.modifiers.contains(where: {
+                  $0.name.text == "public"
+              }),
+              !function.modifiers.contains(where: {
+                  $0.name.text == "mutating"
+              }),
+              let genericClause = function.genericParameterClause,
+              genericClause.parameters.count == 1,
+              let genericParameter = genericClause.parameters.first,
+              let returned = genericNominal(
+                function.signature.returnClause?.type
+                    .trimmedDescription ?? ""),
+              returned.argument == genericParameter.name.text,
+              elementGenericNominals.contains(returned.nominal),
+              function.signature.parameterClause.parameters.count == 2,
+              let elementParameter =
+                function.signature.parameterClause.parameters.first,
+              let countParameter =
+                function.signature.parameterClause.parameters.last,
+              unqualified(elementParameter.type.trimmedDescription)
+                == genericParameter.name.text,
+              unqualified(countParameter.type.trimmedDescription) == "Int",
+              let body = function.body,
+              let returnExpression = body.statements.reversed()
+                .compactMap({ item -> ExprSyntax? in
+                    guard case .stmt(let statement) = item.item else {
+                        return nil
+                    }
+                    return statement.as(ReturnStmtSyntax.self)?.expression
+                }).first,
+              let call = returnExpression.as(FunctionCallExprSyntax.self),
+              call.trailingClosure == nil,
+              call.additionalTrailingClosures.isEmpty,
+              nominalName(call.calledExpression.trimmedDescription)
+                == returned.nominal,
+              call.arguments.count == 2,
+              let firstArgument = call.arguments.first?.expression.as(
+                DeclReferenceExprSyntax.self),
+              let secondArgument = call.arguments.last?.expression.as(
+                DeclReferenceExprSyntax.self)
+        else { continue }
+
+        let elementLocalName = elementParameter.secondName?.text
+            ?? elementParameter.firstName.text
+        let countLocalName = countParameter.secondName?.text
+            ?? countParameter.firstName.text
+        guard firstArgument.baseName.text == elementLocalName,
+              secondArgument.baseName.text == countLocalName
+        else { continue }
+
+        factories.insert(RepeatedElementSequenceFactory(
+            functionName: function.name.text,
+            elementArgumentLabel:
+                elementParameter.firstName.text == "_"
+                    ? nil : elementParameter.firstName.text,
+            countArgumentLabel:
+                countParameter.firstName.text == "_"
+                    ? nil : countParameter.firstName.text))
+    }
+
+    return factories.sorted {
+        (
+            $0.functionName, $0.elementArgumentLabel ?? "",
+            $0.countArgumentLabel ?? ""
+        ) < (
+            $1.functionName, $1.elementArgumentLabel ?? "",
+            $1.countArgumentLabel ?? ""
+        )
+    }
 }
 
 /// Finds constrained protocol-extension defaults whose returned index is

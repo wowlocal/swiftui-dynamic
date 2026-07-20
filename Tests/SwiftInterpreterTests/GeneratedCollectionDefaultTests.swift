@@ -16,6 +16,18 @@ import Testing
         #expect(value.intValue == 3)
     }
 
+    /// SwiftSoup grows its UTF-8 builder with the stdlib's finite
+    /// element-repetition sequence factory.
+    @Test func generatedRepeatedElementSequenceFactoryMaterializesValues() throws {
+        let source = """
+        let values = repeatElement(7, count: 3)
+        "\\(values.count)|\\(values[0])|\\(values[2])"
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "3|7|7")
+    }
+
     @Test func generatedNativeDictionaryAndSetMutationsPreserveContents() throws {
         let source = """
         var dictionary = ["first": 1]
