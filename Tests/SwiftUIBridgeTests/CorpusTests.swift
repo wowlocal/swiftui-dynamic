@@ -3286,6 +3286,15 @@ enum Corpus {
 
         enum UIBridge {
             static func toggleSidebar() -> String { "toggled" }
+            static func openFileContainer() -> String {
+                UIBridge.presentError(with: "missing")
+            }
+        }
+
+        extension UIBridge {
+            static func presentError(with message: String) -> String {
+                "presented: \\(message)"
+            }
         }
 
         struct GradientView: View {
@@ -3307,6 +3316,7 @@ enum Corpus {
                 let checks = [
                     UIBridge.toggleSidebar() == "toggled",
                     UIBridge.open(url: URL(string: "https://a.b")!) == "opened",
+                    UIBridge.openFileContainer() == "presented: missing",
                 ]
                 if checks.contains(false) { fatalError("namespace union broken") }
                 return GradientView()

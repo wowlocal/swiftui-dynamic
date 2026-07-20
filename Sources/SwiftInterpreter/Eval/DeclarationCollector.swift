@@ -858,6 +858,7 @@ extension Interpreter {
             existing.methods[name, default: []].append(contentsOf: overloads)
         }
         for (name, overloads) in symbol.staticMethods {
+            for decl in overloads { declLexicalOwners[decl.id] = existing }
             existing.staticMethods[name, default: []].append(contentsOf: overloads)
         }
         for (name, property) in symbol.staticProperties
