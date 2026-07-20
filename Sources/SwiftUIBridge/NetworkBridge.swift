@@ -1418,7 +1418,7 @@ enum JSONDecodeBridge {
         var arguments: [CallArguments.Argument] = []
         for property in symbol.storedProperties {
             let jsonValue = lookup(property.name, in: object, codingKeys: codingKeys)
-            var annotation = property.typeAnnotation?.trimmedDescription
+            var annotation = property.typeName
             if let text = annotation, !substitutions.isEmpty {
                 annotation = substituteGenerics(text, substitutions)
             }

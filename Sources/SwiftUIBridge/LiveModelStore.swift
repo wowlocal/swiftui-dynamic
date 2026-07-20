@@ -66,7 +66,7 @@ public final class LiveModelStore {
     /// them).
     public static func refreshQueries(into instance: Instance, interpreter: Interpreter) {
         for property in instance.symbol.storedProperties where property.wrapper == .query {
-            var element = property.typeAnnotation?.trimmedDescription ?? ""
+            var element = property.typeName ?? ""
             if element.hasPrefix("["), element.hasSuffix("]") {
                 element = String(element.dropFirst().dropLast())
             }
