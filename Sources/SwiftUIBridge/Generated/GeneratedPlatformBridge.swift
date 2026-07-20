@@ -2158,10 +2158,10 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
-            declaration: "init UIImage.Configuration()",
+            declaration: "init UIImage.Configuration(traitCollection p0: UITraitCollection?)",
             resultType: "UIImage.Configuration") { v, ctx in
 #if canImport(UIKit)
-            return generatedPlatformResult(UIImage.Configuration(), framework: "UIKit", declaredType: "UIImage.Configuration")
+            return generatedPlatformResult(UIImage.Configuration(traitCollection: try generatedPlatformArgument(v[0], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "UIImage.Configuration")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -2398,6 +2398,36 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init UITraitCollection()",
+            resultType: "UITraitCollection") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITraitCollection(), framework: "UIKit", declaredType: "UITraitCollection")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UITraitCollection(displayScale p0: CGFloat)",
+            resultType: "UITraitCollection") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITraitCollection(displayScale: try generatedPlatformArgument(v[0], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx)), framework: "UIKit", declaredType: "UITraitCollection")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UITraitCollection(imageDynamicRange p0: UIImage.DynamicRange)",
+            resultType: "UITraitCollection") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITraitCollection(imageDynamicRange: try generatedPlatformArgument(v[0], as: UIImage.DynamicRange.self, framework: "UIKit", typeName: "UIImage.DynamicRange", context: ctx)), framework: "UIKit", declaredType: "UITraitCollection")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIView()",
             resultType: "UIView") { v, ctx in
 #if canImport(UIKit)
@@ -2466,6 +2496,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIView.Invalidations.IntrinsicContentSize()",
@@ -2496,9 +2529,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIViewController(nibName p0: String?, bundle p1: Bundle?)",
@@ -2791,6 +2821,16 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init? UIColor(named p0: String, in p1: Bundle?, compatibleWith p2: UITraitCollection?)",
+            resultType: "UIColor") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIColor(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), in: try generatedPlatformArgument(v[1], as: Bundle?.self, framework: "UIKit", typeName: "Bundle?", context: ctx), compatibleWith: try generatedPlatformArgument(v[2], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "UIColor")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init? UIColor.Prominence(rawValue p0: Int)",
             resultType: "UIColor.Prominence") { v, ctx in
 #if canImport(UIKit)
@@ -2809,6 +2849,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIControl.ContentVerticalAlignment(rawValue p0: Int)",
@@ -2849,9 +2892,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIImage(data p0: Data, scale p1: CGFloat)",
@@ -2868,6 +2908,16 @@ extension GeneratedPlatformBridge {
             resultType: "UIImage") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIImage(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(named p0: String, in p1: Bundle?, compatibleWith p2: UITraitCollection?)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), in: try generatedPlatformArgument(v[1], as: Bundle?.self, framework: "UIKit", typeName: "Bundle?", context: ctx), compatibleWith: try generatedPlatformArgument(v[2], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "UIImage")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -2928,6 +2978,16 @@ extension GeneratedPlatformBridge {
             resultType: "UIImage") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIImage(systemName: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(systemName p0: String, compatibleWith p1: UITraitCollection?)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(systemName: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), compatibleWith: try generatedPlatformArgument(v[1], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "UIImage")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -3142,6 +3202,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UITextField.DidEndEditingReason(rawValue p0: Int)",
@@ -3202,9 +3265,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIView.SystemAnimation(rawValue p0: UInt)",
@@ -11127,6 +11187,19 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "UIKit",
+            declaration: "func UIColor.resolvedColor(with p0: UITraitCollection) -> UIColor",
+            resultType: "UIColor") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIColor else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`resolvedColor`(with: try generatedPlatformArgument(v[0], as: UITraitCollection.self, framework: "UIKit", typeName: "UITraitCollection", context: ctx)), framework: "UIKit", declaredType: "UIColor")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
             declaration: "func UIColor.set() -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(UIKit)
@@ -11273,6 +11346,22 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIFontMetrics.scaledFont(for p0: UIFont, compatibleWith p1: UITraitCollection?) -> UIFont",
+            resultType: "UIFont") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIFontMetrics else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`scaledFont`(for: try generatedPlatformArgument(v[0], as: UIFont.self, framework: "UIKit", typeName: "UIFont", context: ctx), compatibleWith: try generatedPlatformArgument(v[1], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "UIFont")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIFontMetrics.scaledFont(for p0: UIFont, maximumPointSize p1: CGFloat) -> UIFont",
@@ -11286,9 +11375,19 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIFontMetrics.scaledFont(for p0: UIFont, maximumPointSize p1: CGFloat, compatibleWith p2: UITraitCollection?) -> UIFont",
+            resultType: "UIFont") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIFontMetrics else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`scaledFont`(for: try generatedPlatformArgument(v[0], as: UIFont.self, framework: "UIKit", typeName: "UIFont", context: ctx), maximumPointSize: try generatedPlatformArgument(v[1], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx), compatibleWith: try generatedPlatformArgument(v[2], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "UIFont")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIFontMetrics.scaledValue(for p0: CGFloat) -> CGFloat",
@@ -11298,6 +11397,19 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
             }
             return generatedPlatformResult(receiver.`scaledValue`(for: try generatedPlatformArgument(v[0], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx)), framework: "UIKit", declaredType: "CGFloat")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIFontMetrics.scaledValue(for p0: CGFloat, compatibleWith p1: UITraitCollection?) -> CGFloat",
+            resultType: "CGFloat") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIFontMetrics else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`scaledValue`(for: try generatedPlatformArgument(v[0], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx), compatibleWith: try generatedPlatformArgument(v[1], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "CGFloat")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -11699,6 +11811,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIResponder.reloadInputViews() -> Void",
@@ -11753,9 +11868,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIScrollView.flashScrollIndicators() -> Void",
@@ -12181,6 +12293,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UITextField.clearButtonRect(forBounds p0: CGRect) -> CGRect",
@@ -12234,9 +12349,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UITextField.placeholderRect(forBounds p0: CGRect) -> CGRect",
@@ -12285,6 +12397,33 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
             }
             receiver.`scrollRangeToVisible`(try generatedPlatformArgument(v[0], as: NSRange.self, framework: "UIKit", typeName: "NSRange", context: ctx))
+            return .void
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UITraitCollection.hasDifferentColorAppearance(comparedTo p0: UITraitCollection?) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UITraitCollection else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`hasDifferentColorAppearance`(comparedTo: try generatedPlatformArgument(v[0], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "Bool")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UITraitCollection.performAsCurrent(_ p0: () -> Void) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UITraitCollection else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            receiver.`performAsCurrent`(generatedAction(try GeneratedDispatch.coerce(.action, v[0], ctx)))
             return .void
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
@@ -12632,6 +12771,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIView.isDescendant(of p0: UIView) -> Bool",
@@ -12714,9 +12856,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIView.resizableSnapshotView(from p0: CGRect, afterScreenUpdates p1: Bool, withCapInsets p2: UIEdgeInsets) -> UIView?",
@@ -13118,6 +13257,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIViewController.setContentScrollView(_ p0: UIScrollView?) -> Void",
@@ -13202,9 +13344,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIViewController.setNeedsUpdateOfScreenEdgesDeferringSystemGestures() -> Void",
@@ -15013,6 +15152,16 @@ extension GeneratedPlatformBridge {
             resultType: "UIFont") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIFont.`preferredFont`(forTextStyle: try generatedPlatformArgument(v[0], as: UIFont.TextStyle.self, framework: "UIKit", typeName: "UIFont.TextStyle", context: ctx)), framework: "UIKit", declaredType: "UIFont")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "UIKit",
+            declaration: "static func UIFont.preferredFont(forTextStyle p0: UIFont.TextStyle, compatibleWith p1: UITraitCollection?) -> UIFont",
+            resultType: "UIFont") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIFont.`preferredFont`(forTextStyle: try generatedPlatformArgument(v[0], as: UIFont.TextStyle.self, framework: "UIKit", typeName: "UIFont.TextStyle", context: ctx), compatibleWith: try generatedPlatformArgument(v[1], as: UITraitCollection?.self, framework: "UIKit", typeName: "UITraitCollection?", context: ctx)), framework: "UIKit", declaredType: "UIFont")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -30527,6 +30676,21 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "UIKit",
+            declaration: "var UIImage.Configuration.traitCollection: UITraitCollection? { get }",
+            resultType: "UITraitCollection?",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIImage.Configuration else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`traitCollection`, framework: "UIKit", declaredType: "UITraitCollection?")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "UIKit",
             declaration: "var UIImage.alignmentRectInsets: UIEdgeInsets { get }",
             resultType: "UIEdgeInsets",
             get: { base in
@@ -30797,6 +30961,24 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "UIKit",
+            declaration: "var UIImage.traitCollection: UITraitCollection { get }",
+            resultType: "UITraitCollection",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIImage else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`traitCollection`, framework: "UIKit", declaredType: "UITraitCollection")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+        registerProperty(
+            &t, framework: "UIKit",
             declaration: "var UIImageView.animationDuration: TimeInterval { get set }",
             resultType: "TimeInterval",
             get: { base in
@@ -30849,9 +31031,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIImageView.animationRepeatCount: Int { get set }",
@@ -31674,6 +31853,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIResponder.isFirstResponder: Bool { get }",
@@ -31704,9 +31886,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesUIKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIResponder.textInputContextIdentifier: String? { get }",
@@ -32430,6 +32609,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIScrollView.horizontalScrollIndicatorInsets: UIEdgeInsets { get set }",
@@ -32484,9 +32666,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIScrollView.indicatorStyle: UIScrollView.IndicatorStyle { get set }",
@@ -33294,6 +33473,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.estimatedSectionHeaderHeight: CGFloat { get set }",
@@ -33348,9 +33530,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.hasActiveDrag: Bool { get }",
@@ -34146,6 +34325,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITextField.clearButtonMode: UITextField.ViewMode { get set }",
@@ -34200,9 +34382,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITextField.clearsOnInsertion: Bool { get set }",
@@ -35047,6 +35226,54 @@ extension GeneratedPlatformBridge {
             })
         registerProperty(
             &t, framework: "UIKit",
+            declaration: "var UITraitCollection.displayScale: CGFloat { get }",
+            resultType: "CGFloat",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UITraitCollection else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`displayScale`, framework: "UIKit", declaredType: "CGFloat")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+        registerProperty(
+            &t, framework: "UIKit",
+            declaration: "var UITraitCollection.imageConfiguration: UIImage.Configuration { get }",
+            resultType: "UIImage.Configuration",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UITraitCollection else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`imageConfiguration`, framework: "UIKit", declaredType: "UIImage.Configuration")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "UIKit",
+            declaration: "var UITraitCollection.imageDynamicRange: UIImage.DynamicRange { get }",
+            resultType: "UIImage.DynamicRange",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UITraitCollection else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`imageDynamicRange`, framework: "UIKit", declaredType: "UIImage.DynamicRange")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "UIKit",
             declaration: "var UIView.accessibilityIgnoresInvertColors: Bool { get set }",
             resultType: "Bool",
             get: { base in
@@ -35114,9 +35341,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.anchorPoint: CGPoint { get set }",
@@ -35843,6 +36067,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.mask: UIView? { get set }",
@@ -35966,9 +36193,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.showsLargeContentViewer: Bool { get set }",
@@ -36576,6 +36800,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIViewController.isBeingDismissed: Bool { get }",
@@ -36675,9 +36902,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesUIKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIViewController.isMovingToParent: Bool { get }",
@@ -37285,6 +37509,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIWindow.windowScene: UIWindowScene? { get set }",
@@ -37409,9 +37636,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesUIKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIWindowScene.isFullScreen: Bool { get }",
@@ -37452,6 +37676,21 @@ extension GeneratedPlatformBridge {
                     throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
                 }
                 return generatedPlatformResult(receiver.`screen`, framework: "UIKit", declaredType: "UIScreen")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "UIKit",
+            declaration: "var UIWindowScene.traitCollection: UITraitCollection { get }",
+            resultType: "UITraitCollection",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIWindowScene else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`traitCollection`, framework: "UIKit", declaredType: "UITraitCollection")
 #else
                 preconditionFailure("UIKit getter invoked off-platform")
 #endif
@@ -50640,6 +50879,21 @@ extension GeneratedPlatformBridge {
         })
         registerStaticProperty(
             &t, framework: "UIKit",
+            type: "UITraitCollection",
+            name: "current",
+            resultType: "UITraitCollection",
+            get: {
+#if canImport(UIKit)
+            generatedPlatformResult(
+                UITraitCollection.`current`,
+                framework: "UIKit",
+                declaredType: "UITraitCollection")
+#else
+            preconditionFailure("UIKit getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "UIKit",
             type: "UIView.AnimationOptions",
             name: "allowAnimatedContent",
             resultType: "UIView.AnimationOptions",
@@ -50758,6 +51012,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
+    }
+
+    private static func buildStaticPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIView.AnimationOptions",
@@ -50773,9 +51030,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-    }
-
-    private static func buildStaticPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIView.AnimationOptions",
@@ -51286,6 +51540,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
+    }
+
+    private static func buildStaticPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIView",
@@ -51301,9 +51558,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-    }
-
-    private static func buildStaticPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIView",
@@ -58884,6 +59138,15 @@ extension GeneratedPlatformBridge {
         }
         registerEnumValue(
             &t, framework: "UIKit",
+            type: "UITraitCollection", name: "current") {
+#if canImport(UIKit)
+            UITraitCollection.`current`
+#else
+            preconditionFailure("UIKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "UIKit",
             type: "UIView.AnimationCurve", name: "easeIn") {
 #if canImport(UIKit)
             UIView.AnimationCurve.`easeIn`
@@ -59089,6 +59352,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesUIKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIView.AnimationOptions", name: "transitionFlipFromBottom") {
@@ -59098,9 +59364,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesUIKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIView.AnimationOptions", name: "transitionFlipFromLeft") {
@@ -59407,6 +59670,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesUIKit10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIView.KeyframeAnimationOptions", name: "calculationModePaced") {
@@ -59416,9 +59682,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesUIKit10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIView.KeyframeAnimationOptions", name: "layoutSubviews") {
@@ -59788,6 +60051,7 @@ extension GeneratedPlatformBridge {
         buildKnownMembersUIKit26(&t)
         buildKnownMembersUIKit27(&t)
         buildKnownMembersUIKit28(&t)
+        buildKnownMembersUIKit29(&t)
         buildKnownMembersMapKit0(&t)
         buildKnownMembersMapKit1(&t)
         buildKnownMembersMapKit2(&t)
@@ -68467,6 +68731,102 @@ extension GeneratedPlatformBridge {
             member: "writingToolsBehavior")] = false
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
+            type: "UITraitCollection",
+            member: "accessibilityContrast")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "activeAppearance")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "changedTraits")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "displayGamut")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "displayScale")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "forceTouchCapability")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "hasDifferentColorAppearance")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "horizontalSizeClass")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "imageConfiguration")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "imageDynamicRange")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "layoutDirection")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "legibilityWeight")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "listEnvironment")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "modifyingTraits")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "performAsCurrent")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "preferredContentSizeCategory")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "replacing")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "sceneCaptureState")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "toolbarItemPresentationSize")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "typesettingLanguage")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "userInterfaceIdiom")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "userInterfaceLevel")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "userInterfaceStyle")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UITraitCollection",
+            member: "verticalSizeClass")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
             type: "UIView",
             member: "accessibilityIgnoresInvertColors")] = false
         t[GeneratedPlatformMemberKey(
@@ -68485,6 +68845,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "addInteraction")] = true
+    }
+
+    private static func buildKnownMembersUIKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -68581,9 +68944,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "contentHuggingPriority")] = true
-    }
-
-    private static func buildKnownMembersUIKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -68628,6 +68988,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "effectiveUserInterfaceLayoutDirection")] = false
+    }
+
+    private static func buildKnownMembersUIKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -68724,9 +69087,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "isExclusiveTouch")] = false
-    }
-
-    private static func buildKnownMembersUIKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -68771,6 +69131,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "layer")] = false
+    }
+
+    private static func buildKnownMembersUIKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -68867,9 +69230,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "removeLayoutGuide")] = true
-    }
-
-    private static func buildKnownMembersUIKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -68914,6 +69274,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "setContentCompressionResistancePriority")] = true
+    }
+
+    private static func buildKnownMembersUIKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -69010,9 +69373,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "updateConstraintsIfNeeded")] = true
-    }
-
-    private static func buildKnownMembersUIKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -69057,6 +69417,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView.Invalidations.IntrinsicContentSize",
             member: "invalidate")] = true
+    }
+
+    private static func buildKnownMembersUIKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView.Invalidations.Layout",
@@ -69153,9 +69516,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "didReceiveMemoryWarning")] = true
-    }
-
-    private static func buildKnownMembersUIKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -69200,6 +69560,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "interactionActivityTrackingBaseName")] = false
+    }
+
+    private static func buildKnownMembersUIKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -69296,9 +69659,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "preferredScreenEdgesDeferringSystemGestures")] = false
-    }
-
-    private static func buildKnownMembersUIKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -69343,6 +69703,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "presentingViewController")] = false
+    }
+
+    private static func buildKnownMembersUIKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -69439,9 +69802,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "storyboard")] = false
-    }
-
-    private static func buildKnownMembersUIKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -69486,6 +69846,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "transitionCoordinator")] = false
+    }
+
+    private static func buildKnownMembersUIKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -69582,9 +69945,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController.Transition.ZoomOptions",
             member: "interactiveDismissShouldBegin")] = false
-    }
-
-    private static func buildKnownMembersUIKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController.Transition.ZoomOptions.AlignmentRectContext",
@@ -69629,6 +69989,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindow",
             member: "convert")] = true
+    }
+
+    private static func buildKnownMembersUIKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindow",
@@ -69725,9 +70088,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindowScene",
             member: "sizeRestrictions")] = false
-    }
-
-    private static func buildKnownMembersUIKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindowScene",
@@ -69772,6 +70132,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindowScene.ActivationRequestOptions",
             member: "placement")] = false
+    }
+
+    private static func buildKnownMembersUIKit29(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindowScene.Geometry",
@@ -71190,6 +71553,7 @@ extension GeneratedPlatformBridge {
         registerEqualityAdapter(&t, framework: "UIKit", type: "UITextField.ViewMode", UITextField.ViewMode.self)
         registerEqualityAdapter(&t, framework: "UIKit", type: "UITextView", UITextView.self)
         registerEqualityAdapter(&t, framework: "UIKit", type: "UITextView.BorderStyle", UITextView.BorderStyle.self)
+        registerEqualityAdapter(&t, framework: "UIKit", type: "UITraitCollection", UITraitCollection.self)
         registerEqualityAdapter(&t, framework: "UIKit", type: "UIView", UIView.self)
         registerEqualityAdapter(&t, framework: "UIKit", type: "UIView.AnimationCurve", UIView.AnimationCurve.self)
         registerEqualityAdapter(&t, framework: "UIKit", type: "UIView.AnimationOptions", UIView.AnimationOptions.self)
@@ -71430,6 +71794,7 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UITextField.ViewMode")] = true
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UITextView")] = false
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UITextView.BorderStyle")] = true
+        t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UITraitCollection")] = false
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIView")] = false
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIView.AnimationCurve")] = true
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIView.AnimationOptions")] = true

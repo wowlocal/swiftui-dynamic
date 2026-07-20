@@ -69,7 +69,7 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         deployments: ["iOS": (18, 0)],
         roots: [
             "UIApplication", "UIResponder", "UIWindow", "UIWindowScene",
-            "UIScreen", "UIView", "UIControl", "UIViewController",
+            "UIScreen", "UITraitCollection", "UIView", "UIControl", "UIViewController",
             "UIColor", "UIFont", "UIFontMetrics", "UIImage", "UIBezierPath",
             "UIEdgeInsets", "UIOffset", "NSDirectionalEdgeInsets",
             "UIButton", "UIImageView", "UILabel", "UIScrollView",
