@@ -22,6 +22,14 @@ struct OptionalElementCollectionDefault: Hashable {
     let projection: OptionalElementCollectionProjection
 }
 
+struct BooleanIndexEndpointEqualityCollectionDefault: Hashable {
+    let protocolName: String
+    let eligibleProtocolNames: [String]
+    let memberName: String
+    let leftEndpointName: String
+    let rightEndpointName: String
+}
+
 struct OptionalLastRemovalCollectionDefault: Hashable {
     let protocolName: String
     let eligibleProtocolNames: [String]
@@ -528,6 +536,137 @@ func forwardIndexSearchDefaults(
         ) < (
             $1.protocolName, $1.memberName, $1.argumentKind.rawValue,
             $1.argumentLabel ?? ""
+        )
+    }
+}
+
+/// Finds public Boolean protocol requirements whose unconstrained default
+/// getter compares two distinct Index-typed endpoint requirements for
+/// equality. The declaration supplies every member spelling; the generated
+/// adapter retains only the endpoint-equality semantic shape.
+func booleanIndexEndpointEqualityCollectionDefaults(
+    in file: SourceFileSyntax?
+) -> [BooleanIndexEndpointEqualityCollectionDefault] {
+    guard let file else { return [] }
+    let refinementEligibility = protocolRefinementEligibility(in: file)
+
+    func canonical(_ raw: String) -> String {
+        normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func isPublic(_ modifiers: DeclModifierListSyntax) -> Bool {
+        modifiers.contains { $0.name.text == "public" }
+    }
+
+    struct ProtocolShape {
+        let booleanRequirements: Set<String>
+        let indexEndpoints: Set<String>
+    }
+
+    var protocolShapes: [String: ProtocolShape] = [:]
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item,
+              let protocolDeclaration = declaration.as(
+                  ProtocolDeclSyntax.self),
+              isPublic(protocolDeclaration.modifiers)
+        else { continue }
+
+        let ownsIndex = protocolDeclaration.memberBlock.members.contains {
+            member in
+            guard let associated = member.decl.as(
+                AssociatedTypeDeclSyntax.self)
+            else { return false }
+            return associated.name.text == "Index"
+                && !associated.modifiers.contains {
+                    $0.name.text == "override"
+                }
+        }
+        guard ownsIndex else { continue }
+
+        var booleanRequirements = Set<String>()
+        var indexEndpoints = Set<String>()
+        for member in protocolDeclaration.memberBlock.members {
+            guard let variable = member.decl.as(VariableDeclSyntax.self)
+            else { continue }
+            for binding in variable.bindings {
+                guard let identifier = binding.pattern.as(
+                    IdentifierPatternSyntax.self)
+                else { continue }
+                switch canonical(
+                    binding.typeAnnotation?.type.trimmedDescription ?? ""
+                ) {
+                case "Bool":
+                    booleanRequirements.insert(identifier.identifier.text)
+                case "Self.Index":
+                    indexEndpoints.insert(identifier.identifier.text)
+                default:
+                    break
+                }
+            }
+        }
+        guard !booleanRequirements.isEmpty, indexEndpoints.count >= 2
+        else { continue }
+        protocolShapes[canonical(protocolDeclaration.name.text)] =
+            ProtocolShape(
+                booleanRequirements: booleanRequirements,
+                indexEndpoints: indexEndpoints)
+    }
+
+    var defaults = Set<BooleanIndexEndpointEqualityCollectionDefault>()
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item,
+              let extensionDeclaration = declaration.as(
+                  ExtensionDeclSyntax.self),
+              extensionDeclaration.genericWhereClause == nil
+        else { continue }
+        let protocolName = canonical(
+            extensionDeclaration.extendedType.trimmedDescription)
+        guard let shape = protocolShapes[protocolName] else { continue }
+
+        for member in extensionDeclaration.memberBlock.members {
+            guard let variable = member.decl.as(VariableDeclSyntax.self),
+                  isPublic(variable.modifiers),
+                  variable.bindings.count == 1,
+                  let binding = variable.bindings.first,
+                  let identifier = binding.pattern.as(
+                      IdentifierPatternSyntax.self),
+                  shape.booleanRequirements.contains(
+                      identifier.identifier.text),
+                  canonical(binding.typeAnnotation?.type
+                      .trimmedDescription ?? "") == "Bool",
+                  let accessorBlock = binding.accessorBlock
+            else { continue }
+
+            let tokens = accessorBlock.tokens(viewMode: .sourceAccurate)
+                .map(\.text)
+            guard tokens.count == 9,
+                  tokens[0] == "{", tokens[1] == "get",
+                  tokens[2] == "{", tokens[3] == "return",
+                  tokens[5] == "==", tokens[7] == "}",
+                  tokens[8] == "}", tokens[4] != tokens[6],
+                  shape.indexEndpoints.contains(tokens[4]),
+                  shape.indexEndpoints.contains(tokens[6])
+            else { continue }
+
+            defaults.insert(
+                BooleanIndexEndpointEqualityCollectionDefault(
+                    protocolName: protocolName,
+                    eligibleProtocolNames:
+                        refinementEligibility[protocolName]
+                            ?? [protocolName],
+                    memberName: identifier.identifier.text,
+                    leftEndpointName: tokens[4],
+                    rightEndpointName: tokens[6]))
+        }
+    }
+
+    return defaults.sorted {
+        (
+            $0.protocolName, $0.memberName, $0.leftEndpointName,
+            $0.rightEndpointName
+        ) < (
+            $1.protocolName, $1.memberName, $1.leftEndpointName,
+            $1.rightEndpointName
         )
     }
 }

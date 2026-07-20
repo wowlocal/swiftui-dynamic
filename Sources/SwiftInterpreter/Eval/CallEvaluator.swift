@@ -521,7 +521,12 @@ extension Interpreter {
         on instance: Instance,
         overloads: [FunctionDeclSyntax]
     ) -> Bool {
-        if overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
+        if overloads.count > 1
+            || instance.symbol.computedProperties[name] != nil
+            || GeneratedCollectionDefaultSurface.suppliesProperty(
+                named: name,
+                conformances: Set(transitiveConformances(
+                    of: instance.symbol))) {
             return true
         }
         guard instance.symbol.superclassName != nil,

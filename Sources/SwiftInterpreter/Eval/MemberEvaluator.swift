@@ -395,6 +395,35 @@ extension Interpreter {
         // protocol-extension bodies never see the runtime self's nesteds.
         if let nested = lexicalNestedType(name, runtime: instance.symbol) { return nested }
         if let box = instance.box(for: name) { return try box.load() }
+        let conformances = transitiveConformances(of: instance.symbol)
+
+        // Bare member syntax selects a protocol property over a concrete
+        // same-base method; call syntax is resolved independently by
+        // CallEvaluator. Source-authored properties remain more specific
+        // than a generated standard-library default.
+        var hierarchyDefinesComputedProperty = false
+        var propertyCandidate: StructSymbol? = instance.symbol
+        var walkedPropertyOwners = Set<ObjectIdentifier>()
+        while let owner = propertyCandidate,
+              walkedPropertyOwners.insert(ObjectIdentifier(owner)).inserted {
+            if owner.computedProperties[name] != nil {
+                hierarchyDefinesComputedProperty = true
+                break
+            }
+            propertyCandidate = interpretedSuperclass(of: owner)
+        }
+        let sourceProtocolDefinesComputedProperty = conformances.contains {
+            hostExtensionSymbols[$0]?.computedProperties[name] != nil
+        }
+        if !hierarchyDefinesComputedProperty,
+           !sourceProtocolDefinesComputedProperty,
+           let generated = try GeneratedCollectionDefaultSurface.property(
+               named: name,
+               conformances: Set(conformances),
+               receiver: .instance(instance),
+               interpreter: self) {
+            return generated
+        }
         // Dynamic dispatch: the instance's OWN members win (overrides beat
         // the inherited definition), THEN interpreted-superclass members
         // dispatch with self unchanged, walking the chain.
@@ -475,7 +504,6 @@ extension Interpreter {
         // serves conformers that don't define the member themselves —
         // through protocol REFINEMENT too (CountriesWebRepository:
         // WebRepository reaches WebRepository's `call(endpoint:)`).
-        let conformances = transitiveConformances(of: instance.symbol)
         for conformance in conformances {
             guard let proto = hostExtensionSymbols[conformance] else { continue }
             if let overloads = proto.methods[name], let firstMethod = overloads.first {
@@ -1011,6 +1039,22 @@ extension Interpreter {
     /// Runs the user subscript setter with `newValue` and the index bound.
     func callUserSubscriptSetter(on instance: Instance, with args: CallArguments, newValue: RuntimeValue) throws {
         try runUserSubscriptSetter(instance.symbol, selfValue: .instance(instance), args: args, newValue: newValue)
+    }
+
+    /// Compares two generated Index-typed collection endpoints without
+    /// naming either requirement in handwritten runtime dispatch.
+    func interpretedIntegerIndexedCollectionEndpointsAreEqual(
+        _ value: RuntimeValue,
+        leftMemberName: String,
+        rightMemberName: String
+    ) throws -> Bool? {
+        guard case .instance(let instance) = value,
+              let left = try instanceMember(
+                  leftMemberName, on: instance)?.intValue,
+              let right = try instanceMember(
+                  rightMemberName, on: instance)?.intValue
+        else { return nil }
+        return left == right
     }
 
     /// Materializes the protocol shape used by integer-indexed interpreted

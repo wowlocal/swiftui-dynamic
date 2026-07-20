@@ -11,6 +11,20 @@ enum GeneratedCollectionDefaultSurface {
         elementGenericCollectionNominalNames.contains(nominalName)
     }
 
+    private static let propertyProtocols: [String: Set<String>] = [
+        "first": Set(["BidirectionalCollection", "Collection", "LazyCollectionProtocol", "MutableCollection", "RandomAccessCollection", "RangeReplaceableCollection", "StringProtocol", "_AnyCollectionProtocol", "_ArrayBufferProtocol", "_ArrayProtocol"]),
+        "isEmpty": Set(["BidirectionalCollection", "Collection", "LazyCollectionProtocol", "MutableCollection", "RandomAccessCollection", "RangeReplaceableCollection", "StringProtocol", "_AnyCollectionProtocol", "_ArrayBufferProtocol", "_ArrayProtocol"]),
+        "last": Set(["BidirectionalCollection", "RandomAccessCollection", "StringProtocol", "_ArrayBufferProtocol"]),
+    ]
+
+    static func suppliesProperty(
+        named name: String,
+        conformances: Set<String>
+    ) -> Bool {
+        guard let eligible = propertyProtocols[name] else { return false }
+        return !conformances.isDisjoint(with: eligible)
+    }
+
     @MainActor
     static func member(
         named name: String,
@@ -202,6 +216,16 @@ enum GeneratedCollectionDefaultSurface {
         receiver: RuntimeValue,
         interpreter: Interpreter
     ) throws -> RuntimeValue? {
+        if name == "isEmpty" {
+            if !conformances.isDisjoint(with: Set(["BidirectionalCollection", "Collection", "LazyCollectionProtocol", "MutableCollection", "RandomAccessCollection", "RangeReplaceableCollection", "StringProtocol", "_AnyCollectionProtocol", "_ArrayBufferProtocol", "_ArrayProtocol"])),
+               let endpointsEqual = try interpreter
+                .interpretedIntegerIndexedCollectionEndpointsAreEqual(
+                    receiver,
+                    leftMemberName: "startIndex",
+                    rightMemberName: "endIndex") {
+                return .native(endpointsEqual)
+            }
+        }
         if name == "first",
            !conformances.isDisjoint(with: Set(["BidirectionalCollection", "Collection", "LazyCollectionProtocol", "MutableCollection", "RandomAccessCollection", "RangeReplaceableCollection", "StringProtocol", "_AnyCollectionProtocol", "_ArrayBufferProtocol", "_ArrayProtocol"])),
            let elements = try interpreter

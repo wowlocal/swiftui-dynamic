@@ -103,6 +103,28 @@ import Testing
         #expect(value.intValue == 41)
     }
 
+    @Test func generatedBooleanPropertyWinsBareAccessOverMethod() throws {
+        let source = """
+        final class Elements: RandomAccessCollection {
+            typealias Index = Int
+            typealias Element = Int
+
+            let storage: [Int] = []
+            var startIndex: Int { storage.startIndex }
+            var endIndex: Int { storage.endIndex }
+            subscript(position: Int) -> Int { storage[position] }
+
+            func isEmpty() -> Bool { false }
+        }
+
+        let elements = Elements()
+        "\\(elements.isEmpty)|\\(elements.isEmpty())"
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "true|false")
+    }
+
     @Test func generatedFirstProjectionServesInterpretedCollection() throws {
         let source = """
         struct Window: RandomAccessCollection {
