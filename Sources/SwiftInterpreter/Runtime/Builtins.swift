@@ -7,6 +7,50 @@ import Foundation
 /// evaluator re-throws them with the operator node's source location.
 @MainActor
 public enum Builtins {
+    private enum ObjectIdentityOperand {
+        case interpreted(Instance)
+        case host(AnyObject)
+        case nilReference
+        case invalid
+    }
+
+    /// Swift's identity operators accept `AnyObject?`, so an optional is a
+    /// conversion around the reference rather than a distinct identity-bearing
+    /// value. Normalize that conversion before comparing the underlying
+    /// interpreted or host objects; two nil object references are identical.
+    private static func objectIdentityOperand(
+        _ value: RuntimeValue
+    ) -> ObjectIdentityOperand {
+        switch value {
+        case .optional(let optional):
+            guard let wrapped = optional.wrapped else { return .nilReference }
+            return objectIdentityOperand(wrapped)
+        case .nilValue:
+            return .nilReference
+        case .instance(let instance):
+            return .interpreted(instance)
+        case .host(let value):
+            return .host(value as AnyObject)
+        default:
+            return .invalid
+        }
+    }
+
+    private static func objectsAreIdentical(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) -> Bool {
+        switch (objectIdentityOperand(lhs), objectIdentityOperand(rhs)) {
+        case (.interpreted(let left), .interpreted(let right)):
+            return left === right
+        case (.host(let left), .host(let right)):
+            return left === right
+        case (.nilReference, .nilReference):
+            return true
+        default:
+            return false
+        }
+    }
+
     /// A decoded integer operation. The tree evaluator still resolves source
     /// spellings on demand, while prepared semantic IR stores this compact tag
     /// and avoids repeating String dispatch in every loop iteration.
@@ -304,17 +348,7 @@ public enum Builtins {
         case "<", "<=", ">", ">=":
             return .native(try compare(op, lhs, rhs))
         case "===", "!==":
-            // Identity: interpreted instances are class-backed, host
-            // objects compare by reference; everything else is not
-            // identical.
-            let same: Bool = {
-                if case .instance(let l) = lhs, case .instance(let r) = rhs { return l === r }
-                if case .host(let l) = lhs, case .host(let r) = rhs,
-                   let lo = l as? AnyObject, let ro = r as? AnyObject {
-                    return lo === ro
-                }
-                return false
-            }()
+            let same = objectsAreIdentical(lhs, rhs)
             return .native(op == "===" ? same : !same)
         case "&+", "&-", "&*":
             // Overflow operators (protobuf hashing, bit mixers): true
