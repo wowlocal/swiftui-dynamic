@@ -12,6 +12,20 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("10 - 2 - 3").intValue == 5)
     }
 
+    @Test func customGroupBelowStandardAssignmentPrecedence() throws {
+        let source = """
+        precedencegroup ColumnAssignment {
+            associativity: left
+            assignment: true
+            lowerThan: AssignmentPrecedence
+        }
+        infix operator <- : ColumnAssignment
+        func <- (lhs: Int, rhs: Int) -> Int { lhs - rhs }
+        1 <- 2 + 3
+        """
+        #expect(try eval(source).intValue == -4)
+    }
+
     @Test func integerDivisionAndPromotion() throws {
         #expect(try eval("10 / 4").intValue == 2)
         #expect(try eval("10.0 / 4").doubleValue == 2.5)

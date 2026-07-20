@@ -3,6 +3,148 @@ import SwiftParser
 import SwiftOperators
 import SwiftParserDiagnostics
 
+private nonisolated final class ParsedOperatorCatalog: SyntaxAnyVisitor {
+    private(set) var groups: [String: PrecedenceGroup] = [:]
+    private(set) var operators: [String: Operator] = [:]
+    private(set) var containsLowerThanRelation = false
+
+    init() {
+        super.init(viewMode: .fixedUp)
+    }
+
+    override func visit(
+        _ node: PrecedenceGroupDeclSyntax
+    ) -> SyntaxVisitorContinueKind {
+        let name = node.name.text
+        guard groups[name] == nil else { return .skipChildren }
+
+        var associativity: Associativity = .none
+        var assignment = false
+        var relations: [PrecedenceRelation] = []
+        for attribute in node.groupAttributes {
+            switch attribute {
+            case .precedenceGroupRelation(let relation):
+                let isLowerThan = relation.higherThanOrLowerThanLabel.tokenKind
+                    == .keyword(.lowerThan)
+                containsLowerThanRelation = containsLowerThanRelation || isLowerThan
+                for otherGroup in relation.precedenceGroups {
+                    relations.append(isLowerThan
+                        ? .lowerThan(otherGroup.name.text, syntax: otherGroup)
+                        : .higherThan(otherGroup.name.text, syntax: otherGroup))
+                }
+            case .precedenceGroupAssignment(let value):
+                assignment = value.value.tokenKind == .keyword(.true)
+            case .precedenceGroupAssociativity(let value):
+                associativity = Associativity(rawValue: value.value.text) ?? .none
+            @unknown default:
+                break
+            }
+        }
+        groups[name] = PrecedenceGroup(
+            name: name,
+            associativity: associativity,
+            assignment: assignment,
+            relations: relations,
+            syntax: node)
+        return .skipChildren
+    }
+
+    override func visit(
+        _ node: OperatorDeclSyntax
+    ) -> SyntaxVisitorContinueKind {
+        guard let kind = OperatorKind(rawValue: node.fixitySpecifier.text) else {
+            return .skipChildren
+        }
+        let name = node.name.text
+        let key = "\(kind.rawValue):\(name)"
+        if operators[key] == nil {
+            operators[key] = Operator(
+                kind: kind,
+                name: name,
+                precedenceGroup: node.operatorPrecedenceAndTypes?
+                    .precedenceGroup.text,
+                syntax: node)
+        }
+        return .skipChildren
+    }
+
+    override func visit(
+        _ node: SourceFileSyntax
+    ) -> SyntaxVisitorContinueKind { .visitChildren }
+
+    override func visit(
+        _ node: CodeBlockItemListSyntax
+    ) -> SyntaxVisitorContinueKind { .visitChildren }
+
+    override func visit(
+        _ node: CodeBlockItemSyntax
+    ) -> SyntaxVisitorContinueKind { .visitChildren }
+
+    override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+        .skipChildren
+    }
+}
+
+private nonisolated func operatorTable(
+    folding sourceFile: SourceFileSyntax
+) -> OperatorTable {
+    let sourceCatalog = ParsedOperatorCatalog()
+    sourceCatalog.walk(sourceFile)
+    guard sourceCatalog.containsLowerThanRelation else {
+        var table = OperatorTable.standardOperators
+        table.addSourceFile(sourceFile) { _ in }
+        return table
+    }
+
+    // SwiftOperators' graph follows same-direction edges. Canonicalizing a
+    // source relation `A lowerThan B` into its equivalent inverse edge
+    // `B higherThan A` lets it compose with the standard library's higher-
+    // than chain while retaining the source-declared semantics.
+    let standardFile = Parser.parse(
+        source: OperatorTable.standardOperators.description)
+    let catalog = ParsedOperatorCatalog()
+    catalog.walk(standardFile)
+    catalog.walk(sourceFile)
+
+    let originalGroups = catalog.groups
+    var canonicalGroups = originalGroups.mapValues { group in
+        var group = group
+        group.relations.removeAll { relation in
+            switch relation.kind {
+            case .higherThan:
+                return false
+            case .lowerThan:
+                return originalGroups[relation.groupName] != nil
+            }
+        }
+        return group
+    }
+    for (lowerGroupName, group) in originalGroups {
+        for relation in group.relations {
+            guard case .lowerThan = relation.kind,
+                  var higherGroup = canonicalGroups[relation.groupName]
+            else { continue }
+            let alreadyRecorded = higherGroup.relations.contains { existing in
+                guard case .higherThan = existing.kind else { return false }
+                return existing.groupName == lowerGroupName
+            }
+            if !alreadyRecorded {
+                higherGroup.relations.append(.higherThan(
+                    lowerGroupName,
+                    syntax: relation.syntax))
+                canonicalGroups[relation.groupName] = higherGroup
+            }
+        }
+    }
+
+    return OperatorTable(
+        precedenceGroups: canonicalGroups.values.sorted { $0.name < $1.name },
+        operators: catalog.operators.values.sorted {
+            ($0.kind.rawValue, $0.name) < ($1.kind.rawValue, $1.name)
+        },
+        errorHandler: { _ in })
+}
+
 /// Immutable, executor-neutral input to an interpreter session.
 ///
 /// Parsing, operator folding, and target-neutral metadata discovery happen
@@ -82,8 +224,7 @@ public nonisolated struct ParsedProgram: Sendable {
         // User-declared operators and precedence groups join the standard
         // fold table. External-module operators recover at default
         // precedence, matching the interpreter's historical behavior.
-        var table = OperatorTable.standardOperators
-        table.addSourceFile(tree) { _ in }
+        let table = operatorTable(folding: tree)
         let folded = table.foldAll(tree) { operatorErrors.append($0) }
         if let first = operatorErrors.first(where: {
             if case .missingOperator = $0 { return false }
