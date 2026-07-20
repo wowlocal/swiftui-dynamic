@@ -462,6 +462,11 @@ public protocol HostRegistry: AnyObject {
     /// Members on host-native values the core can't know (GeometryProxy.size,
     /// CGSize.width, …). Return nil for unknown names.
     func hostMember(_ name: String, on value: Any) -> RuntimeValue?
+    /// Last-resort dynamic-member behavior for opaque imported values. This is
+    /// deliberately separate from declared/bridged members: explicit member
+    /// access may use it, while implicit-self lookup must continue searching
+    /// lexical globals, imported functions, and constructors first.
+    func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue?
     /// Parsed property contract, consulted before the legacy dynamic member
     /// hook. Registries can migrate one declaration at a time.
     func hostProperty(named name: String, on value: Any) -> HostProperty?
@@ -524,6 +529,7 @@ extension HostRegistry {
         settingMember name: String, on value: Any, to newValue: RuntimeValue
     ) throws -> Any? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
+    public func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostProperty(named name: String, on value: Any) -> HostProperty? { nil }
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostMemberHasWorkerOperation(

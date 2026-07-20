@@ -70,7 +70,8 @@ extension Interpreter {
     /// win; the dynamic hook remains the migration fallback.
     func readHostMember(
         _ name: String, on value: Any,
-        deferringAsyncProperty: Bool = false
+        deferringAsyncProperty: Bool = false,
+        includingFallback: Bool = true
     ) throws -> RuntimeValue? {
         if let marker = value as? HostTypeMarker,
            marker.name == "MemoryLayout",
@@ -105,7 +106,11 @@ extension Interpreter {
             }
             return try property.read(from: receiver, in: self)
         }
-        return registry?.hostMember(name, on: value)
+        if let member = registry?.hostMember(name, on: value) {
+            return member
+        }
+        guard includingFallback else { return nil }
+        return registry?.fallbackHostMember(name, on: value)
     }
 
     /// Setter counterpart to `readHostMember`. A typed descriptor validates
@@ -144,5 +149,6 @@ extension Interpreter {
         hasRuntimeAsyncStreamMember(name, on: value)
             || registry?.hostProperty(named: name, on: value) != nil
             || registry?.hostMember(name, on: value) != nil
+            || registry?.fallbackHostMember(name, on: value) != nil
     }
 }

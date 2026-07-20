@@ -82,6 +82,34 @@ import Testing
         #expect(value.intValue == 1)
     }
 
+    @Test func absorbedOptionalMemberOnImportedHostRetainsOpaqueValue() throws {
+        let source = """
+        let client = ExternalPackageClient()
+        if let value = client.currentSession {
+            1
+        } else {
+            2
+        }
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: source, lazyTopLevelGlobals: true)
+        #expect(value.intValue == 1)
+    }
+
+    @Test func absorbedOptionalMemberOnUnresolvedImportRunsNilFallback() throws {
+        let source = """
+        if let value = unavailable_import().currentSession {
+            1
+        } else {
+            2
+        }
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.intValue == 2)
+    }
+
     @Test func collectionBackedBytePointerSupportsRawSearch() throws {
         let source = """
         import Darwin

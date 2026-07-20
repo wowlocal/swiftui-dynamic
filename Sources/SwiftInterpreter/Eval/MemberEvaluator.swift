@@ -380,7 +380,9 @@ extension Interpreter {
                 if name == "projectedValue" { return selfValue }
             }
             if let value = try nativeMember(name, on: selfValue) { return value }
-            if let value = try readHostMember(name, on: any) { return value }
+            if let value = try readHostMember(
+                name, on: any, includingFallback: false
+            ) { return value }
             return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
         default:
             return nil

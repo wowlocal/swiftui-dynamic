@@ -40,9 +40,14 @@ public final class TraceNode: InertCallable {
     /// nodes but behave like the mutable objects they stand for: property
     /// writes land here and read back (`gesture.name = id … gesture.name`).
     public var config: [String: RuntimeValue] = [:]
+    /// Generic constructors without view-building closures may represent
+    /// imported objects. Their unknown members remain concrete, memoized
+    /// recorder values instead of being mistaken for arbitrary modifiers.
+    var absorbsUnknownMembers = false
 
-    init(kind: String) {
+    init(kind: String, absorbsUnknownMembers: Bool = false) {
         self.kind = kind
+        self.absorbsUnknownMembers = absorbsUnknownMembers
     }
 
     public func findAll(_ kind: String) -> [TraceNode] {
@@ -388,7 +393,11 @@ public final class TraceRegistry: HostRegistry {
             // errors surface truthfully instead of becoming fake recorders.
             guard name.first?.isUppercase == true else { return nil }
             return HostFunction(name: name) { args, ctx in
-                let node = TraceNode(kind: name)
+                let node = TraceNode(
+                    kind: name,
+                    absorbsUnknownMembers: !args.arguments.contains {
+                        $0.value.closureValue != nil
+                    })
                 node.initialLifecycleRowCapacity =
                     Self.initialLifecycleRowCapacityByContainer[name]
                 var data: RuntimeValue?
@@ -557,17 +566,6 @@ public final class TraceRegistry: HostRegistry {
         return .native(node)
     }
 
-    /// Constructed host OBJECTS (UIPanGestureRecognizer(), AVPlayer(), …)
-    /// vs recorded views: UIKit-ish constructor prefixes get property-bag
-    /// member semantics; view kinds keep modifier chaining.
-    static func isHostObjectKind(_ kind: String) -> Bool {
-        for prefix in ["UI", "NS", "CA", "AV", "CL", "MK", "WK", "SK", "PH"]
-        where kind.hasPrefix(prefix) && kind.count > 2 {
-            return true
-        }
-        return false
-    }
-
     public func hostProperty(named name: String, on value: Any) -> HostProperty? {
         bridgeHostProperty(name, on: value)
     }
@@ -575,13 +573,6 @@ public final class TraceRegistry: HostRegistry {
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
         if let node = value as? TraceNode, let stored = node.config[name] {
             return stored
-        }
-        if let node = value as? TraceNode, Self.isHostObjectKind(node.kind) {
-            // Members of hosted objects read as memoized chained bags, so
-            // `context.view.frame = x` round-trips and calls absorb.
-            let fresh = RuntimeValue.native(TraceNode(kind: "\(node.kind).\(name)"))
-            node.config[name] = fresh
-            return fresh
         }
         if value is TraceNode {
             // Unknown store-query objects (realm.objects(...)) act like a
@@ -611,8 +602,26 @@ public final class TraceRegistry: HostRegistry {
             default: break
             }
         }
-        return bridgeHostMember(
+        if let bridged = bridgeHostMember(
             name, on: value, fileManager: fileManagerBox)
+        {
+            return bridged
+        }
+        return nil
+    }
+
+    public func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue? {
+        guard let node = value as? TraceNode, node.absorbsUnknownMembers else {
+            return nil
+        }
+        // Members of opaque imported objects read as memoized chained bags,
+        // so `context.view.frame = x` round-trips and calls absorb. This hook
+        // runs only after declared/bridged capabilities have declined.
+        let fresh = RuntimeValue.native(TraceNode(
+            kind: "\(node.kind).\(name)",
+            absorbsUnknownMembers: true))
+        node.config[name] = fresh
+        return fresh
     }
 
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
