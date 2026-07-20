@@ -325,6 +325,23 @@ enum GeneratedCollectionDefaultSurface {
         optionalLastRemovalProtocols[memberName] != nil
     }
 
+    enum NativeCollectionEndpoint {
+        case first
+        case last
+    }
+
+    private static let requiredEndpointRemovals:
+        [String: NativeCollectionEndpoint] = [
+        "removeFirst": .first,
+        "removeLast": .last,
+    ]
+
+    static func requiredEndpointRemoval(
+        named memberName: String
+    ) -> NativeCollectionEndpoint? {
+        requiredEndpointRemovals[memberName]
+    }
+
     enum NativeCarrierKind {
         case array
         case dictionary

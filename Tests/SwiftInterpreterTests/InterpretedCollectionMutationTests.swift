@@ -4,6 +4,23 @@ import Testing
 @MainActor
 @Suite("Interpreted collection mutation")
 struct InterpretedCollectionMutationTests {
+    @Test func endpointRemovalMutatesNativeCollectionCarriers() throws {
+        let source = #"""
+        var text = "abcd"
+        let textLast = text.removeLast()
+        let textFirst = text.removeFirst()
+
+        var values = [1, 2, 3, 4]
+        let valueLast = values.removeLast()
+        let valueFirst = values.removeFirst()
+
+        "\(textFirst)\(textLast)|\(text)|\(valueFirst)\(valueLast)|\(values.count)|\(values[0])"
+        """#
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "ad|bc|14|2|2")
+    }
+
     @Test func appendContentsOfMaterializesInterpretedCollection() throws {
         let source = """
         struct Slice: RandomAccessCollection {

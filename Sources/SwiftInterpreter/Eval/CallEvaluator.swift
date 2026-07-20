@@ -689,6 +689,34 @@ extension Interpreter {
             return .void
         }
 
+        let requiredEndpointRemoval = GeneratedCollectionDefaultSurface
+            .requiredEndpointRemoval(named: name)
+
+        // The active standard-library interface supplies the semantic
+        // endpoint for required zero-argument collection removals. Native
+        // String and Array carriers share that generated rule and differ only
+        // in how their erased storage is copied back through the lvalue.
+        if let endpoint = requiredEndpointRemoval,
+           call.arguments.isEmpty,
+           call.trailingClosure == nil,
+           call.additionalTrailingClosures.isEmpty,
+           var text = baseValue.stringValue,
+           let target = try? resolveLValue(base, in: env) {
+            _ = try collectArguments(of: call, in: env)
+            guard !text.isEmpty else {
+                throw error(call, "endpoint removal on an empty String")
+            }
+            let removed: Character
+            switch endpoint {
+            case .first: removed = text.removeFirst()
+            case .last: removed = text.removeLast()
+            }
+            try relocating(call) {
+                try target.writeOwned(.native(text), self)
+            }
+            return .native(String(removed))
+        }
+
         // `url.path(percentEncoded:)` — the modern METHOD collides with the
         // legacy `path` PROPERTY; the call shape resolves here (the
         // first(where:) precedent). Only URL bases match; the labeled-arg
@@ -965,6 +993,7 @@ extension Interpreter {
                 .isNativeCarrierScalarVoidMutation(
                     named: name, carrierKind: .array)
         if (mutating.contains(name) || removesRange || optionallyRemovesLast
+                || requiredEndpointRemoval != nil
                 || nativeArrayCarrierScalarVoidMutation),
            var array = baseValue.arrayValue,
            let target = try? resolveLValue(base, in: env) {
@@ -975,6 +1004,21 @@ extension Interpreter {
             func resolved(_ value: RuntimeValue) throws -> RuntimeValue {
                 guard let elementType else { return value }
                 return try resolveAnnotated(value, typeName: elementType)
+            }
+            if let endpoint = requiredEndpointRemoval,
+               args.arguments.isEmpty {
+                guard !array.isEmpty else {
+                    throw error(call, "endpoint removal on an empty Array")
+                }
+                let removed: RuntimeValue
+                switch endpoint {
+                case .first: removed = array.removeFirst()
+                case .last: removed = array.removeLast()
+                }
+                try relocating(call) {
+                    try target.writeCanonicalOwned(.native(array), self)
+                }
+                return removed
             }
             switch name {
             case "append":
@@ -1031,19 +1075,17 @@ extension Interpreter {
                     array = []
                 }
             case "removeFirst":
-                guard !array.isEmpty else { throw error(call, "removeFirst on an empty array") }
-                let removed = array.removeFirst()
-                try relocating(call) {
-                    try target.writeCanonicalOwned(.native(array), self)
+                guard let count = args.positional(0)?.intValue,
+                      count >= 0, count <= array.count else {
+                    throw error(call, "invalid Array prefix removal count")
                 }
-                return removed
+                array.removeFirst(count)
             case "removeLast":
-                guard !array.isEmpty else { throw error(call, "removeLast on an empty array") }
-                let removed = array.removeLast()
-                try relocating(call) {
-                    try target.writeCanonicalOwned(.native(array), self)
+                guard let count = args.positional(0)?.intValue,
+                      count >= 0, count <= array.count else {
+                    throw error(call, "invalid Array suffix removal count")
                 }
-                return removed
+                array.removeLast(count)
             case "sort":
                 let comparatorClosure = args.closure(labeled: "by")
                     ?? args.firstUnlabeledClosure

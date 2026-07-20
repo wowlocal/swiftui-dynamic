@@ -1545,6 +1545,8 @@ let generatedOptionalElementCollectionDefaults =
     optionalElementCollectionDefaults(in: stdlibFile)
 let generatedOptionalLastRemovalCollectionDefaults =
     optionalLastRemovalCollectionDefaults(in: stdlibFile)
+let generatedRequiredEndpointRemovalCollectionDefaults =
+    requiredEndpointRemovalCollectionDefaults(in: stdlibFile)
 let generatedElementGenericCollectionNominals =
     elementGenericCollectionNominals(in: stdlibFile)
 let generatedMaterializableSequenceProtocolNames =
@@ -2698,6 +2700,35 @@ collectionDefaultsOutput += """
         optionalLastRemovalProtocols[memberName] != nil
     }
 
+    enum NativeCollectionEndpoint {
+        case first
+        case last
+    }
+
+    private static let requiredEndpointRemovals:
+        [String: NativeCollectionEndpoint] = [
+""" + "\n"
+for (memberName, defaults) in Dictionary(
+    grouping: generatedRequiredEndpointRemovalCollectionDefaults,
+    by: \.memberName
+).sorted(by: { $0.key < $1.key }) {
+    let endpoints = Set(defaults.map(\.endpoint))
+    precondition(
+        endpoints.count == 1,
+        "one required collection removal cannot target both endpoints")
+    collectionDefaultsOutput += """
+        \(String(reflecting: memberName)): .\(endpoints.first!.rawValue),
+""" + "\n"
+}
+collectionDefaultsOutput += """
+    ]
+
+    static func requiredEndpointRemoval(
+        named memberName: String
+    ) -> NativeCollectionEndpoint? {
+        requiredEndpointRemovals[memberName]
+    }
+
     enum NativeCarrierKind {
         case array
         case dictionary
@@ -2876,6 +2907,7 @@ print(
         + "\(generatedBooleanIndexEndpointEqualityCollectionDefaults.count) Boolean endpoint properties, "
         + "\(generatedOptionalElementCollectionDefaults.count) properties, "
         + "\(generatedOptionalLastRemovalCollectionDefaults.count) optional removals, "
+        + "\(generatedRequiredEndpointRemovalCollectionDefaults.count) required endpoint removals, "
         + "\(generatedElementGenericCollectionNominals.count) element-generic collections, "
         + "\(generatedMaterializableSequenceProtocolNames.count) Sequence protocols, "
         + "\(generatedNativeWritableStringCollectionViews.count) writable String collection views, "

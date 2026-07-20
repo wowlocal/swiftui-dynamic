@@ -36,6 +36,18 @@ struct OptionalLastRemovalCollectionDefault: Hashable {
     let memberName: String
 }
 
+enum RequiredEndpointRemoval: String, Hashable {
+    case first
+    case last
+}
+
+struct RequiredEndpointRemovalCollectionDefault: Hashable {
+    let protocolName: String
+    let eligibleProtocolNames: [String]
+    let memberName: String
+    let endpoint: RequiredEndpointRemoval
+}
+
 enum ForwardIndexSearchArgumentKind: String, Hashable {
     case element
     case predicate
@@ -1040,6 +1052,100 @@ func optionalLastRemovalCollectionDefaults(
 
     return defaults.sorted {
         ($0.protocolName, $0.memberName) < ($1.protocolName, $1.memberName)
+    }
+}
+
+/// Finds zero-argument mutating protocol defaults that return a required
+/// endpoint element and remove that same endpoint from the receiver. The
+/// generated endpoint property lets every native indexed carrier share one
+/// adapter without teaching the evaluator collection method spellings.
+func requiredEndpointRemovalCollectionDefaults(
+    in file: SourceFileSyntax?
+) -> [RequiredEndpointRemovalCollectionDefault] {
+    guard let file else { return [] }
+    let refinementEligibility = protocolRefinementEligibility(in: file)
+
+    func canonical(_ raw: String) -> String {
+        normalize(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func containsSubsequence(
+        _ sequence: [String], in tokens: [String]
+    ) -> Bool {
+        guard !sequence.isEmpty, sequence.count <= tokens.count else {
+            return false
+        }
+        for start in 0...(tokens.count - sequence.count)
+        where Array(tokens[start..<(start + sequence.count)]) == sequence {
+            return true
+        }
+        return false
+    }
+
+    let protocolNames = Set(file.statements.compactMap { item -> String? in
+        guard case .decl(let declaration) = item.item,
+              let protocolDeclaration = declaration.as(
+                  ProtocolDeclSyntax.self
+              ) else { return nil }
+        return canonical(protocolDeclaration.name.text)
+    })
+
+    func rule(
+        protocolName: String,
+        function: FunctionDeclSyntax
+    ) -> RequiredEndpointRemovalCollectionDefault? {
+        guard function.modifiers.contains(where: {
+                  $0.name.text == "public"
+              }),
+              function.modifiers.contains(where: {
+                  $0.name.text == "mutating"
+              }),
+              function.signature.parameterClause.parameters.isEmpty,
+              canonical(function.signature.returnClause?.type
+                  .trimmedDescription ?? "") == "Self.Element",
+              let body = function.body
+        else { return nil }
+
+        let tokens = body.tokens(viewMode: .sourceAccurate).map(\.text)
+        let removesFirst = containsSubsequence(
+            ["index", "(", "after", ":", "startIndex", ")"],
+            in: tokens)
+            || (tokens.contains("first") && containsSubsequence(
+                ["removeFirst", "(", "1", ")"], in: tokens))
+        let removesLast = containsSubsequence(
+            ["index", "(", "before", ":", "endIndex", ")"],
+            in: tokens)
+        guard removesFirst != removesLast else { return nil }
+
+        return RequiredEndpointRemovalCollectionDefault(
+            protocolName: protocolName,
+            eligibleProtocolNames: refinementEligibility[protocolName]
+                ?? [protocolName],
+            memberName: function.name.text,
+            endpoint: removesFirst ? .first : .last)
+    }
+
+    var defaults = Set<RequiredEndpointRemovalCollectionDefault>()
+    for item in file.statements {
+        guard case .decl(let declaration) = item.item,
+              let extensionDeclaration = declaration.as(
+                  ExtensionDeclSyntax.self
+              ) else { continue }
+        let protocolName = canonical(
+            extensionDeclaration.extendedType.trimmedDescription)
+        guard protocolNames.contains(protocolName) else { continue }
+        for member in extensionDeclaration.memberBlock.members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  let discovered = rule(
+                    protocolName: protocolName, function: function)
+            else { continue }
+            defaults.insert(discovered)
+        }
+    }
+
+    return defaults.sorted {
+        ($0.protocolName, $0.memberName, $0.endpoint.rawValue)
+            < ($1.protocolName, $1.memberName, $1.endpoint.rawValue)
     }
 }
 
