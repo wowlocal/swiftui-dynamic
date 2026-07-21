@@ -551,67 +551,6 @@ extension ViewRegistry {
             return .native(AnyView(NavigationLink(title, destination: destination)))
         }
 
-        // Component colors — the custom-palette idiom (2048's tiles, most
-        // Kavsoft backgrounds). A real Color, so it works in view position,
-        // .fill/.background, and .opacity chains alike.
-        constructors["Color"] = HostFunction(name: "Color") { args, _ in
-            let component: (String) -> Double? = { args.labeled($0)?.doubleValue }
-            let opacity = component("opacity") ?? 1.0
-            if let platformColor = args.labeled("uiColor") ?? args.labeled("nsColor") {
-#if canImport(AppKit)
-                if case .host(let any) = platformColor, let color = any as? NSColor {
-                    return .native(Color(nsColor: color))
-                }
-                if case .implicitMember(let name) = platformColor {
-                    let color: NSColor = switch name {
-                    case "systemGray5": .systemGray.withAlphaComponent(0.18)
-                    case "systemGray6": .systemGray.withAlphaComponent(0.10)
-                    case "lightGray": .lightGray
-                    case "tertiarySystemFill", "quaternarySystemFill": .separatorColor
-                    case "tertiarySystemBackground": .controlBackgroundColor
-                    default: .windowBackgroundColor
-                    }
-                    return .native(Color(nsColor: color))
-                }
-                return .native(Color(nsColor: .windowBackgroundColor))
-#else
-                if case .host(let any) = platformColor, let color = any as? UIColor {
-                    return .native(Color(uiColor: color))
-                }
-                if case .implicitMember(let name) = platformColor {
-                    let color: UIColor = switch name {
-                    case "systemGray5": .systemGray5
-                    case "systemGray6": .systemGray6
-                    case "lightGray": .lightGray
-                    case "tertiarySystemFill": .tertiarySystemFill
-                    case "quaternarySystemFill": .quaternarySystemFill
-                    case "tertiarySystemBackground": .tertiarySystemBackground
-                    default: .systemBackground
-                    }
-                    return .native(Color(uiColor: color))
-                }
-                return .native(Color(uiColor: .systemBackground))
-#endif
-            }
-            if let red = component("red"), let green = component("green"), let blue = component("blue") {
-                return .native(Color(red: red, green: green, blue: blue, opacity: opacity))
-            }
-            if let white = component("white") {
-                return .native(Color(white: white, opacity: opacity))
-            }
-            if let hue = component("hue"), let saturation = component("saturation"),
-               let brightness = component("brightness") {
-                return .native(Color(hue: hue, saturation: saturation, brightness: brightness, opacity: opacity))
-            }
-            // `Color("AssetName")` — real SwiftUI semantics: missing catalog
-            // entries resolve to clear (with a console warning), present ones
-            // would need the app bundle we don't have.
-            if let name = args.positional(0)?.stringValue {
-                return .native(Color(name))
-            }
-            throw RuntimeError(message: "no matching initializer for Color(…) — argument types or labels don't fit")
-        }
-
         // Gestures: interpreted chains applied for real by `.gesture`.
         constructors["DragGesture"] = HostFunction(name: "DragGesture") { args, _ in
             .native(GestureBox(kind: .drag(

@@ -1,6 +1,12 @@
 import Foundation
 import SwiftUI
 import SwiftInterpreter
+#if canImport(AppKit)
+import AppKit
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Final host conversions for generated gateways. SwiftUI modifiers and
 /// constructors still use ParamSpec for local selection; generated Foundation
@@ -30,6 +36,10 @@ enum ParamTag: Hashable {
     case sdkEnum(String)
     /// A native AppKit/UIKit payload selected from the platform symbol graph.
     case platformValue(String, String)
+    /// A platform value accepted by a target SwiftUI overlay but rendered on
+    /// the opposite host. The generated semantic adapter consumes the typed
+    /// box without pretending its unavailable native payload exists.
+    case platformSemanticValue(String, String)
 }
 
 struct ParamSpec {
@@ -82,7 +92,7 @@ struct GeneratedOverload {
 
 struct GeneratedConstructor {
     let params: [ParamSpec]
-    let invoke: @MainActor ([Any]) throws -> AnyView
+    let invoke: @MainActor ([Any]) throws -> Any
 }
 
 /// Generated overloads grouped once by the only arity that can match. This
@@ -348,7 +358,15 @@ enum GeneratedDispatch {
         case .sdkEnum(let typeName):
             return try GeneratedSDKEnumCoercions.coerce(typeName, value)
         case .platformValue(let framework, let typeName):
-            guard case .host(let any) = value,
+            let resolved: RuntimeValue
+            if case .implicitMember(let member) = value,
+               let memberValue = GeneratedPlatformBridge.staticMember(
+                member, typeName: typeName) {
+                resolved = memberValue
+            } else {
+                resolved = value
+            }
+            guard case .host(let any) = resolved,
                   let box = any as? GeneratedPlatformValue,
                   box.framework == framework,
                   GeneratedPlatformBridge.typeCandidates(
@@ -359,6 +377,25 @@ enum GeneratedDispatch {
                     "expected a native \(framework).\(typeName) value")
             }
             return payload
+        case .platformSemanticValue(let framework, let typeName):
+            let resolved: RuntimeValue
+            if case .implicitMember(let member) = value,
+               let memberValue = GeneratedPlatformBridge.staticMember(
+                member, typeName: typeName) {
+                resolved = memberValue
+            } else {
+                resolved = value
+            }
+            guard case .host(let any) = resolved,
+                  let box = any as? GeneratedPlatformValue,
+                  box.framework == framework,
+                  GeneratedPlatformBridge.typeCandidates(
+                    framework: framework, type: box.typeName
+                  ).contains(typeName) else {
+                throw RuntimeError(message:
+                    "expected a generated \(framework).\(typeName) value")
+            }
+            return box
         }
     }
 
@@ -426,7 +463,7 @@ enum GeneratedDispatch {
         overloads: GeneratedConstructorSet,
         args: CallArguments,
         ctx: EvalContext
-    ) throws -> AnyView {
+    ) throws -> Any {
         for overload in overloads.byArity[args.arguments.count] ?? [] {
             guard let values = matches(overload.params, args, ctx) else { continue }
             return try overload.invoke(values)
@@ -1021,10 +1058,34 @@ enum GeneratedConstructors {
         _ table: inout [String: [GeneratedConstructor]],
         _ name: String,
         _ params: [ParamSpec],
-        _ invoke: @escaping @MainActor ([Any]) throws -> AnyView
+        _ invoke: @escaping @MainActor ([Any]) throws -> Any
     ) {
         table[name, default: []].append(GeneratedConstructor(params: params, invoke: invoke))
     }
+}
+
+/// A target-specific platform color has no native payload on the opposite
+/// host. The target overlay nevertheless proves that it initializes a value
+/// which is both View and ShapeStyle, so preserve that semantic capability as
+/// a real Color instead of leaking an inert platform stub into rendering.
+/// Native payloads retain their exact conversion; unavailable payloads use a
+/// deterministic dynamic foreground style without inspecting SDK identities.
+@MainActor
+func generatedPlatformShapeStyleValue(_ value: Any) -> Any {
+    guard let box = value as? GeneratedPlatformValue else {
+        return Color.secondary
+    }
+#if canImport(AppKit)
+    if let color = box.payload as? NSColor {
+        return Color(nsColor: color)
+    }
+#endif
+#if canImport(UIKit)
+    if let color = box.payload as? UIColor {
+        return Color(uiColor: color)
+    }
+#endif
+    return Color.secondary
 }
 
 /// Bridges an ActionValue (from `[Any]`) into the plain `() -> Void` shape

@@ -204,6 +204,7 @@ public final class ViewRegistry: HostRegistry {
                 || any is PathDrawStub || any is ForEachFan || any is SectionSpec {
                 return true
             }
+            if any is any View { return true }
         }
         return Coerce.colorLike(value) != nil // Color IS a View
     }
@@ -322,6 +323,7 @@ public final class ViewRegistry: HostRegistry {
             if let box = any as? ShapeBox { return AnyView(box.shape) }
             if let stub = any as? PathDrawStub { return AnyView(stub.path) }
             if let gradient = any as? LinearGradient { return AnyView(gradient) }
+            if let view = any as? any View { return AnyView(view) }
         }
         if let color = Coerce.colorLike(value) { return AnyView(color) }
         throw RuntimeError(message: "expected a View, got \(value.stringified)")

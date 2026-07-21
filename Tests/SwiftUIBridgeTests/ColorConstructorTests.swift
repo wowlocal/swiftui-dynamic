@@ -43,6 +43,14 @@ import SwiftInterpreter
         #expect(try evalColor("Color(nsColor: .windowBackgroundColor)") != nil)
     }
 
+    /// Target-specific SwiftUI overlays expose platform-color initializers in
+    /// addition to the host overlay BridgeGen compiles against. Their explicit
+    /// platform values must still cross the generated adapter as real Colors.
+    @Test func explicitPlatformColorValues() throws {
+        #expect(try evalColor("Color(UIColor.secondaryLabel)") != nil)
+        #expect(try evalColor("Color(uiColor: UIColor.secondaryLabel)") != nil)
+    }
+
     @Test func rgbaFlowsIntoFill() throws {
         let source = """
         struct ContentView: View {

@@ -47,6 +47,24 @@ func interfacePath(framework: String) -> String? {
     return "\(moduleDir)/\(name)"
 }
 
+/// SwiftUI's Catalyst-only overlays live under the SDK's iOSSupport tree,
+/// separate from the macOS interface. They contain target constructors such
+/// as platform-value conversions that a macOS-hosted interpreter must still
+/// recognize without compiling UIKit into the host binary.
+func catalystOverlayInterfacePath(framework: String) -> String? {
+    let moduleDir = "\(sdk)/System/iOSSupport/System/Library/Frameworks/\(framework).framework/Modules/\(framework).swiftmodule"
+    let candidates = ((try? FileManager.default.contentsOfDirectory(
+        atPath: moduleDir)) ?? [])
+        .filter { $0.hasSuffix("-apple-ios-macabi.swiftinterface") }
+        .sorted()
+    let architecturePrefix = hostArchitecture == "arm64"
+        ? "arm64" : hostArchitecture
+    guard let name = candidates.first(where: {
+        $0.hasPrefix(architecturePrefix)
+    }) ?? candidates.first else { return nil }
+    return "\(moduleDir)/\(name)"
+}
+
 let interfaceFiles = ["SwiftUICore", "SwiftUI", "Charts"].compactMap { framework -> SourceFileSyntax? in
     guard let path = interfacePath(framework: framework),
           let source = try? String(contentsOfFile: path, encoding: .utf8) else {
@@ -54,6 +72,18 @@ let interfaceFiles = ["SwiftUICore", "SwiftUI", "Charts"].compactMap { framework
         return nil
     }
     print("parsing \(framework) (\(source.count) chars)…")
+    return Parser.parse(source: source)
+}
+
+let targetOverlayFiles = ["SwiftUI"].compactMap {
+    framework -> SourceFileSyntax? in
+    guard let path = catalystOverlayInterfacePath(framework: framework),
+          let source = try? String(contentsOfFile: path, encoding: .utf8)
+    else {
+        print("warning: no Catalyst overlay swiftinterface for \(framework)")
+        return nil
+    }
+    print("parsing \(framework) Catalyst overlay (\(source.count) chars)…")
     return Parser.parse(source: source)
 }
 
@@ -480,6 +510,55 @@ func isUniversallyUsable(_ attributes: AttributeListSyntax) -> Bool {
 
 let deploymentTarget = 15
 
+func introducedVersion(
+    in availability: String, platform: String
+) -> (major: Int, minor: Int)? {
+    let directMarker = "\(platform) "
+    let versionText: Substring?
+    if let range = availability.range(of: directMarker) {
+        versionText = availability[range.upperBound...]
+            .prefix { $0.isNumber || $0 == "." }
+    } else if availability.contains("\(platform),"),
+              let range = availability.range(of: "introduced:") {
+        versionText = availability[range.upperBound...]
+            .drop(while: { $0.isWhitespace })
+            .prefix { $0.isNumber || $0 == "." }
+    } else {
+        versionText = nil
+    }
+    guard let versionText, !versionText.isEmpty else { return nil }
+    let parts = versionText.split(separator: ".").compactMap { Int($0) }
+    guard let major = parts.first else { return nil }
+    return (major, parts.count > 1 ? parts[1] : 0)
+}
+
+/// Availability for target overlays is evaluated against the interpreted iOS
+/// deployment, independently of the macOS host. Future-version deprecations
+/// remain legal API; only actual unavailability/obsoletion or newer
+/// introduction prevents emission.
+func isUsableIOSOverlay(_ attributes: AttributeListSyntax) -> Bool {
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self) else { continue }
+        let text = attr.trimmedDescription
+        if attr.attributeName.trimmedDescription.hasSuffix("_spi") {
+            return false
+        }
+        guard attr.attributeName.trimmedDescription == "available" else {
+            continue
+        }
+        if text.contains("iOS, unavailable")
+            || text.contains("iOS unavailable")
+            || text.contains("iOS, obsoleted") {
+            return false
+        }
+        if let introduced = introducedVersion(in: text, platform: "iOS"),
+           introduced > (deploymentTarget, 0) {
+            return false
+        }
+    }
+    return true
+}
+
 func needsAvailabilityGuard(_ attributes: AttributeListSyntax) -> Bool {
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self),
@@ -785,6 +864,9 @@ struct Variant {
     let name: String
     let params: [EmittableParam]
     let inheritedFrameworkRequirements: Set<String>
+    /// Values that are structurally both View and ShapeStyle must remain their
+    /// concrete semantic value; erasing them to AnyView loses later style use.
+    let preservesSemanticValue: Bool
 
     var key: String {
         name + "|" + params.map { "\($0.label ?? "_"):\($0.tag)" }.joined(separator: ",")
@@ -868,7 +950,8 @@ func processModifier(
                     contextualType: $0.mapping!.contextualType)
             },
             inheritedFrameworkRequirements: frameworkRequirements.union(
-                platformFrameworkRequirements(function.attributes))
+                platformFrameworkRequirements(function.attributes)),
+            preservesSemanticValue: false
         )
         if seenKeys.insert(variant.key).inserted {
             variants.append(variant)
@@ -900,7 +983,8 @@ func structGenerics(_ structDecl: StructDeclSyntax) -> Generics {
 func processInit(
     _ structName: String, _ initDecl: InitializerDeclSyntax,
     generics baseGenerics: Generics, guarded: Bool,
-    frameworkRequirements: Set<String>
+    frameworkRequirements: Set<String>,
+    preservesSemanticValue: Bool
 ) {
     guard isPublicSDKDecl(initDecl.modifiers) else { return }
     initTotal += 1
@@ -950,7 +1034,8 @@ func processInit(
                     contextualType: $0.mapping!.contextualType)
             },
             inheritedFrameworkRequirements: frameworkRequirements.union(
-                platformFrameworkRequirements(initDecl.attributes))
+                platformFrameworkRequirements(initDecl.attributes)),
+            preservesSemanticValue: preservesSemanticValue
         )
         if initSeenKeys.insert(variant.key).inserted {
             initVariants.append(variant)
@@ -970,19 +1055,24 @@ struct ViewConformanceInfo {
 // declarations so the constructor sweep is driven by interface semantics,
 // independent of which spelling the SDK chose.
 var extensionViewConformances: [String: ViewConformanceInfo] = [:]
+var extensionShapeStyleConformances: Set<String> = []
 for file in interfaceFiles {
     for statement in file.statements {
         guard case .decl(let decl) = statement.item,
               let ext = decl.as(ExtensionDeclSyntax.self),
-              isUsable(ext.attributes),
-              ext.inheritanceClause?.inheritedTypes.contains(where: {
-                  normalize($0.type.trimmedDescription) == "View"
-              }) == true else { continue }
+              isUsable(ext.attributes) else { continue }
+        let conformances = Set(
+            ext.inheritanceClause?.inheritedTypes.map {
+                normalize($0.type.trimmedDescription)
+            } ?? [])
+        let extendedType = normalize(ext.extendedType.trimmedDescription)
+        if conformances.contains("ShapeStyle") {
+            extensionShapeStyleConformances.insert(extendedType)
+        }
+        guard conformances.contains("View") else { continue }
         var generics: Generics = [:]
         collectWhereClause(ext.genericWhereClause, into: &generics)
-        extensionViewConformances[
-            normalize(ext.extendedType.trimmedDescription)
-        ] = ViewConformanceInfo(
+        extensionViewConformances[extendedType] = ViewConformanceInfo(
             generics: generics,
             guarded: needsAvailabilityGuard(ext.attributes),
             frameworkRequirements: platformFrameworkRequirements(
@@ -995,7 +1085,8 @@ for file in interfaceFiles {
 var viewStructInfo: [String: (
     generics: Generics,
     guarded: Bool,
-    frameworkRequirements: Set<String>
+    frameworkRequirements: Set<String>,
+    preservesSemanticValue: Bool
 )] = [:]
 
 for file in interfaceFiles {
@@ -1023,10 +1114,11 @@ for file in interfaceFiles {
            isUsable(structDecl.attributes),
            !structDecl.name.text.hasPrefix("_") {
             let name = structDecl.name.text
-            let directlyConforms = structDecl.inheritanceClause?.inheritedTypes
-                .contains(where: {
-                    normalize($0.type.trimmedDescription) == "View"
-                }) == true
+            let directConformances = Set(
+                structDecl.inheritanceClause?.inheritedTypes.map {
+                    normalize($0.type.trimmedDescription)
+                } ?? [])
+            let directlyConforms = directConformances.contains("View")
             let extensionConformance = extensionViewConformances[name]
             guard directlyConforms || extensionConformance != nil else {
                 continue
@@ -1041,14 +1133,19 @@ for file in interfaceFiles {
             for (name, facts) in extensionConformance?.generics ?? [:] {
                 generics[name] = facts
             }
+            let preservesSemanticValue = directConformances.contains(
+                "ShapeStyle")
+                || extensionShapeStyleConformances.contains(name)
             viewStructInfo[name] = (
-                generics, guarded, frameworkRequirements)
+                generics, guarded, frameworkRequirements,
+                preservesSemanticValue)
             for member in structDecl.memberBlock.members {
                 guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
                       isUsable(initDecl.attributes) else { continue }
                 processInit(
                     name, initDecl, generics: generics, guarded: guarded,
-                    frameworkRequirements: frameworkRequirements)
+                    frameworkRequirements: frameworkRequirements,
+                    preservesSemanticValue: preservesSemanticValue)
             }
         }
     }
@@ -1073,10 +1170,70 @@ for file in interfaceFiles {
                   isUsable(initDecl.attributes) else { continue }
             processInit(
                 extendedName, initDecl, generics: generics, guarded: guarded,
-                frameworkRequirements: frameworkRequirements)
+                frameworkRequirements: frameworkRequirements,
+                preservesSemanticValue: info.preservesSemanticValue)
         }
     }
 }
+
+// Pass C: target-only overlay initializers on View types known from the host
+// interface. Exact native calls stay framework-guarded; a later structural
+// adapter keeps View+ShapeStyle values usable when this interpreter renders a
+// target whose platform framework is unavailable on the host.
+for file in targetOverlayFiles {
+    for statement in file.statements {
+        guard case .decl(let decl) = statement.item,
+              let ext = decl.as(ExtensionDeclSyntax.self),
+              isUsableIOSOverlay(ext.attributes) else { continue }
+        let extendedName = normalize(ext.extendedType.trimmedDescription)
+        guard let info = viewStructInfo[extendedName] else { continue }
+        var generics = info.generics
+        collectWhereClause(ext.genericWhereClause, into: &generics)
+        for member in ext.memberBlock.members {
+            guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
+                  isUsableIOSOverlay(initDecl.attributes) else { continue }
+            processInit(
+                extendedName, initDecl, generics: generics, guarded: false,
+                frameworkRequirements: info.frameworkRequirements.union(
+                    ["UIKit"]),
+                preservesSemanticValue: info.preservesSemanticValue)
+        }
+    }
+}
+
+struct PlatformSemanticAdapterVariant {
+    let variant: Variant
+    let unavailableFramework: String
+}
+
+/// A one-parameter platform initializer for a View+ShapeStyle value carries
+/// enough structural information to retain style semantics off-platform. The
+/// generated adapter accepts the typed inert box only where the exact native
+/// initializer cannot compile; no target/member identity participates.
+let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
+    var seen: Set<String> = []
+    return initVariants.compactMap {
+        (variant: Variant) -> PlatformSemanticAdapterVariant? in
+        guard variant.preservesSemanticValue, variant.params.count == 1,
+              let parameter = variant.params.first,
+              parameter.tag.hasPrefix("platformValue("),
+              let framework = parameter.requiredFramework else { return nil }
+        let semanticParameter = EmittableParam(
+            label: parameter.label,
+            tag: parameter.tag.replacingOccurrences(
+                of: "platformValue(", with: "platformSemanticValue("),
+            cast: "%@", requiredFramework: nil,
+            contextualType: parameter.contextualType)
+        let adapter = Variant(
+            name: variant.name, params: [semanticParameter],
+            inheritedFrameworkRequirements: [],
+            preservesSemanticValue: true)
+        let key = "\(framework)|\(adapter.key)"
+        guard seen.insert(key).inserted else { return nil }
+        return PlatformSemanticAdapterVariant(
+            variant: adapter, unavailableFramework: framework)
+    }
+}()
 
 // MARK: - Foundation member sweep
 
@@ -2201,9 +2358,25 @@ func initEntryCode(_ variant: Variant) -> String {
     for (index, param) in variant.params.enumerated() where param.tag == "builder" {
         lines.append("        let b\(index) = try generatedBuilder(v[\(index)])")
     }
-    lines.append("        return AnyView(\(variant.name)(\(argList)))")
+    let constructed = "\(variant.name)(\(argList))"
+    lines.append(variant.preservesSemanticValue
+        ? "        return \(constructed)"
+        : "        return AnyView(\(constructed))")
     lines.append("    }")
     return compileGuarded(lines.joined(separator: "\n"), for: variant)
+}
+
+func platformSemanticAdapterEntryCode(
+    _ adapter: PlatformSemanticAdapterVariant
+) -> String {
+    let variant = adapter.variant
+    let specs = variant.params.map(paramSpecCode).joined(separator: ", ")
+    let source = """
+    register(&t, "\(variant.name)", [\(specs)]) { v in
+        return generatedPlatformShapeStyleValue(v[0])
+    }
+    """
+    return "#if !canImport(\(adapter.unavailableFramework))\n\(source)\n#endif"
 }
 
 let sortedInits = initVariants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
@@ -2232,12 +2405,25 @@ extension GeneratedConstructors {
 for index in initChunks.indices {
     viewsOutput += "        build\(index)(&t)\n"
 }
+if !platformSemanticAdapterVariants.isEmpty {
+    viewsOutput += "        buildPlatformSemanticAdapters(&t)\n"
+}
 viewsOutput += "        return t\n    }\n"
 
 for (index, chunk) in initChunks.enumerated() {
     viewsOutput += "\n    private static func build\(index)(_ t: inout [String: [GeneratedConstructor]]) {\n"
     for variant in chunk {
         viewsOutput += initEntryCode(variant) + "\n"
+    }
+    viewsOutput += "    }\n"
+}
+if !platformSemanticAdapterVariants.isEmpty {
+    viewsOutput += "\n    private static func buildPlatformSemanticAdapters(_ t: inout [String: [GeneratedConstructor]]) {\n"
+    for adapter in platformSemanticAdapterVariants.sorted(by: {
+        ($0.variant.name, $0.variant.key, $0.unavailableFramework)
+            < ($1.variant.name, $1.variant.key, $1.unavailableFramework)
+    }) {
+        viewsOutput += platformSemanticAdapterEntryCode(adapter) + "\n"
     }
     viewsOutput += "    }\n"
 }
