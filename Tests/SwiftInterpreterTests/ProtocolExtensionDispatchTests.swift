@@ -19,6 +19,27 @@ import Testing
         #expect(value.stringValue == "slice")
     }
 
+    /// An inherited method's unqualified call is still virtual: runtime
+    /// subclass overrides win even though the call is written in the generic
+    /// superclass body.
+    @Test func genericBaseMethodDispatchesImplicitSelfOverride() throws {
+        let source = """
+        class PipelineTask<Value> {
+            func start() -> String { "base" }
+            func subscribe() -> String { start() }
+        }
+
+        final class ConcreteTask: PipelineTask<Int> {
+            override func start() -> String { "concrete" }
+        }
+
+        ConcreteTask().subscribe()
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "concrete")
+    }
+
     @Test func inheritedStaticOverloadUsesCallShape() throws {
         let source = """
         class Base {
