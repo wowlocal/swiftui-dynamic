@@ -90,6 +90,17 @@ private struct FixtureOracle {
             .prefix(words).joined(separator: " ")
     }
 
+    /// Native IceCubes renders Mastodon HTML through `HTMLString.asMarkdown`,
+    /// which omits accessibility-hidden URL spans while preserving the text
+    /// before the first link. Keep the detail oracle on that shared visible
+    /// prefix instead of flattening hidden HTML into a string the view never
+    /// displays.
+    static func leadingTextMarker(_ html: String) -> String {
+        let end = html.range(of: "<a", options: .caseInsensitive)?.lowerBound
+            ?? html.endIndex
+        return marker(String(html[..<end]))
+    }
+
     static func normalize(_ string: String) -> String {
         string.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
     }
@@ -434,7 +445,7 @@ struct IceCubesCheckMain {
 
         var detailProblems: [String] = []
         if let detail = oracle.trendingStatuses.first {
-            let marker = FixtureOracle.marker(detail.visibleContent)
+            let marker = FixtureOracle.leadingTextMarker(detail.visibleContent)
             if !contains(marker) { detailProblems.append("missing detail content '\(marker)'") }
             if !contains(detail.visibleAccount.visibleName) {
                 detailProblems.append("missing detail author '\(detail.visibleAccount.visibleName)'")
