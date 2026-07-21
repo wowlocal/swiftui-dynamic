@@ -166,6 +166,40 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    /// The SDK spells contextual constants on both ordinary value structs and
+    /// nested OptionSets. They are the same interface property: a public static
+    /// member whose declared value type is its enclosing type.
+    @Test func sameTypeSDKStaticsGenerateModifierCoverage() throws {
+        let accessibility = GeneratedModifiers.table["accessibilityElement"]?
+            .byArity[1] ?? []
+        #expect(accessibility.contains {
+            $0.params.map(\.tag) == [.sdkEnum("AccessibilityChildBehavior")]
+        })
+
+        let separator = GeneratedModifiers.table["listRowSeparator"]?
+            .byArity[2] ?? []
+        #expect(separator.contains {
+            $0.params.map(\.tag) == [
+                .visibility, .sdkEnum("VerticalEdge.Set"),
+            ]
+        })
+
+        let behavior = try GeneratedSDKEnumCoercions.coerce(
+            "AccessibilityChildBehavior", .implicitMember("combine"))
+            as? AccessibilityChildBehavior
+        #expect(behavior == .combine)
+
+        let edges = try GeneratedSDKEnumCoercions.coerce(
+            "VerticalEdge.Set", .implicitMember("all")) as? VerticalEdge.Set
+        #expect(edges == .all)
+
+        _ = try Interpreter(registry: ViewRegistry()).run(source: """
+        Text("accessible")
+            .accessibilityElement(children: .combine)
+            .listRowSeparator(.hidden, edges: .all)
+        """)
+    }
+
     @Test func generatedConstructorsDispatchThroughRealRendering() throws {
         // None of these View inits were ever hand-written.
         let source = """

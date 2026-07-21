@@ -24,8 +24,9 @@ enum ParamTag: Hashable {
     case decimal, characterSet, indexSet, dateComponents, dateInterval
     case indexPath, intArray, intRange, doubleRange
     case calendarComponent, calendarComponentSet
-    /// A concrete, payload-free enum collected from the SDK interface. The
-    /// associated value is its normalized Swift type name.
+    /// A concrete contextual value family collected from the SDK interface:
+    /// payload-free enum cases or same-type static properties on value types.
+    /// The associated value is its normalized Swift type name.
     case sdkEnum(String)
     /// A native AppKit/UIKit payload selected from the platform symbol graph.
     case platformValue(String, String)

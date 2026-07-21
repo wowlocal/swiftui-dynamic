@@ -111,8 +111,9 @@ struct TypeMapping {
 /// nominal without maintaining a second type-name allowlist.
 var platformTypeFrameworks: [String: Set<String>] = [:]
 
-/// Public, deployment-compatible SDK enums and their payload-free cases.
-/// Populated from the same interfaces before the modifier/init sweep.
+/// Public, deployment-compatible contextual SDK values. Enum cases and
+/// same-type static properties have the same leading-dot call semantics, so
+/// one interface-derived table drives both without nominal allowlists.
 var sdkEnumCases: [String: [String]] = [:]
 var sdkEnumFrameworkRequirements: [String: Set<String>] = [:]
 
@@ -457,7 +458,8 @@ func isUsable(_ attributes: AttributeListSyntax) -> Bool {
 }
 
 /// GeneratedSDKEnumCoercions is shared without a platform payload wrapper, so
-/// keep that table restricted to declarations present on every target.
+/// keep its enum cases and same-type statics restricted to declarations
+/// present on every target.
 func isUniversallyUsable(_ attributes: AttributeListSyntax) -> Bool {
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
@@ -508,10 +510,53 @@ func platformFrameworkRequirements(
     return result
 }
 
-// MARK: - Automatically coercible SDK enums
+// MARK: - Automatically coercible contextual SDK values
 
 func isPublicSDKDecl(_ modifiers: DeclModifierListSyntax) -> Bool {
     modifiers.contains { $0.name.text == "public" }
+}
+
+func recordSDKContextualValues(
+    type: String, members: [String],
+    frameworkRequirements: Set<String>
+) {
+    guard !members.isEmpty else { return }
+    sdkEnumCases[type] = Array(Set(
+        (sdkEnumCases[type] ?? []) + members
+    )).sorted()
+    sdkEnumFrameworkRequirements[type, default: []]
+        .formUnion(frameworkRequirements)
+}
+
+/// A declaration such as `public static let all: VerticalEdge.Set` is the
+/// value-struct/OptionSet equivalent of a payload-free enum case. The defining
+/// property is structural: public static storage whose declared type is the
+/// enclosing nominal, including declarations supplied by extensions.
+func collectSameTypeSDKStatics(
+    in members: MemberBlockItemListSyntax, type: String, guarded: Bool,
+    frameworkRequirements: Set<String>
+) {
+    guard !guarded else { return }
+    var names: [String] = []
+    for member in members {
+        guard let variable = member.decl.as(VariableDeclSyntax.self),
+              isPublicSDKDecl(variable.modifiers),
+              variable.modifiers.contains(where: { $0.name.text == "static" }),
+              isUniversallyUsable(variable.attributes),
+              !needsAvailabilityGuard(variable.attributes) else { continue }
+        for binding in variable.bindings {
+            guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+                  let annotation = binding.typeAnnotation,
+                  normalize(annotation.type.trimmedDescription) == type else {
+                continue
+            }
+            names.append(identifier.identifier.text.trimmingCharacters(
+                in: CharacterSet(charactersIn: "`")))
+        }
+    }
+    recordSDKContextualValues(
+        type: type, members: names,
+        frameworkRequirements: frameworkRequirements)
 }
 
 func collectSDKEnums(
@@ -537,6 +582,10 @@ func collectSDKEnums(
         let guarded = inheritedGuarded || needsAvailabilityGuard(enumDecl.attributes)
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(enumDecl.attributes))
+        let type = path.joined(separator: ".")
+        collectSameTypeSDKStatics(
+            in: enumDecl.memberBlock.members, type: type, guarded: guarded,
+            frameworkRequirements: requirements)
         if !guarded {
             var cases: [String] = []
             for member in enumDecl.memberBlock.members {
@@ -547,11 +596,9 @@ func collectSDKEnums(
                     cases.append(element.name.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")))
                 }
             }
-            if !cases.isEmpty {
-                let type = path.joined(separator: ".")
-                sdkEnumCases[type] = Array(Set(cases)).sorted()
-                sdkEnumFrameworkRequirements[type] = requirements
-            }
+            recordSDKContextualValues(
+                type: type, members: cases,
+                frameworkRequirements: requirements)
         }
         collectSDKEnums(
             in: enumDecl.memberBlock.members, path: path, guarded: guarded,
@@ -563,12 +610,19 @@ func collectSDKEnums(
         guard isPublicSDKDecl(structDecl.modifiers),
               isUniversallyUsable(structDecl.attributes),
               !structDecl.name.text.hasPrefix("_") else { return }
+        let childPath = path + [structDecl.name.text]
+        let guarded = inheritedGuarded
+            || needsAvailabilityGuard(structDecl.attributes)
+        let requirements = inheritedRequirements.union(
+            platformFrameworkRequirements(structDecl.attributes))
+        collectSameTypeSDKStatics(
+            in: structDecl.memberBlock.members,
+            type: childPath.joined(separator: "."), guarded: guarded,
+            frameworkRequirements: requirements)
         collectSDKEnums(
             in: structDecl.memberBlock.members,
-            path: path + [structDecl.name.text],
-            guarded: inheritedGuarded || needsAvailabilityGuard(structDecl.attributes),
-            frameworkRequirements: inheritedRequirements.union(
-                platformFrameworkRequirements(structDecl.attributes)))
+            path: childPath, guarded: guarded,
+            frameworkRequirements: requirements)
         return
     }
 
@@ -576,12 +630,19 @@ func collectSDKEnums(
         guard isPublicSDKDecl(classDecl.modifiers),
               isUniversallyUsable(classDecl.attributes),
               !classDecl.name.text.hasPrefix("_") else { return }
+        let childPath = path + [classDecl.name.text]
+        let guarded = inheritedGuarded
+            || needsAvailabilityGuard(classDecl.attributes)
+        let requirements = inheritedRequirements.union(
+            platformFrameworkRequirements(classDecl.attributes))
+        collectSameTypeSDKStatics(
+            in: classDecl.memberBlock.members,
+            type: childPath.joined(separator: "."), guarded: guarded,
+            frameworkRequirements: requirements)
         collectSDKEnums(
             in: classDecl.memberBlock.members,
-            path: path + [classDecl.name.text],
-            guarded: inheritedGuarded || needsAvailabilityGuard(classDecl.attributes),
-            frameworkRequirements: inheritedRequirements.union(
-                platformFrameworkRequirements(classDecl.attributes)))
+            path: childPath, guarded: guarded,
+            frameworkRequirements: requirements)
         return
     }
 
@@ -589,12 +650,19 @@ func collectSDKEnums(
         guard isPublicSDKDecl(actorDecl.modifiers),
               isUniversallyUsable(actorDecl.attributes),
               !actorDecl.name.text.hasPrefix("_") else { return }
+        let childPath = path + [actorDecl.name.text]
+        let guarded = inheritedGuarded
+            || needsAvailabilityGuard(actorDecl.attributes)
+        let requirements = inheritedRequirements.union(
+            platformFrameworkRequirements(actorDecl.attributes))
+        collectSameTypeSDKStatics(
+            in: actorDecl.memberBlock.members,
+            type: childPath.joined(separator: "."), guarded: guarded,
+            frameworkRequirements: requirements)
         collectSDKEnums(
             in: actorDecl.memberBlock.members,
-            path: path + [actorDecl.name.text],
-            guarded: inheritedGuarded || needsAvailabilityGuard(actorDecl.attributes),
-            frameworkRequirements: inheritedRequirements.union(
-                platformFrameworkRequirements(actorDecl.attributes)))
+            path: childPath, guarded: guarded,
+            frameworkRequirements: requirements)
         return
     }
 
@@ -602,12 +670,19 @@ func collectSDKEnums(
         guard isPublicSDKDecl(protocolDecl.modifiers),
               isUniversallyUsable(protocolDecl.attributes),
               !protocolDecl.name.text.hasPrefix("_") else { return }
+        let childPath = path + [protocolDecl.name.text]
+        let guarded = inheritedGuarded
+            || needsAvailabilityGuard(protocolDecl.attributes)
+        let requirements = inheritedRequirements.union(
+            platformFrameworkRequirements(protocolDecl.attributes))
+        collectSameTypeSDKStatics(
+            in: protocolDecl.memberBlock.members,
+            type: childPath.joined(separator: "."), guarded: guarded,
+            frameworkRequirements: requirements)
         collectSDKEnums(
             in: protocolDecl.memberBlock.members,
-            path: path + [protocolDecl.name.text],
-            guarded: inheritedGuarded || needsAvailabilityGuard(protocolDecl.attributes),
-            frameworkRequirements: inheritedRequirements.union(
-                platformFrameworkRequirements(protocolDecl.attributes)))
+            path: childPath, guarded: guarded,
+            frameworkRequirements: requirements)
         return
     }
 
@@ -615,12 +690,18 @@ func collectSDKEnums(
        isUniversallyUsable(extensionDecl.attributes) {
         let extendedPath = normalize(extensionDecl.extendedType.trimmedDescription)
             .split(separator: ".").map(String.init)
+        let guarded = inheritedGuarded
+            || needsAvailabilityGuard(extensionDecl.attributes)
+        let requirements = inheritedRequirements.union(
+            platformFrameworkRequirements(extensionDecl.attributes))
+        collectSameTypeSDKStatics(
+            in: extensionDecl.memberBlock.members,
+            type: extendedPath.joined(separator: "."), guarded: guarded,
+            frameworkRequirements: requirements)
         collectSDKEnums(
             in: extensionDecl.memberBlock.members,
             path: extendedPath,
-            guarded: inheritedGuarded || needsAvailabilityGuard(extensionDecl.attributes),
-            frameworkRequirements: inheritedRequirements.union(
-                platformFrameworkRequirements(extensionDecl.attributes)))
+            guarded: guarded, frameworkRequirements: requirements)
     }
 }
 
@@ -2134,12 +2215,13 @@ let viewsPath = "Sources/SwiftUIBridge/Generated/GeneratedViews.swift"
 try viewsOutput.write(toFile: viewsPath, atomically: true, encoding: .utf8)
 print("wrote \(viewsPath) (\(sortedInits.count) variants)")
 
-// MARK: - Emit SDK enum coercions
+// MARK: - Emit contextual SDK value coercions
 
 var enumsOutput = """
-// GENERATED by BridgeGen from public, payload-free SwiftUI SDK enum cases.
+// GENERATED by BridgeGen from public SwiftUI SDK enum cases and same-type statics.
 // Do not edit. Regenerate: swift run BridgeGen --emit
-// \(emittedSDKEnumTypes.count) enum types.
+// \(emittedSDKEnumTypes.count) contextual value types.
+import Charts
 import SwiftUI
 import SwiftInterpreter
 
@@ -2158,9 +2240,9 @@ for type in emittedSDKEnumTypes.sorted() {
     enumsOutput += "            }\n"
     enumsOutput += "            switch member {\n"
     for caseName in cases {
-        // Backticks are valid around every identifier and cover SDK cases
+        // Backticks are valid around every identifier and cover SDK members
         // whose spelling is also a Swift keyword.
-        enumsOutput += "            case \"\(caseName)\": return \(type).`\(caseName)`\n"
+        enumsOutput += "            case \"\(caseName)\": return \(type).`\(caseName)` as \(type)\n"
     }
     enumsOutput += "            default:\n"
     enumsOutput += "                throw RuntimeError(message: \"unknown \(type) member '.\\(member)'\")\n"
@@ -2168,7 +2250,7 @@ for type in emittedSDKEnumTypes.sorted() {
 }
 enumsOutput += """
         default:
-            throw RuntimeError(message: "unknown generated SDK enum '\\(typeName)'")
+            throw RuntimeError(message: "unknown generated SDK contextual type '\\(typeName)'")
         }
     }
 }

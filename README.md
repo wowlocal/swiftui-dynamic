@@ -275,10 +275,10 @@ framework-supplied value remain explicit semantic adapters. Generated builder
 arguments stay lazy until overload selection, so a nested render failure keeps
 its real source location instead of becoming a misleading outer-container
 error. Concrete `Text` parameters preserve their SDK type while still accepting
-string values. Public,
-payload-free SDK enums are swept too: `GeneratedSDKEnums.swift` currently
-coerces 14 types directly from their SDK-declared cases instead of maintaining
-handwritten switches. CI can request a
+string values. Public contextual SDK values are swept too:
+`GeneratedSDKEnums.swift` derives both payload-free enum cases and same-type
+static properties (including nested `OptionSet` values) directly from the
+interfaces instead of maintaining handwritten switches. CI can request a
 stable inventory of emitted signatures and blocker counts with
 `swift run BridgeGen --report-json .build/bridgegen-coverage.json`.
 
