@@ -1376,9 +1376,6 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             break
         }
     }
-    if let marker = value as? HostTypeMarker, marker.name == "ProcessInfo", name == "processInfo" {
-        return .native(ProcessInfoBox())
-    }
     if let box = value as? ProcessInfoBox {
         switch name {
         case "environment":

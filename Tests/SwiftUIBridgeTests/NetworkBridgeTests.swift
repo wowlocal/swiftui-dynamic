@@ -81,6 +81,20 @@ import SwiftInterpreter
                 == "Nuke URLSession")
     }
 
+    /// IceCubes' Nuke 12.8 `ImageCache.init` derives its cost limit from this
+    /// exact read-only SDK-property expression. A compiled native run returns
+    /// the host's physical byte count divided by five; the interpreter must
+    /// retain the `UInt64` payload rather than absorbing the property into an
+    /// unknowable host member.
+    @Test func generatedReadOnlyFoundationPropertyUsesNativePayload() throws {
+        let expected = ProcessInfo.processInfo.physicalMemory / UInt64(5)
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+            let ratio = 0.2
+            ProcessInfo.processInfo.physicalMemory / UInt64(1 / ratio)
+            """)
+        #expect(result.stringified == String(expected))
+    }
+
     @Test func replayMissThrowsHonestly() throws {
         NetworkBridge.policy = .replay(fixturesDirectory: Self.fixturesRoot + "/tmdb-popular")
         defer { NetworkBridge.policy = .absorbed }

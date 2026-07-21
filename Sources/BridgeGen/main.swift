@@ -3437,7 +3437,8 @@ print(
 let requiredPreflightModules = ["_Concurrency", "Foundation", "SwiftUI"]
 let conditionalPreflightModules = Array(Set([
     "Combine", "CoreGraphics", "Darwin", "ObjectiveC",
-] + platformGeneration.coverage.keys)).sorted()
+] + platformGeneration.coverage.keys)
+    .subtracting(requiredPreflightModules)).sorted()
 let preflightModuleSource = (
     requiredPreflightModules.map { "@_exported import \($0)" }
         + conditionalPreflightModules.flatMap {

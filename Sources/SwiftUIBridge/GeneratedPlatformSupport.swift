@@ -461,6 +461,8 @@ enum GeneratedPlatformBridge {
 
     static func frameworkIsNative(_ framework: String) -> Bool {
         switch framework {
+        case "Foundation":
+            true
         case "AppKit":
 #if canImport(AppKit)
             true
@@ -498,11 +500,11 @@ enum GeneratedPlatformBridge {
 
     private static var frameworkPreference: [String] {
 #if canImport(AppKit)
-        ["AppKit", "Metal", "MapKit", "CoreLocation", "UIKit"]
+        ["AppKit", "Foundation", "Metal", "MapKit", "CoreLocation", "UIKit"]
 #elseif canImport(UIKit)
-        ["UIKit", "Metal", "MapKit", "CoreLocation", "AppKit"]
+        ["UIKit", "Foundation", "Metal", "MapKit", "CoreLocation", "AppKit"]
 #else
-        ["Metal", "MapKit", "CoreLocation", "UIKit", "AppKit"]
+        ["Foundation", "Metal", "MapKit", "CoreLocation", "UIKit", "AppKit"]
 #endif
     }
 
