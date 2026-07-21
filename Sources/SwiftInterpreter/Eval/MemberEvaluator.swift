@@ -2111,7 +2111,7 @@ extension Interpreter {
             // hostExtensionStaticMethodDispatcher below for static METHODS
             // of extended host types.)
             let any = baseValue.hostPayload!
-            if let member = runtimeCheckedContinuationMember(name, on: any) {
+            if let member = runtimeContinuationMember(name, on: any) {
                 return member
             }
             if let member = runtimeAsyncStreamMember(name, on: any) {
