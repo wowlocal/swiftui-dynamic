@@ -204,6 +204,67 @@ private final class NativeQueueRecorder: @unchecked Sendable {
         #expect(recorder.box(for: "fired")?.value.boolValue == true)
     }
 
+    /// Nuke combines host-extension overloads, a nested function alias, and a
+    /// source subclass whose unqualified name matches its Foundation base.
+    /// The selected overload must still submit the source instance so its
+    /// interpreted `start()` override runs.
+    @Test func nestedAliasSchedulerKeepsSourceSubclassIdentity() throws {
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: """
+        import Foundation
+
+        final class Recorder {
+            var fired = false
+        }
+
+        final class Operation: Foundation.Operation, @unchecked Sendable {
+            typealias Starter = @Sendable (
+                _ finish: @Sendable @escaping () -> Void
+            ) -> Void
+
+            let starter: Starter
+
+            init(starter: @escaping Starter) {
+                self.starter = starter
+            }
+
+            override func start() {
+                starter({})
+            }
+        }
+
+        extension OperationQueue {
+            func add(
+                _ action: @Sendable @escaping () -> Void
+            ) -> BlockOperation {
+                let operation = BlockOperation(block: action)
+                addOperation(operation)
+                return operation
+            }
+
+            func add(_ starter: @escaping Operation.Starter) -> Operation {
+                let operation = Operation(starter: starter)
+                addOperation(operation)
+                return operation
+            }
+        }
+
+        let recorder = Recorder()
+        let queue = OperationQueue()
+        _ = queue.add { finish in
+            recorder.fired = true
+            finish()
+        }
+        """)
+        MainQueueDrain.drain()
+        guard case .instance(let recorder)? = interpreter.globals.lookup(
+            "recorder") else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(recorder.box(for: "fired")?.value.boolValue == true)
+    }
+
     @Test func viewRegistryWallClockDeliverySurvivesHeadlessReset() async throws {
         let source = """
         final class Recorder {
