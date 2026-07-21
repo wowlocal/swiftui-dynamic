@@ -128,7 +128,8 @@ extension Interpreter {
         // `f<T>(_ subscriber: Box<T>, onValue: () -> Void)` called as
         // `f(box) { ... }`. Use the invocation binder's structural mapping.
         let bound = matchedParameterArguments(
-            parameters, to: args, lexicalOwner: lexicalOwner)
+            parameters, to: args, lexicalOwner: lexicalOwner,
+            allowPositionalLabelMismatch: false)
         let consumedCount = zip(parameters, bound).reduce(into: 0) {
             count, pair in
             let (parameter, value) = pair
@@ -1647,7 +1648,8 @@ extension Interpreter {
     /// and then binding its trailing closure as though it selected another.
     func matchedParameterArguments(
         _ parameters: [ClosureValue.Parameter], to args: CallArguments,
-        lexicalOwner: AnyObject? = nil
+        lexicalOwner: AnyObject? = nil,
+        allowPositionalLabelMismatch: Bool = true
     ) -> [RuntimeValue?] {
         if parameters.count > 1, args.arguments.count == 1,
            let tuple = args.arguments[0].value.tupleValue,
@@ -1698,13 +1700,19 @@ extension Interpreter {
                 positionalCursor += 1
             }
         }
-        // Leftover positionals fill remaining unbound params in order (calls
-        // that pass labeled params positionally — a tolerated looseness).
-        for (index, value) in zip(
-            bound.indices.filter { bound[$0] == nil },
-            positionals[positionalCursor...]
-        ) {
-            bound[index] = value
+        // Internal/host-driven closure calls may only carry positional values,
+        // so invocation retains its historical tolerant fallback. Source
+        // overload fitting is strict: a positional argument cannot make a
+        // labeled declaration participate (UInt(i) must not fit
+        // init?(rawValue:)), while trailing closures still follow SE-0286
+        // below and may bind a labeled function parameter.
+        if allowPositionalLabelMismatch {
+            for (index, value) in zip(
+                bound.indices.filter { bound[$0] == nil },
+                positionals[positionalCursor...]
+            ) {
+                bound[index] = value
+            }
         }
         // The unlabeled trailing closure binds by SE-0286 forward scan: the
         // first unbound function-typed parameter, or the last unbound slot.
