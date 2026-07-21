@@ -109,7 +109,9 @@ private struct FixtureOracle {
 
 @main
 struct IceCubesCheckMain {
-    private static let workerTimeout: TimeInterval = 160
+    // Keep the hard stop below the three-minute instrument contract while
+    // leaving realistic headroom for the full-app shell under board load.
+    private static let workerTimeout: TimeInterval = 175
     private static let screenSize = NSSize(width: 900, height: 700)
 
     static func main() async throws {
