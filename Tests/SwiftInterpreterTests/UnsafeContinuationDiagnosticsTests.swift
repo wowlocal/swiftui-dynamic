@@ -1,58 +1,60 @@
+import Foundation
 import Testing
 @testable import SwiftInterpreter
 
-@Suite("Unsafe continuation diagnostics")
-struct UnsafeContinuationDiagnosticsTests {
-    @Test func unsafeContinuationFailsClosedBeforeOwnership() async throws {
-        try await Self.assertFailsClosed(
-            functionName: "withUnsafeContinuation",
-            bodyFlag: "unsafeContinuationBodyRan",
-            source: """
-            @MainActor var unsafeContinuationBodyRan = false
-            let _: Int = await withUnsafeContinuation(
-                isolation: MainActor.shared
-            ) { continuation in
-                unsafeContinuationBodyRan = true
-                continuation.resume(returning: 33)
-            }
-            """)
-    }
-
-    @Test func unsafeThrowingContinuationFailsClosedBeforeOwnership()
-            async throws {
-        try await Self.assertFailsClosed(
-            functionName: "withUnsafeThrowingContinuation",
-            bodyFlag: "unsafeThrowingContinuationBodyRan",
-            source: """
-            @MainActor var unsafeThrowingContinuationBodyRan = false
-            let _: Int = try await withUnsafeThrowingContinuation(
-                isolation: MainActor.shared
-            ) { continuation in
-                unsafeThrowingContinuationBodyRan = true
-                continuation.resume(returning: 44)
-            }
-            """)
-    }
-
-    private static func assertFailsClosed(
-        functionName: String,
-        bodyFlag: String,
-        source: String
-    ) async throws {
+@Suite("Unsafe continuation runtime")
+struct UnsafeContinuationRuntimeTests {
+    @Test func oneShotUnsafeFormsReturnExactValuesAndCleanUp() async throws {
         let interpreter = Interpreter()
 
-        do {
-            _ = try await interpreter.runAsync(source: source)
-            Issue.record("\(functionName) was silently executed")
-        } catch let error as RuntimeError {
-            #expect(error.message
-                == "\(functionName): unsafe continuation ownership "
-                    + "is unsupported; use a checked continuation")
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        func unsafeContinuationProbe() async throws -> String {
+            let ordinary: Int = await withUnsafeContinuation(
+                isolation: MainActor.shared
+            ) { continuation in
+                continuation.resume(returning: 33)
+            }
+            let throwing: Int = try await withUnsafeThrowingContinuation(
+                isolation: MainActor.shared
+            ) { continuation in
+                continuation.resume(returning: 44)
+            }
+            return "\\(ordinary)|\\(throwing)"
         }
+        try await unsafeContinuationProbe()
+        """)
 
-        #expect(interpreter.globals.lookup(
-            bodyFlag)?.boolValue == false)
-        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 0)
+        #expect(value.stringValue == "33|44")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func delayedResultResumeSharesTransitionsAndCleansUp()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/"
+                + "unsafe-continuation-result-resume.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait unsafeContinuationResultResumeProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "value:29|error:failed|void:resumed")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 3)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 3)
         #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)

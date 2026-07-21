@@ -162,9 +162,16 @@ extension Interpreter {
             } else if intrinsic == .withCheckedThrowingContinuation {
                 function = sourceCheckedContinuationFunction(
                     name: sourceName, allowsThrowingResume: true)
-            } else if intrinsic == .unsupportedUnsafeContinuation {
-                function = sourceUnsupportedUnsafeContinuationFunction(
-                    name: sourceName)
+            } else if intrinsic == .unsafeContinuation {
+                let declarations = GeneratedConcurrencySurface
+                    .topLevelFunctionDeclarations[sourceName, default: []]
+                let throwingEffects = Set(declarations.map(\.isThrowing))
+                precondition(
+                    throwingEffects.count == 1,
+                    "generated unsafe continuation overloads disagree on effects")
+                function = sourceUnsafeContinuationFunction(
+                    name: sourceName,
+                    allowsThrowingResume: throwingEffects.first == true)
             } else if intrinsic == .extractIsolation {
                 function = sourceExtractIsolationFunction(name: sourceName)
             } else if intrinsic == .withCurrentTaskCapability {

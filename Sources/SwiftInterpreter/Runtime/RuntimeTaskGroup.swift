@@ -13,7 +13,7 @@ enum RuntimeTaskGroupKind: CaseIterable, Equatable, Sendable {
         case .unstructuredTask, .detachedTask, .extractIsolation,
              .withCheckedContinuation,
              .withCheckedThrowingContinuation,
-             .unsupportedUnsafeContinuation,
+             .unsafeContinuation,
              .withTaskCancellationHandler,
              .withTaskPriorityEscalationHandler,
              .withTaskExecutorPreference,

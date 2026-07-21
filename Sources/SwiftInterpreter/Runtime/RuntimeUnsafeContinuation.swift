@@ -1,14 +1,11 @@
 extension Interpreter {
-    func sourceUnsupportedUnsafeContinuationFunction(
-        name: String
+    func sourceUnsafeContinuationFunction(
+        name: String,
+        allowsThrowingResume: Bool
     ) -> HostFunction {
-        HostFunction(
+        sourceContinuationFunction(
             name: name,
-            tracksHostOperation: false,
-            asyncInvoke: { _, _ in
-                throw RuntimeError(message:
-                    "\(name): unsafe continuation ownership is unsupported; "
-                        + "use a checked continuation")
-            })
+            policy: .unsafe,
+            allowsThrowingResume: allowsThrowingResume)
     }
 }

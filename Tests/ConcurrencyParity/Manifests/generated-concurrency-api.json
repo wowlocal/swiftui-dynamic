@@ -9510,7 +9510,7 @@
       "returnType" : "GroupResult"
     },
     {
-      "adapterIntrinsic" : "unsupportedUnsafeContinuation",
+      "adapterIntrinsic" : "unsafeContinuation",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@_alwaysEmitIntoClient",
@@ -9650,7 +9650,7 @@
       "returnType" : "T"
     },
     {
-      "adapterIntrinsic" : "unsupportedUnsafeContinuation",
+      "adapterIntrinsic" : "unsafeContinuation",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@_alwaysEmitIntoClient",

@@ -6,8 +6,8 @@
 enum RuntimeConcurrencyFunctionIntrinsic: String, Sendable {
     case detachedTask
     case extractIsolation
+    case unsafeContinuation
     case unstructuredTask
-    case unsupportedUnsafeContinuation
     case withCheckedContinuation
     case withCheckedThrowingContinuation
     case withCurrentTaskCapability
@@ -134,9 +134,9 @@ enum GeneratedConcurrencySurface {
         "withTaskPriorityEscalationHandler": .withTaskPriorityEscalationHandler,
         "withThrowingDiscardingTaskGroup": .withThrowingDiscardingTaskGroup,
         "withThrowingTaskGroup": .withThrowingTaskGroup,
-        "withUnsafeContinuation": .unsupportedUnsafeContinuation,
+        "withUnsafeContinuation": .unsafeContinuation,
         "withUnsafeCurrentTask": .withCurrentTaskCapability,
-        "withUnsafeThrowingContinuation": .unsupportedUnsafeContinuation,
+        "withUnsafeThrowingContinuation": .unsafeContinuation,
     ]
 
     static let knownTopLevelFunctions: Set<String> = [
