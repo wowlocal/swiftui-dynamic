@@ -24,28 +24,28 @@ extension GeneratedConstructors {
     }
 
     private static func build0(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint)]) { v in
+    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
         return AnyView(AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint))
     }
-    register(&t, "AngularGradient", [ParamSpec("colors", .colorArray), ParamSpec("center", .unitPoint)]) { v in
+    register(&t, "AngularGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
         return AnyView(AngularGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint))
     }
-    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint), ParamSpec("endAngle", .angle)]) { v in
+    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
         return AnyView(AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, endAngle: v[2] as! Angle))
     }
-    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint), ParamSpec("startAngle", .angle)]) { v in
+    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle")]) { v in
         return AnyView(AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startAngle: v[2] as! Angle))
     }
-    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint), ParamSpec("angle", .angle)]) { v in
+    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("angle", .angle, contextualType: "Angle")]) { v in
         return AnyView(AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, angle: v[2] as! Angle))
     }
-    register(&t, "AngularGradient", [ParamSpec("colors", .colorArray), ParamSpec("center", .unitPoint), ParamSpec("angle", .angle)]) { v in
+    register(&t, "AngularGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("angle", .angle, contextualType: "Angle")]) { v in
         return AnyView(AngularGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint, angle: v[2] as! Angle))
     }
-    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint), ParamSpec("startAngle", .angle), ParamSpec("endAngle", .angle)]) { v in
+    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
         return AnyView(AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startAngle: v[2] as! Angle, endAngle: v[3] as! Angle))
     }
-    register(&t, "AngularGradient", [ParamSpec("colors", .colorArray), ParamSpec("center", .unitPoint), ParamSpec("startAngle", .angle), ParamSpec("endAngle", .angle)]) { v in
+    register(&t, "AngularGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
         return AnyView(AngularGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint, startAngle: v[2] as! Angle, endAngle: v[3] as! Angle))
     }
     register(&t, "AnyView", [ParamSpec(nil, .anyView)]) { v in
@@ -54,74 +54,74 @@ extension GeneratedConstructors {
     register(&t, "AnyView", [ParamSpec("erasing", .anyView)]) { v in
         return AnyView(AnyView(erasing: v[0] as! AnyView))
     }
-    register(&t, "AsyncImage", [ParamSpec("url", .url)]) { v in
+    register(&t, "AsyncImage", [ParamSpec("url", .url, contextualType: "URL")]) { v in
         return AnyView(AsyncImage(url: v[0] as! URL))
     }
-    register(&t, "AsyncImage", [ParamSpec("url", .url), ParamSpec("scale", .cgFloat)]) { v in
+    register(&t, "AsyncImage", [ParamSpec("url", .url, contextualType: "URL"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(AsyncImage(url: v[0] as! URL, scale: v[1] as! CGFloat))
     }
     register(&t, "Button", [ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Button(action: generatedAction(v[0]), label: { b1 }))
     }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("action", .action)]) { v in
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("action", .action)]) { v in
         return AnyView(Button(LocalizedStringKey(v[0] as! String), action: generatedAction(v[1])))
     }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("systemImage", .string), ParamSpec("action", .action)]) { v in
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("action", .action)]) { v in
         return AnyView(Button(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, action: generatedAction(v[2])))
     }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("image", .string), ParamSpec("action", .action)]) { v in
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("action", .action)]) { v in
         return AnyView(Button(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), action: generatedAction(v[2])))
     }
-    register(&t, "Button", [ParamSpec("role", .buttonRole), ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
+    register(&t, "Button", [ParamSpec("role", .buttonRole, contextualType: "ButtonRole"), ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Button(role: v[0] as! ButtonRole, action: generatedAction(v[1]), label: { b2 }))
     }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("role", .buttonRole), ParamSpec("action", .action)]) { v in
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("role", .buttonRole, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
         return AnyView(Button(LocalizedStringKey(v[0] as! String), role: v[1] as! ButtonRole, action: generatedAction(v[2])))
     }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("systemImage", .string), ParamSpec("role", .buttonRole), ParamSpec("action", .action)]) { v in
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("role", .buttonRole, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
         return AnyView(Button(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, role: v[2] as! ButtonRole, action: generatedAction(v[3])))
     }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("image", .string), ParamSpec("role", .buttonRole), ParamSpec("action", .action)]) { v in
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("role", .buttonRole, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
         return AnyView(Button(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), role: v[2] as! ButtonRole, action: generatedAction(v[3])))
     }
-    register(&t, "Color", [ParamSpec("white", .double)]) { v in
+    register(&t, "Color", [ParamSpec("white", .double, contextualType: "Double")]) { v in
         return AnyView(Color(white: v[0] as! Double))
     }
-    register(&t, "Color", [ParamSpec(nil, .string)]) { v in
+    register(&t, "Color", [ParamSpec(nil, .string, contextualType: "String")]) { v in
         return AnyView(Color(v[0] as! String))
     }
 #if canImport(AppKit)
-    register(&t, "Color", [ParamSpec("nsColor", .platformValue("AppKit", "NSColor"))]) { v in
+    register(&t, "Color", [ParamSpec("nsColor", .platformValue("AppKit", "NSColor"), contextualType: "NSColor")]) { v in
         return AnyView(Color(nsColor: v[0] as! NSColor))
     }
 #endif
-    register(&t, "Color", [ParamSpec("white", .double), ParamSpec("opacity", .double)]) { v in
+    register(&t, "Color", [ParamSpec("white", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return AnyView(Color(white: v[0] as! Double, opacity: v[1] as! Double))
     }
-    register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace")), ParamSpec("white", .double)]) { v in
+    register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("white", .double, contextualType: "Double")]) { v in
         return AnyView(Color(v[0] as! Color.RGBColorSpace, white: v[1] as! Double))
     }
-    register(&t, "Color", [ParamSpec("red", .double), ParamSpec("green", .double), ParamSpec("blue", .double)]) { v in
+    register(&t, "Color", [ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double")]) { v in
         return AnyView(Color(red: v[0] as! Double, green: v[1] as! Double, blue: v[2] as! Double))
     }
-    register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace")), ParamSpec("white", .double), ParamSpec("opacity", .double)]) { v in
+    register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("white", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return AnyView(Color(v[0] as! Color.RGBColorSpace, white: v[1] as! Double, opacity: v[2] as! Double))
     }
-    register(&t, "Color", [ParamSpec("hue", .double), ParamSpec("saturation", .double), ParamSpec("brightness", .double)]) { v in
+    register(&t, "Color", [ParamSpec("hue", .double, contextualType: "Double"), ParamSpec("saturation", .double, contextualType: "Double"), ParamSpec("brightness", .double, contextualType: "Double")]) { v in
         return AnyView(Color(hue: v[0] as! Double, saturation: v[1] as! Double, brightness: v[2] as! Double))
     }
-    register(&t, "Color", [ParamSpec("red", .double), ParamSpec("green", .double), ParamSpec("blue", .double), ParamSpec("opacity", .double)]) { v in
+    register(&t, "Color", [ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return AnyView(Color(red: v[0] as! Double, green: v[1] as! Double, blue: v[2] as! Double, opacity: v[3] as! Double))
     }
-    register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace")), ParamSpec("red", .double), ParamSpec("green", .double), ParamSpec("blue", .double)]) { v in
+    register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double")]) { v in
         return AnyView(Color(v[0] as! Color.RGBColorSpace, red: v[1] as! Double, green: v[2] as! Double, blue: v[3] as! Double))
     }
-    register(&t, "Color", [ParamSpec("hue", .double), ParamSpec("saturation", .double), ParamSpec("brightness", .double), ParamSpec("opacity", .double)]) { v in
+    register(&t, "Color", [ParamSpec("hue", .double, contextualType: "Double"), ParamSpec("saturation", .double, contextualType: "Double"), ParamSpec("brightness", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return AnyView(Color(hue: v[0] as! Double, saturation: v[1] as! Double, brightness: v[2] as! Double, opacity: v[3] as! Double))
     }
-    register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace")), ParamSpec("red", .double), ParamSpec("green", .double), ParamSpec("blue", .double), ParamSpec("opacity", .double)]) { v in
+    register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return AnyView(Color(v[0] as! Color.RGBColorSpace, red: v[1] as! Double, green: v[2] as! Double, blue: v[3] as! Double, opacity: v[4] as! Double))
     }
     register(&t, "ContentUnavailableView", [ParamSpec("label", .builder)]) { v in
@@ -138,10 +138,10 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(ContentUnavailableView(label: { b0 }, description: { b1 }))
     }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("image", .string)]) { v in
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String")]) { v in
         return AnyView(ContentUnavailableView(LocalizedStringKey(v[0] as! String), image: v[1] as! String))
     }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("systemImage", .string)]) { v in
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String")]) { v in
         return AnyView(ContentUnavailableView(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String))
     }
     register(&t, "ContentUnavailableView", [ParamSpec("label", .builder), ParamSpec("description", .builder), ParamSpec("actions", .builder)]) { v in
@@ -150,10 +150,10 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(ContentUnavailableView(label: { b0 }, description: { b1 }, actions: { b2 }))
     }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("image", .string), ParamSpec("description", .text)]) { v in
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String"), ParamSpec("description", .text, contextualType: "Text")]) { v in
         return AnyView(ContentUnavailableView(LocalizedStringKey(v[0] as! String), image: v[1] as! String, description: v[2] as! Text))
     }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("systemImage", .string), ParamSpec("description", .text)]) { v in
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("description", .text, contextualType: "Text")]) { v in
         return AnyView(ContentUnavailableView(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, description: v[2] as! Text))
     }
     }
@@ -168,15 +168,15 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(ControlGroup(content: { b0 }, label: { b1 }))
     }
-    register(&t, "ControlGroup", [ParamSpec(nil, .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "ControlGroup", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(ControlGroup(LocalizedStringKey(v[0] as! String), content: { b1 }))
     }
-    register(&t, "ControlGroup", [ParamSpec(nil, .string), ParamSpec("systemImage", .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "ControlGroup", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(ControlGroup(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, content: { b2 }))
     }
-    register(&t, "ControlGroup", [ParamSpec(nil, .string), ParamSpec("image", .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "ControlGroup", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(ControlGroup(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 }))
     }
@@ -188,68 +188,68 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(DisclosureGroup(content: { b0 }, label: { b1 }))
     }
-    register(&t, "DisclosureGroup", [ParamSpec(nil, .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "DisclosureGroup", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(DisclosureGroup(LocalizedStringKey(v[0] as! String), content: { b1 }))
     }
-    register(&t, "DisclosureGroup", [ParamSpec("isExpanded", .bindingBool), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+    register(&t, "DisclosureGroup", [ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         return AnyView(DisclosureGroup(isExpanded: v[0] as! Binding<Bool>, content: { b1 }, label: { b2 }))
     }
-    register(&t, "DisclosureGroup", [ParamSpec(nil, .string), ParamSpec("isExpanded", .bindingBool), ParamSpec("content", .builder)]) { v in
+    register(&t, "DisclosureGroup", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(DisclosureGroup(LocalizedStringKey(v[0] as! String), isExpanded: v[1] as! Binding<Bool>, content: { b2 }))
     }
     register(&t, "Divider", []) { v in
         return AnyView(Divider())
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient")]) { v in
         return AnyView(EllipticalGradient(gradient: v[0] as! Gradient))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]")]) { v in
         return AnyView(EllipticalGradient(colors: v[0] as! [Color]))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient), ParamSpec("endRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(gradient: v[0] as! Gradient, endRadiusFraction: v[1] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient), ParamSpec("startRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(gradient: v[0] as! Gradient, startRadiusFraction: v[1] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
         return AnyView(EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray), ParamSpec("endRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(colors: v[0] as! [Color], endRadiusFraction: v[1] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray), ParamSpec("startRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(colors: v[0] as! [Color], startRadiusFraction: v[1] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray), ParamSpec("center", .unitPoint)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
         return AnyView(EllipticalGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient), ParamSpec("startRadiusFraction", .cgFloat), ParamSpec("endRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(gradient: v[0] as! Gradient, startRadiusFraction: v[1] as! CGFloat, endRadiusFraction: v[2] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint), ParamSpec("endRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, endRadiusFraction: v[2] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint), ParamSpec("startRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray), ParamSpec("startRadiusFraction", .cgFloat), ParamSpec("endRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(colors: v[0] as! [Color], startRadiusFraction: v[1] as! CGFloat, endRadiusFraction: v[2] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray), ParamSpec("center", .unitPoint), ParamSpec("endRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint, endRadiusFraction: v[2] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray), ParamSpec("center", .unitPoint), ParamSpec("startRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint), ParamSpec("startRadiusFraction", .cgFloat), ParamSpec("endRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat, endRadiusFraction: v[3] as! CGFloat))
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray), ParamSpec("center", .unitPoint), ParamSpec("startRadiusFraction", .cgFloat), ParamSpec("endRadiusFraction", .cgFloat)]) { v in
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(EllipticalGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat, endRadiusFraction: v[3] as! CGFloat))
     }
     register(&t, "EmptyView", []) { v in
@@ -263,7 +263,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(Gauge(value: v[0] as! Double, label: { b1 }))
     }
-    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange), ParamSpec("label", .builder)]) { v in
+    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Gauge(value: v[0] as! Double, in: v[1] as! ClosedRange<Double>, label: { b2 }))
     }
@@ -272,7 +272,7 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(Gauge(value: v[0] as! Double, label: { b1 }, currentValueLabel: { b2 }))
     }
-    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
+    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(Gauge(value: v[0] as! Double, in: v[1] as! ClosedRange<Double>, label: { b2 }, currentValueLabel: { b3 }))
@@ -290,13 +290,13 @@ extension GeneratedConstructors {
         let b4 = try generatedBuilder(v[4])
         return AnyView(Gauge(value: v[0] as! Double, label: { b1 }, currentValueLabel: { b2 }, minimumValueLabel: { b3 }, maximumValueLabel: { b4 }))
     }
-    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("markedValueLabels", .builder)]) { v in
+    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("markedValueLabels", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return AnyView(Gauge(value: v[0] as! Double, in: v[1] as! ClosedRange<Double>, label: { b2 }, currentValueLabel: { b3 }, markedValueLabels: { b4 }))
     }
-    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
+    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
@@ -311,7 +311,7 @@ extension GeneratedConstructors {
         let b5 = try generatedBuilder(v[5])
         return AnyView(Gauge(value: v[0] as! Double, label: { b1 }, currentValueLabel: { b2 }, minimumValueLabel: { b3 }, maximumValueLabel: { b4 }, markedValueLabels: { b5 }))
     }
-    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("markedValueLabels", .builder)]) { v in
+    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("markedValueLabels", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
@@ -326,31 +326,31 @@ extension GeneratedConstructors {
     }
 
     private static func build2(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "Grid", [ParamSpec("verticalSpacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("verticalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Grid(verticalSpacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Grid(horizontalSpacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Grid(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat), ParamSpec("verticalSpacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Grid(horizontalSpacing: v[0] as! CGFloat, verticalSpacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment), ParamSpec("verticalSpacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("verticalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Grid(alignment: v[0] as! Alignment, verticalSpacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment), ParamSpec("horizontalSpacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Grid(alignment: v[0] as! Alignment, horizontalSpacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment), ParamSpec("horizontalSpacing", .cgFloat), ParamSpec("verticalSpacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(Grid(alignment: v[0] as! Alignment, horizontalSpacing: v[1] as! CGFloat, verticalSpacing: v[2] as! CGFloat, content: { b3 }))
     }
@@ -358,7 +358,7 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(GridRow(content: { b0 }))
     }
-    register(&t, "GridRow", [ParamSpec("alignment", .verticalAlignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "GridRow", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(GridRow(alignment: v[0] as! VerticalAlignment, content: { b1 }))
     }
@@ -375,7 +375,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(GroupBox(content: { b0 }, label: { b1 }))
     }
-    register(&t, "GroupBox", [ParamSpec(nil, .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "GroupBox", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(GroupBox(LocalizedStringKey(v[0] as! String), content: { b1 }))
     }
@@ -389,15 +389,15 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(HStack(content: { b0 }))
     }
-    register(&t, "HStack", [ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "HStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(HStack(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "HStack", [ParamSpec("alignment", .verticalAlignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "HStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(HStack(alignment: v[0] as! VerticalAlignment, content: { b1 }))
     }
-    register(&t, "HStack", [ParamSpec("alignment", .verticalAlignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "HStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(HStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
@@ -407,43 +407,43 @@ extension GeneratedConstructors {
     }
 #endif
 #if canImport(AppKit)
-    register(&t, "HelpLink", [ParamSpec("destination", .url)]) { v in
+    register(&t, "HelpLink", [ParamSpec("destination", .url, contextualType: "URL")]) { v in
         return AnyView(HelpLink(destination: v[0] as! URL))
     }
 #endif
-    register(&t, "Image", [ParamSpec(nil, .string)]) { v in
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String")]) { v in
         return AnyView(Image(v[0] as! String))
     }
-    register(&t, "Image", [ParamSpec("decorative", .string)]) { v in
+    register(&t, "Image", [ParamSpec("decorative", .string, contextualType: "String")]) { v in
         return AnyView(Image(decorative: v[0] as! String))
     }
-    register(&t, "Image", [ParamSpec("systemName", .string)]) { v in
+    register(&t, "Image", [ParamSpec("systemName", .string, contextualType: "String")]) { v in
         return AnyView(Image(systemName: v[0] as! String))
     }
-    register(&t, "Image", [ParamSpec("_internalSystemName", .string)]) { v in
+    register(&t, "Image", [ParamSpec("_internalSystemName", .string, contextualType: "String")]) { v in
         return AnyView(Image(_internalSystemName: v[0] as! String))
     }
 #if canImport(AppKit)
-    register(&t, "Image", [ParamSpec("nsImage", .platformValue("AppKit", "NSImage"))]) { v in
+    register(&t, "Image", [ParamSpec("nsImage", .platformValue("AppKit", "NSImage"), contextualType: "NSImage")]) { v in
         return AnyView(Image(nsImage: v[0] as! NSImage))
     }
 #endif
-    register(&t, "Image", [ParamSpec(nil, .string), ParamSpec("label", .text)]) { v in
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("label", .text, contextualType: "Text")]) { v in
         return AnyView(Image(v[0] as! String, label: v[1] as! Text))
     }
-    register(&t, "Image", [ParamSpec("systemName", .string), ParamSpec("variableValue", .double)]) { v in
+    register(&t, "Image", [ParamSpec("systemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double")]) { v in
         return AnyView(Image(systemName: v[0] as! String, variableValue: v[1] as! Double))
     }
-    register(&t, "Image", [ParamSpec("_internalSystemName", .string), ParamSpec("variableValue", .double)]) { v in
+    register(&t, "Image", [ParamSpec("_internalSystemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double")]) { v in
         return AnyView(Image(_internalSystemName: v[0] as! String, variableValue: v[1] as! Double))
     }
-    register(&t, "Image", [ParamSpec(nil, .string), ParamSpec("variableValue", .double)]) { v in
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double")]) { v in
         return AnyView(Image(v[0] as! String, variableValue: v[1] as! Double))
     }
-    register(&t, "Image", [ParamSpec("decorative", .string), ParamSpec("variableValue", .double)]) { v in
+    register(&t, "Image", [ParamSpec("decorative", .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double")]) { v in
         return AnyView(Image(decorative: v[0] as! String, variableValue: v[1] as! Double))
     }
-    register(&t, "Image", [ParamSpec(nil, .string), ParamSpec("variableValue", .double), ParamSpec("label", .text)]) { v in
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double"), ParamSpec("label", .text, contextualType: "Text")]) { v in
         return AnyView(Image(v[0] as! String, variableValue: v[1] as! Double, label: v[2] as! Text))
     }
     register(&t, "Label", [ParamSpec("title", .builder), ParamSpec("icon", .builder)]) { v in
@@ -451,10 +451,10 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(Label(title: { b0 }, icon: { b1 }))
     }
-    register(&t, "Label", [ParamSpec(nil, .string), ParamSpec("image", .string)]) { v in
+    register(&t, "Label", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String")]) { v in
         return AnyView(Label(LocalizedStringKey(v[0] as! String), image: v[1] as! String))
     }
-    register(&t, "Label", [ParamSpec(nil, .string), ParamSpec("systemImage", .string)]) { v in
+    register(&t, "Label", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String")]) { v in
         return AnyView(Label(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String))
     }
     register(&t, "LabeledContent", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
@@ -462,29 +462,29 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(LabeledContent(content: { b0 }, label: { b1 }))
     }
-    register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "LabeledContent", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LabeledContent(LocalizedStringKey(v[0] as! String), content: { b1 }))
     }
-    register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .string)]) { v in
+    register(&t, "LabeledContent", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("value", .string)]) { v in
         return AnyView(LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! String))
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], content: { b1 }))
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems), ParamSpec("alignment", .verticalAlignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, content: { b2 }))
     }
     }
 
     private static func build3(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems), ParamSpec("alignment", .verticalAlignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
@@ -492,31 +492,31 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(LazyHStack(content: { b0 }))
     }
-    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyHStack(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "LazyHStack", [ParamSpec("alignment", .verticalAlignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyHStack(alignment: v[0] as! VerticalAlignment, content: { b1 }))
     }
-    register(&t, "LazyHStack", [ParamSpec("alignment", .verticalAlignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], content: { b1 }))
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems), ParamSpec("alignment", .horizontalAlignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, content: { b2 }))
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems), ParamSpec("alignment", .horizontalAlignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
@@ -524,29 +524,29 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(LazyVStack(content: { b0 }))
     }
-    register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyVStack(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .horizontalAlignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyVStack(alignment: v[0] as! HorizontalAlignment, content: { b1 }))
     }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .horizontalAlignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "LinearGradient", [ParamSpec("gradient", .gradient), ParamSpec("startPoint", .unitPoint), ParamSpec("endPoint", .unitPoint)]) { v in
+    register(&t, "LinearGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startPoint", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endPoint", .unitPoint, contextualType: "UnitPoint")]) { v in
         return AnyView(LinearGradient(gradient: v[0] as! Gradient, startPoint: v[1] as! UnitPoint, endPoint: v[2] as! UnitPoint))
     }
-    register(&t, "LinearGradient", [ParamSpec("colors", .colorArray), ParamSpec("startPoint", .unitPoint), ParamSpec("endPoint", .unitPoint)]) { v in
+    register(&t, "LinearGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("startPoint", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endPoint", .unitPoint, contextualType: "UnitPoint")]) { v in
         return AnyView(LinearGradient(colors: v[0] as! [Color], startPoint: v[1] as! UnitPoint, endPoint: v[2] as! UnitPoint))
     }
-    register(&t, "Link", [ParamSpec("destination", .url), ParamSpec("label", .builder)]) { v in
+    register(&t, "Link", [ParamSpec("destination", .url, contextualType: "URL"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Link(destination: v[0] as! URL, label: { b1 }))
     }
-    register(&t, "Link", [ParamSpec(nil, .string), ParamSpec("destination", .url)]) { v in
+    register(&t, "Link", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("destination", .url, contextualType: "URL")]) { v in
         return AnyView(Link(LocalizedStringKey(v[0] as! String), destination: v[1] as! URL))
     }
     register(&t, "List", [ParamSpec("content", .builder)]) { v in
@@ -558,7 +558,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(Menu(content: { b0 }, label: { b1 }))
     }
-    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "Menu", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Menu(LocalizedStringKey(v[0] as! String), content: { b1 }))
     }
@@ -567,23 +567,23 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(Menu(content: { b0 }, label: { b1 }, primaryAction: generatedAction(v[2])))
     }
-    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
+    register(&t, "Menu", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Menu(LocalizedStringKey(v[0] as! String), content: { b1 }, primaryAction: generatedAction(v[2])))
     }
-    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("systemImage", .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "Menu", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Menu(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, content: { b2 }))
     }
-    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("image", .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "Menu", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Menu(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 }))
     }
-    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("systemImage", .string), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
+    register(&t, "Menu", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Menu(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, content: { b2 }, primaryAction: generatedAction(v[3])))
     }
-    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("image", .string), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
+    register(&t, "Menu", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Menu(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 }, primaryAction: generatedAction(v[3])))
     }
@@ -592,7 +592,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(NavigationLink(destination: { b0 }, label: { b1 }))
     }
-    register(&t, "NavigationLink", [ParamSpec(nil, .string), ParamSpec("destination", .builder)]) { v in
+    register(&t, "NavigationLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("destination", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(NavigationLink(LocalizedStringKey(v[0] as! String), destination: { b1 }))
     }
@@ -614,10 +614,10 @@ extension GeneratedConstructors {
     register(&t, "NewDocumentButton", []) { v in
         return AnyView(NewDocumentButton())
     }
-    register(&t, "NewDocumentButton", [ParamSpec(nil, .text)]) { v in
+    register(&t, "NewDocumentButton", [ParamSpec(nil, .text, contextualType: "Text")]) { v in
         return AnyView(NewDocumentButton(v[0] as! Text))
     }
-    register(&t, "NewDocumentButton", [ParamSpec(nil, .string)]) { v in
+    register(&t, "NewDocumentButton", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { v in
         return AnyView(NewDocumentButton(LocalizedStringKey(v[0] as! String)))
     }
     register(&t, "ProgressView", []) { v in
@@ -627,7 +627,7 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(ProgressView(label: { b0 }))
     }
-    register(&t, "ProgressView", [ParamSpec(nil, .string)]) { v in
+    register(&t, "ProgressView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { v in
         return AnyView(ProgressView(LocalizedStringKey(v[0] as! String)))
     }
     register(&t, "ProgressView", [ParamSpec("value", .double)]) { v in
@@ -643,7 +643,7 @@ extension GeneratedConstructors {
     }
 
     private static func build4(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "ProgressView", [ParamSpec(nil, .string), ParamSpec("value", .double)]) { v in
+    register(&t, "ProgressView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("value", .double)]) { v in
         return AnyView(ProgressView(LocalizedStringKey(v[0] as! String), value: v[1] as! Double))
     }
     register(&t, "ProgressView", [ParamSpec("value", .double), ParamSpec("total", .double), ParamSpec("label", .builder)]) { v in
@@ -655,7 +655,7 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(ProgressView(value: v[0] as! Double, label: { b1 }, currentValueLabel: { b2 }))
     }
-    register(&t, "ProgressView", [ParamSpec(nil, .string), ParamSpec("value", .double), ParamSpec("total", .double)]) { v in
+    register(&t, "ProgressView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("value", .double), ParamSpec("total", .double)]) { v in
         return AnyView(ProgressView(LocalizedStringKey(v[0] as! String), value: v[1] as! Double, total: v[2] as! Double))
     }
     register(&t, "ProgressView", [ParamSpec("value", .double), ParamSpec("total", .double), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
@@ -663,10 +663,10 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return AnyView(ProgressView(value: v[0] as! Double, total: v[1] as! Double, label: { b2 }, currentValueLabel: { b3 }))
     }
-    register(&t, "RadialGradient", [ParamSpec("gradient", .gradient), ParamSpec("center", .unitPoint), ParamSpec("startRadius", .cgFloat), ParamSpec("endRadius", .cgFloat)]) { v in
+    register(&t, "RadialGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(RadialGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadius: v[2] as! CGFloat, endRadius: v[3] as! CGFloat))
     }
-    register(&t, "RadialGradient", [ParamSpec("colors", .colorArray), ParamSpec("center", .unitPoint), ParamSpec("startRadius", .cgFloat), ParamSpec("endRadius", .cgFloat)]) { v in
+    register(&t, "RadialGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(RadialGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint, startRadius: v[2] as! CGFloat, endRadius: v[3] as! CGFloat))
     }
     register(&t, "RenameButton", []) { v in
@@ -676,7 +676,7 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(ScrollView(content: { b0 }))
     }
-    register(&t, "ScrollView", [ParamSpec(nil, .axisSet), ParamSpec("content", .builder)]) { v in
+    register(&t, "ScrollView", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(ScrollView(v[0] as! Axis.Set, content: { b1 }))
     }
@@ -694,7 +694,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(Section(content: { b0 }, header: { b1 }))
     }
-    register(&t, "Section", [ParamSpec(nil, .string), ParamSpec("content", .builder)]) { v in
+    register(&t, "Section", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Section(LocalizedStringKey(v[0] as! String), content: { b1 }))
     }
@@ -704,26 +704,26 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(Section(content: { b0 }, header: { b1 }, footer: { b2 }))
     }
-    register(&t, "Section", [ParamSpec(nil, .string), ParamSpec("isExpanded", .bindingBool), ParamSpec("content", .builder)]) { v in
+    register(&t, "Section", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Section(LocalizedStringKey(v[0] as! String), isExpanded: v[1] as! Binding<Bool>, content: { b2 }))
     }
-    register(&t, "Section", [ParamSpec("isExpanded", .bindingBool), ParamSpec("content", .builder), ParamSpec("header", .builder)]) { v in
+    register(&t, "Section", [ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("header", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         return AnyView(Section(isExpanded: v[0] as! Binding<Bool>, content: { b1 }, header: { b2 }))
     }
-    register(&t, "SecureField", [ParamSpec("text", .bindingString), ParamSpec("label", .builder)]) { v in
+    register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(SecureField(text: v[0] as! Binding<String>, label: { b1 }))
     }
-    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString)]) { v in
+    register(&t, "SecureField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
         return AnyView(SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>))
     }
-    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString), ParamSpec("prompt", .text)]) { v in
+    register(&t, "SecureField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text")]) { v in
         return AnyView(SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: v[2] as! Text))
     }
-    register(&t, "SecureField", [ParamSpec("text", .bindingString), ParamSpec("prompt", .text), ParamSpec("label", .builder)]) { v in
+    register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(SecureField(text: v[0] as! Binding<String>, prompt: v[1] as! Text, label: { b2 }))
     }
@@ -738,147 +738,147 @@ extension GeneratedConstructors {
         return AnyView(SettingsLink(label: { b0 }))
     }
 #endif
-    register(&t, "ShareLink", [ParamSpec("item", .url)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL")]) { v in
         return AnyView(ShareLink(item: v[0] as! URL))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String")]) { v in
         return AnyView(ShareLink(item: v[0] as! String))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(ShareLink(item: v[0] as! URL, label: { b1 }))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(ShareLink(item: v[0] as! String, label: { b1 }))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(item: v[0] as! URL, message: v[1] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url), ParamSpec("subject", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(item: v[0] as! URL, subject: v[1] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(item: v[0] as! String, message: v[1] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string), ParamSpec("subject", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(item: v[0] as! String, subject: v[1] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL")]) { v in
         return AnyView(ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String")]) { v in
         return AnyView(ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text), ParamSpec("item", .url)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL")]) { v in
         return AnyView(ShareLink(v[0] as! Text, item: v[1] as! URL))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text), ParamSpec("item", .string)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String")]) { v in
         return AnyView(ShareLink(v[0] as! Text, item: v[1] as! String))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url), ParamSpec("message", .text), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(ShareLink(item: v[0] as! URL, message: v[1] as! Text, label: { b2 }))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url), ParamSpec("subject", .text), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(ShareLink(item: v[0] as! URL, subject: v[1] as! Text, label: { b2 }))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string), ParamSpec("message", .text), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(ShareLink(item: v[0] as! String, message: v[1] as! Text, label: { b2 }))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string), ParamSpec("subject", .text), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(ShareLink(item: v[0] as! String, subject: v[1] as! Text, label: { b2 }))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url), ParamSpec("subject", .text), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(item: v[0] as! URL, subject: v[1] as! Text, message: v[2] as! Text))
     }
     }
 
     private static func build5(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "ShareLink", [ParamSpec("item", .string), ParamSpec("subject", .text), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(item: v[0] as! String, subject: v[1] as! Text, message: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, message: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url), ParamSpec("subject", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, message: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string), ParamSpec("subject", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text), ParamSpec("item", .url), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(v[0] as! Text, item: v[1] as! URL, message: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text), ParamSpec("item", .url), ParamSpec("subject", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(v[0] as! Text, item: v[1] as! URL, subject: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text), ParamSpec("item", .string), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(v[0] as! Text, item: v[1] as! String, message: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text), ParamSpec("item", .string), ParamSpec("subject", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(v[0] as! Text, item: v[1] as! String, subject: v[2] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url), ParamSpec("subject", .text), ParamSpec("message", .text), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(ShareLink(item: v[0] as! URL, subject: v[1] as! Text, message: v[2] as! Text, label: { b3 }))
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string), ParamSpec("subject", .text), ParamSpec("message", .text), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(ShareLink(item: v[0] as! String, subject: v[1] as! Text, message: v[2] as! Text, label: { b3 }))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url), ParamSpec("subject", .text), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: v[2] as! Text, message: v[3] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string), ParamSpec("subject", .text), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: v[2] as! Text, message: v[3] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text), ParamSpec("item", .url), ParamSpec("subject", .text), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(v[0] as! Text, item: v[1] as! URL, subject: v[2] as! Text, message: v[3] as! Text))
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text), ParamSpec("item", .string), ParamSpec("subject", .text), ParamSpec("message", .text)]) { v in
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
         return AnyView(ShareLink(v[0] as! Text, item: v[1] as! String, subject: v[2] as! Text, message: v[3] as! Text))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>")]) { v in
         return AnyView(Slider(value: v[0] as! Binding<Double>))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Slider(value: v[0] as! Binding<Double>, label: { b1 }))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble), ParamSpec("in", .doubleRange)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>")]) { v in
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble), ParamSpec("in", .doubleRange), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 }))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble), ParamSpec("in", .doubleRange), ParamSpec("step", .double)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double)]) { v in
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(Slider(value: v[0] as! Binding<Double>, label: { b1 }, minimumValueLabel: { b2 }, maximumValueLabel: { b3 }))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble), ParamSpec("in", .doubleRange), ParamSpec("step", .double), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, label: { b3 }))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble), ParamSpec("in", .doubleRange), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 }, minimumValueLabel: { b3 }, maximumValueLabel: { b4 }))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble), ParamSpec("in", .doubleRange), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         let b5 = try generatedBuilder(v[5])
@@ -887,67 +887,67 @@ extension GeneratedConstructors {
     register(&t, "Spacer", []) { v in
         return AnyView(Spacer())
     }
-    register(&t, "Spacer", [ParamSpec("minLength", .cgFloat)]) { v in
+    register(&t, "Spacer", [ParamSpec("minLength", .cgFloat, contextualType: "CGFloat")]) { v in
         return AnyView(Spacer(minLength: v[0] as! CGFloat))
     }
     register(&t, "TabView", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(TabView(content: { b0 }))
     }
-    register(&t, "Text", [ParamSpec("verbatim", .string)]) { v in
+    register(&t, "Text", [ParamSpec("verbatim", .string, contextualType: "String")]) { v in
         return AnyView(Text(verbatim: v[0] as! String))
     }
     register(&t, "Text", [ParamSpec(nil, .string)]) { v in
         return AnyView(Text(v[0] as! String))
     }
-    register(&t, "Text", [ParamSpec(nil, .string), ParamSpec("tableName", .string)]) { v in
+    register(&t, "Text", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("tableName", .string, contextualType: "String")]) { v in
         return AnyView(Text(LocalizedStringKey(v[0] as! String), tableName: v[1] as! String))
     }
-    register(&t, "TextEditor", [ParamSpec("text", .bindingString)]) { v in
+    register(&t, "TextEditor", [ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
         return AnyView(TextEditor(text: v[0] as! Binding<String>))
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(TextField(text: v[0] as! Binding<String>, label: { b1 }))
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString)]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
         return AnyView(TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>))
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString), ParamSpec("axis", .axis)]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
         return AnyView(TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, axis: v[2] as! Axis))
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString), ParamSpec("axis", .axis), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(TextField(text: v[0] as! Binding<String>, axis: v[1] as! Axis, label: { b2 }))
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString), ParamSpec("prompt", .text)]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text")]) { v in
         return AnyView(TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: v[2] as! Text))
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString), ParamSpec("prompt", .text), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(TextField(text: v[0] as! Binding<String>, prompt: v[1] as! Text, label: { b2 }))
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString), ParamSpec("prompt", .text), ParamSpec("axis", .axis)]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
         return AnyView(TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: v[2] as! Text, axis: v[3] as! Axis))
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString), ParamSpec("prompt", .text), ParamSpec("axis", .axis), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(TextField(text: v[0] as! Binding<String>, prompt: v[1] as! Text, axis: v[2] as! Axis, label: { b3 }))
     }
-    register(&t, "Toggle", [ParamSpec("isOn", .bindingBool), ParamSpec("label", .builder)]) { v in
+    register(&t, "Toggle", [ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(Toggle(isOn: v[0] as! Binding<Bool>, label: { b1 }))
     }
     }
 
     private static func build6(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("isOn", .bindingBool)]) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
         return AnyView(Toggle(LocalizedStringKey(v[0] as! String), isOn: v[1] as! Binding<Bool>))
     }
-    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("systemImage", .string), ParamSpec("isOn", .bindingBool)]) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
         return AnyView(Toggle(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, isOn: v[2] as! Binding<Bool>))
     }
-    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("image", .string), ParamSpec("isOn", .bindingBool)]) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
         return AnyView(Toggle(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), isOn: v[2] as! Binding<Bool>))
     }
 #if canImport(AppKit)
@@ -960,15 +960,15 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(VStack(content: { b0 }))
     }
-    register(&t, "VStack", [ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "VStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(VStack(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "VStack", [ParamSpec("alignment", .horizontalAlignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "VStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(VStack(alignment: v[0] as! HorizontalAlignment, content: { b1 }))
     }
-    register(&t, "VStack", [ParamSpec("alignment", .horizontalAlignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { v in
+    register(&t, "VStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(VStack(alignment: v[0] as! HorizontalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
@@ -976,12 +976,12 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(ViewThatFits(content: { b0 }))
     }
-    register(&t, "ViewThatFits", [ParamSpec("in", .axisSet), ParamSpec("content", .builder)]) { v in
+    register(&t, "ViewThatFits", [ParamSpec("in", .axisSet, contextualType: "Axis.Set"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(ViewThatFits(in: v[0] as! Axis.Set, content: { b1 }))
     }
 #if canImport(AppKit)
-    register(&t, "WindowVisibilityToggle", [ParamSpec("windowID", .string)]) { v in
+    register(&t, "WindowVisibilityToggle", [ParamSpec("windowID", .string, contextualType: "String")]) { v in
         return AnyView(WindowVisibilityToggle(windowID: v[0] as! String))
     }
 #endif
@@ -989,7 +989,7 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(ZStack(content: { b0 }))
     }
-    register(&t, "ZStack", [ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { v in
+    register(&t, "ZStack", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(ZStack(alignment: v[0] as! Alignment, content: { b1 }))
     }

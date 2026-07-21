@@ -150,6 +150,22 @@ import SwiftInterpreter
         }
     }
 
+    /// IceCubes' DesignSystem extends Font with scaledBody/scaledSubheadline.
+    /// Native Swift resolves the leading-dot member from font(_:) parameter
+    /// context; the bridge must do the same for every source extension static.
+    @Test func sourceExtensionStaticUsesGeneratedParameterTypeContext() throws {
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        @MainActor
+        extension Font {
+            static var fixtureScaledBody: Font { .body }
+        }
+
+        Text("typed source static").font(.fixtureScaledBody)
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func generatedConstructorsDispatchThroughRealRendering() throws {
         // None of these View inits were ever hand-written.
         let source = """

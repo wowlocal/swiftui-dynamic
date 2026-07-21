@@ -87,10 +87,6 @@ extension ViewRegistry {
 
         // MARK: Text styling
 
-        register("font") { view, args, _ in
-            guard let value = args.positional(0) else { throw RuntimeError(message: ".font needs an argument") }
-            return AnyView(view.font(try Coerce.font(value)))
-        }
         register("bold") { view, _, _ in AnyView(view.bold()) }
         register("italic") { view, _, _ in AnyView(view.italic()) }
         register("monospaced") { view, _, _ in AnyView(view.monospaced()) }

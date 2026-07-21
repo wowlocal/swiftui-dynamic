@@ -84,13 +84,25 @@ struct TypeMapping {
     let tag: String
     let cast: String
     let requiredFramework: String?
+    /// The concrete interface type that supplies contextual leading-dot
+    /// members. This is carried into generated dispatch rather than inferred
+    /// from a handwritten tag-to-type table.
+    let contextualType: String?
 
     init(
-        tag: String, cast: String, requiredFramework: String? = nil
+        tag: String, cast: String, requiredFramework: String? = nil,
+        contextualType: String? = nil
     ) {
         self.tag = tag
         self.cast = cast
         self.requiredFramework = requiredFramework
+        self.contextualType = contextualType
+    }
+
+    func contextualized(as type: String) -> TypeMapping {
+        .init(
+            tag: tag, cast: cast, requiredFramework: requiredFramework,
+            contextualType: type)
     }
 }
 
@@ -374,7 +386,8 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
     if let facts = generics[normalized] {
         switch facts {
         case .concrete(let concrete):
-            if let mapping = directMapping(for: concrete) {
+            if let mapping = directMapping(for: concrete)?
+                .contextualized(as: concrete) {
                 return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: concrete)
             }
             return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "== \(concrete)", usesGeneric: normalized)
@@ -386,7 +399,8 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
                          blocker: "<\(set.sorted().joined(separator: "&"))>", usesGeneric: normalized)
         }
     }
-    if let mapping = directMapping(for: normalized) {
+    if let mapping = directMapping(for: normalized)?
+        .contextualized(as: normalized) {
         return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
     }
     // Compound types over constrained generics (`ClosedRange<V>` with
@@ -400,9 +414,12 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         case .constraints(let set):
             concrete = set.count == 1 ? constraintConcreteType(for: set.first!) : nil
         }
-        if let concrete,
-           let mapping = directMapping(
-            for: normalized.replacingOccurrences(of: "<\(name)>", with: "<\(concrete)>")) {
+        let specialized = concrete.map {
+            normalized.replacingOccurrences(of: "<\(name)>", with: "<\($0)>")
+        }
+        if let specialized,
+           let mapping = directMapping(for: specialized)?
+            .contextualized(as: specialized) {
             return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: name, genericConcrete: concrete)
         }
     }
@@ -635,16 +652,19 @@ struct EmittableParam {
     /// modifiers and constructors still use their ParamTag-only boundary.
     let contractType: String?
     let requiredFramework: String?
+    let contextualType: String?
 
     init(
         label: String?, tag: String, cast: String,
-        contractType: String? = nil, requiredFramework: String? = nil
+        contractType: String? = nil, requiredFramework: String? = nil,
+        contextualType: String? = nil
     ) {
         self.label = label
         self.tag = tag
         self.cast = cast
         self.contractType = contractType
         self.requiredFramework = requiredFramework
+        self.contextualType = contextualType
     }
 }
 
@@ -731,7 +751,8 @@ func processModifier(
                 .init(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
-                    requiredFramework: $0.mapping!.requiredFramework)
+                    requiredFramework: $0.mapping!.requiredFramework,
+                    contextualType: $0.mapping!.contextualType)
             },
             inheritedFrameworkRequirements: frameworkRequirements.union(
                 platformFrameworkRequirements(function.attributes))
@@ -812,7 +833,8 @@ func processInit(
                 .init(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
-                    requiredFramework: $0.mapping!.requiredFramework)
+                    requiredFramework: $0.mapping!.requiredFramework,
+                    contextualType: $0.mapping!.contextualType)
             },
             inheritedFrameworkRequirements: frameworkRequirements.union(
                 platformFrameworkRequirements(initDecl.attributes))
@@ -1968,9 +1990,17 @@ guard emitMode else { exit(0) }
 
 let cMemoryGeneration = try generateCMemoryBridge(sdkPath: sdk)
 
+func paramSpecCode(_ parameter: EmittableParam) -> String {
+    let label = parameter.label.map { "\"\($0)\"" } ?? "nil"
+    let context = parameter.contextualType.map {
+        ", contextualType: \"\($0)\""
+    } ?? ""
+    return "ParamSpec(\(label), .\(parameter.tag)\(context))"
+}
+
 func entryCode(_ variant: Variant) -> String {
     let specs = variant.params
-        .map { "ParamSpec(\($0.label.map { "\"\($0)\"" } ?? "nil"), .\($0.tag))" }
+        .map(paramSpecCode)
         .joined(separator: ", ")
     let argList = variant.params.enumerated()
         .map { index, param in
@@ -2044,7 +2074,7 @@ print("\nwrote \(outputPath) (\(sorted.count) variants)")
 
 func initEntryCode(_ variant: Variant) -> String {
     let specs = variant.params
-        .map { "ParamSpec(\($0.label.map { "\"\($0)\"" } ?? "nil"), .\($0.tag))" }
+        .map(paramSpecCode)
         .joined(separator: ", ")
     let argList = variant.params.enumerated()
         .map { index, param in

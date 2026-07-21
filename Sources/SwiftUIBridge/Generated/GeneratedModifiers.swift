@@ -33,115 +33,115 @@ extension GeneratedModifiers {
     }
 
     private static func build0(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "accessibilityAction", [ParamSpec("named", .text), ParamSpec(nil, .action)]) { view, v in
+    register(&t, "accessibilityAction", [ParamSpec("named", .text, contextualType: "Text"), ParamSpec(nil, .action)]) { view, v in
         return AnyView(view.accessibilityAction(named: v[0] as! Text, generatedAction(v[1])))
     }
     register(&t, "accessibilityAction", [ParamSpec("action", .action), ParamSpec("label", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.accessibilityAction(action: generatedAction(v[0]), label: { b1 }))
     }
-    register(&t, "accessibilityAction", [ParamSpec("named", .string), ParamSpec(nil, .action)]) { view, v in
+    register(&t, "accessibilityAction", [ParamSpec("named", .string, contextualType: "LocalizedStringKey"), ParamSpec(nil, .action)]) { view, v in
         return AnyView(view.accessibilityAction(named: LocalizedStringKey(v[0] as! String), generatedAction(v[1])))
     }
     register(&t, "accessibilityActions", [ParamSpec(nil, .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.accessibilityActions({ b0 }))
     }
-    register(&t, "accessibilityActivationPoint", [ParamSpec(nil, .unitPoint)]) { view, v in
+    register(&t, "accessibilityActivationPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.accessibilityActivationPoint(v[0] as! UnitPoint))
     }
-    register(&t, "accessibilityActivationPoint", [ParamSpec(nil, .unitPoint), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityActivationPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityActivationPoint(v[0] as! UnitPoint, isEnabled: v[1] as! Bool))
     }
     register(&t, "accessibilityChildren", [ParamSpec("children", .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.accessibilityChildren(children: { b0 }))
     }
-    register(&t, "accessibilityCustomContent", [ParamSpec(nil, .text), ParamSpec(nil, .text)]) { view, v in
+    register(&t, "accessibilityCustomContent", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.accessibilityCustomContent(v[0] as! Text, v[1] as! Text))
     }
-    register(&t, "accessibilityCustomContent", [ParamSpec(nil, .string), ParamSpec(nil, .text)]) { view, v in
+    register(&t, "accessibilityCustomContent", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.accessibilityCustomContent(LocalizedStringKey(v[0] as! String), v[1] as! Text))
     }
-    register(&t, "accessibilityCustomContent", [ParamSpec(nil, .string), ParamSpec(nil, .string)]) { view, v in
+    register(&t, "accessibilityCustomContent", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.accessibilityCustomContent(LocalizedStringKey(v[0] as! String), LocalizedStringKey(v[1] as! String)))
     }
     register(&t, "accessibilityDirectTouch", []) { view, v in
         return AnyView(view.accessibilityDirectTouch())
     }
-    register(&t, "accessibilityDirectTouch", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "accessibilityDirectTouch", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityDirectTouch(v[0] as! Bool))
     }
-    register(&t, "accessibilityDragPoint", [ParamSpec(nil, .unitPoint), ParamSpec("description", .text)]) { view, v in
+    register(&t, "accessibilityDragPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("description", .text, contextualType: "Text")]) { view, v in
         return AnyView(view.accessibilityDragPoint(v[0] as! UnitPoint, description: v[1] as! Text))
     }
-    register(&t, "accessibilityDragPoint", [ParamSpec(nil, .unitPoint), ParamSpec("description", .string)]) { view, v in
+    register(&t, "accessibilityDragPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("description", .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.accessibilityDragPoint(v[0] as! UnitPoint, description: LocalizedStringKey(v[1] as! String)))
     }
-    register(&t, "accessibilityDragPoint", [ParamSpec(nil, .unitPoint), ParamSpec("description", .text), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityDragPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("description", .text, contextualType: "Text"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityDragPoint(v[0] as! UnitPoint, description: v[1] as! Text, isEnabled: v[2] as! Bool))
     }
-    register(&t, "accessibilityDragPoint", [ParamSpec(nil, .unitPoint), ParamSpec("description", .string), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityDragPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("description", .string, contextualType: "LocalizedStringKey"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityDragPoint(v[0] as! UnitPoint, description: LocalizedStringKey(v[1] as! String), isEnabled: v[2] as! Bool))
     }
-    register(&t, "accessibilityDropPoint", [ParamSpec(nil, .unitPoint), ParamSpec("description", .text)]) { view, v in
+    register(&t, "accessibilityDropPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("description", .text, contextualType: "Text")]) { view, v in
         return AnyView(view.accessibilityDropPoint(v[0] as! UnitPoint, description: v[1] as! Text))
     }
-    register(&t, "accessibilityDropPoint", [ParamSpec(nil, .unitPoint), ParamSpec("description", .string)]) { view, v in
+    register(&t, "accessibilityDropPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("description", .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.accessibilityDropPoint(v[0] as! UnitPoint, description: LocalizedStringKey(v[1] as! String)))
     }
-    register(&t, "accessibilityDropPoint", [ParamSpec(nil, .unitPoint), ParamSpec("description", .text), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityDropPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("description", .text, contextualType: "Text"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityDropPoint(v[0] as! UnitPoint, description: v[1] as! Text, isEnabled: v[2] as! Bool))
     }
-    register(&t, "accessibilityDropPoint", [ParamSpec(nil, .unitPoint), ParamSpec("description", .string), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityDropPoint", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint"), ParamSpec("description", .string, contextualType: "LocalizedStringKey"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityDropPoint(v[0] as! UnitPoint, description: LocalizedStringKey(v[1] as! String), isEnabled: v[2] as! Bool))
     }
     register(&t, "accessibilityElement", []) { view, v in
         return AnyView(view.accessibilityElement())
     }
-    register(&t, "accessibilityHeading", [ParamSpec(nil, .sdkEnum("AccessibilityHeadingLevel"))]) { view, v in
+    register(&t, "accessibilityHeading", [ParamSpec(nil, .sdkEnum("AccessibilityHeadingLevel"), contextualType: "AccessibilityHeadingLevel")]) { view, v in
         return AnyView(view.accessibilityHeading(v[0] as! AccessibilityHeadingLevel))
     }
-    register(&t, "accessibilityHidden", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "accessibilityHidden", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityHidden(v[0] as! Bool))
     }
-    register(&t, "accessibilityHidden", [ParamSpec(nil, .bool), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityHidden", [ParamSpec(nil, .bool, contextualType: "Bool"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityHidden(v[0] as! Bool, isEnabled: v[1] as! Bool))
     }
-    register(&t, "accessibilityHint", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "accessibilityHint", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.accessibilityHint(v[0] as! Text))
     }
-    register(&t, "accessibilityHint", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "accessibilityHint", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.accessibilityHint(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "accessibilityHint", [ParamSpec(nil, .text), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityHint", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityHint(v[0] as! Text, isEnabled: v[1] as! Bool))
     }
-    register(&t, "accessibilityHint", [ParamSpec(nil, .string), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityHint", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityHint(LocalizedStringKey(v[0] as! String), isEnabled: v[1] as! Bool))
     }
-    register(&t, "accessibilityIdentifier", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "accessibilityIdentifier", [ParamSpec(nil, .string, contextualType: "String")]) { view, v in
         return AnyView(view.accessibilityIdentifier(v[0] as! String))
     }
-    register(&t, "accessibilityIdentifier", [ParamSpec(nil, .string), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityIdentifier", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityIdentifier(v[0] as! String, isEnabled: v[1] as! Bool))
     }
     register(&t, "accessibilityIgnoresInvertColors", []) { view, v in
         return AnyView(view.accessibilityIgnoresInvertColors())
     }
-    register(&t, "accessibilityIgnoresInvertColors", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "accessibilityIgnoresInvertColors", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityIgnoresInvertColors(v[0] as! Bool))
     }
-    register(&t, "accessibilityLabel", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "accessibilityLabel", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.accessibilityLabel(v[0] as! Text))
     }
-    register(&t, "accessibilityLabel", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "accessibilityLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.accessibilityLabel(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "accessibilityLabel", [ParamSpec(nil, .text), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityLabel", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityLabel(v[0] as! Text, isEnabled: v[1] as! Bool))
     }
-    register(&t, "accessibilityLabel", [ParamSpec(nil, .string), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityLabel(LocalizedStringKey(v[0] as! String), isEnabled: v[1] as! Bool))
     }
     register(&t, "accessibilityRepresentation", [ParamSpec("representation", .builder)]) { view, v in
@@ -151,10 +151,10 @@ extension GeneratedModifiers {
     register(&t, "accessibilityRespondsToUserInteraction", []) { view, v in
         return AnyView(view.accessibilityRespondsToUserInteraction())
     }
-    register(&t, "accessibilityRespondsToUserInteraction", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "accessibilityRespondsToUserInteraction", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityRespondsToUserInteraction(v[0] as! Bool))
     }
-    register(&t, "accessibilityRespondsToUserInteraction", [ParamSpec(nil, .bool), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityRespondsToUserInteraction", [ParamSpec(nil, .bool, contextualType: "Bool"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityRespondsToUserInteraction(v[0] as! Bool, isEnabled: v[1] as! Bool))
     }
     }
@@ -167,49 +167,49 @@ extension GeneratedModifiers {
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.accessibilityShowsLargeContentViewer({ b0 }))
     }
-    register(&t, "accessibilitySortPriority", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "accessibilitySortPriority", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.accessibilitySortPriority(v[0] as! Double))
     }
-    register(&t, "accessibilityValue", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "accessibilityValue", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.accessibilityValue(v[0] as! Text))
     }
-    register(&t, "accessibilityValue", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "accessibilityValue", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.accessibilityValue(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "accessibilityValue", [ParamSpec(nil, .text), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityValue", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityValue(v[0] as! Text, isEnabled: v[1] as! Bool))
     }
-    register(&t, "accessibilityValue", [ParamSpec(nil, .string), ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "accessibilityValue", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.accessibilityValue(LocalizedStringKey(v[0] as! String), isEnabled: v[1] as! Bool))
     }
-    register(&t, "alert", [ParamSpec(nil, .string), ParamSpec("isPresented", .bindingBool), ParamSpec("actions", .builder)]) { view, v in
+    register(&t, "alert", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("actions", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.alert(LocalizedStringKey(v[0] as! String), isPresented: v[1] as! Binding<Bool>, actions: { b2 }))
     }
-    register(&t, "alert", [ParamSpec(nil, .text), ParamSpec("isPresented", .bindingBool), ParamSpec("actions", .builder)]) { view, v in
+    register(&t, "alert", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("actions", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.alert(v[0] as! Text, isPresented: v[1] as! Binding<Bool>, actions: { b2 }))
     }
-    register(&t, "alert", [ParamSpec(nil, .string), ParamSpec("isPresented", .bindingBool), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
+    register(&t, "alert", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.alert(LocalizedStringKey(v[0] as! String), isPresented: v[1] as! Binding<Bool>, actions: { b2 }, message: { b3 }))
     }
-    register(&t, "alert", [ParamSpec(nil, .text), ParamSpec("isPresented", .bindingBool), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
+    register(&t, "alert", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.alert(v[0] as! Text, isPresented: v[1] as! Binding<Bool>, actions: { b2 }, message: { b3 }))
     }
-    register(&t, "allowsHitTesting", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "allowsHitTesting", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.allowsHitTesting(v[0] as! Bool))
     }
-    register(&t, "allowsTightening", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "allowsTightening", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.allowsTightening(v[0] as! Bool))
     }
     register(&t, "allowsWindowActivationEvents", []) { view, v in
         return AnyView(view.allowsWindowActivationEvents())
     }
-    register(&t, "allowsWindowActivationEvents", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "allowsWindowActivationEvents", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.allowsWindowActivationEvents(v[0] as! Bool))
     }
 #if canImport(AppKit)
@@ -217,22 +217,22 @@ extension GeneratedModifiers {
         return AnyView(view.alternatingRowBackgrounds())
     }
 #endif
-    register(&t, "animation", [ParamSpec(nil, .animation)]) { view, v in
+    register(&t, "animation", [ParamSpec(nil, .animation, contextualType: "Animation")]) { view, v in
         return AnyView(view.animation(v[0] as! Animation))
     }
-    register(&t, "animation", [ParamSpec(nil, .animation), ParamSpec("value", .equatable)]) { view, v in
+    register(&t, "animation", [ParamSpec(nil, .animation, contextualType: "Animation"), ParamSpec("value", .equatable)]) { view, v in
         return AnyView(view.animation(v[0] as! Animation, value: v[1] as! String))
     }
-    register(&t, "aspectRatio", [ParamSpec("contentMode", .contentMode)]) { view, v in
+    register(&t, "aspectRatio", [ParamSpec("contentMode", .contentMode, contextualType: "ContentMode")]) { view, v in
         return AnyView(view.aspectRatio(contentMode: v[0] as! ContentMode))
     }
-    register(&t, "aspectRatio", [ParamSpec(nil, .cgFloat), ParamSpec("contentMode", .contentMode)]) { view, v in
+    register(&t, "aspectRatio", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat"), ParamSpec("contentMode", .contentMode, contextualType: "ContentMode")]) { view, v in
         return AnyView(view.aspectRatio(v[0] as! CGFloat, contentMode: v[1] as! ContentMode))
     }
     register(&t, "autocorrectionDisabled", []) { view, v in
         return AnyView(view.autocorrectionDisabled())
     }
-    register(&t, "autocorrectionDisabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "autocorrectionDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.autocorrectionDisabled(v[0] as! Bool))
     }
     register(&t, "background", []) { view, v in
@@ -242,7 +242,7 @@ extension GeneratedModifiers {
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.background(content: { b0 }))
     }
-    register(&t, "background", [ParamSpec("ignoresSafeAreaEdges", .edgeSet)]) { view, v in
+    register(&t, "background", [ParamSpec("ignoresSafeAreaEdges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
         return AnyView(view.background(ignoresSafeAreaEdges: v[0] as! Edge.Set))
     }
     register(&t, "background", [ParamSpec(nil, .shapeStyle)]) { view, v in
@@ -251,11 +251,11 @@ extension GeneratedModifiers {
     register(&t, "background", [ParamSpec("in", .shape)]) { view, v in
         return AnyView(view.background(in: v[0] as! AnyShape))
     }
-    register(&t, "background", [ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "background", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.background(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "background", [ParamSpec(nil, .shapeStyle), ParamSpec("ignoresSafeAreaEdges", .edgeSet)]) { view, v in
+    register(&t, "background", [ParamSpec(nil, .shapeStyle), ParamSpec("ignoresSafeAreaEdges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
         return AnyView(view.background(v[0] as! AnyShapeStyle, ignoresSafeAreaEdges: v[1] as! Edge.Set))
     }
     register(&t, "background", [ParamSpec(nil, .shapeStyle), ParamSpec("in", .shape)]) { view, v in
@@ -264,31 +264,31 @@ extension GeneratedModifiers {
     register(&t, "backgroundStyle", [ParamSpec(nil, .shapeStyle)]) { view, v in
         return AnyView(view.backgroundStyle(v[0] as! AnyShapeStyle))
     }
-    register(&t, "badge", [ParamSpec(nil, .int)]) { view, v in
+    register(&t, "badge", [ParamSpec(nil, .int, contextualType: "Int")]) { view, v in
         return AnyView(view.badge(v[0] as! Int))
     }
-    register(&t, "badge", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "badge", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.badge(v[0] as! Text))
     }
-    register(&t, "badge", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "badge", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.badge(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "baselineOffset", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "baselineOffset", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.baselineOffset(v[0] as! CGFloat))
     }
-    register(&t, "blendMode", [ParamSpec(nil, .sdkEnum("BlendMode"))]) { view, v in
+    register(&t, "blendMode", [ParamSpec(nil, .sdkEnum("BlendMode"), contextualType: "BlendMode")]) { view, v in
         return AnyView(view.blendMode(v[0] as! BlendMode))
     }
-    register(&t, "blur", [ParamSpec("radius", .cgFloat)]) { view, v in
+    register(&t, "blur", [ParamSpec("radius", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.blur(radius: v[0] as! CGFloat))
     }
-    register(&t, "blur", [ParamSpec("radius", .cgFloat), ParamSpec("opaque", .bool)]) { view, v in
+    register(&t, "blur", [ParamSpec("radius", .cgFloat, contextualType: "CGFloat"), ParamSpec("opaque", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.blur(radius: v[0] as! CGFloat, opaque: v[1] as! Bool))
     }
     register(&t, "bold", []) { view, v in
         return AnyView(view.bold())
     }
-    register(&t, "bold", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "bold", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.bold(v[0] as! Bool))
     }
     }
@@ -297,10 +297,10 @@ extension GeneratedModifiers {
     register(&t, "border", [ParamSpec(nil, .shapeStyle)]) { view, v in
         return AnyView(view.border(v[0] as! AnyShapeStyle))
     }
-    register(&t, "border", [ParamSpec(nil, .shapeStyle), ParamSpec("width", .cgFloat)]) { view, v in
+    register(&t, "border", [ParamSpec(nil, .shapeStyle), ParamSpec("width", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.border(v[0] as! AnyShapeStyle, width: v[1] as! CGFloat))
     }
-    register(&t, "brightness", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "brightness", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.brightness(v[0] as! Double))
     }
     register(&t, "chartForegroundStyleScale", []) { view, v in
@@ -313,121 +313,121 @@ extension GeneratedModifiers {
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.chartLegend(content: { b0 }))
     }
-    register(&t, "chartLegend", [ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartLegend(spacing: v[0] as! CGFloat))
     }
-    register(&t, "chartLegend", [ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.chartLegend(alignment: v[0] as! Alignment))
     }
-    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition")]) { view, v in
         return AnyView(view.chartLegend(position: v[0] as! AnnotationPosition))
     }
-    register(&t, "chartLegend", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.chartLegend(v[0] as! Visibility))
     }
-    register(&t, "chartLegend", [ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartLegend(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "chartLegend", [ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartLegend(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartLegend(position: v[0] as! AnnotationPosition, content: { b1 }))
     }
-    register(&t, "chartLegend", [ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartLegend(alignment: v[0] as! Alignment, spacing: v[1] as! CGFloat))
     }
-    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartLegend(position: v[0] as! AnnotationPosition, spacing: v[1] as! CGFloat))
     }
-    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.chartLegend(position: v[0] as! AnnotationPosition, alignment: v[1] as! Alignment))
     }
-    register(&t, "chartLegend", [ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartLegend(alignment: v[0] as! Alignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartLegend(position: v[0] as! AnnotationPosition, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartLegend(position: v[0] as! AnnotationPosition, alignment: v[1] as! Alignment, content: { b2 }))
     }
-    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartLegend(position: v[0] as! AnnotationPosition, alignment: v[1] as! Alignment, spacing: v[2] as! CGFloat))
     }
-    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartLegend", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.chartLegend(position: v[0] as! AnnotationPosition, alignment: v[1] as! Alignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
-    register(&t, "chartScrollableAxes", [ParamSpec(nil, .axisSet)]) { view, v in
+    register(&t, "chartScrollableAxes", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set")]) { view, v in
         return AnyView(view.chartScrollableAxes(v[0] as! Axis.Set))
     }
     register(&t, "chartSymbolSizeScale", []) { view, v in
         return AnyView(view.chartSymbolSizeScale())
     }
-    register(&t, "chartXAxis", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "chartXAxis", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.chartXAxis(v[0] as! Visibility))
     }
     register(&t, "chartXAxisLabel", [ParamSpec("content", .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.chartXAxisLabel(content: { b0 }))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.chartXAxisLabel(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartXAxisLabel(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartXAxisLabel(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec("position", .annotationPosition), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartXAxisLabel(position: v[0] as! AnnotationPosition, content: { b1 }))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartXAxisLabel(LocalizedStringKey(v[0] as! String), spacing: v[1] as! CGFloat))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.chartXAxisLabel(LocalizedStringKey(v[0] as! String), alignment: v[1] as! Alignment))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string), ParamSpec("position", .annotationPosition)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition")]) { view, v in
         return AnyView(view.chartXAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartXAxisLabel(alignment: v[0] as! Alignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec("position", .annotationPosition), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartXAxisLabel(position: v[0] as! AnnotationPosition, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartXAxisLabel(position: v[0] as! AnnotationPosition, alignment: v[1] as! Alignment, content: { b2 }))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string), ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartXAxisLabel(LocalizedStringKey(v[0] as! String), alignment: v[1] as! Alignment, spacing: v[2] as! CGFloat))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string), ParamSpec("position", .annotationPosition), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartXAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, spacing: v[2] as! CGFloat))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string), ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.chartXAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, alignment: v[2] as! Alignment))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.chartXAxisLabel(position: v[0] as! AnnotationPosition, alignment: v[1] as! Alignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
-    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string), ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartXAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartXAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, alignment: v[2] as! Alignment, spacing: v[3] as! CGFloat))
     }
     }
@@ -436,63 +436,63 @@ extension GeneratedModifiers {
     register(&t, "chartXScale", []) { view, v in
         return AnyView(view.chartXScale())
     }
-    register(&t, "chartYAxis", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "chartYAxis", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.chartYAxis(v[0] as! Visibility))
     }
     register(&t, "chartYAxisLabel", [ParamSpec("content", .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.chartYAxisLabel(content: { b0 }))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.chartYAxisLabel(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartYAxisLabel(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartYAxisLabel(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec("position", .annotationPosition), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.chartYAxisLabel(position: v[0] as! AnnotationPosition, content: { b1 }))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartYAxisLabel(LocalizedStringKey(v[0] as! String), spacing: v[1] as! CGFloat))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.chartYAxisLabel(LocalizedStringKey(v[0] as! String), alignment: v[1] as! Alignment))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string), ParamSpec("position", .annotationPosition)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition")]) { view, v in
         return AnyView(view.chartYAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartYAxisLabel(alignment: v[0] as! Alignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec("position", .annotationPosition), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartYAxisLabel(position: v[0] as! AnnotationPosition, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.chartYAxisLabel(position: v[0] as! AnnotationPosition, alignment: v[1] as! Alignment, content: { b2 }))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string), ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartYAxisLabel(LocalizedStringKey(v[0] as! String), alignment: v[1] as! Alignment, spacing: v[2] as! CGFloat))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string), ParamSpec("position", .annotationPosition), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartYAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, spacing: v[2] as! CGFloat))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string), ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.chartYAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, alignment: v[2] as! Alignment))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.chartYAxisLabel(position: v[0] as! AnnotationPosition, alignment: v[1] as! Alignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
-    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string), ParamSpec("position", .annotationPosition), ParamSpec("alignment", .alignment), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "chartYAxisLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.chartYAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, alignment: v[2] as! Alignment, spacing: v[3] as! CGFloat))
     }
     register(&t, "chartYScale", []) { view, v in
@@ -504,88 +504,88 @@ extension GeneratedModifiers {
     register(&t, "clipped", []) { view, v in
         return AnyView(view.clipped())
     }
-    register(&t, "clipped", [ParamSpec("antialiased", .bool)]) { view, v in
+    register(&t, "clipped", [ParamSpec("antialiased", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.clipped(antialiased: v[0] as! Bool))
     }
     register(&t, "colorInvert", []) { view, v in
         return AnyView(view.colorInvert())
     }
-    register(&t, "colorMultiply", [ParamSpec(nil, .color)]) { view, v in
+    register(&t, "colorMultiply", [ParamSpec(nil, .color, contextualType: "Color")]) { view, v in
         return AnyView(view.colorMultiply(v[0] as! Color))
     }
     register(&t, "compositingGroup", []) { view, v in
         return AnyView(view.compositingGroup())
     }
-    register(&t, "confirmationDialog", [ParamSpec(nil, .string), ParamSpec("isPresented", .bindingBool), ParamSpec("actions", .builder)]) { view, v in
+    register(&t, "confirmationDialog", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("actions", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.confirmationDialog(LocalizedStringKey(v[0] as! String), isPresented: v[1] as! Binding<Bool>, actions: { b2 }))
     }
-    register(&t, "confirmationDialog", [ParamSpec(nil, .text), ParamSpec("isPresented", .bindingBool), ParamSpec("actions", .builder)]) { view, v in
+    register(&t, "confirmationDialog", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("actions", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.confirmationDialog(v[0] as! Text, isPresented: v[1] as! Binding<Bool>, actions: { b2 }))
     }
-    register(&t, "confirmationDialog", [ParamSpec(nil, .string), ParamSpec("isPresented", .bindingBool), ParamSpec("titleVisibility", .visibility), ParamSpec("actions", .builder)]) { view, v in
+    register(&t, "confirmationDialog", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("titleVisibility", .visibility, contextualType: "Visibility"), ParamSpec("actions", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.confirmationDialog(LocalizedStringKey(v[0] as! String), isPresented: v[1] as! Binding<Bool>, titleVisibility: v[2] as! Visibility, actions: { b3 }))
     }
-    register(&t, "confirmationDialog", [ParamSpec(nil, .text), ParamSpec("isPresented", .bindingBool), ParamSpec("titleVisibility", .visibility), ParamSpec("actions", .builder)]) { view, v in
+    register(&t, "confirmationDialog", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("titleVisibility", .visibility, contextualType: "Visibility"), ParamSpec("actions", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.confirmationDialog(v[0] as! Text, isPresented: v[1] as! Binding<Bool>, titleVisibility: v[2] as! Visibility, actions: { b3 }))
     }
-    register(&t, "confirmationDialog", [ParamSpec(nil, .string), ParamSpec("isPresented", .bindingBool), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
+    register(&t, "confirmationDialog", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.confirmationDialog(LocalizedStringKey(v[0] as! String), isPresented: v[1] as! Binding<Bool>, actions: { b2 }, message: { b3 }))
     }
-    register(&t, "confirmationDialog", [ParamSpec(nil, .text), ParamSpec("isPresented", .bindingBool), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
+    register(&t, "confirmationDialog", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.confirmationDialog(v[0] as! Text, isPresented: v[1] as! Binding<Bool>, actions: { b2 }, message: { b3 }))
     }
-    register(&t, "confirmationDialog", [ParamSpec(nil, .string), ParamSpec("isPresented", .bindingBool), ParamSpec("titleVisibility", .visibility), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
+    register(&t, "confirmationDialog", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("titleVisibility", .visibility, contextualType: "Visibility"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return AnyView(view.confirmationDialog(LocalizedStringKey(v[0] as! String), isPresented: v[1] as! Binding<Bool>, titleVisibility: v[2] as! Visibility, actions: { b3 }, message: { b4 }))
     }
-    register(&t, "confirmationDialog", [ParamSpec(nil, .text), ParamSpec("isPresented", .bindingBool), ParamSpec("titleVisibility", .visibility), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
+    register(&t, "confirmationDialog", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("titleVisibility", .visibility, contextualType: "Visibility"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return AnyView(view.confirmationDialog(v[0] as! Text, isPresented: v[1] as! Binding<Bool>, titleVisibility: v[2] as! Visibility, actions: { b3 }, message: { b4 }))
     }
-    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet)]) { view, v in
+    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set")]) { view, v in
         return AnyView(view.containerRelativeFrame(v[0] as! Axis.Set))
     }
-    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.containerRelativeFrame(v[0] as! Axis.Set, alignment: v[1] as! Alignment))
     }
-    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet), ParamSpec("count", .int), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("count", .int, contextualType: "Int"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.containerRelativeFrame(v[0] as! Axis.Set, count: v[1] as! Int, spacing: v[2] as! CGFloat))
     }
-    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet), ParamSpec("count", .int), ParamSpec("spacing", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("count", .int, contextualType: "Int"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.containerRelativeFrame(v[0] as! Axis.Set, count: v[1] as! Int, spacing: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet), ParamSpec("count", .int), ParamSpec("span", .int), ParamSpec("spacing", .cgFloat)]) { view, v in
+    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("count", .int, contextualType: "Int"), ParamSpec("span", .int, contextualType: "Int"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.containerRelativeFrame(v[0] as! Axis.Set, count: v[1] as! Int, span: v[2] as! Int, spacing: v[3] as! CGFloat))
     }
-    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet), ParamSpec("count", .int), ParamSpec("span", .int), ParamSpec("spacing", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "containerRelativeFrame", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("count", .int, contextualType: "Int"), ParamSpec("span", .int, contextualType: "Int"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.containerRelativeFrame(v[0] as! Axis.Set, count: v[1] as! Int, span: v[2] as! Int, spacing: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "contentMargins", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "contentMargins", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.contentMargins(v[0] as! CGFloat))
     }
     }
 
     private static func build4(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "contentMargins", [ParamSpec(nil, .edgeSet), ParamSpec(nil, .edgeInsets)]) { view, v in
+    register(&t, "contentMargins", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set"), ParamSpec(nil, .edgeInsets, contextualType: "EdgeInsets")]) { view, v in
         return AnyView(view.contentMargins(v[0] as! Edge.Set, v[1] as! EdgeInsets))
     }
-    register(&t, "contentMargins", [ParamSpec(nil, .edgeSet), ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "contentMargins", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set"), ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.contentMargins(v[0] as! Edge.Set, v[1] as! CGFloat))
     }
     register(&t, "contentShape", [ParamSpec(nil, .shape)]) { view, v in
         return AnyView(view.contentShape(v[0] as! AnyShape))
     }
-    register(&t, "contentShape", [ParamSpec(nil, .shape), ParamSpec("eoFill", .bool)]) { view, v in
+    register(&t, "contentShape", [ParamSpec(nil, .shape), ParamSpec("eoFill", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.contentShape(v[0] as! AnyShape, eoFill: v[1] as! Bool))
     }
     register(&t, "contextMenu", [ParamSpec("menuItems", .builder)]) { view, v in
@@ -597,51 +597,51 @@ extension GeneratedModifiers {
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.contextMenu(menuItems: { b0 }, preview: { b1 }))
     }
-    register(&t, "contrast", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "contrast", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.contrast(v[0] as! Double))
     }
-    register(&t, "controlSize", [ParamSpec(nil, .sdkEnum("ControlSize"))]) { view, v in
+    register(&t, "controlSize", [ParamSpec(nil, .sdkEnum("ControlSize"), contextualType: "ControlSize")]) { view, v in
         return AnyView(view.controlSize(v[0] as! ControlSize))
     }
-    register(&t, "defaultScrollAnchor", [ParamSpec(nil, .unitPoint)]) { view, v in
+    register(&t, "defaultScrollAnchor", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.defaultScrollAnchor(v[0] as! UnitPoint))
     }
-    register(&t, "deleteDisabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "deleteDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.deleteDisabled(v[0] as! Bool))
     }
-    register(&t, "dialogSuppressionToggle", [ParamSpec("isSuppressed", .bindingBool)]) { view, v in
+    register(&t, "dialogSuppressionToggle", [ParamSpec("isSuppressed", .bindingBool, contextualType: "Binding<Bool>")]) { view, v in
         return AnyView(view.dialogSuppressionToggle(isSuppressed: v[0] as! Binding<Bool>))
     }
-    register(&t, "dialogSuppressionToggle", [ParamSpec(nil, .string), ParamSpec("isSuppressed", .bindingBool)]) { view, v in
+    register(&t, "dialogSuppressionToggle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("isSuppressed", .bindingBool, contextualType: "Binding<Bool>")]) { view, v in
         return AnyView(view.dialogSuppressionToggle(LocalizedStringKey(v[0] as! String), isSuppressed: v[1] as! Binding<Bool>))
     }
-    register(&t, "dialogSuppressionToggle", [ParamSpec(nil, .text), ParamSpec("isSuppressed", .bindingBool)]) { view, v in
+    register(&t, "dialogSuppressionToggle", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isSuppressed", .bindingBool, contextualType: "Binding<Bool>")]) { view, v in
         return AnyView(view.dialogSuppressionToggle(v[0] as! Text, isSuppressed: v[1] as! Binding<Bool>))
     }
-    register(&t, "disabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "disabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.disabled(v[0] as! Bool))
     }
 #if canImport(AppKit)
-    register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .string), ParamSpec("shouldPresent", .bool), ParamSpec("actions", .builder)]) { view, v in
+    register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("shouldPresent", .bool, contextualType: "Bool"), ParamSpec("actions", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.dismissalConfirmationDialog(LocalizedStringKey(v[0] as! String), shouldPresent: v[1] as! Bool, actions: { b2 }))
     }
 #endif
 #if canImport(AppKit)
-    register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .text), ParamSpec("shouldPresent", .bool), ParamSpec("actions", .builder)]) { view, v in
+    register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("shouldPresent", .bool, contextualType: "Bool"), ParamSpec("actions", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.dismissalConfirmationDialog(v[0] as! Text, shouldPresent: v[1] as! Bool, actions: { b2 }))
     }
 #endif
 #if canImport(AppKit)
-    register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .string), ParamSpec("shouldPresent", .bool), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
+    register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("shouldPresent", .bool, contextualType: "Bool"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.dismissalConfirmationDialog(LocalizedStringKey(v[0] as! String), shouldPresent: v[1] as! Bool, actions: { b2 }, message: { b3 }))
     }
 #endif
 #if canImport(AppKit)
-    register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .text), ParamSpec("shouldPresent", .bool), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
+    register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("shouldPresent", .bool, contextualType: "Bool"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.dismissalConfirmationDialog(v[0] as! Text, shouldPresent: v[1] as! Bool, actions: { b2 }, message: { b3 }))
@@ -650,58 +650,58 @@ extension GeneratedModifiers {
     register(&t, "drawingGroup", []) { view, v in
         return AnyView(view.drawingGroup())
     }
-    register(&t, "drawingGroup", [ParamSpec("colorMode", .sdkEnum("ColorRenderingMode"))]) { view, v in
+    register(&t, "drawingGroup", [ParamSpec("colorMode", .sdkEnum("ColorRenderingMode"), contextualType: "ColorRenderingMode")]) { view, v in
         return AnyView(view.drawingGroup(colorMode: v[0] as! ColorRenderingMode))
     }
-    register(&t, "drawingGroup", [ParamSpec("opaque", .bool)]) { view, v in
+    register(&t, "drawingGroup", [ParamSpec("opaque", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.drawingGroup(opaque: v[0] as! Bool))
     }
-    register(&t, "drawingGroup", [ParamSpec("opaque", .bool), ParamSpec("colorMode", .sdkEnum("ColorRenderingMode"))]) { view, v in
+    register(&t, "drawingGroup", [ParamSpec("opaque", .bool, contextualType: "Bool"), ParamSpec("colorMode", .sdkEnum("ColorRenderingMode"), contextualType: "ColorRenderingMode")]) { view, v in
         return AnyView(view.drawingGroup(opaque: v[0] as! Bool, colorMode: v[1] as! ColorRenderingMode))
     }
-    register(&t, "dynamicTypeSize", [ParamSpec(nil, .sdkEnum("DynamicTypeSize"))]) { view, v in
+    register(&t, "dynamicTypeSize", [ParamSpec(nil, .sdkEnum("DynamicTypeSize"), contextualType: "DynamicTypeSize")]) { view, v in
         return AnyView(view.dynamicTypeSize(v[0] as! DynamicTypeSize))
     }
     register(&t, "fileDialogConfirmationLabel", [ParamSpec(nil, .string)]) { view, v in
         return AnyView(view.fileDialogConfirmationLabel(v[0] as! String))
     }
-    register(&t, "fileDialogConfirmationLabel", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "fileDialogConfirmationLabel", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.fileDialogConfirmationLabel(v[0] as! Text))
     }
-    register(&t, "fileDialogCustomizationID", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "fileDialogCustomizationID", [ParamSpec(nil, .string, contextualType: "String")]) { view, v in
         return AnyView(view.fileDialogCustomizationID(v[0] as! String))
     }
-    register(&t, "fileDialogDefaultDirectory", [ParamSpec(nil, .url)]) { view, v in
+    register(&t, "fileDialogDefaultDirectory", [ParamSpec(nil, .url, contextualType: "URL")]) { view, v in
         return AnyView(view.fileDialogDefaultDirectory(v[0] as! URL))
     }
-    register(&t, "fileDialogImportsUnresolvedAliases", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "fileDialogImportsUnresolvedAliases", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.fileDialogImportsUnresolvedAliases(v[0] as! Bool))
     }
-    register(&t, "fileDialogMessage", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "fileDialogMessage", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.fileDialogMessage(v[0] as! Text))
     }
-    register(&t, "fileDialogMessage", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "fileDialogMessage", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.fileDialogMessage(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "fileExporterFilenameLabel", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "fileExporterFilenameLabel", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.fileExporterFilenameLabel(v[0] as! Text))
     }
-    register(&t, "fileExporterFilenameLabel", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "fileExporterFilenameLabel", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.fileExporterFilenameLabel(LocalizedStringKey(v[0] as! String)))
     }
     register(&t, "fixedSize", []) { view, v in
         return AnyView(view.fixedSize())
     }
-    register(&t, "fixedSize", [ParamSpec("horizontal", .bool), ParamSpec("vertical", .bool)]) { view, v in
+    register(&t, "fixedSize", [ParamSpec("horizontal", .bool, contextualType: "Bool"), ParamSpec("vertical", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.fixedSize(horizontal: v[0] as! Bool, vertical: v[1] as! Bool))
     }
-    register(&t, "flipsForRightToLeftLayoutDirection", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "flipsForRightToLeftLayoutDirection", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.flipsForRightToLeftLayoutDirection(v[0] as! Bool))
     }
     register(&t, "focusEffectDisabled", []) { view, v in
         return AnyView(view.focusEffectDisabled())
     }
-    register(&t, "focusEffectDisabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "focusEffectDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.focusEffectDisabled(v[0] as! Bool))
     }
 #if canImport(AppKit)
@@ -712,19 +712,19 @@ extension GeneratedModifiers {
     register(&t, "focusable", []) { view, v in
         return AnyView(view.focusable())
     }
-    register(&t, "focusable", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "focusable", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.focusable(v[0] as! Bool))
     }
     }
 
     private static func build5(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "font", [ParamSpec(nil, .font)]) { view, v in
+    register(&t, "font", [ParamSpec(nil, .font, contextualType: "Font")]) { view, v in
         return AnyView(view.font(v[0] as! Font))
     }
-    register(&t, "fontDesign", [ParamSpec(nil, .sdkEnum("Font.Design"))]) { view, v in
+    register(&t, "fontDesign", [ParamSpec(nil, .sdkEnum("Font.Design"), contextualType: "Font.Design")]) { view, v in
         return AnyView(view.fontDesign(v[0] as! Font.Design))
     }
-    register(&t, "fontWeight", [ParamSpec(nil, .fontWeight)]) { view, v in
+    register(&t, "fontWeight", [ParamSpec(nil, .fontWeight, contextualType: "Font.Weight")]) { view, v in
         return AnyView(view.fontWeight(v[0] as! Font.Weight))
     }
     register(&t, "foregroundStyle", [ParamSpec(nil, .shapeStyle)]) { view, v in
@@ -739,439 +739,439 @@ extension GeneratedModifiers {
     register(&t, "frame", []) { view, v in
         return AnyView(view.frame())
     }
-    register(&t, "frame", [ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(alignment: v[0] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("height", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("height", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(height: v[0] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("width", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("width", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(width: v[0] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxHeight: v[0] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealHeight: v[0] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minHeight: v[0] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("height", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("height", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(height: v[0] as! CGFloat, alignment: v[1] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("width", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("width", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(width: v[0] as! CGFloat, alignment: v[1] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("width", .cgFloat), ParamSpec("height", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("width", .cgFloat, contextualType: "CGFloat"), ParamSpec("height", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(width: v[0] as! CGFloat, height: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxHeight: v[0] as! CGFloat, alignment: v[1] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealHeight: v[0] as! CGFloat, alignment: v[1] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealHeight: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minHeight: v[0] as! CGFloat, alignment: v[1] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minHeight: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minHeight: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, alignment: v[1] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, alignment: v[1] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, alignment: v[1] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("minHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat))
     }
     }
 
     private static func build6(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "frame", [ParamSpec("width", .cgFloat), ParamSpec("height", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("width", .cgFloat, contextualType: "CGFloat"), ParamSpec("height", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(width: v[0] as! CGFloat, height: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealHeight: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minHeight: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minHeight: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minHeight: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, alignment: v[2] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minHeight: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
     }
 
     private static func build7(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, alignment: v[3] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, minHeight: v[3] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(maxWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, minHeight: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
     }
 
     private static func build8(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, idealHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, maxHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, minHeight: v[3] as! CGFloat, alignment: v[4] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, minHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, minHeight: v[3] as! CGFloat, idealHeight: v[4] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(idealWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat, alignment: v[5] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, maxWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat, alignment: v[5] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, minHeight: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat, alignment: v[5] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, idealHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat, alignment: v[5] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, minHeight: v[3] as! CGFloat, maxHeight: v[4] as! CGFloat, alignment: v[5] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, minHeight: v[3] as! CGFloat, idealHeight: v[4] as! CGFloat, alignment: v[5] as! Alignment))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, minHeight: v[3] as! CGFloat, idealHeight: v[4] as! CGFloat, maxHeight: v[5] as! CGFloat))
     }
-    register(&t, "frame", [ParamSpec("minWidth", .cgFloat), ParamSpec("idealWidth", .cgFloat), ParamSpec("maxWidth", .cgFloat), ParamSpec("minHeight", .cgFloat), ParamSpec("idealHeight", .cgFloat), ParamSpec("maxHeight", .cgFloat), ParamSpec("alignment", .alignment)]) { view, v in
+    register(&t, "frame", [ParamSpec("minWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("minHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("idealHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("maxHeight", .cgFloat, contextualType: "CGFloat"), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
         return AnyView(view.frame(minWidth: v[0] as! CGFloat, idealWidth: v[1] as! CGFloat, maxWidth: v[2] as! CGFloat, minHeight: v[3] as! CGFloat, idealHeight: v[4] as! CGFloat, maxHeight: v[5] as! CGFloat, alignment: v[6] as! Alignment))
     }
     register(&t, "geometryGroup", []) { view, v in
         return AnyView(view.geometryGroup())
     }
-    register(&t, "grayscale", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "grayscale", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.grayscale(v[0] as! Double))
     }
-    register(&t, "gridCellAnchor", [ParamSpec(nil, .unitPoint)]) { view, v in
+    register(&t, "gridCellAnchor", [ParamSpec(nil, .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.gridCellAnchor(v[0] as! UnitPoint))
     }
-    register(&t, "gridCellColumns", [ParamSpec(nil, .int)]) { view, v in
+    register(&t, "gridCellColumns", [ParamSpec(nil, .int, contextualType: "Int")]) { view, v in
         return AnyView(view.gridCellColumns(v[0] as! Int))
     }
-    register(&t, "gridCellUnsizedAxes", [ParamSpec(nil, .axisSet)]) { view, v in
+    register(&t, "gridCellUnsizedAxes", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set")]) { view, v in
         return AnyView(view.gridCellUnsizedAxes(v[0] as! Axis.Set))
     }
-    register(&t, "gridColumnAlignment", [ParamSpec(nil, .horizontalAlignment)]) { view, v in
+    register(&t, "gridColumnAlignment", [ParamSpec(nil, .horizontalAlignment, contextualType: "HorizontalAlignment")]) { view, v in
         return AnyView(view.gridColumnAlignment(v[0] as! HorizontalAlignment))
     }
-    register(&t, "headerProminence", [ParamSpec(nil, .sdkEnum("Prominence"))]) { view, v in
+    register(&t, "headerProminence", [ParamSpec(nil, .sdkEnum("Prominence"), contextualType: "Prominence")]) { view, v in
         return AnyView(view.headerProminence(v[0] as! Prominence))
     }
-    register(&t, "help", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "help", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.help(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "help", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "help", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.help(v[0] as! Text))
     }
     register(&t, "hidden", []) { view, v in
@@ -1182,104 +1182,104 @@ extension GeneratedModifiers {
         return AnyView(view.horizontalRadioGroupLayout())
     }
 #endif
-    register(&t, "hueRotation", [ParamSpec(nil, .angle)]) { view, v in
+    register(&t, "hueRotation", [ParamSpec(nil, .angle, contextualType: "Angle")]) { view, v in
         return AnyView(view.hueRotation(v[0] as! Angle))
     }
     register(&t, "ignoresSafeArea", []) { view, v in
         return AnyView(view.ignoresSafeArea())
     }
-    register(&t, "ignoresSafeArea", [ParamSpec("edges", .edgeSet)]) { view, v in
+    register(&t, "ignoresSafeArea", [ParamSpec("edges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
         return AnyView(view.ignoresSafeArea(edges: v[0] as! Edge.Set))
     }
-    register(&t, "imageScale", [ParamSpec(nil, .imageScale)]) { view, v in
+    register(&t, "imageScale", [ParamSpec(nil, .imageScale, contextualType: "Image.Scale")]) { view, v in
         return AnyView(view.imageScale(v[0] as! Image.Scale))
     }
-    register(&t, "inspector", [ParamSpec("isPresented", .bindingBool), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "inspector", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.inspector(isPresented: v[0] as! Binding<Bool>, content: { b1 }))
     }
-    register(&t, "inspectorColumnWidth", [ParamSpec("ideal", .cgFloat)]) { view, v in
+    register(&t, "inspectorColumnWidth", [ParamSpec("ideal", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.inspectorColumnWidth(ideal: v[0] as! CGFloat))
     }
-    register(&t, "inspectorColumnWidth", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "inspectorColumnWidth", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.inspectorColumnWidth(v[0] as! CGFloat))
     }
-    register(&t, "inspectorColumnWidth", [ParamSpec("ideal", .cgFloat), ParamSpec("max", .cgFloat)]) { view, v in
+    register(&t, "inspectorColumnWidth", [ParamSpec("ideal", .cgFloat, contextualType: "CGFloat"), ParamSpec("max", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.inspectorColumnWidth(ideal: v[0] as! CGFloat, max: v[1] as! CGFloat))
     }
-    register(&t, "inspectorColumnWidth", [ParamSpec("min", .cgFloat), ParamSpec("ideal", .cgFloat)]) { view, v in
+    register(&t, "inspectorColumnWidth", [ParamSpec("min", .cgFloat, contextualType: "CGFloat"), ParamSpec("ideal", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.inspectorColumnWidth(min: v[0] as! CGFloat, ideal: v[1] as! CGFloat))
     }
     }
 
     private static func build9(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "inspectorColumnWidth", [ParamSpec("min", .cgFloat), ParamSpec("ideal", .cgFloat), ParamSpec("max", .cgFloat)]) { view, v in
+    register(&t, "inspectorColumnWidth", [ParamSpec("min", .cgFloat, contextualType: "CGFloat"), ParamSpec("ideal", .cgFloat, contextualType: "CGFloat"), ParamSpec("max", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.inspectorColumnWidth(min: v[0] as! CGFloat, ideal: v[1] as! CGFloat, max: v[2] as! CGFloat))
     }
-    register(&t, "interactionActivityTrackingTag", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "interactionActivityTrackingTag", [ParamSpec(nil, .string, contextualType: "String")]) { view, v in
         return AnyView(view.interactionActivityTrackingTag(v[0] as! String))
     }
     register(&t, "interactiveDismissDisabled", []) { view, v in
         return AnyView(view.interactiveDismissDisabled())
     }
-    register(&t, "interactiveDismissDisabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "interactiveDismissDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.interactiveDismissDisabled(v[0] as! Bool))
     }
     register(&t, "invalidatableContent", []) { view, v in
         return AnyView(view.invalidatableContent())
     }
-    register(&t, "invalidatableContent", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "invalidatableContent", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.invalidatableContent(v[0] as! Bool))
     }
     register(&t, "italic", []) { view, v in
         return AnyView(view.italic())
     }
-    register(&t, "italic", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "italic", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.italic(v[0] as! Bool))
     }
-    register(&t, "kerning", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "kerning", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.kerning(v[0] as! CGFloat))
     }
     register(&t, "labelsHidden", []) { view, v in
         return AnyView(view.labelsHidden())
     }
-    register(&t, "labelsVisibility", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "labelsVisibility", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.labelsVisibility(v[0] as! Visibility))
     }
-    register(&t, "layoutDirectionBehavior", [ParamSpec(nil, .sdkEnum("LayoutDirectionBehavior"))]) { view, v in
+    register(&t, "layoutDirectionBehavior", [ParamSpec(nil, .sdkEnum("LayoutDirectionBehavior"), contextualType: "LayoutDirectionBehavior")]) { view, v in
         return AnyView(view.layoutDirectionBehavior(v[0] as! LayoutDirectionBehavior))
     }
-    register(&t, "layoutPriority", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "layoutPriority", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.layoutPriority(v[0] as! Double))
     }
-    register(&t, "lineLimit", [ParamSpec(nil, .int)]) { view, v in
+    register(&t, "lineLimit", [ParamSpec(nil, .int, contextualType: "Int")]) { view, v in
         return AnyView(view.lineLimit(v[0] as! Int))
     }
-    register(&t, "lineLimit", [ParamSpec(nil, .int), ParamSpec("reservesSpace", .bool)]) { view, v in
+    register(&t, "lineLimit", [ParamSpec(nil, .int, contextualType: "Int"), ParamSpec("reservesSpace", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.lineLimit(v[0] as! Int, reservesSpace: v[1] as! Bool))
     }
-    register(&t, "lineSpacing", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "lineSpacing", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.lineSpacing(v[0] as! CGFloat))
     }
-    register(&t, "listItemTint", [ParamSpec(nil, .color)]) { view, v in
+    register(&t, "listItemTint", [ParamSpec(nil, .color, contextualType: "Color")]) { view, v in
         return AnyView(view.listItemTint(v[0] as! Color))
     }
     register(&t, "listRowBackground", [ParamSpec(nil, .anyView)]) { view, v in
         return AnyView(view.listRowBackground(v[0] as! AnyView))
     }
-    register(&t, "listRowInsets", [ParamSpec(nil, .edgeInsets)]) { view, v in
+    register(&t, "listRowInsets", [ParamSpec(nil, .edgeInsets, contextualType: "EdgeInsets")]) { view, v in
         return AnyView(view.listRowInsets(v[0] as! EdgeInsets))
     }
-    register(&t, "listRowSeparator", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "listRowSeparator", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.listRowSeparator(v[0] as! Visibility))
     }
-    register(&t, "listRowSeparatorTint", [ParamSpec(nil, .color)]) { view, v in
+    register(&t, "listRowSeparatorTint", [ParamSpec(nil, .color, contextualType: "Color")]) { view, v in
         return AnyView(view.listRowSeparatorTint(v[0] as! Color))
     }
-    register(&t, "listSectionSeparator", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "listSectionSeparator", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.listSectionSeparator(v[0] as! Visibility))
     }
-    register(&t, "listSectionSeparatorTint", [ParamSpec(nil, .color)]) { view, v in
+    register(&t, "listSectionSeparatorTint", [ParamSpec(nil, .color, contextualType: "Color")]) { view, v in
         return AnyView(view.listSectionSeparatorTint(v[0] as! Color))
     }
     register(&t, "luminanceToAlpha", []) { view, v in
@@ -1289,90 +1289,90 @@ extension GeneratedModifiers {
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.mask({ b0 }))
     }
-    register(&t, "mask", [ParamSpec("alignment", .alignment), ParamSpec(nil, .builder)]) { view, v in
+    register(&t, "mask", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec(nil, .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.mask(alignment: v[0] as! Alignment, { b1 }))
     }
-    register(&t, "menuIndicator", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "menuIndicator", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.menuIndicator(v[0] as! Visibility))
     }
-    register(&t, "minimumScaleFactor", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "minimumScaleFactor", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.minimumScaleFactor(v[0] as! CGFloat))
     }
     register(&t, "monospaced", []) { view, v in
         return AnyView(view.monospaced())
     }
-    register(&t, "monospaced", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "monospaced", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.monospaced(v[0] as! Bool))
     }
     register(&t, "monospacedDigit", []) { view, v in
         return AnyView(view.monospacedDigit())
     }
-    register(&t, "moveDisabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "moveDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.moveDisabled(v[0] as! Bool))
     }
-    register(&t, "multilineTextAlignment", [ParamSpec(nil, .textAlignment)]) { view, v in
+    register(&t, "multilineTextAlignment", [ParamSpec(nil, .textAlignment, contextualType: "TextAlignment")]) { view, v in
         return AnyView(view.multilineTextAlignment(v[0] as! TextAlignment))
     }
     register(&t, "navigationBarBackButtonHidden", []) { view, v in
         return AnyView(view.navigationBarBackButtonHidden())
     }
-    register(&t, "navigationBarBackButtonHidden", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "navigationBarBackButtonHidden", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.navigationBarBackButtonHidden(v[0] as! Bool))
     }
-    register(&t, "navigationDestination", [ParamSpec("isPresented", .bindingBool), ParamSpec("destination", .builder)]) { view, v in
+    register(&t, "navigationDestination", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("destination", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.navigationDestination(isPresented: v[0] as! Binding<Bool>, destination: { b1 }))
     }
-    register(&t, "navigationDocument", [ParamSpec(nil, .url)]) { view, v in
+    register(&t, "navigationDocument", [ParamSpec(nil, .url, contextualType: "URL")]) { view, v in
         return AnyView(view.navigationDocument(v[0] as! URL))
     }
-    register(&t, "navigationLinkIndicatorVisibility", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "navigationLinkIndicatorVisibility", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.navigationLinkIndicatorVisibility(v[0] as! Visibility))
     }
-    register(&t, "navigationSplitViewColumnWidth", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "navigationSplitViewColumnWidth", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.navigationSplitViewColumnWidth(v[0] as! CGFloat))
     }
-    register(&t, "navigationSplitViewColumnWidth", [ParamSpec("ideal", .cgFloat)]) { view, v in
+    register(&t, "navigationSplitViewColumnWidth", [ParamSpec("ideal", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.navigationSplitViewColumnWidth(ideal: v[0] as! CGFloat))
     }
     }
 
     private static func build10(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "navigationSplitViewColumnWidth", [ParamSpec("ideal", .cgFloat), ParamSpec("max", .cgFloat)]) { view, v in
+    register(&t, "navigationSplitViewColumnWidth", [ParamSpec("ideal", .cgFloat, contextualType: "CGFloat"), ParamSpec("max", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.navigationSplitViewColumnWidth(ideal: v[0] as! CGFloat, max: v[1] as! CGFloat))
     }
-    register(&t, "navigationSplitViewColumnWidth", [ParamSpec("min", .cgFloat), ParamSpec("ideal", .cgFloat)]) { view, v in
+    register(&t, "navigationSplitViewColumnWidth", [ParamSpec("min", .cgFloat, contextualType: "CGFloat"), ParamSpec("ideal", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.navigationSplitViewColumnWidth(min: v[0] as! CGFloat, ideal: v[1] as! CGFloat))
     }
-    register(&t, "navigationSplitViewColumnWidth", [ParamSpec("min", .cgFloat), ParamSpec("ideal", .cgFloat), ParamSpec("max", .cgFloat)]) { view, v in
+    register(&t, "navigationSplitViewColumnWidth", [ParamSpec("min", .cgFloat, contextualType: "CGFloat"), ParamSpec("ideal", .cgFloat, contextualType: "CGFloat"), ParamSpec("max", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.navigationSplitViewColumnWidth(min: v[0] as! CGFloat, ideal: v[1] as! CGFloat, max: v[2] as! CGFloat))
     }
-    register(&t, "navigationSubtitle", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "navigationSubtitle", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.navigationSubtitle(v[0] as! Text))
     }
-    register(&t, "navigationSubtitle", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "navigationSubtitle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.navigationSubtitle(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "navigationTitle", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "navigationTitle", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.navigationTitle(v[0] as! Text))
     }
-    register(&t, "navigationTitle", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "navigationTitle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.navigationTitle(LocalizedStringKey(v[0] as! String)))
     }
-    register(&t, "navigationTitle", [ParamSpec(nil, .bindingString)]) { view, v in
+    register(&t, "navigationTitle", [ParamSpec(nil, .bindingString, contextualType: "Binding<String>")]) { view, v in
         return AnyView(view.navigationTitle(v[0] as! Binding<String>))
     }
     register(&t, "offset", []) { view, v in
         return AnyView(view.offset())
     }
-    register(&t, "offset", [ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "offset", [ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.offset(y: v[0] as! CGFloat))
     }
-    register(&t, "offset", [ParamSpec("x", .cgFloat)]) { view, v in
+    register(&t, "offset", [ParamSpec("x", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.offset(x: v[0] as! CGFloat))
     }
-    register(&t, "offset", [ParamSpec("x", .cgFloat), ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "offset", [ParamSpec("x", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.offset(x: v[0] as! CGFloat, y: v[1] as! CGFloat))
     }
     register(&t, "onAppear", []) { view, v in
@@ -1381,7 +1381,7 @@ extension GeneratedModifiers {
     register(&t, "onChange", [ParamSpec("of", .equatable), ParamSpec(nil, .action)]) { view, v in
         return AnyView(view.onChange(of: v[0] as! String, generatedAction(v[1])))
     }
-    register(&t, "onChange", [ParamSpec("of", .equatable), ParamSpec("initial", .bool), ParamSpec(nil, .action)]) { view, v in
+    register(&t, "onChange", [ParamSpec("of", .equatable), ParamSpec("initial", .bool, contextualType: "Bool"), ParamSpec(nil, .action)]) { view, v in
         return AnyView(view.onChange(of: v[0] as! String, initial: v[1] as! Bool, generatedAction(v[2])))
     }
     register(&t, "onDisappear", []) { view, v in
@@ -1390,13 +1390,13 @@ extension GeneratedModifiers {
     register(&t, "onLongPressGesture", [ParamSpec("perform", .action)]) { view, v in
         return AnyView(view.onLongPressGesture(perform: generatedAction(v[0])))
     }
-    register(&t, "onLongPressGesture", [ParamSpec("maximumDistance", .cgFloat), ParamSpec("perform", .action)]) { view, v in
+    register(&t, "onLongPressGesture", [ParamSpec("maximumDistance", .cgFloat, contextualType: "CGFloat"), ParamSpec("perform", .action)]) { view, v in
         return AnyView(view.onLongPressGesture(maximumDistance: v[0] as! CGFloat, perform: generatedAction(v[1])))
     }
-    register(&t, "onLongPressGesture", [ParamSpec("minimumDuration", .double), ParamSpec("perform", .action)]) { view, v in
+    register(&t, "onLongPressGesture", [ParamSpec("minimumDuration", .double, contextualType: "Double"), ParamSpec("perform", .action)]) { view, v in
         return AnyView(view.onLongPressGesture(minimumDuration: v[0] as! Double, perform: generatedAction(v[1])))
     }
-    register(&t, "onLongPressGesture", [ParamSpec("minimumDuration", .double), ParamSpec("maximumDistance", .cgFloat), ParamSpec("perform", .action)]) { view, v in
+    register(&t, "onLongPressGesture", [ParamSpec("minimumDuration", .double, contextualType: "Double"), ParamSpec("maximumDistance", .cgFloat, contextualType: "CGFloat"), ParamSpec("perform", .action)]) { view, v in
         return AnyView(view.onLongPressGesture(minimumDuration: v[0] as! Double, maximumDistance: v[1] as! CGFloat, perform: generatedAction(v[2])))
     }
     register(&t, "onSubmit", [ParamSpec(nil, .action)]) { view, v in
@@ -1405,10 +1405,10 @@ extension GeneratedModifiers {
     register(&t, "onTapGesture", [ParamSpec("perform", .action)]) { view, v in
         return AnyView(view.onTapGesture(perform: generatedAction(v[0])))
     }
-    register(&t, "onTapGesture", [ParamSpec("count", .int), ParamSpec("perform", .action)]) { view, v in
+    register(&t, "onTapGesture", [ParamSpec("count", .int, contextualType: "Int"), ParamSpec("perform", .action)]) { view, v in
         return AnyView(view.onTapGesture(count: v[0] as! Int, perform: generatedAction(v[1])))
     }
-    register(&t, "opacity", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "opacity", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.opacity(v[0] as! Double))
     }
     register(&t, "overlay", [ParamSpec("content", .builder)]) { view, v in
@@ -1418,11 +1418,11 @@ extension GeneratedModifiers {
     register(&t, "overlay", [ParamSpec(nil, .shapeStyle)]) { view, v in
         return AnyView(view.overlay(v[0] as! AnyShapeStyle))
     }
-    register(&t, "overlay", [ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "overlay", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.overlay(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "overlay", [ParamSpec(nil, .shapeStyle), ParamSpec("ignoresSafeAreaEdges", .edgeSet)]) { view, v in
+    register(&t, "overlay", [ParamSpec(nil, .shapeStyle), ParamSpec("ignoresSafeAreaEdges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
         return AnyView(view.overlay(v[0] as! AnyShapeStyle, ignoresSafeAreaEdges: v[1] as! Edge.Set))
     }
     register(&t, "overlay", [ParamSpec(nil, .shapeStyle), ParamSpec("in", .shape)]) { view, v in
@@ -1431,50 +1431,50 @@ extension GeneratedModifiers {
     register(&t, "padding", []) { view, v in
         return AnyView(view.padding())
     }
-    register(&t, "padding", [ParamSpec(nil, .edgeInsets)]) { view, v in
+    register(&t, "padding", [ParamSpec(nil, .edgeInsets, contextualType: "EdgeInsets")]) { view, v in
         return AnyView(view.padding(v[0] as! EdgeInsets))
     }
-    register(&t, "padding", [ParamSpec(nil, .edgeSet)]) { view, v in
+    register(&t, "padding", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set")]) { view, v in
         return AnyView(view.padding(v[0] as! Edge.Set))
     }
-    register(&t, "padding", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "padding", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.padding(v[0] as! CGFloat))
     }
-    register(&t, "padding", [ParamSpec(nil, .edgeSet), ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "padding", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set"), ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.padding(v[0] as! Edge.Set, v[1] as! CGFloat))
     }
-    register(&t, "persistentSystemOverlays", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "persistentSystemOverlays", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.persistentSystemOverlays(v[0] as! Visibility))
     }
 #if canImport(AppKit)
-    register(&t, "pointerVisibility", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "pointerVisibility", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.pointerVisibility(v[0] as! Visibility))
     }
 #endif
-    register(&t, "popover", [ParamSpec("isPresented", .bindingBool), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "popover", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.popover(isPresented: v[0] as! Binding<Bool>, content: { b1 }))
     }
-    register(&t, "popover", [ParamSpec("isPresented", .bindingBool), ParamSpec("arrowEdge", .sdkEnum("Edge")), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "popover", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("arrowEdge", .sdkEnum("Edge"), contextualType: "Edge"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.popover(isPresented: v[0] as! Binding<Bool>, arrowEdge: v[1] as! Edge, content: { b2 }))
     }
     register(&t, "position", []) { view, v in
         return AnyView(view.position())
     }
-    register(&t, "position", [ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "position", [ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.position(y: v[0] as! CGFloat))
     }
     }
 
     private static func build11(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "position", [ParamSpec("x", .cgFloat)]) { view, v in
+    register(&t, "position", [ParamSpec("x", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.position(x: v[0] as! CGFloat))
     }
-    register(&t, "position", [ParamSpec("x", .cgFloat), ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "position", [ParamSpec("x", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.position(x: v[0] as! CGFloat, y: v[1] as! CGFloat))
     }
-    register(&t, "preferredColorScheme", [ParamSpec(nil, .sdkEnum("ColorScheme"))]) { view, v in
+    register(&t, "preferredColorScheme", [ParamSpec(nil, .sdkEnum("ColorScheme"), contextualType: "ColorScheme")]) { view, v in
         return AnyView(view.preferredColorScheme(v[0] as! ColorScheme))
     }
     register(&t, "presentationBackground", [ParamSpec(nil, .shapeStyle)]) { view, v in
@@ -1484,23 +1484,23 @@ extension GeneratedModifiers {
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.presentationBackground(content: { b0 }))
     }
-    register(&t, "presentationBackground", [ParamSpec("alignment", .alignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "presentationBackground", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.presentationBackground(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "presentationCornerRadius", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "presentationCornerRadius", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.presentationCornerRadius(v[0] as! CGFloat))
     }
-    register(&t, "presentationDragIndicator", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "presentationDragIndicator", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.presentationDragIndicator(v[0] as! Visibility))
     }
-    register(&t, "previewDisplayName", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "previewDisplayName", [ParamSpec(nil, .string, contextualType: "String")]) { view, v in
         return AnyView(view.previewDisplayName(v[0] as! String))
     }
     register(&t, "privacySensitive", []) { view, v in
         return AnyView(view.privacySensitive())
     }
-    register(&t, "privacySensitive", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "privacySensitive", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.privacySensitive(v[0] as! Bool))
     }
     register(&t, "refreshable", [ParamSpec("action", .asyncAction)]) { view, v in
@@ -1509,90 +1509,90 @@ extension GeneratedModifiers {
     register(&t, "renameAction", [ParamSpec(nil, .action)]) { view, v in
         return AnyView(view.renameAction(generatedAction(v[0])))
     }
-    register(&t, "rotationEffect", [ParamSpec(nil, .angle)]) { view, v in
+    register(&t, "rotationEffect", [ParamSpec(nil, .angle, contextualType: "Angle")]) { view, v in
         return AnyView(view.rotationEffect(v[0] as! Angle))
     }
-    register(&t, "rotationEffect", [ParamSpec(nil, .angle), ParamSpec("anchor", .unitPoint)]) { view, v in
+    register(&t, "rotationEffect", [ParamSpec(nil, .angle, contextualType: "Angle"), ParamSpec("anchor", .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.rotationEffect(v[0] as! Angle, anchor: v[1] as! UnitPoint))
     }
-    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("VerticalEdge")), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("VerticalEdge"), contextualType: "VerticalEdge"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.safeAreaInset(edge: v[0] as! VerticalEdge, content: { b1 }))
     }
-    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("HorizontalEdge")), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.safeAreaInset(edge: v[0] as! HorizontalEdge, content: { b1 }))
     }
-    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("VerticalEdge")), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("VerticalEdge"), contextualType: "VerticalEdge"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.safeAreaInset(edge: v[0] as! VerticalEdge, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("VerticalEdge")), ParamSpec("alignment", .horizontalAlignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("VerticalEdge"), contextualType: "VerticalEdge"), ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.safeAreaInset(edge: v[0] as! VerticalEdge, alignment: v[1] as! HorizontalAlignment, content: { b2 }))
     }
-    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("HorizontalEdge")), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.safeAreaInset(edge: v[0] as! HorizontalEdge, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("HorizontalEdge")), ParamSpec("alignment", .verticalAlignment), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.safeAreaInset(edge: v[0] as! HorizontalEdge, alignment: v[1] as! VerticalAlignment, content: { b2 }))
     }
-    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("VerticalEdge")), ParamSpec("alignment", .horizontalAlignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("VerticalEdge"), contextualType: "VerticalEdge"), ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.safeAreaInset(edge: v[0] as! VerticalEdge, alignment: v[1] as! HorizontalAlignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
-    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("HorizontalEdge")), ParamSpec("alignment", .verticalAlignment), ParamSpec("spacing", .cgFloat), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "safeAreaInset", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { view, v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.safeAreaInset(edge: v[0] as! HorizontalEdge, alignment: v[1] as! VerticalAlignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
     register(&t, "safeAreaPadding", []) { view, v in
         return AnyView(view.safeAreaPadding())
     }
-    register(&t, "safeAreaPadding", [ParamSpec(nil, .edgeInsets)]) { view, v in
+    register(&t, "safeAreaPadding", [ParamSpec(nil, .edgeInsets, contextualType: "EdgeInsets")]) { view, v in
         return AnyView(view.safeAreaPadding(v[0] as! EdgeInsets))
     }
-    register(&t, "safeAreaPadding", [ParamSpec(nil, .edgeSet)]) { view, v in
+    register(&t, "safeAreaPadding", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set")]) { view, v in
         return AnyView(view.safeAreaPadding(v[0] as! Edge.Set))
     }
-    register(&t, "safeAreaPadding", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "safeAreaPadding", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.safeAreaPadding(v[0] as! CGFloat))
     }
-    register(&t, "safeAreaPadding", [ParamSpec(nil, .edgeSet), ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "safeAreaPadding", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set"), ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.safeAreaPadding(v[0] as! Edge.Set, v[1] as! CGFloat))
     }
-    register(&t, "saturation", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "saturation", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.saturation(v[0] as! Double))
     }
     register(&t, "scaleEffect", []) { view, v in
         return AnyView(view.scaleEffect())
     }
-    register(&t, "scaleEffect", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.scaleEffect(v[0] as! CGFloat))
     }
-    register(&t, "scaleEffect", [ParamSpec("anchor", .unitPoint)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec("anchor", .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.scaleEffect(anchor: v[0] as! UnitPoint))
     }
-    register(&t, "scaleEffect", [ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.scaleEffect(y: v[0] as! CGFloat))
     }
-    register(&t, "scaleEffect", [ParamSpec("x", .cgFloat)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec("x", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.scaleEffect(x: v[0] as! CGFloat))
     }
-    register(&t, "scaleEffect", [ParamSpec(nil, .cgFloat), ParamSpec("anchor", .unitPoint)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat"), ParamSpec("anchor", .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.scaleEffect(v[0] as! CGFloat, anchor: v[1] as! UnitPoint))
     }
-    register(&t, "scaleEffect", [ParamSpec("y", .cgFloat), ParamSpec("anchor", .unitPoint)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec("y", .cgFloat, contextualType: "CGFloat"), ParamSpec("anchor", .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.scaleEffect(y: v[0] as! CGFloat, anchor: v[1] as! UnitPoint))
     }
-    register(&t, "scaleEffect", [ParamSpec("x", .cgFloat), ParamSpec("anchor", .unitPoint)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec("x", .cgFloat, contextualType: "CGFloat"), ParamSpec("anchor", .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.scaleEffect(x: v[0] as! CGFloat, anchor: v[1] as! UnitPoint))
     }
-    register(&t, "scaleEffect", [ParamSpec("x", .cgFloat), ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec("x", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.scaleEffect(x: v[0] as! CGFloat, y: v[1] as! CGFloat))
     }
-    register(&t, "scaleEffect", [ParamSpec("x", .cgFloat), ParamSpec("y", .cgFloat), ParamSpec("anchor", .unitPoint)]) { view, v in
+    register(&t, "scaleEffect", [ParamSpec("x", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat"), ParamSpec("anchor", .unitPoint, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.scaleEffect(x: v[0] as! CGFloat, y: v[1] as! CGFloat, anchor: v[2] as! UnitPoint))
     }
     register(&t, "scaledToFill", []) { view, v in
@@ -1607,53 +1607,53 @@ extension GeneratedModifiers {
     register(&t, "scenePadding", []) { view, v in
         return AnyView(view.scenePadding())
     }
-    register(&t, "scenePadding", [ParamSpec(nil, .edgeSet)]) { view, v in
+    register(&t, "scenePadding", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set")]) { view, v in
         return AnyView(view.scenePadding(v[0] as! Edge.Set))
     }
     register(&t, "scrollClipDisabled", []) { view, v in
         return AnyView(view.scrollClipDisabled())
     }
-    register(&t, "scrollClipDisabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "scrollClipDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.scrollClipDisabled(v[0] as! Bool))
     }
-    register(&t, "scrollContentBackground", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "scrollContentBackground", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.scrollContentBackground(v[0] as! Visibility))
     }
-    register(&t, "scrollDisabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "scrollDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.scrollDisabled(v[0] as! Bool))
     }
-    register(&t, "scrollIndicatorsFlash", [ParamSpec("onAppear", .bool)]) { view, v in
+    register(&t, "scrollIndicatorsFlash", [ParamSpec("onAppear", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.scrollIndicatorsFlash(onAppear: v[0] as! Bool))
     }
     register(&t, "scrollTargetLayout", []) { view, v in
         return AnyView(view.scrollTargetLayout())
     }
-    register(&t, "scrollTargetLayout", [ParamSpec("isEnabled", .bool)]) { view, v in
+    register(&t, "scrollTargetLayout", [ParamSpec("isEnabled", .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.scrollTargetLayout(isEnabled: v[0] as! Bool))
     }
-    register(&t, "searchCompletion", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "searchCompletion", [ParamSpec(nil, .string, contextualType: "String")]) { view, v in
         return AnyView(view.searchCompletion(v[0] as! String))
     }
     register(&t, "searchSuggestions", [ParamSpec(nil, .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.searchSuggestions({ b0 }))
     }
-    register(&t, "searchable", [ParamSpec("text", .bindingString)]) { view, v in
+    register(&t, "searchable", [ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { view, v in
         return AnyView(view.searchable(text: v[0] as! Binding<String>))
     }
-    register(&t, "searchable", [ParamSpec("text", .bindingString), ParamSpec("prompt", .text)]) { view, v in
+    register(&t, "searchable", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text")]) { view, v in
         return AnyView(view.searchable(text: v[0] as! Binding<String>, prompt: v[1] as! Text))
     }
-    register(&t, "searchable", [ParamSpec("text", .bindingString), ParamSpec("prompt", .string)]) { view, v in
+    register(&t, "searchable", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.searchable(text: v[0] as! Binding<String>, prompt: LocalizedStringKey(v[1] as! String)))
     }
-    register(&t, "searchable", [ParamSpec("text", .bindingString), ParamSpec("isPresented", .bindingBool)]) { view, v in
+    register(&t, "searchable", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>")]) { view, v in
         return AnyView(view.searchable(text: v[0] as! Binding<String>, isPresented: v[1] as! Binding<Bool>))
     }
-    register(&t, "searchable", [ParamSpec("text", .bindingString), ParamSpec("isPresented", .bindingBool), ParamSpec("prompt", .text)]) { view, v in
+    register(&t, "searchable", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("prompt", .text, contextualType: "Text")]) { view, v in
         return AnyView(view.searchable(text: v[0] as! Binding<String>, isPresented: v[1] as! Binding<Bool>, prompt: v[2] as! Text))
     }
-    register(&t, "searchable", [ParamSpec("text", .bindingString), ParamSpec("isPresented", .bindingBool), ParamSpec("prompt", .string)]) { view, v in
+    register(&t, "searchable", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("prompt", .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.searchable(text: v[0] as! Binding<String>, isPresented: v[1] as! Binding<Bool>, prompt: LocalizedStringKey(v[2] as! String)))
     }
     register(&t, "sectionActions", [ParamSpec("content", .builder)]) { view, v in
@@ -1663,102 +1663,102 @@ extension GeneratedModifiers {
     register(&t, "selectionDisabled", []) { view, v in
         return AnyView(view.selectionDisabled())
     }
-    register(&t, "selectionDisabled", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "selectionDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.selectionDisabled(v[0] as! Bool))
     }
-    register(&t, "shadow", [ParamSpec("radius", .cgFloat)]) { view, v in
+    register(&t, "shadow", [ParamSpec("radius", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.shadow(radius: v[0] as! CGFloat))
     }
-    register(&t, "shadow", [ParamSpec("radius", .cgFloat), ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "shadow", [ParamSpec("radius", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.shadow(radius: v[0] as! CGFloat, y: v[1] as! CGFloat))
     }
-    register(&t, "shadow", [ParamSpec("radius", .cgFloat), ParamSpec("x", .cgFloat)]) { view, v in
+    register(&t, "shadow", [ParamSpec("radius", .cgFloat, contextualType: "CGFloat"), ParamSpec("x", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.shadow(radius: v[0] as! CGFloat, x: v[1] as! CGFloat))
     }
-    register(&t, "shadow", [ParamSpec("color", .color), ParamSpec("radius", .cgFloat)]) { view, v in
+    register(&t, "shadow", [ParamSpec("color", .color, contextualType: "Color"), ParamSpec("radius", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.shadow(color: v[0] as! Color, radius: v[1] as! CGFloat))
     }
-    register(&t, "shadow", [ParamSpec("radius", .cgFloat), ParamSpec("x", .cgFloat), ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "shadow", [ParamSpec("radius", .cgFloat, contextualType: "CGFloat"), ParamSpec("x", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.shadow(radius: v[0] as! CGFloat, x: v[1] as! CGFloat, y: v[2] as! CGFloat))
     }
-    register(&t, "shadow", [ParamSpec("color", .color), ParamSpec("radius", .cgFloat), ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "shadow", [ParamSpec("color", .color, contextualType: "Color"), ParamSpec("radius", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.shadow(color: v[0] as! Color, radius: v[1] as! CGFloat, y: v[2] as! CGFloat))
     }
-    register(&t, "shadow", [ParamSpec("color", .color), ParamSpec("radius", .cgFloat), ParamSpec("x", .cgFloat)]) { view, v in
+    register(&t, "shadow", [ParamSpec("color", .color, contextualType: "Color"), ParamSpec("radius", .cgFloat, contextualType: "CGFloat"), ParamSpec("x", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.shadow(color: v[0] as! Color, radius: v[1] as! CGFloat, x: v[2] as! CGFloat))
     }
-    register(&t, "shadow", [ParamSpec("color", .color), ParamSpec("radius", .cgFloat), ParamSpec("x", .cgFloat), ParamSpec("y", .cgFloat)]) { view, v in
+    register(&t, "shadow", [ParamSpec("color", .color, contextualType: "Color"), ParamSpec("radius", .cgFloat, contextualType: "CGFloat"), ParamSpec("x", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.shadow(color: v[0] as! Color, radius: v[1] as! CGFloat, x: v[2] as! CGFloat, y: v[3] as! CGFloat))
     }
-    register(&t, "sheet", [ParamSpec("isPresented", .bindingBool), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "sheet", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.sheet(isPresented: v[0] as! Binding<Bool>, content: { b1 }))
     }
-    register(&t, "speechAdjustedPitch", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "speechAdjustedPitch", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.speechAdjustedPitch(v[0] as! Double))
     }
     register(&t, "speechAlwaysIncludesPunctuation", []) { view, v in
         return AnyView(view.speechAlwaysIncludesPunctuation())
     }
-    register(&t, "speechAlwaysIncludesPunctuation", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "speechAlwaysIncludesPunctuation", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.speechAlwaysIncludesPunctuation(v[0] as! Bool))
     }
     register(&t, "speechAnnouncementsQueued", []) { view, v in
         return AnyView(view.speechAnnouncementsQueued())
     }
-    register(&t, "speechAnnouncementsQueued", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "speechAnnouncementsQueued", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.speechAnnouncementsQueued(v[0] as! Bool))
     }
     register(&t, "speechSpellsOutCharacters", []) { view, v in
         return AnyView(view.speechSpellsOutCharacters())
     }
-    register(&t, "speechSpellsOutCharacters", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "speechSpellsOutCharacters", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.speechSpellsOutCharacters(v[0] as! Bool))
     }
     register(&t, "strikethrough", []) { view, v in
         return AnyView(view.strikethrough())
     }
-    register(&t, "strikethrough", [ParamSpec("color", .color)]) { view, v in
+    register(&t, "strikethrough", [ParamSpec("color", .color, contextualType: "Color")]) { view, v in
         return AnyView(view.strikethrough(color: v[0] as! Color))
     }
-    register(&t, "strikethrough", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "strikethrough", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.strikethrough(v[0] as! Bool))
     }
     }
 
     private static func build13(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "strikethrough", [ParamSpec(nil, .bool), ParamSpec("color", .color)]) { view, v in
+    register(&t, "strikethrough", [ParamSpec(nil, .bool, contextualType: "Bool"), ParamSpec("color", .color, contextualType: "Color")]) { view, v in
         return AnyView(view.strikethrough(v[0] as! Bool, color: v[1] as! Color))
     }
     register(&t, "submitScope", []) { view, v in
         return AnyView(view.submitScope())
     }
-    register(&t, "submitScope", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "submitScope", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.submitScope(v[0] as! Bool))
     }
     register(&t, "swipeActions", [ParamSpec("content", .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.swipeActions(content: { b0 }))
     }
-    register(&t, "swipeActions", [ParamSpec("allowsFullSwipe", .bool), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "swipeActions", [ParamSpec("allowsFullSwipe", .bool, contextualType: "Bool"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.swipeActions(allowsFullSwipe: v[0] as! Bool, content: { b1 }))
     }
-    register(&t, "swipeActions", [ParamSpec("edge", .sdkEnum("HorizontalEdge")), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "swipeActions", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("content", .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.swipeActions(edge: v[0] as! HorizontalEdge, content: { b1 }))
     }
-    register(&t, "swipeActions", [ParamSpec("edge", .sdkEnum("HorizontalEdge")), ParamSpec("allowsFullSwipe", .bool), ParamSpec("content", .builder)]) { view, v in
+    register(&t, "swipeActions", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("allowsFullSwipe", .bool, contextualType: "Bool"), ParamSpec("content", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.swipeActions(edge: v[0] as! HorizontalEdge, allowsFullSwipe: v[1] as! Bool, content: { b2 }))
     }
     register(&t, "symbolEffectsRemoved", []) { view, v in
         return AnyView(view.symbolEffectsRemoved())
     }
-    register(&t, "symbolEffectsRemoved", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "symbolEffectsRemoved", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.symbolEffectsRemoved(v[0] as! Bool))
     }
-    register(&t, "symbolRenderingMode", [ParamSpec(nil, .symbolRenderingMode)]) { view, v in
+    register(&t, "symbolRenderingMode", [ParamSpec(nil, .symbolRenderingMode, contextualType: "SymbolRenderingMode")]) { view, v in
         return AnyView(view.symbolRenderingMode(v[0] as! SymbolRenderingMode))
     }
     register(&t, "tabViewSidebarBottomBar", [ParamSpec("content", .builder)]) { view, v in
@@ -1773,113 +1773,113 @@ extension GeneratedModifiers {
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.tabViewSidebarHeader(content: { b0 }))
     }
-    register(&t, "tableColumnHeaders", [ParamSpec(nil, .visibility)]) { view, v in
+    register(&t, "tableColumnHeaders", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.tableColumnHeaders(v[0] as! Visibility))
     }
     register(&t, "task", [ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(generatedAsyncAction(v[0])))
     }
-    register(&t, "task", [ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(line: v[0] as! Int, generatedAsyncAction(v[1])))
     }
-    register(&t, "task", [ParamSpec("file", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("file", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(file: v[0] as! String, generatedAsyncAction(v[1])))
     }
-    register(&t, "task", [ParamSpec("priority", .taskPriority), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(priority: v[0] as! TaskPriority, generatedAsyncAction(v[1])))
     }
-    register(&t, "task", [ParamSpec("name", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("name", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(name: v[0] as! String, generatedAsyncAction(v[1])))
     }
     register(&t, "task", [ParamSpec("id", .equatable), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, generatedAsyncAction(v[1])))
     }
-    register(&t, "task", [ParamSpec("file", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("file", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(file: v[0] as! String, line: v[1] as! Int, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("priority", .taskPriority), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(priority: v[0] as! TaskPriority, line: v[1] as! Int, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("priority", .taskPriority), ParamSpec("file", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("file", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(priority: v[0] as! TaskPriority, file: v[1] as! String, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("name", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("name", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(name: v[0] as! String, line: v[1] as! Int, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("name", .string), ParamSpec("file", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("name", .string, contextualType: "String"), ParamSpec("file", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(name: v[0] as! String, file: v[1] as! String, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("name", .string), ParamSpec("priority", .taskPriority), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("name", .string, contextualType: "String"), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(name: v[0] as! String, priority: v[1] as! TaskPriority, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, line: v[1] as! Int, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("file", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("file", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, file: v[1] as! String, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("priority", .taskPriority), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, priority: v[1] as! TaskPriority, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, name: v[1] as! String, generatedAsyncAction(v[2])))
     }
-    register(&t, "task", [ParamSpec("priority", .taskPriority), ParamSpec("file", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("file", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(priority: v[0] as! TaskPriority, file: v[1] as! String, line: v[2] as! Int, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("name", .string), ParamSpec("file", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("name", .string, contextualType: "String"), ParamSpec("file", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(name: v[0] as! String, file: v[1] as! String, line: v[2] as! Int, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("name", .string), ParamSpec("priority", .taskPriority), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("name", .string, contextualType: "String"), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(name: v[0] as! String, priority: v[1] as! TaskPriority, line: v[2] as! Int, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("name", .string), ParamSpec("priority", .taskPriority), ParamSpec("file", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("name", .string, contextualType: "String"), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("file", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(name: v[0] as! String, priority: v[1] as! TaskPriority, file: v[2] as! String, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("file", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("file", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, file: v[1] as! String, line: v[2] as! Int, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("priority", .taskPriority), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, priority: v[1] as! TaskPriority, line: v[2] as! Int, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("priority", .taskPriority), ParamSpec("file", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("file", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, priority: v[1] as! TaskPriority, file: v[2] as! String, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, name: v[1] as! String, line: v[2] as! Int, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string), ParamSpec("file", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string, contextualType: "String"), ParamSpec("file", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, name: v[1] as! String, file: v[2] as! String, generatedAsyncAction(v[3])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string), ParamSpec("priority", .taskPriority), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string, contextualType: "String"), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, name: v[1] as! String, priority: v[2] as! TaskPriority, generatedAsyncAction(v[3])))
     }
     }
 
     private static func build14(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "task", [ParamSpec("name", .string), ParamSpec("priority", .taskPriority), ParamSpec("file", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("name", .string, contextualType: "String"), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("file", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(name: v[0] as! String, priority: v[1] as! TaskPriority, file: v[2] as! String, line: v[3] as! Int, generatedAsyncAction(v[4])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("priority", .taskPriority), ParamSpec("file", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("file", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, priority: v[1] as! TaskPriority, file: v[2] as! String, line: v[3] as! Int, generatedAsyncAction(v[4])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string), ParamSpec("file", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string, contextualType: "String"), ParamSpec("file", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, name: v[1] as! String, file: v[2] as! String, line: v[3] as! Int, generatedAsyncAction(v[4])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string), ParamSpec("priority", .taskPriority), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string, contextualType: "String"), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, name: v[1] as! String, priority: v[2] as! TaskPriority, line: v[3] as! Int, generatedAsyncAction(v[4])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string), ParamSpec("priority", .taskPriority), ParamSpec("file", .string), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string, contextualType: "String"), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("file", .string, contextualType: "String"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, name: v[1] as! String, priority: v[2] as! TaskPriority, file: v[3] as! String, generatedAsyncAction(v[4])))
     }
-    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string), ParamSpec("priority", .taskPriority), ParamSpec("file", .string), ParamSpec("line", .int), ParamSpec(nil, .asyncAction)]) { view, v in
+    register(&t, "task", [ParamSpec("id", .equatable), ParamSpec("name", .string, contextualType: "String"), ParamSpec("priority", .taskPriority, contextualType: "TaskPriority"), ParamSpec("file", .string, contextualType: "String"), ParamSpec("line", .int, contextualType: "Int"), ParamSpec(nil, .asyncAction)]) { view, v in
         return AnyView(view.task(id: v[0] as! String, name: v[1] as! String, priority: v[2] as! TaskPriority, file: v[3] as! String, line: v[4] as! Int, generatedAsyncAction(v[5])))
     }
-    register(&t, "textCase", [ParamSpec(nil, .sdkEnum("Text.Case"))]) { view, v in
+    register(&t, "textCase", [ParamSpec(nil, .sdkEnum("Text.Case"), contextualType: "Text.Case")]) { view, v in
         return AnyView(view.textCase(v[0] as! Text.Case))
     }
 #if canImport(AppKit)
-    register(&t, "textInputCompletion", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "textInputCompletion", [ParamSpec(nil, .string, contextualType: "String")]) { view, v in
         return AnyView(view.textInputCompletion(v[0] as! String))
     }
 #endif
@@ -1889,13 +1889,13 @@ extension GeneratedModifiers {
         return AnyView(view.textInputSuggestions({ b0 }))
     }
 #endif
-    register(&t, "textSelectionAffinity", [ParamSpec(nil, .sdkEnum("TextSelectionAffinity"))]) { view, v in
+    register(&t, "textSelectionAffinity", [ParamSpec(nil, .sdkEnum("TextSelectionAffinity"), contextualType: "TextSelectionAffinity")]) { view, v in
         return AnyView(view.textSelectionAffinity(v[0] as! TextSelectionAffinity))
     }
     register(&t, "tint", [ParamSpec(nil, .shapeStyle)]) { view, v in
         return AnyView(view.tint(v[0] as! AnyShapeStyle))
     }
-    register(&t, "tint", [ParamSpec(nil, .color)]) { view, v in
+    register(&t, "tint", [ParamSpec(nil, .color, contextualType: "Color")]) { view, v in
         return AnyView(view.tint(v[0] as! Color))
     }
     register(&t, "toolbar", [ParamSpec("content", .builder)]) { view, v in
@@ -1908,7 +1908,7 @@ extension GeneratedModifiers {
     }
 #endif
 #if canImport(AppKit)
-    register(&t, "toolbarItemHidden", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "toolbarItemHidden", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.toolbarItemHidden(v[0] as! Bool))
     }
 #endif
@@ -1923,7 +1923,7 @@ extension GeneratedModifiers {
     }
 #endif
 #if canImport(AppKit)
-    register(&t, "touchBarCustomizationLabel", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "touchBarCustomizationLabel", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.touchBarCustomizationLabel(v[0] as! Text))
     }
 #endif
@@ -1933,38 +1933,38 @@ extension GeneratedModifiers {
     }
 #endif
 #if canImport(AppKit)
-    register(&t, "touchBarItemPrincipal", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "touchBarItemPrincipal", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.touchBarItemPrincipal(v[0] as! Bool))
     }
 #endif
-    register(&t, "tracking", [ParamSpec(nil, .cgFloat)]) { view, v in
+    register(&t, "tracking", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.tracking(v[0] as! CGFloat))
     }
-    register(&t, "truncationMode", [ParamSpec(nil, .sdkEnum("Text.TruncationMode"))]) { view, v in
+    register(&t, "truncationMode", [ParamSpec(nil, .sdkEnum("Text.TruncationMode"), contextualType: "Text.TruncationMode")]) { view, v in
         return AnyView(view.truncationMode(v[0] as! Text.TruncationMode))
     }
-    register(&t, "typeSelectEquivalent", [ParamSpec(nil, .text)]) { view, v in
+    register(&t, "typeSelectEquivalent", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.typeSelectEquivalent(v[0] as! Text))
     }
-    register(&t, "typeSelectEquivalent", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "typeSelectEquivalent", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
         return AnyView(view.typeSelectEquivalent(LocalizedStringKey(v[0] as! String)))
     }
     register(&t, "underline", []) { view, v in
         return AnyView(view.underline())
     }
-    register(&t, "underline", [ParamSpec("color", .color)]) { view, v in
+    register(&t, "underline", [ParamSpec("color", .color, contextualType: "Color")]) { view, v in
         return AnyView(view.underline(color: v[0] as! Color))
     }
-    register(&t, "underline", [ParamSpec(nil, .bool)]) { view, v in
+    register(&t, "underline", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.underline(v[0] as! Bool))
     }
-    register(&t, "underline", [ParamSpec(nil, .bool), ParamSpec("color", .color)]) { view, v in
+    register(&t, "underline", [ParamSpec(nil, .bool, contextualType: "Bool"), ParamSpec("color", .color, contextualType: "Color")]) { view, v in
         return AnyView(view.underline(v[0] as! Bool, color: v[1] as! Color))
     }
     register(&t, "unredacted", []) { view, v in
         return AnyView(view.unredacted())
     }
-    register(&t, "zIndex", [ParamSpec(nil, .double)]) { view, v in
+    register(&t, "zIndex", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.zIndex(v[0] as! Double))
     }
     }

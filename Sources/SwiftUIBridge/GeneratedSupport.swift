@@ -35,11 +35,19 @@ struct ParamSpec {
     let label: String?
     let tag: ParamTag
     let hasDefault: Bool
+    /// Concrete parameter type read from the SDK interface. Source-declared
+    /// extensions can add leading-dot static members to imported types, so
+    /// coercion must resolve those members before applying the host adapter.
+    let contextualType: String?
 
-    init(_ label: String?, _ tag: ParamTag, hasDefault: Bool = false) {
+    init(
+        _ label: String?, _ tag: ParamTag, hasDefault: Bool = false,
+        contextualType: String? = nil
+    ) {
         self.label = label
         self.tag = tag
         self.hasDefault = hasDefault
+        self.contextualType = contextualType
     }
 }
 
@@ -107,7 +115,19 @@ struct GeneratedConstructorSet {
 }
 
 enum GeneratedDispatch {
-    static func coerce(_ tag: ParamTag, _ value: RuntimeValue, _ ctx: EvalContext) throws -> Any {
+    static func coerce(
+        _ tag: ParamTag, _ unresolvedValue: RuntimeValue,
+        _ ctx: EvalContext, contextualType: String? = nil
+    ) throws -> Any {
+        let value: RuntimeValue
+        if case .implicitMember(let member) = unresolvedValue,
+           let contextualType,
+           let resolved = try ctx.sourceStaticMember(
+            named: member, ofType: contextualType) {
+            value = resolved
+        } else {
+            value = unresolvedValue
+        }
         switch tag {
         case .string:
             guard let s = value.stringValue else { throw RuntimeError(message: "expected a String") }
@@ -361,7 +381,10 @@ enum GeneratedDispatch {
                 || param.tag == .asyncAction
             let labelOK = argument.label == param.label
                 || (argument.isTrailing && argument.label == nil && isClosureParam)
-            guard labelOK, let coerced = try? coerce(param.tag, argument.value, ctx) else { return nil }
+            guard labelOK,
+                  let coerced = try? coerce(
+                    param.tag, argument.value, ctx,
+                    contextualType: param.contextualType) else { return nil }
             values.append(coerced)
         }
         return values
