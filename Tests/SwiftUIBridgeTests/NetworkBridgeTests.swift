@@ -81,6 +81,47 @@ import SwiftInterpreter
                 == "Nuke URLSession")
     }
 
+    /// IceCubes' Nuke 12.8 `ImageCache.init` derives its cost limit from this
+    /// exact read-only SDK-property expression. A compiled native run returns
+    /// the host's physical byte count divided by five; the interpreter must
+    /// retain the `UInt64` payload rather than absorbing the property into an
+    /// unknowable host member.
+    @Test func generatedReadOnlyFoundationPropertyUsesNativePayload() throws {
+        let expected = ProcessInfo.processInfo.physicalMemory / UInt64(5)
+        let result = try Interpreter(registry: ViewRegistry()).run(
+            source: """
+            let ratio = 0.2
+            ProcessInfo.processInfo.physicalMemory / UInt64(1 / ratio)
+            """)
+        #expect(result.stringified == String(expected))
+    }
+
+    /// Selecting a Foundation class for generated native dispatch must not
+    /// bypass source extensions on that host type. This is the distilled
+    /// AlDente corpus path; native arm64 returns `arm64` from the same bytes.
+    @Test func generatedFoundationValueDispatchesSourceExtension() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+            import AppKit
+
+            extension ProcessInfo {
+                var machineHardwareName: String? {
+                    var sysinfo = utsname()
+                    let result = uname(&sysinfo)
+                    guard result == EXIT_SUCCESS else { return nil }
+                    let data = Data(
+                        bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN))
+                    guard let identifier = String(
+                        bytes: data, encoding: .ascii) else { return nil }
+                    return identifier.trimmingCharacters(
+                        in: .controlCharacters)
+                }
+            }
+            ProcessInfo.init().machineHardwareName
+            """,
+            lazyTopLevelGlobals: true)
+        #expect(result.unwrappedOptionalOrSelf?.stringValue == "arm64")
+    }
+
     @Test func replayMissThrowsHonestly() throws {
         NetworkBridge.policy = .replay(fixturesDirectory: Self.fixturesRoot + "/tmdb-popular")
         defer { NetworkBridge.policy = .absorbed }
@@ -257,7 +298,7 @@ import SwiftInterpreter
     /// The IceCubes TRIGGER shape (iteration 190): `.onAppear` assigns a
     /// property whose didSet spawns `Task { await fetch() }` — the observer
     /// runs, the task body executes inline, and the request lands.
-    @Test func didSetTaskFetchLandsRequest() throws {
+    @Test func didSetTaskFetchLandsRequest() async throws {
         NetworkBridge.policy = .replay(fixturesDirectory: Self.fixturesRoot + "/mastodon-public-timeline")
         defer { NetworkBridge.policy = .absorbed }
         NetworkBridge.requestLog = []
@@ -318,11 +359,11 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
-        #expect(NetworkBridge.requestLog.contains { $0.contains("trends/statuses") },
-                "didSet's Task should fetch, log: \(NetworkBridge.requestLog)")
-        #expect(strings.contains { $0.contains("loaded 20") },
-                "fetched count should reach the tree, got \(strings)")
+        let render = try await LiveCheckSupport.render(source: source)
+        #expect(render.networkRequests.contains { $0.contains("trends/statuses") },
+                "didSet's Task should fetch, log: \(render.networkRequests)")
+        #expect(render.strings.contains { $0.contains("loaded 20") },
+                "fetched count should reach the tree, got \(render.strings)")
     }
 
     @Test func codingKeysAndRawEnumsDecode() throws {
@@ -401,7 +442,7 @@ import SwiftInterpreter
 /// name; `@Environment(Model.self) var model` reads the SAME instance (the
 /// IceCubes client-injection shape).
 @Suite struct TypedEnvironmentTests {
-    @Test func typedEnvironmentModelReachesChild() throws {
+    @Test func typedEnvironmentModelReachesChild() async throws {
         let source = """
         @Observable
         final class MastodonClient {
@@ -428,7 +469,7 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("server: mastodon.social"),
                 "the typed environment model should reach the child, got \(strings)")
     }
@@ -437,7 +478,7 @@ import SwiftInterpreter
 /// The M2 async-fetch pass: LiveCheck's probe fires retained `.task`/
 /// `.onAppear` closures and re-renders, so fetched data reaches the tree.
 @Suite struct AsyncFetchProbeTests {
-    @Test func taskFetchedDataReachesTheTree() throws {
+    @Test func taskFetchedDataReachesTheTree() async throws {
         NetworkBridge.policy = .replay(
             fixturesDirectory: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -481,11 +522,11 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.count >= 10, "fetched titles should reach the tree, got \(strings.count) strings")
     }
 
-    @Test func onAppearStateChangeReachesTheTree() throws {
+    @Test func onAppearStateChangeReachesTheTree() async throws {
         let source = """
         struct ContentView: View {
             @State private var label = "before"
@@ -498,7 +539,7 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("after"))
         #expect(!strings.contains("before") || strings.contains("after"))
     }
@@ -507,7 +548,7 @@ import SwiftInterpreter
 /// The probe evaluates the app's DECLARED composition root — wrappers and
 /// their environment seeding run for real.
 @Suite struct DeclaredRootProbeTests {
-    @Test func appSceneExpressionEvaluatesWithWrapper() throws {
+    @Test func appSceneExpressionEvaluatesWithWrapper() async throws {
         let source = """
         final class Catalog: ObservableObject {
             @Published var featured = "Featured: Dune"
@@ -544,7 +585,7 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("Featured: Dune"),
                 "the wrapper's environment seeding should reach the child, got \(strings)")
     }
@@ -554,7 +595,7 @@ import SwiftInterpreter
 /// store — inserted models are fetchable within the run, deletes remove,
 /// and separate interpreters never share state.
 @Suite struct LiveModelStoreTests {
-    @Test func insertFetchDeleteRoundTrip() throws {
+    @Test func insertFetchDeleteRoundTrip() async throws {
         let source = """
         struct Note {
             var title = ""
@@ -578,11 +619,11 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("result 0-2-1"), "insert→fetch→delete should round-trip, got \(strings)")
     }
 
-    @Test func separateRunsStartEmpty() throws {
+    @Test func separateRunsStartEmpty() async throws {
         let source = """
         struct Entry {
             var name = "x"
@@ -601,8 +642,8 @@ import SwiftInterpreter
             }
         }
         """
-        let first = try LiveCheckSupport.renderedStrings(source: source)
-        let second = try LiveCheckSupport.renderedStrings(source: source)
+        let first = try await LiveCheckSupport.renderedStrings(source: source)
+        let second = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(first == second, "runs must be deterministic: \(first) vs \(second)")
         #expect(first.contains("count 1"))
     }
@@ -635,16 +676,16 @@ import SwiftInterpreter
     }
     """
 
-    @Test func addButtonInsertsVisibleRow() throws {
-        let before = try LiveCheckSupport.renderedStrings(source: Self.todoSource)
+    @Test func addButtonInsertsVisibleRow() async throws {
+        let before = try await LiveCheckSupport.renderedStrings(source: Self.todoSource)
         #expect(!before.contains("Bought milk"))
-        let after = try LiveCheckSupport.renderedStrings(source: Self.todoSource, afterActions: 1)
+        let after = try await LiveCheckSupport.renderedStrings(source: Self.todoSource, afterActions: 1)
         #expect(after.contains("Bought milk"),
                 "the tapped insert should render as a row, got \(after)")
     }
 
-    @Test func twoTapsTwoRows() throws {
-        let after = try LiveCheckSupport.renderedStrings(source: Self.todoSource, afterActions: 2)
+    @Test func twoTapsTwoRows() async throws {
+        let after = try await LiveCheckSupport.renderedStrings(source: Self.todoSource, afterActions: 2)
         #expect(after.filter { $0 == "Bought milk" }.count >= 2)
     }
 }
@@ -653,7 +694,7 @@ import SwiftInterpreter
 /// instance as self, so its @StateObject properties flow into
 /// .environmentObject exactly as at launch (the IceCubes shape).
 @Suite struct AppShellEnvSeedingTests {
-    @Test func appStateObjectSeedsEnvironment() throws {
+    @Test func appStateObjectSeedsEnvironment() async throws {
         let source = """
         final class AccountsManager: ObservableObject {
             @Published var current = "alice@mstdn.social"
@@ -679,7 +720,7 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("signed in: alice@mstdn.social"),
                 "the App's @StateObject should seed the environment, got \(strings)")
     }

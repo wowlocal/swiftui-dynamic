@@ -56,6 +56,12 @@ public final class Instance: @preconcurrency CustomStringConvertible {
     /// properties, so the root value carries the caller's strong ownership
     /// lease. Ordinary source construction leaves this empty.
     var synthesizedRootOwners: [RuntimeValue] = []
+    /// SwiftUI evaluates a reusable value's `body` after its constructor has
+    /// returned. Preserve the source construction ancestry across that
+    /// deferred boundary so identical modifier sites inside two component
+    /// instances still have distinct structural identities. `nil` is kept
+    /// for manually embedded instances that have no interpreted view site.
+    var constructionViewIdentityPath: [String]?
 
     public convenience init(
         symbol: StructSymbol,

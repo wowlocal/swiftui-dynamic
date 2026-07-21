@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import SwiftInterpreter
 
@@ -12,6 +11,7 @@ public struct TraceLifecycleIdentity: Hashable {
 public struct TraceLifecycle {
     public let identity: TraceLifecycleIdentity
     public let closure: ClosureValue
+    public let isAsyncAction: Bool
 }
 
 /// A recorded render-tree node — what the trace registry produces instead of
@@ -88,7 +88,7 @@ public final class TraceRegistry: HostRegistry {
     public init() {}
 
     public func absorbedCValue(named name: String) -> RuntimeValue? {
-        .native(TraceNode(kind: name)) // writable bag: out-params fill
+        GeneratedCMemoryBridge.record(named: name).map(RuntimeValue.native)
     }
 
     public func hostGlobal(named name: String) -> RuntimeValue? {
@@ -117,31 +117,7 @@ public final class TraceRegistry: HostRegistry {
         ) {
             return generated
         }
-        switch name {
-        case "uname":
-            // The host hardware is REAL: fill the interpreted struct with
-            // actual utsname values and return success.
-            return HostFunction(name: name) { args, _ in
-                if case .host(let any)? = args.positional(0), let node = any as? TraceNode {
-                    var info = utsname()
-                    _ = Darwin.uname(&info)
-                    func field<T>(_ keyPath: KeyPath<utsname, T>) -> String {
-                        var copy = info[keyPath: keyPath]
-                        return withUnsafeBytes(of: &copy) { raw in
-                            String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
-                        }
-                    }
-                    node.config["machine"] = .native(field(\.machine))
-                    node.config["sysname"] = .native(field(\.sysname))
-                    node.config["release"] = .native(field(\.release))
-                    node.config["nodename"] = .native(field(\.nodename))
-                    node.config["version"] = .native(field(\.version))
-                }
-                return .native(0) // success, like the real call
-            }
-        default:
-            return nil
-        }
+        return nil
     }
 
     public func storeBlob(_ value: RuntimeValue, at path: String) {
@@ -194,7 +170,7 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? {
-        guard case .replay = NetworkBridge.policy else { return nil }
+        guard case .replay = NetworkBridge.activePolicy else { return nil }
         return .native(ValuePublisherBox(.success(current)))
     }
 
@@ -487,13 +463,22 @@ public final class TraceRegistry: HostRegistry {
         }
     }
 
-    /// Modifiers whose closure arguments are ViewBuilders (never actions) —
-    /// trace mode evaluates them unconditionally so presented/deferred content
-    /// (sheet bodies, alert buttons, tab items) still gets deep coverage.
-    private static let builderModifiers: Set<String> = [
-        "sheet", "alert", "confirmationDialog", "popover",
-        "tabItem", "overlay", "background", "safeAreaInset", "toolbar",
-    ]
+    /// Whether interface metadata says a modifier's closure arguments build
+    /// views rather than perform actions. Trace mode evaluates these builders
+    /// unconditionally so presented/deferred content still gets deep coverage.
+    /// `tabItem` is the one compatibility gateway not emitted by BridgeGen;
+    /// SwiftUI nevertheless declares its closure as `@ViewBuilder`.
+    private static func isBuilderOnlyModifier(_ name: String) -> Bool {
+        if name == "tabItem" { return true }
+        guard let set = GeneratedModifiers.table[name] else { return false }
+        let parameters = set.byArity.values
+            .flatMap { $0 }
+            .flatMap(\.params)
+        return parameters.contains { $0.tag == .builder }
+            && !parameters.contains {
+                $0.tag == .action || $0.tag == .asyncAction
+            }
+    }
 
     public func modifier(named name: String) -> HostModifier? {
         HostModifier(name: name) { value, args, ctx in
@@ -510,6 +495,17 @@ public final class TraceRegistry: HostRegistry {
             if name == "task" || name == "onAppear",
                let closure = args.arguments.compactMap({ $0.value.closureValue }).first,
                closure.parameters.isEmpty {
+                let closureIndex = args.arguments.firstIndex {
+                    $0.value.closureValue != nil
+                }
+                let parameters = GeneratedModifiers.table[name].flatMap {
+                    GeneratedDispatch.matchingParameters(
+                        overloads: $0, args: args, ctx: ctx)
+                }
+                let isAsyncAction = closureIndex.flatMap { index in
+                    parameters?.indices.contains(index) == true
+                        ? parameters?[index].tag : nil
+                } == .asyncAction
                 // SwiftUI owns lifecycle by structural view identity, not by
                 // the callback's ordinal in a freshly rendered tree. The
                 // syntax call site distinguishes sibling modifiers, the
@@ -522,9 +518,10 @@ public final class TraceRegistry: HostRegistry {
                         viewIdentityPath: ctx.currentViewIdentityPath,
                         restartToken: name == "task"
                             ? args.labeled("id")?.stringified : nil),
-                    closure: closure))
+                    closure: closure,
+                    isAsyncAction: isAsyncAction))
             }
-            if Self.builderModifiers.contains(name) {
+            if Self.isBuilderOnlyModifier(name) {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content
                 // BINDS the item: it evaluates only when the binding holds a
                 // value, receiving it (nil = not presented, like device).
@@ -647,7 +644,8 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue? {
-        guard let node = value as? TraceNode, node.absorbsUnknownMembers else {
+        guard !Self.isBuilderOnlyModifier(name),
+              let node = value as? TraceNode, node.absorbsUnknownMembers else {
             return nil
         }
         // Members of opaque imported objects read as memoized chained bags,

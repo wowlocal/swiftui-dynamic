@@ -2284,38 +2284,40 @@
     "notes": "All three observations are program-ordered in one MainActor task. No task scheduling, executor, or thread behavior is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced cancelled:terminated:cancelled in twenty bounded native runs. This was an already-GREEN characterization: the shared producer carrier was already weak for both stream flavors after scope-exit support landed, so no production change was required. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 37ca395c9da690fb5efa6fba8dfec52ec9ee6ddce65ce54e759749b1a8932bb2; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
   },
   {
-    "id": "unsafe-continuation-fail-closed",
-    "fixture": "Fixtures/unsafe-continuation-fail-closed.swift",
+    "id": "unsafe-continuation-value-resume",
+    "fixture": "Fixtures/unsafe-continuation-value-resume.swift",
     "mode": "runtime",
-    "assertion": "interpreter-diagnostic",
+    "assertion": "exact",
     "repetitions": 20,
     "timeoutSeconds": 5,
-    "interpreterEntry": "await unsafeContinuationFailClosedProbe()",
+    "interpreterEntry": "await unsafeContinuationValueResumeProbe()",
     "interpreterProjection": "string",
-    "interpreterDiagnosticContains": [
-      "withUnsafeContinuation",
-      "unsafe continuation ownership is unsupported",
-      "use a checked continuation"
-    ],
     "nativeFact": "Swift accepts withUnsafeContinuation with explicit MainActor isolation; its synchronous body resumes once with an exact value and the awaiting call returns that value.",
-    "notes": "The body resumes immediately in program order, so exact native output value:33 makes no scheduler-order, physical-thread, or parallelism claim. This native-positive case is intentionally an interpreter-diagnostic boundary rather than behavioral parity: the uncited unsafe family is outside the demand depth cap and must fail closed before invoking its body or allocating continuation ownership."
+    "notes": "The body resumes immediately in program order, so exact output value:33 makes no scheduler-order, physical-thread, or parallelism claim. The corpus now demand-cites both unsafe continuation spellings, and IceCubes' Nuke dependency requires the throwing form to execute its body before queue submission. Generated shape dispatch routes both public isolation-bearing unsafe declarations through the shared runtime-owned continuation record with unsafe abandonment policy. Native/interpreter parity is 20/20; every five-run native shard retained SHA-256 c5db7f0cebe2ae8a9f5b5a4e14556a8d895ee37ffe163501adbdef9514f301fe."
   },
   {
-    "id": "unsafe-throwing-continuation-fail-closed",
-    "fixture": "Fixtures/unsafe-throwing-continuation-fail-closed.swift",
+    "id": "unsafe-throwing-continuation-value-resume",
+    "fixture": "Fixtures/unsafe-throwing-continuation-value-resume.swift",
     "mode": "runtime",
-    "assertion": "interpreter-diagnostic",
+    "assertion": "exact",
     "repetitions": 20,
     "timeoutSeconds": 5,
-    "interpreterEntry": "try await unsafeThrowingContinuationFailClosedProbe()",
+    "interpreterEntry": "try await unsafeThrowingContinuationValueResumeProbe()",
     "interpreterProjection": "string",
-    "interpreterDiagnosticContains": [
-      "withUnsafeThrowingContinuation",
-      "unsafe continuation ownership is unsupported",
-      "use a checked continuation"
-    ],
     "nativeFact": "Swift accepts withUnsafeThrowingContinuation with explicit MainActor isolation; its synchronous body resumes once with an exact value and the awaiting call returns that value.",
-    "notes": "The body resumes immediately in program order, so exact native output value:44 makes no scheduler-order, physical-thread, or parallelism claim. This native-positive case is intentionally an interpreter-diagnostic boundary rather than behavioral parity: the uncited unsafe family is outside the demand depth cap and must fail closed before invoking its body or allocating continuation ownership."
+    "notes": "The body resumes immediately in program order, so exact output value:44 makes no scheduler-order, physical-thread, or parallelism claim. The declaration's generated throwing effect selects error-capable resume while both unsafe spellings share one ownership policy and record implementation. Native/interpreter parity is 20/20; every five-run native shard retained SHA-256 bf29fe0e99e36963d041e8c94108c5b863250595e96a6fc4360e9b86da469d11."
+  },
+  {
+    "id": "unsafe-continuation-result-resume",
+    "fixture": "Fixtures/unsafe-continuation-result-resume.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await unsafeContinuationResultResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A throwing unsafe continuation may escape into a detached producer, suspend its owner, then resume once from Result success, Result failure, or Void Result success while preserving the exact value or source error.",
+    "notes": "Each detached producer yields before resuming, so the owner crosses a real continuation suspension; exact value:29|error:failed|void:resumed makes no producer-order, physical-thread, or parallelism claim. This is the Nuke-shaped ownership slice: a throwing unsafe token escapes its synchronous body and later resumes through Result, including Void success. Native/interpreter parity is 20/20; every five-run native shard retained SHA-256 307eb4047d16781730fa928afa9d4af3e419e1612167f2560e156958f2f9bb6d."
   },
   {
     "id": "checked-continuation-value-resume",

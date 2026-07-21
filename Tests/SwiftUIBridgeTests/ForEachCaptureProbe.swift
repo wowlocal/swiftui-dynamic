@@ -3,7 +3,7 @@ import SwiftInterpreter
 @testable import SwiftUIBridge
 
 @Suite struct ForEachCaptureProbe {
-    @Test func forEachElementSurvivesIntoLifecycleClosure() throws {
+    @Test func forEachElementSurvivesIntoLifecycleClosure() async throws {
         let source = """
         struct AppState: FluxState {
             var fetched: [String] = []
@@ -103,7 +103,7 @@ import SwiftInterpreter
         """
         let deps = "/Users/mike/src/tries/2026-07-08-swiftui-dynamic/External/deps"
         let flux = ProjectMaterial.mergedSource(at: deps + "/SwiftUIFlux/Sources")
-        let strings = try LiveCheckSupport.renderedStrings(source: flux + "\n" + source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: flux + "\n" + source)
         #expect(strings.contains { $0.contains("/p99") },
                 "ForEach element lost in lifecycle closure: \(strings)")
     }

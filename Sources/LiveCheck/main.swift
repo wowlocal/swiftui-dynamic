@@ -56,7 +56,7 @@ LiveCheckSupport.traceLifecycle = ProcessInfo.processInfo.environment["LIVECHECK
 struct Scenario {
     let name: String
     let fixturesDirectory: String
-    let run: () throws -> [String]  // returns assertion failures (empty = pass)
+    let run: () async throws -> [String]  // returns assertion failures (empty = pass)
 }
 
 func fixtureJSON(_ path: String) -> Any? {
@@ -158,18 +158,19 @@ let scenarios: [Scenario] = [
         // vs @main, two HomeViews) and the TV home was winning the root.
         let source = flux + "\n" + ProjectMaterial.mergedSource(
             at: ossRoot + "/MovieSwiftUI", excludingTargets: ["MovieSwiftTV"])
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let render = try await LiveCheckSupport.render(source: source)
+        let strings = render.strings
         let joined = strings.joined(separator: "\n")
         let found = expectedTitles.filter { joined.contains($0) }
         if found.count >= 3 {
             return []
         }
-        var message = "only \(found.count)/10 fixture titles reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"
-        for error in LiveCheckSupport.lastLifecycleErrors.prefix(3) {
+        var message = "only \(found.count)/10 fixture titles reached the tree (\(strings.count) strings, root \(render.rootSymbol), \(render.lifecycleFired) lifecycle closures fired)"
+        for error in render.lifecycleErrors.prefix(3) {
             message += "\n     lifecycle error: \(error.prefix(160))"
         }
-        message += "\n     network: \(NetworkBridge.requestLog.isEmpty ? "NO REQUESTS" : NetworkBridge.requestLog.prefix(6).joined(separator: ", "))"
-        let absorbed = LiveCheckSupport.lastAbsorbedHostMembers
+        message += "\n     network: \(render.networkRequests.isEmpty ? "NO REQUESTS" : render.networkRequests.prefix(6).joined(separator: ", "))"
+        let absorbed = render.absorbedHostMembers
             .sorted { $0.value > $1.value }.prefix(8)
             .map { "\($0.key)×\($0.value)" }
         if !absorbed.isEmpty {
@@ -192,17 +193,18 @@ let scenarios: [Scenario] = [
         }
         let expectedNames = results.compactMap { $0["name"] as? String }.prefix(20)
         let source = ProjectMaterial.mergedSource(at: ossRoot + "/ACHNBrowserUI")
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let render = try await LiveCheckSupport.render(source: source)
+        let strings = render.strings
         let joined = strings.joined(separator: "\n")
         let found = expectedNames.filter { joined.contains($0) }
         if found.count >= 3 {
             return []
         }
-        var message = "only \(found.count)/\(expectedNames.count) bundled item names reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"
-        for error in LiveCheckSupport.lastLifecycleErrors.prefix(3) {
+        var message = "only \(found.count)/\(expectedNames.count) bundled item names reached the tree (\(strings.count) strings, root \(render.rootSymbol), \(render.lifecycleFired) lifecycle closures fired)"
+        for error in render.lifecycleErrors.prefix(3) {
             message += "\n     lifecycle error: \(error.prefix(160))"
         }
-        let absorbed = LiveCheckSupport.lastAbsorbedHostMembers
+        let absorbed = render.absorbedHostMembers
             .sorted { $0.value > $1.value }.prefix(8)
             .map { "\($0.key)×\($0.value)" }
         if !absorbed.isEmpty {
@@ -222,18 +224,19 @@ let scenarios: [Scenario] = [
         guard !authorPool.isEmpty else { return ["fixtures unreadable"] }
         let expectedAuthors = authorPool.prefix(20)
         let source = ProjectMaterial.mergedSource(at: ossRoot + "/IceCubesApp")
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let render = try await LiveCheckSupport.render(source: source)
+        let strings = render.strings
         let joined = strings.joined(separator: "\n")
         let found = expectedAuthors.filter { joined.contains($0) }
         if found.count >= 3 {
             return []
         }
-        var message = "only \(found.count)/\(expectedAuthors.count) fixture authors reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"
-        for error in LiveCheckSupport.lastLifecycleErrors.prefix(3) {
+        var message = "only \(found.count)/\(expectedAuthors.count) fixture authors reached the tree (\(strings.count) strings, root \(render.rootSymbol), \(render.lifecycleFired) lifecycle closures fired)"
+        for error in render.lifecycleErrors.prefix(3) {
             message += "\n     lifecycle error: \(error.prefix(160))"
         }
-        message += "\n     network: \(NetworkBridge.requestLog.isEmpty ? "NO REQUESTS" : NetworkBridge.requestLog.prefix(6).joined(separator: ", "))"
-        let absorbed = LiveCheckSupport.lastAbsorbedHostMembers
+        message += "\n     network: \(render.networkRequests.isEmpty ? "NO REQUESTS" : render.networkRequests.prefix(6).joined(separator: ", "))"
+        let absorbed = render.absorbedHostMembers
             .sorted { $0.value > $1.value }.prefix(8)
             .map { "\($0.key)×\($0.value)" }
         if !absorbed.isEmpty {
@@ -279,7 +282,7 @@ for scenario in scenariosToRun {
     NetworkBridge.requestLog = []
     defer { NetworkBridge.policy = .absorbed }
     do {
-        let failures = try scenario.run()
+        let failures = try await scenario.run()
         if failures.isEmpty {
             passed += 1
             print("✅ \(scenario.name)")

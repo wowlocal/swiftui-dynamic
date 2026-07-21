@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "cc3c6ed1e81c1dc7b49b326541844948e393dda024649905a4d6e5fc0881a155",
+  "inventorySHA256": "5fdb1b7d95a49421dc7b395d99e76b3a9114adfe26e0048fdb93a6b58776461a",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -2581,37 +2581,35 @@
     },
     {
       "id": "swift-concurrency-api-v1:1c6b71ba2592eb2a5841edbe5c173bf0dcc5801237920669367ca47a9797fcc3",
-      "implementationStatus": "diagnosed-unsupported",
-      "verificationStatus": "focused-only",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
       "requirementRef": "M6/protocol-iteration-streams-and-continuations",
       "evidenceCaseIDs": [
-        "unsafe-continuation-fail-closed"
+        "unsafe-continuation-value-resume"
       ],
       "testNames": [
         "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
-        "UnsafeContinuationDiagnosticsTests/unsafeContinuationFailsClosedBeforeOwnership"
+        "UnsafeContinuationRuntimeTests/oneShotUnsafeFormsReturnExactValuesAndCleanUp"
       ],
-      "gapEvidenceIDs": [
-        "async-sequence-continuation-runtime"
-      ],
-      "notes": "The public withUnsafeContinuation declaration is generated from the active SDK and routes to the shared unsupportedUnsafeContinuation intrinsic. Apple Swift 6.3.3 accepts its explicit MainActor isolation form and immediately returns the exact resumed value. The interpreter deliberately fails closed with a named unsafe-continuation ownership diagnostic before invoking the body or allocating continuation ownership. This native-positive interpreter-diagnostic boundary is not behavioral parity: the API has no corpus, FoodTruck, LiveCheck, or TestCheck demand citation and the section 14 depth cap directs callers to a checked continuation instead of adding unchecked runtime semantics."
+      "gapEvidenceIDs": [],
+      "notes": "The public withUnsafeContinuation declaration is generated from the active SDK and routes through the shared shape-derived unsafeContinuation intrinsic. Its explicit MainActor isolation form immediately resumes with the exact value through the same runtime-owned continuation record as checked forms, while an unsafe policy omits checked abandonment diagnostics. Expanded corpus demand now cites this spelling in 14 project files. Twenty native/interpreter repetitions establish native parity, and focused cleanup drains every record."
     },
     {
       "id": "swift-concurrency-api-v1:16b269f49b82c403312e3cbfde1b6db496f06dc96b32e22d8a0ede15a94167d7",
-      "implementationStatus": "diagnosed-unsupported",
-      "verificationStatus": "focused-only",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
       "requirementRef": "M6/protocol-iteration-streams-and-continuations",
       "evidenceCaseIDs": [
-        "unsafe-throwing-continuation-fail-closed"
+        "unsafe-throwing-continuation-value-resume",
+        "unsafe-continuation-result-resume"
       ],
       "testNames": [
         "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
-        "UnsafeContinuationDiagnosticsTests/unsafeThrowingContinuationFailsClosedBeforeOwnership"
+        "UnsafeContinuationRuntimeTests/oneShotUnsafeFormsReturnExactValuesAndCleanUp",
+        "UnsafeContinuationRuntimeTests/delayedResultResumeSharesTransitionsAndCleansUp"
       ],
-      "gapEvidenceIDs": [
-        "async-sequence-continuation-runtime"
-      ],
-      "notes": "The public withUnsafeThrowingContinuation declaration is generated from the active SDK and routes to the shared unsupportedUnsafeContinuation intrinsic. Apple Swift 6.3.3 accepts its explicit MainActor isolation form and immediately returns the exact resumed value. The interpreter deliberately fails closed with a named unsafe-continuation ownership diagnostic before invoking the body or allocating continuation ownership. This native-positive interpreter-diagnostic boundary is not behavioral parity: the API has no corpus, FoodTruck, LiveCheck, or TestCheck demand citation and the section 14 depth cap directs callers to a checked continuation instead of adding unchecked runtime semantics."
+      "gapEvidenceIDs": [],
+      "notes": "The public withUnsafeThrowingContinuation declaration is generated from the active SDK and routes through the shared shape-derived unsafeContinuation intrinsic. Its generated throwing effect enables returning, throwing, and resume(with:) terminal transitions on the common runtime-owned record. Exact native parity covers explicit MainActor isolation plus delayed Result value, source-error, and Void success after the token escapes to a detached producer. Nuke in IceCubes demand-cites this precise body-escape and later Result-resume shape; the broader corpus contains 34 project files using the spelling. Focused cleanup drains every continuation, task, and session edge."
     },
     {
       "id": "swift-concurrency-api-v1:552c828c1fac0e6a837d1e6c0d8600350ba401c7c3f00a76bc280a519099444b",
@@ -2957,8 +2955,9 @@
         "checked-continuation-result-spellings",
         "checked-continuation-source-actor-isolation",
         "checked-continuation-void-resume",
-        "unsafe-continuation-fail-closed",
-        "unsafe-throwing-continuation-fail-closed"
+        "unsafe-continuation-value-resume",
+        "unsafe-throwing-continuation-value-resume",
+        "unsafe-continuation-result-resume"
       ],
       "testNames": [
         "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
@@ -2974,8 +2973,8 @@
         "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
         "CheckedContinuationRuntimeTests/sourceActorIsolationOwnsBodyReentersAndCleansUp",
         "CheckedContinuationRuntimeTests/voidResumeUsesSameRecordAndCleanup",
-        "UnsafeContinuationDiagnosticsTests/unsafeContinuationFailsClosedBeforeOwnership",
-        "UnsafeContinuationDiagnosticsTests/unsafeThrowingContinuationFailsClosedBeforeOwnership",
+        "UnsafeContinuationRuntimeTests/oneShotUnsafeFormsReturnExactValuesAndCleanUp",
+        "UnsafeContinuationRuntimeTests/delayedResultResumeSharesTransitionsAndCleansUp",
         "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess",
         "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
         "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck"
@@ -2983,7 +2982,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. Checked continuations add runtime-owned delayed resume(returning:) values for explicit isolation: nil, MainActor.shared, and a source actor plus omitted caller-defaulted #isolation from nonisolated, MainActor, and source-actor callers, zero-argument Void resume(), nonthrowing Result<T, Never> resume(with:), contextual actor body execution, caller-executor restoration, actor-mailbox release/reentry/reacquisition, bounded registry ownership, and infrastructure-abort cleanup. The throwing form additionally projects the original resume(throwing:) source value, has exact MainActor and source-actor body/caller-restoration evidence for its error paths, including mailbox release/reentry/reacquisition for a caller-defaulted actor, and maps both concrete-error and existential Result<T, any Error> success/failure through resume(with:) to the same terminal transitions. Both checked forms have process-isolated double-resume trap parity and fatal invariants bypass source `do`/`catch`; both also have successful-process final-token abandonment-warning parity while leaving the source owner suspended. Retained resumed tokens are non-owning after owner completion and are inert on release. Both native-positive unsafe entry points now fail closed through one generated dispatch intrinsic before body invocation or ownership allocation. Their deliberately unsupported unsafe ownership and the explicit negative stream-capacity boundary keep this aggregate family a known divergence rather than a runtime-support claim."
+      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. Checked continuations add runtime-owned delayed resume(returning:) values for explicit isolation: nil, MainActor.shared, and a source actor plus omitted caller-defaulted #isolation from nonisolated, MainActor, and source-actor callers, zero-argument Void resume(), nonthrowing Result<T, Never> resume(with:), contextual actor body execution, caller-executor restoration, actor-mailbox release/reentry/reacquisition, bounded registry ownership, and infrastructure-abort cleanup. The throwing form additionally projects the original resume(throwing:) source value, has exact MainActor and source-actor body/caller-restoration evidence for its error paths, including mailbox release/reentry/reacquisition for a caller-defaulted actor, and maps both concrete-error and existential Result<T, any Error> success/failure through resume(with:) to the same terminal transitions. Both checked forms have process-isolated double-resume trap parity and fatal invariants bypass source `do`/`catch`; both also have successful-process final-token abandonment-warning parity while leaving the source owner suspended. Retained resumed tokens are non-owning after owner completion and are inert on release. Both public unsafe entry points now share the same generated shape intrinsic and runtime record with an unsafe abandonment policy. Exact parity covers immediate returning resume plus delayed throwing-form Result value, source-error, and Void success. Undefined unsafe misuse semantics and the explicit negative stream-capacity boundary keep this aggregate family a known divergence rather than an exhaustive runtime-support claim."
     },
     {
       "id": "swiftui-view-owned-async-lifecycle",

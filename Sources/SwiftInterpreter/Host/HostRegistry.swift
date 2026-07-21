@@ -451,8 +451,9 @@ public protocol HostRegistry: AnyObject {
     /// SDK/module global values (`NSApp`) emitted from importer metadata.
     /// This precedes the unknown-uppercase-type absorber.
     func hostGlobal(named name: String) -> RuntimeValue?
-    /// The value an absorbed C call yields — registries return writable
-    /// bags so out-parameter structs (utsname) can be filled.
+    /// A metadata-recognized zero-argument C record constructor. Registries
+    /// return a writable value only when their SDK surface proves the symbol
+    /// is a record; unknown imported function results remain unresolved.
     func absorbedCValue(named name: String) -> RuntimeValue?
     func storeBlob(_ value: RuntimeValue, at path: String)
     func constructor(named name: String) -> HostFunction?

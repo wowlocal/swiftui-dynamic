@@ -532,7 +532,7 @@ struct CheckedContinuationRuntimeTests {
             + "\ntry await checkedContinuationEscapedTokenLifetimeProbe()\n"
         weak var weakInterpreter: Interpreter?
         weak var weakRuntime: CooperativeConcurrencyRuntime?
-        var escapedTokens: [RuntimeCheckedContinuation] = []
+        var escapedTokens: [RuntimeSourceContinuation] = []
         var retainedDiagnostics: RuntimeDiagnosticSink?
 
         do {
@@ -552,7 +552,7 @@ struct CheckedContinuationRuntimeTests {
                 let value = try #require(
                     interpreter.globals.lookup(name)?.unwrappedOptionalOrSelf)
                 guard case .host(let payload) = value,
-                      let token = payload as? RuntimeCheckedContinuation else {
+                      let token = payload as? RuntimeSourceContinuation else {
                     Issue.record("\(name) did not retain a continuation token")
                     continue
                 }

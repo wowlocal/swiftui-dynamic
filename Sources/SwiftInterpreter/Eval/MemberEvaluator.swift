@@ -301,13 +301,17 @@ extension Interpreter {
                 .allSatisfy({ $0.isUppercase || $0 == "_" || $0.isNumber }) {
                 return .implicitMember(name)
             }
-            return .hostFunction(HostFunction(name: name) { args, _ in
+            return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
                 // Preserve unresolved-import provenance in the result. A
-                // registry's generic host-object recorder represents a value
-                // that was actually constructed; using it here made `if let`
-                // unable to distinguish a missing imported result from that
-                // concrete opaque object.
-                .native(ChainedImplicitCall(
+                // metadata-recognized zero-argument C record constructor is
+                // concrete and writable; all other unknown imported calls
+                // retain their unresolved chain so `if let` can still
+                // distinguish a missing imported result.
+                if args.isEmpty,
+                   let record = self?.registry?.absorbedCValue(named: name) {
+                    return record
+                }
+                return .native(ChainedImplicitCall(
                     base: .implicitMember(name), member: "call",
                     arguments: args))
             })
@@ -2107,7 +2111,7 @@ extension Interpreter {
             // hostExtensionStaticMethodDispatcher below for static METHODS
             // of extended host types.)
             let any = baseValue.hostPayload!
-            if let member = runtimeCheckedContinuationMember(name, on: any) {
+            if let member = runtimeContinuationMember(name, on: any) {
                 return member
             }
             if let member = runtimeAsyncStreamMember(name, on: any) {

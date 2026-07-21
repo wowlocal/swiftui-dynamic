@@ -184,7 +184,7 @@ import SwiftInterpreter
 /// PASSED value — a generic-annotated property must not decay to a marker
 /// (the switch over its members would take the first case forever).
 @Suite struct StateBackingInitTests {
-    @Test func underscoreInitSeedsGenericStateBox() throws {
+    @Test func underscoreInitSeedsGenericStateBox() async throws {
         let source = """
         protocol Fetching {
             var state: String { get }
@@ -213,13 +213,13 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("loaded"), "the seeded VM must reach the body, got \(strings)")
     }
 
     /// Distilled from IceCubes' `StatusRowView`, whose synthesized memberwise
     /// initializer accepts a model through an `@State`-wrapped property.
-    @Test func synthesizedInitializerSeedsStateWrappedModel() throws {
+    @Test func synthesizedInitializerSeedsStateWrappedModel() async throws {
         let source = """
         struct RowModel {
             let title: String
@@ -241,7 +241,7 @@ import SwiftInterpreter
         }
         """
 
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("timeline:fixture"), "the memberwise seed must reach the body, got \(strings)")
     }
 
@@ -254,7 +254,7 @@ import SwiftInterpreter
 /// shape). AttributedString's labeled ctors wrap/convert for real, and
 /// one-argument `insert` on Set-typed storage appends-if-absent.
 @Suite struct RowIdentityAndSetInsertTests {
-    @Test func forEachRowsKeepDistinctState() throws {
+    @Test func forEachRowsKeepDistinctState() async throws {
         let source = """
         struct Item: Identifiable {
             let id: String
@@ -287,12 +287,12 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("alpha") && strings.contains("beta") && strings.contains("gamma"),
                 "each row must keep its own @State seed, got \(strings)")
     }
 
-    @Test func attributedStringLabeledConstructorsAndSetInsert() throws {
+    @Test func attributedStringLabeledConstructorsAndSetInsert() async throws {
         let source = """
         final class Registry {
             static var observed: Set<String> = []
@@ -313,7 +313,7 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("Sun Dog"), "stringLiteral ctor must carry the text, got \(strings)")
         #expect(strings.contains { $0.contains("plain") && $0.contains("bold") },
                 "markdown ctor must convert to readable text, got \(strings)")
@@ -327,7 +327,7 @@ import SwiftInterpreter
 /// Keep the distilled shape native-valid and require the interpreted render to
 /// preserve the same visible text.
 @Suite struct AttributedStringCollectionTests {
-    @Test func throwingConversionPreservesFallbackForOpaqueParserOutput() throws {
+    @Test func throwingConversionPreservesFallbackForOpaqueParserOutput() async throws {
         let source = ProjectMaterial.mergedSource(source: """
         import OpaqueMarkdown
         import SwiftUI
@@ -410,12 +410,12 @@ import SwiftInterpreter
         }
         """, moduleName: "Client")
 
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("verbatim fallback"),
                 "a rejected opaque conversion must enter the source fallback, got \(strings)")
     }
 
-    @Test func runsSliceAndReduceBackIntoRenderableText() throws {
+    @Test func runsSliceAndReduceBackIntoRenderableText() async throws {
         let native = AttributedString("booster")
         #expect(native.runs.count == 1)
         #expect(String(native.characters) == "booster")
@@ -482,11 +482,11 @@ import SwiftInterpreter
         }
         """
 
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("booster"), "attributed runs must preserve text, got \(strings)")
     }
 
-    @Test func computedTextSurvivesTaskPriorityModifier() throws {
+    @Test func computedTextSurvivesTaskPriorityModifier() async throws {
         let source = """
         extension [Text] {
             func joined() -> Text {
@@ -530,7 +530,7 @@ import SwiftInterpreter
         }
         """
 
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("booster"),
                 "a lifecycle modifier must retain its computed Text receiver, got \(strings)")
     }

@@ -65,6 +65,7 @@ let modulePrefixes = [
     "UniformTypeIdentifiers.", "DeveloperToolsSupport.",
     "CoreFoundation.", "CoreGraphics.", "Charts.",
     "Observation.", "SwiftUICore.", "Foundation.", "CoreData.", "SwiftUI.",
+    "_Concurrency.",
     "AppKit.", "UIKit.", "Metal.", "QuartzCore.", "ObjectiveC.",
     "Combine.", "Swift.", "os.",
 ]
@@ -116,6 +117,8 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Int": return .init(tag: "int", cast: "%@ as! Int")
     case "Double": return .init(tag: "double", cast: "%@ as! Double")
     case "CGFloat": return .init(tag: "cgFloat", cast: "%@ as! CGFloat")
+    case "TaskPriority": return .init(
+        tag: "taskPriority", cast: "%@ as! TaskPriority")
     case "ClosedRange<Double>": return .init(tag: "doubleRange", cast: "%@ as! ClosedRange<Double>")
     case "Color": return .init(tag: "color", cast: "%@ as! Color")
     case "Font": return .init(tag: "font", cast: "%@ as! Font")
@@ -3412,7 +3415,9 @@ let cMemoryPath =
     "Sources/SwiftUIBridge/Generated/GeneratedCMemoryBridge.swift"
 try cMemoryGeneration.output.write(
     toFile: cMemoryPath, atomically: true, encoding: .utf8)
-print("wrote \(cMemoryPath) (\(cMemoryGeneration.functionNames.count) relative-pointer functions)")
+print(
+    "wrote \(cMemoryPath) (\(cMemoryGeneration.functionNames.count) C functions, "
+        + "\(cMemoryGeneration.recordNames.count) writable records)")
 
 let platformPath = "Sources/SwiftUIBridge/Generated/GeneratedPlatformBridge.swift"
 try platformGeneration.output.write(
@@ -3437,7 +3442,8 @@ print(
 let requiredPreflightModules = ["_Concurrency", "Foundation", "SwiftUI"]
 let conditionalPreflightModules = Array(Set([
     "Combine", "CoreGraphics", "Darwin", "ObjectiveC",
-] + platformGeneration.coverage.keys)).sorted()
+] + platformGeneration.coverage.keys)
+    .subtracting(requiredPreflightModules)).sorted()
 let preflightModuleSource = (
     requiredPreflightModules.map { "@_exported import \($0)" }
         + conditionalPreflightModules.flatMap {

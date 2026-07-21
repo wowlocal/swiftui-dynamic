@@ -1,5 +1,5 @@
 @MainActor
-func unsafeContinuationFailClosedProbe() async -> String {
+func unsafeContinuationValueResumeProbe() async -> String {
     let value: Int = await withUnsafeContinuation(
         isolation: MainActor.shared
     ) { continuation in
@@ -10,5 +10,5 @@ func unsafeContinuationFailClosedProbe() async -> String {
 
 @MainActor
 func parityNativeOutput() async -> String {
-    await unsafeContinuationFailClosedProbe()
+    await unsafeContinuationValueResumeProbe()
 }

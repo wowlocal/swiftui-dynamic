@@ -5,7 +5,7 @@ import SwiftInterpreter
 
 /// Classes closed on the achnbrowser rung (queue 3c), pinned smallest-first.
 @Suite struct ACHNLadderTests {
-    @Test func nilItemSheetContentNeverRuns() throws {
+    @Test func nilItemSheetContentNeverRuns() async throws {
         // `.sheet(item:)` over a nil route: native never evaluates the
         // content closure — `$0.makeSheetView()` must not absorb the root.
         let source = """
@@ -26,11 +26,11 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains { $0.contains("home alive") }, "\(strings)")
     }
 
-    @Test func itemSheetContentReceivesTheUnwrappedItem() throws {
+    @Test func itemSheetContentReceivesTheUnwrappedItem() async throws {
         let source = """
         struct Route: Identifiable {
             let id: Int
@@ -46,7 +46,7 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("details"), "\(strings)")
     }
 
@@ -60,7 +60,7 @@ import SwiftInterpreter
         #expect(result.stringValue == "150")
     }
 
-    @Test func classicEnvironmentKeyDefaultResolves() throws {
+    @Test func classicEnvironmentKeyDefaultResolves() async throws {
         // The 2020 pattern: EnvironmentKey.defaultValue behind a computed
         // EnvironmentValues extension — unset reads get the declared default.
         let source = """
@@ -85,11 +85,11 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains { $0.contains("greeting: hello-default") }, "\(strings)")
     }
 
-    @Test func nilInBuilderRendersNothing() throws {
+    @Test func nilInBuilderRendersNothing() async throws {
         let source = """
         struct Home: View {
             @State var pick = [Int]().randomElement()
@@ -107,7 +107,7 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains { $0.contains("before") } && strings.contains { $0.contains("after") },
                 "\(strings)")
     }

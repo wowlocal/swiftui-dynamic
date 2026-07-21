@@ -8,7 +8,7 @@ import SwiftInterpreter
 /// ParamTag only after a method overload has been selected. Hand-written
 /// gateways are consulted first and always win.
 enum ParamTag: Hashable {
-    case string, text, bool, int, double, cgFloat
+    case string, text, bool, int, double, cgFloat, taskPriority
     case color, font, fontWeight, angle, animation
     case alignment, horizontalAlignment, verticalAlignment, textAlignment
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
@@ -126,6 +126,31 @@ enum GeneratedDispatch {
             return try Coerce.double(value)
         case .cgFloat:
             return try Coerce.cgFloat(value)
+        case .taskPriority:
+            if let priority = value.hostPayload as? TaskPriority {
+                return priority
+            }
+            if let priority = value.hostPayload as? RuntimeTaskPriority {
+                return TaskPriority(rawValue: priority.rawValue)
+            }
+            let member: String?
+            switch value {
+            case .implicitMember(let name):
+                member = name
+            case .host(let call as ImplicitMemberCall):
+                member = call.name
+            default:
+                member = nil
+            }
+            switch member {
+            case "high", "userInitiated": return TaskPriority.high
+            case "medium": return TaskPriority.medium
+            case "low", "utility": return TaskPriority.low
+            case "background": return TaskPriority.background
+            default:
+                throw RuntimeError(message:
+                    "expected a TaskPriority implicit member")
+            }
         case .color:
             return try Coerce.color(value)
         case .font:
@@ -340,6 +365,21 @@ enum GeneratedDispatch {
             values.append(coerced)
         }
         return values
+    }
+
+    /// Return the interface-derived parameter shape selected by the same
+    /// coercion and label rules as generated dispatch. Semantic adapters can
+    /// preserve closure properties without redispatching on an API name.
+    static func matchingParameters(
+        overloads: GeneratedOverloadSet,
+        args: CallArguments,
+        ctx: EvalContext
+    ) -> [ParamSpec]? {
+        for overload in overloads.byArity[args.arguments.count] ?? []
+        where matches(overload.params, args, ctx) != nil {
+            return overload.params
+        }
+        return nil
     }
 
     static func dispatch(

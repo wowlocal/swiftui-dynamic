@@ -91,6 +91,13 @@ extension Interpreter {
             symbol: symbol,
             lifecycleOwner: symbol.isClass ? self : nil,
             programState: currentProgramState)
+        if symbol.conformsToView {
+            var path = viewIdentitySalts
+            if let site = node?.id.indexInTree.toOpaque() {
+                path.append("site:\(site)")
+            }
+            instance.constructionViewIdentityPath = path
+        }
         if symbol.isActor {
             instance.actorID = concurrencyRuntime.registerActor(instance)
         }
@@ -836,8 +843,11 @@ extension Interpreter {
         guard let computed = bodyProperty(of: instance.symbol) else {
             throw RuntimeError(message: "'\(instance.symbol.name)' has no body property")
         }
-        return try evaluateComputedViewBody(
-            computed, selfValue: .instance(instance), name: "body")
+        let path = instance.constructionViewIdentityPath ?? viewIdentitySalts
+        return try withViewIdentityPath(path) {
+            try evaluateComputedViewBody(
+                computed, selfValue: .instance(instance), name: "body")
+        }
     }
 
     /// Call an instance method with positional arguments — the bridge's entry

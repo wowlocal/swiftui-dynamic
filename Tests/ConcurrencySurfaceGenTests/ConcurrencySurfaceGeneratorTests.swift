@@ -20,9 +20,9 @@ struct ConcurrencySurfaceGeneratorTests {
             "withCheckedContinuation": "withCheckedContinuation",
             "withCheckedThrowingContinuation":
                 "withCheckedThrowingContinuation",
-            "withUnsafeContinuation": "unsupportedUnsafeContinuation",
+            "withUnsafeContinuation": "unsafeContinuation",
             "withUnsafeThrowingContinuation":
-                "unsupportedUnsafeContinuation",
+                "unsafeContinuation",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
             "withTaskExecutorPreference": "withTaskExecutorPreference",
@@ -500,12 +500,12 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.declarations.contains {
             $0.domain == "top-level-function"
                 && $0.name == "withUnsafeContinuation"
-                && $0.adapterIntrinsic == "unsupportedUnsafeContinuation"
+                && $0.adapterIntrinsic == "unsafeContinuation"
         })
         #expect(capabilities.declarations.contains {
             $0.domain == "top-level-function"
                 && $0.name == "withUnsafeThrowingContinuation"
-                && $0.adapterIntrinsic == "unsupportedUnsafeContinuation"
+                && $0.adapterIntrinsic == "unsafeContinuation"
         })
         #expect(capabilities.declarations.contains {
             $0.domain == "task-static-member" && $0.name == "sleep"

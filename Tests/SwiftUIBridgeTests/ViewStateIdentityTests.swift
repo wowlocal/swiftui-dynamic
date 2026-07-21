@@ -7,7 +7,7 @@ import SwiftInterpreter
 /// (the icecubes genre: .onAppear assigns the view model's client, the
 /// NEXT pass fetches with it).
 @Suite struct ViewStateIdentityTests {
-    @Test func onAppearWriteSurvivesRerender() throws {
+    @Test func onAppearWriteSurvivesRerender() async throws {
         let source = """
         class FeedModel {
             var status = "empty"
@@ -25,12 +25,12 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains { $0.contains("loaded") },
                 "re-render lost the onAppear write: \(strings)")
     }
 
-    @Test func stateBoxReusedAcrossInstantiations() throws {
+    @Test func stateBoxReusedAcrossInstantiations() async throws {
         let source = """
         class Counter {
             var value = 0
@@ -48,14 +48,14 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         // Passes fire onAppear once per NEW closure only; the count must
         // exceed zero in the final tree (identity held), never reset.
         #expect(strings.contains { $0.contains("count") && !$0.contains("count 0") },
                 "state reset across renders: \(strings)")
     }
 
-    @Test func insertedLifecycleViewDoesNotShiftExistingIdentity() throws {
+    @Test func insertedLifecycleViewDoesNotShiftExistingIdentity() async throws {
         let source = """
         final class Model {
             var revealsNewView = false
@@ -82,12 +82,12 @@ import SwiftInterpreter
         }
         """
 
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("1|1"),
                 "lifecycle identity followed array position: \(strings)")
     }
 
-    @Test func lifecycleIdentityDistinguishesForEachRows() throws {
+    @Test func lifecycleIdentityDistinguishesForEachRows() async throws {
         let source = """
         final class Model {
             var appearanceTotal = 0
@@ -107,9 +107,45 @@ import SwiftInterpreter
         }
         """
 
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("total 3"),
                 "sibling rows shared one lifecycle identity: \(strings)")
+    }
+
+    /// Distilled from IceCubes' reusable Nuke `LazyImage`: every instance's
+    /// lifecycle modifier originates at the same source site inside `body`,
+    /// but SwiftUI gives sibling component instances distinct structural
+    /// identities inherited from their parent construction sites.
+    @Test func lifecycleIdentityDistinguishesReusableViewInstances() async throws {
+        let source = """
+        final class Model {
+            var appearanceTotal = 0
+        }
+        struct ReusableRow: View {
+            let value: Int
+            let model: Model
+
+            var body: some View {
+                Text("row \\(value)")
+                    .onAppear { model.appearanceTotal += value }
+            }
+        }
+        struct ContentView: View {
+            @State private var model = Model()
+
+            var body: some View {
+                VStack {
+                    ReusableRow(value: 1, model: model)
+                    ReusableRow(value: 2, model: model)
+                    Text("total \\(model.appearanceTotal)")
+                }
+            }
+        }
+        """
+
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("total 3"),
+                "reusable instances shared one lifecycle identity: \(strings)")
     }
 
     /// Distilled from IceCubes' StatusesListView + NextPageView. A native
@@ -117,7 +153,7 @@ import SwiftInterpreter
     /// task is still off-screen at launch even though visible row callbacks
     /// have begun. The trace walk may cover every row's strings, but it must
     /// not turn deep coverage into lifecycle visibility.
-    @Test func lazyListDoesNotFireOffscreenPaginationTaskAtLaunch() throws {
+    @Test func lazyListDoesNotFireOffscreenPaginationTaskAtLaunch() async throws {
         let source = """
         final class Model {
             var visibleRows = 0
@@ -151,7 +187,7 @@ import SwiftInterpreter
         }
         """
 
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         let summary = try #require(strings.first { $0.hasPrefix("lifecycle ") })
         #expect(summary.hasSuffix("|0"),
                 "off-screen paging task fired at launch: \(strings)")
@@ -159,7 +195,7 @@ import SwiftInterpreter
                 "initially visible rows never appeared: \(strings)")
     }
 
-    @Test func taskIdentityRestartsWhenItsIDChanges() throws {
+    @Test func taskIdentityRestartsWhenItsIDChanges() async throws {
         let source = """
         final class Model {
             var taskID = 0
@@ -180,7 +216,7 @@ import SwiftInterpreter
         }
         """
 
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("runs 2"),
                 "task(id:) did not restart exactly once: \(strings)")
     }

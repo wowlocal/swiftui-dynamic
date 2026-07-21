@@ -461,6 +461,8 @@ enum GeneratedPlatformBridge {
 
     static func frameworkIsNative(_ framework: String) -> Bool {
         switch framework {
+        case "Foundation":
+            true
         case "AppKit":
 #if canImport(AppKit)
             true
@@ -498,11 +500,11 @@ enum GeneratedPlatformBridge {
 
     private static var frameworkPreference: [String] {
 #if canImport(AppKit)
-        ["AppKit", "Metal", "MapKit", "CoreLocation", "UIKit"]
+        ["AppKit", "Foundation", "Metal", "MapKit", "CoreLocation", "UIKit"]
 #elseif canImport(UIKit)
-        ["UIKit", "Metal", "MapKit", "CoreLocation", "AppKit"]
+        ["UIKit", "Foundation", "Metal", "MapKit", "CoreLocation", "AppKit"]
 #else
-        ["Metal", "MapKit", "CoreLocation", "UIKit", "AppKit"]
+        ["Foundation", "Metal", "MapKit", "CoreLocation", "UIKit", "AppKit"]
 #endif
     }
 
@@ -1270,6 +1272,30 @@ enum GeneratedPlatformBridge {
 }
 
 // MARK: - Generated argument/result conversions
+
+/// Submit an interpreter-owned lifecycle object through the same delivery
+/// policy as other host schedulers. The generator emits this handoff only
+/// when SDK metadata says the receiver conforms to `Scheduler` and its sole
+/// parameter type declares the supplied zero-argument lifecycle entry point.
+/// Native parameter values continue through the statically compiled SDK call.
+@MainActor
+func generatedPlatformScheduleInterpretedLifecycle(
+    _ value: RuntimeValue,
+    entryPoint: String,
+    context: EvalContext
+) -> Bool {
+    guard case .instance(let instance) = value,
+          let interpreter = context as? Interpreter else { return false }
+    let action = ActionValue(run: {
+        _ = try? interpreter.callMethod(
+            named: entryPoint, on: instance, arguments: [])
+    })
+    MainQueueDrain.schedule(
+        action,
+        after: 0,
+        mode: MainQueueDrain.deliveryMode(for: context))
+    return true
+}
 
 private protocol GeneratedPlatformRuntimeConvertible {
     static func generatedPlatformValue(

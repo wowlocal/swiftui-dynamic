@@ -78,9 +78,12 @@ is released; the waiting task stays suspended and explicit host teardown
 remains separate. A resumed checked token may remain escaped after owner
 completion without retaining the task-local owner graph, runtime, session, or
 interpreter, and its later release is inert. The active-interface generator
-routes both unsafe continuation entry points to one shared named fail-closed
-intrinsic before body invocation or ownership allocation. The demand-scoped M6
-cycle is closed. The demand-scoped M8 SwiftUI lifecycle cycle is also covered:
+selects both public unsafe continuation entry points from their declaration
+shape and routes them to one shared intrinsic. The cited one-shot subset reuses
+the runtime-owned record for immediate and delayed value/error/Result resume
+while an unsafe policy omits checked abandonment diagnostics. Undefined unsafe
+misuse remains unclaimed. The demand-scoped M6 cycle is closed. The
+demand-scoped M8 SwiftUI lifecycle cycle is also covered:
 BridgeGen emits the active
 SDK `.task`, `.task(id:)`, and `.refreshable` surface, while one reusable
 adapter lets real SwiftUI own appearance/identity and enters each invocation
@@ -2241,12 +2244,18 @@ warning through a diagnostic sink that does not retain the session, leaves the
 waiting task parked, and never enters source `catch`; infrastructure abort
 invalidates the token before host cleanup. After successful resume and owner
 completion, an escaped token retains neither the task-local owner graph nor the
-runtime/session/interpreter; its later release is inert. Both generated unsafe
-entry points now fail closed through the shared
-`unsupportedUnsafeContinuation` intrinsic before invoking their bodies or
-creating ownership. The diagnostic preserves the selected source function
-name; unsafe continuation ownership is not silently approximated by the checked
-registry.
+runtime/session/interpreter; its later release is inert. Public continuation
+entry points are selected by generated interface properties: an
+isolation-bearing async declaration whose synchronous body consumes a checked
+or unsafe continuation carrier. Both unsafe spellings share one
+`unsafeContinuation` intrinsic, and the declaration's throwing effect selects
+whether error resume is legal. Their unsafe token policy reuses the same
+runtime-owned record, required-executor restoration, suspension lease,
+value/error projection, and teardown while omitting checked abandonment
+warnings. Exact native parity covers immediate returning resume and delayed
+Result value, source-error, and Void success after token escape. Unsafe
+double-resume and abandonment semantics are undefined by Swift and remain
+outside the support claim.
 
 ### 6.18 Async sequences and streams
 

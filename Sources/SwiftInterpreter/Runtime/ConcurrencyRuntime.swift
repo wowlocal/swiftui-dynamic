@@ -1234,7 +1234,8 @@ final class CooperativeConcurrencyRuntime {
 
     func createContinuation(
         ownerTaskID: RuntimeTaskID,
-        requiredExecutor: RuntimeExecutorKind
+        requiredExecutor: RuntimeExecutorKind,
+        policy: RuntimeContinuationPolicy
     ) throws -> RuntimeContinuationRecord {
         guard continuations.count < Self.maximumLiveContinuations else {
             throw RuntimeError(
@@ -1244,7 +1245,7 @@ final class CooperativeConcurrencyRuntime {
         guard let owner = records[ownerTaskID],
               owner.state == .running else {
             throw RuntimeError(
-                message: "checked continuation requires a running owner task",
+                message: "\(policy.diagnosticName) requires a running owner task",
                 fatal: true)
         }
         let id = RuntimeContinuationID(rawValue: nextContinuationID)
@@ -1252,7 +1253,8 @@ final class CooperativeConcurrencyRuntime {
         let record = RuntimeContinuationRecord(
             id: id,
             ownerTaskID: ownerTaskID,
-            requiredExecutor: requiredExecutor)
+            requiredExecutor: requiredExecutor,
+            policy: policy)
         precondition(
             continuations.updateValue(record, forKey: id) == nil,
             "duplicate runtime continuation ID \(id)")
@@ -1285,12 +1287,12 @@ final class CooperativeConcurrencyRuntime {
     ) throws {
         guard let record = continuations[id] else {
             throw RuntimeError(
-                message: "checked continuation \(id) is no longer active",
+                message: "continuation \(id) is no longer active",
                 fatal: true)
         }
         guard case .pending = record.state else {
             throw RuntimeError(
-                message: "checked continuation \(id) resumed more than once",
+                message: "\(record.policy.diagnosticName) \(id) resumed more than once",
                 fatal: true)
         }
         record.state = outcome

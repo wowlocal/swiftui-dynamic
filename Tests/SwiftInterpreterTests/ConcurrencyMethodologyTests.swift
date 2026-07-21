@@ -1604,7 +1604,7 @@ struct ConcurrencyMethodologyTests {
         let unsafe = try #require(rows.first {
             $0.name == "withUnsafeContinuation"
         })
-        #expect(unsafe.adapterIntrinsic == "unsupportedUnsafeContinuation")
+        #expect(unsafe.adapterIntrinsic == "unsafeContinuation")
         #expect(unsafe.declaration.contains("@unsafe public func"))
         #expect(unsafe.declaration.contains(
             "_Concurrency.UnsafeContinuation<T, Swift.Never>"))
@@ -1613,7 +1613,7 @@ struct ConcurrencyMethodologyTests {
             $0.name == "withUnsafeThrowingContinuation"
         })
         #expect(unsafeThrowing.adapterIntrinsic
-            == "unsupportedUnsafeContinuation")
+            == "unsafeContinuation")
         #expect(unsafeThrowing.declaration.contains("@unsafe public func"))
         #expect(unsafeThrowing.declaration.contains(
             "_Concurrency.UnsafeContinuation<T, any Swift.Error>"))
@@ -1724,53 +1724,49 @@ struct ConcurrencyMethodologyTests {
         let unsafeClaim = try #require(claims.first {
             $0.id == unsafe.id
         })
-        #expect(unsafeClaim.implementationStatus == .diagnosedUnsupported)
-        #expect(unsafeClaim.verificationStatus == .focusedOnly)
+        #expect(unsafeClaim.implementationStatus == .runtimeSupported)
+        #expect(unsafeClaim.verificationStatus == .nativeParity)
         #expect(unsafeClaim.requirementRef
             == "M6/protocol-iteration-streams-and-continuations")
         #expect(unsafeClaim.evidenceCaseIDs == [
-            "unsafe-continuation-fail-closed",
+            "unsafe-continuation-value-resume",
         ])
         #expect(unsafeClaim.testNames == [
             "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
-            "UnsafeContinuationDiagnosticsTests/unsafeContinuationFailsClosedBeforeOwnership",
+            "UnsafeContinuationRuntimeTests/oneShotUnsafeFormsReturnExactValuesAndCleanUp",
         ])
-        #expect(unsafeClaim.gapEvidenceIDs == [
-            "async-sequence-continuation-runtime",
-        ])
-        #expect(unsafeClaim.notes.contains(
-            "unsupportedUnsafeContinuation intrinsic"))
+        #expect(unsafeClaim.gapEvidenceIDs.isEmpty)
+        #expect(unsafeClaim.notes.contains("unsafeContinuation intrinsic"))
         #expect(unsafeClaim.notes.contains("explicit MainActor isolation"))
-        #expect(unsafeClaim.notes.contains("fails closed"))
-        #expect(unsafeClaim.notes.contains("before invoking the body"))
-        #expect(unsafeClaim.notes.contains("section 14 depth cap"))
+        #expect(unsafeClaim.notes.contains("runtime-owned continuation record"))
+        #expect(unsafeClaim.notes.contains("corpus demand"))
+        #expect(unsafeClaim.notes.contains("native parity"))
 
         let unsafeThrowingClaim = try #require(claims.first {
             $0.id == unsafeThrowing.id
         })
-        #expect(unsafeThrowingClaim.implementationStatus
-            == .diagnosedUnsupported)
-        #expect(unsafeThrowingClaim.verificationStatus == .focusedOnly)
+        #expect(unsafeThrowingClaim.implementationStatus == .runtimeSupported)
+        #expect(unsafeThrowingClaim.verificationStatus == .nativeParity)
         #expect(unsafeThrowingClaim.requirementRef
             == "M6/protocol-iteration-streams-and-continuations")
         #expect(unsafeThrowingClaim.evidenceCaseIDs == [
-            "unsafe-throwing-continuation-fail-closed",
+            "unsafe-throwing-continuation-value-resume",
+            "unsafe-continuation-result-resume",
         ])
         #expect(unsafeThrowingClaim.testNames == [
             "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
-            "UnsafeContinuationDiagnosticsTests/unsafeThrowingContinuationFailsClosedBeforeOwnership",
+            "UnsafeContinuationRuntimeTests/oneShotUnsafeFormsReturnExactValuesAndCleanUp",
+            "UnsafeContinuationRuntimeTests/delayedResultResumeSharesTransitionsAndCleansUp",
         ])
-        #expect(unsafeThrowingClaim.gapEvidenceIDs == [
-            "async-sequence-continuation-runtime",
-        ])
+        #expect(unsafeThrowingClaim.gapEvidenceIDs.isEmpty)
         #expect(unsafeThrowingClaim.notes.contains(
-            "unsupportedUnsafeContinuation intrinsic"))
+            "unsafeContinuation intrinsic"))
         #expect(unsafeThrowingClaim.notes.contains(
             "explicit MainActor isolation"))
-        #expect(unsafeThrowingClaim.notes.contains("fails closed"))
-        #expect(unsafeThrowingClaim.notes.contains(
-            "before invoking the body"))
-        #expect(unsafeThrowingClaim.notes.contains("section 14 depth cap"))
+        #expect(unsafeThrowingClaim.notes.contains("resume(with:)"))
+        #expect(unsafeThrowingClaim.notes.contains("Void"))
+        #expect(unsafeThrowingClaim.notes.contains("Nuke"))
+        #expect(unsafeThrowingClaim.notes.contains("native parity"))
     }
 
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {

@@ -4053,7 +4053,8 @@ final class CoroutineReadableBox {
     }
 
     @Test func throwingTaskGroupIterationFailureCancelsSibling() async throws {
-        let interpreter = Interpreter()
+        let clock = ManualRuntimeClock()
+        let interpreter = Interpreter(runtimeClock: clock)
         var observedFailure: RuntimeTaskRecord?
         var observedSibling: RuntimeTaskRecord?
         var observedGroup: RuntimeTaskGroupRecord?
@@ -4179,6 +4180,7 @@ final class CoroutineReadableBox {
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(clock.sleepingTaskCount == 0)
     }
 
     @Test func throwingTaskGroupIterationProjectsCancellation() async throws {

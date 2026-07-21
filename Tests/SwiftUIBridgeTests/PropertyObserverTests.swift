@@ -123,7 +123,7 @@ import SwiftUIBridge
 /// the IceCubes timeline shape): the assignment must land on the instance
 /// property even when the mutation runs inside a Task spawned by a didSet.
 @Suite struct WithAnimationWriteTests {
-    @Test func withAnimationClosureWritesInstanceProperty() throws {
+    @Test func withAnimationClosureWritesInstanceProperty() async throws {
         let source = """
         enum LoadState: Equatable, Sendable {
             enum PagingState: Equatable, Sendable {
@@ -198,7 +198,7 @@ import SwiftUIBridge
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("alpha") && strings.contains("beta"),
                 "the withAnimation write must land and re-render, got \(strings)")
     }
@@ -285,7 +285,7 @@ import SwiftUIBridge
 /// Layout-protocol conformers, tuple-expression patterns, and the discard
 /// sink (iteration 195, the walls after the state write landed).
 @Suite struct LayoutAndTuplePatternTests {
-    @Test func layoutConformerRendersItsContent() throws {
+    @Test func layoutConformerRendersItsContent() async throws {
         let source = """
         struct FitLayout: Layout {
             let originalWidth: CGFloat
@@ -306,7 +306,7 @@ import SwiftUIBridge
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("media cell"), "the Layout's content must render, got \(strings)")
     }
 
@@ -344,7 +344,7 @@ import SwiftUIBridge
 /// own body (apple-browsers: `extension Text { init(_ item:) { var text =
 /// Text(value) … self = text } }`) must not re-enter itself.
 @Suite struct HostExtensionInitTests {
-    @Test func textExtensionInitBuildsThroughRegistry() throws {
+    @Test func textExtensionInitBuildsThroughRegistry() async throws {
         let source = """
         enum InlineTextItem {
             case text(String, isBold: Bool)
@@ -369,7 +369,7 @@ import SwiftUIBridge
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("styled segment"),
                 "the extension init must build through the registry ctor, got \(strings)")
     }
@@ -432,7 +432,7 @@ import SwiftUIBridge
 /// absorbed-store reads bridge honestly (number-vs-Date through the epoch,
 /// unary minus on unknowables, TimeInterval construction).
 @Suite struct NamespaceEnumAndOrderTests {
-    @Test func namespaceEnumTextInitDoesNotCycle() throws {
+    @Test func namespaceEnumTextInitDoesNotCycle() async throws {
         let source = """
         enum Loc {
             enum Text {
@@ -466,7 +466,7 @@ import SwiftUIBridge
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("plain string"), "String args cross to the registry ctor, got \(strings)")
         #expect(strings.contains("segment"), "enum args dispatch the extension init, got \(strings)")
     }
