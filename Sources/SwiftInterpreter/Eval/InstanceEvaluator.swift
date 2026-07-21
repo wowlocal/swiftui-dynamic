@@ -91,6 +91,7 @@ extension Interpreter {
             symbol: symbol,
             lifecycleOwner: symbol.isClass ? self : nil,
             programState: currentProgramState)
+        try seedHostSuperclassBacking(for: instance)
         if symbol.conformsToView {
             var path = viewIdentitySalts
             if let site = node?.id.indexInTree.toOpaque() {
@@ -178,6 +179,42 @@ extension Interpreter {
             }
         }
         return instance
+    }
+
+    /// Materialize the imported base only when its generated constructor has
+    /// a real typed zero-argument contract and the result proves it matches
+    /// the declared superclass. Module qualification is source provenance;
+    /// generated constructor keys begin at the nominal path.
+    private func seedHostSuperclassBacking(for instance: Instance) throws {
+        guard let superclassName = instance.symbol.superclassName,
+              interpretedSuperclass(of: instance.symbol) == nil,
+              let registry else { return }
+
+        guard let backing = try registry.hostSuperclassBacking(
+            named: superclassName, in: self
+        ), let payload = backing.hostPayload,
+           registry.hostValue(payload, matchesImportedType: superclassName)
+        else { return }
+        instance.hostSuperclassBacking = backing
+    }
+
+    func inheritedHostSuperclassMember(
+        _ name: String, on instance: Instance
+    ) throws -> RuntimeValue? {
+        guard let payload = instance.hostSuperclassBacking?.hostPayload else {
+            return nil
+        }
+        return try readHostMember(
+            name, on: payload, includingFallback: false)
+    }
+
+    func writeInheritedHostSuperclassMember(
+        _ name: String, on instance: Instance, to value: RuntimeValue
+    ) throws -> Bool {
+        guard let payload = instance.hostSuperclassBacking?.hostPayload else {
+            return false
+        }
+        return try writeHostMember(name, on: payload, to: value)
     }
 
     private func effectiveInitializers(
@@ -591,25 +628,27 @@ extension Interpreter {
         // conversion. In particular, `[Element]` must select an array
         // overload even when an earlier `Set<Element>` overload could be
         // constructed from the same collection.
-        let exact = shaped.filter {
-            let metadata = functionMetadata(for: $0)
+        let exact = shaped.filter { declaration in
+            let metadata = functionMetadata(for: declaration)
             return runtimeArgumentsFitDeclaredTypes(
                 metadata.parameters,
                 args: args,
                 genericParameterNames: Set(metadata.genericParameters),
                 genericConformanceRequirements:
                     metadata.genericConformanceRequirements,
-                allowValueCoercion: false)
+                allowValueCoercion: false,
+                lexicalOwner: lexicalOwner(of: declaration.id))
         }
         if !exact.isEmpty { return exact }
-        let typed = shaped.filter {
-            let metadata = functionMetadata(for: $0)
+        let typed = shaped.filter { declaration in
+            let metadata = functionMetadata(for: declaration)
             return runtimeArgumentsFitDeclaredTypes(
                 metadata.parameters,
                 args: args,
                 genericParameterNames: Set(metadata.genericParameters),
                 genericConformanceRequirements:
-                    metadata.genericConformanceRequirements)
+                    metadata.genericConformanceRequirements,
+                lexicalOwner: lexicalOwner(of: declaration.id))
         }
         return typed.isEmpty ? shaped : typed
     }
@@ -637,7 +676,8 @@ extension Interpreter {
                 args: positional,
                 genericParameterNames: Set(metadata.genericParameters),
                 genericConformanceRequirements:
-                    metadata.genericConformanceRequirements)
+                    metadata.genericConformanceRequirements,
+                lexicalOwner: lexicalOwner(of: declaration.id))
         }
     }
 
@@ -1316,7 +1356,12 @@ extension Interpreter {
         while index < text.endIndex {
             let ch = text[index]
             if ch == "(" || ch == "<" || ch == "[" { depth += 1 }
-            if ch == ")" || ch == ">" || ch == "]" { depth -= 1 }
+            if ch == ")" || ch == "]" { depth -= 1 }
+            if ch == ">" {
+                let previous = index == text.startIndex
+                    ? nil : text[text.index(before: index)]
+                if previous != "-" { depth -= 1 }
+            }
             if ch == "-", depth == 0 {
                 let next = text.index(after: index)
                 if next < text.endIndex, text[next] == ">" {

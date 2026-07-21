@@ -38,6 +38,7 @@ extension Interpreter {
         // mapping must exist before extensions collect.
         for alias in plan.typeAliases {
             let metadata = typeAliasMetadata(for: alias)
+            typeAliasTargets[metadata.name] = metadata.targetTypeName
             if metadata.isNominalTarget {
                 aliasHeads[metadata.name] = metadata.lookupTargetName
             }
@@ -533,6 +534,9 @@ extension Interpreter {
                 // Member typealiases resolve like nested types (bare name
                 // when unclaimed); generic arguments drop.
                 let metadata = typeAliasMetadata(for: alias)
+                symbol.typeAliases[metadata.name] = metadata.targetTypeName
+                typeAliasTargets["\(symbol.name).\(metadata.name)"] =
+                    metadata.targetTypeName
                 let target = metadata.lookupTargetName
                 if let value = globals.lookup(target) {
                     symbol.nestedTypes[metadata.name] = value
@@ -1111,7 +1115,12 @@ extension Interpreter {
         case .classType(let nestedClass):
             let nestedSymbol = try makeClassLikeSymbol(nestedClass)
             registerNestedType(nestedSymbol, in: symbol)
-        case .actor, .deinitializer, .subscriptDeclaration, .typeAlias,
+        case .typeAlias(let alias):
+            let metadata = typeAliasMetadata(for: alias)
+            symbol.typeAliases[metadata.name] = metadata.targetTypeName
+            typeAliasTargets["\(symbol.name).\(metadata.name)"] =
+                metadata.targetTypeName
+        case .actor, .deinitializer, .subscriptDeclaration,
              .enumCase, .protocolType, .other:
             return
         }

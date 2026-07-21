@@ -19,6 +19,109 @@ import Testing
         #expect(value.stringValue == "slice")
     }
 
+    /// An inherited method's unqualified call is still virtual: runtime
+    /// subclass overrides win even though the call is written in the generic
+    /// superclass body.
+    @Test func genericBaseMethodDispatchesImplicitSelfOverride() throws {
+        let source = """
+        class PipelineTask<Value> {
+            let value: Value
+
+            init(_ value: Value) {
+                self.value = value
+            }
+
+            func start() -> String { "base" }
+            func subscribe() -> String { "\\(value):\\(start())" }
+        }
+
+        final class ConcreteTask: PipelineTask<Int> {
+            override func start() -> String { "concrete" }
+        }
+
+        ConcreteTask(7).subscribe()
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "7:concrete")
+    }
+
+    /// A concrete class returned through a generic base-typed closure keeps
+    /// its runtime identity when a nested publisher stores it and invokes a
+    /// private base method that makes a virtual call.
+    @Test func genericPoolPreservesConcreteTaskIdentity() throws {
+        let source = """
+        class PipelineTask<Value> {
+            struct Publisher {
+                let task: PipelineTask
+
+                func subscribe(
+                    priority: Int = 0, subscriber: AnyObject,
+                    _ closure: (String) -> Void
+                ) -> String {
+                    task.subscribe(
+                        priority: priority,
+                        subscriber: subscriber,
+                        closure)
+                }
+
+                func subscribe<NewValue>(
+                    _ subscriber: PipelineTask<NewValue>,
+                    onValue: (String) -> Void
+                ) -> String {
+                    subscribe(subscriber: subscriber) { value in
+                        onValue(value)
+                    }
+                }
+            }
+
+            let value: Value
+
+            init(_ value: Value) {
+                self.value = value
+            }
+
+            var publisher: Publisher { Publisher(task: self) }
+            func start() -> String { "base" }
+            private func subscribe(
+                priority: Int = 0, subscriber: AnyObject,
+                _ closure: (String) -> Void
+            ) -> String {
+                let value = start()
+                closure(value)
+                return value
+            }
+        }
+
+        final class ConcreteTask: PipelineTask<Int> {
+            override func start() -> String { "concrete" }
+        }
+
+        final class TaskPool<Key: Hashable, Value> {
+            private var map = [Key: PipelineTask<Value>]()
+
+            func publisherForKey(
+                _ key: Key, _ make: () -> PipelineTask<Value>
+            ) -> PipelineTask<Value>.Publisher {
+                if let task = map[key] {
+                    return task.publisher
+                }
+
+                let task = make()
+                map[key] = task
+                return task.publisher
+            }
+        }
+
+        let pool = TaskPool<Int, Int>()
+        pool.publisherForKey(1) { ConcreteTask(7) }
+            .subscribe(PipelineTask<Int>(0)) { _ in }
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "concrete")
+    }
+
     @Test func inheritedStaticOverloadUsesCallShape() throws {
         let source = """
         class Base {
@@ -106,5 +209,30 @@ import Testing
 
         let value = try await Interpreter().runAsync(source: source)
         #expect(value.stringValue == "content")
+    }
+
+    /// Native Swift selects the one-input closure overload here. The
+    /// function type is hidden behind a nested alias, matching scheduler
+    /// helpers that distinguish a plain block from a starter callback.
+    @Test func nestedFunctionAliasPreservesClosureArityDuringOverloadRanking() throws {
+        let source = """
+        final class Job {
+            typealias Starter = (_ finish: @escaping () -> Void) -> Void
+        }
+
+        func select(_ action: @escaping () -> Void) -> String {
+            "zero"
+        }
+
+        func select(_ starter: @escaping Job.Starter) -> String {
+            starter({})
+            return "one"
+        }
+
+        select { finish in finish() }
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "one")
     }
 }

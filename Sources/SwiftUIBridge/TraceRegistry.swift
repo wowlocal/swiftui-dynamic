@@ -107,6 +107,13 @@ public final class TraceRegistry: HostRegistry {
         return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
     }
 
+    public func importedType(
+        named typeName: String, matchesImportedType expectedTypeName: String
+    ) -> Bool {
+        GeneratedPlatformBridge.importedType(
+            named: typeName, matchesType: expectedTypeName)
+    }
+
     public func cFunction(named name: String) -> HostFunction? {
         if let memory = GeneratedCMemoryBridge.function(named: name) {
             return memory
@@ -461,6 +468,13 @@ public final class TraceRegistry: HostRegistry {
                 return .native(node)
             }
         }
+    }
+
+    public func hostSuperclassBacking(
+        named typeName: String, in context: EvalContext
+    ) throws -> RuntimeValue? {
+        try GeneratedPlatformBridge.hostSuperclassBacking(
+            named: typeName, in: context)
     }
 
     /// Whether interface metadata says a modifier's closure arguments build

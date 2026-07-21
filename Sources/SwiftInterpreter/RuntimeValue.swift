@@ -140,6 +140,15 @@ extension RuntimeValue {
         }
     }
 
+    /// Generated native storage owned by an interpreter-defined subclass of
+    /// an imported SDK class. Host adapters may recursively coerce this value
+    /// when a compiled API accepts the superclass; source member dispatch
+    /// continues to use the interpreter-owned instance itself.
+    public var importedSuperclassBacking: RuntimeValue? {
+        guard case .instance(let instance) = self else { return nil }
+        return instance.hostSuperclassBacking
+    }
+
     public var intValue: Int? {
         switch self {
         case .int(let i): return i

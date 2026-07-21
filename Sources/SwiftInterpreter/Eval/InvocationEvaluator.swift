@@ -118,49 +118,89 @@ extension Interpreter {
         genericParameterNames: Set<String> = [],
         genericConformanceRequirements:
             [ParsedGenericConformanceRequirement] = [],
-        allowValueCoercion: Bool = true
+        allowValueCoercion: Bool = true,
+        lexicalOwner: AnyObject? = nil
     ) -> Bool {
-        var remaining = args.arguments
-        for parameter in parameters {
-            if let index = remaining.firstIndex(where: { $0.label == parameter.label }) {
-                let argument = remaining.remove(at: index)
-                let argumentValue = argument.value.unwrappingInoutSlot
-                guard let annotation = parameter.typeName else { return false }
-                let identifiers = Set(annotation.split {
-                    !$0.isLetter && !$0.isNumber && $0 != "_"
-                }.map(String.init))
-                if !identifiers.isDisjoint(with: genericParameterNames) {
-                    if let genericParameterName = directGenericParameterName(
-                        in: annotation,
-                        genericParameterNames: genericParameterNames) {
-                        let requirements = genericConformanceRequirements
-                            .filter {
-                                $0.genericParameterName
-                                    == genericParameterName
-                            }
-                        guard requirements.allSatisfy({
-                            runtimeValue(argumentValue, satisfies: $0)
-                        }) else { return false }
-                    }
-                    if let outer = concreteGenericOuterType(
-                        in: annotation,
-                        genericParameterNames: genericParameterNames
-                    ), !valueIsType(argumentValue, outer) {
-                        return false
-                    }
-                    continue
+        // Overload filtering and invocation must agree on SE-0286 trailing-
+        // closure placement. Literal label matching makes both of these
+        // overloads look inconclusive and falls back to declaration order:
+        // `f(subscriber: AnyObject, _ body: () -> Void)` and
+        // `f<T>(_ subscriber: Box<T>, onValue: () -> Void)` called as
+        // `f(box) { ... }`. Use the invocation binder's structural mapping.
+        let bound = matchedParameterArguments(
+            parameters, to: args, lexicalOwner: lexicalOwner)
+        let consumedCount = zip(parameters, bound).reduce(into: 0) {
+            count, pair in
+            let (parameter, value) = pair
+            if parameter.isVariadic {
+                count += value?.arrayValue?.count ?? 0
+            } else if value != nil {
+                count += 1
+            }
+        }
+        guard consumedCount == args.arguments.count else { return false }
+
+        func fits(
+            _ rawValue: RuntimeValue,
+            parameter: ClosureValue.Parameter
+        ) -> Bool {
+            let argumentValue = rawValue.unwrappingInoutSlot
+            guard let rawAnnotation = parameter.typeName else { return false }
+            let annotation = expandedRuntimeTypeAlias(
+                rawAnnotation, lexicalOwner: lexicalOwner)
+            if case .closure(let closure) = argumentValue,
+               isFunctionType(annotation),
+               let authoredArity = closure.explicitParameterCount
+                    ?? (closure.functionDeclID == nil
+                        ? nil : closure.parameters.count),
+               authoredArity != Self.functionTypeParameterList(annotation).count {
+                return false
+            }
+            let identifiers = Set(annotation.split {
+                !$0.isLetter && !$0.isNumber && $0 != "_"
+            }.map(String.init))
+            if !identifiers.isDisjoint(with: genericParameterNames) {
+                if let genericParameterName = directGenericParameterName(
+                    in: annotation,
+                    genericParameterNames: genericParameterNames) {
+                    let requirements = genericConformanceRequirements
+                        .filter {
+                            $0.genericParameterName == genericParameterName
+                        }
+                    guard requirements.allSatisfy({
+                        runtimeValue(argumentValue, satisfies: $0)
+                    }) else { return false }
                 }
-                if valueIsType(argumentValue, annotation) { continue }
-                guard allowValueCoercion else { return false }
-                guard let resolved = try? resolveAnnotated(
-                    argumentValue, typeName: annotation),
-                    valueIsType(resolved, annotation)
+                if let outer = concreteGenericOuterType(
+                    in: annotation,
+                    genericParameterNames: genericParameterNames
+                ), !valueIsType(argumentValue, outer) {
+                    return false
+                }
+                return true
+            }
+            if valueIsType(argumentValue, annotation) { return true }
+            guard allowValueCoercion,
+                  let resolved = try? resolveAnnotated(
+                    argumentValue, typeName: annotation)
+            else { return false }
+            return valueIsType(resolved, annotation)
+        }
+
+        for (index, parameter) in parameters.enumerated() {
+            if parameter.isVariadic {
+                guard let packed = bound[index]?.arrayValue else {
+                    return false
+                }
+                guard packed.allSatisfy({ fits($0, parameter: parameter) })
                 else { return false }
+            } else if let value = bound[index] {
+                guard fits(value, parameter: parameter) else { return false }
             } else if parameter.defaultValue == nil {
                 return false
             }
         }
-        return remaining.isEmpty
+        return true
     }
 
     /// A host-extension init fits only when labels align AND every
@@ -172,7 +212,8 @@ extension Interpreter {
             args: args,
             genericParameterNames: Set(metadata.genericParameters),
             genericConformanceRequirements:
-                metadata.genericConformanceRequirements)
+                metadata.genericConformanceRequirements,
+            lexicalOwner: lexicalOwner(of: decl.id))
     }
 
     /// All generated constructor adapters dispatch on the callee's runtime
@@ -1128,6 +1169,9 @@ extension Interpreter {
             captured: captured,
             programMetadata: currentProgramMetadata,
             programPlan: currentProgramPlan)
+        if closure.signature?.parameterClause != nil {
+            value.explicitParameterCount = parameters.count
+        }
         value.programState = currentProgramState
         value.lexicalExecutor = currentLexicalExecutor
         let closureAttributeNames = closure.signature?.attributes.compactMap {
@@ -1361,7 +1405,8 @@ extension Interpreter {
             guard let space = text.firstIndex(of: " ") else { return [] }
             text = String(text[text.index(after: space)...]).trimmingCharacters(in: .whitespaces)
         }
-        guard text.hasPrefix("("), let arrow = text.range(of: "->") else { return [] }
+        guard text.hasPrefix("("),
+              let arrow = Self.lastTopLevelArrow(in: text) else { return [] }
         var depth = 0
         var end: String.Index?
         for index in text.indices {
@@ -1372,7 +1417,7 @@ extension Interpreter {
                 if depth == 0 { end = index; break }
             }
         }
-        guard let end, end < arrow.lowerBound else { return [] }
+        guard let end, end < arrow else { return [] }
         let inner = String(text[text.index(after: text.startIndex)..<end])
         return Self.splitTopLevel(inner)
     }
@@ -1553,6 +1598,8 @@ extension Interpreter {
                         programPlan: c.programPlan
                     )
                     builderClosure.programState = c.programState
+                    builderClosure.explicitParameterCount =
+                        c.explicitParameterCount
                     resolved = .closure(builderClosure)
                 }
                 env.define(
@@ -1590,9 +1637,21 @@ extension Interpreter {
     func matchedParameterArguments(
         of closure: ClosureValue, to args: CallArguments
     ) -> [RuntimeValue?] {
-        if closure.parameters.count > 1, args.arguments.count == 1,
+        matchedParameterArguments(
+            closure.parameters, to: args,
+            lexicalOwner: closure.lexicalOwner)
+    }
+
+    /// Shared source-parameter mapping for invocation and overload fitting.
+    /// Keeping one implementation prevents a call from selecting one overload
+    /// and then binding its trailing closure as though it selected another.
+    func matchedParameterArguments(
+        _ parameters: [ClosureValue.Parameter], to args: CallArguments,
+        lexicalOwner: AnyObject? = nil
+    ) -> [RuntimeValue?] {
+        if parameters.count > 1, args.arguments.count == 1,
            let tuple = args.arguments[0].value.tupleValue,
-           tuple.values.count == closure.parameters.count {
+           tuple.values.count == parameters.count {
             return tuple.values.map(Optional.some)
         }
 
@@ -1610,9 +1669,9 @@ extension Interpreter {
         }
 
         var bound = [RuntimeValue?](
-            repeating: nil, count: closure.parameters.count)
+            repeating: nil, count: parameters.count)
         var positionalCursor = 0
-        for (index, parameter) in closure.parameters.enumerated() {
+        for (index, parameter) in parameters.enumerated() {
             if parameter.isVariadic {
                 // `arguments: CVarArg...` — the labeled value (Swift labels
                 // only the first) plus every remaining positional; absent
@@ -1651,9 +1710,12 @@ extension Interpreter {
         // first unbound function-typed parameter, or the last unbound slot.
         for trailing in unlabeledTrailing.reversed() {
             let accepts: (Int) -> Bool = { index in
-                let parameter = closure.parameters[index]
+                let parameter = parameters[index]
                 return parameter.isBuilderAttributed
-                    || parameter.typeName?.contains("->") == true
+                    || parameter.typeName.map {
+                        isFunctionType(self.expandedRuntimeTypeAlias(
+                            $0, lexicalOwner: lexicalOwner))
+                    } == true
             }
             if let index = bound.indices.first(where: {
                 bound[$0] == nil && accepts($0)
@@ -1666,5 +1728,75 @@ extension Interpreter {
             }
         }
         return bound
+    }
+
+    /// Expand an outer source alias without conflating same-spelled aliases
+    /// from sibling lexical scopes. Generic applications deliberately remain
+    /// intact until their arguments can be substituted structurally.
+    func expandedRuntimeTypeAlias(
+        _ rawType: String, lexicalOwner: AnyObject?
+    ) -> String {
+        func target(named name: String) -> String? {
+            if !name.contains(".") {
+                var owner = lexicalOwner
+                while let current = owner {
+                    if let symbol = current as? StructSymbol {
+                        if let target = symbol.typeAliases[name] { return target }
+                        owner = symbol.lexicalTypeOwner
+                        continue
+                    }
+                    if let symbol = current as? EnumSymbol {
+                        if let target = symbol.typeAliases[name] { return target }
+                        owner = symbol.lexicalTypeOwner
+                        continue
+                    }
+                    break
+                }
+            }
+            return typeAliasTarget(named: name)
+        }
+
+        var prefix = ""
+        var core = rawType.trimmingCharacters(in: .whitespacesAndNewlines)
+        while core.hasPrefix("@") {
+            var depth = 0
+            var boundary: String.Index?
+            for index in core.indices {
+                switch core[index] {
+                case "(": depth += 1
+                case ")": depth -= 1
+                default:
+                    if core[index].isWhitespace, depth == 0 {
+                        boundary = index
+                    }
+                }
+                if boundary != nil { break }
+            }
+            guard let boundary else { return rawType }
+            prefix += String(core[..<boundary]) + " "
+            core = String(core[boundary...]).trimmingCharacters(
+                in: .whitespacesAndNewlines)
+        }
+        for specifier in [
+            "inout", "isolated", "borrowing", "consuming", "sending",
+            "__owned", "__shared",
+        ] where core.hasPrefix(specifier + " ") {
+            prefix += specifier + " "
+            core.removeFirst(specifier.count)
+            core = core.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        var suffix = ""
+        while core.hasSuffix("?") || core.hasSuffix("!") {
+            suffix.insert(core.removeLast(), at: suffix.startIndex)
+            core = core.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !core.contains("<") else { return rawType }
+
+        var seen: Set<String> = []
+        while seen.insert(core).inserted, let replacement = target(named: core) {
+            core = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return prefix + core + suffix
     }
 }

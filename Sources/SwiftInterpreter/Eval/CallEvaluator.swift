@@ -72,6 +72,20 @@ extension Interpreter {
             }
             return false
         }
+        // Function types participate in source overload ranking just like
+        // nominal types. A trailing closure must positively fit a closure
+        // parameter so an earlier, label-compatible overload cannot win by
+        // declaration order. Key paths retain Swift's callable conversion.
+        if isFunctionType(typeName) {
+            switch value {
+            case .closure, .hostFunction:
+                return true
+            case .host(let any) where any is KeyPathStub:
+                return true
+            default:
+                return false
+            }
+        }
         if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
         if typeName.hasPrefix("Swift.") {
             typeName.removeFirst("Swift.".count)
@@ -106,7 +120,22 @@ extension Interpreter {
                     var seen = Set<String>()
                     return protocolReaches(conformance, target: typeName, seen: &seen)
                 }) { return true }
-                guard let parent = interpretedSuperclass(of: current) else { break }
+                guard let parent = interpretedSuperclass(of: current) else {
+                    // The generated host contract names the imported nominal
+                    // without requiring the source's module qualification.
+                    // A source subclass remains substitutable for that direct
+                    // host superclass even though its storage stays owned by
+                    // the interpreter.
+                    if let superclassName = current.superclassName,
+                       HostSignature.equivalentTypeName(
+                           superclassName, typeName)
+                        || registry?.importedType(
+                            named: superclassName,
+                            matchesImportedType: typeName) == true {
+                        return true
+                    }
+                    break
+                }
                 symbol = parent
             }
             return false

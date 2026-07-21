@@ -430,6 +430,10 @@ extension Interpreter: EvalContext {
             || valueIsType(value, typeName) {
             return true
         }
+        if case .instance(let instance) = value,
+           let backing = instance.hostSuperclassBacking {
+            return hostValue(backing, matchesType: typeName)
+        }
         guard case .host(let any) = value else { return false }
         return registry?.hostValue(
             any, matchesImportedType: typeName) == true
@@ -441,6 +445,10 @@ extension Interpreter: EvalContext {
         if HostRuntimeTypeSystem.conforms(value, to: protocolName)
             || valueIsType(value, protocolName) {
             return true
+        }
+        if case .instance(let instance) = value,
+           let backing = instance.hostSuperclassBacking {
+            return hostValue(backing, conformsTo: protocolName)
         }
         if case .host(let any) = value {
             if let concurrency = any as? RuntimeConcurrencyHostValue,

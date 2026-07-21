@@ -990,6 +990,13 @@ public final class Interpreter {
         _read { yield activeProgramState.aliasHeads }
         _modify { yield &activeProgramState.aliasHeads }
     }
+    var typeAliasTargets: [String: String] {
+        _read { yield activeProgramState.typeAliasTargets }
+        _modify { yield &activeProgramState.typeAliasTargets }
+    }
+    func typeAliasTarget(named name: String) -> String? {
+        activeProgramState.typeAliasTarget(named: name)
+    }
     /// Member typealiases whose targets resolve only after the extension
     /// pass (typealias API = TestWebRepository.API).
     var pendingMemberAliases: [

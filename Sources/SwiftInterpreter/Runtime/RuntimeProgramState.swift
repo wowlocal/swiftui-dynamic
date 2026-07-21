@@ -64,6 +64,10 @@ final class RuntimeProgramState {
     /// same-spelled nominal.
     var nonNominalExtensionTypeNames: Set<String> = []
     var aliasHeads: [String: String] = [:]
+    /// Complete source typealias targets, including tuple and function types.
+    /// `aliasHeads` remains the nominal-only extension canonicalization index;
+    /// overload matching needs the unabridged spelling to recover call shape.
+    var typeAliasTargets: [String: String] = [:]
     var pendingMemberAliases: [PendingMemberAlias] = []
     var pendingDeinitializerIsolationChecks:
         [PendingDeinitializerIsolationCheck] = []
@@ -149,6 +153,17 @@ final class RuntimeProgramState {
             if let owner = state.declarationLexicalOwners[declarationID] {
                 return owner
             }
+            cursor = state.hostExtensionParent
+        }
+        return nil
+    }
+
+    /// Point lookup across compatibility-state lineage. Newer declarations
+    /// shadow older ones while escaped callbacks retain their exact state.
+    func typeAliasTarget(named name: String) -> String? {
+        var cursor: RuntimeProgramState? = self
+        while let state = cursor {
+            if let target = state.typeAliasTargets[name] { return target }
             cursor = state.hostExtensionParent
         }
         return nil

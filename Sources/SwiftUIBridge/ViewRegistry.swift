@@ -84,6 +84,13 @@ public final class ViewRegistry: HostRegistry {
         return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
     }
 
+    public func importedType(
+        named typeName: String, matchesImportedType expectedTypeName: String
+    ) -> Bool {
+        GeneratedPlatformBridge.importedType(
+            named: typeName, matchesType: expectedTypeName)
+    }
+
     public func hostMemberHasWorkerOperation(
         _ name: String,
         onStaticMember staticMember: String,
@@ -135,7 +142,7 @@ public final class ViewRegistry: HostRegistry {
             // (roles), so user extensions of the host type dispatch on it
             // (`UNAuthorizationStatus(rawValue: 10)?.map`).
             guard resolvedName.first?.isUppercase == true else { return nil }
-            return HostFunction(name: name) { args, _ in
+        return HostFunction(name: name) { args, _ in
                 let stub = UIKitStub(roles: [resolvedName])
                 for argument in args.arguments {
                     if let label = argument.label { stub.config[label] = argument.value }
@@ -171,6 +178,13 @@ public final class ViewRegistry: HostRegistry {
                 name: resolvedName, overloads: generated,
                 args: args, ctx: ctx))
         }
+    }
+
+    public func hostSuperclassBacking(
+        named typeName: String, in context: EvalContext
+    ) throws -> RuntimeValue? {
+        try GeneratedPlatformBridge.hostSuperclassBacking(
+            named: typeName, in: context)
     }
 
     public func modifier(named name: String) -> HostModifier? {

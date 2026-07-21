@@ -543,6 +543,14 @@ extension Interpreter {
             }
             parent = interpretedSuperclass(of: candidate)
         }
+        // A generated native backing carries interface-declared members from
+        // an imported direct superclass. Source members above retain normal
+        // override precedence; dynamic compatibility fallbacks are excluded.
+        if let inherited = try inheritedHostSuperclassMember(
+            name, on: instance
+        ) {
+            return inherited
+        }
         if instance.symbol.conformsToView,
            let value = try hostExtensionMember(name, candidates: ["View"], selfValue: .instance(instance)) {
             return value
@@ -1218,7 +1226,8 @@ extension Interpreter {
         }
         let shaped = arityMatches.isEmpty ? symbol.subscripts : arityMatches
         let typed = shaped.filter {
-            runtimeArgumentsFitDeclaredTypes($0.parameters, args: args)
+            runtimeArgumentsFitDeclaredTypes(
+                $0.parameters, args: args, lexicalOwner: symbol)
         }
         guard let member = typed.first ?? shaped.first else {
             throw RuntimeError(message: "'\(symbol.name)' has no subscript")

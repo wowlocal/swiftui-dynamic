@@ -420,6 +420,11 @@ extension Interpreter {
                 if let computed = instance.symbol.computedProperties[name] {
                     return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
                 }
+                if let inherited = try interpreter.inheritedHostSuperclassMember(
+                    name, on: instance
+                ) {
+                    return inherited
+                }
                 if let superName = instance.symbol.superclassName,
                    interpreter.interpretedSuperclass(of: instance.symbol) == nil {
                     return .native(ChainedImplicitCall(
@@ -636,6 +641,11 @@ extension Interpreter {
                         selfValue: .instance(instance),
                         name: name,
                         value: value)
+                    return
+                }
+                if try interpreter.writeInheritedHostSuperclassMember(
+                    name, on: instance, to: value
+                ) {
                     return
                 }
                 if instance.symbol.superclassName != nil,
