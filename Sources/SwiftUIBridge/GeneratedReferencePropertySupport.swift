@@ -7,6 +7,17 @@ import SwiftInterpreter
 protocol GeneratedReferencePropertyCarrier: AnyObject {
     var generatedReferenceTypeName: String { get }
     var generatedReferencePropertyValues: [String: RuntimeValue] { get set }
+    func applyGeneratedReferenceProperty(
+        _ name: String, declaredType: String, value: RuntimeValue
+    ) throws -> Bool
+}
+
+extension GeneratedReferencePropertyCarrier {
+    func applyGeneratedReferenceProperty(
+        _ name: String, declaredType: String, value: RuntimeValue
+    ) throws -> Bool {
+        false
+    }
 }
 
 @MainActor
@@ -49,6 +60,10 @@ enum GeneratedReferencePropertySupport {
                             throw RuntimeError(
                                 message: "generated reference property setter receiver mismatch",
                                 fatal: true)
+                        }
+                        if let declaredType = signature.returnType {
+                            _ = try carrier.applyGeneratedReferenceProperty(
+                                name, declaredType: declaredType, value: value)
                         }
                         carrier.generatedReferencePropertyValues[name] = value
                     })

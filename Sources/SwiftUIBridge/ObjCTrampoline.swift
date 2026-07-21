@@ -99,7 +99,8 @@ enum ObjCTrampoline {
             guard args.arguments.isEmpty else {
                 throw RuntimeError(message: "\(name)(…): only () init is bridged automatically")
             }
-            return .native(ObjCBox(cls.init()))
+            return .native(ObjCBox(
+                cls.init(), generatedReferenceTypeName: name))
         }
     }
 
@@ -190,6 +191,46 @@ enum ObjCTrampoline {
         let setter = Selector("set\(name.prefix(1).uppercased())\(name.dropFirst()):")
         guard object.responds(to: setter) else { return false }
         guard (try? performCatching({ object.perform(setter, with: marshaled) })) != nil else { return false }
+        return true
+    }
+
+    /// Generated Foundation property contracts supply the declared enum type;
+    /// BridgeGen supplies every available imported case's native raw value.
+    /// KVC then performs the ABI-safe NSNumber-to-scalar unboxing that
+    /// perform(_:with:) cannot provide for non-object Objective-C setters.
+    static func applyGeneratedReferenceProperty(
+        _ name: String, declaredType: String,
+        value: RuntimeValue, on box: ObjCBox
+    ) throws -> Bool {
+        let setter = Selector(
+            "set\(name.prefix(1).uppercased())\(name.dropFirst()):")
+        guard box.object.responds(to: setter) else { return false }
+
+        let nativeValue: Any?
+        if case .implicitMember(let member) = value {
+            guard let cases = GeneratedFoundationReferenceProperties
+                .implicitEnumRawValuesByTypeAndCase[declaredType]
+            else { return false }
+            guard let raw = cases[member] else {
+                throw RuntimeError(message:
+                    "unknown generated Foundation enum member "
+                        + "'\(declaredType).\(member)'")
+            }
+            nativeValue = raw
+        } else if value.isNil {
+            nativeValue = nil
+        } else {
+            guard let marshaled = marshalToObjC(value) else { return false }
+            nativeValue = marshaled
+        }
+
+        if let exception = DSUICatchObjCException({
+            box.object.setValue(nativeValue, forKey: name)
+        }) {
+            throw RuntimeError(message:
+                "ObjC exception: \(exception.name.rawValue) — "
+                    + (exception.reason ?? "no reason"))
+        }
         return true
     }
 
@@ -484,11 +525,25 @@ private final class ProjectDataAssetObject: NSObject {
 }
 
 /// A live NSObject riding through the interpreter.
-public final class ObjCBox {
+public final class ObjCBox: GeneratedReferencePropertyCarrier {
     let object: NSObject
+    let generatedReferenceTypeName: String
+    var generatedReferencePropertyValues: [String: RuntimeValue] = [:]
 
-    init(_ object: NSObject) {
+    init(
+        _ object: NSObject,
+        generatedReferenceTypeName: String? = nil
+    ) {
         self.object = object
+        self.generatedReferenceTypeName = generatedReferenceTypeName
+            ?? String(describing: type(of: object))
+    }
+
+    func applyGeneratedReferenceProperty(
+        _ name: String, declaredType: String, value: RuntimeValue
+    ) throws -> Bool {
+        try ObjCTrampoline.applyGeneratedReferenceProperty(
+            name, declaredType: declaredType, value: value, on: self)
     }
 }
 

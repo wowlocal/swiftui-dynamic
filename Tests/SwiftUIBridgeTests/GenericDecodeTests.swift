@@ -194,6 +194,66 @@ import SwiftInterpreter
         #expect(tuple.values[2].stringValue == "<p>hello</p>")
     }
 
+    /// IceCubes Models/Alias/ServerDate.swift decodes recorded server dates
+    /// from a scalar string, then falls back to a keyed cache representation.
+    /// Native Foundation parses this exact recorded scalar as 1783628475.97;
+    /// a successful first branch must not enter the keyed fallback.
+    @Test func scalarFormattedDateDecodeDoesNotEnterKeyedFallback() throws {
+        let payload = "[" + Array(
+            repeating: "\"2026-07-09T20:21:15.970Z\"", count: 64
+        ).joined(separator: ",") + "]"
+        let source = """
+        private enum CodingKeys: CodingKey {
+            case asDate
+        }
+
+        final class FormatterCache {
+            static let shared = FormatterCache()
+            let serverDateFormatter: DateFormatter
+            let relativeDateTimeFormatter: RelativeDateTimeFormatter
+
+            init() {
+                let relative = RelativeDateTimeFormatter()
+                relative.unitsStyle = .short
+                relative.formattingContext = .listItem
+                relative.dateTimeStyle = .numeric
+                relativeDateTimeFormatter = relative
+
+                let formatter = DateFormatter()
+                formatter.calendar = .init(identifier: .iso8601)
+                formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
+                formatter.timeZone = .init(abbreviation: "UTC")
+                serverDateFormatter = formatter
+            }
+        }
+
+        struct ParsedServerDate: Decodable {
+            let asDate: Date
+
+            init(from decoder: Decoder) throws {
+                do {
+                    let container = try decoder.singleValueContainer()
+                    let stringDate = try container.decode(String.self)
+                    asDate = FormatterCache.shared.serverDateFormatter
+                        .date(from: stringDate) ?? Date()
+                } catch {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    asDate = try container.decode(Date.self, forKey: .asDate)
+                }
+            }
+        }
+
+        let payload = \(String(reflecting: payload)).data(using: .utf8)!
+        let decoded = try JSONDecoder().decode([ParsedServerDate].self, from: payload)
+        (decoded.count, decoded.last!.asDate.timeIntervalSince1970)
+        """
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 64)
+        #expect(tuple.values[1].doubleValue == 1783628475.97)
+    }
+
     @Test func materializedCustomDecodeElementsHaveIndependentFiniteBudgets() throws {
         let payload = "[" + (0..<30).map { "\"\($0)\"" }.joined(separator: ",") + "]"
         let source = """
