@@ -17,6 +17,7 @@ private struct TwinMetadata: Codable {
     let statusCount: Int
     let displayNames: [String]
     let rawContent: [String]
+    let detailMarkdown: String
     let mediaCount: Int
     let requests: [String]
     let clockEpoch: Double
@@ -136,11 +137,24 @@ private struct TwinDriverView: View {
                 endpoint: Timelines.pub(
                     sinceId: nil, maxId: nil, minId: nil,
                     local: false, limit: 50))
+            let detailData = try Data(contentsOf: URL(
+                fileURLWithPath: TwinConfiguration.fixtureDirectory)
+                .appendingPathComponent("api_v1_trends_statuses.json"))
+            let detailDecoder = JSONDecoder()
+            detailDecoder.keyDecodingStrategy = .convertFromSnakeCase
+            let detailStatuses = try detailDecoder.decode(
+                [Status].self, from: detailData)
+            guard let detailStatus = detailStatuses.first else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 4,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "recorded trending fixture has no detail status"])
+            }
             statuses = decoded
             // Let SwiftUI install the List hierarchy and let deterministic
             // replay image requests settle before rasterizing the live view.
             try await Task.sleep(for: .seconds(1))
-            try capture(statuses: decoded)
+            try capture(statuses: decoded, detailStatus: detailStatus)
             exit(0)
         } catch {
             FileHandle.standardError.write(Data("IceCubesNativeTwin: \(error)\n".utf8))
@@ -148,7 +162,7 @@ private struct TwinDriverView: View {
         }
     }
 
-    private func capture(statuses: [Status]) throws {
+    private func capture(statuses: [Status], detailStatus: Status) throws {
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
@@ -194,6 +208,7 @@ private struct TwinDriverView: View {
                 let visible = status.reblog?.content ?? status.content
                 return visible.asRawText
             },
+            detailMarkdown: detailStatus.content.asMarkdown,
             mediaCount: statuses.reduce(into: 0) { count, status in
                 count += (status.reblog?.mediaAttachments ?? status.mediaAttachments).count
             },

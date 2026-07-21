@@ -12,8 +12,9 @@ real SwiftUI/UIKit lifecycle exists. The driver decodes the public timeline
 through `MastodonClient`, renders the actual `StatusesListView` in a live
 window, and captures its fixed 900×700 content hierarchy. Alongside
 `timeline.png`, `timeline.json` records expectations derived from the decoded
-models: status count, display names, raw HTML-derived text, media count, and
-the replay request log. `FrozenClock.c` is one harness-level interposer for
+models: status count, display names, raw HTML-derived text, the trending
+detail's native Markdown, media count, and the replay request log.
+`FrozenClock.c` is one harness-level interposer for
 Foundation's wall-clock `Date()` construction. The board injects the same
 fixed epoch into both processes while leaving monotonic scheduling clocks live.
 
