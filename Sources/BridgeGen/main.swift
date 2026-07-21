@@ -65,6 +65,7 @@ let modulePrefixes = [
     "UniformTypeIdentifiers.", "DeveloperToolsSupport.",
     "CoreFoundation.", "CoreGraphics.", "Charts.",
     "Observation.", "SwiftUICore.", "Foundation.", "CoreData.", "SwiftUI.",
+    "_Concurrency.",
     "AppKit.", "UIKit.", "Metal.", "QuartzCore.", "ObjectiveC.",
     "Combine.", "Swift.", "os.",
 ]
@@ -116,6 +117,8 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Int": return .init(tag: "int", cast: "%@ as! Int")
     case "Double": return .init(tag: "double", cast: "%@ as! Double")
     case "CGFloat": return .init(tag: "cgFloat", cast: "%@ as! CGFloat")
+    case "TaskPriority": return .init(
+        tag: "taskPriority", cast: "%@ as! TaskPriority")
     case "ClosedRange<Double>": return .init(tag: "doubleRange", cast: "%@ as! ClosedRange<Double>")
     case "Color": return .init(tag: "color", cast: "%@ as! Color")
     case "Font": return .init(tag: "font", cast: "%@ as! Font")

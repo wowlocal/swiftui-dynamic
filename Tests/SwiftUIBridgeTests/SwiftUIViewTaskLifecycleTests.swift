@@ -154,6 +154,11 @@ struct SwiftUIViewTaskLifecycleTests {
             overload.params.map(\.label) == ["id", nil]
                 && overload.params.map(\.tag) == [.equatable, .asyncAction]
         } == true)
+        #expect(task.byArity[3]?.contains { overload in
+            overload.params.map(\.label) == ["id", "priority", nil]
+                && overload.params.first?.tag == .equatable
+                && overload.params.last?.tag == .asyncAction
+        } == true)
         #expect(refreshable.byArity[1]?.contains { overload in
             overload.params.map(\.label) == ["action"]
                 && overload.params.map(\.tag) == [.asyncAction]

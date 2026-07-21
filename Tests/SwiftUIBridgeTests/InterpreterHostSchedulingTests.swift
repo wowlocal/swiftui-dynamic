@@ -124,6 +124,38 @@ private final class NativeQueueRecorder: @unchecked Sendable {
         #expect(strings.contains("loaded"), "rendered strings: \(strings)")
     }
 
+    /// EmojiText uses the complete generated `task(id:priority:_:)` row.
+    /// Its priority argument must not erase the async closure property at the
+    /// headless lifecycle boundary.
+    @Test func liveCheckPrioritizedAsyncLifecycleUsesSwiftUITaskRuntime() async throws {
+        let strings = try await LiveCheckSupport.renderedStrings(source: """
+        @Observable
+        final class Loader {
+            var phase = "pending"
+
+            func load() async {
+                phase = await withTaskGroup(of: String.self) { group in
+                    group.addTask { "loaded" }
+                    return await group.next() ?? "missing"
+                }
+            }
+        }
+
+        struct ContentView: View {
+            @State private var loader = Loader()
+
+            var body: some View {
+                Text(loader.phase)
+                    .task(id: 1, priority: .high) {
+                        await loader.load()
+                    }
+            }
+        }
+        """)
+
+        #expect(strings.contains("loaded"), "rendered strings: \(strings)")
+    }
+
     /// Foundation exposes queue submission and the operation lifecycle in its
     /// SDK symbol graph. An interpreted Operation subclass must retain that
     /// native scheduling boundary instead of becoming an inert host object.
