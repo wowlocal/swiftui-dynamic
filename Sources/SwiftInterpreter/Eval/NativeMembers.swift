@@ -224,6 +224,57 @@ extension Interpreter {
     /// This is the compatibility path for opaque framework values. Swift-shaped
     /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
+        if let buffer = any as? any RuntimeCollectionBackedBufferCarrier {
+            switch name {
+            case "count":
+                return .native(buffer.runtimeElements.count)
+            case "isEmpty":
+                return .native(buffer.runtimeElements.isEmpty)
+            case "baseAddress":
+                return buffer.runtimeBaseAddressValue()
+            default:
+                break
+            }
+        }
+        if let pointer = any as? any RuntimeCollectionBackedPointerCursor {
+            switch name {
+            case "advanced":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let distance = (args.labeled("by")
+                        ?? args.positional(0))?.intValue else {
+                        throw EvalMessage(
+                            text: "advanced(by:) needs an integer")
+                    }
+                    return pointer.runtimeAdvancedValue(by: distance)
+                })
+            case "pointee":
+                return try pointer.runtimePointeeValue()
+            default:
+                break
+            }
+        }
+        if let pointer = any as? any RuntimeBulkWritablePointerCursor,
+           let labels = GeneratedUnsafeMemorySurface
+            .pointerBulkCopyLabels(for: name) {
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let sourceArgument = labels.source.isEmpty
+                    ? args.positional(0)
+                    : args.labeled(labels.source) ?? args.positional(0)
+                let countArgument = labels.count.isEmpty
+                    ? args.positional(1)
+                    : args.labeled(labels.count) ?? args.positional(1)
+                guard case .host(let sourcePayload)? = sourceArgument,
+                      let source = sourcePayload
+                        as? any RuntimeIntegerSubscriptReadable,
+                      let count = countArgument?.intValue else {
+                    throw EvalMessage(
+                        text: "\(name) needs a readable pointer and an "
+                            + "integer count")
+                }
+                try pointer.runtimeCopy(from: source, count: count)
+                return .void
+            })
+        }
         if let buffer = any as? RuntimeCollectionBackedBuffer {
             if let label = GeneratedUnsafeMemorySurface
                 .bufferRebindingMetatypeLabel(for: name) {
@@ -236,33 +287,12 @@ extension Interpreter {
                     return .native(try buffer.bindingMemory(to: typeName))
                 })
             }
-            switch name {
-            case "count":
-                return .native(buffer.elements.count)
-            case "isEmpty":
-                return .native(buffer.elements.isEmpty)
-            case "baseAddress":
-                return buffer.baseAddress.map {
-                    .some(.native($0), wrappedTypeName: "UnsafePointer")
-                } ?? .none(wrappedTypeName: "UnsafePointer")
-            default:
-                return try arrayMember(
-                    name, buffer.elements,
-                    elementTypeName: buffer.elementTypeName)
-            }
+            return try arrayMember(
+                name, buffer.elements,
+                elementTypeName: buffer.elementTypeName)
         }
         if let pointer = any as? RuntimeCollectionBackedPointer {
             switch name {
-            case "advanced":
-                return .hostFunction(HostFunction(name: name) { args, _ in
-                    guard let distance = (args.labeled("by")
-                        ?? args.positional(0))?.intValue else {
-                        throw EvalMessage(text: "advanced(by:) needs an integer")
-                    }
-                    return .native(pointer.advanced(by: distance))
-                })
-            case "pointee":
-                return try pointer.element(atRelativeIndex: 0)
             case "load":
                 return .hostFunction(HostFunction(name: name) { args, _ in
                     guard let metatype = args.labeled("as") ?? args.positional(0)

@@ -8,6 +8,17 @@ enum GeneratedUnsafeMemorySurface {
         "assumingMemoryBound": "to",
         "bindMemory": "to",
     ]
+    static let mutableBufferCallbackArgumentLabels: [String: String] = [
+        "withUnsafeMutableBufferPointer": "",
+    ]
+    static let pointerBulkCopyArgumentLabels: [String: (source: String, count: String)] = [
+        "assign": (source: "from", count: "count"),
+        "initialize": (source: "from", count: "count"),
+        "moveAssign": (source: "from", count: "count"),
+        "moveInitialize": (source: "from", count: "count"),
+        "moveUpdate": (source: "from", count: "count"),
+        "update": (source: "from", count: "count"),
+    ]
 
     static func isPointerType(_ name: String) -> Bool {
         pointerTypeNames.contains(canonicalTypeName(name))
@@ -23,6 +34,18 @@ enum GeneratedUnsafeMemorySurface {
 
     static func bufferRebindingMetatypeLabel(for name: String) -> String? {
         bufferRebindingMetatypeLabels[name]
+    }
+
+    static func mutableBufferCallbackArgumentLabel(
+        for name: String
+    ) -> String? {
+        mutableBufferCallbackArgumentLabels[name]
+    }
+
+    static func pointerBulkCopyLabels(
+        for name: String
+    ) -> (source: String, count: String)? {
+        pointerBulkCopyArgumentLabels[name]
     }
 
     private static func canonicalTypeName(_ rawName: String) -> String {

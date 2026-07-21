@@ -494,6 +494,25 @@ import Testing
         #expect(value.stringValue == "5|probe")
     }
 
+    @Test func mutableBufferPointerUpdateWritesBackToArray() throws {
+        let source = """
+        var destination: [UInt8] = [65, 66, 67, 68]
+        let replacement: [UInt8] = [120, 121]
+        destination.withUnsafeMutableBufferPointer { destinationBuffer in
+            replacement.withUnsafeBufferPointer { sourceBuffer in
+                guard let destinationBase = destinationBuffer.baseAddress,
+                      let sourceBase = sourceBuffer.baseAddress else { return }
+                destinationBase.advanced(by: 1).update(
+                    from: sourceBase, count: sourceBuffer.count)
+            }
+        }
+        String(decoding: destination, as: UTF8.self)
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.stringValue == "AxyD")
+    }
+
     /// Distilled from SwiftSoup's String.utf8Array fast-path fallback.
     @Test func unavailableContiguousStorageFallsBackToCollection() throws {
         let source = """
@@ -713,6 +732,45 @@ import Testing
             + "lacrymogènes lancés par la police lors d’un tournoi de foot.")
     }
 
+    /// IceCubes decodes multiple HTML values through a recursive mutating
+    /// SwiftSoup traversal; later values must not inherit earlier DOM bytes.
+    @Test func swiftSoupMarkdownDecoderPreservesSequentialHTMLValues() throws {
+        let firstExpected = "⭕Des familles ont été prises dans des nuages de gaz "
+            + "lacrymogènes lancés par la police lors d’un tournoi de foot."
+        let secondHTML = "🌉 <a href=\"https://fed.brid.gy/bsky/antyfaszysta.bsky.social\" "
+            + "rel=\"nofollow noopener\" target=\"_blank\">bridged</a> from 🦋 "
+            + "<a href=\"https://bsky.app/profile/antyfaszysta.bsky.social\" "
+            + "rel=\"nofollow noopener\" target=\"_blank\">"
+            + "antyfaszysta.bsky.social</a>"
+        let encoded = String(data: try JSONEncoder().encode([
+            "first": "<p>" + firstExpected + "</p>",
+            "second": secondHTML,
+        ]), encoding: .utf8)!
+        let root = FileManager.default.currentDirectoryPath
+        let htmlStringSource = try String(
+            contentsOfFile: root
+                + "/External/oss/IceCubesApp/Packages/Models/Sources/Models/Alias/HTMLString.swift",
+            encoding: .utf8)
+        let value = try swiftSoupEvaluation(
+            "", additionalSource: htmlStringSource,
+            additionalSourceModule: "Models", suffix: """
+            import Models
+
+            struct Inputs: Decodable {
+                let first: HTMLString
+                let second: HTMLString
+            }
+            let inputs = try JSONDecoder().decode(
+                Inputs.self,
+                from: \(String(reflecting: encoded)).data(using: .utf8)!)
+            inputs.first.asMarkdown + "|" + inputs.second.asMarkdown
+            """, suffixModule: "IceCubesMarkdownRegressionProbe")
+        #expect(value.stringValue == firstExpected
+            + "|🌉 [bridged](https://fed.brid.gy/bsky/antyfaszysta.bsky.social)"
+            + " from 🦋 [antyfaszysta.bsky.social]"
+            + "(https://bsky.app/profile/antyfaszysta.bsky.social)")
+    }
+
     /// A parsed HTML fragment returns nodes, not the integer indices used
     /// internally while maintaining the child array.
     @Test func swiftSoupFragmentReturnsNodeCollection() throws {
@@ -788,7 +846,11 @@ import Testing
     }
 
     private func swiftSoupEvaluation(
-        _ html: String, additionalSource: String = "", suffix: String
+        _ html: String,
+        additionalSource: String = "",
+        additionalSourceModule: String? = nil,
+        suffix: String,
+        suffixModule: String? = nil
     ) throws -> RuntimeValue {
         let root = FileManager.default.currentDirectoryPath
         let sourceRoot = root + "/.build/checkouts/SwiftSoup/Sources"
@@ -797,14 +859,21 @@ import Testing
             throw RuntimeError(message:
                 "SwiftSoup fixture sources are missing from \(sourceRoot)")
         }
+        let projectedAdditional = additionalSourceModule.map {
+            ProjectMaterial.mergedSource(
+                source: additionalSource, moduleName: $0)
+        } ?? additionalSource
+        let projectedSuffix = suffixModule.map {
+            ProjectMaterial.mergedSource(source: suffix, moduleName: $0)
+        } ?? suffix
         let source = ProjectMaterial.mergedSource(
             files: files,
             sourceModules: Dictionary(uniqueKeysWithValues: files.map {
                 ($0, "SwiftSoup")
-            })) + "\n\n" + additionalSource
+            })) + "\n\n" + projectedAdditional
             + "\n\n// swift-interpreter-module SwiftSoup\n"
             + "let document = try SwiftSoup.parse(\(String(reflecting: html)))\n"
-            + suffix
+            + projectedSuffix
 
         return try Interpreter(registry: TraceRegistry()).run(source: source)
     }
