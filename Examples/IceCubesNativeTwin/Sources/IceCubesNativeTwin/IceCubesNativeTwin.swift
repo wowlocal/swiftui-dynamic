@@ -19,10 +19,43 @@ private struct TwinMetadata: Codable {
     let rawContent: [String]
     let detailMarkdown: String
     let mediaCount: Int
+    let focusedMediaURL: String
     let requests: [String]
     let clockEpoch: Double
     let width: Int
     let height: Int
+}
+
+@MainActor
+private struct FocusedMediaScreen: View {
+    let attachments: [MediaAttachment]
+
+    @Namespace private var namespace
+    @State private var namespaceInstalled = false
+
+    var body: some View {
+        Group {
+            if namespaceInstalled {
+                StatusRowMediaPreviewView(
+                    attachments: attachments, sensitive: false)
+            } else {
+                Color.white
+            }
+        }
+            .frame(width: 420, height: 560)
+            .environment(Theme.shared)
+            .environment(UserPreferences.shared)
+            .environment(QuickLook.shared)
+            .environment(ToastCenter.shared)
+            .background(Color.white)
+            .task {
+                // The real app dependency graph installs this namespace before
+                // media rows are usable. Mirror that interface-inexpressible
+                // SwiftUI state in the native harness rather than bypassing it.
+                QuickLook.shared.namespace = namespace
+                namespaceInstalled = true
+            }
+    }
 }
 
 private enum TwinConfiguration {
@@ -107,13 +140,16 @@ private struct PublicTimelineScreen: View {
 @MainActor
 private struct TwinDriverView: View {
     @State private var statuses: [Status] = []
+    @State private var focusedMedia: [MediaAttachment]?
     @State private var started = false
     private let client = MastodonClient(server: "mstdn.social")
     private let routerPath = RouterPath()
 
     var body: some View {
         Group {
-            if statuses.isEmpty {
+            if let focusedMedia {
+                FocusedMediaScreen(attachments: focusedMedia)
+            } else if statuses.isEmpty {
                 ProgressView("Loading recorded public timeline")
             } else {
                 PublicTimelineScreen(
@@ -150,11 +186,31 @@ private struct TwinDriverView: View {
                     userInfo: [NSLocalizedDescriptionKey:
                         "recorded trending fixture has no detail status"])
             }
-            statuses = decoded
+            let boostData = try Data(contentsOf: URL(
+                fileURLWithPath: TwinConfiguration.fixtureDirectory)
+                .appendingPathComponent("api_v1_statuses_116954929935729788.json"))
+            let boostStatus = try detailDecoder.decode(Status.self, from: boostData)
+            guard let imageAttachment = boostStatus.reblog?.mediaAttachments.first,
+                  imageAttachment.supportedType == .image,
+                  let imageURL = imageAttachment.url else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 5,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "recorded boost fixture has no supported image attachment"])
+            }
+            let replayStatuses = decoded + [boostStatus]
+            statuses = replayStatuses
             // Let SwiftUI install the List hierarchy and let deterministic
             // replay image requests settle before rasterizing the live view.
             try await Task.sleep(for: .seconds(1))
-            try capture(statuses: decoded, detailStatus: detailStatus)
+            try capturePNG(named: "timeline")
+
+            focusedMedia = [imageAttachment]
+            try await Task.sleep(for: .seconds(1))
+            try capturePNG(named: "media")
+            try captureMetadata(
+                statuses: replayStatuses, detailStatus: detailStatus,
+                focusedMediaURL: imageURL)
             exit(0)
         } catch {
             FileHandle.standardError.write(Data("IceCubesNativeTwin: \(error)\n".utf8))
@@ -162,7 +218,7 @@ private struct TwinDriverView: View {
         }
     }
 
-    private func capture(statuses: [Status], detailStatus: Status) throws {
+    private func capturePNG(named name: String) throws {
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
@@ -194,9 +250,15 @@ private struct TwinDriverView: View {
         try FileManager.default.createDirectory(
             atPath: TwinConfiguration.outputDirectory, withIntermediateDirectories: true)
         let imageURL = URL(fileURLWithPath: TwinConfiguration.outputDirectory)
-            .appendingPathComponent("timeline.png")
+            .appendingPathComponent("\(name).png")
         try png.write(to: imageURL, options: .atomic)
 
+        print("\(name)\t\(imageURL.path)\t\(Int(TwinConfiguration.size.width))x\(Int(TwinConfiguration.size.height))")
+    }
+
+    private func captureMetadata(
+        statuses: [Status], detailStatus: Status, focusedMediaURL: URL
+    ) throws {
         let metadata = TwinMetadata(
             fixture: "api_v1_timelines_public.json",
             statusCount: statuses.count,
@@ -212,6 +274,7 @@ private struct TwinDriverView: View {
             mediaCount: statuses.reduce(into: 0) { count, status in
                 count += (status.reblog?.mediaAttachments ?? status.mediaAttachments).count
             },
+            focusedMediaURL: focusedMediaURL.absoluteString,
             requests: ReplayURLProtocol.requests,
             clockEpoch: Date().timeIntervalSince1970,
             width: Int(TwinConfiguration.size.width),
@@ -220,7 +283,6 @@ private struct TwinDriverView: View {
             .appendingPathComponent("timeline.json")
         try JSONEncoder().encode(metadata).write(to: metadataURL, options: .atomic)
 
-        print("timeline\t\(imageURL.path)\t\(Int(TwinConfiguration.size.width))x\(Int(TwinConfiguration.size.height))")
         print("metadata\t\(metadataURL.path)\tstatuses=\(metadata.statusCount) media=\(metadata.mediaCount)")
     }
 
