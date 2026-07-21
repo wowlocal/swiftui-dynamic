@@ -635,8 +635,19 @@ public final class Interpreter {
     /// Bracket a builder-row evaluation with the element's identity, so
     /// per-view state cells key by (site, element) instead of site alone.
     public func withViewIdentitySalt<T>(_ salt: String, _ body: () throws -> T) rethrows -> T {
-        viewIdentitySalts.append(salt)
+        viewIdentitySalts.append("id:\(salt)")
         defer { viewIdentitySalts.removeLast() }
+        return try body()
+    }
+
+    /// Re-enter the structural path captured when an interpreted view value
+    /// was constructed. Body evaluation is deferred by host registries, so
+    /// the ambient builder/parent path is otherwise gone by the time nested
+    /// views and lifecycle modifiers are created.
+    func withViewIdentityPath<T>(_ path: [String], _ body: () throws -> T) rethrows -> T {
+        let previous = viewIdentitySalts
+        viewIdentitySalts = path
+        defer { viewIdentitySalts = previous }
         return try body()
     }
     static var traceStateCells = ProcessInfo.processInfo.environment["INTERP_TRACE_STATE"] != nil

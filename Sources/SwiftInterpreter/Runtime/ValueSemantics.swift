@@ -140,6 +140,7 @@ extension RuntimeValue {
                     programState: instance.programState)
                 isolated.isInitializing = instance.isInitializing
                 isolated.synthesizedRootOwners = instance.synthesizedRootOwners
+                isolated.constructionViewIdentityPath = instance.constructionViewIdentityPath
                 structCopies[identity] = isolated
                 for (name, box) in instance.properties {
                     if instance.symbol.storedProperty(named: name)?.wrapper == .binding {
@@ -199,6 +200,7 @@ extension Instance {
             programState: programState)
         copy.isInitializing = isInitializing
         copy.synthesizedRootOwners = synthesizedRootOwners
+        copy.constructionViewIdentityPath = constructionViewIdentityPath
         for (name, box) in properties {
             if symbol.storedProperty(named: name)?.wrapper == .binding {
                 copy.properties[name] = box

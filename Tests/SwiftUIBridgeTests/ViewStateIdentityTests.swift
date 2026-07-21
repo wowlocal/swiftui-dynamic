@@ -112,6 +112,42 @@ import SwiftInterpreter
                 "sibling rows shared one lifecycle identity: \(strings)")
     }
 
+    /// Distilled from IceCubes' reusable Nuke `LazyImage`: every instance's
+    /// lifecycle modifier originates at the same source site inside `body`,
+    /// but SwiftUI gives sibling component instances distinct structural
+    /// identities inherited from their parent construction sites.
+    @Test func lifecycleIdentityDistinguishesReusableViewInstances() throws {
+        let source = """
+        final class Model {
+            var appearanceTotal = 0
+        }
+        struct ReusableRow: View {
+            let value: Int
+            let model: Model
+
+            var body: some View {
+                Text("row \\(value)")
+                    .onAppear { model.appearanceTotal += value }
+            }
+        }
+        struct ContentView: View {
+            @State private var model = Model()
+
+            var body: some View {
+                VStack {
+                    ReusableRow(value: 1, model: model)
+                    ReusableRow(value: 2, model: model)
+                    Text("total \\(model.appearanceTotal)")
+                }
+            }
+        }
+        """
+
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("total 3"),
+                "reusable instances shared one lifecycle identity: \(strings)")
+    }
+
     /// Distilled from IceCubes' StatusesListView + NextPageView. A native
     /// List materializes only its initial viewport, so the trailing paging
     /// task is still off-screen at launch even though visible row callbacks
