@@ -537,6 +537,28 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 2)
     }
 
+    /// Native Swift keeps an unlabeled standard-library conversion separate
+    /// from a labeled extension initializer. IceCubes' UInt RawRepresentable
+    /// conformance exposed this through SwiftSoup pointer arithmetic:
+    /// baseAddress &+ UInt(i) must not call init?(rawValue:).
+    @Test func unlabeledNativeInitializerRejectsLabeledExtensionOverload() throws {
+        let source = """
+        extension UInt: @retroactive RawRepresentable {
+            var rawValue: Int { Int(self) }
+
+            init?(rawValue: Int) {
+                guard rawValue >= 0 else { return nil }
+                self.init(rawValue)
+            }
+        }
+
+        let offset = 0
+        4096 &+ UInt(offset)
+        """
+
+        #expect(try eval(source).intValue == 4096)
+    }
+
     @Test func dynamicSelfFindsInheritedStaticMethod() throws {
         let source = """
         class Base {
