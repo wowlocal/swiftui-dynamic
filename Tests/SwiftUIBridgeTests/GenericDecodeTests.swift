@@ -397,7 +397,7 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 }
 
 @Suite struct ViewModifierBodyTests {
-    @Test func customModifierRunsItsBody() throws {
+    @Test func customModifierRunsItsBody() async throws {
         let source = """
         struct TitleFont: ViewModifier {
             let size: CGFloat
@@ -451,14 +451,14 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("Dune Part Three"),
                 "the modifier body must pass content through, got \(strings)")
     }
 }
 
 @Suite struct ModifiedContentTests {
-    @Test func explicitModifiedContentApplies() throws {
+    @Test func explicitModifiedContentApplies() async throws {
         let source = """
         struct Badge: ViewModifier {
             func body(content: Content) -> some View {
@@ -478,7 +478,7 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("badge title"),
                 "ModifiedContent(content:modifier:) runs the modifier body, got \(strings)")
     }
@@ -490,7 +490,7 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 /// arithmetic read fresh zero, and nested `.some/.none` payload patterns
 /// match native optionals (the isowords AdaptivePadding switch).
 @Suite struct ModifierMemberSpellingTests {
-    @Test func modifierMemberRunsBodyWithEnvironment() throws {
+    @Test func modifierMemberRunsBodyWithEnvironment() async throws {
         let source = """
         extension EnvironmentValues {
             @Entry var inferredPadding: CGFloat = 6
@@ -511,7 +511,7 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains("member spelling"),
                 "the modifier body must run and pass content through, got \(strings)")
     }
@@ -589,7 +589,7 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 /// inserts through the model context, its queries show on the next
 /// render — the todo-app loop closes end to end.
 @Suite struct QueryLiveStoreTests {
-    @Test func queryReflectsContextInserts() throws {
+    @Test func queryReflectsContextInserts() async throws {
         let source = """
         struct Note {
             var title = ""
@@ -612,9 +612,9 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             }
         }
         """
-        let before = try LiveCheckSupport.renderedStrings(source: source)
+        let before = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(before.contains("count 0"), "fresh store starts empty, got \(before)")
-        let after = try LiveCheckSupport.renderedStrings(source: source, afterActions: 2)
+        let after = try await LiveCheckSupport.renderedStrings(source: source, afterActions: 2)
         #expect(after.contains("Bought milk"), "inserted rows render through @Query, got \(after)")
         #expect(after.contains("count 2"), "two taps, two rows, got \(after)")
     }
@@ -838,7 +838,7 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 /// pre-@Entry EnvironmentKey defaults, optional views in builders, and the
 /// synthesized-allCases collision with an argful static overload.
 @Suite struct ACHNBootChainTests {
-    @Test func itemSheetGatesAndEnvironmentKeyDefaults() throws {
+    @Test func itemSheetGatesAndEnvironmentKeyDefaults() async throws {
         let source = """
         struct CurrentDateKey: EnvironmentKey {
             static let defaultValue = Date()
@@ -885,7 +885,7 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains { $0.hasPrefix("hour ") && !$0.contains("nil") },
                 "EnvironmentKey defaultValue must resolve, got \(strings)")
         #expect(strings.contains("sorts 1"), "argful allCases dispatches; bare reads synthesized")
@@ -898,6 +898,40 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 /// deliver the CURRENT value synchronously in replay (the doctrine fork);
 /// Bundle.module resolves committed resources.
 @Suite(.serialized) struct BundledResourcePipelineTests {
+    @Test func projectResourceScopeSurvivesSuspensionAndChildTasks() async throws {
+        let previousRoot = BundleBox.projectResourceRoot
+        let pinnedRoot = NSTemporaryDirectory()
+            + "bundle-scope-pinned-\(UUID().uuidString)"
+        let defaultRoot = NSTemporaryDirectory()
+            + "bundle-scope-default-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(
+            atPath: pinnedRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: defaultRoot, withIntermediateDirectories: true)
+        defer {
+            BundleBox.projectResourceRoot = previousRoot
+            try? FileManager.default.removeItem(atPath: pinnedRoot)
+            try? FileManager.default.removeItem(atPath: defaultRoot)
+        }
+        try "pinned".write(
+            toFile: pinnedRoot + "/marker.txt", atomically: true,
+            encoding: .utf8)
+        try "default".write(
+            toFile: defaultRoot + "/marker.txt", atomically: true,
+            encoding: .utf8)
+        BundleBox.projectResourceRoot = defaultRoot
+
+        let resolved = await BundleBox.withProjectResourceRoot(pinnedRoot) {
+            await Task.yield()
+            return await Task {
+                BundleBox.projectResource(
+                    named: "marker", extension: "txt")?.path
+            }.value
+        }
+
+        #expect(resolved == pinnedRoot + "/marker.txt")
+    }
+
     @Test func dataAssetReadsDatasetMetadataAndBytes() throws {
         let previousRoot = BundleBox.projectResourceRoot
         let root = NSTemporaryDirectory() + "data-asset-probe-\(UUID().uuidString)"
@@ -970,20 +1004,19 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("resourcePath")?.stringValue == resourcePath)
     }
 
-    @Test func bundleResourceRidesPublisherIntoPublished() throws {
-        NetworkBridge.policy = .replay(fixturesDirectory: NSTemporaryDirectory())
-        defer { NetworkBridge.policy = .absorbed }
-        let previousRoot = BundleBox.projectResourceRoot
+    @Test func bundleResourceRidesPublisherIntoPublished() async throws {
         let root = NSTemporaryDirectory() + "bundle-probe-\(UUID().uuidString)"
         try FileManager.default.createDirectory(
             atPath: root + "/Resources/json", withIntermediateDirectories: true)
         defer {
-            BundleBox.projectResourceRoot = previousRoot
             try? FileManager.default.removeItem(atPath: root)
         }
         try #"{"total": 2, "results": [{"name": "Goldfish"}, {"name": "Anchovy"}]}"#
             .write(toFile: root + "/Resources/json/fish", atomically: true, encoding: .utf8)
-        BundleBox.projectResourceRoot = root
+        let environment = LiveCheckEnvironment(
+            networkPolicy: .replay(
+                fixturesDirectory: NSTemporaryDirectory()),
+            projectResourceRoot: root)
         let source = """
         struct ItemRow: Codable {
             let name: String
@@ -1046,7 +1079,8 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(
+            source: source, environment: environment)
         #expect(strings.contains("Goldfish") && strings.contains("Anchovy"),
                 "bundled bytes must ride the pipeline into rendered rows, got \(strings)")
     }

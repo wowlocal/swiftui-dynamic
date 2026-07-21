@@ -19,7 +19,7 @@ import SwiftUI
 
 @main
 struct FoodTruckCheckMain {
-    static func main() throws {
+    static func main() async throws {
         if ProcessInfo.processInfo.environment["SWIFT_DETERMINISTIC_HASHING"] == nil {
             var environment = ProcessInfo.processInfo.environment
             environment["SWIFT_DETERMINISTIC_HASHING"] = "1"
@@ -142,10 +142,10 @@ struct FoodTruckCheckMain {
         var rungsTotal = 0
         var failures: [String] = []
 
-        func rung(_ name: String, _ body: () throws -> [String]) {
+        func rung(_ name: String, _ body: () async throws -> [String]) async {
             rungsTotal += 1
             do {
-                let problems = try body()
+                let problems = try await body()
                 if problems.isEmpty {
                     rungsPassed += 1
                     print("✅ \(name)")
@@ -164,11 +164,12 @@ struct FoodTruckCheckMain {
             + frozenClockShim
 
         if screenFilter == nil {
-            rung("R0-shell") {
-                let strings = try LiveCheckSupport.renderedStrings(source: fullMerge)
+            await rung("R0-shell") {
+                let render = try await LiveCheckSupport.render(source: fullMerge)
+                let strings = render.strings
                 var problems: [String] = []
-                if !LiveCheckSupport.lastRootSymbol.hasPrefix("scene:FoodTruckApp") {
-                    problems.append("root is \(LiveCheckSupport.lastRootSymbol), wanted scene:FoodTruckApp")
+                if !render.rootSymbol.hasPrefix("scene:FoodTruckApp") {
+                    problems.append("root is \(render.rootSymbol), wanted scene:FoodTruckApp")
                 }
                 if strings.isEmpty {
                     problems.append("shell rendered no strings")
@@ -781,7 +782,7 @@ struct FoodTruckCheckMain {
 
         for screen in screens {
             if let screenFilter, !screen.name.localizedCaseInsensitiveContains(screenFilter) { continue }
-            rung("R1-\(screen.name)") {
+            await rung("R1-\(screen.name)") {
                 // "@" + "main" split: SwiftPM's @main scan is textual and would
                 // otherwise reclassify this main.swift as a non-main file.
                 let probe = """
@@ -797,7 +798,7 @@ struct FoodTruckCheckMain {
                     }
                 }
                 """
-                let strings = try LiveCheckSupport.renderedStrings(source: probeMergeBase + probe)
+                let strings = try await LiveCheckSupport.renderedStrings(source: probeMergeBase + probe)
                 if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
                     print("   strings(\(screen.name)): \(strings)")
                 }

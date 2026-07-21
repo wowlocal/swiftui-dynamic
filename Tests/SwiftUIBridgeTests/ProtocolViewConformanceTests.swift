@@ -6,7 +6,7 @@ import SwiftInterpreter
 /// (`ConnectedView: View`) and get `body` from that protocol's EXTENSION —
 /// both must count for the render pipeline.
 @Suite struct ProtocolViewConformanceTests {
-    @Test func protocolExtensionBodyRendersForTransitiveConformers() throws {
+    @Test func protocolExtensionBodyRendersForTransitiveConformers() async throws {
         let source = """
         protocol Card: View {
             func title() -> String
@@ -30,7 +30,7 @@ import SwiftInterpreter
             }
         }
         """
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
         #expect(strings.contains { $0.contains("card: sunny") },
                 "protocol-extension body did not render: \(strings)")
     }
@@ -57,7 +57,7 @@ import SwiftInterpreter
     /// content. The wrapper must recognize an interpreted View conformance;
     /// otherwise compiled-project fallback absorbs the chain and drops the
     /// original view from the render tree.
-    @Test func constrainedGenericViewNamespacePreservesContent() throws {
+    @Test func constrainedGenericViewNamespacePreservesContent() async throws {
         let unrelated = ProjectMaterial.mergedSource(source: """
         public struct View {}
         """, moduleName: "DatabaseKit")
@@ -104,7 +104,7 @@ import SwiftInterpreter
         }
         """, moduleName: "Probe")
 
-        let strings = try LiveCheckSupport.renderedStrings(
+        let strings = try await LiveCheckSupport.renderedStrings(
             source: unrelated + dependency + probe)
         #expect(strings.contains("namespace-content"),
                 "conditional namespace dropped its wrapped View: \(strings)")

@@ -342,6 +342,21 @@ enum GeneratedDispatch {
         return values
     }
 
+    /// Return the interface-derived parameter shape selected by the same
+    /// coercion and label rules as generated dispatch. Semantic adapters can
+    /// preserve closure properties without redispatching on an API name.
+    static func matchingParameters(
+        overloads: GeneratedOverloadSet,
+        args: CallArguments,
+        ctx: EvalContext
+    ) -> [ParamSpec]? {
+        for overload in overloads.byArity[args.arguments.count] ?? []
+        where matches(overload.params, args, ctx) != nil {
+            return overload.params
+        }
+        return nil
+    }
+
     static func dispatch(
         name: String,
         overloads: GeneratedOverloadSet,

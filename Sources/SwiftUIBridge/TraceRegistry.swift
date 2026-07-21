@@ -11,6 +11,7 @@ public struct TraceLifecycleIdentity: Hashable {
 public struct TraceLifecycle {
     public let identity: TraceLifecycleIdentity
     public let closure: ClosureValue
+    public let isAsyncAction: Bool
 }
 
 /// A recorded render-tree node — what the trace registry produces instead of
@@ -169,7 +170,7 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? {
-        guard case .replay = NetworkBridge.policy else { return nil }
+        guard case .replay = NetworkBridge.activePolicy else { return nil }
         return .native(ValuePublisherBox(.success(current)))
     }
 
@@ -494,6 +495,17 @@ public final class TraceRegistry: HostRegistry {
             if name == "task" || name == "onAppear",
                let closure = args.arguments.compactMap({ $0.value.closureValue }).first,
                closure.parameters.isEmpty {
+                let closureIndex = args.arguments.firstIndex {
+                    $0.value.closureValue != nil
+                }
+                let parameters = GeneratedModifiers.table[name].flatMap {
+                    GeneratedDispatch.matchingParameters(
+                        overloads: $0, args: args, ctx: ctx)
+                }
+                let isAsyncAction = closureIndex.flatMap { index in
+                    parameters?.indices.contains(index) == true
+                        ? parameters?[index].tag : nil
+                } == .asyncAction
                 // SwiftUI owns lifecycle by structural view identity, not by
                 // the callback's ordinal in a freshly rendered tree. The
                 // syntax call site distinguishes sibling modifiers, the
@@ -506,7 +518,8 @@ public final class TraceRegistry: HostRegistry {
                         viewIdentityPath: ctx.currentViewIdentityPath,
                         restartToken: name == "task"
                             ? args.labeled("id")?.stringified : nil),
-                    closure: closure))
+                    closure: closure,
+                    isAsyncAction: isAsyncAction))
             }
             if Self.isBuilderOnlyModifier(name) {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content

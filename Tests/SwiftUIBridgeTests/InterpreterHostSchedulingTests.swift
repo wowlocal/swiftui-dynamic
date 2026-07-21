@@ -51,6 +51,79 @@ private final class NativeQueueRecorder: @unchecked Sendable {
         #expect(recorder.box(for: "fired")?.value.boolValue == true)
     }
 
+    /// A retained view lifecycle callback is an external host callback, so a
+    /// Task created by it must own a real async runtime session. The operation
+    /// can then suspend while a constructed queue retains and later resumes an
+    /// unsafe continuation, matching the reusable image-pipeline shape.
+    @Test func liveCheckLifecycleTasksCanSuspendThroughConstructedQueues() async throws {
+        let strings = try await LiveCheckSupport.renderedStrings(source: """
+        @Observable
+        final class Loader {
+            var phase = "pending"
+
+            func start() {
+                Task {
+                    do {
+                        let value: String = try await withUnsafeThrowingContinuation {
+                            continuation in
+                            let queue = DispatchQueue(
+                                label: "interpreted-async-loader",
+                                qos: .userInitiated)
+                            queue.async {
+                                continuation.resume(with: .success("loaded"))
+                            }
+                        }
+                        phase = value
+                    } catch {
+                        phase = "failed"
+                    }
+                }
+            }
+        }
+
+        struct ContentView: View {
+            @State private var loader = Loader()
+
+            var body: some View {
+                Text(loader.phase)
+                    .onAppear { loader.start() }
+            }
+        }
+        """)
+
+        #expect(strings.contains("loaded"), "rendered strings: \(strings)")
+    }
+
+    /// Generated modifier metadata distinguishes an async lifecycle action
+    /// from a synchronous callback. The headless verifier must preserve that
+    /// property so a `.task` body enters the suspending evaluator directly.
+    @Test func liveCheckAsyncLifecycleUsesSwiftUITaskRuntime() async throws {
+        let strings = try await LiveCheckSupport.renderedStrings(source: """
+        @Observable
+        final class Loader {
+            var phase = "pending"
+
+            func load() async {
+                phase = await withTaskGroup(of: String.self) { group in
+                    group.addTask { "loaded" }
+                    return await group.next() ?? "missing"
+                }
+            }
+        }
+
+        struct ContentView: View {
+            @State private var loader = Loader()
+
+            var body: some View {
+                Text(loader.phase)
+                    .task { await loader.load() }
+            }
+        }
+        """)
+
+        #expect(strings.contains("loaded"), "rendered strings: \(strings)")
+    }
+
     /// Foundation exposes queue submission and the operation lifecycle in its
     /// SDK symbol graph. An interpreted Operation subclass must retain that
     /// native scheduling boundary instead of becoming an inert host object.

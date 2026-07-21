@@ -339,7 +339,7 @@ struct SwiftPMBuildDescriptionMaterialTests {
     }
 
     @Test
-    func hostImportedNominalWinsOverUnimportedFlattenedSourceType() throws {
+    func hostImportedNominalWinsOverUnimportedFlattenedSourceType() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("host-import-visibility-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -366,12 +366,12 @@ struct SwiftPMBuildDescriptionMaterialTests {
         let merged = ProjectMaterial.mergedSource(
             files: [app.path, hidden.path],
             sourceModules: [hidden.path: "HiddenMarkdown"])
-        let strings = try LiveCheckSupport.renderedStrings(source: merged)
+        let strings = try await LiveCheckSupport.renderedStrings(source: merged)
         #expect(strings.contains("visible-host"))
     }
 
     @Test
-    func appendedInlineSourceRetainsItsOwnHostImports() throws {
+    func appendedInlineSourceRetainsItsOwnHostImports() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("inline-import-visibility-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -396,7 +396,7 @@ struct SwiftPMBuildDescriptionMaterialTests {
             }
             """,
             moduleName: "Probe")
-        let strings = try LiveCheckSupport.renderedStrings(
+        let strings = try await LiveCheckSupport.renderedStrings(
             source: dependency + probe)
 
         #expect(strings.contains("inline-visible-host"))
@@ -409,7 +409,7 @@ struct SwiftPMBuildDescriptionMaterialTests {
     /// A native two-module probe resolves this `Text` to SwiftUI.Text, never the
     /// unimported dependency nominal with the same unqualified name.
     @Test
-    func extractedAppSceneRetainsInlineSourceImports() throws {
+    func extractedAppSceneRetainsInlineSourceImports() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("scene-import-visibility-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -438,10 +438,10 @@ struct SwiftPMBuildDescriptionMaterialTests {
             }
             """,
             moduleName: "Probe")
-        let strings = try LiveCheckSupport.renderedStrings(
+        let render = try await LiveCheckSupport.render(
             source: dependency + probe)
 
-        #expect(strings.contains("scene-visible-host"),
-                "detached scene lost its source imports: \(strings), root \(LiveCheckSupport.lastRootSymbol)")
+        #expect(render.strings.contains("scene-visible-host"),
+                "detached scene lost its source imports: \(render.strings), root \(render.rootSymbol)")
     }
 }

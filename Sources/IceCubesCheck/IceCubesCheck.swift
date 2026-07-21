@@ -28,6 +28,7 @@ private struct FixtureAccount: Decodable {
 }
 
 private struct FixtureMedia: Decodable {
+    let type: String
     let url: URL?
     let previewUrl: URL?
 }
@@ -111,7 +112,7 @@ struct IceCubesCheckMain {
     private static let workerTimeout: TimeInterval = 160
     private static let screenSize = NSSize(width: 900, height: 700)
 
-    static func main() throws {
+    static func main() async throws {
         if ProcessInfo.processInfo.environment["SWIFT_DETERMINISTIC_HASHING"] == nil {
             var environment = ProcessInfo.processInfo.environment
             environment["SWIFT_DETERMINISTIC_HASHING"] = "1"
@@ -134,7 +135,7 @@ struct IceCubesCheckMain {
         {
             let records: [RungRecord]
             do {
-                records = try runWorker(worker)
+                records = try await runWorker(worker)
             } catch {
                 records = expectedRungs(for: worker).map {
                     RungRecord(name: $0, passed: false, message: "worker threw: \(error)")
@@ -282,7 +283,7 @@ struct IceCubesCheckMain {
         return workers.flatMap { recordsByWorker[$0] ?? [] }
     }
 
-    private static func runWorker(_ worker: String) throws -> [RungRecord] {
+    private static func runWorker(_ worker: String) async throws -> [RungRecord] {
         let paths = try paths()
         let oracle = try FixtureOracle(directory: paths.fixtures)
         Interpreter.interpretsAsPlatform = "iOS"
@@ -294,12 +295,12 @@ struct IceCubesCheckMain {
 
         switch worker {
         case "shell":
-            return [try shellRung(paths: paths, oracle: oracle)]
+            return [try await shellRung(paths: paths, oracle: oracle)]
         case "timeline":
-            return try renderRungs(
+            return try await renderRungs(
                 paths: paths, oracle: oracle, scope: .timeline)
         case "detail-account":
-            return try renderRungs(
+            return try await renderRungs(
                 paths: paths, oracle: oracle, scope: .detailAndAccount)
         default:
             return [RungRecord(
@@ -364,15 +365,19 @@ struct IceCubesCheckMain {
             sourceModules: sourceModules)
     }
 
-    private static func shellRung(paths: Paths, oracle: FixtureOracle) throws -> RungRecord {
+    private static func shellRung(
+        paths: Paths,
+        oracle: FixtureOracle
+    ) async throws -> RungRecord {
         let source = ProjectMaterial.mergedSource(
             at: paths.app, files: paths.packageFiles + paths.appFiles,
             sourceModules: paths.sourceModules)
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let render = try await LiveCheckSupport.render(source: source)
+        let strings = render.strings
         let normalized = strings.map(FixtureOracle.normalize)
         var problems: [String] = []
-        if LiveCheckSupport.lastRootSymbol != "scene:IceCubesApp" {
-            problems.append("root is \(LiveCheckSupport.lastRootSymbol), wanted scene:IceCubesApp")
+        if render.rootSymbol != "scene:IceCubesApp" {
+            problems.append("root is \(render.rootSymbol), wanted scene:IceCubesApp")
         }
         let launchAccounts = oracle.trendingStatuses.map(\.visibleAccount.visibleName)
         let visible = launchAccounts.filter { marker in
@@ -381,7 +386,7 @@ struct IceCubesCheckMain {
         if visible.isEmpty {
             problems.append("no replay author reached the app shell")
         }
-        if !NetworkBridge.requestLog.contains(where: {
+        if !render.networkRequests.contains(where: {
             $0.hasPrefix("/api/v1/trends/statuses") && $0.hasSuffix("hit")
         }) {
             problems.append("app shell never hit the recorded trending endpoint")
@@ -398,7 +403,7 @@ struct IceCubesCheckMain {
 
     private static func renderRungs(
         paths: Paths, oracle: FixtureOracle, scope: RenderScope
-    ) throws -> [RungRecord] {
+    ) async throws -> [RungRecord] {
         let source = ProjectMaterial.mergedSource(
             at: paths.app, files: paths.packageFiles,
             sourceModules: paths.sourceModules)
@@ -407,18 +412,22 @@ struct IceCubesCheckMain {
                     includeTimeline: scope == .timeline,
                     includeDetailAndAccount: scope == .detailAndAccount),
                 moduleName: "IceCubesCheckProbe")
-        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let render = try await LiveCheckSupport.render(source: source)
+        let strings = render.strings
         let normalized = strings.map(FixtureOracle.normalize)
         if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
-            print("@@icecubes-root \(LiveCheckSupport.lastRootSymbol)")
-            print("@@icecubes-lifecycle \(LiveCheckSupport.lastLifecycleFired)")
-            for (name, count) in LiveCheckSupport.lastAbsorbedHostMembers
+            print("@@icecubes-root \(render.rootSymbol)")
+            print("@@icecubes-lifecycle \(render.lifecycleFired)")
+            for (name, count) in render.absorbedHostMembers
                 .sorted(by: { $0.value > $1.value }).prefix(20)
             {
                 print("@@icecubes-absorbed \(name) x\(count)")
             }
             for string in normalized where !string.isEmpty {
                 print("@@icecubes-string \(string)")
+            }
+            for request in render.networkRequests {
+                print("@@icecubes-network \(request)")
             }
         }
         func contains(_ marker: String) -> Bool {
@@ -479,15 +488,18 @@ struct IceCubesCheckMain {
         }
 
         var mediaProblems: [String] = []
-        if let media = oracle.publicStatuses.lazy.flatMap(\.visibleMedia).first,
-           let url = media.previewUrl ?? media.url
+        if let media = oracle.boostStatus.visibleMedia.first(where: {
+            $0.type == "image"
+        }), let url = media.url
         {
-            let marker = url.lastPathComponent
-            if !contains(marker) {
-                mediaProblems.append("missing deterministic media placeholder for '\(marker)'")
+            if !render.networkRequests.contains(where: {
+                $0.contains(url.path) && $0.hasSuffix(" hit")
+            }) {
+                mediaProblems.append(
+                    "missing deterministic media request for '\(url.lastPathComponent)'")
             }
         } else {
-            mediaProblems.append("recorded public fixture contains no media")
+            mediaProblems.append("recorded boost fixture contains no image media")
         }
 
         switch scope {
@@ -541,6 +553,9 @@ struct IceCubesCheckMain {
                         __IceFetcherStateProbe(fetcher: __iceFetcher)
                         __IceFetcherRowsProbe(fetcher: __iceFetcher)
                         __IceRowModelProbe(viewModel: __iceFirstRowModel)
+                        __IceMediaProbe(
+                            attachments: __iceBoostStatus.reblog?.mediaAttachments
+                                ?? __iceBoostStatus.mediaAttachments)
                         StatusRowHeaderView(viewModel: __iceFirstRowModel)
                         StatusRowContentView(viewModel: __iceFirstRowModel)
                         SwiftUI.List {
@@ -671,6 +686,23 @@ struct IceCubesCheckMain {
                 case .error:
                     Text("__ice-rows-error")
                 }
+            }
+        }
+
+        @MainActor
+        struct __IceMediaProbe: View {
+            let attachments: [MediaAttachment]
+
+            @Namespace private var namespace
+
+            var body: some View {
+                let _ = {
+                    // IceCubes' real app dependency graph installs this
+                    // framework-supplied namespace before media is usable.
+                    QuickLook.shared.namespace = namespace
+                }()
+                StatusRowMediaPreviewView(
+                    attachments: attachments, sensitive: false)
             }
         }
 

@@ -14,19 +14,60 @@ import SwiftInterpreter
 ///   Fixtures are real API responses captured once by a human (`curl`), never
 ///   edited by hand; they are the network's native baseline.
 /// - `.live`: real HTTP for interactive demo runs only. Never in a metric.
-public enum NetworkPolicy {
+public enum NetworkPolicy: Sendable {
     case absorbed
     case replay(fixturesDirectory: String)
     case live
+}
+
+private final class NetworkReplayScope: @unchecked Sendable {
+    let policy: NetworkPolicy
+    var requestLog: [String] = []
+
+    init(policy: NetworkPolicy) {
+        self.policy = policy
+    }
 }
 
 @MainActor
 public enum NetworkBridge {
     public static var policy: NetworkPolicy = .absorbed
 
+    @TaskLocal private static var replayScope: NetworkReplayScope?
+
     /// Replay-mode request log (`/path?query hit|miss`) — the LiveCheck
     /// histogram's view into WHICH requests the app actually made.
     public static var requestLog: [String] = []
+
+    /// Pin one verifier run to the policy visible at entry and retain its
+    /// request evidence independently. Source Tasks inherit this scope, so a
+    /// parallel test changing the process-wide compatibility policy cannot
+    /// redirect an in-flight replay.
+    static func withIsolatedReplay<T>(
+        policy: NetworkPolicy,
+        _ operation: () async throws -> T
+    ) async rethrows -> (value: T, requestLog: [String]) {
+        let scope = NetworkReplayScope(policy: policy)
+        let value = try await $replayScope.withValue(scope) {
+            try await operation()
+        }
+        requestLog = scope.requestLog
+        return (value, scope.requestLog)
+    }
+
+    static var activePolicy: NetworkPolicy {
+        replayScope?.policy ?? policy
+    }
+
+    private static func recordRequest(_ request: String) {
+        if let replayScope {
+            guard replayScope.requestLog.count < 40 else { return }
+            replayScope.requestLog.append(request)
+        } else {
+            guard requestLog.count < 40 else { return }
+            requestLog.append(request)
+        }
+    }
 
     /// Fixture lookup: `/api/v1/timelines/public` → `api_v1_timelines_public.json`
     /// (host-independent, so any Mastodon instance an app picks matches).
@@ -84,16 +125,16 @@ public enum NetworkBridge {
     }()
 
     static func respond(to url: URL) throws -> (Data, HTTPURLResponse) {
-        switch policy {
+        switch activePolicy {
         case .absorbed:
             throw RuntimeError(message: "network is absorbed in this mode (URLSession)")
         case .replay(let directory):
             defer {
-                if requestLog.count < 40 {
-                    let hit = isImageRequest(url) || fixtureData(forPath: url.path, in: directory) != nil
-                    let resource = url.query.map { "\(url.path)?\($0)" } ?? url.path
-                    requestLog.append("\(resource) \(hit ? "hit" : "MISS")")
-                }
+                let hit = isImageRequest(url)
+                    || fixtureData(forPath: url.path, in: directory) != nil
+                let resource = url.query.map { "\(url.path)?\($0)" }
+                    ?? url.path
+                recordRequest("\(resource) \(hit ? "hit" : "MISS")")
             }
             if isImageRequest(url) {
                 let response = HTTPURLResponse(
@@ -113,9 +154,7 @@ public enum NetworkBridge {
             // (documented divergence: the calling slice blocks).
             let resource = url.query.map { "\(url.path)?\($0)" } ?? url.path
             func recordLiveRequest(_ outcome: String) {
-                if requestLog.count < 40 {
-                    requestLog.append("\(resource) \(outcome)")
-                }
+                recordRequest("\(resource) \(outcome)")
             }
             nonisolated final class Holder: @unchecked Sendable {
                 var result: Result<(Data, HTTPURLResponse), Error>?
@@ -1280,7 +1319,7 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
     case "__fixtureData":
         // Harness-only: LiveCheck's decode scenarios read recorded bytes.
         return HostFunction(name: name) { args, _ in
-            guard case .replay(let directory) = NetworkBridge.policy,
+            guard case .replay(let directory) = NetworkBridge.activePolicy,
                   let stem = args.positional(0)?.stringValue,
                   let data = FileManager.default.contents(atPath: directory + "/" + stem + ".json") else {
                 throw RuntimeError(message: "__fixtureData: no fixture in replay directory")

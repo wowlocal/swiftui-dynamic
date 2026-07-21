@@ -49,8 +49,8 @@ import SwiftUIBridge
         #expect(!rendered.contains("function"), "scene content stayed a function value: \(rendered)")
     }
 
-    @Test func extensionScenePropertyResolves() throws {
-        let rendered = try LiveCheckSupport.renderedStrings(source: """
+    @Test func extensionScenePropertyResolves() async throws {
+        let render = try await LiveCheckSupport.render(source: """
         struct HomeView: View {
             var body: some View { Text("home sweet home") }
         }
@@ -69,17 +69,17 @@ import SwiftUIBridge
             }
         }
         """)
-        #expect(rendered.joined(separator: "|").contains("home sweet home"),
-                "scene property didn't resolve: \(rendered) (root \(LiveCheckSupport.lastRootSymbol))")
-        #expect(LiveCheckSupport.lastRootSymbol.hasPrefix("scene:"),
-                "root should come from the scene rung, got \(LiveCheckSupport.lastRootSymbol)")
+        #expect(render.strings.joined(separator: "|").contains("home sweet home"),
+                "scene property didn't resolve: \(render.strings) (root \(render.rootSymbol))")
+        #expect(render.rootSymbol.hasPrefix("scene:"),
+                "root should come from the scene rung, got \(render.rootSymbol)")
     }
 
     /// IceCubes' scene/list/row composition exceeds the old traversal depth
     /// even though the branch is finite. `AnyView` makes this recursive shape
     /// valid native SwiftUI; the terminal text must remain observable.
-    @Test func finiteViewBranchCanExceedFortyEightLevels() throws {
-        let rendered = try LiveCheckSupport.renderedStrings(source: """
+    @Test func finiteViewBranchCanExceedFortyEightLevels() async throws {
+        let rendered = try await LiveCheckSupport.renderedStrings(source: """
         struct FiniteNest: View {
             let remaining: Int
 

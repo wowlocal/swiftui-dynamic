@@ -193,6 +193,10 @@ public enum BundleResources {
 }
 
 final class BundleBox {
+    private struct ProjectResourceScope: Sendable {
+        let root: String?
+    }
+
     struct DataAssetResource {
         let name: String
         let data: Data
@@ -241,10 +245,27 @@ final class BundleBox {
     /// bytes the compiled app ships in Bundle.module.
     static var projectResourceRoot: String?
 
+    @TaskLocal private static var projectResourceScope: ProjectResourceScope?
+
+    /// Pin a verifier run to the project root selected by its caller. Source
+    /// Tasks inherit the scope, so another parallel test can update the
+    /// process-wide compatibility default without redirecting this lookup.
+    static func withProjectResourceRoot<T>(
+        _ root: String?,
+        _ operation: () async throws -> T
+    ) async rethrows -> T {
+        try await $projectResourceScope.withValue(
+            ProjectResourceScope(root: root), operation: operation)
+    }
+
+    private static var activeProjectResourceRoot: String? {
+        projectResourceScope?.root ?? projectResourceRoot
+    }
+
     /// Find a resource file by name under the project root (bounded walk,
     /// build dirs skipped).
     static func projectResource(named name: String, extension ext: String?) -> URL? {
-        guard let root = projectResourceRoot else { return nil }
+        guard let root = activeProjectResourceRoot else { return nil }
         var target = name
         if let ext, !ext.isEmpty, !target.hasSuffix(".\(ext)") { target += ".\(ext)" }
         target = target.replacingOccurrences(of: "\\", with: "/")
@@ -277,7 +298,7 @@ final class BundleBox {
     /// metadata. The runtime adapter keys on the Objective-C interface shape;
     /// this lookup keys on `.dataset` structure, never a type or asset name.
     static func projectDataAsset(named name: String) -> DataAssetResource? {
-        guard let root = projectResourceRoot else { return nil }
+        guard let root = activeProjectResourceRoot else { return nil }
         let datasetName = "\(name.split(separator: "/").last.map(String.init) ?? name).dataset"
         let skip: Set<String> = [".git", ".build", "DerivedData", "__MACOSX", "Tests"]
         guard let walker = FileManager.default.enumerator(atPath: root) else { return nil }

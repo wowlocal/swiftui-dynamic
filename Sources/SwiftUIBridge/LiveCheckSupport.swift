@@ -1,11 +1,45 @@
 import Foundation
 import SwiftInterpreter
 
+public struct LiveCheckRenderResult: Sendable {
+    public let strings: [String]
+    public let rootSymbol: String
+    public let lifecycleFired: Int
+    public let lifecycleErrors: [String]
+    public let absorbedHostMembers: [String: Int]
+    public var networkRequests: [String]
+}
+
+/// Process-wide bridge defaults captured at the synchronous call site before
+/// an async probe can yield to another test. The immutable snapshot then
+/// follows the render and every source Task it creates.
+public struct LiveCheckEnvironment: Sendable {
+    public let networkPolicy: NetworkPolicy
+    public let projectResourceRoot: String?
+
+    public init(
+        networkPolicy: NetworkPolicy,
+        projectResourceRoot: String?
+    ) {
+        self.networkPolicy = networkPolicy
+        self.projectResourceRoot = projectResourceRoot
+    }
+
+    public static var current: LiveCheckEnvironment {
+        LiveCheckEnvironment(
+            networkPolicy: NetworkBridge.policy,
+            projectResourceRoot: BundleBox.projectResourceRoot)
+    }
+}
+
 /// LiveCheck's render probe: interpret a merged project, deep-render every
 /// body (HeadlessVerifier mechanics), and collect every STRING argument in
 /// the tree — scenario assertions check that fixture-derived content
 /// (movie titles, status authors) actually reached the UI.
 public enum LiveCheckSupport {
+    private static var probeIsRunning = false
+    private static var probeWaiters: [CheckedContinuation<Void, Never>] = []
+
     /// Mutable traversal state for one viewport-materialized container. A
     /// ForEach fan establishes logical row boundaries; later siblings in the
     /// same builder (the common trailing pagination row) consume the same
@@ -45,7 +79,64 @@ public enum LiveCheckSupport {
     /// HeadlessVerifier's click-through), then re-render and re-collect —
     /// with the live model store, an Add button's insert becomes a visible
     /// row.
-    public static func renderedStrings(source: String, afterActions actionCount: Int = 0) throws -> [String] {
+    public static func renderedStrings(
+        source: String,
+        afterActions actionCount: Int = 0,
+        environment: LiveCheckEnvironment = .current
+    ) async throws -> [String] {
+        try await render(
+            source: source,
+            afterActions: actionCount,
+            environment: environment).strings
+    }
+
+    /// Result-scoped diagnostics remain attached to the render that produced
+    /// them even when another async test begins immediately after this call.
+    public static func render(
+        source: String,
+        afterActions actionCount: Int = 0,
+        environment: LiveCheckEnvironment = .current
+    ) async throws -> LiveCheckRenderResult {
+        await acquireProbe()
+        defer { releaseProbe() }
+        let scoped = try await BundleBox.withProjectResourceRoot(
+            environment.projectResourceRoot
+        ) {
+            try await NetworkBridge.withIsolatedReplay(
+                policy: environment.networkPolicy
+            ) {
+                try await renderInCurrentReplayScope(
+                    source: source,
+                    afterActions: actionCount)
+            }
+        }
+        var result = scoped.value
+        result.networkRequests = scoped.requestLog
+        return result
+    }
+
+    private static func acquireProbe() async {
+        if !probeIsRunning {
+            probeIsRunning = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            probeWaiters.append(continuation)
+        }
+    }
+
+    private static func releaseProbe() {
+        if probeWaiters.isEmpty {
+            probeIsRunning = false
+        } else {
+            probeWaiters.removeFirst().resume()
+        }
+    }
+
+    private static func renderInCurrentReplayScope(
+        source: String,
+        afterActions actionCount: Int
+    ) async throws -> LiveCheckRenderResult {
         HeadlessVerifier.resetBridgeEnvironment()
         let interpreter = Interpreter(registry: TraceRegistry())
         // The live-probe contract: @State/@StateObject boxes persist per view
@@ -180,8 +271,7 @@ public enum LiveCheckSupport {
             // the AsyncAction execute → response-dispatch chain) BEFORE
             // rendering, so the quiescence check sees their state writes.
             if renderPass > 0 {
-                RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-                MainQueueDrain.drain()
+                await advanceAsyncLifecycleWork()
             }
             let root = try renderRoot!()
             var passStrings: [String] = []
@@ -205,7 +295,13 @@ public enum LiveCheckSupport {
                     print("▶ lifecycle[\(lastLifecycleFired)]: \(head.prefix(110))")
                 }
                 do {
-                    _ = try interpreter.callBackgroundClosure(closure, arguments: [])
+                    if entry.isAsyncAction {
+                        _ = try await interpreter.callSwiftUITask(
+                            closure, arguments: [])
+                    } else {
+                        _ = try interpreter.callHostCallback(
+                            closure, arguments: [])
+                    }
                     if traceLifecycle { print("   ✓ completed") }
                 } catch {
                     lastLifecycleErrors.append("\(error)")
@@ -214,12 +310,11 @@ public enum LiveCheckSupport {
                 lastLifecycleFired += 1
             }
             // Drain main-queue hops before the next render pass:
-            // `DispatchQueue.main.async` (SwiftUIFlux's Store.dispatch)
-            // bridges through Task{@MainActor}, which never runs inside a
-            // synchronous loop — a short RunLoop pump delivers them, like
-            // the real main loop would between frames.
-            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-            MainQueueDrain.drain()
+            // Source Tasks and deterministic main-queue callbacks alternate:
+            // yield the actor so newly-created Tasks reach their first
+            // suspension, drain retained callbacks, then yield once more so
+            // resumed Tasks can publish state before the next render pass.
+            await advanceAsyncLifecycleWork()
         }
 
         if traceLifecycle {
@@ -239,6 +334,7 @@ public enum LiveCheckSupport {
                 // single Add button tapped twice inserts twice.
                 _ = try? interpreter.callHostCallback(
                     current[position % current.count], arguments: [])
+                await advanceAsyncLifecycleWork()
             }
             var finalStrings: [String] = []
             var discardLifecycle: [TraceLifecycle] = []
@@ -254,7 +350,20 @@ public enum LiveCheckSupport {
                 print("   · \(string.prefix(90))")
             }
         }
-        return strings
+        return LiveCheckRenderResult(
+            strings: strings,
+            rootSymbol: lastRootSymbol,
+            lifecycleFired: lastLifecycleFired,
+            lifecycleErrors: lastLifecycleErrors,
+            absorbedHostMembers: lastAbsorbedHostMembers,
+            networkRequests: [])
+    }
+
+    private static func advanceAsyncLifecycleWork() async {
+        for _ in 0..<2 {
+            try? await Task.sleep(for: .milliseconds(10))
+            MainQueueDrain.drain()
+        }
     }
 
     private static func collect(
