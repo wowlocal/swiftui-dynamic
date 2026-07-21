@@ -25,19 +25,25 @@ import Testing
     @Test func genericBaseMethodDispatchesImplicitSelfOverride() throws {
         let source = """
         class PipelineTask<Value> {
+            let value: Value
+
+            init(_ value: Value) {
+                self.value = value
+            }
+
             func start() -> String { "base" }
-            func subscribe() -> String { start() }
+            func subscribe() -> String { "\\(value):\\(start())" }
         }
 
         final class ConcreteTask: PipelineTask<Int> {
             override func start() -> String { "concrete" }
         }
 
-        ConcreteTask().subscribe()
+        ConcreteTask(7).subscribe()
         """
 
         let value = try Interpreter().run(source: source)
-        #expect(value.stringValue == "concrete")
+        #expect(value.stringValue == "7:concrete")
     }
 
     @Test func inheritedStaticOverloadUsesCallShape() throws {
