@@ -46,6 +46,49 @@ import Testing
         #expect(value.stringValue == "7:concrete")
     }
 
+    /// A concrete class returned through a generic base-typed closure keeps
+    /// its runtime identity when a nested publisher stores it and invokes a
+    /// private base method that makes a virtual call.
+    @Test func genericBasePublisherPreservesConcreteTaskIdentity() throws {
+        let source = """
+        class PipelineTask<Value> {
+            struct Publisher {
+                let task: PipelineTask
+
+                func subscribe() -> String {
+                    task.subscribe()
+                }
+            }
+
+            let value: Value
+
+            init(_ value: Value) {
+                self.value = value
+            }
+
+            var publisher: Publisher { Publisher(task: self) }
+            func start() -> String { "base" }
+            private func subscribe() -> String { start() }
+        }
+
+        final class ConcreteTask: PipelineTask<Int> {
+            override func start() -> String { "concrete" }
+        }
+
+        func makePublisher(
+            _ make: () -> PipelineTask<Int>
+        ) -> PipelineTask<Int>.Publisher {
+            let task = make()
+            return task.publisher
+        }
+
+        makePublisher { ConcreteTask(7) }.subscribe()
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "concrete")
+    }
+
     @Test func inheritedStaticOverloadUsesCallShape() throws {
         let source = """
         class Base {
