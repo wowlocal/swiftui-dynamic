@@ -435,6 +435,20 @@ import AppKit
         }
     }
 
+    @Test func sourceSubclassUsesImportedSuperclassHierarchyForHostArguments() throws {
+        let source = """
+        class PlatformWebView: WKWebView {}
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+        parent.addSubview(PlatformWebView())
+        true
+        """
+
+        for registry: any HostRegistry in [ViewRegistry(), TraceRegistry()] {
+            let result = try Interpreter(registry: registry).run(source: source)
+            #expect(result.boolValue == true)
+        }
+    }
+
     @Test func opaqueImportedReferencesDoNotBypassNativeReferenceTypes() throws {
         let source = """
         let parent = NSView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))

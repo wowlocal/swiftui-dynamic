@@ -508,6 +508,13 @@ public protocol HostRegistry: AnyObject {
     /// imported reference bags whose concrete class is unavailable on the
     /// interpreter's host platform.
     func hostValue(_ value: Any, matchesImportedType typeName: String) -> Bool
+    /// Whether interface-derived imported nominal metadata proves that one
+    /// named SDK type is the same as, inherits from, or conforms to another.
+    /// This supplies type evidence for interpreter-owned source subclasses
+    /// without requiring their native backing to exist on the current host.
+    func importedType(
+        named typeName: String, matchesImportedType expectedTypeName: String
+    ) -> Bool
     /// Native ABI metadata for imported C/SDK value types. The interpreter
     /// derives source-struct layouts itself, but only the compiled host bridge
     /// can answer this without guessing for types it imports.
@@ -551,6 +558,9 @@ extension HostRegistry {
     public func importedNestedTypeName(for path: String) -> String? { nil }
     public func hostValue(
         _ value: Any, matchesImportedType typeName: String
+    ) -> Bool { false }
+    public func importedType(
+        named typeName: String, matchesImportedType expectedTypeName: String
     ) -> Bool { false }
     public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }
     public func hostProtocolCandidates(of value: Any) -> [String] { [] }

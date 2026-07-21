@@ -84,6 +84,13 @@ public final class ViewRegistry: HostRegistry {
         return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
     }
 
+    public func importedType(
+        named typeName: String, matchesImportedType expectedTypeName: String
+    ) -> Bool {
+        GeneratedPlatformBridge.importedType(
+            named: typeName, matchesType: expectedTypeName)
+    }
+
     public func hostMemberHasWorkerOperation(
         _ name: String,
         onStaticMember staticMember: String,

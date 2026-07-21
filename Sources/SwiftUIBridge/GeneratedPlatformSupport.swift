@@ -493,6 +493,12 @@ enum GeneratedPlatformBridge {
 #else
             false
 #endif
+        case "WebKit":
+#if canImport(UIKit) && canImport(WebKit)
+            true
+#else
+            false
+#endif
         default:
             false
         }
@@ -500,11 +506,11 @@ enum GeneratedPlatformBridge {
 
     private static var frameworkPreference: [String] {
 #if canImport(AppKit)
-        ["AppKit", "Foundation", "Metal", "MapKit", "CoreLocation", "UIKit"]
+        ["AppKit", "Foundation", "Metal", "MapKit", "CoreLocation", "WebKit", "UIKit"]
 #elseif canImport(UIKit)
-        ["UIKit", "Foundation", "Metal", "MapKit", "CoreLocation", "AppKit"]
+        ["UIKit", "Foundation", "Metal", "MapKit", "CoreLocation", "WebKit", "AppKit"]
 #else
-        ["Foundation", "Metal", "MapKit", "CoreLocation", "UIKit", "AppKit"]
+        ["Foundation", "Metal", "MapKit", "CoreLocation", "WebKit", "UIKit", "AppKit"]
 #endif
     }
 
@@ -650,7 +656,7 @@ enum GeneratedPlatformBridge {
         let name = generatedNominalName(rawName)
         guard let entries = constructors[name] else { return nil }
         let arguments = CallArguments()
-        for framework in frameworkPreference {
+        for framework in frameworkPreference where frameworkIsNative(framework) {
             for entry in entries where entry.framework == framework {
                 guard entry.function.signatures.contains(where: {
                     $0.match(arguments: arguments, in: context) != nil
@@ -914,6 +920,29 @@ enum GeneratedPlatformBridge {
         return typeCandidates(
             framework: platform.framework, type: platform.typeName
         ).contains { generatedNominalName($0) == expected }
+    }
+
+    /// Traverse the generated nominal graph by type property rather than by
+    /// runtime identity. The graph intentionally unions framework entries:
+    /// an SDK type imported by another module (WKWebView -> UIKit.UIView) has
+    /// its direct edge in the declaring framework and the rest of its ancestry
+    /// in the parent's framework.
+    static func importedType(
+        named rawType: String, matchesType rawExpectedType: String
+    ) -> Bool {
+        let expected = generatedNominalName(rawExpectedType)
+        var queue = [generatedNominalName(rawType)]
+        var seen = Set<String>()
+        while !queue.isEmpty {
+            let type = queue.removeFirst()
+            guard seen.insert(type).inserted else { continue }
+            if type == expected { return true }
+            for (key, parents) in supertypes
+            where generatedNominalName(key.type) == type {
+                queue.append(contentsOf: parents.map(generatedNominalName))
+            }
+        }
+        return false
     }
 
     /// An opaque imported object may stand in for a generated reference
@@ -1487,6 +1516,11 @@ func generatedPlatformArgument<T>(
     context: EvalContext
 ) throws -> T {
     if let direct = value.hostPayload as? T { return direct }
+    if let backing = value.importedSuperclassBacking {
+        return try generatedPlatformArgument(
+            backing, as: T.self, framework: framework,
+            typeName: typeName, context: context)
+    }
     if case .host(let any) = value,
        let box = any as? GeneratedPlatformValue,
        let payload = box.payload as? T {

@@ -128,7 +128,10 @@ extension Interpreter {
                     // the interpreter.
                     if let superclassName = current.superclassName,
                        HostSignature.equivalentTypeName(
-                           superclassName, typeName) {
+                           superclassName, typeName)
+                        || registry?.importedType(
+                            named: superclassName,
+                            matchesImportedType: typeName) == true {
                         return true
                     }
                     break
