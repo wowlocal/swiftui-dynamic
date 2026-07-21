@@ -951,6 +951,10 @@ let memberTypes: Set<String> = [
     "DateComponents", "DateInterval", "URLComponents", "URLQueryItem",
     "URLRequest", "CharacterSet", "IndexSet",
     "Decimal", "IndexPath", "PersonNameComponents",
+    // AttributedString is already carried by the bridge for mutable styling.
+    // Sweep its value surface plus the element type reached through its
+    // interface-declared `Runs: BidirectionalCollection` property.
+    "AttributedString", "AttributedString.Runs.Run",
     // Generic value carrier (genericStructCarriers): swept with UnitType
     // substituted to Dimension, constructed/cast as Measurement<Dimension>.
     "Measurement",
@@ -1152,6 +1156,36 @@ struct CarrierInit {
 
 var carrierInits: [CarrierInit] = []
 
+/// Throwing constructor contracts for the Foundation value tier. Their
+/// native implementation may still live in a compatibility box, but labels,
+/// defaults, and argument types come from the SDK interface so an opaque
+/// imported value cannot silently enter a concrete native initializer.
+var throwingConstructorContracts: [String: Set<String>] = [:]
+
+func processThrowingConstructorContract(
+    _ typeName: String,
+    _ initDecl: InitializerDeclSyntax,
+    guarded: Bool
+) {
+    let effects = initDecl.signature.effectSpecifiers?.trimmedDescription ?? ""
+    guard hasModifier(initDecl.modifiers, "public"),
+          effects.contains("throws") || effects.contains("rethrows"),
+          !effects.contains("async"),
+          initDecl.genericParameterClause == nil,
+          initDecl.genericWhereClause == nil,
+          !initDecl.signature.parameterClause.parameters.contains(where: {
+              $0.ellipsis != nil
+          }),
+          !guarded,
+          !needsAvailabilityGuard(initDecl.attributes)
+    else { return }
+
+    let optionalMark = initDecl.optionalMark?.text ?? ""
+    let declaration = "init\(optionalMark) \(typeName)"
+        + initDecl.signature.trimmedDescription
+    throwingConstructorContracts[typeName, default: []].insert(declaration)
+}
+
 /// Initializers of generic-struct carrier types: swept with the generic
 /// substituted, emitted as host constructors building the CARRIER spelling.
 func processCarrierInitializer(_ typeName: String, _ initDecl: InitializerDeclSyntax, guarded: Bool) {
@@ -1287,6 +1321,36 @@ let foundationFile: SourceFileSyntax? = {
     return Parser.parse(source: source)
 }()
 
+/// Foundation properties whose declared result conforms to a standard
+/// sequence protocol cross into the interpreter's ordinary array plane. The
+/// set is derived from extension conformances in Foundation.swiftinterface;
+/// adding another collection-valued SDK property therefore needs no member
+/// or result-type special case.
+let foundationMaterializableSequenceTypes: Set<String> = {
+    guard let foundationFile else { return [] }
+    let sequenceProtocols: Set<String> = [
+        "Sequence", "Collection", "BidirectionalCollection",
+        "RandomAccessCollection",
+    ]
+    var result: Set<String> = []
+    for statement in foundationFile.statements {
+        guard case .decl(let declaration) = statement.item,
+              let ext = declaration.as(ExtensionDeclSyntax.self),
+              ext.inheritanceClause?.inheritedTypes.contains(where: {
+                  sequenceProtocols.contains(normalize($0.type.trimmedDescription))
+              }) == true else { continue }
+        result.insert(normalize(ext.extendedType.trimmedDescription))
+    }
+    return result
+}()
+
+let foundationAttributedStringKeySurface = attributedStringKeySurface(
+    in: foundationFile)
+let foundationRuntimeAliasMap = foundationRuntimeTypeAliases(
+    in: foundationFile,
+    canonicalTypes: memberTypes.union(
+        foundationMaterializableSequenceTypes))
+
 func sweepMemberFile(_ file: SourceFileSyntax) {
     for statement in file.statements {
         guard case .decl(let decl) = statement.item else { continue }
@@ -1343,10 +1407,15 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
                     processMemberFunction(typeName, function, guarded: guarded)
                 } else if let variable = member.decl.as(VariableDeclSyntax.self), memberIsUsable(variable.attributes) {
                     processMemberProperty(typeName, variable, guarded: guarded)
-                } else if let initDecl = member.decl.as(InitializerDeclSyntax.self),
-                          memberIsUsable(initDecl.attributes),
-                          genericStructCarriers[typeName] != nil {
-                    processCarrierInitializer(typeName, initDecl, guarded: guarded)
+                } else if let initDecl = member.decl.as(
+                    InitializerDeclSyntax.self
+                ), memberIsUsable(initDecl.attributes) {
+                    processThrowingConstructorContract(
+                        typeName, initDecl, guarded: guarded)
+                    if genericStructCarriers[typeName] != nil {
+                        processCarrierInitializer(
+                            typeName, initDecl, guarded: guarded)
+                    }
                 }
             }
             currentSelfCarrier = nil
@@ -2084,8 +2153,14 @@ print("wrote \(enumsPath) (\(emittedSDKEnumTypes.count) enum types)")
 /// overload would re-rank member resolution inside the emitted closures
 /// (Sequence.dropLast beating IndexPath.dropLast).
 func memberResultCall(_ returnType: String) -> String {
-    returnType.hasPrefix("[") && returnType.hasSuffix("]") && !returnType.contains(":")
-        ? "generatedMemberArrayResult" : "generatedMemberResult"
+    if returnType.hasPrefix("[") && returnType.hasSuffix("]")
+        && !returnType.contains(":") {
+        return "generatedMemberArrayResult"
+    }
+    if foundationMaterializableSequenceTypes.contains(returnType) {
+        return "generatedMemberSequenceResult"
+    }
+    return "generatedMemberResult"
 }
 
 func memberPropertyCode(_ property: MemberProperty) -> String {
@@ -2140,6 +2215,49 @@ func memberMethodCode(_ variant: MemberVariant) -> String {
 
 let sortedProperties = memberProperties.sorted { ($0.type, $0.name) < ($1.type, $1.name) }
 let sortedMembers = memberMethodVariants.sorted { ($0.type, $0.name, $0.params.count) < ($1.type, $1.name, $1.params.count) }
+var knownImportedNestedTypePaths: Set<String> = []
+let importedNestedTypeSeeds = memberTypes
+    .union(foundationMaterializableSequenceTypes)
+    .union(foundationRuntimeAliasMap.keys)
+    .union(foundationRuntimeAliasMap.values.flatMap { $0 })
+    .union(foundationAttributedStringKeySurface.keyTypeNames)
+    .union(foundationAttributedStringKeySurface.receiverTypeNames)
+for typeName in importedNestedTypeSeeds {
+    let components = typeName.split(separator: ".").map(String.init)
+    guard components.count > 1 else { continue }
+    for count in 2...components.count {
+        knownImportedNestedTypePaths.insert(
+            components.prefix(count).joined(separator: "."))
+    }
+}
+let knownImportedNestedTypePathsLiteral = knownImportedNestedTypePaths
+    .sorted()
+    .map(String.init(reflecting:))
+    .joined(separator: ", ")
+var nestedRuntimeNameGroups: [String: [String]] = [:]
+let nestedRuntimeTypes = memberTypes.union(
+    foundationMaterializableSequenceTypes)
+for typeName in nestedRuntimeTypes where typeName.contains(".") {
+    let leaf = typeName.split(separator: ".").last.map(String.init)
+        ?? typeName
+    nestedRuntimeNameGroups[leaf, default: []].append(typeName)
+}
+var nestedRuntimeNames: [String: String] = [:]
+for (leaf, names) in nestedRuntimeNameGroups where names.count == 1 {
+    nestedRuntimeNames[leaf] = names[0]
+}
+let nestedRuntimeNamesLiteral = nestedRuntimeNames.sorted(by: {
+    $0.key < $1.key
+}).map {
+    "\(String(reflecting: $0.key)): \(String(reflecting: $0.value))"
+}.joined(separator: ", ")
+let runtimeTypeAliasesLiteral = foundationRuntimeAliasMap.sorted(by: {
+    $0.key < $1.key
+}).map { canonical, aliases in
+    let values = aliases.map { String(reflecting: $0) }
+        .joined(separator: ", ")
+    return "\(String(reflecting: canonical)): [\(values)]"
+}.joined(separator: ", ")
 let propertyChunks = stride(from: 0, to: sortedProperties.count, by: chunkSize).map {
     Array(sortedProperties[$0..<min($0 + chunkSize, sortedProperties.count)])
 }
@@ -2156,6 +2274,12 @@ import Foundation
 import SwiftInterpreter
 
 extension GeneratedMembers {
+    static let knownImportedNestedTypePaths: Set<String> = [
+        \(knownImportedNestedTypePathsLiteral)
+    ]
+    static let runtimeNestedTypeNames: [String: String] = [\(nestedRuntimeNamesLiteral)]
+    static let runtimeTypeAliasesByCanonicalName: [String: [String]] = [\(runtimeTypeAliasesLiteral)]
+
     static func buildProperties() -> [String: GeneratedMemberProperty] {
         var t: [String: GeneratedMemberProperty] = [:]
 
@@ -2228,6 +2352,23 @@ if !unitClasses.isEmpty {
     membersOutput += "        }\n"
     membersOutput += "    }\n\n"
 }
+
+if throwingConstructorContracts.isEmpty {
+    membersOutput += "    static let throwingConstructorContracts: [String: [HostSignature]] = [:]\n\n"
+} else {
+    membersOutput += "    static let throwingConstructorContracts: [String: [HostSignature]] = [\n"
+    for (typeName, declarations) in throwingConstructorContracts.sorted(
+        by: { $0.key < $1.key }
+    ) {
+        membersOutput += "        \(String(reflecting: typeName)): [\n"
+        for declaration in declarations.sorted() {
+            membersOutput += "            parseConstructorContract(\(String(reflecting: declaration))),\n"
+        }
+        membersOutput += "        ],\n"
+    }
+    membersOutput += "    ]\n\n"
+}
+
 membersOutput += carrierInits.isEmpty
     ? "    @MainActor static let carrierConstructors: [String: HostFunction] = [:]\n"
     : "    @MainActor static let carrierConstructors: [String: HostFunction] = [\n"
@@ -2253,6 +2394,49 @@ for (type, inits) in Dictionary(grouping: carrierInits, by: \.type).sorted(by: {
 }
 if !carrierInits.isEmpty { membersOutput += "    ]\n" }
 membersOutput += "}\n"
+
+let attributedStringKeyRows = foundationAttributedStringKeySurface
+    .keyTypeNames.map { typeName in
+        "        \(String(reflecting: typeName)): \(typeName).self,"
+    }.joined(separator: "\n")
+membersOutput += """
+
+// The key types and receiver conformances are derived from Foundation's
+// AttributedStringKey constraints and generic metatype subscripts.
+extension GeneratedMembers {
+    static let attributedStringKeyTypes:
+        [String: any AttributedStringKey.Type] = [
+\(attributedStringKeyRows)
+    ]
+
+    static let attributedStringKeyTypeNames: [String] =
+        attributedStringKeyTypes.keys.sorted()
+
+    static let attributedStringKeySubscriptReceiverTypeNames: [String] =
+        \(String(reflecting:
+            foundationAttributedStringKeySurface.receiverTypeNames))
+}
+"""
+for receiverType in foundationAttributedStringKeySurface.receiverTypeNames {
+    membersOutput += """
+
+extension \(receiverType): GeneratedMetatypeSubscriptCarrier {
+    func generatedMetatypeSubscript(
+        typeNamed typeName: String
+    ) -> RuntimeValue? {
+        guard let key = GeneratedMembers.attributedStringKeyTypes[typeName]
+        else { return nil }
+        return generatedMetatypeSubscript(key)
+    }
+
+    private func generatedMetatypeSubscript<Key: AttributedStringKey>(
+        _ key: Key.Type
+    ) -> RuntimeValue {
+        .native(self[key])
+    }
+}
+"""
+}
 
 let membersPath = "Sources/SwiftUIBridge/Generated/GeneratedMembers.swift"
 try membersOutput.write(toFile: membersPath, atomically: true, encoding: .utf8)

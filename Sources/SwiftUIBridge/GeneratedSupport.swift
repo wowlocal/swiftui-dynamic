@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import SwiftInterpreter
 
@@ -432,6 +433,23 @@ enum GeneratedMembers {
         return grouped
     }()
 
+    static func parseConstructorContract(
+        _ declaration: String
+    ) -> HostSignature {
+        do {
+            let signature = try HostSignature(parsing: declaration)
+            guard signature.kind == .initializer,
+                  signature.isThrowing else {
+                preconditionFailure(
+                    "BridgeGen emitted a nonthrowing constructor contract '\(declaration)'")
+            }
+            return signature
+        } catch {
+            preconditionFailure(
+                "BridgeGen emitted an invalid constructor contract '\(declaration)': \(error)")
+        }
+    }
+
     static func registerMethod(
         _ table: inout [String: [GeneratedMemberOverload]],
         _ declaration: String,
@@ -546,6 +564,7 @@ enum GeneratedMembers {
     /// runtime name, the table keys on the Swift one).
     static func keyTypeName(of value: Any) -> String {
         let name = String(describing: type(of: value))
+        if let nested = runtimeNestedTypeNames[name] { return nested }
         if name == "NSDecimal" { return "Decimal" }
         // Generic carriers key on the base name; the runtime prints the
         // ObjC-renamed argument (Measurement<NSDimension>).
@@ -617,7 +636,61 @@ enum GeneratedMembers {
     }
 }
 
+/// Interface-generated receivers of a generic metatype subscript. The host
+/// bridge dispatches on this capability; Foundation receiver identities and
+/// key metatypes stay confined to generated code.
+protocol GeneratedMetatypeSubscriptCarrier {
+    func generatedMetatypeSubscript(
+        typeNamed typeName: String
+    ) -> RuntimeValue?
+}
+
 extension GeneratedDispatch {
+    /// Interface-declared throwing initializers own calls whose LABEL SHAPE
+    /// matches them, even when their native implementation still lives in a
+    /// compatibility gateway. Validate those calls against cached SDK types
+    /// before the gateway can coerce an opaque imported value into a concrete
+    /// result. Other legacy constructor shapes retain their existing path.
+    static func validatingThrowingConstructor(
+        named name: String,
+        implementation: HostFunction
+    ) -> HostFunction {
+        guard let contracts = GeneratedMembers
+            .throwingConstructorContracts[name],
+              !contracts.isEmpty else { return implementation }
+
+        return HostFunction(name: implementation.name) { args, context in
+            let shaped = contracts.filter {
+                $0.matchesArgumentShape(args)
+            }
+            guard !shaped.isEmpty else {
+                return try implementation.invoke(args, context)
+            }
+
+            let matches = shaped.compactMap { signature -> (
+                signature: HostSignature, match: HostCallMatch
+            )? in
+                signature.match(arguments: args, in: context).map {
+                    (signature, $0)
+                }
+            }
+            guard let selected = matches.max(by: {
+                $0.match.score < $1.match.score
+            }) else {
+                // Produce the typed argument diagnostic from the interface
+                // declaration instead of letting the compatibility gateway
+                // silently default a value it cannot coerce.
+                _ = try shaped[0].validate(arguments: args, in: context)
+                preconditionFailure("a validated constructor call had no match")
+            }
+
+            let result = try implementation.invoke(args, context)
+            try selected.signature.validateReturn(
+                result, match: selected.match, in: context)
+            return result
+        }
+    }
+
     /// Bind one receiver to the cached generated contracts. Parsing happened
     /// once while the table was built; only lightweight immutable gateway
     /// descriptors are created for a concrete value lookup.
@@ -674,6 +747,54 @@ func generatedMemberResult<Wrapped>(_ value: Wrapped?) -> RuntimeValue {
 /// beat IndexPath.dropLast on the [Element] parameter match).
 func generatedMemberArrayResult<Element>(_ value: [Element]) -> RuntimeValue {
     .array(value.map { RuntimeValue.native($0 as Any) })
+}
+
+/// A generated SDK sequence retains its interface-declared nominal type for
+/// host-contract validation while exposing one finite element plane to the
+/// interpreter's property-based collection machinery.
+@MainActor
+final class GeneratedMemberSequenceCarrier:
+    RuntimeMaterializedSequence, GeneratedMemberCarrier {
+    let generatedSourceTypeName: String
+    let generatedSourceProtocolNames: [String]
+    let runtimeMaterializedElements: [RuntimeValue]
+    let generatedMemberValue: Any
+
+    init(
+        sourceTypeName: String, sourceProtocolNames: [String],
+        elements: [RuntimeValue], sourceValue: Any
+    ) {
+        generatedSourceTypeName = sourceTypeName
+        generatedSourceProtocolNames = sourceProtocolNames
+        runtimeMaterializedElements = elements
+        generatedMemberValue = sourceValue
+    }
+}
+
+/// Any SDK sequence selected from interface-declared conformance metadata
+/// crosses through that carrier. Protocol capabilities are read from the
+/// concrete value's conformance shape, never from a nominal identity table.
+func generatedMemberSequenceResult<Elements: Sequence>(
+    _ value: Elements
+) -> RuntimeValue {
+    let protocols: [String]
+    if value is any RandomAccessCollection {
+        protocols = [
+            "RandomAccessCollection", "BidirectionalCollection",
+            "Collection", "Sequence",
+        ]
+    } else if value is any BidirectionalCollection {
+        protocols = ["BidirectionalCollection", "Collection", "Sequence"]
+    } else if value is any Collection {
+        protocols = ["Collection", "Sequence"]
+    } else {
+        protocols = ["Sequence"]
+    }
+    return .native(GeneratedMemberSequenceCarrier(
+        sourceTypeName: GeneratedMembers.keyTypeName(of: value),
+        sourceProtocolNames: protocols,
+        elements: value.map { RuntimeValue.native($0 as Any) },
+        sourceValue: value))
 }
 
 func generatedMemberResult(_ value: Any) -> RuntimeValue {
@@ -962,6 +1083,62 @@ protocol GeneratedMemberCarrier {
     func writeGeneratedMemberValue(_ value: Any) -> Bool
     /// Re-box an updated SDK value for a value-lvalue transaction.
     func replacingGeneratedMemberValue(_ value: Any) -> Any?
+}
+
+/// Property-based carrier shared by every Foundation attributed-text value
+/// the generated member tier reaches. Full strings and styled slices normalize
+/// to the same host value for Text construction and protocol `+` dispatch.
+protocol GeneratedAttributedTextCarrier {
+    var generatedAttributedText: AttributedString { get }
+}
+
+extension AttributedString: GeneratedAttributedTextCarrier {
+    var generatedAttributedText: AttributedString { self }
+}
+
+extension AttributedSubstring: GeneratedAttributedTextCarrier {
+    var generatedAttributedText: AttributedString { AttributedString(self) }
+}
+
+/// Opaque attributed indices remain native. Their Range acquires one semantic
+/// capability so every attributed-text carrier can consume it without a
+/// source/API-name branch.
+protocol GeneratedAttributedTextRangeCarrier {
+    var generatedAttributedTextRange: Range<AttributedString.Index> { get }
+}
+
+extension Range: GeneratedAttributedTextRangeCarrier
+where Bound == AttributedString.Index {
+    var generatedAttributedTextRange: Range<AttributedString.Index> { self }
+}
+
+private func generatedAttributedText(
+    from value: RuntimeValue
+) -> AttributedString? {
+    guard case .host(let payload) = value else { return nil }
+    if let carrier = payload as? GeneratedAttributedTextCarrier {
+        return carrier.generatedAttributedText
+    }
+    if let memberCarrier = payload as? GeneratedMemberCarrier,
+       let carrier = memberCarrier.generatedMemberValue
+        as? GeneratedAttributedTextCarrier {
+        return carrier.generatedAttributedText
+    }
+    return nil
+}
+
+/// The Foundation interface declares `AttributedString + some
+/// AttributedStringProtocol`. Normalize both generated carriers to concrete
+/// AttributedString values, preserving content and attributes through the
+/// operator without depending on either carrier's nominal identity.
+func generatedAttributedTextCombination(
+    _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+) -> RuntimeValue? {
+    guard op == "+",
+          var left = generatedAttributedText(from: lhs),
+          let right = generatedAttributedText(from: rhs) else { return nil }
+    left.append(right)
+    return .native(AttributedStringBox(left))
 }
 
 extension GeneratedMemberCarrier {

@@ -2092,6 +2092,12 @@ extension Interpreter {
                 return .native(ImplicitMemberCall(
                     name: name, arguments: CallArguments(), typeHint: function.name))
             }
+            if let importedType = registry?.importedNestedTypeName(
+                for: "\(function.name).\(name)"
+            ) {
+                return .native(HostTypeMarker(
+                    name: importedType))
+            }
             return .implicitMember(name)
 
         case .int, .double, .bool, .string, .array, .set, .dictionary, .tuple, .range, .host:
@@ -2447,6 +2453,12 @@ extension Interpreter {
                 if hostExtensionSymbols[marker.name] != nil {
                     return .native(ImplicitMemberCall(
                         name: name, arguments: CallArguments(), typeHint: marker.name))
+                }
+                if let importedType = registry?.importedNestedTypeName(
+                    for: "\(marker.name).\(name)"
+                ) {
+                    return .native(HostTypeMarker(
+                        name: importedType))
                 }
                 // `Color.red` ≡ `.red` — resolved by expected type at gateways.
                 return .implicitMember(name)

@@ -282,6 +282,62 @@ struct SwiftPMBuildDescriptionMaterialTests {
         #expect(result.stringValue == "visible")
     }
 
+    /// An extension is owned by the same compiler module as its nominal even
+    /// when a later flattened module declares another type with the same bare
+    /// name. This is the Markdown.Document / SwiftSoup.Document shape used by
+    /// EmojiText: `init(parsing:)` must attach to Markdown's Document rather
+    /// than whichever Document most recently occupied the merged global.
+    @Test
+    func extensionTargetsOwningModuleAcrossNominalCollision() throws {
+        let markdownType = ProjectMaterial.mergedSource(source: """
+        import Foundation
+        public struct ParseOptions: OptionSet {
+            public let rawValue: Int
+            public init(rawValue: Int) { self.rawValue = rawValue }
+        }
+        public struct Document {
+            let text: String
+            public init(_ text: String) { self.text = text }
+        }
+        """, moduleName: "Markdown")
+        let soupType = ProjectMaterial.mergedSource(source: """
+        public struct Document {
+            let tag: Int
+            public init(tag: Int) { self.tag = tag }
+        }
+        """, moduleName: "SwiftSoup")
+        let markdownExtension = ProjectMaterial.mergedSource(source: """
+        import Foundation
+        public extension Document {
+            init(
+                parsing text: String,
+                source: URL? = nil,
+                options: ParseOptions = []
+            ) { self.init(text) }
+        }
+        """, moduleName: "Markdown")
+        let client = ProjectMaterial.mergedSource(source: """
+        import Markdown
+        protocol Rendering {
+            func render() -> String
+        }
+        struct Renderer: Rendering {
+            func render() -> String {
+                parsedText()
+            }
+            private func parsedText() -> String {
+                Document(parsing: "module-owned-extension").text
+            }
+        }
+        let renderer: any Rendering = Renderer()
+        renderer.render()
+        """, moduleName: "Client")
+
+        let result = try Interpreter().run(
+            source: markdownType + soupType + markdownExtension + client)
+        #expect(result.stringValue == "module-owned-extension")
+    }
+
     @Test
     func hostImportedNominalWinsOverUnimportedFlattenedSourceType() throws {
         let root = FileManager.default.temporaryDirectory

@@ -490,6 +490,11 @@ public protocol HostRegistry: AnyObject {
     /// a recorded node → its constructor name) so user extensions of host
     /// types dispatch on stubs. Nil when unknown.
     func hostTypeName(of value: Any) -> String?
+    /// Resolves a dotted imported nested-type path only when interface-derived
+    /// metadata proves that the path names a type. This keeps metatype chains
+    /// distinct from opaque compiled-module member chains without guessing
+    /// from capitalization.
+    func importedNestedTypeName(for path: String) -> String?
     /// Registry-owned imported-type matching. This complements the core's
     /// primitive/source type system for generated SDK values and for opaque
     /// imported reference bags whose concrete class is unavailable on the
@@ -532,6 +537,7 @@ extension HostRegistry {
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostGlobal(named name: String) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
+    public func importedNestedTypeName(for path: String) -> String? { nil }
     public func hostValue(
         _ value: Any, matchesImportedType typeName: String
     ) -> Bool { false }

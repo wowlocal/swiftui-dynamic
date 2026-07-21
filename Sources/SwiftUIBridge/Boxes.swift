@@ -4,7 +4,8 @@ import SwiftInterpreter
 /// AttributedString styling — `var s = AttributedString("…"); if let range =
 /// s.range(of: "x") { s[range].foregroundColor = .white }` — backed by the
 /// real Foundation type; `Text(s)` renders the styled result.
-final class AttributedStringBox: CustomStringConvertible {
+final class AttributedStringBox: CustomStringConvertible,
+    GeneratedMemberCarrier, GeneratedAttributedTextCarrier {
     var attributed: AttributedString
 
     /// The plain characters — trace-arg recording and interpolation read
@@ -14,11 +15,26 @@ final class AttributedStringBox: CustomStringConvertible {
     init(_ attributed: AttributedString) {
         self.attributed = attributed
     }
+
+    var generatedMemberValue: Any { attributed }
+    var generatedAttributedText: AttributedString { attributed }
+
+    func writeGeneratedMemberValue(_ value: Any) -> Bool {
+        guard let value = value as? AttributedString else { return false }
+        attributed = value
+        return true
+    }
+
+    func replacingGeneratedMemberValue(_ value: Any) -> Any? {
+        (value as? AttributedString).map(AttributedStringBox.init)
+    }
 }
 
 /// A range from `range(of:)`, carried opaquely to the subscript.
-final class AttributedRangeBox {
+final class AttributedRangeBox: GeneratedAttributedTextRangeCarrier {
     let range: Range<AttributedString.Index>
+
+    var generatedAttributedTextRange: Range<AttributedString.Index> { range }
 
     init(_ range: Range<AttributedString.Index>) {
         self.range = range
@@ -26,7 +42,8 @@ final class AttributedRangeBox {
 }
 
 /// One styled slice (`s[range]`): attribute writes apply to the parent box.
-final class AttributedRangeProxy {
+final class AttributedRangeProxy: CustomStringConvertible,
+    GeneratedAttributedTextCarrier {
     let box: AttributedStringBox
     let range: Range<AttributedString.Index>
 
@@ -34,6 +51,12 @@ final class AttributedRangeProxy {
         self.box = box
         self.range = range
     }
+
+    var generatedAttributedText: AttributedString {
+        AttributedString(box.attributed[range])
+    }
+
+    var description: String { String(generatedAttributedText.characters) }
 }
 
 /// `Text` remains type-preserving until a consumer requires view erasure.

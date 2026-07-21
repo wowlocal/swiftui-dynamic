@@ -18,7 +18,7 @@ import SwiftInterpreter
         }
         #expect(GeneratedMembers.properties.values.count {
             $0.signature.isSettable
-        } == 69)
+        } == 71)
 
         let components = GeneratedMembers.properties["URLComponents.queryItems"]
         #expect(components?.signature.declaration ==
@@ -73,7 +73,7 @@ import SwiftInterpreter
             }
         }
 
-        #expect(exercised == 69)
+        #expect(exercised == 71)
     }
 
     @Test func generatedPropertiesValidateReceiverAndReadOnlyAccess() throws {
@@ -139,6 +139,43 @@ import SwiftInterpreter
         #expect(optional.wrapped == nil)
     }
 
+    @Test func attributedKeyMetatypeSubscriptsCoverGeneratedInterfaceSurface() throws {
+        let keyName =
+            "AttributeScopes.FoundationAttributes.ImageURLAttribute"
+        #expect(GeneratedMembers.runtimeTypeAliasesByCanonicalName[
+            "AttributedString.Runs.Run"
+        ]?.contains("AttributedString.Runs.Element") == true)
+        #expect(GeneratedMembers.attributedStringKeyTypeNames.contains(keyName))
+        #expect(GeneratedMembers.attributedStringKeySubscriptReceiverTypeNames == [
+            "AttributeContainer", "AttributedString",
+            "AttributedString.Runs.Run", "AttributedSubstring",
+        ])
+
+        let attributed = AttributedString("fixture")
+        let run = try #require(attributed.runs.first)
+        let substring = attributed[
+            attributed.startIndex..<attributed.endIndex]
+        let receivers: [any GeneratedMetatypeSubscriptCarrier] = [
+            AttributeContainer(), attributed, run, substring,
+        ]
+        for receiver in receivers {
+            for generatedKeyName in
+                GeneratedMembers.attributedStringKeyTypeNames {
+                #expect(receiver.generatedMetatypeSubscript(
+                    typeNamed: generatedKeyName) != nil)
+            }
+        }
+
+        let imageURL = URL(string: "emoji://fixture")!
+        var container = AttributeContainer()
+        container[
+            AttributeScopes.FoundationAttributes.ImageURLAttribute.self
+        ] = imageURL
+        let present = try #require(container.generatedMetatypeSubscript(
+            typeNamed: keyName))
+        #expect(present.hostPayload as? URL == imageURL)
+    }
+
     @Test func urlPathMembersDispatchThroughGeneratedTable() throws {
         let source = """
         let url = URL(string: "https://example.com/folder/file.txt")!
@@ -196,6 +233,41 @@ import SwiftInterpreter
             #expect(error.message.contains("no matching host overload"))
             #expect(!error.message.contains("host contract violation"))
         }
+    }
+
+    @Test func throwingConstructorContractsRejectOpaqueImportedValues() throws {
+        let contracts = try #require(
+            GeneratedMembers.throwingConstructorContracts["AttributedString"])
+        #expect(contracts.contains { signature in
+            signature.isThrowing
+                && signature.parameters.first?.label == "markdown"
+                && signature.parameters.first?.type.hasSuffix("String") == true
+        })
+
+        let registry = TraceRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let constructor = try #require(
+            registry.constructor(named: "AttributedString"))
+        let opaqueMarkdown = RuntimeValue.native(ChainedImplicitCall(
+            base: .implicitMember("parsedDocument"),
+            member: "formatted",
+            arguments: CallArguments()))
+
+        do {
+            _ = try constructor.invoke(CallArguments(arguments: [
+                .init(label: "markdown", value: opaqueMarkdown),
+            ]), interpreter)
+            Issue.record(
+                "a throwing SDK initializer must reject an opaque argument")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("cannot convert host argument"))
+        }
+
+        let valid = try constructor.invoke(CallArguments(arguments: [
+            .init(label: "markdown", value: .native("plain **text**")),
+        ]), interpreter)
+        #expect((valid.hostPayload as? AttributedStringBox)?
+            .description.contains("plain") == true)
     }
 
     @Test func generatedContractsContextualizeEnumSetLiterals() throws {
@@ -449,6 +521,8 @@ import SwiftInterpreter
     private func generatedReceiverSeeds() -> [String: Any] {
         let seedDate = Date(timeIntervalSince1970: 1_234_567_890)
         let seedURL = URL(string: "https://user:pass@example.com/a?x=1#f")!
+        let attributed = AttributedString("fixture")
+        let attributedRun = attributed.runs.first!
         var components = URLComponents(
             url: seedURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "x", value: "1")]
@@ -463,6 +537,8 @@ import SwiftInterpreter
         person.familyName = "Lovelace"
 
         return [
+            "AttributedString": attributed,
+            "AttributedString.Runs.Run": attributedRun,
             "Calendar": Calendar(identifier: .gregorian),
             "CharacterSet": CharacterSet.alphanumerics,
             "Data": Data([1, 2, 3, 4]),

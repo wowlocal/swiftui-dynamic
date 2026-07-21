@@ -447,6 +447,25 @@ struct OptionalSemanticsTests {
         }
     }
 
+    @Test func compactMapFlattensFailableHostInitializerResults() throws {
+        let value = try evaluateOptionalSemantics("""
+        extension String {
+            init?(repeated count: inout Int) {
+                guard count > 0 else { return nil }
+                self = String(repeating: "b", count: count)
+                count = 0
+            }
+        }
+
+        var count = 1
+        let joined = [String("a"), String(repeated: &count)]
+            .compactMap { $0 }
+            .joined()
+        joined + "|\\(count)"
+        """)
+        #expect(value.stringValue == "ab|0")
+    }
+
     @Test func computedPropertiesAndSubscriptsRespectOptionalResultTypes() throws {
         let result = try evaluateOptionalSemantics("""
         struct Source {

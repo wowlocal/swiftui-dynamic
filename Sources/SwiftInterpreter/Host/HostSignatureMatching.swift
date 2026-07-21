@@ -13,6 +13,14 @@ extension HostSignature {
         return bestMatch(arguments: arguments, context: context)
     }
 
+    /// Whether labels, arity, defaults, and trailing-closure placement fit
+    /// this declaration, without considering runtime argument types. Generated
+    /// adapters use this to decide whether an interface declaration owns a
+    /// legacy gateway call before asking the full typed matcher to validate it.
+    public func matchesArgumentShape(_ arguments: CallArguments) -> Bool {
+        isCallable && !shapeMatches(arguments).isEmpty
+    }
+
     /// Validates labels, arity, runtime argument types, generic consistency,
     /// and generic constraints. The returned bindings must be supplied to
     /// `validateReturn`.

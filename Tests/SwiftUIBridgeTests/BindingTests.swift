@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
@@ -317,5 +318,220 @@ import SwiftInterpreter
         #expect(strings.contains { $0.contains("plain") && $0.contains("bold") },
                 "markdown ctor must convert to readable text, got \(strings)")
         #expect(strings.contains("count 2"), "set insert must dedupe, got \(strings)")
+    }
+}
+
+/// Foundation's attributed-text surface is a collection pipeline, not just a
+/// scalar conversion: EmojiText walks `runs`, slices by each run's range, and
+/// reduces those `AttributedSubstring` values back into an `AttributedString`.
+/// Keep the distilled shape native-valid and require the interpreted render to
+/// preserve the same visible text.
+@Suite struct AttributedStringCollectionTests {
+    @Test func throwingConversionPreservesFallbackForOpaqueParserOutput() throws {
+        let source = ProjectMaterial.mergedSource(source: """
+        import OpaqueMarkdown
+        import SwiftUI
+
+        struct PartialText {
+            var substrings: [AttributedSubstring] = []
+
+            mutating func append(_ substring: AttributedSubstring) {
+                substrings.append(substring)
+            }
+
+            mutating func consume() -> [AttributedSubstring] {
+                defer { substrings = [] }
+                return substrings
+            }
+        }
+
+        extension AttributedString.Runs.Element {
+            func emoji(from values: [String: String]) -> String? {
+                guard let imageURL = attributes[
+                    AttributeScopes.FoundationAttributes.ImageURLAttribute.self
+                ] else { return nil }
+                guard imageURL.scheme == "emoji" else { return nil }
+                guard let host = imageURL.host else { return nil }
+                return values[host]
+            }
+        }
+
+        extension Text {
+            init?(_ partial: inout PartialText) {
+                self.init(attributedSubstrings: partial.consume())
+            }
+
+            init?(attributedSubstrings: [AttributedSubstring]) {
+                guard !attributedSubstrings.isEmpty else { return nil }
+                let joined = attributedSubstrings.reduce(AttributedString()) {
+                    value, substring in value + substring
+                }
+                self.init(joined)
+            }
+        }
+
+        extension [Text] {
+            func joined() -> Text {
+                guard var result = first else { return Text(verbatim: "") }
+                for element in dropFirst() { result = result + element }
+                return result
+            }
+        }
+
+        func converted(_ raw: String) -> AttributedString {
+            do {
+                let document = OpaqueDocument(parsing: raw)
+                let markdown = document.format().joined()
+                return try AttributedString(markdown: markdown)
+            } catch {
+                return AttributedString(stringLiteral: raw)
+            }
+        }
+
+        func rendered(_ raw: String) -> Text {
+            let attributed = converted(raw)
+            var result = Text(verbatim: "")
+            var partial = PartialText()
+            let emojis: [String: String] = [:]
+            for run in attributed.runs {
+                if let emoji = run.emoji(from: emojis) {
+                    result = result + Text(emoji)
+                } else {
+                    partial.append(attributed[run.range])
+                }
+            }
+            return [result, Text(&partial)].compactMap { $0 }.joined()
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                rendered("verbatim fallback")
+            }
+        }
+        """, moduleName: "Client")
+
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("verbatim fallback"),
+                "a rejected opaque conversion must enter the source fallback, got \(strings)")
+    }
+
+    @Test func runsSliceAndReduceBackIntoRenderableText() throws {
+        let native = AttributedString("booster")
+        #expect(native.runs.count == 1)
+        #expect(String(native.characters) == "booster")
+        #expect(native.runs.first?.attributes[
+            AttributeScopes.FoundationAttributes.ImageURLAttribute.self
+        ] == nil)
+
+        let source = """
+        struct PartialAttributedString {
+            var substrings: [AttributedSubstring] = []
+
+            mutating func append(_ substring: AttributedSubstring) {
+                substrings.append(substring)
+            }
+
+            mutating func consume() -> [AttributedSubstring] {
+                defer { substrings = [] }
+                return substrings
+            }
+        }
+
+        extension Text {
+            init?(_ partial: inout PartialAttributedString) {
+                let substrings = partial.consume()
+                guard !substrings.isEmpty else { return nil }
+                let joined = substrings.reduce(AttributedString()) {
+                    value, substring in value + substring
+                }
+                self.init(joined)
+            }
+        }
+
+        extension [Text] {
+            func joined() -> Text {
+                guard var result = first else { return Text(verbatim: "") }
+                for element in dropFirst() {
+                    result = result + element
+                }
+                return result
+            }
+        }
+
+        func rendered(_ raw: String) -> Text {
+            let attributed = AttributedString(raw)
+            var partial = PartialAttributedString()
+            for run in attributed.runs {
+                if let _ = run.attributes[
+                    AttributeScopes.FoundationAttributes.ImageURLAttribute.self
+                ] {
+                    continue
+                } else {
+                    partial.append(attributed[run.range])
+                }
+            }
+            return [Text(verbatim: ""), Text(&partial)]
+                .compactMap { $0 }
+                .joined()
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                rendered("booster")
+            }
+        }
+        """
+
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("booster"), "attributed runs must preserve text, got \(strings)")
+    }
+
+    @Test func computedTextSurvivesTaskPriorityModifier() throws {
+        let source = """
+        extension [Text] {
+            func joined() -> Text {
+                guard var result = first else { return Text(verbatim: "") }
+                for element in dropFirst() { result = result + element }
+                return result
+            }
+        }
+
+        protocol TextRenderer {
+            func render(_ value: String) -> Text
+        }
+
+        struct ConcreteTextRenderer: TextRenderer {
+            func render(_ value: String) -> Text {
+                [Text(verbatim: ""), Text(value)]
+                    .compactMap { $0 }
+                    .joined()
+            }
+        }
+
+        struct ContentView: View {
+            let renderer: any TextRenderer = ConcreteTextRenderer()
+            let prepend: (() -> Text)? = nil
+            let append: (() -> Text)? = nil
+
+            var makeContent: Text {
+                let result: Text
+                if true {
+                    result = renderer.render("booster")
+                } else {
+                    result = Text(verbatim: "fallback")
+                }
+                return [prepend?(), result, append?()]
+                    .compactMap { $0 }.joined()
+            }
+
+            var body: some View {
+                makeContent.task(id: 0, priority: .high) {}
+            }
+        }
+        """
+
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("booster"),
+                "a lifecycle modifier must retain its computed Text receiver, got \(strings)")
     }
 }
