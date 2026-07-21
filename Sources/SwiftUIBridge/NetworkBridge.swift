@@ -878,32 +878,37 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         switch name {
         case "resume":
             return .hostFunction(HostFunction(name: "resume") { _, ctx in
-                guard let completion = task.completion else { return .void }
                 guard let url = task.url else {
-                    _ = try ctx.callClosure(completion, arguments: [
-                        .none(wrappedTypeName: "Data"),
-                        .none(wrappedTypeName: "URLResponse"),
-                        .some(
-                            .native(RuntimeError(message: "dataTask has no URL")),
-                            wrappedTypeName: "Error"),
-                    ])
+                    if let completion = task.completion {
+                        _ = try ctx.callClosure(completion, arguments: [
+                            .none(wrappedTypeName: "Data"),
+                            .none(wrappedTypeName: "URLResponse"),
+                            .some(
+                                .native(RuntimeError(message: "dataTask has no URL")),
+                                wrappedTypeName: "Error"),
+                        ])
+                    }
                     return .void
                 }
                 do {
                     let (data, response) = try NetworkBridge.respond(to: url)
-                    _ = try ctx.callClosure(completion, arguments: [
-                        .some(.native(data), wrappedTypeName: "Data"),
-                        .some(
-                            .native(HTTPResponseBox(response)),
-                            wrappedTypeName: "URLResponse"),
-                        .none(wrappedTypeName: "Error"),
-                    ])
+                    if let completion = task.completion {
+                        _ = try ctx.callClosure(completion, arguments: [
+                            .some(.native(data), wrappedTypeName: "Data"),
+                            .some(
+                                .native(HTTPResponseBox(response)),
+                                wrappedTypeName: "URLResponse"),
+                            .none(wrappedTypeName: "Error"),
+                        ])
+                    }
                 } catch let error as RuntimeError {
-                    _ = try ctx.callClosure(completion, arguments: [
-                        .none(wrappedTypeName: "Data"),
-                        .none(wrappedTypeName: "URLResponse"),
-                        .some(.native(error), wrappedTypeName: "Error"),
-                    ])
+                    if let completion = task.completion {
+                        _ = try ctx.callClosure(completion, arguments: [
+                            .none(wrappedTypeName: "Data"),
+                            .none(wrappedTypeName: "URLResponse"),
+                            .some(.native(error), wrappedTypeName: "Error"),
+                        ])
+                    }
                 }
                 return .void
             })

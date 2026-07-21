@@ -101,6 +101,21 @@ import SwiftInterpreter
         #expect(NetworkBridge.requestLog.contains { $0.contains("generated-property") })
     }
 
+    /// `resume()` initiates every URLSession task. A task that reports through
+    /// a session delegate has no per-task completion closure, but it must not
+    /// become inert at the replay boundary.
+    @Test func dataTaskWithoutCompletionStillInitiatesRequest() throws {
+        NetworkBridge.policy = .replay(fixturesDirectory: NSTemporaryDirectory())
+        NetworkBridge.requestLog = []
+        defer { NetworkBridge.policy = .absorbed }
+        _ = try Interpreter(registry: ViewRegistry()).run(source: """
+            let task = URLSession.shared.dataTask(
+                with: URL(string: "https://example.com/delegate-task")!)
+            task.resume()
+            """)
+        #expect(NetworkBridge.requestLog.contains { $0.contains("delegate-task") })
+    }
+
     /// IceCubes' Nuke 12.8 `ImageCache.init` derives its cost limit from this
     /// exact read-only SDK-property expression. A compiled native run returns
     /// the host's physical byte count divided by five; the interpreter must
