@@ -210,4 +210,29 @@ import Testing
         let value = try await Interpreter().runAsync(source: source)
         #expect(value.stringValue == "content")
     }
+
+    /// Native Swift selects the one-input closure overload here. The
+    /// function type is hidden behind a nested alias, matching scheduler
+    /// helpers that distinguish a plain block from a starter callback.
+    @Test func nestedFunctionAliasPreservesClosureArityDuringOverloadRanking() throws {
+        let source = """
+        final class Job {
+            typealias Starter = (_ finish: @escaping () -> Void) -> Void
+        }
+
+        func select(_ action: @escaping () -> Void) -> String {
+            "zero"
+        }
+
+        func select(_ starter: @escaping Job.Starter) -> String {
+            starter({})
+            return "one"
+        }
+
+        select { finish in finish() }
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "one")
+    }
 }

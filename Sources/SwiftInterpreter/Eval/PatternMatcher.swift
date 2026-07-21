@@ -492,7 +492,8 @@ extension Interpreter {
                         args: args,
                         genericParameterNames: Set(metadata.genericParameters),
                         genericConformanceRequirements:
-                            metadata.genericConformanceRequirements)
+                            metadata.genericConformanceRequirements,
+                        lexicalOwner: lexicalOwner(of: $0.id))
             }),
                let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(home))
@@ -510,7 +511,8 @@ extension Interpreter {
                         args: args,
                         genericParameterNames: Set(metadata.genericParameters),
                         genericConformanceRequirements:
-                            metadata.genericConformanceRequirements)
+                            metadata.genericConformanceRequirements,
+                        lexicalOwner: lexicalOwner(of: $0.id))
             }),
                let body = functionMetadata(for: function).body {
                 let closure = makeFunctionClosure(function, body: body, captured: globals)

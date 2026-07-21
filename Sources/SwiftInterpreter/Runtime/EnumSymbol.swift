@@ -31,6 +31,8 @@ public final class EnumSymbol {
     /// declaration identity independently of their textual member names.
     var taskLocalProperties: [String: RuntimeTaskLocalDeclaration] = [:]
     public internal(set) var staticMethods: [String: [FunctionDeclSyntax]] = [:]
+    /// Complete targets for aliases declared in this lexical namespace.
+    public internal(set) var typeAliases: [String: String] = [:]
     public internal(set) var staticComputedProperties: [String: ComputedProperty] = [:]
     public internal(set) var initializers: [InitializerDeclSyntax] = []
     /// Types declared inside the enum body (`TestCase.Cases`) — enums are

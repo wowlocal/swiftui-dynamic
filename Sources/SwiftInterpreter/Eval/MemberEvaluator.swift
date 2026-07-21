@@ -1226,7 +1226,8 @@ extension Interpreter {
         }
         let shaped = arityMatches.isEmpty ? symbol.subscripts : arityMatches
         let typed = shaped.filter {
-            runtimeArgumentsFitDeclaredTypes($0.parameters, args: args)
+            runtimeArgumentsFitDeclaredTypes(
+                $0.parameters, args: args, lexicalOwner: symbol)
         }
         guard let member = typed.first ?? shaped.first else {
             throw RuntimeError(message: "'\(symbol.name)' has no subscript")

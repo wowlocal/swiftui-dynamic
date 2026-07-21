@@ -313,6 +313,9 @@ public final class StructSymbol {
     /// static, while bound values live only in each runtime task's storage.
     var taskLocalProperties: [String: RuntimeTaskLocalDeclaration] = [:]
     public internal(set) var staticMethods: [String: [FunctionDeclSyntax]] = [:]
+    /// Member typealiases retain their complete targets for lexical type
+    /// expansion during overload matching and parameter contextualization.
+    public internal(set) var typeAliases: [String: String] = [:]
     /// Types declared inside this type (`Outer.Kind`) — `.enumType`/`.type` values.
     public internal(set) var nestedTypes: [String: RuntimeValue] = [:]
     var staticCache: [String: RuntimeValue] = [:]
@@ -363,6 +366,7 @@ public final class StructSymbol {
         copy.staticProperties = staticProperties
         copy.taskLocalProperties = taskLocalProperties
         copy.staticMethods = staticMethods
+        copy.typeAliases = typeAliases
         copy.nestedTypes = nestedTypes
         copy.staticCache = staticCache
         copy.staticReferenceBoxes = staticReferenceBoxes

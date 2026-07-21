@@ -102,6 +102,10 @@ public final class ClosureValue {
     }
 
     public let parameters: [Parameter]
+    /// Authored arity for a closure literal. `nil` means the literal omitted
+    /// its parameter clause and may accept contextual inputs through `$0` or
+    /// ignore them; an explicit `in` clause retains zero distinctly.
+    public var explicitParameterCount: Int? = nil
     public let body: CodeBlockItemListSyntax
     /// A single postfix chain rooted at `parameter?` cannot evaluate any
     /// member, call, subscript, or argument when that parameter is nil.

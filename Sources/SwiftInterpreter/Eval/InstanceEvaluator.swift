@@ -628,25 +628,27 @@ extension Interpreter {
         // conversion. In particular, `[Element]` must select an array
         // overload even when an earlier `Set<Element>` overload could be
         // constructed from the same collection.
-        let exact = shaped.filter {
-            let metadata = functionMetadata(for: $0)
+        let exact = shaped.filter { declaration in
+            let metadata = functionMetadata(for: declaration)
             return runtimeArgumentsFitDeclaredTypes(
                 metadata.parameters,
                 args: args,
                 genericParameterNames: Set(metadata.genericParameters),
                 genericConformanceRequirements:
                     metadata.genericConformanceRequirements,
-                allowValueCoercion: false)
+                allowValueCoercion: false,
+                lexicalOwner: lexicalOwner(of: declaration.id))
         }
         if !exact.isEmpty { return exact }
-        let typed = shaped.filter {
-            let metadata = functionMetadata(for: $0)
+        let typed = shaped.filter { declaration in
+            let metadata = functionMetadata(for: declaration)
             return runtimeArgumentsFitDeclaredTypes(
                 metadata.parameters,
                 args: args,
                 genericParameterNames: Set(metadata.genericParameters),
                 genericConformanceRequirements:
-                    metadata.genericConformanceRequirements)
+                    metadata.genericConformanceRequirements,
+                lexicalOwner: lexicalOwner(of: declaration.id))
         }
         return typed.isEmpty ? shaped : typed
     }
@@ -674,7 +676,8 @@ extension Interpreter {
                 args: positional,
                 genericParameterNames: Set(metadata.genericParameters),
                 genericConformanceRequirements:
-                    metadata.genericConformanceRequirements)
+                    metadata.genericConformanceRequirements,
+                lexicalOwner: lexicalOwner(of: declaration.id))
         }
     }
 
@@ -1353,7 +1356,12 @@ extension Interpreter {
         while index < text.endIndex {
             let ch = text[index]
             if ch == "(" || ch == "<" || ch == "[" { depth += 1 }
-            if ch == ")" || ch == ">" || ch == "]" { depth -= 1 }
+            if ch == ")" || ch == "]" { depth -= 1 }
+            if ch == ">" {
+                let previous = index == text.startIndex
+                    ? nil : text[text.index(before: index)]
+                if previous != "-" { depth -= 1 }
+            }
             if ch == "-", depth == 0 {
                 let next = text.index(after: index)
                 if next < text.endIndex, text[next] == ">" {

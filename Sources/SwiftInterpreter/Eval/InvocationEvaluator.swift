@@ -118,7 +118,8 @@ extension Interpreter {
         genericParameterNames: Set<String> = [],
         genericConformanceRequirements:
             [ParsedGenericConformanceRequirement] = [],
-        allowValueCoercion: Bool = true
+        allowValueCoercion: Bool = true,
+        lexicalOwner: AnyObject? = nil
     ) -> Bool {
         // Overload filtering and invocation must agree on SE-0286 trailing-
         // closure placement. Literal label matching makes both of these
@@ -126,7 +127,8 @@ extension Interpreter {
         // `f(subscriber: AnyObject, _ body: () -> Void)` and
         // `f<T>(_ subscriber: Box<T>, onValue: () -> Void)` called as
         // `f(box) { ... }`. Use the invocation binder's structural mapping.
-        let bound = matchedParameterArguments(parameters, to: args)
+        let bound = matchedParameterArguments(
+            parameters, to: args, lexicalOwner: lexicalOwner)
         let consumedCount = zip(parameters, bound).reduce(into: 0) {
             count, pair in
             let (parameter, value) = pair
@@ -143,7 +145,17 @@ extension Interpreter {
             parameter: ClosureValue.Parameter
         ) -> Bool {
             let argumentValue = rawValue.unwrappingInoutSlot
-            guard let annotation = parameter.typeName else { return false }
+            guard let rawAnnotation = parameter.typeName else { return false }
+            let annotation = expandedRuntimeTypeAlias(
+                rawAnnotation, lexicalOwner: lexicalOwner)
+            if case .closure(let closure) = argumentValue,
+               isFunctionType(annotation),
+               let authoredArity = closure.explicitParameterCount
+                    ?? (closure.functionDeclID == nil
+                        ? nil : closure.parameters.count),
+               authoredArity != Self.functionTypeParameterList(annotation).count {
+                return false
+            }
             let identifiers = Set(annotation.split {
                 !$0.isLetter && !$0.isNumber && $0 != "_"
             }.map(String.init))
@@ -200,7 +212,8 @@ extension Interpreter {
             args: args,
             genericParameterNames: Set(metadata.genericParameters),
             genericConformanceRequirements:
-                metadata.genericConformanceRequirements)
+                metadata.genericConformanceRequirements,
+            lexicalOwner: lexicalOwner(of: decl.id))
     }
 
     /// All generated constructor adapters dispatch on the callee's runtime
@@ -1156,6 +1169,9 @@ extension Interpreter {
             captured: captured,
             programMetadata: currentProgramMetadata,
             programPlan: currentProgramPlan)
+        if closure.signature?.parameterClause != nil {
+            value.explicitParameterCount = parameters.count
+        }
         value.programState = currentProgramState
         value.lexicalExecutor = currentLexicalExecutor
         let closureAttributeNames = closure.signature?.attributes.compactMap {
@@ -1389,7 +1405,8 @@ extension Interpreter {
             guard let space = text.firstIndex(of: " ") else { return [] }
             text = String(text[text.index(after: space)...]).trimmingCharacters(in: .whitespaces)
         }
-        guard text.hasPrefix("("), let arrow = text.range(of: "->") else { return [] }
+        guard text.hasPrefix("("),
+              let arrow = Self.lastTopLevelArrow(in: text) else { return [] }
         var depth = 0
         var end: String.Index?
         for index in text.indices {
@@ -1400,7 +1417,7 @@ extension Interpreter {
                 if depth == 0 { end = index; break }
             }
         }
-        guard let end, end < arrow.lowerBound else { return [] }
+        guard let end, end < arrow else { return [] }
         let inner = String(text[text.index(after: text.startIndex)..<end])
         return Self.splitTopLevel(inner)
     }
@@ -1581,6 +1598,8 @@ extension Interpreter {
                         programPlan: c.programPlan
                     )
                     builderClosure.programState = c.programState
+                    builderClosure.explicitParameterCount =
+                        c.explicitParameterCount
                     resolved = .closure(builderClosure)
                 }
                 env.define(
@@ -1618,14 +1637,17 @@ extension Interpreter {
     func matchedParameterArguments(
         of closure: ClosureValue, to args: CallArguments
     ) -> [RuntimeValue?] {
-        matchedParameterArguments(closure.parameters, to: args)
+        matchedParameterArguments(
+            closure.parameters, to: args,
+            lexicalOwner: closure.lexicalOwner)
     }
 
     /// Shared source-parameter mapping for invocation and overload fitting.
     /// Keeping one implementation prevents a call from selecting one overload
     /// and then binding its trailing closure as though it selected another.
     func matchedParameterArguments(
-        _ parameters: [ClosureValue.Parameter], to args: CallArguments
+        _ parameters: [ClosureValue.Parameter], to args: CallArguments,
+        lexicalOwner: AnyObject? = nil
     ) -> [RuntimeValue?] {
         if parameters.count > 1, args.arguments.count == 1,
            let tuple = args.arguments[0].value.tupleValue,
@@ -1690,7 +1712,10 @@ extension Interpreter {
             let accepts: (Int) -> Bool = { index in
                 let parameter = parameters[index]
                 return parameter.isBuilderAttributed
-                    || parameter.typeName?.contains("->") == true
+                    || parameter.typeName.map {
+                        isFunctionType(self.expandedRuntimeTypeAlias(
+                            $0, lexicalOwner: lexicalOwner))
+                    } == true
             }
             if let index = bound.indices.first(where: {
                 bound[$0] == nil && accepts($0)
@@ -1703,5 +1728,75 @@ extension Interpreter {
             }
         }
         return bound
+    }
+
+    /// Expand an outer source alias without conflating same-spelled aliases
+    /// from sibling lexical scopes. Generic applications deliberately remain
+    /// intact until their arguments can be substituted structurally.
+    func expandedRuntimeTypeAlias(
+        _ rawType: String, lexicalOwner: AnyObject?
+    ) -> String {
+        func target(named name: String) -> String? {
+            if !name.contains(".") {
+                var owner = lexicalOwner
+                while let current = owner {
+                    if let symbol = current as? StructSymbol {
+                        if let target = symbol.typeAliases[name] { return target }
+                        owner = symbol.lexicalTypeOwner
+                        continue
+                    }
+                    if let symbol = current as? EnumSymbol {
+                        if let target = symbol.typeAliases[name] { return target }
+                        owner = symbol.lexicalTypeOwner
+                        continue
+                    }
+                    break
+                }
+            }
+            return typeAliasTarget(named: name)
+        }
+
+        var prefix = ""
+        var core = rawType.trimmingCharacters(in: .whitespacesAndNewlines)
+        while core.hasPrefix("@") {
+            var depth = 0
+            var boundary: String.Index?
+            for index in core.indices {
+                switch core[index] {
+                case "(": depth += 1
+                case ")": depth -= 1
+                default:
+                    if core[index].isWhitespace, depth == 0 {
+                        boundary = index
+                    }
+                }
+                if boundary != nil { break }
+            }
+            guard let boundary else { return rawType }
+            prefix += String(core[..<boundary]) + " "
+            core = String(core[boundary...]).trimmingCharacters(
+                in: .whitespacesAndNewlines)
+        }
+        for specifier in [
+            "inout", "isolated", "borrowing", "consuming", "sending",
+            "__owned", "__shared",
+        ] where core.hasPrefix(specifier + " ") {
+            prefix += specifier + " "
+            core.removeFirst(specifier.count)
+            core = core.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        var suffix = ""
+        while core.hasSuffix("?") || core.hasSuffix("!") {
+            suffix.insert(core.removeLast(), at: suffix.startIndex)
+            core = core.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !core.contains("<") else { return rawType }
+
+        var seen: Set<String> = []
+        while seen.insert(core).inserted, let replacement = target(named: core) {
+            core = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return prefix + core + suffix
     }
 }
