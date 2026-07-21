@@ -235,4 +235,36 @@ import Testing
         let value = try Interpreter().run(source: source)
         #expect(value.stringValue == "one")
     }
+
+    /// Native Swift selects the nested-alias overload on a native host
+    /// receiver too. Nuke's operation scheduler has this exact extension
+    /// shape (`OperationQueue.add`), and the request pipeline cannot start if
+    /// host-extension ranking treats the alias as a non-function parameter.
+    @Test func nestedFunctionAliasRanksHostExtensionClosureOverloads() throws {
+        let source = """
+        final class Job {
+            typealias Starter = @Sendable (
+                _ finish: @Sendable @escaping () -> Void
+            ) -> Void
+        }
+
+        extension String {
+            func enqueue(
+                _ action: @Sendable @escaping () -> Void
+            ) -> String {
+                "zero"
+            }
+
+            func enqueue(_ starter: @escaping Job.Starter) -> String {
+                starter({})
+                return "one"
+            }
+        }
+
+        "queue".enqueue { finish in finish() }
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "one")
+    }
 }

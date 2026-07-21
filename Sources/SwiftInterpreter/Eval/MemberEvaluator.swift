@@ -937,8 +937,16 @@ extension Interpreter {
                 + genericClause + declaration.signature.trimmedDescription
                 + whereClause
             guard let signature = try? HostSignature(
-                    parsing: sourceDeclaration),
-                  let match = signature.match(
+                    parsing: sourceDeclaration) else {
+                continue
+            }
+            let lexicalOwner = lexicalOwner(of: declaration.id)
+            let runtimeSignature = signature.replacingRuntimeParameterTypes(
+                signature.parameters.map {
+                    expandedRuntimeTypeAlias(
+                        $0.type, lexicalOwner: lexicalOwner)
+                })
+            guard let match = runtimeSignature.match(
                     arguments: arguments, in: self) else {
                 continue
             }

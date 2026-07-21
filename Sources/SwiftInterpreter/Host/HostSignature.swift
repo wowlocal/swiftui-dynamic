@@ -97,6 +97,43 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         self = try Self.parse(declaration)
     }
 
+    /// Returns a runtime-matching view of this signature with parameter type
+    /// aliases already expanded by the source program. The original
+    /// declaration and compiler-preflight spelling remain untouched: native
+    /// checking must still see exactly what the author wrote.
+    func replacingRuntimeParameterTypes(
+        _ runtimeTypes: [String]
+    ) -> HostSignature {
+        guard runtimeTypes.count == parameters.count else { return self }
+        let runtimeParameters = zip(parameters, runtimeTypes).map {
+            parameter, runtimeType in
+            Parameter(
+                label: parameter.label,
+                name: parameter.name,
+                type: runtimeType,
+                defaultValue: parameter.defaultValue,
+                isVariadic: parameter.isVariadic)
+        }
+        return HostSignature(
+            declaration: declaration,
+            kind: kind,
+            receiverType: receiverType,
+            name: name,
+            parameters: runtimeParameters,
+            genericParameters: genericParameters,
+            returnType: returnType,
+            isAsync: isAsync,
+            isThrowing: isThrowing,
+            isFailable: isFailable,
+            isSettable: isSettable,
+            attributes: attributes,
+            modifiers: modifiers,
+            compilerPreflightDeclaration: compilerPreflightDeclaration,
+            compilerPreflightAccessInsertionUTF8Offset:
+                compilerPreflightAccessInsertionUTF8Offset,
+            compilerPreflightGetterEffects: compilerPreflightGetterEffects)
+    }
+
     private init(
         declaration: String,
         kind: Kind,
