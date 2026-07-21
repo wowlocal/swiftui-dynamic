@@ -1273,6 +1273,30 @@ enum GeneratedPlatformBridge {
 
 // MARK: - Generated argument/result conversions
 
+/// Submit an interpreter-owned lifecycle object through the same delivery
+/// policy as other host schedulers. The generator emits this handoff only
+/// when SDK metadata says the receiver conforms to `Scheduler` and its sole
+/// parameter type declares the supplied zero-argument lifecycle entry point.
+/// Native parameter values continue through the statically compiled SDK call.
+@MainActor
+func generatedPlatformScheduleInterpretedLifecycle(
+    _ value: RuntimeValue,
+    entryPoint: String,
+    context: EvalContext
+) -> Bool {
+    guard case .instance(let instance) = value,
+          let interpreter = context as? Interpreter else { return false }
+    let action = ActionValue(run: {
+        _ = try? interpreter.callMethod(
+            named: entryPoint, on: instance, arguments: [])
+    })
+    MainQueueDrain.schedule(
+        action,
+        after: 0,
+        mode: MainQueueDrain.deliveryMode(for: context))
+    return true
+}
+
 private protocol GeneratedPlatformRuntimeConvertible {
     static func generatedPlatformValue(
         from value: RuntimeValue,

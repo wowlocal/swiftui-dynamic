@@ -1,4 +1,5 @@
 import Dispatch
+import Foundation
 import SwiftInterpreter
 import Testing
 @testable import SwiftUIBridge
@@ -40,6 +41,47 @@ private final class NativeQueueRecorder: @unchecked Sendable {
         queue.async {
             recorder.fired = true
         }
+        """)
+        MainQueueDrain.drain()
+        guard case .instance(let recorder)? = interpreter.globals.lookup(
+            "recorder") else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(recorder.box(for: "fired")?.value.boolValue == true)
+    }
+
+    /// Foundation exposes queue submission and the operation lifecycle in its
+    /// SDK symbol graph. An interpreted Operation subclass must retain that
+    /// native scheduling boundary instead of becoming an inert host object.
+    @Test func operationQueuesStartInterpretedOperations() throws {
+        let nativeRecorder = NativeQueueRecorder()
+        let nativeQueue = OperationQueue()
+        nativeQueue.addOperation { nativeRecorder.fired = true }
+        nativeQueue.waitUntilAllOperationsAreFinished()
+        #expect(nativeRecorder.fired)
+
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: """
+        final class Recorder {
+            var fired = false
+        }
+        final class DeferredOperation: Operation {
+            let action: () -> Void
+
+            init(_ action: @escaping () -> Void) {
+                self.action = action
+            }
+
+            override func start() {
+                action()
+            }
+        }
+        let recorder = Recorder()
+        let queue = OperationQueue()
+        queue.addOperation(DeferredOperation {
+            recorder.fired = true
+        })
         """)
         MainQueueDrain.drain()
         guard case .instance(let recorder)? = interpreter.globals.lookup(

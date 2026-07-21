@@ -41,6 +41,66 @@ extension GeneratedPlatformBridge {
     private static func buildConstructorsFoundation0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "Foundation",
+            declaration: "init Operation()",
+            resultType: "Operation") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(Operation(), framework: "Foundation", declaredType: "Operation")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init OperationQueue()",
+            resultType: "OperationQueue") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue(), framework: "Foundation", declaredType: "OperationQueue")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init OperationQueue.SchedulerTimeType(_ p0: Date)",
+            resultType: "OperationQueue.SchedulerTimeType") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType(try generatedPlatformArgument(v[0], as: Date.self, framework: "Foundation", typeName: "Date", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init OperationQueue.SchedulerTimeType.Stride(_ p0: TimeInterval)",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType.Stride(try generatedPlatformArgument(v[0], as: TimeInterval.self, framework: "Foundation", typeName: "TimeInterval", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init OperationQueue.SchedulerTimeType.Stride(floatLiteral p0: TimeInterval)",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType.Stride(floatLiteral: try generatedPlatformArgument(v[0], as: TimeInterval.self, framework: "Foundation", typeName: "TimeInterval", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init OperationQueue.SchedulerTimeType.Stride(integerLiteral p0: TimeInterval)",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType.Stride(integerLiteral: try generatedPlatformArgument(v[0], as: TimeInterval.self, framework: "Foundation", typeName: "TimeInterval", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
             declaration: "init ProcessInfo()",
             resultType: "ProcessInfo") { v, ctx in
 #if canImport(Foundation)
@@ -55,6 +115,16 @@ extension GeneratedPlatformBridge {
             resultType: "ProcessInfo.ActivityOptions") { v, ctx in
 #if canImport(Foundation)
             return generatedPlatformResult(ProcessInfo.ActivityOptions(rawValue: try generatedPlatformArgument(v[0], as: UInt64.self, framework: "Foundation", typeName: "UInt64", context: ctx)), framework: "Foundation", declaredType: "ProcessInfo.ActivityOptions")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init? Operation.QueuePriority(rawValue p0: Int)",
+            resultType: "Operation.QueuePriority") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(Operation.QueuePriority(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "Foundation", typeName: "Int", context: ctx)), framework: "Foundation", declaredType: "Operation.QueuePriority")
 #else
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
@@ -3613,6 +3683,234 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildMethodsFoundation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func Operation.addDependency(_ p0: Operation) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? Operation else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`addDependency`(try generatedPlatformArgument(v[0], as: Operation.self, framework: "Foundation", typeName: "Operation", context: ctx))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func Operation.cancel() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? Operation else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`cancel`()
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func Operation.main() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? Operation else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`main`()
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func Operation.removeDependency(_ p0: Operation) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? Operation else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`removeDependency`(try generatedPlatformArgument(v[0], as: Operation.self, framework: "Foundation", typeName: "Operation", context: ctx))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func Operation.start() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? Operation else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`start`()
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func Operation.waitUntilFinished() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? Operation else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`waitUntilFinished`()
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.SchedulerTimeType.advanced(by p0: OperationQueue.SchedulerTimeType.Stride) -> OperationQueue.SchedulerTimeType",
+            resultType: "OperationQueue.SchedulerTimeType") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue.SchedulerTimeType else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`advanced`(by: try generatedPlatformArgument(v[0], as: OperationQueue.SchedulerTimeType.Stride.self, framework: "Foundation", typeName: "OperationQueue.SchedulerTimeType.Stride", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.SchedulerTimeType.distance(to p0: OperationQueue.SchedulerTimeType) -> OperationQueue.SchedulerTimeType.Stride",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue.SchedulerTimeType else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`distance`(to: try generatedPlatformArgument(v[0], as: OperationQueue.SchedulerTimeType.self, framework: "Foundation", typeName: "OperationQueue.SchedulerTimeType", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.addBarrierBlock(_ p0: () -> Void) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`addBarrierBlock`(generatedAction(try GeneratedDispatch.coerce(.action, v[0], ctx)))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.addOperation(_ p0: () -> Void) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`addOperation`(generatedAction(try GeneratedDispatch.coerce(.action, v[0], ctx)))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.addOperation(_ p0: Operation) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            if generatedPlatformScheduleInterpretedLifecycle(
+                v[0],
+                entryPoint: "start", context: ctx
+            ) {
+                return .void
+            }
+            guard let receiver = base.payload as? OperationQueue else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`addOperation`(try generatedPlatformArgument(v[0], as: Operation.self, framework: "Foundation", typeName: "Operation", context: ctx))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.addOperations(_ p0: [Operation], waitUntilFinished p1: Bool) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`addOperations`(try generatedPlatformArgument(v[0], as: [Operation].self, framework: "Foundation", typeName: "[Operation]", context: ctx), waitUntilFinished: try generatedPlatformArgument(v[1], as: Bool.self, framework: "Foundation", typeName: "Bool", context: ctx))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.cancelAllOperations() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`cancelAllOperations`()
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.schedule(after p0: OperationQueue.SchedulerTimeType, tolerance p1: OperationQueue.SchedulerTimeType.Stride, options p2: OperationQueue.SchedulerOptions?, _ p3: () -> Void) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`schedule`(after: try generatedPlatformArgument(v[0], as: OperationQueue.SchedulerTimeType.self, framework: "Foundation", typeName: "OperationQueue.SchedulerTimeType", context: ctx), tolerance: try generatedPlatformArgument(v[1], as: OperationQueue.SchedulerTimeType.Stride.self, framework: "Foundation", typeName: "OperationQueue.SchedulerTimeType.Stride", context: ctx), options: try generatedPlatformArgument(v[2], as: OperationQueue.SchedulerOptions?.self, framework: "Foundation", typeName: "OperationQueue.SchedulerOptions?", context: ctx), generatedAction(try GeneratedDispatch.coerce(.action, v[3], ctx)))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.schedule(options p0: OperationQueue.SchedulerOptions?, _ p1: () -> Void) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`schedule`(options: try generatedPlatformArgument(v[0], as: OperationQueue.SchedulerOptions?.self, framework: "Foundation", typeName: "OperationQueue.SchedulerOptions?", context: ctx), generatedAction(try GeneratedDispatch.coerce(.action, v[1], ctx)))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func OperationQueue.waitUntilAllOperationsAreFinished() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? OperationQueue else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`waitUntilAllOperationsAreFinished`()
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
         registerMethod(
             &t, framework: "Foundation",
             declaration: "func ProcessInfo.disableAutomaticTermination(_ p0: String) -> Void",
@@ -14616,10 +14914,64 @@ extension GeneratedPlatformBridge {
 
     static func buildStaticMethods() -> [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]] {
         var t: [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]] = [:]
+        buildStaticMethodsFoundation0(&t)
         buildStaticMethodsAppKit0(&t)
         buildStaticMethodsAppKit1(&t)
         buildStaticMethodsUIKit0(&t)
         return t
+    }
+
+    private static func buildStaticMethodsFoundation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+        registerStaticMethod(
+            &t, framework: "Foundation",
+            declaration: "static func OperationQueue.SchedulerTimeType.Stride.microseconds(_ p0: Int) -> OperationQueue.SchedulerTimeType.Stride",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType.Stride.`microseconds`(try generatedPlatformArgument(v[0], as: Int.self, framework: "Foundation", typeName: "Int", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "Foundation",
+            declaration: "static func OperationQueue.SchedulerTimeType.Stride.milliseconds(_ p0: Int) -> OperationQueue.SchedulerTimeType.Stride",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType.Stride.`milliseconds`(try generatedPlatformArgument(v[0], as: Int.self, framework: "Foundation", typeName: "Int", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "Foundation",
+            declaration: "static func OperationQueue.SchedulerTimeType.Stride.nanoseconds(_ p0: Int) -> OperationQueue.SchedulerTimeType.Stride",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType.Stride.`nanoseconds`(try generatedPlatformArgument(v[0], as: Int.self, framework: "Foundation", typeName: "Int", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "Foundation",
+            declaration: "static func OperationQueue.SchedulerTimeType.Stride.seconds(_ p0: Double) -> OperationQueue.SchedulerTimeType.Stride",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType.Stride.`seconds`(try generatedPlatformArgument(v[0], as: Double.self, framework: "Foundation", typeName: "Double", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "Foundation",
+            declaration: "static func OperationQueue.SchedulerTimeType.Stride.seconds(_ p0: Int) -> OperationQueue.SchedulerTimeType.Stride",
+            resultType: "OperationQueue.SchedulerTimeType.Stride") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(OperationQueue.SchedulerTimeType.Stride.`seconds`(try generatedPlatformArgument(v[0], as: Int.self, framework: "Foundation", typeName: "Int", context: ctx)), framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
     }
 
     private static func buildStaticMethodsAppKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
@@ -16744,6 +17096,7 @@ extension GeneratedPlatformBridge {
     static func buildProperties() -> [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry] {
         var t: [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry] = [:]
         buildPropertiesFoundation0(&t)
+        buildPropertiesFoundation1(&t)
         buildPropertiesAppKit0(&t)
         buildPropertiesAppKit1(&t)
         buildPropertiesAppKit2(&t)
@@ -16782,6 +17135,390 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildPropertiesFoundation0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.dependencies: [Operation] { get }",
+            resultType: "[Operation]",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`dependencies`, framework: "Foundation", declaredType: "[Operation]")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.isAsynchronous: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isAsynchronous`, framework: "Foundation", declaredType: "Bool")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.isCancelled: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isCancelled`, framework: "Foundation", declaredType: "Bool")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.isConcurrent: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isConcurrent`, framework: "Foundation", declaredType: "Bool")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.isExecuting: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isExecuting`, framework: "Foundation", declaredType: "Bool")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.isFinished: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isFinished`, framework: "Foundation", declaredType: "Bool")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.isReady: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isReady`, framework: "Foundation", declaredType: "Bool")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.name: String? { get set }",
+            resultType: "String?",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`name`, framework: "Foundation", declaredType: "String?")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                receiver.`name` = try generatedPlatformArgument(
+                    newValue, as: String?.self,
+                    framework: "Foundation",
+                    typeName: "String?", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("Foundation setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var Operation.queuePriority: Operation.QueuePriority { get set }",
+            resultType: "Operation.QueuePriority",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`queuePriority`, framework: "Foundation", declaredType: "Operation.QueuePriority")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(Foundation)
+                guard let receiver = base as? Operation else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                receiver.`queuePriority` = try generatedPlatformArgument(
+                    newValue, as: Operation.QueuePriority.self,
+                    framework: "Foundation",
+                    typeName: "Operation.QueuePriority", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("Foundation setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.SchedulerTimeType.Stride.magnitude: TimeInterval { get set }",
+            resultType: "TimeInterval",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue.SchedulerTimeType.Stride else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`magnitude`, framework: "Foundation", declaredType: "TimeInterval")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(Foundation)
+                guard var receiver = base as? OperationQueue.SchedulerTimeType.Stride else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                receiver.`magnitude` = try generatedPlatformArgument(
+                    newValue, as: TimeInterval.self,
+                    framework: "Foundation",
+                    typeName: "TimeInterval", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("Foundation setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.SchedulerTimeType.Stride.timeInterval: TimeInterval { get }",
+            resultType: "TimeInterval",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue.SchedulerTimeType.Stride else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`timeInterval`, framework: "Foundation", declaredType: "TimeInterval")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.SchedulerTimeType.date: Date { get set }",
+            resultType: "Date",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue.SchedulerTimeType else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`date`, framework: "Foundation", declaredType: "Date")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(Foundation)
+                guard var receiver = base as? OperationQueue.SchedulerTimeType else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                receiver.`date` = try generatedPlatformArgument(
+                    newValue, as: Date.self,
+                    framework: "Foundation",
+                    typeName: "Date", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("Foundation setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.SchedulerTimeType.hashValue: Int { get }",
+            resultType: "Int",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue.SchedulerTimeType else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`hashValue`, framework: "Foundation", declaredType: "Int")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.isSuspended: Bool { get set }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isSuspended`, framework: "Foundation", declaredType: "Bool")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                receiver.`isSuspended` = try generatedPlatformArgument(
+                    newValue, as: Bool.self,
+                    framework: "Foundation",
+                    typeName: "Bool", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("Foundation setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.maxConcurrentOperationCount: Int { get set }",
+            resultType: "Int",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`maxConcurrentOperationCount`, framework: "Foundation", declaredType: "Int")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                receiver.`maxConcurrentOperationCount` = try generatedPlatformArgument(
+                    newValue, as: Int.self,
+                    framework: "Foundation",
+                    typeName: "Int", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("Foundation setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.minimumTolerance: OperationQueue.SchedulerTimeType.Stride { get }",
+            resultType: "OperationQueue.SchedulerTimeType.Stride",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`minimumTolerance`, framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType.Stride")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.name: String? { get set }",
+            resultType: "String?",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`name`, framework: "Foundation", declaredType: "String?")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                receiver.`name` = try generatedPlatformArgument(
+                    newValue, as: String?.self,
+                    framework: "Foundation",
+                    typeName: "String?", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("Foundation setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.now: OperationQueue.SchedulerTimeType { get }",
+            resultType: "OperationQueue.SchedulerTimeType",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`now`, framework: "Foundation", declaredType: "OperationQueue.SchedulerTimeType")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.operationCount: Int { get }",
+            resultType: "Int",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`operationCount`, framework: "Foundation", declaredType: "Int")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var OperationQueue.operations: [Operation] { get }",
+            resultType: "[Operation]",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? OperationQueue else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`operations`, framework: "Foundation", declaredType: "[Operation]")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
         registerProperty(
             &t, framework: "Foundation",
             declaration: "var ProcessInfo.activeProcessorCount: Int { get }",
@@ -17031,6 +17768,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesFoundation1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "Foundation",
             declaration: "var ProcessInfo.systemUptime: TimeInterval { get }",
@@ -41119,6 +41859,51 @@ extension GeneratedPlatformBridge {
     private static func buildStaticPropertiesFoundation0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "Foundation",
+            type: "OperationQueue",
+            name: "current",
+            resultType: "OperationQueue?",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                OperationQueue.`current`,
+                framework: "Foundation",
+                declaredType: "OperationQueue?")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "OperationQueue",
+            name: "defaultMaxConcurrentOperationCount",
+            resultType: "Int",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                OperationQueue.`defaultMaxConcurrentOperationCount`,
+                framework: "Foundation",
+                declaredType: "Int")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "OperationQueue",
+            name: "main",
+            resultType: "OperationQueue",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                OperationQueue.`main`,
+                framework: "Foundation",
+                declaredType: "OperationQueue")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
             type: "ProcessInfo.ActivityOptions",
             name: "animationTrackingEnabled",
             resultType: "ProcessInfo.ActivityOptions",
@@ -53369,6 +54154,60 @@ extension GeneratedPlatformBridge {
     private static func buildEnumValuesFoundation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "Foundation",
+            type: "Operation.QueuePriority", name: "high") {
+#if canImport(Foundation)
+            Operation.QueuePriority.`high`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "Operation.QueuePriority", name: "low") {
+#if canImport(Foundation)
+            Operation.QueuePriority.`low`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "Operation.QueuePriority", name: "normal") {
+#if canImport(Foundation)
+            Operation.QueuePriority.`normal`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "Operation.QueuePriority", name: "veryHigh") {
+#if canImport(Foundation)
+            Operation.QueuePriority.`veryHigh`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "Operation.QueuePriority", name: "veryLow") {
+#if canImport(Foundation)
+            Operation.QueuePriority.`veryLow`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "OperationQueue", name: "main") {
+#if canImport(Foundation)
+            OperationQueue.`main`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
             type: "ProcessInfo", name: "processInfo") {
 #if canImport(Foundation)
             ProcessInfo.`processInfo`
@@ -61610,6 +62449,7 @@ extension GeneratedPlatformBridge {
     static func buildKnownMembers() -> [GeneratedPlatformMemberKey: Bool] {
         var t: [GeneratedPlatformMemberKey: Bool] = [:]
         buildKnownMembersFoundation0(&t)
+        buildKnownMembersFoundation1(&t)
         buildKnownMembersAppKit0(&t)
         buildKnownMembersAppKit1(&t)
         buildKnownMembersAppKit2(&t)
@@ -61696,6 +62536,177 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildKnownMembersFoundation0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "addDependency")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "cancel")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "completionBlock")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "dependencies")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "isAsynchronous")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "isCancelled")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "isConcurrent")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "isExecuting")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "isFinished")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "isReady")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "main")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "name")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "qualityOfService")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "queuePriority")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "removeDependency")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "start")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "Operation",
+            member: "waitUntilFinished")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "addBarrierBlock")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "addOperation")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "addOperations")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "cancelAllOperations")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "isSuspended")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "maxConcurrentOperationCount")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "minimumTolerance")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "name")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "now")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "operationCount")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "operations")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "progress")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "qualityOfService")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "schedule")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "underlyingQueue")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue",
+            member: "waitUntilAllOperationsAreFinished")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType",
+            member: "advanced")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType",
+            member: "date")] = false
+    }
+
+    private static func buildKnownMembersFoundation1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType",
+            member: "distance")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType",
+            member: "encode")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType",
+            member: "hash")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType",
+            member: "hashValue")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType.Stride",
+            member: "encode")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType.Stride",
+            member: "magnitude")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "OperationQueue.SchedulerTimeType.Stride",
+            member: "timeInterval")] = false
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
@@ -73111,6 +74122,11 @@ extension GeneratedPlatformBridge {
     static func buildEqualityAdapters() -> [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] {
         var t: [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] = [:]
 #if canImport(Foundation)
+        registerEqualityAdapter(&t, framework: "Foundation", type: "Operation", Operation.self)
+        registerEqualityAdapter(&t, framework: "Foundation", type: "Operation.QueuePriority", Operation.QueuePriority.self)
+        registerEqualityAdapter(&t, framework: "Foundation", type: "OperationQueue", OperationQueue.self)
+        registerEqualityAdapter(&t, framework: "Foundation", type: "OperationQueue.SchedulerTimeType", OperationQueue.SchedulerTimeType.self)
+        registerEqualityAdapter(&t, framework: "Foundation", type: "OperationQueue.SchedulerTimeType.Stride", OperationQueue.SchedulerTimeType.Stride.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "ProcessInfo", ProcessInfo.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "ProcessInfo.ActivityOptions", ProcessInfo.ActivityOptions.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "ProcessInfo.ThermalState", ProcessInfo.ThermalState.self)
@@ -73352,6 +74368,12 @@ extension GeneratedPlatformBridge {
 
     static func buildNominalKinds() -> [GeneratedPlatformTypeKey: Bool] {
         var t: [GeneratedPlatformTypeKey: Bool] = [:]
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation")] = false
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation.QueuePriority")] = true
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue")] = false
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue.SchedulerOptions")] = true
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue.SchedulerTimeType")] = true
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue.SchedulerTimeType.Stride")] = true
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo")] = false
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo.ActivityOptions")] = true
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo.ThermalState")] = true
@@ -73607,6 +74629,7 @@ extension GeneratedPlatformBridge {
 
     static func buildSupertypes() -> [GeneratedPlatformTypeKey: [String]] {
         var t: [GeneratedPlatformTypeKey: [String]] = [:]
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue")] = ["ProgressReporting"]
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSApplication")] = ["NSAccessibilityElementProtocol", "NSAccessibilityProtocol", "NSAppearanceCustomization", "NSMenuItemValidation", "NSResponder", "NSStandardKeyBindingResponding", "NSTouchBarProvider", "NSUserActivityRestoring", "NSUserInterfaceValidations"]
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBitmapImageRep")] = ["NSImageRep"]
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSButton")] = ["NSAccessibilityButton", "NSAccessibilityElementProtocol", "NSAccessibilityProtocol", "NSAnimatablePropertyContainer", "NSAppearanceCustomization", "NSControl", "NSDraggingDestination", "NSStandardKeyBindingResponding", "NSTouchBarProvider", "NSUserActivityRestoring", "NSUserInterfaceCompression", "NSUserInterfaceItemIdentification", "NSUserInterfaceValidations"]
