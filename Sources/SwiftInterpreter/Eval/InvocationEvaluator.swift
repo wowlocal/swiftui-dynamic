@@ -120,47 +120,75 @@ extension Interpreter {
             [ParsedGenericConformanceRequirement] = [],
         allowValueCoercion: Bool = true
     ) -> Bool {
-        var remaining = args.arguments
-        for parameter in parameters {
-            if let index = remaining.firstIndex(where: { $0.label == parameter.label }) {
-                let argument = remaining.remove(at: index)
-                let argumentValue = argument.value.unwrappingInoutSlot
-                guard let annotation = parameter.typeName else { return false }
-                let identifiers = Set(annotation.split {
-                    !$0.isLetter && !$0.isNumber && $0 != "_"
-                }.map(String.init))
-                if !identifiers.isDisjoint(with: genericParameterNames) {
-                    if let genericParameterName = directGenericParameterName(
-                        in: annotation,
-                        genericParameterNames: genericParameterNames) {
-                        let requirements = genericConformanceRequirements
-                            .filter {
-                                $0.genericParameterName
-                                    == genericParameterName
-                            }
-                        guard requirements.allSatisfy({
-                            runtimeValue(argumentValue, satisfies: $0)
-                        }) else { return false }
-                    }
-                    if let outer = concreteGenericOuterType(
-                        in: annotation,
-                        genericParameterNames: genericParameterNames
-                    ), !valueIsType(argumentValue, outer) {
-                        return false
-                    }
-                    continue
+        // Overload filtering and invocation must agree on SE-0286 trailing-
+        // closure placement. Literal label matching makes both of these
+        // overloads look inconclusive and falls back to declaration order:
+        // `f(subscriber: AnyObject, _ body: () -> Void)` and
+        // `f<T>(_ subscriber: Box<T>, onValue: () -> Void)` called as
+        // `f(box) { ... }`. Use the invocation binder's structural mapping.
+        let bound = matchedParameterArguments(parameters, to: args)
+        let consumedCount = zip(parameters, bound).reduce(into: 0) {
+            count, pair in
+            let (parameter, value) = pair
+            if parameter.isVariadic {
+                count += value?.arrayValue?.count ?? 0
+            } else if value != nil {
+                count += 1
+            }
+        }
+        guard consumedCount == args.arguments.count else { return false }
+
+        func fits(
+            _ rawValue: RuntimeValue,
+            parameter: ClosureValue.Parameter
+        ) -> Bool {
+            let argumentValue = rawValue.unwrappingInoutSlot
+            guard let annotation = parameter.typeName else { return false }
+            let identifiers = Set(annotation.split {
+                !$0.isLetter && !$0.isNumber && $0 != "_"
+            }.map(String.init))
+            if !identifiers.isDisjoint(with: genericParameterNames) {
+                if let genericParameterName = directGenericParameterName(
+                    in: annotation,
+                    genericParameterNames: genericParameterNames) {
+                    let requirements = genericConformanceRequirements
+                        .filter {
+                            $0.genericParameterName == genericParameterName
+                        }
+                    guard requirements.allSatisfy({
+                        runtimeValue(argumentValue, satisfies: $0)
+                    }) else { return false }
                 }
-                if valueIsType(argumentValue, annotation) { continue }
-                guard allowValueCoercion else { return false }
-                guard let resolved = try? resolveAnnotated(
-                    argumentValue, typeName: annotation),
-                    valueIsType(resolved, annotation)
+                if let outer = concreteGenericOuterType(
+                    in: annotation,
+                    genericParameterNames: genericParameterNames
+                ), !valueIsType(argumentValue, outer) {
+                    return false
+                }
+                return true
+            }
+            if valueIsType(argumentValue, annotation) { return true }
+            guard allowValueCoercion,
+                  let resolved = try? resolveAnnotated(
+                    argumentValue, typeName: annotation)
+            else { return false }
+            return valueIsType(resolved, annotation)
+        }
+
+        for (index, parameter) in parameters.enumerated() {
+            if parameter.isVariadic {
+                guard let packed = bound[index]?.arrayValue else {
+                    return false
+                }
+                guard packed.allSatisfy({ fits($0, parameter: parameter) })
                 else { return false }
+            } else if let value = bound[index] {
+                guard fits(value, parameter: parameter) else { return false }
             } else if parameter.defaultValue == nil {
                 return false
             }
         }
-        return remaining.isEmpty
+        return true
     }
 
     /// A host-extension init fits only when labels align AND every
@@ -1590,9 +1618,18 @@ extension Interpreter {
     func matchedParameterArguments(
         of closure: ClosureValue, to args: CallArguments
     ) -> [RuntimeValue?] {
-        if closure.parameters.count > 1, args.arguments.count == 1,
+        matchedParameterArguments(closure.parameters, to: args)
+    }
+
+    /// Shared source-parameter mapping for invocation and overload fitting.
+    /// Keeping one implementation prevents a call from selecting one overload
+    /// and then binding its trailing closure as though it selected another.
+    func matchedParameterArguments(
+        _ parameters: [ClosureValue.Parameter], to args: CallArguments
+    ) -> [RuntimeValue?] {
+        if parameters.count > 1, args.arguments.count == 1,
            let tuple = args.arguments[0].value.tupleValue,
-           tuple.values.count == closure.parameters.count {
+           tuple.values.count == parameters.count {
             return tuple.values.map(Optional.some)
         }
 
@@ -1610,9 +1647,9 @@ extension Interpreter {
         }
 
         var bound = [RuntimeValue?](
-            repeating: nil, count: closure.parameters.count)
+            repeating: nil, count: parameters.count)
         var positionalCursor = 0
-        for (index, parameter) in closure.parameters.enumerated() {
+        for (index, parameter) in parameters.enumerated() {
             if parameter.isVariadic {
                 // `arguments: CVarArg...` — the labeled value (Swift labels
                 // only the first) plus every remaining positional; absent
@@ -1651,7 +1688,7 @@ extension Interpreter {
         // first unbound function-typed parameter, or the last unbound slot.
         for trailing in unlabeledTrailing.reversed() {
             let accepts: (Int) -> Bool = { index in
-                let parameter = closure.parameters[index]
+                let parameter = parameters[index]
                 return parameter.isBuilderAttributed
                     || parameter.typeName?.contains("->") == true
             }

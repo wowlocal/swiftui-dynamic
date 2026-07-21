@@ -72,6 +72,20 @@ extension Interpreter {
             }
             return false
         }
+        // Function types participate in source overload ranking just like
+        // nominal types. A trailing closure must positively fit a closure
+        // parameter so an earlier, label-compatible overload cannot win by
+        // declaration order. Key paths retain Swift's callable conversion.
+        if isFunctionType(typeName) {
+            switch value {
+            case .closure, .hostFunction:
+                return true
+            case .host(let any) where any is KeyPathStub:
+                return true
+            default:
+                return false
+            }
+        }
         if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
         if typeName.hasPrefix("Swift.") {
             typeName.removeFirst("Swift.".count)

@@ -55,8 +55,23 @@ import Testing
             struct Publisher {
                 let task: PipelineTask
 
-                func subscribe() -> String {
-                    task.subscribe()
+                func subscribe(
+                    priority: Int = 0, subscriber: AnyObject,
+                    _ closure: (String) -> Void
+                ) -> String {
+                    task.subscribe(
+                        priority: priority,
+                        subscriber: subscriber,
+                        closure)
+                }
+
+                func subscribe<NewValue>(
+                    _ subscriber: PipelineTask<NewValue>,
+                    onValue: (String) -> Void
+                ) -> String {
+                    subscribe(subscriber: subscriber) { value in
+                        onValue(value)
+                    }
                 }
             }
 
@@ -68,7 +83,14 @@ import Testing
 
             var publisher: Publisher { Publisher(task: self) }
             func start() -> String { "base" }
-            private func subscribe() -> String { start() }
+            private func subscribe(
+                priority: Int = 0, subscriber: AnyObject,
+                _ closure: (String) -> Void
+            ) -> String {
+                let value = start()
+                closure(value)
+                return value
+            }
         }
 
         final class ConcreteTask: PipelineTask<Int> {
@@ -92,7 +114,8 @@ import Testing
         }
 
         let pool = TaskPool<Int, Int>()
-        pool.publisherForKey(1) { ConcreteTask(7) }.subscribe()
+        pool.publisherForKey(1) { ConcreteTask(7) }
+            .subscribe(PipelineTask<Int>(0)) { _ in }
         """
 
         let value = try Interpreter().run(source: source)
