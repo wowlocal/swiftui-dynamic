@@ -49,7 +49,7 @@ import Testing
     /// A concrete class returned through a generic base-typed closure keeps
     /// its runtime identity when a nested publisher stores it and invokes a
     /// private base method that makes a virtual call.
-    @Test func genericBasePublisherPreservesConcreteTaskIdentity() throws {
+    @Test func genericPoolPreservesConcreteTaskIdentity() throws {
         let source = """
         class PipelineTask<Value> {
             struct Publisher {
@@ -75,14 +75,24 @@ import Testing
             override func start() -> String { "concrete" }
         }
 
-        func makePublisher(
-            _ make: () -> PipelineTask<Int>
-        ) -> PipelineTask<Int>.Publisher {
-            let task = make()
-            return task.publisher
+        final class TaskPool<Key: Hashable, Value> {
+            private var map = [Key: PipelineTask<Value>]()
+
+            func publisherForKey(
+                _ key: Key, _ make: () -> PipelineTask<Value>
+            ) -> PipelineTask<Value>.Publisher {
+                if let task = map[key] {
+                    return task.publisher
+                }
+
+                let task = make()
+                map[key] = task
+                return task.publisher
+            }
         }
 
-        makePublisher { ConcreteTask(7) }.subscribe()
+        let pool = TaskPool<Int, Int>()
+        pool.publisherForKey(1) { ConcreteTask(7) }.subscribe()
         """
 
         let value = try Interpreter().run(source: source)
