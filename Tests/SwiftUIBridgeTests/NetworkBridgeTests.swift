@@ -81,6 +81,26 @@ import SwiftInterpreter
                 == "Nuke URLSession")
     }
 
+    /// Nuke configures inherited URLSessionTask properties before resume.
+    /// The writable surface comes from Foundation metadata even though the
+    /// replay task itself is a handwritten reference box.
+    @Test func generatedWritableTaskPropertyPreservesResume() throws {
+        NetworkBridge.policy = .replay(fixturesDirectory: NSTemporaryDirectory())
+        NetworkBridge.requestLog = []
+        defer { NetworkBridge.policy = .absorbed }
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+            let task = URLSession.shared.dataTask(
+                with: URL(string: "https://example.com/generated-property")!
+            ) { _, _, _ in }
+            task.prefersIncrementalDelivery = true
+            let configured = task.prefersIncrementalDelivery
+            task.resume()
+            configured
+            """)
+        #expect(result.boolValue == true)
+        #expect(NetworkBridge.requestLog.contains { $0.contains("generated-property") })
+    }
+
     /// IceCubes' Nuke 12.8 `ImageCache.init` derives its cost limit from this
     /// exact read-only SDK-property expression. A compiled native run returns
     /// the host's physical byte count divided by five; the interpreter must
