@@ -338,6 +338,27 @@ private func eval(_ source: String) throws -> RuntimeValue {
 
         #expect(try eval(source).stringValue == "0|2|true|2")
     }
+
+    /// Distilled from Nuke's `TaskLoadImage: AsyncPipelineTask<ImageResponse>`:
+    /// a subclass with no initializer inherits the designated initializer of
+    /// a generic superclass. Native Swift prints `7`; losing the generic
+    /// superclass identity routes construction to an unrelated host fallback.
+    @Test func genericSubclassRunsInheritedDesignatedInit() throws {
+        let source = """
+        final class PipelineTask<Value> {
+            let value: Value
+
+            init(_ value: Value) {
+                self.value = value
+            }
+        }
+
+        final class ConcreteTask: PipelineTask<Int> {}
+        ConcreteTask(7).value
+        """
+
+        #expect(try eval(source).intValue == 7)
+    }
 }
 
 @Suite struct StdlibTests {
