@@ -70,6 +70,13 @@ public enum LiveCheckSupport {
     /// body head + outcome, so a silent absorb inside a deep fetch chain can
     /// be localized without touching the metric.
     public static var traceLifecycle = false
+    /// Optional type filter for deep-render diagnostics. A comma-separated
+    /// list traces matching interpreted View boundaries; `*` traces all of
+    /// them. Keeping selection outside the bridge avoids app-name branches in
+    /// a reusable traversal primitive.
+    private static let tracedViewTypes: Set<String>? = ProcessInfo.processInfo
+        .environment["INTERP_TRACE_VIEW_TYPES"]
+        .map { Set($0.split(separator: ",").map(String.init)) }
     /// The absorb histogram from the last probe — the demand list for the
     /// generated-members tier (BridgeGen --emit fills the biggest absorber).
     public private(set) static var lastAbsorbedHostMembers: [String: Int] = [:]
@@ -429,21 +436,10 @@ public enum LiveCheckSupport {
         initialViewport: InitialLifecycleViewport? = nil
     ) throws {
         if let instance = node.instance {
-            if traceLifecycle, [
-                "TimelineView", "TimelineListView", "StatusesListView",
-                "StatusRowView", "StatusRowHeaderView", "StatusRowContentView",
-                "StatusRowTextView",
-            ].contains(instance.symbol.name) {
-                let vm = instance.box(for: "viewModel")?.value ?? instance.box(for: "fetcher")?.value ?? .void
-                var vmID = "-"
-                if case .instance(let model) = vm {
-                    vmID = String(UInt(bitPattern: ObjectIdentifier(model).hashValue) % 100000)
-                    if let state = model.box(for: "statusesState")?.value {
-                        vmID += " state=" + String(state.stringified.prefix(40))
-                    }
-                }
-                else { vmID = String(vm.stringified.prefix(30)) }
-                print("   ⊙ \(instance.symbol.name) vm=\(vmID)")
+            if traceLifecycle, let tracedViewTypes,
+               tracedViewTypes.contains("*")
+                || tracedViewTypes.contains(instance.symbol.name) {
+                print("   ⊙ view[\(depth)] \(instance.symbol.name)")
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
             interpreter.injectEnvironmentValues(
