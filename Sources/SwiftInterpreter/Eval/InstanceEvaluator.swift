@@ -91,6 +91,7 @@ extension Interpreter {
             symbol: symbol,
             lifecycleOwner: symbol.isClass ? self : nil,
             programState: currentProgramState)
+        try seedHostSuperclassBacking(for: instance)
         if symbol.conformsToView {
             var path = viewIdentitySalts
             if let site = node?.id.indexInTree.toOpaque() {
@@ -178,6 +179,42 @@ extension Interpreter {
             }
         }
         return instance
+    }
+
+    /// Materialize the imported base only when its generated constructor has
+    /// a real typed zero-argument contract and the result proves it matches
+    /// the declared superclass. Module qualification is source provenance;
+    /// generated constructor keys begin at the nominal path.
+    private func seedHostSuperclassBacking(for instance: Instance) throws {
+        guard let superclassName = instance.symbol.superclassName,
+              interpretedSuperclass(of: instance.symbol) == nil,
+              let registry else { return }
+
+        guard let backing = try registry.hostSuperclassBacking(
+            named: superclassName, in: self
+        ), let payload = backing.hostPayload,
+           registry.hostValue(payload, matchesImportedType: superclassName)
+        else { return }
+        instance.hostSuperclassBacking = backing
+    }
+
+    func inheritedHostSuperclassMember(
+        _ name: String, on instance: Instance
+    ) throws -> RuntimeValue? {
+        guard let payload = instance.hostSuperclassBacking?.hostPayload else {
+            return nil
+        }
+        return try readHostMember(
+            name, on: payload, includingFallback: false)
+    }
+
+    func writeInheritedHostSuperclassMember(
+        _ name: String, on instance: Instance, to value: RuntimeValue
+    ) throws -> Bool {
+        guard let payload = instance.hostSuperclassBacking?.hostPayload else {
+            return false
+        }
+        return try writeHostMember(name, on: payload, to: value)
     }
 
     private func effectiveInitializers(

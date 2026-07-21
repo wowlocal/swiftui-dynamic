@@ -543,6 +543,14 @@ extension Interpreter {
             }
             parent = interpretedSuperclass(of: candidate)
         }
+        // A generated native backing carries interface-declared members from
+        // an imported direct superclass. Source members above retain normal
+        // override precedence; dynamic compatibility fallbacks are excluded.
+        if let inherited = try inheritedHostSuperclassMember(
+            name, on: instance
+        ) {
+            return inherited
+        }
         if instance.symbol.conformsToView,
            let value = try hostExtensionMember(name, candidates: ["View"], selfValue: .instance(instance)) {
             return value

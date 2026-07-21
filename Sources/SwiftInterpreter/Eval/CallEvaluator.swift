@@ -120,7 +120,19 @@ extension Interpreter {
                     var seen = Set<String>()
                     return protocolReaches(conformance, target: typeName, seen: &seen)
                 }) { return true }
-                guard let parent = interpretedSuperclass(of: current) else { break }
+                guard let parent = interpretedSuperclass(of: current) else {
+                    // The generated host contract names the imported nominal
+                    // without requiring the source's module qualification.
+                    // A source subclass remains substitutable for that direct
+                    // host superclass even though its storage stays owned by
+                    // the interpreter.
+                    if let superclassName = current.superclassName,
+                       HostSignature.equivalentTypeName(
+                           superclassName, typeName) {
+                        return true
+                    }
+                    break
+                }
                 symbol = parent
             }
             return false

@@ -463,6 +463,13 @@ public final class TraceRegistry: HostRegistry {
         }
     }
 
+    public func hostSuperclassBacking(
+        named typeName: String, in context: EvalContext
+    ) throws -> RuntimeValue? {
+        try GeneratedPlatformBridge.hostSuperclassBacking(
+            named: typeName, in: context)
+    }
+
     /// Whether interface metadata says a modifier's closure arguments build
     /// views rather than perform actions. Trace mode evaluates these builders
     /// unconditionally so presented/deferred content still gets deep coverage.

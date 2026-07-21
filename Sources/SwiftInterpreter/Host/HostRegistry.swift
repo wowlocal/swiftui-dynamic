@@ -457,6 +457,13 @@ public protocol HostRegistry: AnyObject {
     func absorbedCValue(named name: String) -> RuntimeValue?
     func storeBlob(_ value: RuntimeValue, at path: String)
     func constructor(named name: String) -> HostFunction?
+    /// Construct the generated native state backing a source subclass's
+    /// imported direct superclass. Registries return a value only when
+    /// interface metadata provides a matching zero-argument initializer;
+    /// compatibility/opaque constructors must not participate.
+    func hostSuperclassBacking(
+        named typeName: String, in context: EvalContext
+    ) throws -> RuntimeValue?
     func modifier(named name: String) -> HostModifier?
     func isViewValue(_ value: RuntimeValue) -> Bool
     /// Wrap a user-struct instance conforming to View into a renderable host value.
@@ -537,6 +544,9 @@ extension HostRegistry {
     public var compilerPreflightSyntheticTypes: [CompilerPreflightHostType] { [] }
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostGlobal(named name: String) -> RuntimeValue? { nil }
+    public func hostSuperclassBacking(
+        named typeName: String, in context: EvalContext
+    ) throws -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
     public func importedNestedTypeName(for path: String) -> String? { nil }
     public func hostValue(

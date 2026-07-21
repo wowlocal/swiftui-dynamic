@@ -639,6 +639,28 @@ enum GeneratedPlatformBridge {
         constructor(named: name, nativeOnly: true)
     }
 
+    /// A source subclass cannot itself cross into native storage, but its
+    /// inherited SDK properties can use a native base instance when the
+    /// generated interface proves that base is zero-argument constructible.
+    /// Select from the raw generated entries so compatibility constructor
+    /// fallbacks cannot manufacture that proof.
+    static func hostSuperclassBacking(
+        named rawName: String, in context: EvalContext
+    ) throws -> RuntimeValue? {
+        let name = generatedNominalName(rawName)
+        guard let entries = constructors[name] else { return nil }
+        let arguments = CallArguments()
+        for framework in frameworkPreference {
+            for entry in entries where entry.framework == framework {
+                guard entry.function.signatures.contains(where: {
+                    $0.match(arguments: arguments, in: context) != nil
+                }) else { continue }
+                return try entry.function.invoke(arguments, context)
+            }
+        }
+        return nil
+    }
+
     static func constructor(named name: String) -> HostFunction? {
         constructor(named: name, nativeOnly: false)
     }

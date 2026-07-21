@@ -162,16 +162,22 @@ private final class NativeQueueRecorder: @unchecked Sendable {
     @Test func operationQueuesStartInterpretedOperations() throws {
         let nativeRecorder = NativeQueueRecorder()
         let nativeQueue = OperationQueue()
-        nativeQueue.addOperation { nativeRecorder.fired = true }
+        let nativeOperation = BlockOperation {
+            nativeRecorder.fired = true
+        }
+        #expect(!nativeOperation.isCancelled)
+        nativeQueue.addOperation(nativeOperation)
         nativeQueue.waitUntilAllOperationsAreFinished()
         #expect(nativeRecorder.fired)
 
         let interpreter = Interpreter(registry: TraceRegistry())
         try interpreter.run(source: """
+        import Foundation
+
         final class Recorder {
             var fired = false
         }
-        final class DeferredOperation: Operation {
+        final class DeferredOperation: Foundation.Operation {
             let action: () -> Void
 
             init(_ action: @escaping () -> Void) {
@@ -179,6 +185,7 @@ private final class NativeQueueRecorder: @unchecked Sendable {
             }
 
             override func start() {
+                guard !isCancelled else { return }
                 action()
             }
         }
