@@ -3412,7 +3412,9 @@ let cMemoryPath =
     "Sources/SwiftUIBridge/Generated/GeneratedCMemoryBridge.swift"
 try cMemoryGeneration.output.write(
     toFile: cMemoryPath, atomically: true, encoding: .utf8)
-print("wrote \(cMemoryPath) (\(cMemoryGeneration.functionNames.count) relative-pointer functions)")
+print(
+    "wrote \(cMemoryPath) (\(cMemoryGeneration.functionNames.count) C functions, "
+        + "\(cMemoryGeneration.recordNames.count) writable records)")
 
 let platformPath = "Sources/SwiftUIBridge/Generated/GeneratedPlatformBridge.swift"
 try platformGeneration.output.write(

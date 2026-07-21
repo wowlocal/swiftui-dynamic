@@ -306,6 +306,9 @@ func bridgeHostMember(
     fileManager: FileManagerBox,
     applicationShells: FrameworkApplicationShellStore
 ) -> RuntimeValue? {
+    if let record = value as? GeneratedCRecordValue {
+        return record.members[name]
+    }
     if let marker = value as? HostTypeMarker,
        marker.name == "FileManager", name == "default" {
         return .native(fileManager)
@@ -1134,6 +1137,9 @@ func bridgeHostProtocolCandidates(of value: Any) -> [String] {
 func bridgeHostTypeName(of value: Any) -> String? {
     if let carrier = value as? GeneratedReferencePropertyCarrier {
         return carrier.generatedReferenceTypeName
+    }
+    if let record = value as? GeneratedCRecordValue {
+        return record.typeName
     }
     if let sequence = value as? GeneratedMemberSequenceCarrier {
         return sequence.generatedSourceTypeName

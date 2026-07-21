@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import SwiftInterpreter
 
@@ -88,7 +87,7 @@ public final class TraceRegistry: HostRegistry {
     public init() {}
 
     public func absorbedCValue(named name: String) -> RuntimeValue? {
-        .native(TraceNode(kind: name)) // writable bag: out-params fill
+        GeneratedCMemoryBridge.record(named: name).map(RuntimeValue.native)
     }
 
     public func hostGlobal(named name: String) -> RuntimeValue? {
@@ -117,31 +116,7 @@ public final class TraceRegistry: HostRegistry {
         ) {
             return generated
         }
-        switch name {
-        case "uname":
-            // The host hardware is REAL: fill the interpreted struct with
-            // actual utsname values and return success.
-            return HostFunction(name: name) { args, _ in
-                if case .host(let any)? = args.positional(0), let node = any as? TraceNode {
-                    var info = utsname()
-                    _ = Darwin.uname(&info)
-                    func field<T>(_ keyPath: KeyPath<utsname, T>) -> String {
-                        var copy = info[keyPath: keyPath]
-                        return withUnsafeBytes(of: &copy) { raw in
-                            String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
-                        }
-                    }
-                    node.config["machine"] = .native(field(\.machine))
-                    node.config["sysname"] = .native(field(\.sysname))
-                    node.config["release"] = .native(field(\.release))
-                    node.config["nodename"] = .native(field(\.nodename))
-                    node.config["version"] = .native(field(\.version))
-                }
-                return .native(0) // success, like the real call
-            }
-        default:
-            return nil
-        }
+        return nil
     }
 
     public func storeBlob(_ value: RuntimeValue, at path: String) {

@@ -1859,6 +1859,10 @@ func hostObjectProperty(_ name: String, on value: Any) -> HostProperty? {
 
 /// Writable members on host objects.
 func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
+    if let record = value as? GeneratedCRecordValue {
+        record.members[name] = newValue
+        return true
+    }
     if value is ImplicitMemberCall || value is ChainedImplicitCall {
         // Unresolvable host objects (`manager.delegate = self` on a marker
         // CLLocationManager) — config writes are dead machinery headlessly.

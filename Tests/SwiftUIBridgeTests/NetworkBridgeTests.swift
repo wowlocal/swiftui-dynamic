@@ -88,11 +88,38 @@ import SwiftInterpreter
     /// unknowable host member.
     @Test func generatedReadOnlyFoundationPropertyUsesNativePayload() throws {
         let expected = ProcessInfo.processInfo.physicalMemory / UInt64(5)
-        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        let result = try Interpreter(registry: ViewRegistry()).run(
+            source: """
             let ratio = 0.2
             ProcessInfo.processInfo.physicalMemory / UInt64(1 / ratio)
             """)
         #expect(result.stringified == String(expected))
+    }
+
+    /// Selecting a Foundation class for generated native dispatch must not
+    /// bypass source extensions on that host type. This is the distilled
+    /// AlDente corpus path; native arm64 returns `arm64` from the same bytes.
+    @Test func generatedFoundationValueDispatchesSourceExtension() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+            import AppKit
+
+            extension ProcessInfo {
+                var machineHardwareName: String? {
+                    var sysinfo = utsname()
+                    let result = uname(&sysinfo)
+                    guard result == EXIT_SUCCESS else { return nil }
+                    let data = Data(
+                        bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN))
+                    guard let identifier = String(
+                        bytes: data, encoding: .ascii) else { return nil }
+                    return identifier.trimmingCharacters(
+                        in: .controlCharacters)
+                }
+            }
+            ProcessInfo.init().machineHardwareName
+            """,
+            lazyTopLevelGlobals: true)
+        #expect(result.unwrappedOptionalOrSelf?.stringValue == "arm64")
     }
 
     @Test func replayMissThrowsHonestly() throws {
