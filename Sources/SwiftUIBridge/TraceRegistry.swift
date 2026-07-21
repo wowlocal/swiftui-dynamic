@@ -18,6 +18,11 @@ public struct TraceLifecycle {
 /// real SwiftUI views, so tests can assert structure headlessly.
 public final class TraceNode: InertCallable {
     public let kind: String
+    /// The source-level nominal type when a semantic operation changes the
+    /// diagnostic tree shape. Combining two values may produce a
+    /// `TextConcat` node while the result remains the same nominal type for
+    /// overload and constrained-extension dispatch.
+    public var nominalTypeName: String?
     public var args: [String] = []
     /// Pushed-screen coverage (NavigationLink destinations): body failures
     /// SKIP the subtree instead of failing the walk — on device the screen
@@ -144,7 +149,13 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func hostObjectConstructor(named name: String) -> HostFunction? {
-        bridgeHostObjectConstructor(named: name, fileManager: fileManagerBox)
+        interfaceValidatedHostObjectConstructor(
+            named: name, fileManager: fileManagerBox)
+    }
+
+    public func importedNestedTypeName(for path: String) -> String? {
+        GeneratedMembers.knownImportedNestedTypePaths.contains(path)
+            ? path : nil
     }
 
     /// The element's identity for state salting: an Identifiable `id`
@@ -188,7 +199,7 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func constructor(named name: String) -> HostFunction? {
-        if let hostObject = bridgeHostObjectConstructor(
+        if let hostObject = interfaceValidatedHostObjectConstructor(
             named: name,
             fileManager: fileManagerBox
         ) { return hostObject }
@@ -658,10 +669,18 @@ public final class TraceRegistry: HostRegistry {
 
     /// `Text("a") + Text("b")` — concatenation records a combined node.
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? {
+        if let attributed = generatedAttributedTextCombination(op, lhs, rhs) {
+            return attributed
+        }
         guard op == "+",
               case .host(let l) = lhs, let left = l as? TraceNode,
               case .host(let r) = rhs, let right = r as? TraceNode else { return nil }
         let node = TraceNode(kind: "TextConcat")
+        let leftType = left.nominalTypeName ?? left.kind
+        let rightType = right.nominalTypeName ?? right.kind
+        if leftType == rightType {
+            node.nominalTypeName = leftType
+        }
         node.children = [left, right]
         return .native(node)
     }
@@ -685,7 +704,9 @@ public final class TraceRegistry: HostRegistry {
     /// Recorded nodes stand for their constructor's type (UIColor(...) →
     /// "UIColor"), so user extensions of host types dispatch on them.
     public func hostTypeName(of value: Any) -> String? {
-        if let node = value as? TraceNode { return node.kind }
+        if let node = value as? TraceNode {
+            return node.nominalTypeName ?? node.kind
+        }
         return bridgeHostTypeName(of: value)
     }
 

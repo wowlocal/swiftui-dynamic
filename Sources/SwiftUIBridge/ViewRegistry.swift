@@ -85,12 +85,18 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func hostObjectConstructor(named name: String) -> HostFunction? {
-        bridgeHostObjectConstructor(named: name, fileManager: fileManagerBox)
+        interfaceValidatedHostObjectConstructor(
+            named: name, fileManager: fileManagerBox)
     }
 
     public func hostGlobal(named name: String) -> RuntimeValue? {
         GeneratedPlatformBridge.globalValue(
             named: name, applicationShells: applicationShells)
+    }
+
+    public func importedNestedTypeName(for path: String) -> String? {
+        GeneratedMembers.knownImportedNestedTypePaths.contains(path)
+            ? path : nil
     }
 
     public func hostValue(
@@ -123,7 +129,7 @@ public final class ViewRegistry: HostRegistry {
         ) {
             return nativePlatform
         }
-        if let hostObject = bridgeHostObjectConstructor(
+        if let hostObject = interfaceValidatedHostObjectConstructor(
             named: resolvedName,
             fileManager: fileManagerBox
         ) {

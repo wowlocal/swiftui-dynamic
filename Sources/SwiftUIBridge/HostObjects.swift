@@ -312,6 +312,17 @@ final class BundleBox {
     }
 }
 
+func interfaceValidatedHostObjectConstructor(
+    named name: String,
+    fileManager: FileManagerBox
+) -> HostFunction? {
+    guard let implementation = bridgeHostObjectConstructor(
+        named: name, fileManager: fileManager
+    ) else { return nil }
+    return GeneratedDispatch.validatingThrowingConstructor(
+        named: name, implementation: implementation)
+}
+
 func bridgeHostObjectConstructor(
     named name: String,
     fileManager: FileManagerBox
@@ -1683,10 +1694,11 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "subscript":
             return .hostFunction(HostFunction(name: "subscript") { args, _ in
                 guard case .host(let any)? = args.positional(0),
-                      let rangeBox = any as? AttributedRangeBox else {
-                    throw RuntimeError(message: "AttributedString subscripting needs a range from range(of:)")
+                      let range = (any as? GeneratedAttributedTextRangeCarrier)?
+                        .generatedAttributedTextRange else {
+                    throw RuntimeError(message: "AttributedString subscripting needs an attributed index range")
                 }
-                return .native(AttributedRangeProxy(box: box, range: rangeBox.range))
+                return .native(AttributedRangeProxy(box: box, range: range))
             })
         case "replacingAttributes", "settingAttributes", "mergingAttributes",
              "transformingAttributes":

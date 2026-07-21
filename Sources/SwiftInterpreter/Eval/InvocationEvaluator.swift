@@ -124,6 +124,7 @@ extension Interpreter {
         for parameter in parameters {
             if let index = remaining.firstIndex(where: { $0.label == parameter.label }) {
                 let argument = remaining.remove(at: index)
+                let argumentValue = argument.value.unwrappingInoutSlot
                 guard let annotation = parameter.typeName else { return false }
                 let identifiers = Set(annotation.split {
                     !$0.isLetter && !$0.isNumber && $0 != "_"
@@ -138,21 +139,21 @@ extension Interpreter {
                                     == genericParameterName
                             }
                         guard requirements.allSatisfy({
-                            runtimeValue(argument.value, satisfies: $0)
+                            runtimeValue(argumentValue, satisfies: $0)
                         }) else { return false }
                     }
                     if let outer = concreteGenericOuterType(
                         in: annotation,
                         genericParameterNames: genericParameterNames
-                    ), !valueIsType(argument.value, outer) {
+                    ), !valueIsType(argumentValue, outer) {
                         return false
                     }
                     continue
                 }
-                if valueIsType(argument.value, annotation) { continue }
+                if valueIsType(argumentValue, annotation) { continue }
                 guard allowValueCoercion else { return false }
                 guard let resolved = try? resolveAnnotated(
-                    argument.value, typeName: annotation),
+                    argumentValue, typeName: annotation),
                     valueIsType(resolved, annotation)
                 else { return false }
             } else if parameter.defaultValue == nil {
@@ -238,6 +239,7 @@ extension Interpreter {
     }
 
     func invoke(_ callee: RuntimeValue, with args: CallArguments, node: some SyntaxProtocol) throws -> RuntimeValue {
+        let sourceArguments = args
         var args = args
         switch callee {
         case .closure, .type:
@@ -352,24 +354,51 @@ extension Interpreter {
                 // merge's MANY one-arg Text inits 152 deep in
                 // apple-browsers before reaching the registry.
                 if let chosen = available.first(where: {
-                    extensionInitFits($0, args: args)
+                    extensionInitFits($0, args: sourceArguments)
                 }), let body = initializerMetadata(for: chosen).body {
+                    let metadata = initializerMetadata(for: chosen)
                     let inserted = activeInitializers.insert(chosen.id).inserted
                     defer { if inserted { activeInitializers.remove(chosen.id) } }
                     let env = Environment(parent: globals)
-                    env.define("self", .void)
+                    // A host extension initializer starts with its native
+                    // constructor as the uninitialized `self`. This lets a
+                    // source `self.init(...)` delegate past the running
+                    // declaration to another extension overload or the host
+                    // constructor, while direct `self = value` still replaces
+                    // the box in the ordinary assignment path.
+                    env.define("self", .hostFunction(function))
                     let closure = makeInitializerClosure(
                         chosen,
                         body: body,
                         captured: env,
                         debugName: "extInit:\(function.name)",
                         fallbackLexicalOwner: extensionSymbol)
-                    _ = try callWithArguments(closure, args: args, node: Syntax(node))
+                    let outcome = try callWithArguments(
+                        closure, args: sourceArguments, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void
-                    if case .void = assigned {
-                        // `self` never assigned — fall through to the ctor.
+                    let initialized: RuntimeValue?
+                    if case .hostFunction(let assignedFunction) = assigned,
+                       assignedFunction === function {
+                        if case .void = outcome {
+                            initialized = nil
+                        } else {
+                            // A host-value extension commonly delegates as
+                            // its final expression (`self.init(...)`). The
+                            // constructed value is that expression's result.
+                            initialized = outcome
+                        }
                     } else {
-                        return assigned
+                        initialized = assigned
+                    }
+                    if metadata.isFailable {
+                        guard let initialized, !initialized.isNil else {
+                            return .none(wrappedTypeName: function.name)
+                        }
+                        return initialized.liftedToOptional(
+                            wrappedTypeName: function.name)
+                    }
+                    if let initialized {
+                        return initialized
                     }
                 }
             }

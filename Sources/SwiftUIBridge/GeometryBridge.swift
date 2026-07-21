@@ -316,6 +316,36 @@ func bridgeHostMember(
     if let member = networkBridgeMember(name, on: value) {
         return member
     }
+    let generatedReceiver = (value as? GeneratedMemberCarrier)?
+        .generatedMemberValue ?? value
+    if name == "subscript",
+       let receiver = generatedReceiver as?
+        any GeneratedMetatypeSubscriptCarrier {
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            let typeName: String? = switch args.positional(0) {
+            case .host(let payload):
+                (payload as? HostTypeMarker)?.name
+            case .hostFunction(let function):
+                function.name
+            case .type(let symbol):
+                symbol.name
+            case .enumType(let symbol):
+                symbol.name
+            default:
+                nil
+            }
+            guard let typeName else {
+                throw RuntimeError(message:
+                    "generated metatype subscript requires a type argument")
+            }
+            guard let result = receiver.generatedMetatypeSubscript(
+                typeNamed: typeName) else {
+                throw RuntimeError(message:
+                    "generated metatype subscript has no interface key '\(typeName)'")
+            }
+            return result
+        })
+    }
     if let platform = value as? GeneratedPlatformValue {
         if let member = GeneratedPlatformBridge.member(name, on: platform) {
             return member
@@ -915,6 +945,9 @@ extension ViewRegistry {
     /// they meet, so concatenation approximates as an adjacent zero-spacing
     /// HStack (documented divergence: no line-wrap continuity).
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? {
+        if let attributed = generatedAttributedTextCombination(op, lhs, rhs) {
+            return attributed
+        }
         // DynamicTypeSize markers order by the REAL case ladder
         // (WidthThresholdReader's `dynamicType >= .xxLarge`).
         if ["<", "<=", ">", ">=", "==", "!="].contains(op),
@@ -1073,21 +1106,40 @@ func bridgeHostMutatedCopy(
 /// PROTOCOL umbrellas host values conform to — user protocol extensions
 /// (`extension Cancellable { func store(in:) }`) dispatch through these.
 func bridgeHostProtocolCandidates(of value: Any) -> [String] {
+    let canonicalTypeName = GeneratedMembers.keyTypeName(of: value)
+    var candidates = GeneratedMembers.runtimeTypeAliasesByCanonicalName[
+        canonicalTypeName
+    ] ?? []
     switch value {
-    case is RuntimeTaskHandle: return ["Task", "Cancellable"]
-    case is AnyCancellableBox: return ["AnyCancellable", "Cancellable"]
-    case is PassthroughSubjectBox: return ["PassthroughSubject", "Publisher"]
-    case let stub as UIKitStub: return stub.roles
+    case let sequence as GeneratedMemberSequenceCarrier:
+        candidates.append(contentsOf: sequence.generatedSourceProtocolNames)
+    case is RuntimeTaskHandle:
+        candidates.append(contentsOf: ["Task", "Cancellable"])
+    case is AnyCancellableBox:
+        candidates.append(contentsOf: ["AnyCancellable", "Cancellable"])
+    case is PassthroughSubjectBox:
+        candidates.append(contentsOf: ["PassthroughSubject", "Publisher"])
+    case let stub as UIKitStub:
+        candidates.append(contentsOf: stub.roles)
     case let platform as GeneratedPlatformValue:
-        return GeneratedPlatformBridge.typeCandidates(
-            framework: platform.framework, type: platform.typeName)
-    default: return []
+        candidates.append(contentsOf: GeneratedPlatformBridge.typeCandidates(
+            framework: platform.framework, type: platform.typeName))
+    default:
+        break
     }
+    var seen: Set<String> = []
+    return candidates.filter { seen.insert($0).inserted }
 }
 
 func bridgeHostTypeName(of value: Any) -> String? {
     if let carrier = value as? GeneratedReferencePropertyCarrier {
         return carrier.generatedReferenceTypeName
+    }
+    if let sequence = value as? GeneratedMemberSequenceCarrier {
+        return sequence.generatedSourceTypeName
+    }
+    if let carrier = value as? GeneratedMemberCarrier {
+        return GeneratedMembers.keyTypeName(of: carrier.generatedMemberValue)
     }
     switch value {
     case is RuntimeTaskHandle: return "Task"

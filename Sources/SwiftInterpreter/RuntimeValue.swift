@@ -9,6 +9,15 @@ private func runtimeValueIsOptional<T>(_ value: T) -> Bool {
     _isOptional(T.self)
 }
 
+/// An opaque host sequence that has already crossed into the interpreter's
+/// finite, element-wise value plane. Framework bridges retain the source
+/// nominal value around this capability while ordinary collection evaluation
+/// consumes only these materialized elements.
+@MainActor
+public protocol RuntimeMaterializedSequence: AnyObject {
+    var runtimeMaterializedElements: [RuntimeValue] { get }
+}
+
 /// The type-erased runtime representation of every value the interpreter touches.
 ///
 /// Swift-language values live in dedicated cases so evaluator semantics never
@@ -172,6 +181,9 @@ extension RuntimeValue {
         case .array(let array): return array
         case .host(let any):
             if let array = any as? [RuntimeValue] { return array }
+            if let sequence = any as? any RuntimeMaterializedSequence {
+                return sequence.runtimeMaterializedElements
+            }
             if let buffer = any as? RuntimeCollectionBackedBuffer {
                 return buffer.elements
             }
@@ -203,6 +215,9 @@ extension RuntimeValue {
         case .set(let set): return set.elements
         case .host(let any):
             if let array = any as? [RuntimeValue] { return array }
+            if let sequence = any as? any RuntimeMaterializedSequence {
+                return sequence.runtimeMaterializedElements
+            }
             if let buffer = any as? RuntimeCollectionBackedBuffer {
                 return buffer.elements
             }

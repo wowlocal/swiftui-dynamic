@@ -33,7 +33,11 @@ extension Interpreter {
     /// truly; host natives match the registry's type name; markers and nil
     /// read false.
     func valueIsType(_ value: RuntimeValue, _ rawType: String) -> Bool {
-        var typeName = rawType.trimmingCharacters(in: .whitespaces)
+        // Ownership/calling-convention prefixes constrain how an argument is
+        // passed, not the value type used for overload selection. Share the
+        // host-signature normalizer so source-extension initializers with an
+        // `inout` parameter compete by their underlying nominal type.
+        var typeName = HostSignature.normalizedType(rawType)
         if let wrappedType = RuntimeOptionalValue.wrappedType(in: typeName) {
             switch value.optionalState {
             case .none(let observed):
@@ -131,10 +135,19 @@ extension Interpreter {
             if any is Data { return ["Data", "NSData"].contains(typeName) }
             if any is [RuntimeValue] { return ["Array", "NSArray"].contains(typeName) || typeName.hasPrefix("[") }
             if any is DictValue { return ["Dictionary", "NSDictionary"].contains(typeName) || typeName.hasPrefix("[") }
+            // A registry may attach concrete source-type evidence to an
+            // otherwise opaque/inert host carrier (trace-recorded values are
+            // the canonical example). That evidence wins over the generic
+            // marker fallback below, just as it does for ordinary host
+            // natives.
+            if let observed = registry?.hostTypeName(of: any),
+               HostSignature.equivalentTypeName(observed, typeName) {
+                return true
+            }
             if any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
                 return false // unknowable: fresh state IS nothing yet
             }
-            return registry?.hostTypeName(of: any) == typeName
+            return false
         default:
             return false
         }

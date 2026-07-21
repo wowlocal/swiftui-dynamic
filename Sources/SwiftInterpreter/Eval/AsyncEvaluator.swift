@@ -1454,25 +1454,42 @@ extension Interpreter {
                         && !isCodableInitializer($0)
                 }
                 if let chosen = available.first(where: {
-                    extensionInitFits($0, args: arguments)
+                    extensionInitFits($0, args: originalArguments)
                 }), let body = initializerMetadata(for: chosen).body {
+                    let metadata = initializerMetadata(for: chosen)
                     let inserted = activeInitializers.insert(chosen.id).inserted
                     defer { if inserted { activeInitializers.remove(chosen.id) } }
                     let env = Environment(parent: globals)
-                    env.define("self", .void)
+                    env.define("self", .hostFunction(function))
                     let closure = makeInitializerClosure(
                         chosen,
                         body: body,
                         captured: env,
                         debugName: "extInit:\(function.name)",
                         fallbackLexicalOwner: extensionSymbol)
-                    _ = try await callWithArgumentsSuspending(
-                        closure, args: arguments, node: Syntax(node))
+                    let outcome = try await callWithArgumentsSuspending(
+                        closure, args: originalArguments, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void
-                    if case .void = assigned {
-                        // Fall through to the registered host gateway.
+                    let initialized: RuntimeValue?
+                    if case .hostFunction(let assignedFunction) = assigned,
+                       assignedFunction === function {
+                        if case .void = outcome {
+                            initialized = nil
+                        } else {
+                            initialized = outcome
+                        }
                     } else {
-                        return assigned
+                        initialized = assigned
+                    }
+                    if metadata.isFailable {
+                        guard let initialized, !initialized.isNil else {
+                            return .none(wrappedTypeName: function.name)
+                        }
+                        return initialized.liftedToOptional(
+                            wrappedTypeName: function.name)
+                    }
+                    if let initialized {
+                        return initialized
                     }
                 }
             }

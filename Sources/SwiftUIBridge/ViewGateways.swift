@@ -16,8 +16,9 @@ extension ViewRegistry {
             guard var value = args.positional(0) else {
                 throw RuntimeError(message: "Text needs a string argument")
             }
-            if case .host(let any) = value, let box = any as? AttributedStringBox {
-                return .native(TextBox(Text(box.attributed)))
+            if case .host(let any) = value,
+               let carrier = any as? GeneratedAttributedTextCarrier {
+                return .native(TextBox(Text(carrier.generatedAttributedText)))
             }
             // TYPED markers resolve at this boundary (the computed-property
             // laziness contract): `var title: LocalizedStringKey { .init(x) }`

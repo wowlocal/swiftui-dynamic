@@ -224,6 +224,9 @@ extension Interpreter {
     /// This is the compatibility path for opaque framework values. Swift-shaped
     /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
+        if let sequence = any as? any RuntimeMaterializedSequence {
+            return try arrayMember(name, sequence.runtimeMaterializedElements)
+        }
         if let buffer = any as? any RuntimeCollectionBackedBufferCarrier {
             switch name {
             case "count":
