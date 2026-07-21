@@ -881,6 +881,41 @@ extension Interpreter {
             return .void
         }
 
+        // An interface-derived mutable-buffer callback is a scoped
+        // read-modify-write transaction. Pointer writes mutate an
+        // interpreter-owned carrier; copy its final elements back through the
+        // original array lvalue even when the callback throws, matching Swift's
+        // inout writeback.
+        if let callbackLabel = GeneratedUnsafeMemorySurface
+            .mutableBufferCallbackArgumentLabel(for: name),
+           let array = baseValue.arrayValue,
+           let target = try? resolveLValue(base, in: env) {
+            let args = try collectArguments(of: call, in: env)
+            let body = callbackLabel.isEmpty
+                ? args.firstUnlabeledClosure
+                : args.closure(labeled: callbackLabel)
+            guard let body else {
+                throw error(call, "\(name) needs a closure")
+            }
+            let buffer = RuntimeMutableCollectionBackedBuffer(
+                array, elementTypeName: target.annotatedElementType())
+            do {
+                let result = try callClosure(
+                    body, arguments: [.native(buffer)])
+                try relocating(call) {
+                    try target.writeCanonicalOwned(
+                        .native(buffer.elements), self)
+                }
+                return result
+            } catch {
+                try relocating(call) {
+                    try target.writeCanonicalOwned(
+                        .native(buffer.elements), self)
+                }
+                throw error
+            }
+        }
+
         let nativeDictionaryKeyOptionalValueMutation =
             GeneratedCollectionDefaultSurface
                 .isNativeDictionaryKeyOptionalValueMutation(named: name)

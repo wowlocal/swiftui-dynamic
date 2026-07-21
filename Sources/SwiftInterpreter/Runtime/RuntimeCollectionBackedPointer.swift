@@ -12,6 +12,141 @@ protocol RuntimeIntegerSubscriptReadable: AnyObject {
     func runtimeElement(at index: Int) throws -> RuntimeValue
 }
 
+/// Shared buffer properties used by both read-only and write-through carriers.
+/// Native member dispatch keys on this capability once, rather than adding a
+/// parallel SDK-member switch for each carrier implementation.
+@MainActor
+protocol RuntimeCollectionBackedBufferCarrier:
+    RuntimeIntegerSubscriptReadable
+{
+    var runtimeElements: [RuntimeValue] { get }
+    func runtimeBaseAddressValue() -> RuntimeValue
+}
+
+/// Typed-pointer cursor operations shared by immutable and mutable storage.
+@MainActor
+protocol RuntimeCollectionBackedPointerCursor:
+    RuntimeIntegerSubscriptReadable
+{
+    func runtimeAdvancedValue(by distance: Int) -> RuntimeValue
+    func runtimePointeeValue() throws -> RuntimeValue
+}
+
+/// Property-based write capability for pointer operations that copy from a
+/// readable pointer. Eligible source method names and labels remain generated
+/// from the active standard-library interface.
+@MainActor
+protocol RuntimeBulkWritablePointerCursor:
+    RuntimeCollectionBackedPointerCursor
+{
+    func runtimeCopy(
+        from source: any RuntimeIntegerSubscriptReadable, count: Int
+    ) throws
+}
+
+/// Shared write-through storage for `Array.withUnsafeMutableBufferPointer`.
+/// The callback receives a stable interpreter-owned carrier; after it exits,
+/// the evaluator copies these elements back through the array's source lvalue.
+@MainActor
+final class RuntimeMutableCollectionBackedStorage: @unchecked Sendable {
+    var elements: [RuntimeValue]
+    let elementTypeName: String?
+
+    init(elements: [RuntimeValue], elementTypeName: String?) {
+        self.elements = elements
+        self.elementTypeName = elementTypeName
+    }
+}
+
+/// Mutable buffer capability whose pointer mutations remain visible to the
+/// source callback and to the evaluator's eventual value-semantic writeback.
+@MainActor
+final class RuntimeMutableCollectionBackedBuffer:
+    RuntimeCollectionBackedBufferCarrier, @unchecked Sendable
+{
+    fileprivate let storage: RuntimeMutableCollectionBackedStorage
+
+    init(_ elements: [RuntimeValue], elementTypeName: String? = nil) {
+        storage = RuntimeMutableCollectionBackedStorage(
+            elements: elements, elementTypeName: elementTypeName)
+    }
+
+    var elements: [RuntimeValue] { storage.elements }
+    var runtimeElements: [RuntimeValue] { elements }
+    var runtimeElementTypeName: String? { storage.elementTypeName }
+
+    func runtimeElement(at index: Int) throws -> RuntimeValue {
+        guard storage.elements.indices.contains(index) else {
+            throw EvalMessage(text: "mutable buffer index out of range")
+        }
+        return storage.elements[index]
+    }
+
+    var baseAddress: RuntimeMutableCollectionBackedPointer? {
+        guard !storage.elements.isEmpty else { return nil }
+        return RuntimeMutableCollectionBackedPointer(storage: storage, offset: 0)
+    }
+
+    func runtimeBaseAddressValue() -> RuntimeValue {
+        baseAddress.map {
+            .some(.native($0), wrappedTypeName: "UnsafeMutablePointer")
+        } ?? .none(wrappedTypeName: "UnsafeMutablePointer")
+    }
+}
+
+/// Typed cursor into mutable collection storage. `update(from:count:)` copies
+/// through the common readable-pointer capability, so immutable and mutable
+/// source buffers share one property-based dispatch rule.
+@MainActor
+final class RuntimeMutableCollectionBackedPointer:
+    RuntimeBulkWritablePointerCursor, @unchecked Sendable
+{
+    private let storage: RuntimeMutableCollectionBackedStorage
+    private let offset: Int
+
+    fileprivate init(
+        storage: RuntimeMutableCollectionBackedStorage, offset: Int
+    ) {
+        self.storage = storage
+        self.offset = offset
+    }
+
+    var runtimeElementTypeName: String? { storage.elementTypeName }
+
+    func advanced(by distance: Int) -> RuntimeMutableCollectionBackedPointer {
+        RuntimeMutableCollectionBackedPointer(
+            storage: storage, offset: offset + distance)
+    }
+
+    func runtimeElement(at index: Int) throws -> RuntimeValue {
+        let position = offset + index
+        guard storage.elements.indices.contains(position) else {
+            throw EvalMessage(text: "mutable pointer index out of range")
+        }
+        return storage.elements[position]
+    }
+
+    func runtimeAdvancedValue(by distance: Int) -> RuntimeValue {
+        .native(advanced(by: distance))
+    }
+
+    func runtimePointeeValue() throws -> RuntimeValue {
+        try runtimeElement(at: 0)
+    }
+
+    func runtimeCopy(
+        from source: any RuntimeIntegerSubscriptReadable, count: Int
+    ) throws {
+        guard count >= 0, offset >= 0,
+              offset + count <= storage.elements.count else {
+            throw EvalMessage(text: "mutable pointer update out of range")
+        }
+        for index in 0..<count {
+            storage.elements[offset + index] = try source.runtimeElement(at: index)
+        }
+    }
+}
+
 /// Shared immutable storage for a read-only interpreted buffer. Source-level
 /// arrays erase fixed-width integer spelling in `RuntimeValue`; the declared
 /// element type restores its ABI stride and byte encoding at this one unsafe
@@ -67,7 +202,7 @@ fileprivate final class RuntimeCollectionBackedStorage: @unchecked Sendable {
 /// scoped pointer semantics after the creating closure returns.
 @MainActor
 final class RuntimeCollectionBackedBuffer:
-    RuntimeIntegerSubscriptReadable, @unchecked Sendable
+    RuntimeCollectionBackedBufferCarrier, @unchecked Sendable
 {
     private let storage: RuntimeCollectionBackedStorage
     private let elementRange: Range<Int>
@@ -91,6 +226,7 @@ final class RuntimeCollectionBackedBuffer:
         Array(storage.elements[elementRange])
     }
 
+    var runtimeElements: [RuntimeValue] { elements }
     var elementTypeName: String? { storage.elementTypeName }
     var runtimeElementTypeName: String? { elementTypeName }
 
@@ -107,6 +243,12 @@ final class RuntimeCollectionBackedBuffer:
             storage: storage,
             byteOffset: elementRange.lowerBound * storage.elementStride,
             advanceStride: storage.elementStride)
+    }
+
+    func runtimeBaseAddressValue() -> RuntimeValue {
+        baseAddress.map {
+            .some(.native($0), wrappedTypeName: "UnsafePointer")
+        } ?? .none(wrappedTypeName: "UnsafePointer")
     }
 
     func prefix(_ count: Int) -> RuntimeCollectionBackedBuffer {
@@ -159,7 +301,7 @@ final class RuntimeCollectionBackedBuffer:
 /// native pointer results back into retained interpreter cursors by offset.
 @MainActor
 final class RuntimeCollectionBackedPointer: HostStridedMemoryCursor,
-    RuntimeIntegerSubscriptReadable, @unchecked Sendable
+    RuntimeCollectionBackedPointerCursor, @unchecked Sendable
 {
     private let storage: RuntimeCollectionBackedStorage
     let byteOffset: Int
@@ -234,6 +376,14 @@ final class RuntimeCollectionBackedPointer: HostStridedMemoryCursor,
 
     func runtimeElement(at index: Int) throws -> RuntimeValue {
         try element(atRelativeIndex: index)
+    }
+
+    func runtimeAdvancedValue(by distance: Int) -> RuntimeValue {
+        .native(advanced(by: distance))
+    }
+
+    func runtimePointeeValue() throws -> RuntimeValue {
+        try element(atRelativeIndex: 0)
     }
 
     func window(count: Int) throws -> RuntimeCollectionBackedBuffer {

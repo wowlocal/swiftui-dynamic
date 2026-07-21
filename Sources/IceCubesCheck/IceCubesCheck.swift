@@ -129,7 +129,7 @@ struct IceCubesCheckMain {
         }
 
         let filter = option("--screen", in: arguments)
-        let jobs = ["shell", "render"].filter { job in
+        let jobs = ["shell", "timeline", "detail-account"].filter { job in
             guard let filter else { return true }
             return expectedRungs(for: job).contains {
                 $0.localizedCaseInsensitiveContains(filter)
@@ -170,11 +170,13 @@ struct IceCubesCheckMain {
         switch worker {
         case "shell":
             return ["R0-shell"]
-        case "render":
+        case "timeline":
             return [
-                "R1-timeline", "R1-status-detail", "R1-account-header",
-                "R1-boost-attribution", "R1-media-placeholder",
+                "R1-timeline", "R1-boost-attribution",
+                "R1-media-placeholder",
             ]
+        case "detail-account":
+            return ["R1-status-detail", "R1-account-header"]
         default:
             return ["unknown-worker"]
         }
@@ -276,8 +278,12 @@ struct IceCubesCheckMain {
         switch worker {
         case "shell":
             return [try shellRung(paths: paths, oracle: oracle)]
-        case "render":
-            return try renderRungs(paths: paths, oracle: oracle)
+        case "timeline":
+            return try renderRungs(
+                paths: paths, oracle: oracle, scope: .timeline)
+        case "detail-account":
+            return try renderRungs(
+                paths: paths, oracle: oracle, scope: .detailAndAccount)
         default:
             return [RungRecord(
                 name: "unknown-worker", passed: false,
@@ -368,14 +374,21 @@ struct IceCubesCheckMain {
             message: problems.joined(separator: "; "))
     }
 
+    private enum RenderScope: Equatable {
+        case timeline
+        case detailAndAccount
+    }
+
     private static func renderRungs(
-        paths: Paths, oracle: FixtureOracle
+        paths: Paths, oracle: FixtureOracle, scope: RenderScope
     ) throws -> [RungRecord] {
         let source = ProjectMaterial.mergedSource(
             at: paths.app, files: paths.packageFiles,
             sourceModules: paths.sourceModules)
             + ProjectMaterial.mergedSource(
-                source: renderProbeSource(includeDetailAndAccount: true),
+                source: renderProbeSource(
+                    includeTimeline: scope == .timeline,
+                    includeDetailAndAccount: scope == .detailAndAccount),
                 moduleName: "IceCubesCheckProbe")
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let normalized = strings.map(FixtureOracle.normalize)
@@ -459,16 +472,63 @@ struct IceCubesCheckMain {
             mediaProblems.append("recorded public fixture contains no media")
         }
 
-        return [
-            record("R1-timeline", timelineProblems),
-            record("R1-status-detail", detailProblems),
-            record("R1-account-header", accountProblems),
-            record("R1-boost-attribution", boostProblems),
-            record("R1-media-placeholder", mediaProblems),
-        ]
+        switch scope {
+        case .timeline:
+            return [
+                record("R1-timeline", timelineProblems),
+                record("R1-boost-attribution", boostProblems),
+                record("R1-media-placeholder", mediaProblems),
+            ]
+        case .detailAndAccount:
+            return [
+                record("R1-status-detail", detailProblems),
+                record("R1-account-header", accountProblems),
+            ]
+        }
     }
 
-    private static func renderProbeSource(includeDetailAndAccount: Bool) -> String {
+    private static func renderProbeSource(
+        includeTimeline: Bool, includeDetailAndAccount: Bool
+    ) -> String {
+        let fixtureDecodes = (includeTimeline ? """
+        let __icePublicStatuses = try! __iceDecoder.decode(
+            [Status].self, from: __fixtureData("api_v1_timelines_public"))
+        """ : "") + (includeDetailAndAccount ? """
+        let __iceTrendingStatuses = try! __iceDecoder.decode(
+            [Status].self, from: __fixtureData("api_v1_trends_statuses"))
+        """ : "")
+        let timelineGlobals = includeTimeline ? """
+        let __iceFetcher = __IceFixtureFetcher(statuses: __icePublicStatuses)
+        let __iceFirstRowModel = StatusRowViewModel(
+            status: __icePublicStatuses[0],
+            client: __iceClient,
+            routerPath: __iceRouter,
+            filterContext: .pub)
+        """ : ""
+        let timelineViews = includeTimeline ? """
+                        switch __iceFetcher.statusesState {
+                        case .loading:
+                            Text("__ice-direct-state-loading")
+                        case .display:
+                            Text("__ice-direct-state-display")
+                        case .displayWithGaps:
+                            Text("__ice-direct-state-gaps")
+                        case .error:
+                            Text("__ice-direct-state-error")
+                        }
+                        __IceFetcherStateProbe(fetcher: __iceFetcher)
+                        __IceFetcherRowsProbe(fetcher: __iceFetcher)
+                        __IceRowModelProbe(viewModel: __iceFirstRowModel)
+                        StatusRowHeaderView(viewModel: __iceFirstRowModel)
+                        StatusRowContentView(viewModel: __iceFirstRowModel)
+                        SwiftUI.List {
+                            StatusesListView(
+                                fetcher: __iceFetcher,
+                                client: __iceClient,
+                                routerPath: __iceRouter,
+                                filterContext: .pub)
+                        }
+            """ : ""
         let extraViews = includeDetailAndAccount ? """
                     StatusDetailView(status: __iceTrendingStatuses[0])
                     AccountDetailView(account: __iceTrendingStatuses[0].account)
@@ -488,10 +548,7 @@ struct IceCubesCheckMain {
 
         let __iceDecoder = JSONDecoder()
         __iceDecoder.keyDecodingStrategy = .convertFromSnakeCase
-        let __icePublicStatuses = try! __iceDecoder.decode(
-            [Status].self, from: __fixtureData("api_v1_timelines_public"))
-        let __iceTrendingStatuses = try! __iceDecoder.decode(
-            [Status].self, from: __fixtureData("api_v1_trends_statuses"))
+        \(fixtureDecodes)
         let __iceClient = MastodonClient(server: "mstdn.social")
         let __iceRouter = RouterPath()
 
@@ -507,12 +564,7 @@ struct IceCubesCheckMain {
             func statusDidDisappear(status: Status) {}
         }
 
-        let __iceFetcher = __IceFixtureFetcher(statuses: __icePublicStatuses)
-        let __iceFirstRowModel = StatusRowViewModel(
-            status: __icePublicStatuses[0],
-            client: __iceClient,
-            routerPath: __iceRouter,
-            filterContext: .pub)
+        \(timelineGlobals)
 
         func __iceSoupPipeline(_ htmlValue: String) -> String {
             var stage = "parse"
@@ -605,28 +657,7 @@ struct IceCubesCheckMain {
             var body: some Scene {
                 WindowGroup {
                     VStack {
-                        switch __iceFetcher.statusesState {
-                        case .loading:
-                            Text("__ice-direct-state-loading")
-                        case .display:
-                            Text("__ice-direct-state-display")
-                        case .displayWithGaps:
-                            Text("__ice-direct-state-gaps")
-                        case .error:
-                            Text("__ice-direct-state-error")
-                        }
-                        __IceFetcherStateProbe(fetcher: __iceFetcher)
-                        __IceFetcherRowsProbe(fetcher: __iceFetcher)
-                        __IceRowModelProbe(viewModel: __iceFirstRowModel)
-                        StatusRowHeaderView(viewModel: __iceFirstRowModel)
-                        StatusRowContentView(viewModel: __iceFirstRowModel)
-                        SwiftUI.List {
-                            StatusesListView(
-                                fetcher: __iceFetcher,
-                                client: __iceClient,
-                                routerPath: __iceRouter,
-                                filterContext: .pub)
-                        }
+                        \(timelineViews)
                         \(extraViews)
                     }
                     .environment(Theme.shared)
@@ -654,7 +685,9 @@ struct IceCubesCheckMain {
             at: paths.app, files: paths.packageFiles,
             sourceModules: paths.sourceModules)
             + ProjectMaterial.mergedSource(
-                source: renderProbeSource(includeDetailAndAccount: false),
+                source: renderProbeSource(
+                    includeTimeline: true,
+                    includeDetailAndAccount: false),
                 moduleName: "IceCubesCheckProbe")
 
         try FileManager.default.createDirectory(

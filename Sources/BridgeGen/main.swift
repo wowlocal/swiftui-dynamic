@@ -1404,13 +1404,20 @@ struct UnsafeMemorySurface {
     let rawPointerTypes: [String]
     let bufferTypes: [String]
     let bufferRebindingMembers: [(name: String, metatypeLabel: String)]
+    let mutableBufferCallbackMembers: [(
+        name: String, argumentLabel: String
+    )]
+    let pointerBulkCopyMembers: [(
+        name: String, sourceLabel: String, countLabel: String
+    )]
 }
 
 func unsafeMemorySurface(in file: SourceFileSyntax?) -> UnsafeMemorySurface {
     guard let file else {
         return UnsafeMemorySurface(
             pointerTypes: [], rawPointerTypes: [], bufferTypes: [],
-            bufferRebindingMembers: [])
+            bufferRebindingMembers: [], mutableBufferCallbackMembers: [],
+            pointerBulkCopyMembers: [])
     }
 
     func nominalName(_ raw: String) -> String {
@@ -1431,6 +1438,13 @@ func unsafeMemorySurface(in file: SourceFileSyntax?) -> UnsafeMemorySurface {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .hasSuffix("_Pointer")
         }) == true
+    }
+
+    func unwrappedType(_ type: TypeSyntax) -> TypeSyntax {
+        if let attributed = type.as(AttributedTypeSyntax.self) {
+            return unwrappedType(attributed.baseType)
+        }
+        return type
     }
 
     var nominals: [String: StructDeclSyntax] = [:]
@@ -1455,6 +1469,45 @@ func unsafeMemorySurface(in file: SourceFileSyntax?) -> UnsafeMemorySurface {
             extensionDecl.extendedType.trimmedDescription))
     }
 
+    // A typed pointer is writable when one of its generic-valued properties
+    // exposes a language-level write accessor. This derives mutability from
+    // declaration shape instead of the pointer type's SDK spelling.
+    var writablePointerTypes = Set<String>()
+    func collectWritablePointerType(
+        _ name: String, from members: MemberBlockItemListSyntax
+    ) {
+        guard pointerTypes.contains(name), let nominal = nominals[name] else {
+            return
+        }
+        let genericNames = Set(
+            nominal.genericParameterClause?.parameters.map(\.name.text) ?? [])
+        guard !genericNames.isEmpty else { return }
+        for member in members {
+            guard let variable = member.decl.as(VariableDeclSyntax.self),
+                  variable.bindingSpecifier.text == "var" else { continue }
+            for binding in variable.bindings {
+                guard let type = binding.typeAnnotation?.type,
+                      genericNames.contains(normalize(
+                        unwrappedType(type).trimmedDescription)),
+                      let accessorBlock = binding.accessorBlock,
+                      case .accessors(let accessors) = accessorBlock.accessors,
+                      accessors.contains(where: {
+                        ["set", "_modify", "modify", "unsafeMutableAddress"]
+                            .contains($0.accessorSpecifier.text)
+                      }) else { continue }
+                writablePointerTypes.insert(name)
+            }
+        }
+    }
+    for (name, nominal) in nominals {
+        collectWritablePointerType(name, from: nominal.memberBlock.members)
+    }
+    for extensionDecl in extensions {
+        collectWritablePointerType(
+            nominalName(extensionDecl.extendedType.trimmedDescription),
+            from: extensionDecl.memberBlock.members)
+    }
+
     let rawPointerTypes = Set(pointerTypes.filter { name in
         guard let nominal = nominals[name],
               nominal.genericParameterClause == nil else { return false }
@@ -1466,22 +1519,29 @@ func unsafeMemorySurface(in file: SourceFileSyntax?) -> UnsafeMemorySurface {
         }
     })
 
-    let bufferTypes = Set(nominals.compactMap { name, nominal -> String? in
-        let hasBufferInitializer = nominal.memberBlock.members.contains {
-            member in
+    var bufferPointerTypes: [String: Set<String>] = [:]
+    for (name, nominal) in nominals {
+        for member in nominal.memberBlock.members {
             guard let initializer = member.decl.as(InitializerDeclSyntax.self)
-            else { return false }
+            else { continue }
             let parameters = initializer.signature.parameterClause.parameters
-            guard parameters.count == 2 else { return false }
+            guard parameters.count == 2 else { continue }
             let first = parameters[parameters.startIndex]
             let second = parameters[parameters.index(after: parameters.startIndex)]
             let pointerType = nominalName(first.type.trimmedDescription)
-            return first.firstName.text == "start"
+            guard first.firstName.text == "start"
                 && pointerTypes.contains(pointerType)
                 && second.firstName.text == "count"
-                && nominalName(second.type.trimmedDescription) == "Int"
+                && nominalName(second.type.trimmedDescription) == "Int" else {
+                continue
+            }
+            bufferPointerTypes[name, default: []].insert(pointerType)
         }
-        return hasBufferInitializer ? name : nil
+    }
+    let bufferTypes = Set(bufferPointerTypes.keys)
+    let mutableBufferTypes = Set(bufferPointerTypes.compactMap {
+        name, pointerTypes in
+        pointerTypes.isDisjoint(with: writablePointerTypes) ? nil : name
     })
 
     var bufferRebindingMembers = Set<String>()
@@ -1526,11 +1586,127 @@ func unsafeMemorySurface(in file: SourceFileSyntax?) -> UnsafeMemorySurface {
         return (name: String(pieces[0]), metatypeLabel: String(pieces[1]))
     }
 
+    // A mutable-buffer callback is a public mutating method whose sole
+    // callback consumes a structurally writable buffer and returns the same
+    // generic result as that callback. Optional/fallback storage probes do not
+    // satisfy the equal-result shape and therefore remain outside this hook.
+    var mutableBufferCallbackLabels: [String: String] = [:]
+    func collectMutableBufferCallbacks(
+        from members: MemberBlockItemListSyntax
+    ) {
+        for member in members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  hasModifier(function.modifiers, "public"),
+                  hasModifier(function.modifiers, "mutating"),
+                  !hasModifier(function.modifiers, "static"),
+                  !hasModifier(function.modifiers, "class") else { continue }
+            let parameters = function.signature.parameterClause.parameters
+            guard parameters.count == 1, let parameter = parameters.first,
+                  let callback = unwrappedType(parameter.type)
+                    .as(FunctionTypeSyntax.self),
+                  callback.parameters.count == 1,
+                  let callbackParameter = callback.parameters.first,
+                  mutableBufferTypes.contains(nominalName(
+                    unwrappedType(callbackParameter.type)
+                        .trimmedDescription)) else { continue }
+            let result = normalize(function.signature.returnClause?.type
+                .trimmedDescription ?? "")
+            let callbackResult = normalize(
+                callback.returnClause.type.trimmedDescription)
+            let genericNames = Set(
+                function.genericParameterClause?.parameters.map(
+                    \.name.text) ?? [])
+            guard result == callbackResult, genericNames.contains(result) else {
+                continue
+            }
+            let label = parameter.firstName.text == "_"
+                ? "" : parameter.firstName.text
+            if let existing = mutableBufferCallbackLabels[function.name.text] {
+                precondition(existing == label,
+                    "conflicting mutable-buffer callback labels")
+            } else {
+                mutableBufferCallbackLabels[function.name.text] = label
+            }
+        }
+    }
+    for nominal in nominals.values {
+        collectMutableBufferCallbacks(from: nominal.memberBlock.members)
+    }
+    for extensionDecl in extensions {
+        collectMutableBufferCallbacks(
+            from: extensionDecl.memberBlock.members)
+    }
+    let sortedMutableBufferCallbackMembers = mutableBufferCallbackLabels
+        .sorted(by: { $0.key < $1.key })
+        .map { (name: $0.key, argumentLabel: $0.value) }
+
+    // Writable typed pointers advertise bulk-copy operations structurally: a
+    // public void method accepting another declared pointer plus an Int. The
+    // generated labels preserve the active SDK declaration at invocation.
+    var pointerBulkCopyLabels: [String: String] = [:]
+    func collectPointerBulkCopies(
+        receiverName: String, from members: MemberBlockItemListSyntax
+    ) {
+        guard writablePointerTypes.contains(receiverName) else { return }
+        for member in members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  hasModifier(function.modifiers, "public"),
+                  !hasModifier(function.modifiers, "static"),
+                  !hasModifier(function.modifiers, "class") else { continue }
+            let parameters = function.signature.parameterClause.parameters
+            guard parameters.count == 2 else { continue }
+            let source = parameters[parameters.startIndex]
+            let count = parameters[parameters.index(after: parameters.startIndex)]
+            let sourceType = nominalName(
+                unwrappedType(source.type).trimmedDescription)
+            let result = normalize(function.signature.returnClause?.type
+                .trimmedDescription ?? "")
+            guard pointerTypes.contains(sourceType),
+                  nominalName(count.type.trimmedDescription) == "Int",
+                  result.isEmpty || result == "Void" || result == "()" else {
+                continue
+            }
+            let sourceLabel = source.firstName.text == "_"
+                ? "" : source.firstName.text
+            let countLabel = count.firstName.text == "_"
+                ? "" : count.firstName.text
+            let labels = sourceLabel + "\u{0}" + countLabel
+            if let existing = pointerBulkCopyLabels[function.name.text] {
+                precondition(existing == labels,
+                    "conflicting pointer bulk-copy labels")
+            } else {
+                pointerBulkCopyLabels[function.name.text] = labels
+            }
+        }
+    }
+    for (name, nominal) in nominals {
+        collectPointerBulkCopies(
+            receiverName: name, from: nominal.memberBlock.members)
+    }
+    for extensionDecl in extensions {
+        collectPointerBulkCopies(
+            receiverName: nominalName(
+                extensionDecl.extendedType.trimmedDescription),
+            from: extensionDecl.memberBlock.members)
+    }
+    let sortedPointerBulkCopyMembers = pointerBulkCopyLabels
+        .sorted(by: { $0.key < $1.key })
+        .map { name, labels -> (
+            name: String, sourceLabel: String, countLabel: String
+        ) in
+            let pieces = labels.split(
+                separator: "\u{0}", omittingEmptySubsequences: false)
+            return (name: name, sourceLabel: String(pieces[0]),
+                    countLabel: String(pieces[1]))
+        }
+
     return UnsafeMemorySurface(
         pointerTypes: pointerTypes.sorted(),
         rawPointerTypes: rawPointerTypes.sorted(),
         bufferTypes: bufferTypes.sorted(),
-        bufferRebindingMembers: sortedBufferRebindingMembers)
+        bufferRebindingMembers: sortedBufferRebindingMembers,
+        mutableBufferCallbackMembers: sortedMutableBufferCallbackMembers,
+        pointerBulkCopyMembers: sortedPointerBulkCopyMembers)
 }
 
 let generatedUnsafeMemorySurface = unsafeMemorySurface(in: stdlibFile)
@@ -2090,6 +2266,23 @@ let bufferRebindingEntries = generatedUnsafeMemorySurface
 let bufferRebindingLiteral = bufferRebindingEntries.isEmpty
     ? "[:]"
     : "[\n\(bufferRebindingEntries),\n    ]"
+let mutableBufferCallbackEntries = generatedUnsafeMemorySurface
+    .mutableBufferCallbackMembers.map {
+        "        \(String(reflecting: $0.name)): "
+            + "\(String(reflecting: $0.argumentLabel))"
+    }.joined(separator: ",\n")
+let mutableBufferCallbackLiteral = mutableBufferCallbackEntries.isEmpty
+    ? "[:]"
+    : "[\n\(mutableBufferCallbackEntries),\n    ]"
+let pointerBulkCopyEntries = generatedUnsafeMemorySurface
+    .pointerBulkCopyMembers.map {
+        "        \(String(reflecting: $0.name)): "
+            + "(source: \(String(reflecting: $0.sourceLabel)), "
+            + "count: \(String(reflecting: $0.countLabel)))"
+    }.joined(separator: ",\n")
+let pointerBulkCopyLiteral = pointerBulkCopyEntries.isEmpty
+    ? "[:]"
+    : "[\n\(pointerBulkCopyEntries),\n    ]"
 let unsafeMemoryOutput = """
 // GENERATED by BridgeGen from the active Swift standard-library swiftinterface.
 // Do not edit. Regenerate: swift run BridgeGen --emit
@@ -2101,6 +2294,8 @@ enum GeneratedUnsafeMemorySurface {
     static let bufferTypeNames: Set<String> = Set(\(String(reflecting:
         generatedUnsafeMemorySurface.bufferTypes)))
     static let bufferRebindingMetatypeLabels: [String: String] = \(bufferRebindingLiteral)
+    static let mutableBufferCallbackArgumentLabels: [String: String] = \(mutableBufferCallbackLiteral)
+    static let pointerBulkCopyArgumentLabels: [String: (source: String, count: String)] = \(pointerBulkCopyLiteral)
 
     static func isPointerType(_ name: String) -> Bool {
         pointerTypeNames.contains(canonicalTypeName(name))
@@ -2116,6 +2311,18 @@ enum GeneratedUnsafeMemorySurface {
 
     static func bufferRebindingMetatypeLabel(for name: String) -> String? {
         bufferRebindingMetatypeLabels[name]
+    }
+
+    static func mutableBufferCallbackArgumentLabel(
+        for name: String
+    ) -> String? {
+        mutableBufferCallbackArgumentLabels[name]
+    }
+
+    static func pointerBulkCopyLabels(
+        for name: String
+    ) -> (source: String, count: String)? {
+        pointerBulkCopyArgumentLabels[name]
     }
 
     private static func canonicalTypeName(_ rawName: String) -> String {
@@ -2134,7 +2341,7 @@ let unsafeMemoryPath =
     "Sources/SwiftInterpreter/Generated/GeneratedUnsafeMemorySurface.swift"
 try unsafeMemoryOutput.write(
     toFile: unsafeMemoryPath, atomically: true, encoding: .utf8)
-print("wrote \(unsafeMemoryPath) (\(generatedUnsafeMemorySurface.pointerTypes.count) pointer, \(generatedUnsafeMemorySurface.bufferTypes.count) buffer types)")
+print("wrote \(unsafeMemoryPath) (\(generatedUnsafeMemorySurface.pointerTypes.count) pointer, \(generatedUnsafeMemorySurface.bufferTypes.count) buffer types, \(generatedUnsafeMemorySurface.mutableBufferCallbackMembers.count) mutable-buffer callbacks, \(generatedUnsafeMemorySurface.pointerBulkCopyMembers.count) pointer bulk copies)")
 
 var unicodeDecodingOutput = """
 // GENERATED by BridgeGen from the active Swift standard-library swiftinterface.
