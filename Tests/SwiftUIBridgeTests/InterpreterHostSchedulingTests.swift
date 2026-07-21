@@ -265,6 +265,73 @@ private final class NativeQueueRecorder: @unchecked Sendable {
         #expect(recorder.box(for: "fired")?.value.boolValue == true)
     }
 
+    /// A generated scheduler may be an inert platform value (an opposite-
+    /// platform fallback or a source value materialized without native
+    /// backing). Its interface-derived lifecycle adapter still owns source
+    /// operations; only the native SDK invocation depends on receiver payload.
+    @Test func inertGeneratedSchedulerStartsInterpretedLifecycle() throws {
+        let nativeRecorder = NativeQueueRecorder()
+        let nativeQueue = OperationQueue()
+        nativeQueue.addOperation(BlockOperation {
+            nativeRecorder.fired = true
+        })
+        nativeQueue.waitUntilAllOperationsAreFinished()
+        #expect(nativeRecorder.fired)
+
+        let registry = TraceRegistry()
+        let interpreter = Interpreter(registry: registry)
+        try interpreter.run(source: """
+        import Foundation
+
+        final class Recorder {
+            var fired = false
+        }
+
+        final class DeferredOperation: Foundation.Operation {
+            let action: () -> Void
+
+            init(_ action: @escaping () -> Void) {
+                self.action = action
+            }
+
+            override func start() {
+                action()
+            }
+        }
+
+        let recorder = Recorder()
+        let operation = DeferredOperation {
+            recorder.fired = true
+        }
+        """)
+
+        let scheduler = GeneratedPlatformValue(
+            framework: "Foundation",
+            typeName: "OperationQueue",
+            isValueType: false,
+            payload: nil)
+        let member = try #require(
+            registry.hostMember("addOperation", on: scheduler))
+        guard case .hostFunction(let addOperation) = member else {
+            Issue.record("generated addOperation gateway missing")
+            return
+        }
+        let operation = try #require(interpreter.globals.lookup("operation"))
+        _ = try addOperation.invoke(
+            CallArguments(arguments: [
+                .init(label: nil, value: operation)
+            ]),
+            interpreter)
+
+        MainQueueDrain.drain()
+        guard case .instance(let recorder)? = interpreter.globals.lookup(
+            "recorder") else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(recorder.box(for: "fired")?.value.boolValue == true)
+    }
+
     @Test func viewRegistryWallClockDeliverySurvivesHeadlessReset() async throws {
         let source = """
         final class Recorder {

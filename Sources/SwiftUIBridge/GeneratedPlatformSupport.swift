@@ -262,22 +262,28 @@ struct GeneratedPlatformConstructorEntry {
 struct GeneratedPlatformMethodEntry {
     typealias Invoke = @MainActor
         (GeneratedPlatformValue, [RuntimeValue], EvalContext) throws -> RuntimeValue
+    typealias SemanticAdapter = @MainActor
+        (GeneratedPlatformValue, [RuntimeValue], EvalContext) throws -> RuntimeValue?
 
     let signature: HostSignature
     let framework: String
     let resultType: String
+    let semanticAdapter: SemanticAdapter?
     let invoke: Invoke
 
     func bound(to base: GeneratedPlatformValue) throws -> HostFunction {
         try HostFunction(signature: signature) { arguments, context in
+            let values = arguments.arguments.map(\.value)
+            if let result = try semanticAdapter?(base, values, context) {
+                return result
+            }
             if !GeneratedPlatformBridge.frameworkIsNative(framework)
                 || base.payload == nil
             {
                 return GeneratedPlatformBridge.fallbackResult(
                     framework: framework, type: resultType)
             }
-            return try invoke(
-                base, arguments.arguments.map(\.value), context)
+            return try invoke(base, values, context)
         }
     }
 }
@@ -1130,6 +1136,7 @@ enum GeneratedPlatformBridge {
         framework: String,
         declaration: String,
         resultType: String,
+        semanticAdapter: GeneratedPlatformMethodEntry.SemanticAdapter? = nil,
         invoke: @escaping GeneratedPlatformMethodEntry.Invoke
     ) {
         do {
@@ -1141,7 +1148,9 @@ enum GeneratedPlatformBridge {
                 framework: framework, type: type, member: signature.name)
             table[key, default: []].append(GeneratedPlatformMethodEntry(
                 signature: signature, framework: framework,
-                resultType: resultType, invoke: invoke))
+                resultType: resultType,
+                semanticAdapter: semanticAdapter,
+                invoke: invoke))
         } catch {
             preconditionFailure(
                 "BridgeGen emitted an invalid platform method '\(declaration)': \(error)")

@@ -3852,14 +3852,17 @@ extension GeneratedPlatformBridge {
         registerMethod(
             &t, framework: "Foundation",
             declaration: "func OperationQueue.addOperation(_ p0: Operation) -> Void",
-            resultType: "Void") { base, v, ctx in
+            resultType: "Void",
+            semanticAdapter: { _, v, ctx in
+                if generatedPlatformScheduleInterpretedLifecycle(
+                    v[0],
+                    entryPoint: "start", context: ctx
+                ) {
+                    return .void
+                }
+                return nil
+            }) { base, v, ctx in
 #if canImport(Foundation)
-            if generatedPlatformScheduleInterpretedLifecycle(
-                v[0],
-                entryPoint: "start", context: ctx
-            ) {
-                return .void
-            }
             guard let receiver = base.payload as? OperationQueue else {
                 throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
             }

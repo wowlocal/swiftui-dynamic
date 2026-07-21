@@ -1546,23 +1546,27 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
     invocation = wrapPlatformPointerArguments(
         invocation, params: value.params, framework: value.framework)
     invocation = indent(invocation, by: 12)
-    let interpretedLifecycle = value.interpretedLifecycleAdapter.map { adapter in
+    let semanticAdapter = value.interpretedLifecycleAdapter.map { adapter in
         """
-                    if generatedPlatformScheduleInterpretedLifecycle(
-                        v[\(adapter.parameterIndex)],
-                        entryPoint: \(swiftLiteral(adapter.entryPoint)), context: ctx
-                    ) {
-                        return .void
+        ,
+                    semanticAdapter: { _, v, ctx in
+                        if generatedPlatformScheduleInterpretedLifecycle(
+                            v[\(adapter.parameterIndex)],
+                            entryPoint: \(swiftLiteral(adapter.entryPoint)), context: ctx
+                        ) {
+                            return .void
+                        }
+                        return nil
                     }
-        """ + "\n"
+        """
     } ?? ""
     return """
             registerMethod(
                 &t, framework: \(swiftLiteral(value.framework)),
                 declaration: \(swiftLiteral(value.hostDeclaration)),
-                resultType: \(swiftLiteral(value.resultType))) { base, v, ctx in
+                resultType: \(swiftLiteral(value.resultType))\(semanticAdapter)) { base, v, ctx in
     #if \(platformNativeImportCondition(for: value.framework))
-    \(interpretedLifecycle)            guard let receiver = base.payload as? \(value.nativeReceiverType) else {
+                guard let receiver = base.payload as? \(value.nativeReceiverType) else {
                     throw RuntimeError(message: "generated \(value.framework) receiver mismatch", fatal: true)
                 }
     \(invocation)
