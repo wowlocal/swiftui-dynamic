@@ -52,6 +52,7 @@ private struct FixtureStatus: Decodable {
 
 private struct FixtureOracle {
     let publicStatuses: [FixtureStatus]
+    let boostStatus: FixtureStatus
     let trendingStatuses: [FixtureStatus]
 
     init(directory: String) throws {
@@ -61,6 +62,11 @@ private struct FixtureOracle {
             [FixtureStatus].self,
             from: Data(contentsOf: URL(
                 fileURLWithPath: directory + "/api_v1_timelines_public.json")))
+        boostStatus = try decoder.decode(
+            FixtureStatus.self,
+            from: Data(contentsOf: URL(
+                fileURLWithPath: directory
+                    + "/api_v1_statuses_116954929935729788.json")))
         trendingStatuses = try decoder.decode(
             [FixtureStatus].self,
             from: Data(contentsOf: URL(
@@ -449,7 +455,8 @@ struct IceCubesCheckMain {
         }
 
         var boostProblems: [String] = []
-        if let boost = oracle.publicStatuses.first(where: { $0.reblog != nil }) {
+        let boost = oracle.boostStatus
+        if boost.reblog != nil {
             if !contains(boost.account.visibleName) {
                 boostProblems.append("missing booster attribution '\(boost.account.visibleName)'")
             }
@@ -457,7 +464,7 @@ struct IceCubesCheckMain {
                 boostProblems.append("missing boosted author '\(boost.visibleAccount.visibleName)'")
             }
         } else {
-            boostProblems.append("recorded public fixture contains no boost; capture a real boosted status")
+            boostProblems.append("recorded boost fixture contains no boost")
         }
 
         var mediaProblems: [String] = []
@@ -493,12 +500,16 @@ struct IceCubesCheckMain {
         let fixtureDecodes = (includeTimeline ? """
         let __icePublicStatuses = try! __iceDecoder.decode(
             [Status].self, from: __fixtureData("api_v1_timelines_public"))
+        let __iceBoostStatus = try! __iceDecoder.decode(
+            Status.self,
+            from: __fixtureData("api_v1_statuses_116954929935729788"))
         """ : "") + (includeDetailAndAccount ? """
         let __iceTrendingStatuses = try! __iceDecoder.decode(
             [Status].self, from: __fixtureData("api_v1_trends_statuses"))
         """ : "")
         let timelineGlobals = includeTimeline ? """
-        let __iceFetcher = __IceFixtureFetcher(statuses: __icePublicStatuses)
+        let __iceFetcher = __IceFixtureFetcher(
+            statuses: __icePublicStatuses + [__iceBoostStatus])
         let __iceFirstRowModel = StatusRowViewModel(
             status: __icePublicStatuses[0],
             client: __iceClient,
