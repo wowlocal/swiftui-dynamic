@@ -180,8 +180,10 @@ final class UIKitStub: InertCallable {
     }
 }
 
-/// `DispatchQueue.main` — async dispatches through the real main queue.
-struct MainQueueStub {}
+/// A Dispatch queue's callback surface. The interpreter itself remains
+/// main-actor confined, so both `.main` and constructed serial queues deliver
+/// through the registry's scheduling policy while preserving async ordering.
+struct DispatchQueueStub {}
 
 enum MainQueueDeliveryMode: Equatable {
     case deterministicDrain
@@ -466,7 +468,7 @@ func bridgeHostMember(
         case ("UIScreen", "main"), ("NSScreen", "main"):
             return .native(ScreenStub())
         case ("DispatchQueue", "main"):
-            return .native(MainQueueStub())
+            return .native(DispatchQueueStub())
         case ("CGSize", "zero"):
             return .native(CGSize.zero)
         case ("CGPoint", "zero"):
@@ -634,7 +636,7 @@ func bridgeHostMember(
         default: return nil
         }
     }
-    if value is MainQueueStub {
+    if value is DispatchQueueStub {
         if name == "asyncAfter" {
             // ZERO-delay deadlines deliver on the next drain. Positive
             // delays stay inert in trace mode (deterministic probes must not
@@ -1153,6 +1155,7 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is CurrentValueSubjectBox: return "CurrentValueSubject"
     case is BundleBox: return "Bundle"
     case is ScreenStub: return "UIScreen"
+    case is DispatchQueueStub: return "DispatchQueue"
     case is Color: return "Color"
     case is Alignment: return "Alignment"
     case is HorizontalAlignment: return "HorizontalAlignment"

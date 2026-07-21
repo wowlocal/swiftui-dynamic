@@ -329,6 +329,17 @@ func bridgeHostObjectConstructor(
 ) -> HostFunction? {
     if let network = networkHostObjectConstructor(named: name) { return network }
     switch name {
+    case "DispatchQueue":
+        // Dispatch is a Clang overlay rather than part of Foundation's
+        // swiftinterface sweep. Keep the reusable callback semantics in the
+        // shared queue carrier used by both `.main` and labeled queues.
+        return HostFunction(name: name) { args, _ in
+            guard args.labeled("label")?.stringValue != nil else {
+                throw RuntimeError(message:
+                    "DispatchQueue(label:) needs a String label")
+            }
+            return .native(DispatchQueueStub())
+        }
     case "UIGraphicsImageRenderer":
         return HostFunction(name: name) { args, _ in
             var size = CGSize(width: 1, height: 1)

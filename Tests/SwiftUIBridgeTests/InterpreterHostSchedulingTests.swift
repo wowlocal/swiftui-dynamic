@@ -1,6 +1,11 @@
+import Dispatch
 import SwiftInterpreter
 import Testing
 @testable import SwiftUIBridge
+
+private final class NativeQueueRecorder: @unchecked Sendable {
+    nonisolated(unsafe) var fired = false
+}
 
 @Suite(.serialized) struct InterpreterHostSchedulingTests {
     @Test func deliveryPolicyBelongsToEachRegistry() {
@@ -13,6 +18,36 @@ import Testing
         #expect(MainQueueDrain.deliveryMode(for: interactive) == .wallClock)
         #expect(MainQueueDrain.deliveryMode(for: testHarness) == .deterministicDrain)
         #expect(MainQueueDrain.deliveryMode(for: headless) == .deterministicDrain)
+    }
+
+    /// Nuke's ImagePipeline owns a labeled serial DispatchQueue and starts
+    /// every request by submitting a closure to that queue. The callback
+    /// capability belongs to every constructed queue, not only `.main`.
+    @Test func constructedDispatchQueuesDeliverAsyncCallbacks() throws {
+        let nativeRecorder = NativeQueueRecorder()
+        let nativeQueue = DispatchQueue(label: "native-parity-queue")
+        nativeQueue.async { nativeRecorder.fired = true }
+        nativeQueue.sync {} // serial FIFO fence
+        #expect(nativeRecorder.fired)
+
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: """
+        final class Recorder {
+            var fired = false
+        }
+        let recorder = Recorder()
+        let queue = DispatchQueue(label: "interpreted-queue")
+        queue.async {
+            recorder.fired = true
+        }
+        """)
+        MainQueueDrain.drain()
+        guard case .instance(let recorder)? = interpreter.globals.lookup(
+            "recorder") else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(recorder.box(for: "fired")?.value.boolValue == true)
     }
 
     @Test func viewRegistryWallClockDeliverySurvivesHeadlessReset() async throws {
