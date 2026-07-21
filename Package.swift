@@ -145,7 +145,7 @@ let package = Package(
                 "SwiftUIBridge",
                 .product(name: "SwiftSoup", package: "SwiftSoup"),
             ],
-            exclude: ["Corpus"],
+            exclude: ["Corpus", "Fixtures"],
             swiftSettings: mainActorByDefault
         ),
     ]

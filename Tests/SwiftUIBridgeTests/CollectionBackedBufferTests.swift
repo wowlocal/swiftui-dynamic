@@ -746,10 +746,11 @@ import Testing
             "first": "<p>" + firstExpected + "</p>",
             "second": secondHTML,
         ]), encoding: .utf8)!
-        let root = FileManager.default.currentDirectoryPath
+        let htmlStringURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/IceCubesHTMLString.swift")
         let htmlStringSource = try String(
-            contentsOfFile: root
-                + "/External/oss/IceCubesApp/Packages/Models/Sources/Models/Alias/HTMLString.swift",
+            contentsOf: htmlStringURL,
             encoding: .utf8)
         let value = try swiftSoupEvaluation(
             "", additionalSource: htmlStringSource,
