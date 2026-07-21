@@ -44,6 +44,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "AccessibilityDirectTouchOptions":
             if case .host(let any) = value, let typed = any as? AccessibilityDirectTouchOptions { return typed }
+            if case .array(let elements) = value {
+                var result = AccessibilityDirectTouchOptions()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! AccessibilityDirectTouchOptions)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a AccessibilityDirectTouchOptions implicit member")
             }
@@ -88,6 +95,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "AccessibilityTraits":
             if case .host(let any) = value, let typed = any as? AccessibilityTraits { return typed }
+            if case .array(let elements) = value {
+                var result = AccessibilityTraits()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! AccessibilityTraits)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a AccessibilityTraits implicit member")
             }
@@ -229,6 +243,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "ContentShapeKinds":
             if case .host(let any) = value, let typed = any as? ContentShapeKinds { return typed }
+            if case .array(let elements) = value {
+                var result = ContentShapeKinds()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! ContentShapeKinds)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a ContentShapeKinds implicit member")
             }
@@ -313,6 +334,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "EventModifiers":
             if case .host(let any) = value, let typed = any as? EventModifiers { return typed }
+            if case .array(let elements) = value {
+                var result = EventModifiers()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! EventModifiers)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a EventModifiers implicit member")
             }
@@ -329,6 +357,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "FocusInteractions":
             if case .host(let any) = value, let typed = any as? FocusInteractions { return typed }
+            if case .array(let elements) = value {
+                var result = FocusInteractions()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! FocusInteractions)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a FocusInteractions implicit member")
             }
@@ -446,6 +481,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "PinnedScrollableViews":
             if case .host(let any) = value, let typed = any as? PinnedScrollableViews { return typed }
+            if case .array(let elements) = value {
+                var result = PinnedScrollableViews()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! PinnedScrollableViews)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a PinnedScrollableViews implicit member")
             }
@@ -506,6 +548,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "RedactionReasons":
             if case .host(let any) = value, let typed = any as? RedactionReasons { return typed }
+            if case .array(let elements) = value {
+                var result = RedactionReasons()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! RedactionReasons)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a RedactionReasons implicit member")
             }
@@ -518,6 +567,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "SafeAreaRegions":
             if case .host(let any) = value, let typed = any as? SafeAreaRegions { return typed }
+            if case .array(let elements) = value {
+                var result = SafeAreaRegions()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! SafeAreaRegions)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a SafeAreaRegions implicit member")
             }
@@ -613,6 +669,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "SearchSuggestionsPlacement.Set":
             if case .host(let any) = value, let typed = any as? SearchSuggestionsPlacement.Set { return typed }
+            if case .array(let elements) = value {
+                var result = SearchSuggestionsPlacement.Set()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! SearchSuggestionsPlacement.Set)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a SearchSuggestionsPlacement.Set implicit member")
             }
@@ -675,6 +738,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "SubmitTriggers":
             if case .host(let any) = value, let typed = any as? SubmitTriggers { return typed }
+            if case .array(let elements) = value {
+                var result = SubmitTriggers()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! SubmitTriggers)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a SubmitTriggers implicit member")
             }
@@ -827,6 +897,13 @@ enum GeneratedSDKEnumCoercions {
             }
         case "VerticalEdge.Set":
             if case .host(let any) = value, let typed = any as? VerticalEdge.Set { return typed }
+            if case .array(let elements) = value {
+                var result = VerticalEdge.Set()
+                for element in elements {
+                    result.formUnion(try coerce(typeName, element) as! VerticalEdge.Set)
+                }
+                return result
+            }
             guard case .implicitMember(let member) = value else {
                 throw RuntimeError(message: "expected a VerticalEdge.Set implicit member")
             }

@@ -116,6 +116,11 @@ var platformTypeFrameworks: [String: Set<String>] = [:]
 /// one interface-derived table drives both without nominal allowlists.
 var sdkEnumCases: [String: [String]] = [:]
 var sdkEnumFrameworkRequirements: [String: Set<String>] = [:]
+/// Contextual SDK value types whose interface conformance makes Swift array
+/// literals a composition of same-typed members (`[.isButton, .isImage]`).
+/// This remains separate from member discovery so composition is enabled by
+/// the nominal's structural contract, never by its SDK identity.
+var sdkSetAlgebraTypes: Set<String> = []
 
 func directMapping(for normalized: String) -> TypeMapping? {
     switch normalized {
@@ -528,6 +533,17 @@ func recordSDKContextualValues(
         .formUnion(frameworkRequirements)
 }
 
+func recordSDKSetAlgebraConformance(
+    type: String, inheritanceClause: InheritanceClauseSyntax?, guarded: Bool
+) {
+    guard !guarded,
+          inheritanceClause?.inheritedTypes.contains(where: {
+              let inherited = normalize($0.type.trimmedDescription)
+              return inherited == "SetAlgebra" || inherited == "OptionSet"
+          }) == true else { return }
+    sdkSetAlgebraTypes.insert(type)
+}
+
 /// A declaration such as `public static let all: VerticalEdge.Set` is the
 /// value-struct/OptionSet equivalent of a payload-free enum case. The defining
 /// property is structural: public static storage whose declared type is the
@@ -583,6 +599,9 @@ func collectSDKEnums(
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(enumDecl.attributes))
         let type = path.joined(separator: ".")
+        recordSDKSetAlgebraConformance(
+            type: type, inheritanceClause: enumDecl.inheritanceClause,
+            guarded: guarded)
         collectSameTypeSDKStatics(
             in: enumDecl.memberBlock.members, type: type, guarded: guarded,
             frameworkRequirements: requirements)
@@ -615,6 +634,9 @@ func collectSDKEnums(
             || needsAvailabilityGuard(structDecl.attributes)
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(structDecl.attributes))
+        recordSDKSetAlgebraConformance(
+            type: childPath.joined(separator: "."),
+            inheritanceClause: structDecl.inheritanceClause, guarded: guarded)
         collectSameTypeSDKStatics(
             in: structDecl.memberBlock.members,
             type: childPath.joined(separator: "."), guarded: guarded,
@@ -635,6 +657,9 @@ func collectSDKEnums(
             || needsAvailabilityGuard(classDecl.attributes)
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(classDecl.attributes))
+        recordSDKSetAlgebraConformance(
+            type: childPath.joined(separator: "."),
+            inheritanceClause: classDecl.inheritanceClause, guarded: guarded)
         collectSameTypeSDKStatics(
             in: classDecl.memberBlock.members,
             type: childPath.joined(separator: "."), guarded: guarded,
@@ -655,6 +680,9 @@ func collectSDKEnums(
             || needsAvailabilityGuard(actorDecl.attributes)
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(actorDecl.attributes))
+        recordSDKSetAlgebraConformance(
+            type: childPath.joined(separator: "."),
+            inheritanceClause: actorDecl.inheritanceClause, guarded: guarded)
         collectSameTypeSDKStatics(
             in: actorDecl.memberBlock.members,
             type: childPath.joined(separator: "."), guarded: guarded,
@@ -694,6 +722,10 @@ func collectSDKEnums(
             || needsAvailabilityGuard(extensionDecl.attributes)
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(extensionDecl.attributes))
+        recordSDKSetAlgebraConformance(
+            type: extendedPath.joined(separator: "."),
+            inheritanceClause: extensionDecl.inheritanceClause,
+            guarded: guarded)
         collectSameTypeSDKStatics(
             in: extensionDecl.memberBlock.members,
             type: extendedPath.joined(separator: "."), guarded: guarded,
@@ -2235,6 +2267,15 @@ for type in emittedSDKEnumTypes.sorted() {
     guard let cases = sdkEnumCases[type], !cases.isEmpty else { continue }
     enumsOutput += "        case \"\(type)\":\n"
     enumsOutput += "            if case .host(let any) = value, let typed = any as? \(type) { return typed }\n"
+    if sdkSetAlgebraTypes.contains(type) {
+        enumsOutput += "            if case .array(let elements) = value {\n"
+        enumsOutput += "                var result = \(type)()\n"
+        enumsOutput += "                for element in elements {\n"
+        enumsOutput += "                    result.formUnion(try coerce(typeName, element) as! \(type))\n"
+        enumsOutput += "                }\n"
+        enumsOutput += "                return result\n"
+        enumsOutput += "            }\n"
+    }
     enumsOutput += "            guard case .implicitMember(let member) = value else {\n"
     enumsOutput += "                throw RuntimeError(message: \"expected a \(type) implicit member\")\n"
     enumsOutput += "            }\n"

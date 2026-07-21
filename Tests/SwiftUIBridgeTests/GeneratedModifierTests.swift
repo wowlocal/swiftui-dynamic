@@ -200,6 +200,29 @@ import SwiftInterpreter
         """)
     }
 
+    /// SetAlgebra contextual values also accept Swift's array-literal syntax.
+    /// IceCubes composes accessibility traits this way, including an empty
+    /// literal selected by a conditional expression.
+    @Test func generatedSDKSetAlgebraCoercesArrayLiterals() throws {
+        let traits = try GeneratedSDKEnumCoercions.coerce(
+            "AccessibilityTraits",
+            .array([.implicitMember("isButton"), .implicitMember("isImage")]))
+            as? AccessibilityTraits
+        #expect(traits?.contains(.isButton) == true)
+        #expect(traits?.contains(.isImage) == true)
+
+        let empty = try GeneratedSDKEnumCoercions.coerce(
+            "AccessibilityTraits", .array([])) as? AccessibilityTraits
+        #expect(empty?.isEmpty == true)
+
+        _ = try Interpreter(registry: ViewRegistry()).run(source: """
+        let selected = true
+        Text("accessible")
+            .accessibilityAddTraits([.isButton, .isImage])
+            .accessibilityAddTraits(selected ? .isSelected : [])
+        """)
+    }
+
     @Test func generatedConstructorsDispatchThroughRealRendering() throws {
         // None of these View inits were ever hand-written.
         let source = """
