@@ -17,6 +17,27 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         #expect(node.modifiers == ["padding", "font(.title)"])
     }
 
+    /// Generic recorder nodes also stand for native views. Their dynamic
+    /// fallback members must not swallow a declared View modifier before its
+    /// result-builder closure can be composed into the render tree.
+    @Test func viewModifierBuilderPrecedesOpaqueMemberFallback() throws {
+        let source = """
+        RoundedRectangle(cornerRadius: 10)
+            .overlay {
+                Text("overlay leaf")
+            }
+        """
+
+        // The production registry dispatches this source through real
+        // SwiftUI, establishing that the distilled source is native-valid.
+        _ = try Interpreter(registry: ViewRegistry()).run(source: source)
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.children.map(\.args).contains(["overlay leaf"]),
+                "the dynamic member fallback swallowed the builder: \(node.children)")
+    }
+
     @Test func stackCollectsChildren() throws {
         let source = """
         VStack(spacing: 8) {

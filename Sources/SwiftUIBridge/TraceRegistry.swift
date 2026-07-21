@@ -462,13 +462,22 @@ public final class TraceRegistry: HostRegistry {
         }
     }
 
-    /// Modifiers whose closure arguments are ViewBuilders (never actions) —
-    /// trace mode evaluates them unconditionally so presented/deferred content
-    /// (sheet bodies, alert buttons, tab items) still gets deep coverage.
-    private static let builderModifiers: Set<String> = [
-        "sheet", "alert", "confirmationDialog", "popover",
-        "tabItem", "overlay", "background", "safeAreaInset", "toolbar",
-    ]
+    /// Whether interface metadata says a modifier's closure arguments build
+    /// views rather than perform actions. Trace mode evaluates these builders
+    /// unconditionally so presented/deferred content still gets deep coverage.
+    /// `tabItem` is the one compatibility gateway not emitted by BridgeGen;
+    /// SwiftUI nevertheless declares its closure as `@ViewBuilder`.
+    private static func isBuilderOnlyModifier(_ name: String) -> Bool {
+        if name == "tabItem" { return true }
+        guard let set = GeneratedModifiers.table[name] else { return false }
+        let parameters = set.byArity.values
+            .flatMap { $0 }
+            .flatMap(\.params)
+        return parameters.contains { $0.tag == .builder }
+            && !parameters.contains {
+                $0.tag == .action || $0.tag == .asyncAction
+            }
+    }
 
     public func modifier(named name: String) -> HostModifier? {
         HostModifier(name: name) { value, args, ctx in
@@ -499,7 +508,7 @@ public final class TraceRegistry: HostRegistry {
                             ? args.labeled("id")?.stringified : nil),
                     closure: closure))
             }
-            if Self.builderModifiers.contains(name) {
+            if Self.isBuilderOnlyModifier(name) {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content
                 // BINDS the item: it evaluates only when the binding holds a
                 // value, receiving it (nil = not presented, like device).
@@ -622,7 +631,8 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue? {
-        guard let node = value as? TraceNode, node.absorbsUnknownMembers else {
+        guard !Self.isBuilderOnlyModifier(name),
+              let node = value as? TraceNode, node.absorbsUnknownMembers else {
             return nil
         }
         // Members of opaque imported objects read as memoized chained bags,
