@@ -43,6 +43,7 @@ public struct RuntimeTaskLocalKey: Hashable, Sendable, CustomStringConvertible {
 /// read.
 @MainActor
 final class RuntimeTaskLocalDeclaration {
+    let declarationID: SyntaxIdentifier
     let key: RuntimeTaskLocalKey
     let initializer: ExprSyntax?
     let typeAnnotation: TypeSyntax?
@@ -55,6 +56,7 @@ final class RuntimeTaskLocalDeclaration {
         initializer: ExprSyntax?,
         typeAnnotation: TypeSyntax?
     ) {
+        self.declarationID = declarationID
         key = RuntimeTaskLocalKey(
             sourceDeclarationID: declarationID, debugName: debugName)
         self.initializer = initializer

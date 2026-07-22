@@ -240,15 +240,20 @@ public final class StructSymbol {
         public let typeAnnotation: TypeSyntax?
         public let typeName: String?
         public let referenceOwnership: ReferenceOwnership
+        /// The binding selects the program state that owns this initializer
+        /// after symbols are copied into a compatibility overlay.
+        let declarationID: SyntaxIdentifier?
 
         public init(
             initializer: ExprSyntax, typeAnnotation: TypeSyntax?,
-            referenceOwnership: ReferenceOwnership = .strong
+            referenceOwnership: ReferenceOwnership = .strong,
+            declarationID: SyntaxIdentifier? = nil
         ) {
             self.initializer = initializer
             self.typeAnnotation = typeAnnotation
             self.typeName = typeAnnotation?.trimmedDescription
             self.referenceOwnership = referenceOwnership
+            self.declarationID = declarationID
         }
     }
 

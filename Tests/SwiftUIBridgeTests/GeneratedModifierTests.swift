@@ -221,6 +221,38 @@ import SwiftInterpreter
         }
     }
 
+    /// A stored static initializer executes in its declaring compiler input,
+    /// even when another file triggers lazy initialization through an
+    /// internal/public sibling. SwiftGen plist namespaces use this shape:
+    /// the exported key reads a private document owned by the same file.
+    @Test func crossFileStaticReadUsesInitializerDeclarationScope() throws {
+        let definitions = ProjectMaterial.mergedSource(
+            source: """
+            enum FixtureNamespace {
+                private static let document = "1.2.3"
+                internal static let version = document
+            }
+            """,
+            moduleName: "StaticInitializerProbe")
+        let consumer = ProjectMaterial.mergedSource(
+            source: """
+            struct ContentView: View {
+                var body: some View {
+                    let value = FixtureNamespace.version
+                    if value != "1.2.3" {
+                        fatalError("static initializer lost declaration scope")
+                    }
+                    return Text(value)
+                }
+            }
+            """,
+            moduleName: "StaticInitializerProbe")
+
+        let report = try HeadlessVerifier.verify(
+            source: definitions + consumer)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// The SDK spells contextual constants on both ordinary value structs and
     /// nested OptionSets. They are the same interface property: a public static
     /// member whose declared value type is its enclosing type.

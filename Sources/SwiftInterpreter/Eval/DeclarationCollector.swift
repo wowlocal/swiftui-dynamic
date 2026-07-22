@@ -744,6 +744,9 @@ extension Interpreter {
             guard let name = bindingMetadata.identifierName else {
                 throw error(binding, "unsupported property pattern")
             }
+            if isStaticDecl {
+                declLexicalOwners[binding.id] = symbol
+            }
             if isStaticDecl,
                declarationMetadata.hasFileScopedReadAccess {
                 symbol.fileScopedStaticMemberOrigins[name] = .init(
@@ -832,7 +835,8 @@ extension Interpreter {
                     symbol.staticProperties[name] = .init(
                         initializer: initializer,
                         typeAnnotation: bindingMetadata.typeAnnotation,
-                        referenceOwnership: referenceOwnership
+                        referenceOwnership: referenceOwnership,
+                        declarationID: binding.id
                     )
                 } else if let wrapper = varDecl.attributes.compactMap({ $0.as(AttributeSyntax.self) }).first(where: {
                     $0.arguments != nil && $0.attributeName.trimmedDescription.first?.isUppercase == true
@@ -1039,6 +1043,9 @@ extension Interpreter {
                     }
                     continue
                 }
+                if isStaticDecl {
+                    declLexicalOwners[binding.id] = symbol
+                }
                 if isStaticDecl,
                    declarationMetadata.hasFileScopedReadAccess {
                     symbol.fileScopedStaticMemberOrigins[memberName] = .init(
@@ -1133,7 +1140,8 @@ extension Interpreter {
                         symbol.staticProperties[memberName] = .init(
                             initializer: initializer,
                             typeAnnotation: bindingMetadata.typeAnnotation,
-                            referenceOwnership: referenceOwnership
+                            referenceOwnership: referenceOwnership,
+                            declarationID: binding.id
                         )
                     } else {
                         symbol.staticUninitialized.insert(memberName)
