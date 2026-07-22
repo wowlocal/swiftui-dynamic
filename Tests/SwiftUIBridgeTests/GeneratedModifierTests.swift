@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Translation
 import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
@@ -234,6 +235,41 @@ import SwiftInterpreter
                     .fullScreenCover(isPresented: $presented) {
                         fatalError("off-host fallback executed content")
                     }
+            }
+        }
+        """, interactions: false)
+
+        #expect(report.nodeCount == 1)
+    }
+
+    /// Swift cross-import overlays publish ordinary View modifiers outside
+    /// SwiftUI's own interface. The SDK metadata connecting Translation and
+    /// SwiftUI must drive generation, import gating, and runtime dispatch.
+    @Test func sdkCrossImportOverlayModifierIsGenerated() throws {
+        _ = Text("native overlay").translationPresentation(
+            isPresented: .constant(false), text: "native text")
+
+        let translation = GeneratedModifiers.table["translationPresentation"]?
+            .byArity[2] ?? []
+        #expect(translation.contains {
+            $0.params.map(\.label) == ["isPresented", "text"]
+                && $0.params.map(\.tag) == [.bindingBool, .string]
+        })
+        #expect(translation.allSatisfy {
+            $0.requiredImports == ["Translation"]
+        })
+
+        let report = try HeadlessVerifier.verify(source: """
+        import Translation
+
+        struct ContentView: View {
+            @State var presented = false
+
+            var body: some View {
+                Text("interpreted overlay")
+                    .translationPresentation(
+                        isPresented: $presented, text: "interpreted text")
+                    .padding()
             }
         }
         """, interactions: false)

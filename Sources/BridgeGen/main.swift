@@ -47,6 +47,60 @@ func interfacePath(framework: String) -> String? {
     return "\(moduleDir)/\(name)"
 }
 
+/// Swift cross-import descriptors name the synthesized overlay module that
+/// becomes visible when an SDK module and SwiftUI are imported together. The
+/// descriptor is the authority: neither the primary framework nor the hidden
+/// overlay module belongs in a handwritten allowlist.
+struct SwiftUICrossImportOverlay {
+    let importingModule: String
+    let overlayModule: String
+    let file: SourceFileSyntax
+}
+
+func crossImportOverlayModuleNames(in descriptor: String) -> [String] {
+    descriptor.split(separator: "\n").compactMap { line in
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let marker = "- name:"
+        guard trimmed.hasPrefix(marker) else { return nil }
+        let name = trimmed.dropFirst(marker.count)
+            .trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? nil : name
+    }
+}
+
+func swiftUICrossImportOverlays() -> [SwiftUICrossImportOverlay] {
+    let frameworksDirectory = "\(sdk)/System/Library/Frameworks"
+    let frameworks = ((try? FileManager.default.contentsOfDirectory(
+        atPath: frameworksDirectory)) ?? [])
+        .filter { $0.hasSuffix(".framework") }
+        .sorted()
+    return frameworks.flatMap { entry -> [SwiftUICrossImportOverlay] in
+        let importingModule = String(entry.dropLast(".framework".count))
+        let descriptorPath = "\(frameworksDirectory)/\(entry)/Modules/"
+            + "\(importingModule).swiftcrossimport/SwiftUI.swiftoverlay"
+        guard let descriptor = try? String(
+            contentsOfFile: descriptorPath, encoding: .utf8)
+        else { return [] }
+        return crossImportOverlayModuleNames(in: descriptor).compactMap {
+            overlayModule in
+            guard let path = interfacePath(framework: overlayModule),
+                  let source = try? String(
+                    contentsOfFile: path, encoding: .utf8)
+            else {
+                print("warning: no swiftinterface for cross-import overlay "
+                    + overlayModule)
+                return nil
+            }
+            print("parsing \(importingModule)+SwiftUI cross-import overlay "
+                + "\(overlayModule) (\(source.count) chars)…")
+            return SwiftUICrossImportOverlay(
+                importingModule: importingModule,
+                overlayModule: overlayModule,
+                file: Parser.parse(source: source))
+        }
+    }
+}
+
 /// SwiftUI's Catalyst-only overlays live under the SDK's iOSSupport tree,
 /// separate from the macOS interface. They contain target constructors such
 /// as platform-value conversions that a macOS-hosted interpreter must still
@@ -87,11 +141,13 @@ let targetOverlayFiles = ["SwiftUI"].compactMap {
     return Parser.parse(source: source)
 }
 
+let swiftUICrossImportOverlayFiles = swiftUICrossImportOverlays()
+
 // MARK: - Type normalization & mapping
 
 // Longest first: "CoreFoundation." must strip before "Foundation." matches
 // inside it (ditto SwiftUICore/SwiftUI).
-let modulePrefixes = [
+let builtInModulePrefixes: [String] = [
     "UniformTypeIdentifiers.", "DeveloperToolsSupport.",
     "CoreTransferable.",
     "CoreFoundation.", "CoreGraphics.", "Charts.",
@@ -100,6 +156,14 @@ let modulePrefixes = [
     "AppKit.", "UIKit.", "Metal.", "QuartzCore.", "ObjectiveC.",
     "Combine.", "Swift.", "os.",
 ]
+let crossImportModulePrefixes: [String] =
+    swiftUICrossImportOverlayFiles.flatMap {
+        ["\($0.importingModule).", "\($0.overlayModule)."]
+    }
+let modulePrefixes = Set(
+    builtInModulePrefixes + crossImportModulePrefixes).sorted { lhs, rhs in
+    lhs.count == rhs.count ? lhs < rhs : lhs.count > rhs.count
+}
 
 func normalize(_ type: String) -> String {
     var out = type
@@ -531,7 +595,12 @@ func genericConstraints(of function: FunctionDeclSyntax) -> Generics {
 
 // MARK: - Availability
 
-let deploymentTarget = 15
+// Keep interface availability checks aligned with Package.swift's declared
+// platform floors. A target overlay must never be filtered through the host
+// platform's deployment version merely because BridgeGen runs on macOS.
+let macOSDeploymentTarget = 15
+let iOSDeploymentTarget = 18
+let deploymentTarget = macOSDeploymentTarget
 
 /// A versioned deprecation is still a usable declaration before that
 /// version. SDK compatibility spellings use a far-future sentinel (100000)
@@ -548,7 +617,7 @@ func deprecationIsActive(_ availability: String) -> Bool {
     let parts = version.split(separator: ".").compactMap { Int($0) }
     guard let major = parts.first else { return true }
     let minor = parts.count > 1 ? parts[1] : 0
-    return (major, minor) <= (deploymentTarget, 0)
+    return (major, minor) <= (macOSDeploymentTarget, 0)
 }
 
 func isUsable(_ attributes: AttributeListSyntax) -> Bool {
@@ -633,7 +702,7 @@ func isUsableIOSOverlay(_ attributes: AttributeListSyntax) -> Bool {
             return false
         }
         if let introduced = introducedVersion(in: text, platform: "iOS"),
-           introduced > (deploymentTarget, 0) {
+           introduced > (iOSDeploymentTarget, 0) {
             return false
         }
     }
@@ -650,7 +719,7 @@ func needsAvailabilityGuard(_ attributes: AttributeListSyntax) -> Bool {
         let parts = version.split(separator: ".").compactMap { Int($0) }
         guard let major = parts.first else { continue }
         let minor = parts.count > 1 ? parts[1] : 0
-        if (major, minor) > (deploymentTarget, 0) { return true }
+        if (major, minor) > (macOSDeploymentTarget, 0) { return true }
     }
     return false
 }
@@ -1290,6 +1359,41 @@ for file in targetOverlayFiles {
                 guarded: false,
                 frameworkRequirements: ["UIKit"],
                 targetImportRequirements: ["UIKit"])
+        }
+    }
+}
+
+// SDK cross-import overlays add ordinary View modifiers when SwiftUI and a
+// second module are imported together. Discover both sides from the SDK's
+// `.swiftcrossimport/SwiftUI.swiftoverlay` descriptor, then use the overlay's
+// swiftinterface for the same signature/type-mapping sweep as SwiftUI itself.
+// The importing module is retained as both a host compile guard and an
+// interpreted-target requirement; no overlay or modifier identity is encoded.
+for overlay in swiftUICrossImportOverlayFiles {
+    for statement in overlay.file.statements {
+        guard case .decl(let decl) = statement.item,
+              let ext = decl.as(ExtensionDeclSyntax.self),
+              normalize(ext.extendedType.trimmedDescription) == "View",
+              isUsable(ext.attributes),
+              isUsableIOSOverlay(ext.attributes) else { continue }
+        let extensionRequirements = platformFrameworkRequirements(
+            ext.attributes)
+        for member in ext.memberBlock.members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  isUsable(function.attributes),
+                  isUsableIOSOverlay(function.attributes),
+                  let returnType = function.signature.returnClause?.type
+                    .trimmedDescription,
+                  acceptableModifierReturn(returnType) else { continue }
+            let targetRequirements = extensionRequirements.union(
+                platformFrameworkRequirements(function.attributes))
+                .union([overlay.importingModule])
+            processModifier(
+                function,
+                guarded: needsAvailabilityGuard(ext.attributes),
+                frameworkRequirements: extensionRequirements.union(
+                    [overlay.importingModule]),
+                targetImportRequirements: targetRequirements)
         }
     }
 }
@@ -2468,6 +2572,14 @@ func compileGuarded(_ source: String, for variant: Variant) -> String {
 }
 
 let sorted = variants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
+let crossImportModuleNames = Set(
+    swiftUICrossImportOverlayFiles.map(\.importingModule))
+let generatedCrossImportModules = Set(variants.flatMap {
+    $0.targetImportRequirements
+}).intersection(crossImportModuleNames).sorted()
+let generatedCrossImportImports = generatedCrossImportModules.flatMap {
+    ["#if canImport(\($0))", "import \($0)", "#endif"]
+}.joined(separator: "\n")
 let chunkSize = 40
 let chunks = stride(from: 0, to: sorted.count, by: chunkSize).map {
     Array(sorted[$0..<min($0 + chunkSize, sorted.count)])
@@ -2486,6 +2598,7 @@ import AppKit
 #if canImport(UIKit)
 import UIKit
 #endif
+\(generatedCrossImportImports)
 
 extension GeneratedModifiers {
     static func build() -> [String: [GeneratedOverload]] {
@@ -3941,7 +4054,7 @@ print(
 let requiredPreflightModules = ["_Concurrency", "Foundation", "SwiftUI"]
 let conditionalPreflightModules = Array(Set([
     "Combine", "CoreGraphics", "Darwin", "ObjectiveC",
-] + platformGeneration.coverage.keys)
+] + platformGeneration.coverage.keys + generatedCrossImportModules)
     .subtracting(requiredPreflightModules)).sorted()
 let preflightModuleSource = (
     requiredPreflightModules.map { "@_exported import \($0)" }
