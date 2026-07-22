@@ -170,6 +170,30 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    /// IceCubes still uses SwiftUI's compatibility spelling
+    /// `accessibility(addTraits:)`. Its interface rename is deprecated only at
+    /// the sentinel version 100000, so native Swift continues to accept it and
+    /// BridgeGen must not mistake that future marker for unavailability.
+    @Test func futureDeprecatedCompatibilityModifierRemainsGenerated() throws {
+        _ = Text("native avatar").accessibility(addTraits: .isButton)
+
+        let accessibility = GeneratedModifiers.table["accessibility"]?
+            .byArity[1] ?? []
+        #expect(accessibility.contains {
+            $0.params.map(\.label) == ["addTraits"]
+                && $0.params.map(\.tag) == [
+                    .sdkEnum("AccessibilityTraits"),
+                ]
+        })
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("interpreted avatar")
+            .accessibility(addTraits: .isButton)
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func generatedSDKEnumsCoerceImplicitMembers() throws {
         let blend = try GeneratedSDKEnumCoercions.coerce(
             "BlendMode", .implicitMember("multiply")) as? BlendMode

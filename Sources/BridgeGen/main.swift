@@ -531,6 +531,26 @@ func genericConstraints(of function: FunctionDeclSyntax) -> Generics {
 
 // MARK: - Availability
 
+let deploymentTarget = 15
+
+/// A versioned deprecation is still a usable declaration before that
+/// version. SDK compatibility spellings use a far-future sentinel (100000)
+/// for this exact purpose; treating the presence of the word `deprecated` as
+/// immediate unavailability erases source-valid API from generated coverage.
+func deprecationIsActive(_ availability: String) -> Bool {
+    guard availability.contains("deprecated") else { return false }
+    guard let range = availability.range(of: "deprecated:") else {
+        return true
+    }
+    let version = availability[range.upperBound...]
+        .drop(while: { $0.isWhitespace })
+        .prefix { $0.isNumber || $0 == "." }
+    let parts = version.split(separator: ".").compactMap { Int($0) }
+    guard let major = parts.first else { return true }
+    let minor = parts.count > 1 ? parts[1] : 0
+    return (major, minor) <= (deploymentTarget, 0)
+}
+
 func isUsable(_ attributes: AttributeListSyntax) -> Bool {
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
@@ -542,7 +562,7 @@ func isUsable(_ attributes: AttributeListSyntax) -> Bool {
             let appliesToMacOS = text.contains("macOS")
                 || text.hasPrefix("@available(*,")
             if appliesToMacOS,
-               text.contains("unavailable") || text.contains("deprecated")
+               text.contains("unavailable") || deprecationIsActive(text)
                 || text.contains("obsoleted") {
                 return false
             }
@@ -562,7 +582,7 @@ func isUniversallyUsable(_ attributes: AttributeListSyntax) -> Bool {
         let appliesToPackagePlatform = text.contains("iOS")
             || text.contains("macOS") || text.hasPrefix("@available(*,")
         if appliesToPackagePlatform
-            && (text.contains("unavailable") || text.contains("deprecated")
+            && (text.contains("unavailable") || deprecationIsActive(text)
                 || text.contains("obsoleted")) {
             return false
         }
@@ -570,8 +590,6 @@ func isUniversallyUsable(_ attributes: AttributeListSyntax) -> Bool {
     }
     return true
 }
-
-let deploymentTarget = 15
 
 func introducedVersion(
     in availability: String, platform: String
@@ -1495,17 +1513,15 @@ func hasModifier(_ modifiers: DeclModifierListSyntax, _ keyword: String) -> Bool
     modifiers.contains { $0.name.text == keyword }
 }
 
-/// Members tolerate Apple's soft-deprecation sentinel (`deprecated:
-/// 100000.0`): `url.path`, `appendingPathComponent(_:)` and friends carry it
-/// yet remain the idioms real projects compile against — and skipping the
-/// classic property lets its `host(percentEncoded:)` sibling shadow property
-/// reads with a function value. Hard deprecations stay excluded.
+/// Members use the same version-aware availability rule as generated
+/// modifiers and constructors. A declaration remains source-valid until its
+/// deprecation version; active or unversioned deprecations stay excluded.
 func memberIsUsable(_ attributes: AttributeListSyntax) -> Bool {
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
         let text = attr.trimmedDescription
-        if text.contains("unavailable") || text.contains("obsoleted") { return false }
-        if text.contains("deprecated"), !text.contains("deprecated: 100000.0") { return false }
+        if text.contains("unavailable") || text.contains("obsoleted")
+            || deprecationIsActive(text) { return false }
         if attr.attributeName.trimmedDescription.hasSuffix("_spi") { return false }
     }
     return true
