@@ -526,7 +526,10 @@ extension Interpreter {
                ) {
                 let args = try collectArguments(of: call, in: env)
                 let target = try resolveHostExtensionMethodTarget(
-                    overloads, arguments: args)
+                    overloads,
+                    arguments: args,
+                    allowsExplicitThrowingSource:
+                        callAllowsExplicitThrowingOverload(call))
                 return try invoke(target, with: args, node: call)
             }
             if case .instance(let instance)? = env.lookup("self"),
@@ -695,7 +698,10 @@ extension Interpreter {
         ) {
             let args = try collectArguments(of: call, in: env)
             let target = try resolveHostExtensionMethodTarget(
-                overloads, arguments: args)
+                overloads,
+                arguments: args,
+                allowsExplicitThrowingSource:
+                    callAllowsExplicitThrowingOverload(call))
             return try invoke(target, with: args, node: call)
         }
         // MUTATING methods on ENUM receivers through writable lvalues:

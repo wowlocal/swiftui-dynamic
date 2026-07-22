@@ -989,6 +989,7 @@ extension ViewRegistry {
             return GeneratedPlatformBridge.method(name, on: platform)
         }
         return GeneratedMembers.method(name, on: value)
+            ?? objcTrampolineMethod(name, on: value)
     }
 
     public func hostProtocolCandidates(of value: Any) -> [String] {

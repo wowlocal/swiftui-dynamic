@@ -1139,7 +1139,10 @@ extension Interpreter {
                 let args = try await collectArgumentsSuspending(
                     of: call, in: env)
                 let target = try resolveHostExtensionMethodTarget(
-                    overloads, arguments: args)
+                    overloads,
+                    arguments: args,
+                    allowsExplicitThrowingSource:
+                        callAllowsExplicitThrowingOverload(call))
                 return try await invokeSuspending(
                     target,
                     with: args,

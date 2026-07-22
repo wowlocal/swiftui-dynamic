@@ -790,7 +790,8 @@ extension Interpreter {
                 typeName: typeName, member: name))
         }
         let importedMethod: HostFunction?
-        if let imported = try nativeMember(name, on: receiver),
+        if let imported = try nativeMember(name, on: receiver)
+            ?? registry?.hostMethod(name, on: payload),
            case .hostFunction(let method) = imported,
            !method.canSuspend {
             importedMethod = method
@@ -925,10 +926,22 @@ extension Interpreter {
     /// outrank an exact parameter.
     func resolveHostExtensionMethodTarget(
         _ overloads: HostExtensionMethodOverloads,
-        arguments: CallArguments
+        arguments: CallArguments,
+        allowsExplicitThrowingSource: Bool
     ) throws -> RuntimeValue {
+        // Swift removes a `throws` declaration from an unmarked call's
+        // overload set. Apply that rule only when an imported peer actually
+        // competes, preserving ordinary source recursion when no alternate
+        // target exists. `rethrows` stays viable because argument effects,
+        // rather than the declaration alone, govern its call site.
+        let sourceMethods = !allowsExplicitThrowingSource
+            && overloads.importedMethod != nil
+            ? overloads.sourceMethods.filter {
+                !functionMetadata(for: $0).requiresExplicitTry
+            }
+            : overloads.sourceMethods
         let available = functionsAvailableForCall(
-            from: overloads.sourceMethods, args: arguments)
+            from: sourceMethods, args: arguments)
 
         var bestSource: (declaration: FunctionDeclSyntax, score: Int)?
         for declaration in available {

@@ -202,6 +202,10 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
     let sourceFunctionName: String
     let isAsync: Bool
     let isThrowing: Bool
+    /// A `throws` declaration is not viable at an unmarked call site.
+    /// `rethrows` remains viable because its argument effects decide whether
+    /// the call itself can throw.
+    let requiresExplicitTry: Bool
     let isAnyNonisolated: Bool
     let isExplicitlyNonisolated: Bool
     let isMainActor: Bool
@@ -235,7 +239,10 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
         sourceFunctionName = callableName + "("
             + parameters.map { $0.firstName.text + ":" }.joined() + ")"
         isAsync = declaration.signature.effectSpecifiers?.asyncSpecifier != nil
-        isThrowing = declaration.signature.effectSpecifiers?.throwsClause != nil
+        let throwsSpecifier = declaration.signature.effectSpecifiers?
+            .throwsClause?.throwsSpecifier.text
+        isThrowing = throwsSpecifier != nil
+        requiresExplicitTry = throwsSpecifier == "throws"
         isAnyNonisolated = declaration.modifiers.contains {
             $0.name.text == "nonisolated"
         }
