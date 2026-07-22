@@ -414,15 +414,47 @@ extension Interpreter {
         case .enumType(let symbol): typeName = symbol.name
         default: return
         }
-        let identity: ObjectIdentifier
-        switch value {
-        case .type(let symbol): identity = ObjectIdentifier(symbol)
-        case .enumType(let symbol): identity = ObjectIdentifier(symbol)
-        default: return
-        }
-        sourceModuleNamesByNominalIdentity[identity, default: []]
-            .insert(moduleName)
+        registerSourceModuleOwnership(value, moduleName: moduleName)
         globals.define("\(moduleName).\(typeName)", value)
+    }
+
+    /// Nested nominals retain their declaring module even though the merged
+    /// environment also keeps a bare compatibility binding. Without this
+    /// provenance, an unrelated `Outer.Circle` can masquerade as a global
+    /// `Circle` in another module and shadow an imported SDK constructor.
+    /// Visibility then follows lexical/module structure, not merge order.
+    private func registerSourceModuleOwnership(
+        _ value: RuntimeValue,
+        moduleName: String
+    ) {
+        let identity: ObjectIdentifier
+        let nestedTypes: [RuntimeValue]
+        switch value {
+        case .type(let symbol):
+            identity = ObjectIdentifier(symbol)
+            nestedTypes = Array(symbol.nestedTypes.values)
+        case .enumType(let symbol):
+            identity = ObjectIdentifier(symbol)
+            nestedTypes = Array(symbol.nestedTypes.values)
+        default:
+            return
+        }
+        let inserted = sourceModuleNamesByNominalIdentity[
+            identity, default: []
+        ].insert(moduleName).inserted
+        guard inserted else { return }
+        for nested in nestedTypes {
+            registerSourceModuleOwnership(nested, moduleName: moduleName)
+        }
+    }
+
+    private func inheritSourceModuleOwnership(
+        _ nested: RuntimeValue,
+        from owner: RuntimeValue
+    ) {
+        for moduleName in sourceModuleNames(owning: owner) {
+            registerSourceModuleOwnership(nested, moduleName: moduleName)
+        }
     }
 
     /// Duplicate type names (multi-target repos declare ContentView per
@@ -608,6 +640,8 @@ extension Interpreter {
                 let nested = try makeEnumSymbol(nestedEnum)
                 nested.lexicalTypeOwner = symbol
                 symbol.nestedTypes[nested.name] = .enumType(nested)
+                inheritSourceModuleOwnership(
+                    .enumType(nested), from: .type(symbol))
                 enumSymbols["\(symbol.name).\(nested.name)"] = nested
                 // Bare-name registration is FIRST-WINS, never a union:
                 // sibling nested enums are distinct types (EhPanda's
@@ -640,6 +674,8 @@ extension Interpreter {
     private func registerNestedType(_ nestedSymbol: StructSymbol, in symbol: StructSymbol) {
         nestedSymbol.lexicalTypeOwner = symbol
         symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
+        inheritSourceModuleOwnership(
+            .type(nestedSymbol), from: .type(symbol))
         structSymbols.append(nestedSymbol)
         globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
         if globals.lookup(nestedSymbol.name) == nil {
@@ -665,6 +701,8 @@ extension Interpreter {
     ) {
         nestedSymbol.lexicalTypeOwner = symbol
         symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
+        inheritSourceModuleOwnership(
+            .type(nestedSymbol), from: .enumType(symbol))
         structSymbols.append(nestedSymbol)
         globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
         if globals.lookup(nestedSymbol.name) == nil {
@@ -1165,6 +1203,8 @@ extension Interpreter {
             let nested = try makeEnumSymbol(nestedEnum)
             nested.lexicalTypeOwner = symbol
             symbol.nestedTypes[nested.name] = .enumType(nested)
+            inheritSourceModuleOwnership(
+                .enumType(nested), from: .enumType(symbol))
             enumSymbols["\(symbol.name).\(nested.name)"] = nested
             if enumSymbols[nested.name] == nil { enumSymbols[nested.name] = nested }
             globals.define("\(symbol.name).\(nested.name)", .enumType(nested))

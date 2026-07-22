@@ -10,29 +10,52 @@ import Testing
 /// held on the macOS canvas and the hierarchical style chain
 /// `.quaternary.opacity(0.5)` threw out of the style funnel.
 @Suite struct InterpretedStyleTests {
-    /// IceCubes' status rows surfaced the opaque-View preservation class:
-    /// one unavailable modifier turned the remaining, otherwise renderable
-    /// chain into `ChainedImplicitCall` and `anyView` erased the whole row.
-    /// Missing modifier semantics must stay diagnostic, but the proven View
-    /// root has the same pixels as its native unmodified fallback.
+    /// A nested source nominal is visible through its lexical owner, not as a
+    /// bare declaration in an unrelated flattened module. IceCubes includes
+    /// `ImageProcessors.Circle`; StatusKit's unqualified `Circle()` must still
+    /// resolve to the imported SwiftUI constructor.
     @MainActor
-    @Test func opaqueModifierChainPreservesRenderableRoot() throws {
-        let native = AnyView(
-            Text("preserved modifier root")
-                .font(.title)
-                .foregroundStyle(.black))
-        let opaque = RuntimeValue.native(ChainedImplicitCall(
-            base: .native(ChainedImplicitCall(
-                base: .native(native),
-                member: "unavailableSemanticModifier",
-                arguments: CallArguments())),
-            member: "downstreamSemanticModifier",
-            arguments: CallArguments()))
+    @Test func unimportedNestedNominalDoesNotShadowSDKConstructor() throws {
+        let dependency = ProjectMaterial.mergedSource(source: """
+        public enum ImageProcessors {
+            public struct Circle {
+                public init() {}
+            }
+        }
+        """, moduleName: "UnrelatedImagePipeline")
+        let consumer = ProjectMaterial.mergedSource(source: """
+        import SwiftUI
+
+        @main
+        struct ProbeApp: App {
+            var body: some Scene {
+                WindowGroup {
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 40, height: 40)
+                        .padding(16)
+                        .background(Color.black)
+                }
+            }
+        }
+        """, moduleName: "RowFeature")
 
         RenderDiagnostics.reset()
         defer { RenderDiagnostics.reset() }
-        let interpreted = try ViewRegistry.anyView(opaque)
-        let size = NSSize(width: 320, height: 100)
+        let rendered = InterpreterHost().render(
+            source: dependency + consumer,
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let native = AnyView(
+            Circle()
+                .fill(Color.blue)
+                .frame(width: 40, height: 40)
+                .padding(16)
+                .background(Color.black))
+        let size = NSSize(width: 120, height: 120)
         let expected = Self.bitmap(native, size: size)
         let actual = Self.bitmap(interpreted, size: size)
         var mismatched = 0
@@ -45,10 +68,7 @@ import Testing
         }
 
         #expect(mismatched == 0)
-        #expect(RenderDiagnostics.errors.contains {
-            $0.error.message.contains("unbridged view modifier chain")
-                && $0.error.message.contains("preserving rendered root")
-        })
+        #expect(RenderDiagnostics.errors.isEmpty)
     }
 
     // A custom LabelStyle conformer resolved from a protocol-extension
