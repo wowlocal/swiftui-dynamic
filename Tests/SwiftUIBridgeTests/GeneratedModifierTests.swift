@@ -84,6 +84,37 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    /// A source declaration's concrete `String` parameter carries the static
+    /// type of an opaque compiled-dependency result. The runtime fresh-value
+    /// doctrine must resolve that marker at the declaration boundary before
+    /// an interface-generated String consumer performs overload matching.
+    @Test func sourceStringParameterFreshensOpaqueDependencyValue() throws {
+        func nativeForwardedLabel(_ text: String) -> some View {
+            Text("native row").accessibilityLabel(text)
+        }
+        _ = nativeForwardedLabel("native label")
+
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        interpreter.globals.define(
+            "opaqueImportedString",
+            .hostFunction(HostFunction(name: "opaqueImportedString") { _, _ in
+                .native(ImplicitMemberCall(
+                    name: "compiledString", arguments: CallArguments()))
+            }))
+        let result = try interpreter.run(source: """
+        extension View {
+            func forwardedLabel(text: String) -> some View {
+                accessibilityLabel(text)
+            }
+        }
+
+        Text("interpreted row")
+            .forwardedLabel(text: opaqueImportedString())
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func suffixDefaultVariantsMatchBothCallShapes() throws {
         // autocorrectionDisabled() and autocorrectionDisabled(false) are the
         // zero-arg and full variants of one defaulted-parameter overload.
