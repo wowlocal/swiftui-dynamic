@@ -310,20 +310,31 @@ struct AnalyzedParam {
     }
 }
 
+struct ParameterSelection {
+    let params: [AnalyzedParam]
+    /// Swift can skip an unlabeled default before a final closure only when
+    /// that closure uses trailing-closure syntax. Preserve that source shape
+    /// so emission does not accidentally bind the closure positionally.
+    let trailingClosureIndex: Int?
+}
+
 /// Every Swift call shape obtainable by omitting mapped or unmapped defaulted
 /// parameters. Defaults are not restricted to a trailing suffix: declarations
 /// such as `VStack(alignment:spacing:content:)` allow `alignment` to be omitted
 /// while `spacing` and the required builder remain present.
-func parameterSelections(_ analyzed: [AnalyzedParam]) -> [[AnalyzedParam]] {
-    var selections: [[AnalyzedParam]] = []
+func parameterSelections(_ analyzed: [AnalyzedParam]) -> [ParameterSelection] {
+    var selections: [ParameterSelection] = []
 
     func visit(
         _ index: Int,
         _ selected: [AnalyzedParam],
-        omittedUnlabeledDefault: Bool
+        omittedUnlabeledDefault: Bool,
+        trailingClosureIndex: Int?
     ) {
         guard index < analyzed.count else {
-            selections.append(selected)
+            selections.append(.init(
+                params: selected,
+                trailingClosureIndex: trailingClosureIndex))
             return
         }
 
@@ -332,22 +343,33 @@ func parameterSelections(_ analyzed: [AnalyzedParam]) -> [[AnalyzedParam]] {
             visit(
                 index + 1,
                 selected,
-                omittedUnlabeledDefault: omittedUnlabeledDefault || parameter.label == nil)
+                omittedUnlabeledDefault: omittedUnlabeledDefault || parameter.label == nil,
+                trailingClosureIndex: trailingClosureIndex)
         }
         // Swift cannot skip an unlabeled default and then bind a later
-        // unlabeled argument positionally. (A source trailing closure can
-        // sometimes do so, but generated calls deliberately use explicit
-        // argument lists.) Labeled parameters after the omission are safe.
+        // unlabeled argument positionally. A final closure is the structural
+        // exception: trailing-closure syntax binds it after the omitted slot.
+        let isFinalClosure = index == analyzed.count - 1
+            && ["builder", "action", "asyncAction"].contains(
+                parameter.mapping?.tag ?? "")
+        let requiresTrailingClosure = omittedUnlabeledDefault
+            && parameter.label == nil
+            && isFinalClosure
         if parameter.mapping != nil,
-           !(omittedUnlabeledDefault && parameter.label == nil) {
+           !(omittedUnlabeledDefault && parameter.label == nil)
+            || requiresTrailingClosure {
             visit(
                 index + 1,
                 selected + [parameter],
-                omittedUnlabeledDefault: omittedUnlabeledDefault)
+                omittedUnlabeledDefault: omittedUnlabeledDefault,
+                trailingClosureIndex: requiresTrailingClosure
+                    ? selected.count : trailingClosureIndex)
         }
     }
 
-    visit(0, [], omittedUnlabeledDefault: false)
+    visit(
+        0, [], omittedUnlabeledDefault: false,
+        trailingClosureIndex: nil)
     return selections
 }
 
@@ -863,6 +885,7 @@ struct EmittableParam {
 struct Variant {
     let name: String
     let params: [EmittableParam]
+    let trailingClosureIndex: Int?
     let inheritedFrameworkRequirements: Set<String>
     /// Values that are structurally both View and ShapeStyle must remain their
     /// concrete semantic value; erasing them to AnyView loses later style use.
@@ -942,13 +965,14 @@ func processModifier(
     for selection in parameterSelections(analyzed) {
         let variant = Variant(
             name: name,
-            params: selection.map {
+            params: selection.params.map {
                 .init(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
                     requiredFramework: $0.mapping!.requiredFramework,
                     contextualType: $0.mapping!.contextualType)
             },
+            trailingClosureIndex: selection.trailingClosureIndex,
             inheritedFrameworkRequirements: frameworkRequirements.union(
                 platformFrameworkRequirements(function.attributes)),
             preservesSemanticValue: false
@@ -1026,13 +1050,14 @@ func processInit(
     for selection in parameterSelections(analyzed) {
         let variant = Variant(
             name: structName,
-            params: selection.map {
+            params: selection.params.map {
                 .init(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
                     requiredFramework: $0.mapping!.requiredFramework,
                     contextualType: $0.mapping!.contextualType)
             },
+            trailingClosureIndex: selection.trailingClosureIndex,
             inheritedFrameworkRequirements: frameworkRequirements.union(
                 platformFrameworkRequirements(initDecl.attributes)),
             preservesSemanticValue: preservesSemanticValue
@@ -1226,6 +1251,7 @@ let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
             contextualType: parameter.contextualType)
         let adapter = Variant(
             name: variant.name, params: [semanticParameter],
+            trailingClosureIndex: nil,
             inheritedFrameworkRequirements: [],
             preservesSemanticValue: true)
         let key = "\(framework)|\(adapter.key)"
@@ -1543,7 +1569,7 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
         let variant = MemberVariant(
             type: typeName, name: name,
             returnType: memberContractType(for: normalize(returnType)),
-            params: selection.map {
+            params: selection.params.map {
                 .init(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
@@ -2268,11 +2294,28 @@ func paramSpecCode(_ parameter: EmittableParam) -> String {
     return "ParamSpec(\(label), .\(parameter.tag)\(context))"
 }
 
-func entryCode(_ variant: Variant) -> String {
-    let specs = variant.params
-        .map(paramSpecCode)
-        .joined(separator: ", ")
-    let argList = variant.params.enumerated()
+func generatedCallPreamble(_ variant: Variant) -> [String] {
+    var lines = variant.params.enumerated().compactMap { index, param in
+        param.tag == "builder"
+            ? "        let b\(index) = try generatedBuilder(v[\(index)])"
+            : nil
+    }
+    if let index = variant.trailingClosureIndex {
+        switch variant.params[index].tag {
+        case "action":
+            lines.append("        let a\(index) = generatedAction(v[\(index)])")
+        case "asyncAction":
+            lines.append("        let a\(index) = generatedAsyncAction(v[\(index)])")
+        default:
+            break
+        }
+    }
+    return lines
+}
+
+func generatedCall(_ callee: String, _ variant: Variant) -> String {
+    let positionalEnd = variant.trailingClosureIndex ?? variant.params.count
+    let argList = variant.params.prefix(positionalEnd).enumerated()
         .map { index, param in
             let value = param.tag == "builder"
                 ? "{ b\(index) }"
@@ -2280,11 +2323,26 @@ func entryCode(_ variant: Variant) -> String {
             return (param.label.map { "\($0): " } ?? "") + value
         }
         .joined(separator: ", ")
-    var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]) { view, v in"]
-    for (index, param) in variant.params.enumerated() where param.tag == "builder" {
-        lines.append("        let b\(index) = try generatedBuilder(v[\(index)])")
+    guard let trailingIndex = variant.trailingClosureIndex else {
+        return "\(callee)(\(argList))"
     }
-    lines.append("        return AnyView(view.\(variant.name)(\(argList)))")
+    let head = argList.isEmpty ? callee : "\(callee)(\(argList))"
+    let closure = switch variant.params[trailingIndex].tag {
+    case "builder": "{ b\(trailingIndex) }"
+    case "action": "{ a\(trailingIndex)() }"
+    case "asyncAction": "{ await a\(trailingIndex)() }"
+    default: fatalError("trailing call argument is not a generated closure")
+    }
+    return "\(head) \(closure)"
+}
+
+func entryCode(_ variant: Variant) -> String {
+    let specs = variant.params
+        .map(paramSpecCode)
+        .joined(separator: ", ")
+    var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]) { view, v in"]
+    lines.append(contentsOf: generatedCallPreamble(variant))
+    lines.append("        return AnyView(\(generatedCall("view.\(variant.name)", variant)))")
     lines.append("    }")
     return compileGuarded(lines.joined(separator: "\n"), for: variant)
 }
@@ -2346,19 +2404,9 @@ func initEntryCode(_ variant: Variant) -> String {
     let specs = variant.params
         .map(paramSpecCode)
         .joined(separator: ", ")
-    let argList = variant.params.enumerated()
-        .map { index, param in
-            let value = param.tag == "builder"
-                ? "{ b\(index) }"
-                : param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
-            return (param.label.map { "\($0): " } ?? "") + value
-        }
-        .joined(separator: ", ")
     var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]) { v in"]
-    for (index, param) in variant.params.enumerated() where param.tag == "builder" {
-        lines.append("        let b\(index) = try generatedBuilder(v[\(index)])")
-    }
-    let constructed = "\(variant.name)(\(argList))"
+    lines.append(contentsOf: generatedCallPreamble(variant))
+    let constructed = generatedCall(variant.name, variant)
     lines.append(variant.preservesSemanticValue
         ? "        return \(constructed)"
         : "        return AnyView(\(constructed))")

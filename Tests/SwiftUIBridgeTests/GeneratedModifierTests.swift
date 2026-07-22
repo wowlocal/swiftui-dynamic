@@ -74,6 +74,21 @@ import SwiftInterpreter
         _ = try interpreter.run(source: #"Text("b").autocorrectionDisabled(false)"#)
     }
 
+    @Test func defaultBeforeTrailingClosureProducesShorthandVariant() throws {
+        // Native Swift can omit an unlabeled default immediately before a
+        // trailing closure. BridgeGen must preserve that interface-derived
+        // call shape instead of treating the closure as a positional value.
+        _ = Text("native").accessibilityAction {}
+
+        let shorthand = GeneratedModifiers.table["accessibilityAction"]?
+            .byArity[1] ?? []
+        #expect(shorthand.contains { $0.params.map(\.tag) == [.action] })
+
+        _ = try Interpreter(registry: ViewRegistry()).run(source: """
+        Text("interpreted").accessibilityAction {}
+        """)
+    }
+
     @Test func mismatchedArgumentsAreLocatedErrors() throws {
         let interpreter = Interpreter(registry: ViewRegistry())
         do {
