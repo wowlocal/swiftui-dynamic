@@ -7,6 +7,20 @@ import SwiftInterpreter
 /// DragGesture closure (with withTransaction, exactly as the app writes it)
 /// fired with a translation-carrying value must run game-logic side effects.
 @Suite struct GestureCallbackTests {
+    @Test func transactionAcceptsNilOptionalAnimation() throws {
+        _ = Transaction(animation: nil)
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        var completed = false
+        withTransaction(Transaction(animation: nil)) {
+            completed = true
+        }
+        completed
+        """)
+
+        #expect(result.boolValue == true)
+    }
+
     @Test func onChangedClosureRunsWithTranslationValue() throws {
         let interpreter = Interpreter(registry: ViewRegistry())
         let result = try interpreter.run(source: """

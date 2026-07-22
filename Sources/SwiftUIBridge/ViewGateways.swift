@@ -724,7 +724,8 @@ extension ViewRegistry {
         constructors["Transaction"] = HostFunction(name: "Transaction") { args, _ in
             var transaction = Transaction()
             if let animation = args.labeled("animation") {
-                transaction.animation = try Coerce.animation(animation)
+                transaction.animation = try Coerce.optional(
+                    animation, coercing: Coerce.animation)
             }
             if let disables = args.labeled("disablesAnimations")?.boolValue {
                 transaction.disablesAnimations = disables

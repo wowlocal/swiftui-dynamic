@@ -5,6 +5,21 @@ import SwiftInterpreter
 /// the SwiftUI type a gateway parameter expects — the "expected type context"
 /// trick reduced to lookup tables, dodging real type inference.
 enum Coerce {
+    /// Apply an existing concrete coercion to one Optional layer. SDK
+    /// gateways share this boundary so a source `nil` remains native nil
+    /// instead of being diagnosed by the wrapped type's coercer.
+    static func optional<T>(
+        _ value: RuntimeValue,
+        coercing coerce: (RuntimeValue) throws -> T
+    ) throws -> T? {
+        if value.isNil { return nil }
+        if case .optional(let optional) = value,
+           let wrapped = optional.wrapped {
+            return try coerce(wrapped)
+        }
+        return try coerce(value)
+    }
+
     /// The shared unknowable test: markers, chains, inert stubs, bound
     /// host functions — the fresh-state absorption family.
     static func isUnknowable(_ value: RuntimeValue) -> Bool {
