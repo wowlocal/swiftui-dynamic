@@ -1219,7 +1219,9 @@ extension Interpreter {
         }
         lexicalSourceModuleFrames.append(closure.sourceModuleName)
         lexicalSourceImportFrames.append(closure.sourceImportedModuleNames)
+        lexicalSourceFileFrames.append(closure.sourceFileIdentity)
         defer {
+            lexicalSourceFileFrames.removeLast()
             lexicalSourceImportFrames.removeLast()
             lexicalSourceModuleFrames.removeLast()
         }

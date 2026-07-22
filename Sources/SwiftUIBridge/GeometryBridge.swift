@@ -29,6 +29,34 @@ struct MapProxyStub {}
 /// execute their math without a GPU.
 struct GraphicsContextStub {}
 
+/// Layout-time dimension values expose the same alignment-indexed property,
+/// independent of the concrete framework value that carries it. Host-member
+/// dispatch below keys on this capability rather than on an SDK type name.
+protocol GeneratedLayoutDimensionsCarrier {
+    func generatedValue(at alignment: HorizontalAlignment) -> CGFloat
+    func generatedValue(at alignment: VerticalAlignment) -> CGFloat
+    func generatedExplicitValue(at alignment: HorizontalAlignment) -> CGFloat?
+    func generatedExplicitValue(at alignment: VerticalAlignment) -> CGFloat?
+}
+
+extension ViewDimensions: GeneratedLayoutDimensionsCarrier {
+    func generatedValue(at alignment: HorizontalAlignment) -> CGFloat {
+        self[alignment]
+    }
+
+    func generatedValue(at alignment: VerticalAlignment) -> CGFloat {
+        self[alignment]
+    }
+
+    func generatedExplicitValue(at alignment: HorizontalAlignment) -> CGFloat? {
+        self[explicit: alignment]
+    }
+
+    func generatedExplicitValue(at alignment: VerticalAlignment) -> CGFloat? {
+        self[explicit: alignment]
+    }
+}
+
 /// `Path { path in … }` — accumulates a REAL Path from interpreted draw
 /// commands, so user Shape structs (`func path(in:) -> Path`) render their
 /// actual geometry. Unknown commands are accepted inertly.
@@ -323,6 +351,38 @@ func bridgeHostMember(
     }
     let generatedReceiver = (value as? GeneratedMemberCarrier)?
         .generatedMemberValue ?? value
+    if name == "subscript",
+       let dimensions = generatedReceiver as?
+        any GeneratedLayoutDimensionsCarrier {
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            let isExplicit = args.labeled("explicit") != nil
+            guard let guide = args.labeled("explicit") ?? args.positional(0)
+            else {
+                throw RuntimeError(message:
+                    "layout-dimensions subscript requires an alignment")
+            }
+            if let horizontal = try? GeneratedSDKEnumCoercions.coerce(
+                "HorizontalAlignment", guide) as? HorizontalAlignment {
+                if isExplicit {
+                    return dimensions.generatedExplicitValue(at: horizontal)
+                        .map { .some(.native(Double($0)), wrappedTypeName: "CGFloat") }
+                        ?? .none(wrappedTypeName: "CGFloat")
+                }
+                return .native(Double(dimensions.generatedValue(at: horizontal)))
+            }
+            if let vertical = try? GeneratedSDKEnumCoercions.coerce(
+                "VerticalAlignment", guide) as? VerticalAlignment {
+                if isExplicit {
+                    return dimensions.generatedExplicitValue(at: vertical)
+                        .map { .some(.native(Double($0)), wrappedTypeName: "CGFloat") }
+                        ?? .none(wrappedTypeName: "CGFloat")
+                }
+                return .native(Double(dimensions.generatedValue(at: vertical)))
+            }
+            throw RuntimeError(message:
+                "layout-dimensions subscript requires an SDK alignment value")
+        })
+    }
     if name == "subscript",
        let receiver = generatedReceiver as?
         any GeneratedMetatypeSubscriptCarrier {

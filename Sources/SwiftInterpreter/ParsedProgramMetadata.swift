@@ -7,6 +7,15 @@ private nonisolated struct ParsedSourceModuleRegion: Sendable {
     let utf8Range: Range<Int>
 }
 
+/// Stable identity of one compiler input after several files have been
+/// flattened into a single parser input. The byte offset is unique only
+/// within its owning metadata capability, so both properties participate in
+/// identity.
+nonisolated struct RuntimeSourceFileIdentity: Sendable, Hashable {
+    let metadataIdentity: ObjectIdentifier
+    let regionStartUTF8Offset: Int
+}
+
 /// One immutable capability for every syntax-derived index owned by a parsed
 /// program. Runtime entries and escaped closures propagate this value instead
 /// of growing a separate ownership edge for each new metadata family.
@@ -74,6 +83,17 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
         at position: AbsolutePosition
     ) -> Set<String>? {
         sourceModuleRegion(at: position)?.importedModuleNames
+    }
+
+    func sourceFileIdentity(
+        at position: AbsolutePosition
+    ) -> RuntimeSourceFileIdentity? {
+        guard let region = sourceModuleRegion(at: position) else {
+            return nil
+        }
+        return RuntimeSourceFileIdentity(
+            metadataIdentity: ObjectIdentifier(self),
+            regionStartUTF8Offset: region.utf8Range.lowerBound)
     }
 
     private func sourceModuleRegion(

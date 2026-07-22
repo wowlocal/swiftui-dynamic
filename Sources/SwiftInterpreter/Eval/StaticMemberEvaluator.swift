@@ -45,7 +45,10 @@ extension Interpreter {
 
         let raw: RuntimeValue
         if let initializer = declaration.initializer {
-            raw = try evaluate(initializer, in: environment)
+            raw = try evaluateStaticInitializationExpression(
+                initializer,
+                declarationID: declaration.declarationID,
+                environment: environment)
         } else {
             raw = .none(forTypeAnnotation:
                 declaration.typeName ?? "")
@@ -55,6 +58,23 @@ extension Interpreter {
             .copiedForValueSemantics()
         declaration.cachedDefault = resolved
         return resolved.copiedForValueSemantics()
+    }
+
+    /// Static initialization is triggered by the first reader, but its
+    /// expressions keep the lexical module/import/file scope of their own
+    /// declaration. The caller may be in another compiler input or may reach
+    /// an older declaration through a compatibility-state overlay.
+    private func evaluateStaticInitializationExpression(
+        _ initializer: ExprSyntax,
+        declarationID: SyntaxIdentifier?,
+        environment: Environment
+    ) throws -> RuntimeValue {
+        try withLexicalSourceContext(
+            at: initializer.positionAfterSkippingLeadingTrivia,
+            programState: programStateOwningDeclaration(declarationID)
+        ) {
+            try evaluate(initializer, in: environment)
+        }
     }
 
     /// Static member lookup follows the interpreted superclass chain just as
@@ -79,6 +99,12 @@ extension Interpreter {
         of symbol: StructSymbol,
         dynamicType: StructSymbol
     ) throws -> RuntimeValue? {
+        guard symbol.isStaticMember(
+            named: name,
+            visibleFrom: currentLexicalSourceFileIdentity
+        ) else {
+            return nil
+        }
         if let taskLocal = try sourceTaskLocalMember(
             name,
             declarations: symbol.taskLocalProperties,
@@ -89,7 +115,10 @@ extension Interpreter {
         if let box = symbol.staticReferenceBoxes[name] { return try box.load() }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
-            var raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
+            var raw = try evaluateStaticInitializationExpression(
+                property.initializer,
+                declarationID: property.declarationID,
+                environment: staticInitEnvironment(for: symbol))
             var value = try resolveAnnotated(raw, typeName: property.typeName)
                 .copiedForValueSemantics()
             if property.referenceOwnership != .strong {
@@ -204,6 +233,12 @@ extension Interpreter {
     }
 
     func staticMember(_ name: String, of symbol: EnumSymbol) throws -> RuntimeValue? {
+        guard symbol.isStaticMember(
+            named: name,
+            visibleFrom: currentLexicalSourceFileIdentity
+        ) else {
+            return nil
+        }
         if let taskLocal = try sourceTaskLocalMember(
             name,
             declarations: symbol.taskLocalProperties,
@@ -216,7 +251,10 @@ extension Interpreter {
         if let box = symbol.staticReferenceBoxes[name] { return try box.load() }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
-            var raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
+            var raw = try evaluateStaticInitializationExpression(
+                property.initializer,
+                declarationID: property.declarationID,
+                environment: staticInitEnvironment(for: symbol))
             var value = try resolveAnnotated(raw, typeName: property.typeName)
                 .copiedForValueSemantics()
             if property.referenceOwnership != .strong {

@@ -1249,15 +1249,21 @@ extension Interpreter {
             // Bare sibling statics inside static methods:
             // `static func show() { shared = … }`.
             if case .type(let symbol)? = env.lookup("self"),
-               symbol.staticProperties[name] != nil
-                || symbol.staticUninitialized.contains(name)
-                || symbol.staticCache[name] != nil {
+               symbol.isStaticMember(
+                   named: name,
+                   visibleFrom: currentLexicalSourceFileIdentity),
+               (symbol.staticProperties[name] != nil
+                    || symbol.staticUninitialized.contains(name)
+                    || symbol.staticCache[name] != nil) {
                 return .staticProperty(symbol, name)
             }
             // Bare static COMPUTED setters under a type self
             // (`firstRunDate = Date()` inside a property-initializer
             // closure, the setter living in a private extension).
             if case .type(let symbol)? = env.lookup("self"),
+               symbol.isStaticMember(
+                   named: name,
+                   visibleFrom: currentLexicalSourceFileIdentity),
                let computed = symbol.staticComputedProperties[name] {
                 if let failure = computed.unsupportedCoroutineModifyError {
                     throw failure
@@ -1276,12 +1282,18 @@ extension Interpreter {
             // Enum namespaces hold mutable statics too (`storage.append(…)`
             // inside a static setter): writes land in the static cache.
             if case .enumType(let symbol)? = env.lookup("self"),
-               symbol.staticProperties[name] != nil
-                || symbol.staticUninitialized.contains(name)
-                || symbol.staticCache[name] != nil {
+               symbol.isStaticMember(
+                   named: name,
+                   visibleFrom: currentLexicalSourceFileIdentity),
+               (symbol.staticProperties[name] != nil
+                    || symbol.staticUninitialized.contains(name)
+                    || symbol.staticCache[name] != nil) {
                 return .enumStaticProperty(symbol, name)
             }
             if case .enumType(let symbol)? = env.lookup("self"),
+               symbol.isStaticMember(
+                   named: name,
+                   visibleFrom: currentLexicalSourceFileIdentity),
                let computed = symbol.staticComputedProperties[name],
                let failure = computed.unsupportedCoroutineModifyError {
                 throw failure
@@ -1325,15 +1337,21 @@ extension Interpreter {
                     staticSymbol = hostSymbol
                 }
                 if let symbol = staticSymbol,
-                   symbol.staticProperties[memberName] != nil
-                    || symbol.staticUninitialized.contains(memberName)
-                    || symbol.staticCache[memberName] != nil {
+                   symbol.isStaticMember(
+                       named: memberName,
+                       visibleFrom: currentLexicalSourceFileIdentity),
+                   (symbol.staticProperties[memberName] != nil
+                        || symbol.staticUninitialized.contains(memberName)
+                        || symbol.staticCache[memberName] != nil) {
                     return .staticProperty(symbol, memberName)
                 }
                 if case .enumType(let symbol)? = typeValue,
-                   symbol.staticProperties[memberName] != nil
-                    || symbol.staticUninitialized.contains(memberName)
-                    || symbol.staticCache[memberName] != nil {
+                   symbol.isStaticMember(
+                       named: memberName,
+                       visibleFrom: currentLexicalSourceFileIdentity),
+                   (symbol.staticProperties[memberName] != nil
+                        || symbol.staticUninitialized.contains(memberName)
+                        || symbol.staticCache[memberName] != nil) {
                     return .enumStaticProperty(symbol, memberName)
                 }
                 // Static COMPUTED setters (`static var useServer { get set }`
@@ -1341,6 +1359,9 @@ extension Interpreter {
                 // the setter — the computed-binding precedent.
                 var setterRun: ((RuntimeValue) -> Void)?
                 if let symbol = staticSymbol,
+                   symbol.isStaticMember(
+                       named: memberName,
+                       visibleFrom: currentLexicalSourceFileIdentity),
                    let computed = symbol.staticComputedProperties[memberName] {
                     if let failure = computed.unsupportedCoroutineModifyError {
                         throw failure
@@ -1354,6 +1375,9 @@ extension Interpreter {
                         }
                     }
                 } else if case .enumType(let symbol)? = typeValue,
+                          symbol.isStaticMember(
+                              named: memberName,
+                              visibleFrom: currentLexicalSourceFileIdentity),
                           let computed = symbol.staticComputedProperties[memberName] {
                     if let failure = computed.unsupportedCoroutineModifyError {
                         throw failure

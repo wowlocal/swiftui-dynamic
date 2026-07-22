@@ -187,15 +187,21 @@ extension Interpreter {
                 for (name, property) in stranded.staticProperties
                 where symbol.staticProperties[name] == nil {
                     symbol.staticProperties[name] = property
+                    symbol.fileScopedStaticMemberOrigins[name] =
+                        stranded.fileScopedStaticMemberOrigins[name]
                 }
                 for (name, declaration) in stranded.taskLocalProperties
                 where symbol.taskLocalProperties[name] == nil {
                     symbol.taskLocalProperties[name] = declaration
+                    symbol.fileScopedStaticMemberOrigins[name] =
+                        stranded.fileScopedStaticMemberOrigins[name]
                 }
                 for (name, computed) in stranded.staticComputedProperties
                 where symbol.staticComputedProperties[name] == nil {
                     if let id = computed.declarationID { declLexicalOwners[id] = symbol }
                     symbol.staticComputedProperties[name] = computed
+                    symbol.fileScopedStaticMemberOrigins[name] =
+                        stranded.fileScopedStaticMemberOrigins[name]
                 }
                 for (name, nested) in stranded.nestedTypes
                 where symbol.nestedTypes[name] == nil {
@@ -223,20 +229,31 @@ extension Interpreter {
                 for (name, property) in stranded.staticProperties
                 where symbol.staticProperties[name] == nil {
                     symbol.staticProperties[name] = property
+                    symbol.fileScopedStaticMemberOrigins[name] =
+                        stranded.fileScopedStaticMemberOrigins[name]
                 }
                 for (name, declaration) in stranded.taskLocalProperties
                 where symbol.taskLocalProperties[name] == nil {
                     symbol.taskLocalProperties[name] = declaration
+                    symbol.fileScopedStaticMemberOrigins[name] =
+                        stranded.fileScopedStaticMemberOrigins[name]
                 }
                 for (name, policy) in stranded.staticStoragePolicies
                 where symbol.staticStoragePolicies[name] == nil {
                     symbol.staticStoragePolicies[name] = policy
                 }
-                symbol.staticUninitialized.formUnion(stranded.staticUninitialized)
+                for name in stranded.staticUninitialized
+                where !symbol.staticUninitialized.contains(name) {
+                    symbol.staticUninitialized.insert(name)
+                    symbol.fileScopedStaticMemberOrigins[name] =
+                        stranded.fileScopedStaticMemberOrigins[name]
+                }
                 for (name, computed) in stranded.staticComputedProperties
                 where symbol.staticComputedProperties[name] == nil {
                     if let id = computed.declarationID { declLexicalOwners[id] = symbol }
                     symbol.staticComputedProperties[name] = computed
+                    symbol.fileScopedStaticMemberOrigins[name] =
+                        stranded.fileScopedStaticMemberOrigins[name]
                 }
                 for (name, nested) in stranded.nestedTypes
                 where symbol.nestedTypes[name] == nil {
@@ -727,6 +744,16 @@ extension Interpreter {
             guard let name = bindingMetadata.identifierName else {
                 throw error(binding, "unsupported property pattern")
             }
+            if isStaticDecl {
+                declLexicalOwners[binding.id] = symbol
+            }
+            if isStaticDecl,
+               declarationMetadata.hasFileScopedReadAccess {
+                symbol.fileScopedStaticMemberOrigins[name] = .init(
+                    sourceFileIdentity: currentProgramMetadata?
+                        .sourceFileIdentity(
+                            at: varDecl.positionAfterSkippingLeadingTrivia))
+            }
             if isTaskLocal {
                 guard binding.accessorBlock == nil else {
                     throw error(
@@ -808,7 +835,8 @@ extension Interpreter {
                     symbol.staticProperties[name] = .init(
                         initializer: initializer,
                         typeAnnotation: bindingMetadata.typeAnnotation,
-                        referenceOwnership: referenceOwnership
+                        referenceOwnership: referenceOwnership,
+                        declarationID: binding.id
                     )
                 } else if let wrapper = varDecl.attributes.compactMap({ $0.as(AttributeSyntax.self) }).first(where: {
                     $0.arguments != nil && $0.attributeName.trimmedDescription.first?.isUppercase == true
@@ -895,16 +923,25 @@ extension Interpreter {
         for (name, property) in symbol.staticProperties
         where existing.staticProperties[name] == nil {
             existing.staticProperties[name] = property
+            existing.fileScopedStaticMemberOrigins[name] =
+                symbol.fileScopedStaticMemberOrigins[name]
         }
         for (name, declaration) in symbol.taskLocalProperties
         where existing.taskLocalProperties[name] == nil {
             existing.taskLocalProperties[name] = declaration
+            existing.fileScopedStaticMemberOrigins[name] =
+                symbol.fileScopedStaticMemberOrigins[name]
         }
         for (name, policy) in symbol.staticStoragePolicies
         where existing.staticStoragePolicies[name] == nil {
             existing.staticStoragePolicies[name] = policy
         }
-        existing.staticUninitialized.formUnion(symbol.staticUninitialized)
+        for name in symbol.staticUninitialized
+        where !existing.staticUninitialized.contains(name) {
+            existing.staticUninitialized.insert(name)
+            existing.fileScopedStaticMemberOrigins[name] =
+                symbol.fileScopedStaticMemberOrigins[name]
+        }
         for (name, computed) in symbol.computedProperties
         where existing.computedProperties[name] == nil {
             if let id = computed.declarationID { declLexicalOwners[id] = existing }
@@ -914,6 +951,8 @@ extension Interpreter {
         where existing.staticComputedProperties[name] == nil {
             if let id = computed.declarationID { declLexicalOwners[id] = existing }
             existing.staticComputedProperties[name] = computed
+            existing.fileScopedStaticMemberOrigins[name] =
+                symbol.fileScopedStaticMemberOrigins[name]
         }
         for (name, nested) in symbol.nestedTypes
         where existing.nestedTypes[name] == nil {
@@ -1004,6 +1043,17 @@ extension Interpreter {
                     }
                     continue
                 }
+                if isStaticDecl {
+                    declLexicalOwners[binding.id] = symbol
+                }
+                if isStaticDecl,
+                   declarationMetadata.hasFileScopedReadAccess {
+                    symbol.fileScopedStaticMemberOrigins[memberName] = .init(
+                        sourceFileIdentity: currentProgramMetadata?
+                            .sourceFileIdentity(
+                                at: varDecl
+                                    .positionAfterSkippingLeadingTrivia))
+                }
                 if isTaskLocal {
                     guard binding.accessorBlock == nil else {
                         throw error(
@@ -1090,7 +1140,8 @@ extension Interpreter {
                         symbol.staticProperties[memberName] = .init(
                             initializer: initializer,
                             typeAnnotation: bindingMetadata.typeAnnotation,
-                            referenceOwnership: referenceOwnership
+                            referenceOwnership: referenceOwnership,
+                            declarationID: binding.id
                         )
                     } else {
                         symbol.staticUninitialized.insert(memberName)

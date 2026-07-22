@@ -27,6 +27,8 @@ public final class EnumSymbol {
     public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
     public internal(set) var staticProperties: [String: StructSymbol.StaticProperty] = [:]
+    var fileScopedStaticMemberOrigins:
+        [String: FileScopedStaticMemberOrigin] = [:]
     /// Source task-local declarations use the enum as a namespace but retain
     /// declaration identity independently of their textual member names.
     var taskLocalProperties: [String: RuntimeTaskLocalDeclaration] = [:]
@@ -55,6 +57,16 @@ public final class EnumSymbol {
 
     public func caseInfo(named name: String) -> Case? {
         cases.first { $0.name == name }
+    }
+
+    func isStaticMember(
+        named name: String,
+        visibleFrom sourceFileIdentity: RuntimeSourceFileIdentity?
+    ) -> Bool {
+        guard let origin = fileScopedStaticMemberOrigins[name] else {
+            return true
+        }
+        return origin.sourceFileIdentity == sourceFileIdentity
     }
 }
 

@@ -205,6 +205,9 @@ public final class ClosureValue {
     /// programs retain them independently from the union of imports used to
     /// assemble the whole source projection.
     public internal(set) var sourceImportedModuleNames: Set<String>?
+    /// Exact flattened compiler input that declared this closure. Private and
+    /// fileprivate member lookup uses it after the closure escapes its caller.
+    var sourceFileIdentity: RuntimeSourceFileIdentity?
     /// Immutable target-specific declaration/member selection retained with
     /// the source closure. External callback entries reuse this exact object
     /// rather than resolving branches through current facade state.
@@ -249,6 +252,8 @@ public final class ClosureValue {
             at: sourcePosition)
         self.sourceImportedModuleNames = resolvedMetadata?
             .sourceImportedModuleNames(at: sourcePosition)
+        self.sourceFileIdentity = resolvedMetadata?.sourceFileIdentity(
+            at: sourcePosition)
     }
 
     private static func isOptionalChainRootedAtFirstArgument(

@@ -181,6 +181,78 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    /// Native Swift resolves `.footnote` here to SwiftUI.Font.footnote. The
+    /// same module's other source file has a private sizing constant with the
+    /// same spelling, but file-private declarations cannot shadow SDK members
+    /// at this call site. IceCubes DesignSystem/Font.swift has this exact shape.
+    @Test func privateSourceExtensionStaticDoesNotShadowSDKStaticAcrossFiles() throws {
+        let definitions = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+
+            extension Font {
+                private static let footnote = 13.0
+                public static var fixtureScaledFootnote: Font { .footnote }
+            }
+            """,
+            moduleName: "FontScopeProbe")
+        let consumer = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+
+            struct ContentView: View {
+                var body: some View {
+                    Text("public SDK font").font(.footnote)
+                }
+            }
+            """,
+            moduleName: "FontScopeProbe")
+
+        RenderDiagnostics.reset()
+        switch InterpreterHost().render(source: definitions + consumer) {
+        case .failure(let error):
+            Issue.record("render failed: \(error)")
+        case .success(let view):
+            let hosting = NSHostingView(rootView: view)
+            hosting.layoutSubtreeIfNeeded()
+            for (viewName, error) in RenderDiagnostics.errors {
+                Issue.record("\(viewName): \(error)")
+            }
+        }
+    }
+
+    /// A stored static initializer executes in its declaring compiler input,
+    /// even when another file triggers lazy initialization through an
+    /// internal/public sibling. SwiftGen plist namespaces use this shape:
+    /// the exported key reads a private document owned by the same file.
+    @Test func crossFileStaticReadUsesInitializerDeclarationScope() throws {
+        let definitions = ProjectMaterial.mergedSource(
+            source: """
+            enum FixtureNamespace {
+                private static let document = "1.2.3"
+                internal static let version = document
+            }
+            """,
+            moduleName: "StaticInitializerProbe")
+        let consumer = ProjectMaterial.mergedSource(
+            source: """
+            struct ContentView: View {
+                var body: some View {
+                    let value = FixtureNamespace.version
+                    if value != "1.2.3" {
+                        fatalError("static initializer lost declaration scope")
+                    }
+                    return Text(value)
+                }
+            }
+            """,
+            moduleName: "StaticInitializerProbe")
+
+        let report = try HeadlessVerifier.verify(
+            source: definitions + consumer)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// The SDK spells contextual constants on both ordinary value structs and
     /// nested OptionSets. They are the same interface property: a public static
     /// member whose declared value type is its enclosing type.
