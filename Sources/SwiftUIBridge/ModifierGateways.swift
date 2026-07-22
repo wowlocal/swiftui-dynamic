@@ -411,11 +411,12 @@ extension ViewRegistry {
 
         // MARK: Container configuration
 
-        register("navigationTitle") { view, args, _ in
+        register("navigationTitle") { view, args, ctx in
             if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
                 print("TRACE-BINDING navigationTitle apply: \"\(args.positional(0)?.stringValue ?? "")\"")
             }
-            return AnyView(view.navigationTitle(args.positional(0)?.stringValue ?? ""))
+            return try NavigationPresentationBridge.applyTitle(
+                to: view, args: args, context: ctx)
         }
         register("navigationDestination") { view, args, ctx in
             // Value-based navigation EXECUTES through the shared String

@@ -460,9 +460,11 @@ extension ViewRegistry {
                 // static path element types. Native path hosting can also
                 // suppress the initial interpreted root outside its App
                 // scene, so preserve that root in a stack-shaped fallback.
-                return .native(AnyView(VStack { Self.indexed(content) }))
+                return .native(NavigationPresentationBridge.contain(
+                    AnyView(VStack { Self.indexed(content) })))
             }
-            return .native(AnyView(NavigationStack { Self.indexed(content) }))
+            return .native(NavigationPresentationBridge.contain(
+                AnyView(NavigationStack { Self.indexed(content) })))
         }
         constructors["NavigationStack"] = navigationStack
         constructors["NavigationView"] = navigationStack // old samples
