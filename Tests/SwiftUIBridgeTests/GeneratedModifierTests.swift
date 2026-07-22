@@ -181,6 +181,46 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    /// Native Swift resolves `.footnote` here to SwiftUI.Font.footnote. The
+    /// same module's other source file has a private sizing constant with the
+    /// same spelling, but file-private declarations cannot shadow SDK members
+    /// at this call site. IceCubes DesignSystem/Font.swift has this exact shape.
+    @Test func privateSourceExtensionStaticDoesNotShadowSDKStaticAcrossFiles() throws {
+        let definitions = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+
+            extension Font {
+                private static let footnote = 13.0
+                public static var fixtureScaledFootnote: Font { .footnote }
+            }
+            """,
+            moduleName: "FontScopeProbe")
+        let consumer = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+
+            struct ContentView: View {
+                var body: some View {
+                    Text("public SDK font").font(.footnote)
+                }
+            }
+            """,
+            moduleName: "FontScopeProbe")
+
+        RenderDiagnostics.reset()
+        switch InterpreterHost().render(source: definitions + consumer) {
+        case .failure(let error):
+            Issue.record("render failed: \(error)")
+        case .success(let view):
+            let hosting = NSHostingView(rootView: view)
+            hosting.layoutSubtreeIfNeeded()
+            for (viewName, error) in RenderDiagnostics.errors {
+                Issue.record("\(viewName): \(error)")
+            }
+        }
+    }
+
     /// The SDK spells contextual constants on both ordinary value structs and
     /// nested OptionSets. They are the same interface property: a public static
     /// member whose declared value type is its enclosing type.

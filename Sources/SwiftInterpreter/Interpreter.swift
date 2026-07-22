@@ -702,6 +702,13 @@ public final class Interpreter {
     var currentLexicalSourceImportedModuleNames: Set<String>? {
         lexicalSourceImportFrames.last ?? nil
     }
+    var lexicalSourceFileFrames: [RuntimeSourceFileIdentity?] {
+        get { evaluationTaskContext.lexicalSourceFileFrames }
+        set { evaluationTaskContext.lexicalSourceFileFrames = newValue }
+    }
+    var currentLexicalSourceFileIdentity: RuntimeSourceFileIdentity? {
+        lexicalSourceFileFrames.last ?? nil
+    }
 
     /// Evaluate detached declaration syntax with the compiler-input module
     /// and imports selected by its immutable byte position. Stored-property
@@ -720,7 +727,10 @@ public final class Interpreter {
             metadata?.sourceModuleName(at: sourcePosition))
         lexicalSourceImportFrames.append(
             metadata?.sourceImportedModuleNames(at: sourcePosition))
+        lexicalSourceFileFrames.append(
+            metadata?.sourceFileIdentity(at: sourcePosition))
         defer {
+            lexicalSourceFileFrames.removeLast()
             lexicalSourceImportFrames.removeLast()
             lexicalSourceModuleFrames.removeLast()
         }

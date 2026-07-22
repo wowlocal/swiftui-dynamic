@@ -1,5 +1,12 @@
 import SwiftSyntax
 
+/// Presence in a symbol's origin table distinguishes a file-scoped member
+/// whose compiler-input identity is unavailable (legacy single-file source)
+/// from an unrestricted member.
+struct FileScopedStaticMemberOrigin {
+    let sourceFileIdentity: RuntimeSourceFileIdentity?
+}
+
 /// A computed property's accessors. `isBuilder` marks `@ViewBuilder`
 /// members and `some View` return types — those evaluate in builder mode.
 @MainActor
@@ -309,6 +316,11 @@ public final class StructSymbol {
     public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var initializers: [InitializerDeclSyntax] = []
     public internal(set) var staticProperties: [String: StaticProperty] = [:]
+    /// Origins exist only for static properties declared `private` or
+    /// `fileprivate`; all storage/computed/wrapper/task-local shapes share the
+    /// same property-level access rule.
+    var fileScopedStaticMemberOrigins:
+        [String: FileScopedStaticMemberOrigin] = [:]
     /// Real source `@TaskLocal static var` declarations. Their defaults are
     /// static, while bound values live only in each runtime task's storage.
     var taskLocalProperties: [String: RuntimeTaskLocalDeclaration] = [:]
@@ -364,6 +376,7 @@ public final class StructSymbol {
         copy.methods = methods
         copy.initializers = initializers
         copy.staticProperties = staticProperties
+        copy.fileScopedStaticMemberOrigins = fileScopedStaticMemberOrigins
         copy.taskLocalProperties = taskLocalProperties
         copy.staticMethods = staticMethods
         copy.typeAliases = typeAliases
@@ -373,6 +386,16 @@ public final class StructSymbol {
         copy.staticStoragePolicies = staticStoragePolicies
         copy.staticUninitialized = staticUninitialized
         return copy
+    }
+
+    func isStaticMember(
+        named name: String,
+        visibleFrom sourceFileIdentity: RuntimeSourceFileIdentity?
+    ) -> Bool {
+        guard let origin = fileScopedStaticMemberOrigins[name] else {
+            return true
+        }
+        return origin.sourceFileIdentity == sourceFileIdentity
     }
 
     public var isObservable: Bool {

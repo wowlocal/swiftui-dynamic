@@ -637,7 +637,10 @@ extension Interpreter {
     func hostExtensionStaticMethodDispatcher(
         _ name: String, hostSymbol: StructSymbol, typeName: String
     ) -> RuntimeValue? {
-        guard let overloads = hostSymbol.staticMethods[name], !overloads.isEmpty,
+        guard hostSymbol.isStaticMember(
+                  named: name,
+                  visibleFrom: currentLexicalSourceFileIdentity),
+              let overloads = hostSymbol.staticMethods[name], !overloads.isEmpty,
               hostSymbol.staticProperties[name] == nil,
               hostSymbol.staticComputedProperties[name] == nil,
               hostSymbol.nestedTypes[name] == nil,
@@ -1350,9 +1353,13 @@ extension Interpreter {
             at: sourcePosition)
         let sourceImportedModuleNames = sourceMetadata?
             .sourceImportedModuleNames(at: sourcePosition)
+        let sourceFileIdentity = sourceMetadata?.sourceFileIdentity(
+            at: sourcePosition)
         lexicalSourceModuleFrames.append(sourceModuleName)
         lexicalSourceImportFrames.append(sourceImportedModuleNames)
+        lexicalSourceFileFrames.append(sourceFileIdentity)
         defer {
+            lexicalSourceFileFrames.removeLast()
             lexicalSourceImportFrames.removeLast()
             lexicalSourceModuleFrames.removeLast()
         }
@@ -1447,7 +1454,10 @@ extension Interpreter {
             sourceMetadata?.sourceModuleName(at: sourcePosition))
         lexicalSourceImportFrames.append(
             sourceMetadata?.sourceImportedModuleNames(at: sourcePosition))
+        lexicalSourceFileFrames.append(
+            sourceMetadata?.sourceFileIdentity(at: sourcePosition))
         defer {
+            lexicalSourceFileFrames.removeLast()
             lexicalSourceImportFrames.removeLast()
             lexicalSourceModuleFrames.removeLast()
         }

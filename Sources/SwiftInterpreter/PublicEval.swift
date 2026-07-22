@@ -187,9 +187,12 @@ extension Interpreter {
             metadata?.sourceModuleName(at: sourcePosition))
         lexicalSourceImportFrames.append(
             metadata?.sourceImportedModuleNames(at: sourcePosition))
+        lexicalSourceFileFrames.append(
+            metadata?.sourceFileIdentity(at: sourcePosition))
         if let owner { lexicalOwnerFrames.append(owner) }
         defer {
             if owner != nil { lexicalOwnerFrames.removeLast() }
+            lexicalSourceFileFrames.removeLast()
             lexicalSourceImportFrames.removeLast()
             lexicalSourceModuleFrames.removeLast()
         }

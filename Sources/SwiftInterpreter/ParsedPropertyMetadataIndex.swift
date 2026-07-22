@@ -126,6 +126,10 @@ nonisolated struct ParsedVariablePropertyMetadata: Sendable {
     let isLazy: Bool
     let isNonisolated: Bool
     let isTaskLocal: Bool
+    /// A plain `private`/`fileprivate` access modifier restricts both reads
+    /// and writes to the declaring compiler input. Setter-only modifiers such
+    /// as `private(set)` intentionally do not restrict reads.
+    let hasFileScopedReadAccess: Bool
     let referenceOwnership: ReferenceOwnership
     let attributeNames: [String]
     let hasBuilderAttribute: Bool
@@ -147,6 +151,10 @@ nonisolated struct ParsedVariablePropertyMetadata: Sendable {
                 .split(separator: ".").last.map(String.init)
         }
         isTaskLocal = attributeNames.contains("TaskLocal")
+        hasFileScopedReadAccess = declaration.modifiers.contains {
+            ($0.name.text == "private" || $0.name.text == "fileprivate")
+                && $0.detail == nil
+        }
         hasBuilderAttribute = attributeNames.contains {
             $0.hasSuffix("Builder")
         }

@@ -70,6 +70,10 @@ final class EvaluationTaskContext {
     /// Optional frames deliberately prevent a callback declared outside a
     /// source-module region from inheriting its caller's imports.
     var lexicalSourceImportFrames: [Set<String>?] = []
+    /// Exact compiler-input identities parallel to the module/import frames.
+    /// An explicit nil frame preserves legacy single-source behavior without
+    /// inheriting an unrelated caller's file scope.
+    var lexicalSourceFileFrames: [RuntimeSourceFileIdentity?] = []
     /// Static executor context of the currently evaluated source declaration.
     /// A `nil` frame is intentional: a plain/nonisolated declaration may run
     /// dynamically on MainActor without making closures formed in its body
@@ -129,6 +133,7 @@ final class EvaluationTaskContext {
             && lexicalOwnerFrames.isEmpty
             && lexicalSourceModuleFrames.isEmpty
             && lexicalSourceImportFrames.isEmpty
+            && lexicalSourceFileFrames.isEmpty
             && lexicalExecutorFrames.isEmpty
             && expectedAnnotationStack.isEmpty
             && enclosingReturnAnnotations.isEmpty
@@ -179,6 +184,7 @@ final class EvaluationTaskContext {
         lexicalOwnerFrames.removeAll(keepingCapacity: false)
         lexicalSourceModuleFrames.removeAll(keepingCapacity: false)
         lexicalSourceImportFrames.removeAll(keepingCapacity: false)
+        lexicalSourceFileFrames.removeAll(keepingCapacity: false)
         lexicalExecutorFrames.removeAll(keepingCapacity: false)
         expectedAnnotationStack.removeAll(keepingCapacity: false)
         enclosingReturnAnnotations.removeAll(keepingCapacity: false)

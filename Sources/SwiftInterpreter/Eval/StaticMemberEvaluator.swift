@@ -79,6 +79,12 @@ extension Interpreter {
         of symbol: StructSymbol,
         dynamicType: StructSymbol
     ) throws -> RuntimeValue? {
+        guard symbol.isStaticMember(
+            named: name,
+            visibleFrom: currentLexicalSourceFileIdentity
+        ) else {
+            return nil
+        }
         if let taskLocal = try sourceTaskLocalMember(
             name,
             declarations: symbol.taskLocalProperties,
@@ -204,6 +210,12 @@ extension Interpreter {
     }
 
     func staticMember(_ name: String, of symbol: EnumSymbol) throws -> RuntimeValue? {
+        guard symbol.isStaticMember(
+            named: name,
+            visibleFrom: currentLexicalSourceFileIdentity
+        ) else {
+            return nil
+        }
         if let taskLocal = try sourceTaskLocalMember(
             name,
             declarations: symbol.taskLocalProperties,
