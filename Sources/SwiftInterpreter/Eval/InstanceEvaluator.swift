@@ -1407,15 +1407,6 @@ extension Interpreter {
                 isImplicitlyUnwrapped: typeName.hasSuffix("!"))
         }
 
-        // A concrete source annotation is static evidence even when an
-        // opaque compiled dependency can only return an unknowable marker at
-        // runtime. Resolve that marker to String's established fresh value at
-        // the declaration boundary, before downstream overload matching; a
-        // dynamically unannotated marker remains unknowable.
-        if typeName == "String", isUnknowable(value) {
-            return .native("")
-        }
-
         if let range = value.rangeValue, let annotation = Self.rangeAnnotation(typeName) {
             guard range.matchesNominalShape(annotation.name) else {
                 throw RuntimeError(message: "\(range.description) is not a \(annotation.name)")
