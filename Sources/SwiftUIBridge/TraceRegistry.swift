@@ -72,6 +72,10 @@ public final class TraceRegistry: HostRegistry {
     let fileManagerBox = FileManagerBox()
     let applicationShells = FrameworkApplicationShellStore()
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
+    /// Projection delivery is a property of this verification environment.
+    /// Snapshotting it prevents a concurrent replay scope from changing an
+    /// already-created absorbed registry halfway through a render.
+    private let publishedProjectionPolicy: NetworkPolicy
 
     /// Swiftinterface metadata exposes List's builder but not its lazy,
     /// viewport-owned lifecycle semantics. Keep that missing SwiftUI magic in
@@ -85,7 +89,9 @@ public final class TraceRegistry: HostRegistry {
         "List": Int(844 / 44),
     ]
 
-    public init() {}
+    public init(networkPolicy: NetworkPolicy? = nil) {
+        publishedProjectionPolicy = networkPolicy ?? NetworkBridge.activePolicy
+    }
 
     public func absorbedCValue(named name: String) -> RuntimeValue? {
         GeneratedCMemoryBridge.record(named: name).map(RuntimeValue.native)
@@ -177,8 +183,12 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? {
-        guard case .replay = NetworkBridge.activePolicy else { return nil }
-        return .native(ValuePublisherBox(.success(current)))
+        switch publishedProjectionPolicy {
+        case .absorbed:
+            return nil
+        case .replay, .live:
+            return .native(ValuePublisherBox(.success(current)))
+        }
     }
 
     public func constructor(named name: String) -> HostFunction? {

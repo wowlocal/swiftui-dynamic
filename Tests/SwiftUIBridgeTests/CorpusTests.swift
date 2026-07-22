@@ -2436,7 +2436,7 @@ enum Corpus {
     /// `$published` pipelines inside models chain inertly and never emit
     /// headlessly (debounce schedulers don't run) — the honest silent
     /// pipeline; `&inout` args and Set() holders ride along.
-    @Test func publishedProjectionPipelinesAreSilent() throws {
+    @Test func publishedProjectionPipelinesAreSilent() async throws {
         let source = """
         class SearchModel: ObservableObject {
             @Published var searchText = ""
@@ -2464,7 +2464,15 @@ enum Corpus {
             }
         }
         """
-        let report = try HeadlessVerifier.verify(source: source)
+        // A parallel live/replay probe must not change the absorbed
+        // HeadlessVerifier board's projection delivery halfway through a
+        // render. The task-local scope makes that interference deterministic
+        // without mutating process-wide test state.
+        let report = try await NetworkBridge.withIsolatedReplay(
+            policy: .replay(fixturesDirectory: NSTemporaryDirectory())
+        ) {
+            try HeadlessVerifier.verify(source: source)
+        }.value
         #expect(report.nodeCount >= 2)
     }
 

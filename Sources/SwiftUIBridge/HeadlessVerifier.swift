@@ -25,7 +25,11 @@ public enum HeadlessVerifier {
         source: String, interactions: Bool = true, lazyTopLevelGlobals: Bool = false
     ) throws -> Report {
         resetBridgeEnvironment()
-        let interpreter = Interpreter(registry: TraceRegistry())
+        // ProjectCheck/HeadlessVerifier is always the absorbed board. Pin the
+        // registry explicitly so an unrelated concurrent replay scope cannot
+        // change @Published projection semantics during this verification.
+        let interpreter = Interpreter(
+            registry: TraceRegistry(networkPolicy: .absorbed))
         do {
             try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
         } catch {
