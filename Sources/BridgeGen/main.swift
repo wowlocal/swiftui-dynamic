@@ -946,6 +946,10 @@ struct Variant {
     let params: [EmittableParam]
     let trailingClosureIndex: Int?
     let inheritedFrameworkRequirements: Set<String>
+    /// Imports required by the interpreted source target. Unlike compile-time
+    /// framework guards, these survive into generated dispatch so a
+    /// macOS-hosted interpreter can distinguish iOS source from macOS source.
+    let targetImportRequirements: Set<String>
     /// Values that are structurally both View and ShapeStyle must remain their
     /// concrete semantic value; erasing them to AnyView loses later style use.
     let preservesSemanticValue: Bool
@@ -980,7 +984,8 @@ func acceptableModifierReturn(_ type: String) -> Bool {
 
 func processModifier(
     _ function: FunctionDeclSyntax, guarded: Bool,
-    frameworkRequirements: Set<String>
+    frameworkRequirements: Set<String>,
+    targetImportRequirements: Set<String> = []
 ) {
     guard isPublicSDKDecl(function.modifiers) else { return }
     let name = function.name.text
@@ -1034,6 +1039,7 @@ func processModifier(
             trailingClosureIndex: selection.trailingClosureIndex,
             inheritedFrameworkRequirements: frameworkRequirements.union(
                 platformFrameworkRequirements(function.attributes)),
+            targetImportRequirements: targetImportRequirements,
             preservesSemanticValue: false
         )
         if seenKeys.insert(variant.key).inserted {
@@ -1119,6 +1125,7 @@ func processInit(
             trailingClosureIndex: selection.trailingClosureIndex,
             inheritedFrameworkRequirements: frameworkRequirements.union(
                 platformFrameworkRequirements(initDecl.attributes)),
+            targetImportRequirements: [],
             preservesSemanticValue: preservesSemanticValue
         )
         if initSeenKeys.insert(variant.key).inserted {
@@ -1260,6 +1267,33 @@ for file in interfaceFiles {
     }
 }
 
+// Target-overlay View modifiers are ordinary interface-derived API even when
+// the macOS host interface marks them unavailable. Generate their real calls
+// where the platform framework can compile, plus a reusable receiver-
+// preserving adapter for a host rendering that target off-platform. Runtime
+// selection retains the overlay's import requirement, so this does not make
+// the target-only source spelling legal for a macOS interpreter.
+for file in targetOverlayFiles {
+    for statement in file.statements {
+        guard case .decl(let decl) = statement.item,
+              let ext = decl.as(ExtensionDeclSyntax.self),
+              normalize(ext.extendedType.trimmedDescription) == "View",
+              isUsableIOSOverlay(ext.attributes) else { continue }
+        for member in ext.memberBlock.members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  isUsableIOSOverlay(function.attributes),
+                  let returnType = function.signature.returnClause?.type
+                    .trimmedDescription,
+                  acceptableModifierReturn(returnType) else { continue }
+            processModifier(
+                function,
+                guarded: false,
+                frameworkRequirements: ["UIKit"],
+                targetImportRequirements: ["UIKit"])
+        }
+    }
+}
+
 // Pass C: target-only overlay initializers on View types known from the host
 // interface. Exact native calls stay framework-guarded; a later structural
 // adapter keeps View+ShapeStyle values usable when this interpreter renders a
@@ -1312,6 +1346,7 @@ let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
             name: variant.name, params: [semanticParameter],
             trailingClosureIndex: nil,
             inheritedFrameworkRequirements: [],
+            targetImportRequirements: [],
             preservesSemanticValue: true)
         let key = "\(framework)|\(adapter.key)"
         guard seen.insert(key).inserted else { return nil }
@@ -2400,11 +2435,28 @@ func entryCode(_ variant: Variant) -> String {
     let specs = variant.params
         .map(paramSpecCode)
         .joined(separator: ", ")
-    var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]) { view, v in"]
+    let imports = variant.targetImportRequirements.sorted()
+        .map { "\"\($0)\"" }
+        .joined(separator: ", ")
+    let importArgument = variant.targetImportRequirements.isEmpty
+        ? "" : ", requiredImports: [\(imports)]"
+    var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]\(importArgument)) { view, v in"]
     lines.append(contentsOf: generatedCallPreamble(variant))
     lines.append("        return AnyView(\(generatedCall("view.\(variant.name)", variant)))")
     lines.append("    }")
-    return compileGuarded(lines.joined(separator: "\n"), for: variant)
+    let exact = lines.joined(separator: "\n")
+    guard !variant.targetImportRequirements.isEmpty else {
+        return compileGuarded(exact, for: variant)
+    }
+    let condition = variant.requiredFrameworks
+        .map { "canImport(\($0))" }
+        .joined(separator: " && ")
+    let fallback = """
+    register(&t, "\(variant.name)", [\(specs)]\(importArgument)) { view, _ in
+        return AnyView(view)
+    }
+    """
+    return "#if \(condition)\n\(exact)\n#else\n\(fallback)\n#endif"
 }
 
 func compileGuarded(_ source: String, for variant: Variant) -> String {

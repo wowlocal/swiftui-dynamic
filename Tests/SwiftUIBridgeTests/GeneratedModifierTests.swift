@@ -194,6 +194,33 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    /// SwiftUI's target overlay declares modifiers that are source-valid on
+    /// iOS even when the macOS host interface marks them unavailable. Their
+    /// generated off-host adapter must preserve the rendered receiver for an
+    /// iOS interpreter without making the same API legal for a macOS target.
+    @Test func targetOverlayModifierPreservesReceiverForMatchingTarget() throws {
+        let hoverEffect = GeneratedModifiers.table["hoverEffect"]?
+            .byArity[0] ?? []
+        #expect(!hoverEffect.isEmpty)
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("target avatar")
+            .hoverEffect()
+            .onTapGesture {}
+        """)
+        #expect(registry.isViewValue(result))
+
+        let macOSInterpreter = Interpreter(
+            registry: ViewRegistry(),
+            buildConfiguration: .init(platformName: "macOS"))
+        #expect(throws: RuntimeError.self) {
+            _ = try macOSInterpreter.run(source: """
+            Text("macOS target").hoverEffect()
+            """)
+        }
+    }
+
     @Test func generatedSDKEnumsCoerceImplicitMembers() throws {
         let blend = try GeneratedSDKEnumCoercions.coerce(
             "BlendMode", .implicitMember("multiply")) as? BlendMode

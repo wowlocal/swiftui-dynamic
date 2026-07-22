@@ -81,7 +81,10 @@ public nonisolated struct InterpreterBuildConfiguration: Sendable, Equatable {
                     }))
     }
 
-    func canImport(_ moduleName: String) -> Bool {
+    /// Whether source compiled for this interpreter target can import a
+    /// module. Host bridges use this immutable target identity instead of
+    /// inferring availability from the process platform.
+    public func canImport(_ moduleName: String) -> Bool {
         if let authoritativeImportableModules {
             return authoritativeImportableModules.contains(moduleName)
         }

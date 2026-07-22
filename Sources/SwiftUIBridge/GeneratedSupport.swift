@@ -120,6 +120,9 @@ struct BuilderValue {
 
 struct GeneratedOverload {
     let params: [ParamSpec]
+    /// Modules required by the interpreted source target, independently of
+    /// which platform compiled this host bridge.
+    let requiredImports: Set<String>
     let invoke: @MainActor (AnyView, [Any]) throws -> AnyView
 }
 
@@ -490,6 +493,12 @@ enum GeneratedDispatch {
         ctx: EvalContext
     ) throws -> AnyView {
         for overload in overloads.byArity[args.arguments.count] ?? [] {
+            if !overload.requiredImports.isEmpty {
+                guard let interpreter = ctx as? Interpreter,
+                      overload.requiredImports.allSatisfy({
+                          interpreter.buildConfiguration.canImport($0)
+                      }) else { continue }
+            }
             guard let values = matches(overload.params, args, ctx) else { continue }
             return try overload.invoke(view, values)
         }
@@ -1077,9 +1086,13 @@ enum GeneratedModifiers {
         _ table: inout [String: [GeneratedOverload]],
         _ name: String,
         _ params: [ParamSpec],
+        requiredImports: Set<String> = [],
         _ invoke: @escaping @MainActor (AnyView, [Any]) throws -> AnyView
     ) {
-        table[name, default: []].append(GeneratedOverload(params: params, invoke: invoke))
+        table[name, default: []].append(GeneratedOverload(
+            params: params,
+            requiredImports: requiredImports,
+            invoke: invoke))
     }
 }
 
