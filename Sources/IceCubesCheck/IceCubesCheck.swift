@@ -777,6 +777,11 @@ struct IceCubesCheckMain {
                     includeDetailAndAccount: false,
                     presentation: .nativeTimeline),
                 moduleName: "IceCubesCheckProbe")
+        if let dumpPath = ProcessInfo.processInfo.environment[
+            "ICECUBES_DUMP_MERGE"
+        ] {
+            try source.write(toFile: dumpPath, atomically: true, encoding: .utf8)
+        }
 
         try FileManager.default.createDirectory(
             atPath: directory, withIntermediateDirectories: true)
