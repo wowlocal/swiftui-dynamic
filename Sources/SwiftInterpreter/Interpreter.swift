@@ -702,6 +702,30 @@ public final class Interpreter {
     var currentLexicalSourceImportedModuleNames: Set<String>? {
         lexicalSourceImportFrames.last ?? nil
     }
+
+    /// Evaluate detached declaration syntax with the compiler-input module
+    /// and imports selected by its immutable byte position. Stored-property
+    /// defaults and lazy seeds do not enter through a source closure, so they
+    /// otherwise lose the lexical visibility that ordinary accessors carry.
+    func withLexicalSourceContext<T>(
+        at sourcePosition: AbsolutePosition,
+        programState: RuntimeProgramState? = nil,
+        _ operation: () throws -> T
+    ) rethrows -> T {
+        let state = programState ?? currentProgramState
+        evaluationTaskContext.enterProgramState(state)
+        defer { evaluationTaskContext.leaveProgramState(state) }
+        let metadata = state?.programPlan?.metadata ?? currentProgramMetadata
+        lexicalSourceModuleFrames.append(
+            metadata?.sourceModuleName(at: sourcePosition))
+        lexicalSourceImportFrames.append(
+            metadata?.sourceImportedModuleNames(at: sourcePosition))
+        defer {
+            lexicalSourceImportFrames.removeLast()
+            lexicalSourceModuleFrames.removeLast()
+        }
+        return try operation()
+    }
     /// The statically proven actor context for a closure expression. Source
     /// top-level execution is MainActor-owned; an explicit `nil` frame means
     /// the active declaration has no actor isolation even if it was invoked

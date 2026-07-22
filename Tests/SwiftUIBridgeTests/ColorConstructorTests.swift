@@ -107,6 +107,27 @@ import SwiftInterpreter
         #expect(Coerce.colorLike(importedValue) != nil)
     }
 
+    @Test func foreignAliasDoesNotRetypeStoredProperty() throws {
+        let foreignGraphics = ProjectMaterial.mergedSource(
+            source: """
+            import UIKit
+            typealias Color = UIColor
+            """,
+            moduleName: "ForeignGraphics")
+        let consumer = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+            struct ThemeProbe {
+                var labelColor: Color = .black
+            }
+            ThemeProbe().labelColor
+            """,
+            moduleName: "DesignSystem")
+        let value = try Interpreter(registry: ViewRegistry()).run(
+            source: foreignGraphics + consumer)
+        #expect(Coerce.colorLike(value) != nil)
+    }
+
     @Test func rgbaFlowsIntoFill() throws {
         let source = """
         struct ContentView: View {

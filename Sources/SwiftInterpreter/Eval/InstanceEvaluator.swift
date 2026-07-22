@@ -122,10 +122,16 @@ extension Interpreter {
                 // Ordinary defaults execute in the nominal type's static
                 // context before either sync or async init body begins.
                 do {
-                    value = try resolveAnnotated(
-                        try evaluate(initializer, in: selfEnvironment(.type(symbol))),
-                        typeName: property.typeName
-                    )
+                    value = try withLexicalSourceContext(
+                        at: initializer.positionAfterSkippingLeadingTrivia,
+                        programState: instance.programState
+                    ) {
+                        try resolveAnnotated(
+                            try evaluate(
+                                initializer,
+                                in: selfEnvironment(.type(symbol))),
+                            typeName: property.typeName)
+                    }
                 } catch is InterpretedThrow {
                     // Headless resource construction can legitimately throw;
                     // preserve the existing unknowable-default policy.
@@ -1529,10 +1535,12 @@ extension Interpreter {
         let visibleDeclaredType = lexicallyVisibleType(
             named: typeName, from: lexicalOwnerFrames.last)
         if visibleDeclaredType == nil,
-           !ownerHasNested, aliasHeads[typeName] != nil {
+           !ownerHasNested,
+           lexicallyVisibleTypeAliasHead(named: typeName) != nil {
             var canonical = typeName
             var hops = 0
-            while let target = aliasHeads[canonical], hops < 8 {
+            while let target = lexicallyVisibleTypeAliasHead(
+                named: canonical), hops < 8 {
                 canonical = target
                 hops += 1
             }
