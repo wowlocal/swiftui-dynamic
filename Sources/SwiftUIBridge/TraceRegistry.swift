@@ -706,6 +706,7 @@ public final class TraceRegistry: HostRegistry {
             return GeneratedPlatformBridge.method(name, on: platform)
         }
         return GeneratedMembers.method(name, on: value)
+            ?? objcTrampolineMethod(name, on: value)
     }
 
     /// `Text("a") + Text("b")` — concatenation records a combined node.

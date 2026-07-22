@@ -161,6 +161,14 @@ enum ObjCTrampoline {
         if let read = propertyRead(name, on: box) {
             return read
         }
+        return method(name, on: box)
+    }
+
+    /// Methods-only lookup for overload resolution. Unlike `member`, this
+    /// never executes a same-named zero-argument getter while merely forming
+    /// a candidate family; selector shape remains deferred until invocation
+    /// supplies the argument labels and values.
+    static func method(_ name: String, on box: ObjCBox) -> RuntimeValue {
         let object = box.object
         return .hostFunction(HostFunction(name: name) { args, ctx in
             // No matching selector / unmarshalable argument = a Swift-only
@@ -557,6 +565,12 @@ func objcTrampolineMember(_ name: String, on value: Any) -> RuntimeValue? {
         return ObjCTrampoline.staticMember(name, onClassNamed: marker.name)
     }
     return nil
+}
+
+@MainActor
+func objcTrampolineMethod(_ name: String, on value: Any) -> RuntimeValue? {
+    guard let box = value as? ObjCBox else { return nil }
+    return ObjCTrampoline.method(name, on: box)
 }
 
 @MainActor

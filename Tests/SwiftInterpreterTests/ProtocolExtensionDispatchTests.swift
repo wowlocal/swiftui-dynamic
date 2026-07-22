@@ -1,5 +1,6 @@
 import Testing
 @testable import SwiftInterpreter
+import SwiftUIBridge
 
 @Suite struct ProtocolExtensionDispatchTests {
     @Test func inheritedInstanceOverloadUsesRuntimeType() throws {
@@ -172,6 +173,95 @@ import Testing
 
         let value = try Interpreter().run(source: source)
         #expect(value.stringValue == "content")
+    }
+
+    /// A refined nonthrowing requirement is a better match for an unmarked
+    /// call than its same-shaped throwing ancestor. This is the delegation
+    /// pattern used when a throwing protocol default adapts a nonthrowing
+    /// conformer to the ancestor requirement.
+    @Test func unmarkedCallInThrowingDefaultSelectsNonthrowingWitness() throws {
+        let source = """
+        protocol ThrowingStore {
+            func fetch(forKey key: String) throws -> String?
+        }
+
+        protocol Store: ThrowingStore {
+            func fetch(forKey key: String) -> String?
+        }
+
+        extension Store {
+            func fetch(forKey key: String) throws -> String? {
+                fetch(forKey: key)
+            }
+        }
+
+        struct Box: Store {
+            func fetch(forKey key: String) -> String? {
+                "native-ok"
+            }
+        }
+
+        func throughThrowing(_ store: any ThrowingStore) throws -> String {
+            try store.fetch(forKey: "key") ?? "nil"
+        }
+
+        try throughThrowing(Box())
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.stringValue == "native-ok")
+    }
+
+    /// The same rule applies when the refined witness is supplied by an SDK
+    /// host type rather than an interpreted nominal declaration.
+    @Test func unmarkedCallInThrowingDefaultSelectsHostWitness() throws {
+        let source = """
+        import Foundation
+
+        protocol ThrowingStore {
+            func object(forKey key: String) throws -> Any?
+        }
+
+        protocol Store: ThrowingStore {
+            func object(forKey key: String) -> Any?
+        }
+
+        extension Store {
+            func object(forKey key: String) throws -> Any? {
+                object(forKey: key)
+            }
+        }
+
+        extension UserDefaults: Store {}
+
+        final class Settings {
+            let defaults: Store
+
+            init(defaults: Store = UserDefaults.standard) {
+                self.defaults = defaults
+            }
+
+            func marker() -> String {
+                defaults.object(forKey: "dynamic-swiftui-missing-key") == nil
+                    ? "native-ok" : "unexpected"
+            }
+        }
+        """
+
+        let interpreter = Interpreter(registry: ViewRegistry())
+        _ = try interpreter.run(
+            source: source,
+            lazyTopLevelGlobals: true)
+        let symbol = try #require(
+            interpreter.structSymbols.first { $0.name == "Settings" })
+        guard case .instance(let settings) = try interpreter.instantiateRoot(
+            symbol) else {
+            Issue.record("Settings did not instantiate")
+            return
+        }
+        let value = try interpreter.callMethod(
+            named: "marker", on: settings, arguments: [])
+        #expect(value.stringValue == "native-ok")
     }
 
     /// Suspending dispatch follows the same inherited-family and

@@ -796,6 +796,21 @@ extension Interpreter {
         return pool.filter { !activeFunctionBodies.contains($0.id) }
     }
 
+    /// Whether this call is lexically covered by `try`, `try?`, or `try!`.
+    /// Stop at a closure boundary: an outer `try operation { ... }` does not
+    /// license an unmarked throwing call inside the closure body.
+    func callAllowsExplicitThrowingOverload(
+        _ call: FunctionCallExprSyntax
+    ) -> Bool {
+        var ancestor = Syntax(call).parent
+        while let current = ancestor {
+            if current.is(TryExprSyntax.self) { return true }
+            if current.is(ClosureExprSyntax.self) { return false }
+            ancestor = current.parent
+        }
+        return false
+    }
+
     /// `init(from decoder:)` / `init(coder:)` — only decoders reach these.
     func isCodableInitializer(_ initializer: InitializerDeclSyntax) -> Bool {
         initializerMetadata(for: initializer).isCodable
