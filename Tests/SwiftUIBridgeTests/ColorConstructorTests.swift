@@ -51,6 +51,62 @@ import SwiftInterpreter
         #expect(try evalColor("Color(uiColor: UIColor.secondaryLabel)") != nil)
     }
 
+    /// IceCubes' status action buttons pass the explicit UIKit value straight
+    /// into a view modifier. Pin the argument-position boundary as well as the
+    /// standalone constructor result: the concrete Color must survive until
+    /// the modifier's generated coercion runs.
+    @Test func explicitPlatformColorFeedsViewModifier() throws {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let foreignGraphics = ProjectMaterial.mergedSource(
+            source: """
+            import UIKit
+            typealias Color = UIColor
+            """,
+            moduleName: "ForeignGraphics")
+        let consumer = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+            struct StatusActionProbe: View {
+                var body: some View {
+                    Text("probe")
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            }
+            StatusActionProbe().body
+            """,
+            moduleName: "StatusKit")
+        _ = try interpreter.run(source: foreignGraphics + consumer)
+    }
+
+    @Test func sameModuleAndExportedAliasesRemainVisible() throws {
+        let local = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+            typealias Palette = Color
+            Palette(red: 0.2, green: 0.4, blue: 0.6)
+            """,
+            moduleName: "PaletteKit")
+        let localValue = try Interpreter(registry: ViewRegistry()).run(
+            source: local)
+        #expect(Coerce.colorLike(localValue) != nil)
+
+        let exported = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+            public typealias Palette = Color
+            """,
+            moduleName: "PaletteKit")
+        let consumer = ProjectMaterial.mergedSource(
+            source: """
+            import PaletteKit
+            Palette(red: 0.2, green: 0.4, blue: 0.6)
+            """,
+            moduleName: "Consumer")
+        let importedValue = try Interpreter(registry: ViewRegistry()).run(
+            source: exported + consumer)
+        #expect(Coerce.colorLike(importedValue) != nil)
+    }
+
     @Test func rgbaFlowsIntoFill() throws {
         let source = """
         struct ContentView: View {

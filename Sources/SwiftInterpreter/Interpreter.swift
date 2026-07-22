@@ -990,6 +990,59 @@ public final class Interpreter {
         _read { yield activeProgramState.aliasHeads }
         _modify { yield &activeProgramState.aliasHeads }
     }
+    var topLevelTypeAliasBindings: [
+        String: [RuntimeProgramState.TopLevelTypeAliasBinding]
+    ] {
+        _read { yield activeProgramState.topLevelTypeAliasBindings }
+        _modify { yield &activeProgramState.topLevelTypeAliasBindings }
+    }
+
+    /// Follow a free top-level alias only when its declaring compiler module
+    /// is visible at the active source file. Flattening several SwiftPM
+    /// targets must not let one target's private `typealias Color = UIColor`
+    /// redirect an unrelated target's imported SwiftUI `Color` constructor.
+    /// Sources without file/module provenance retain the legacy single-file
+    /// behavior, while exported aliases from explicit imports remain visible.
+    func lexicallyVisibleTypeAliasHead(
+        named name: String,
+        sourceModuleName: String? = nil,
+        sourceImportedModuleNames: Set<String>? = nil
+    ) -> String? {
+        let lexicalModule = sourceModuleName ?? currentLexicalSourceModuleName
+        let hasFileScopedImports = sourceImportedModuleNames != nil
+            || currentLexicalSourceImportedModuleNames != nil
+        guard lexicalModule != nil || hasFileScopedImports else {
+            return aliasHeads[name]
+        }
+        guard let bindings = topLevelTypeAliasBindings[name] else {
+            return nil
+        }
+
+        if let lexicalModule,
+           let local = bindings.last(where: {
+               $0.sourceModuleName == lexicalModule
+           }) {
+            return local.targetName
+        }
+
+        let lexicalImports = sourceImportedModuleNames
+            ?? currentLexicalSourceImportedModuleNames
+            ?? currentProgramMetadata?.importedModuleNames
+            ?? ["Swift"]
+        let importedTargets = Set(bindings.compactMap { binding -> String? in
+            guard binding.isExported,
+                  let module = binding.sourceModuleName,
+                  lexicalImports.contains(module) else { return nil }
+            return binding.targetName
+        })
+        if importedTargets.count == 1 { return importedTargets.first }
+        if importedTargets.count > 1 { return nil }
+
+        let unownedTargets = Set(bindings.compactMap {
+            $0.sourceModuleName == nil ? $0.targetName : nil
+        })
+        return unownedTargets.count == 1 ? unownedTargets.first : nil
+    }
     var typeAliasTargets: [String: String] {
         _read { yield activeProgramState.typeAliasTargets }
         _modify { yield &activeProgramState.typeAliasTargets }

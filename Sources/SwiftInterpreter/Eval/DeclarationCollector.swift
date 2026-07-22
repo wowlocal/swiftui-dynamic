@@ -41,6 +41,17 @@ extension Interpreter {
             typeAliasTargets[metadata.name] = metadata.targetTypeName
             if metadata.isNominalTarget {
                 aliasHeads[metadata.name] = metadata.lookupTargetName
+                let sourceModuleName = currentProgramMetadata?.sourceModuleName(
+                    at: alias.positionAfterSkippingLeadingTrivia)
+                let isExported = metadata.modifierNames.contains("public")
+                    || metadata.modifierNames.contains("open")
+                    || metadata.modifierNames.contains("package")
+                topLevelTypeAliasBindings[
+                    metadata.name, default: []
+                ].append(.init(
+                    targetName: metadata.lookupTargetName,
+                    sourceModuleName: sourceModuleName,
+                    isExported: isExported))
             }
         }
         for declaration in plan.extensionDeclarations {

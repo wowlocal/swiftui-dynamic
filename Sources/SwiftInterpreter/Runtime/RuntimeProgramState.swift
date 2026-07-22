@@ -9,6 +9,12 @@ import SwiftSyntax
 /// runtime entries, and escaped source closures retain the same state object.
 @MainActor
 final class RuntimeProgramState {
+    struct TopLevelTypeAliasBinding {
+        let targetName: String
+        let sourceModuleName: String?
+        let isExported: Bool
+    }
+
     typealias PendingMemberAlias = (StructSymbol, String, String)
     typealias PendingDeinitializerIsolationCheck = (
         symbol: StructSymbol,
@@ -64,6 +70,12 @@ final class RuntimeProgramState {
     /// same-spelled nominal.
     var nonNominalExtensionTypeNames: Set<String> = []
     var aliasHeads: [String: String] = [:]
+    /// Top-level aliases retain their declaring compiler module instead of
+    /// collapsing into the flattened program's last spelling. Free type-name
+    /// lookup can then apply the same-module/import visibility rule as
+    /// interpreted nominals before following an alias to a host constructor.
+    var topLevelTypeAliasBindings:
+        [String: [TopLevelTypeAliasBinding]] = [:]
     /// Complete source typealias targets, including tuple and function types.
     /// `aliasHeads` remains the nominal-only extension canonicalization index;
     /// overload matching needs the unabridged spelling to recover call shape.

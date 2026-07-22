@@ -265,7 +265,8 @@ extension Interpreter {
         if let function = registry?.cFunction(named: name) {
             return .hostFunction(function)
         }
-        if let ctor = registry?.constructor(named: aliasHeads[name] ?? name) {
+        let constructorName = lexicallyVisibleTypeAliasHead(named: name) ?? name
+        if let ctor = registry?.constructor(named: constructorName) {
             return .hostFunction(ctor)
         }
         // Unknown type-looking names are assumed host types used for static
