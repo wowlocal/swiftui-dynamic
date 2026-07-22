@@ -174,8 +174,6 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Angle": return .init(tag: "angle", cast: "%@ as! Angle")
     case "Animation": return .init(tag: "animation", cast: "%@ as! Animation")
     case "Alignment": return .init(tag: "alignment", cast: "%@ as! Alignment")
-    case "HorizontalAlignment": return .init(tag: "horizontalAlignment", cast: "%@ as! HorizontalAlignment")
-    case "VerticalAlignment": return .init(tag: "verticalAlignment", cast: "%@ as! VerticalAlignment")
     case "TextAlignment": return .init(tag: "textAlignment", cast: "%@ as! TextAlignment")
     case "Edge.Set": return .init(tag: "edgeSet", cast: "%@ as! Edge.Set")
     case "UnitPoint": return .init(tag: "unitPoint", cast: "%@ as! UnitPoint")
@@ -350,7 +348,7 @@ func parameterSelections(_ analyzed: [AnalyzedParam]) -> [ParameterSelection] {
         // unlabeled argument positionally. A final closure is the structural
         // exception: trailing-closure syntax binds it after the omitted slot.
         let isFinalClosure = index == analyzed.count - 1
-            && ["builder", "action", "asyncAction"].contains(
+            && ["builder", "action", "asyncAction", "syncCGFloatClosure"].contains(
                 parameter.mapping?.tag ?? "")
         let requiresTrailingClosure = omittedUnlabeledDefault
             && parameter.label == nil
@@ -438,6 +436,29 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             hasDefault: hasDefault, blocker: nil, usesGeneric: nil
         )
     }
+    // Framework-owned synchronous callbacks with one input and a scalar
+    // layout result share one adapter. The SDK supplies the concrete input
+    // value; the interpreted closure computes the CGFloat. This is driven by
+    // closure shape, not by the modifier or input type's identity.
+    if let closure = type.as(FunctionTypeSyntax.self),
+       closure.parameters.count == 1,
+       let input = closure.parameters.first.map({
+           normalize($0.type.trimmedDescription)
+       }),
+       !generics.keys.contains(where: {
+           input == $0 || input.hasPrefix("\($0).")
+               || input.contains("<\($0)")
+               || input.contains(",\($0)")
+       }),
+       normalize(closure.returnClause.type.trimmedDescription) == "CGFloat" {
+        return .init(
+            label: label,
+            mapping: .init(
+                tag: "syncCGFloatClosure",
+                cast: "generatedSyncCGFloatClosure(%@)"),
+            hasDefault: hasDefault, blocker: nil, usesGeneric: nil,
+            contractType: normalized)
+    }
     // A generic parameter can legally shadow a concrete SDK type (`Data` is
     // common in collection initializers). Resolve declared generics first so
     // it is never mistaken for Foundation.Data or another direct mapping.
@@ -514,15 +535,18 @@ func isUsable(_ attributes: AttributeListSyntax) -> Bool {
     return true
 }
 
-/// GeneratedSDKEnumCoercions is shared without a platform payload wrapper, so
-/// keep its enum cases and same-type statics restricted to declarations
-/// present on every target.
+/// GeneratedSDKEnumCoercions is compiled for the package's supported Apple
+/// platforms (iOS and macOS). Availability exclusions for unrelated platforms
+/// do not erase a value that exists on both of those targets.
 func isUniversallyUsable(_ attributes: AttributeListSyntax) -> Bool {
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
         let text = attr.trimmedDescription
-        if text.contains("unavailable") || text.contains("deprecated")
-            || text.contains("obsoleted") {
+        let appliesToPackagePlatform = text.contains("iOS")
+            || text.contains("macOS") || text.hasPrefix("@available(*,")
+        if appliesToPackagePlatform
+            && (text.contains("unavailable") || text.contains("deprecated")
+                || text.contains("obsoleted")) {
             return false
         }
         if attr.attributeName.trimmedDescription.hasSuffix("_spi") { return false }
@@ -2306,6 +2330,8 @@ func generatedCallPreamble(_ variant: Variant) -> [String] {
             lines.append("        let a\(index) = generatedAction(v[\(index)])")
         case "asyncAction":
             lines.append("        let a\(index) = generatedAsyncAction(v[\(index)])")
+        case "syncCGFloatClosure":
+            lines.append("        let c\(index) = generatedSyncCGFloatClosure(v[\(index)])")
         default:
             break
         }
@@ -2331,6 +2357,7 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
     case "builder": "{ b\(trailingIndex) }"
     case "action": "{ a\(trailingIndex)() }"
     case "asyncAction": "{ await a\(trailingIndex)() }"
+    case "syncCGFloatClosure": "{ value in c\(trailingIndex)(value) }"
     default: fatalError("trailing call argument is not a generated closure")
     }
     return "\(head) \(closure)"

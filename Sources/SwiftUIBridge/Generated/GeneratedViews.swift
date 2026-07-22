@@ -370,7 +370,7 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return AnyView(GridRow(content: { b0 }))
     }
-    register(&t, "GridRow", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "GridRow", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(GridRow(alignment: v[0] as! VerticalAlignment, content: { b1 }))
     }
@@ -411,11 +411,11 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(HStack(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "HStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "HStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(HStack(alignment: v[0] as! VerticalAlignment, content: { b1 }))
     }
-    register(&t, "HStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "HStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(HStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
@@ -507,7 +507,7 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, content: { b2 }))
     }
@@ -515,15 +515,15 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], spacing: v[1] as! CGFloat, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 }))
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 }))
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b4 = try generatedBuilder(v[4])
         return AnyView(LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, spacing: v[2] as! CGFloat, pinnedViews: v[3] as! PinnedScrollableViews, content: { b4 }))
     }
@@ -539,7 +539,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyHStack(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "LazyHStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyHStack(alignment: v[0] as! VerticalAlignment, content: { b1 }))
     }
@@ -547,15 +547,15 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyHStack(spacing: v[0] as! CGFloat, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 }))
     }
-    register(&t, "LazyHStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyHStack(alignment: v[0] as! VerticalAlignment, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 }))
     }
-    register(&t, "LazyHStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "LazyHStack", [ParamSpec("alignment", .verticalAlignment, contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 }))
     }
@@ -571,7 +571,7 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, content: { b2 }))
     }
@@ -579,15 +579,15 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], spacing: v[1] as! CGFloat, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 }))
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 }))
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, spacing: v[2] as! CGFloat, content: { b3 }))
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b4 = try generatedBuilder(v[4])
         return AnyView(LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, spacing: v[2] as! CGFloat, pinnedViews: v[3] as! PinnedScrollableViews, content: { b4 }))
     }
@@ -603,7 +603,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyVStack(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(LazyVStack(alignment: v[0] as! HorizontalAlignment, content: { b1 }))
     }
@@ -611,15 +611,15 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyVStack(spacing: v[0] as! CGFloat, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 }))
     }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyVStack(alignment: v[0] as! HorizontalAlignment, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 }))
     }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: v[1] as! CGFloat, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 }))
     }
@@ -1138,11 +1138,11 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(VStack(spacing: v[0] as! CGFloat, content: { b1 }))
     }
-    register(&t, "VStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "VStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(VStack(alignment: v[0] as! HorizontalAlignment, content: { b1 }))
     }
-    register(&t, "VStack", [ParamSpec("alignment", .horizontalAlignment, contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "VStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(VStack(alignment: v[0] as! HorizontalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
