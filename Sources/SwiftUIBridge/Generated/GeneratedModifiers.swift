@@ -1318,7 +1318,7 @@ extension GeneratedModifiers {
         return AnyView(view.fullScreenCover(isPresented: v[0] as! Binding<Bool>, content: { b1 }))
     }
 #else
-register(&t, "fullScreenCover", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "fullScreenCover", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -1371,7 +1371,7 @@ register(&t, "fullScreenCover", [ParamSpec("isPresented", .bindingBool, contextu
         return AnyView(view.hoverEffect())
     }
 #else
-register(&t, "hoverEffect", [], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "hoverEffect", [], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -1504,7 +1504,7 @@ register(&t, "hoverEffect", [], requiredImports: ["UIKit"]) { view, _ in
         return AnyView(view.listRowSpacing(v[0] as! CGFloat))
     }
 #else
-register(&t, "listRowSpacing", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "listRowSpacing", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -1581,7 +1581,7 @@ register(&t, "listRowSpacing", [ParamSpec(nil, .cgFloat, contextualType: "CGFloa
         return AnyView(view.navigationBarHidden(v[0] as! Bool))
     }
 #else
-register(&t, "navigationBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "navigationBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -1590,7 +1590,7 @@ register(&t, "navigationBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool
         return AnyView(view.navigationBarItems(leading: v[0] as! AnyView))
     }
 #else
-register(&t, "navigationBarItems", [ParamSpec("leading", .anyView)], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "navigationBarItems", [ParamSpec("leading", .anyView)], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -1599,7 +1599,7 @@ register(&t, "navigationBarItems", [ParamSpec("leading", .anyView)], requiredImp
         return AnyView(view.navigationBarItems(trailing: v[0] as! AnyView))
     }
 #else
-register(&t, "navigationBarItems", [ParamSpec("trailing", .anyView)], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "navigationBarItems", [ParamSpec("trailing", .anyView)], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -1608,7 +1608,7 @@ register(&t, "navigationBarItems", [ParamSpec("trailing", .anyView)], requiredIm
         return AnyView(view.navigationBarItems(leading: v[0] as! AnyView, trailing: v[1] as! AnyView))
     }
 #else
-register(&t, "navigationBarItems", [ParamSpec("leading", .anyView), ParamSpec("trailing", .anyView)], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "navigationBarItems", [ParamSpec("leading", .anyView), ParamSpec("trailing", .anyView)], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -1617,7 +1617,7 @@ register(&t, "navigationBarItems", [ParamSpec("leading", .anyView), ParamSpec("t
         return AnyView(view.navigationBarTitle(v[0] as! Text))
     }
 #else
-register(&t, "navigationBarTitle", [ParamSpec(nil, .text, contextualType: "Text")], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "navigationBarTitle", [ParamSpec(nil, .text, contextualType: "Text")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -1626,7 +1626,7 @@ register(&t, "navigationBarTitle", [ParamSpec(nil, .text, contextualType: "Text"
         return AnyView(view.navigationBarTitle(LocalizedStringKey(v[0] as! String)))
     }
 #else
-register(&t, "navigationBarTitle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "navigationBarTitle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -2138,7 +2138,7 @@ register(&t, "navigationBarTitle", [ParamSpec(nil, .string, contextualType: "Loc
         return AnyView(view.statusBar(hidden: v[0] as! Bool))
     }
 #else
-register(&t, "statusBar", [ParamSpec("hidden", .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "statusBar", [ParamSpec("hidden", .bool, contextualType: "Bool")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -2147,7 +2147,7 @@ register(&t, "statusBar", [ParamSpec("hidden", .bool, contextualType: "Bool")], 
         return AnyView(view.statusBarHidden())
     }
 #else
-register(&t, "statusBarHidden", [], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "statusBarHidden", [], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -2156,7 +2156,7 @@ register(&t, "statusBarHidden", [], requiredImports: ["UIKit"]) { view, _ in
         return AnyView(view.statusBarHidden(v[0] as! Bool))
     }
 #else
-register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, _ in
+register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif

@@ -123,6 +123,10 @@ struct GeneratedOverload {
     /// Modules required by the interpreted source target, independently of
     /// which platform compiled this host bridge.
     let requiredImports: Set<String>
+    /// Whether the compiled adapter evaluates ViewBuilder arguments. An
+    /// off-host receiver-preserving fallback accepts the source call shape
+    /// without inventing deferred-content execution.
+    let executesBuilderArguments: Bool
     let invoke: @MainActor (AnyView, [Any]) throws -> AnyView
 }
 
@@ -479,10 +483,22 @@ enum GeneratedDispatch {
         ctx: EvalContext
     ) -> [ParamSpec]? {
         for overload in overloads.byArity[args.arguments.count] ?? []
-        where matches(overload.params, args, ctx) != nil {
+        where isAvailable(overload, in: ctx)
+            && matches(overload.params, args, ctx) != nil {
             return overload.params
         }
         return nil
+    }
+
+    static func isAvailable(
+        _ overload: GeneratedOverload,
+        in ctx: EvalContext
+    ) -> Bool {
+        guard !overload.requiredImports.isEmpty else { return true }
+        guard let interpreter = ctx as? Interpreter else { return false }
+        return overload.requiredImports.allSatisfy {
+            interpreter.buildConfiguration.canImport($0)
+        }
     }
 
     static func dispatch(
@@ -493,12 +509,7 @@ enum GeneratedDispatch {
         ctx: EvalContext
     ) throws -> AnyView {
         for overload in overloads.byArity[args.arguments.count] ?? [] {
-            if !overload.requiredImports.isEmpty {
-                guard let interpreter = ctx as? Interpreter,
-                      overload.requiredImports.allSatisfy({
-                          interpreter.buildConfiguration.canImport($0)
-                      }) else { continue }
-            }
+            guard isAvailable(overload, in: ctx) else { continue }
             guard let values = matches(overload.params, args, ctx) else { continue }
             return try overload.invoke(view, values)
         }
@@ -1087,11 +1098,13 @@ enum GeneratedModifiers {
         _ name: String,
         _ params: [ParamSpec],
         requiredImports: Set<String> = [],
+        executesBuilderArguments: Bool = true,
         _ invoke: @escaping @MainActor (AnyView, [Any]) throws -> AnyView
     ) {
         table[name, default: []].append(GeneratedOverload(
             params: params,
             requiredImports: requiredImports,
+            executesBuilderArguments: executesBuilderArguments,
             invoke: invoke))
     }
 }

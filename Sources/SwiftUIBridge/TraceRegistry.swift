@@ -504,6 +504,25 @@ public final class TraceRegistry: HostRegistry {
             }
     }
 
+    private static func executesBuilderOnlyModifier(
+        _ name: String,
+        context: EvalContext
+    ) -> Bool {
+        if name == "tabItem" { return true }
+        guard let set = GeneratedModifiers.table[name] else { return false }
+        let parameters = set.byArity.values
+            .flatMap { $0 }
+            .filter {
+                $0.executesBuilderArguments
+                    && GeneratedDispatch.isAvailable($0, in: context)
+            }
+            .flatMap(\.params)
+        return parameters.contains { $0.tag == .builder }
+            && !parameters.contains {
+                $0.tag == .action || $0.tag == .asyncAction
+            }
+    }
+
     public func modifier(named name: String) -> HostModifier? {
         HostModifier(name: name) { value, args, ctx in
             let node = try Self.node(value)
@@ -545,7 +564,7 @@ public final class TraceRegistry: HostRegistry {
                     closure: closure,
                     isAsyncAction: isAsyncAction))
             }
-            if Self.isBuilderOnlyModifier(name) {
+            if Self.executesBuilderOnlyModifier(name, context: ctx) {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content
                 // BINDS the item: it evaluates only when the binding holds a
                 // value, receiving it (nil = not presented, like device).

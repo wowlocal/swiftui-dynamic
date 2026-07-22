@@ -221,6 +221,26 @@ import SwiftInterpreter
         }
     }
 
+    /// A generated off-host adapter only promises to preserve its receiver;
+    /// parameter metadata must not make trace mode execute a deferred builder
+    /// that the selected adapter itself ignores.
+    @Test func targetOverlayReceiverFallbackDoesNotExecuteDeferredBuilder() throws {
+        let report = try HeadlessVerifier.verify(source: """
+        struct ContentView: View {
+            @State var presented = false
+
+            var body: some View {
+                Text("base")
+                    .fullScreenCover(isPresented: $presented) {
+                        fatalError("off-host fallback executed content")
+                    }
+            }
+        }
+        """, interactions: false)
+
+        #expect(report.nodeCount == 1)
+    }
+
     @Test func generatedSDKEnumsCoerceImplicitMembers() throws {
         let blend = try GeneratedSDKEnumCoercions.coerce(
             "BlendMode", .implicitMember("multiply")) as? BlendMode

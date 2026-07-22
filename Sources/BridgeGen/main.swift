@@ -2452,7 +2452,7 @@ func entryCode(_ variant: Variant) -> String {
         .map { "canImport(\($0))" }
         .joined(separator: " && ")
     let fallback = """
-    register(&t, "\(variant.name)", [\(specs)]\(importArgument)) { view, _ in
+    register(&t, "\(variant.name)", [\(specs)]\(importArgument), executesBuilderArguments: false) { view, _ in
         return AnyView(view)
     }
     """
