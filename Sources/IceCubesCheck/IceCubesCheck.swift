@@ -403,6 +403,11 @@ struct IceCubesCheckMain {
         case detailAndAccount
     }
 
+    private enum RenderProbePresentation {
+        case diagnostics
+        case nativeTimeline
+    }
+
     private static func renderRungs(
         paths: Paths, oracle: FixtureOracle, scope: RenderScope
     ) async throws -> [RungRecord] {
@@ -412,7 +417,8 @@ struct IceCubesCheckMain {
             + ProjectMaterial.mergedSource(
                 source: renderProbeSource(
                     includeTimeline: scope == .timeline,
-                    includeDetailAndAccount: scope == .detailAndAccount),
+                    includeDetailAndAccount: scope == .detailAndAccount,
+                    presentation: .diagnostics),
                 moduleName: "IceCubesCheckProbe")
         let render = try await LiveCheckSupport.render(source: source)
         let strings = render.strings
@@ -520,7 +526,9 @@ struct IceCubesCheckMain {
     }
 
     private static func renderProbeSource(
-        includeTimeline: Bool, includeDetailAndAccount: Bool
+        includeTimeline: Bool,
+        includeDetailAndAccount: Bool,
+        presentation: RenderProbePresentation
     ) -> String {
         let fixtureDecodes = (includeTimeline ? """
         let __icePublicStatuses = try! __iceDecoder.decode(
@@ -572,6 +580,31 @@ struct IceCubesCheckMain {
                     StatusDetailView(status: __iceTrendingStatuses[0])
                     AccountDetailView(account: __iceTrendingStatuses[0].account)
             """ : ""
+        let rootView = switch presentation {
+        case .diagnostics:
+            """
+                    VStack {
+                        \(timelineViews)
+                        \(extraViews)
+                    }
+            """
+        case .nativeTimeline:
+            """
+                    NavigationStack {
+                        List {
+                            StatusesListView(
+                                fetcher: __iceFetcher,
+                                client: __iceClient,
+                                routerPath: __iceRouter,
+                                filterContext: .pub)
+                        }
+                        .listStyle(.plain)
+                        .navigationTitle(TimelineFilter.federated.title)
+                    }
+                    .frame(width: \(screenSize.width), height: \(screenSize.height))
+                    .background(Color.white)
+            """
+        }
         return """
 
         import Account
@@ -584,6 +617,7 @@ struct IceCubesCheckMain {
         import StatusKit
         import SwiftSoup
         import SwiftUI
+        import Timeline
 
         let __iceDecoder = JSONDecoder()
         __iceDecoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -712,10 +746,7 @@ struct IceCubesCheckMain {
         struct __IceCubesR1Probe: App {
             var body: some Scene {
                 WindowGroup {
-                    VStack {
-                        \(timelineViews)
-                        \(extraViews)
-                    }
+                    \(rootView)
                     .environment(Theme.shared)
                     .environment(CurrentAccount.shared)
                     .environment(CurrentInstance.shared)
@@ -743,7 +774,8 @@ struct IceCubesCheckMain {
             + ProjectMaterial.mergedSource(
                 source: renderProbeSource(
                     includeTimeline: true,
-                    includeDetailAndAccount: false),
+                    includeDetailAndAccount: false,
+                    presentation: .nativeTimeline),
                 moduleName: "IceCubesCheckProbe")
 
         try FileManager.default.createDirectory(
@@ -759,9 +791,13 @@ struct IceCubesCheckMain {
             backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: .aqua)
         window.contentView = hosting
+        window.orderFrontRegardless()
         hosting.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        RunLoop.main.run(until: Date().addingTimeInterval(1.0))
+        for entry in RenderDiagnostics.errors.prefix(20) {
+            print("diagnostic\t\(entry.view)\t\(entry.error.message)")
+        }
 
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil,
