@@ -66,6 +66,24 @@ import SwiftInterpreter
         }
     }
 
+    /// SwiftUI's `Text + Text` operator returns concrete `Text`, so the
+    /// composed value remains valid input to any interface-generated Text
+    /// parameter. IceCubes uses this shape for accessibility labels after its
+    /// status-row content has rendered.
+    @Test func textConcatenationStaysConcreteForGeneratedTextConsumers() throws {
+        let nativeLabel = Text("Alice") + Text(" ") + Text("boosted")
+        _ = Text("native row").accessibilityLabel(nativeLabel)
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("interpreted row")
+            .accessibilityLabel(
+                Text("Alice") + Text(" ") + Text("boosted")
+            )
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func suffixDefaultVariantsMatchBothCallShapes() throws {
         // autocorrectionDisabled() and autocorrectionDisabled(false) are the
         // zero-arg and full variants of one defaulted-parameter overload.

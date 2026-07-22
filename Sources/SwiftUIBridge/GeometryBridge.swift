@@ -1006,9 +1006,10 @@ extension ViewRegistry {
             settingMember: name, on: value, to: newValue)
     }
 
-    /// `Text("a") + Text("b")` — both sides are AnyView-erased by the time
-    /// they meet, so concatenation approximates as an adjacent zero-spacing
-    /// HStack (documented divergence: no line-wrap continuity).
+    /// Preserve concrete `Text` composition until a consumer requires view
+    /// erasure. This keeps the result valid for every generated SDK parameter
+    /// whose interface type is `Text`, while the generic View fallback below
+    /// retains the established adjacent-view behavior for erased operands.
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? {
         if let attributed = generatedAttributedTextCombination(op, lhs, rhs) {
             return attributed
@@ -1028,6 +1029,13 @@ extension ViewRegistry {
             case "==": return .bool(leftIndex == rightIndex)
             default: return .bool(leftIndex != rightIndex)
             }
+        }
+        if op == "+",
+           case .host(let leftPayload) = lhs,
+           let left = leftPayload as? TextBox,
+           case .host(let rightPayload) = rhs,
+           let right = rightPayload as? TextBox {
+            return .native(TextBox(left.text + right.text))
         }
         guard op == "+", isViewValue(lhs), isViewValue(rhs),
               let left = try? Self.anyView(lhs), let right = try? Self.anyView(rhs) else { return nil }
