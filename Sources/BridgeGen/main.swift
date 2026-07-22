@@ -93,6 +93,7 @@ let targetOverlayFiles = ["SwiftUI"].compactMap {
 // inside it (ditto SwiftUICore/SwiftUI).
 let modulePrefixes = [
     "UniformTypeIdentifiers.", "DeveloperToolsSupport.",
+    "CoreTransferable.",
     "CoreFoundation.", "CoreGraphics.", "Charts.",
     "Observation.", "SwiftUICore.", "Foundation.", "CoreData.", "SwiftUI.",
     "_Concurrency.",
@@ -221,6 +222,7 @@ func constraintConcreteType(for constraint: String) -> String? {
     case "BinaryFloatingPoint", "FloatingPoint": return "Double"
     case "StringProtocol": return "String"
     case "BinaryInteger": return "Int"
+    case "Transferable": return "URL"
     default: return nil
     }
 }
@@ -233,6 +235,7 @@ func constraintMapping(for constraint: String) -> TypeMapping? {
     case "BinaryFloatingPoint": return .init(tag: "double", cast: "%@ as! Double")
     case "Equatable": return .init(tag: "equatable", cast: "%@ as! String")
     case "Shape": return .init(tag: "shape", cast: "%@ as! AnyShape")
+    case "Transferable": return .init(tag: "url", cast: "%@ as! URL")
     default: return nil
     }
 }
@@ -393,7 +396,7 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         }
     }
     inspectAttributes(param.attributes)
-    if let attributed = type.as(AttributedTypeSyntax.self) {
+    while let attributed = type.as(AttributedTypeSyntax.self) {
         inspectAttributes(attributed.attributes)
         type = attributed.baseType
     }
@@ -401,7 +404,21 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
     if normalized.hasSuffix("?") { normalized = String(normalized.dropLast()) }
 
     if isAutoclosure {
-        return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "@autoclosure", usesGeneric: nil)
+        // Swift's call-site expression has the autoclosure's RESULT type.
+        // Map that result like any ordinary parameter; the emitted native SDK
+        // call then re-forms the autoclosure from the coerced value. This is a
+        // function-shape rule and applies independently of the API name.
+        guard let closure = type.as(FunctionTypeSyntax.self),
+              closure.parameters.isEmpty else {
+            return .init(
+                label: label, mapping: nil, hasDefault: hasDefault,
+                blocker: "@autoclosure input", usesGeneric: nil)
+        }
+        type = closure.returnClause.type
+        normalized = normalize(type.trimmedDescription)
+        if normalized.hasSuffix("?") {
+            normalized = String(normalized.dropLast())
+        }
     }
     if isBuilder {
         // Builders with framework-supplied inputs (GeometryProxy,

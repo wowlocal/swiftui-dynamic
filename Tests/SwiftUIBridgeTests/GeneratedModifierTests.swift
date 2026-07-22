@@ -150,6 +150,26 @@ import SwiftInterpreter
         })
     }
 
+    /// IceCubes' status rows pass their URL through SwiftUI's
+    /// `@autoclosure () -> T where T: Transferable` payload shape. Native
+    /// Swift accepts that value directly; BridgeGen must map the payload's
+    /// result type and keep the receiver a rendered View.
+    @Test func autoclosureGenericModifierMapsPayloadResult() throws {
+        let nativePayload = URL(string: "https://example.com/status/1")!
+        _ = Text("native row").draggable(nativePayload)
+
+        let draggable = GeneratedModifiers.table["draggable"]?.byArity[1] ?? []
+        #expect(draggable.contains { $0.params.map(\.tag) == [.url] })
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("interpreted row")
+            .draggable(URL(string: "https://example.com/status/1")!)
+            .padding()
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func generatedSDKEnumsCoerceImplicitMembers() throws {
         let blend = try GeneratedSDKEnumCoercions.coerce(
             "BlendMode", .implicitMember("multiply")) as? BlendMode
