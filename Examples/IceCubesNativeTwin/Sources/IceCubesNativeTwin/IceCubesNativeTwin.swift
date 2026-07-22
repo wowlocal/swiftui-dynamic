@@ -72,6 +72,8 @@ private enum TwinConfiguration {
     static let outputDirectory = option("--out") ?? "/tmp/icecubes-native-twin"
     static let fixtureDirectory = option("--fixtures")
         ?? "../../Fixtures/mastodon-public-timeline"
+    static let capturesNavigationChrome = CommandLine.arguments.contains(
+        "--navigation-chrome-probe")
 }
 
 @MainActor
@@ -147,7 +149,9 @@ private struct TwinDriverView: View {
 
     var body: some View {
         Group {
-            if let focusedMedia {
+            if TwinConfiguration.capturesNavigationChrome {
+                NavigationChromeProbe()
+            } else if let focusedMedia {
                 FocusedMediaScreen(attachments: focusedMedia)
             } else if statuses.isEmpty {
                 ProgressView("Loading recorded public timeline")
@@ -169,6 +173,11 @@ private struct TwinDriverView: View {
 
     private func driveCapture() async {
         do {
+            if TwinConfiguration.capturesNavigationChrome {
+                try await Task.sleep(for: .seconds(1))
+                try capturePNG(named: "navigation-chrome")
+                exit(0)
+            }
             let decoded: [Status] = try await client.get(
                 endpoint: Timelines.pub(
                     sinceId: nil, maxId: nil, minId: nil,
