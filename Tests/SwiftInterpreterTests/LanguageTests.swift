@@ -1130,6 +1130,21 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "40 4.0 100")
     }
 
+    /// Native Swift prints `selected`: escaping a keyword makes it a legal
+    /// declaration name, but lookup uses the identifier's canonical spelling
+    /// after `.` rather than treating the backticks as part of its identity.
+    @Test func escapedMethodDeclarationUsesCanonicalIdentifier() throws {
+        let source = """
+        struct Choice {
+            func `if`(_ condition: Bool) -> String {
+                condition ? "selected" : "skipped"
+            }
+        }
+        Choice().if(true)
+        """
+        #expect(try eval(source).stringValue == "selected")
+    }
+
     /// User subscripts (get + set, tuple indices), typed empty containers,
     /// member typealiases, and defer LIFO semantics — the 2048 quartet.
     @Test func userSubscriptsTypealiasesAndDefer() throws {

@@ -460,6 +460,39 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         }
     }
 
+    /// IceCubes' `ConditionalModifier.swift` declares the keyword-named
+    /// helper as ``func `if`(...)``. Swift resolves an escaped declaration
+    /// through the unescaped `.if(...)` member spelling; the false builder
+    /// branch therefore returns the original rendered view before later
+    /// modifiers are applied.
+    @Test func escapedGenericViewExtensionKeepsRenderedReceiver() throws {
+        let source = """
+        extension View {
+            @ViewBuilder
+            func `if`<Content: View>(
+                _ condition: Bool,
+                transform: (Self) -> Content
+            ) -> some View {
+                if condition {
+                    transform(self)
+                } else {
+                    self
+                }
+            }
+        }
+
+        Text("kept")
+            .if(false) { $0.opacity(0) }
+            .padding()
+        """
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.kind == "Text")
+        #expect(node.args == ["kept"])
+        #expect(node.modifiers == ["padding"])
+    }
+
     /// The Chips pattern: a user String extension named `size` wrapping the
     /// NSString measurement API. The extension must win plain member access
     /// while the inner labeled call reaches real font metrics.

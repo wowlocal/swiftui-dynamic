@@ -975,7 +975,7 @@ extension Interpreter {
                 captured: selfEnvironment(overloads.receiver))
             closure.extensionFrame = ExtensionFrame(
                 typeName: overloads.typeName,
-                member: declaration.name.text)
+                member: functionMetadata(for: declaration).name)
             closure.functionDeclID = declaration.id
             return .closure(closure)
         }

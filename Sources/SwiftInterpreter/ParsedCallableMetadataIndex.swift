@@ -214,7 +214,9 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
         let returnTypeName = returnType?.trimmedDescription
         let attributeNames = parsedAttributeNames(declaration.attributes)
         let modifierNames = declaration.modifiers.map { $0.name.text }
-        name = declaration.name.text
+        let callableName = declaration.name.text.trimmingCharacters(
+            in: CharacterSet(charactersIn: "`"))
+        name = callableName
         self.parameters = parsedClosureParameters(parameters)
         shape = parsedCallableShape(parameters)
         body = declaration.body
@@ -230,7 +232,7 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
                 genericWhereClause: declaration.genericWhereClause)
         self.attributeNames = attributeNames
         self.modifierNames = modifierNames
-        sourceFunctionName = declaration.name.text + "("
+        sourceFunctionName = callableName + "("
             + parameters.map { $0.firstName.text + ":" }.joined() + ")"
         isAsync = declaration.signature.effectSpecifiers?.asyncSpecifier != nil
         isThrowing = declaration.signature.effectSpecifiers?.throwsClause != nil
