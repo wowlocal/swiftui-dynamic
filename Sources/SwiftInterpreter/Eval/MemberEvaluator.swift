@@ -1658,7 +1658,7 @@ extension Interpreter {
             let result = try executeBlock(computed.accessor, in: env)
             switch result {
             case .normal(let value), .returnValue(let value):
-                return value
+                return try groupViewValue(value)
             case .breakLoop, .continueLoop:
                 throw RuntimeError(message:
                     "control flow escaped computed property '\(name)'")
@@ -1726,6 +1726,15 @@ extension Interpreter {
             throw RuntimeError(message: "no host registry configured")
         }
         return try registry.makeGroup(views)
+    }
+
+    /// A non-builder View witness still returns a View value. Normalize that
+    /// selected value through the same structural conversion used for each
+    /// builder expression so an interpreted child becomes host-renderable.
+    func groupViewValue(_ value: RuntimeValue) throws -> RuntimeValue {
+        var views: [RuntimeValue] = []
+        appendViewValue(value, to: &views)
+        return try groupViews(views)
     }
 
     func accessMember(
