@@ -10,6 +10,19 @@ import Testing
 /// held on the macOS canvas and the hierarchical style chain
 /// `.quaternary.opacity(0.5)` threw out of the style funnel.
 @Suite struct InterpretedStyleTests {
+    private struct NativeMarkerButtonStyle: ButtonStyle {
+        let horizontalPadding: CGFloat
+
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, 10)
+                .foregroundStyle(Color.white)
+                .background(Color.black)
+                .opacity(configuration.isPressed ? 0.5 : 1)
+        }
+    }
+
     private struct NativeOptionalWrapper: ViewModifier {
         let wraps: Bool
 
@@ -150,6 +163,56 @@ import Testing
             }
         }
         #expect(sawBlack, "custom LabelStyle makeBody did not render its marker")
+    }
+
+    /// IceCubes' status actions use a parameterized protocol-extension factory
+    /// for a custom ButtonStyle. Its interpreted makeBody must receive the real
+    /// configuration label and pressed state, just as native SwiftUI does.
+    @MainActor
+    @Test func customButtonStyleRunsInterpretedMakeBody() throws {
+        let source = """
+        struct MarkerButtonStyle: ButtonStyle {
+            let horizontalPadding: Double
+
+            func makeBody(configuration: Configuration) -> some View {
+                configuration.label
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.vertical, 10)
+                    .foregroundStyle(Color.white)
+                    .background(Color.black)
+                    .opacity(configuration.isPressed ? 0.5 : 1)
+            }
+        }
+
+        extension ButtonStyle where Self == MarkerButtonStyle {
+            static func marker(horizontalPadding: Double) -> Self {
+                MarkerButtonStyle(horizontalPadding: horizontalPadding)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Button("Styled action") {}
+                        .buttonStyle(.marker(horizontalPadding: 18))
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let native = AnyView(
+            Button("Styled action") {}
+                .buttonStyle(NativeMarkerButtonStyle(horizontalPadding: 18)))
+        let size = NSSize(width: 240, height: 140)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(native, size: size)
+        #expect(Self.mismatchedPixels(actual, expected, size: size) == 0)
     }
 
     // `.quaternary.opacity(0.5)` — a hierarchical base through a style

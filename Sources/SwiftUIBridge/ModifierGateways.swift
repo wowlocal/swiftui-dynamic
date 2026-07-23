@@ -624,15 +624,14 @@ extension ViewRegistry {
             // extension static, or a direct `MyStyle()` instance) run their
             // interpreted makeBody through a REAL LabelStyle.
             @MainActor func interpretedStyle(_ value: RuntimeValue) -> InterpretedLabelStyle? {
-                guard let interpreter = ctx as? Interpreter else { return nil }
-                var resolved = value
-                if case .implicitMember = value {
-                    resolved = interpreter.resolveForBridge(value, typeName: "LabelStyle")
+                guard let conformer = interpretedStyleConformer(
+                    value, protocolName: "LabelStyle", context: ctx)
+                else {
+                    return nil
                 }
-                guard case .instance(let instance) = resolved,
-                      instance.symbol.conformances.contains("LabelStyle"),
-                      instance.symbol.methods["makeBody"] != nil else { return nil }
-                return InterpretedLabelStyle(instance: instance, interpreter: interpreter)
+                return InterpretedLabelStyle(
+                    instance: conformer.instance,
+                    interpreter: conformer.interpreter)
             }
             if case .implicitMember(let name) = styleArg {
                 switch name {
@@ -653,21 +652,32 @@ extension ViewRegistry {
             return view
         }
 
-        register("buttonStyle") { view, args, _ in
-            guard case .implicitMember(let name)? = args.positional(0) else { return view }
-            switch name {
-            case "bordered": return AnyView(view.buttonStyle(.bordered))
-            case "borderedProminent": return AnyView(view.buttonStyle(.borderedProminent))
-            case "plain": return AnyView(view.buttonStyle(.plain))
-            case "borderless": return AnyView(view.buttonStyle(.borderless))
-            case "link":
+        register("buttonStyle") { view, args, ctx in
+            guard let styleArg = args.positional(0) else { return view }
+            if case .implicitMember(let name) = styleArg {
+                switch name {
+                case "bordered": return AnyView(view.buttonStyle(.bordered))
+                case "borderedProminent": return AnyView(view.buttonStyle(.borderedProminent))
+                case "plain": return AnyView(view.buttonStyle(.plain))
+                case "borderless": return AnyView(view.buttonStyle(.borderless))
+                case "link":
 #if canImport(AppKit)
-                return AnyView(view.buttonStyle(.link))
+                    return AnyView(view.buttonStyle(.link))
 #else
-                return AnyView(view.buttonStyle(.plain))
+                    return AnyView(view.buttonStyle(.plain))
 #endif
-            default: return AnyView(view.buttonStyle(.automatic))
+                case "automatic": return AnyView(view.buttonStyle(.automatic))
+                default: break
+                }
             }
+            if let conformer = interpretedStyleConformer(
+                styleArg, protocolName: "ButtonStyle", context: ctx)
+            {
+                return AnyView(view.buttonStyle(InterpretedButtonStyle(
+                    instance: conformer.instance,
+                    interpreter: conformer.interpreter)))
+            }
+            return AnyView(view.buttonStyle(.automatic))
         }
         register("menuStyle") { view, args, _ in
             guard case .implicitMember(let name)? = args.positional(0) else { return view }
