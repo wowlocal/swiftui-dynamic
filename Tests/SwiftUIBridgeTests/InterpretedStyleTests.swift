@@ -20,6 +20,7 @@ import Testing
                 .foregroundStyle(Color.white)
                 .background(Color.black)
                 .opacity(configuration.isPressed ? 0.5 : 1)
+                .animation(nil, value: horizontalPadding)
         }
     }
 
@@ -181,6 +182,7 @@ import Testing
                     .foregroundStyle(Color.white)
                     .background(Color.black)
                     .opacity(configuration.isPressed ? 0.5 : 1)
+                    .animation(nil, value: horizontalPadding)
             }
         }
 

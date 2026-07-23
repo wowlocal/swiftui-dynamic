@@ -255,7 +255,12 @@ extension ViewRegistry {
         register("scaledToFill") { view, _, _ in AnyView(view.scaledToFill()) }
 
         register("animation") { view, args, _ in
-            let animation = try args.positional(0).map(Coerce.animation) ?? .default
+            let animation: Animation?
+            if let argument = args.positional(0) {
+                animation = try Coerce.optional(argument, coercing: Coerce.animation)
+            } else {
+                animation = .default
+            }
             // `value:` is stringified — it changes whenever the state it
             // depends on changes, which is what retriggers the animation.
             let value = args.labeled("value")?.stringified ?? ""
