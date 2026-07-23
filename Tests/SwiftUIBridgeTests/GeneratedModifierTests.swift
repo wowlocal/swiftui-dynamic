@@ -66,6 +66,67 @@ import SwiftInterpreter
         }
     }
 
+    /// Some SDK generic parameters are constrained by a composition of
+    /// protocols rather than by a nominal enum. The Symbols interface exposes
+    /// `.pulse` through `SymbolEffect where Self == PulseSymbolEffect`, then
+    /// declares the concrete effect's protocol conformances separately.
+    /// BridgeGen must derive that contextual value from those relationships.
+    @MainActor
+    @Test func protocolCompositionContextualValueMatchesNativeRendering() throws {
+        let composition =
+            "Symbols.DiscreteSymbolEffect&Symbols.SymbolEffect"
+        let overloads = GeneratedModifiers.table["symbolEffect"]?
+            .byArity[2] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [
+                .sdkProtocolValue(composition), .equatable,
+            ]
+        })
+        let pulse = try GeneratedSDKProtocolValueCoercions.coerce(
+            composition, .implicitMember("pulse"))
+        #expect(pulse is PulseSymbolEffect)
+        let options = try GeneratedSDKEnumCoercions.coerce(
+            "Symbols.SymbolEffectOptions", .implicitMember("repeating"))
+            as? SymbolEffectOptions
+        #expect(options == .repeating)
+
+        let source = """
+        Image(systemName: "arrow.down")
+            .symbolEffect(.pulse, value: false)
+            .foregroundStyle(Color.black)
+            .frame(width: 64, height: 64)
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source,
+            lazyTopLevelGlobals: true
+        )
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("interpreted symbol effect failed to render: \(rendered)")
+            return
+        }
+        for (viewName, error) in RenderDiagnostics.errors {
+            Issue.record("\(viewName): \(error)")
+        }
+
+        let native = AnyView(
+            Image(systemName: "arrow.down")
+                .symbolEffect(.pulse, value: false)
+                .foregroundStyle(Color.black)
+                .frame(width: 64, height: 64)
+        )
+        let size = NSSize(width: 64, height: 64)
+        #expect(
+            Self.mismatchedPixels(
+                Self.bitmap(interpreted, size: size),
+                Self.bitmap(native, size: size),
+                size: size
+            ) == 0
+        )
+    }
+
     @Test func suffixDefaultVariantsMatchBothCallShapes() throws {
         // autocorrectionDisabled() and autocorrectionDisabled(false) are the
         // zero-arg and full variants of one defaulted-parameter overload.
@@ -513,5 +574,43 @@ import SwiftInterpreter
         // (.horizontal, 8) which has no generated equivalent shape.
         let interpreter = Interpreter(registry: ViewRegistry())
         _ = try interpreter.run(source: #"Text("x").padding(.horizontal, 8)"#)
+    }
+
+    private static func mismatchedPixels(
+        _ lhs: NSBitmapImageRep,
+        _ rhs: NSBitmapImageRep,
+        size: NSSize
+    ) -> Int {
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height)
+                where lhs.colorAt(x: x, y: y) != rhs.colorAt(x: x, y: y) {
+                mismatched += 1
+            }
+        }
+        return mismatched
+    }
+
+    @MainActor
+    private static func bitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = size
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        return rep
     }
 }

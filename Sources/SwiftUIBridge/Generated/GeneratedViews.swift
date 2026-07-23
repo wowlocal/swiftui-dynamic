@@ -2,6 +2,7 @@
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // 311 initializer variants across 58 View structs.
 import SwiftUI
+import Symbols
 import SwiftInterpreter
 #if canImport(AppKit)
 import AppKit

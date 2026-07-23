@@ -35,6 +35,10 @@ enum ParamTag: Hashable {
     /// payload-free enum cases or same-type static properties on value types.
     /// The associated value is its normalized Swift type name.
     case sdkEnum(String)
+    /// A contextual value manufactured by an SDK protocol extension with a
+    /// concrete `Self`, filtered through the generic parameter's full protocol
+    /// composition. The associated value is the stable `P&Q` composition key.
+    case sdkProtocolValue(String)
     /// A native AppKit/UIKit payload selected from the platform symbol graph.
     case platformValue(String, String)
     /// A platform value accepted by a target SwiftUI overlay but rendered on
@@ -393,6 +397,9 @@ enum GeneratedDispatch {
             return Set(try array.map(Coerce.calendarComponent))
         case .sdkEnum(let typeName):
             return try GeneratedSDKEnumCoercions.coerce(typeName, value)
+        case .sdkProtocolValue(let composition):
+            return try GeneratedSDKProtocolValueCoercions.coerce(
+                composition, value)
         case .platformValue(let framework, let typeName):
             let resolved: RuntimeValue
             if case .implicitMember(let member) = value,
