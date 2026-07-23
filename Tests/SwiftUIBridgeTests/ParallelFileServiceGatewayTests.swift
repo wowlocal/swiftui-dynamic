@@ -594,20 +594,33 @@ struct ParallelFileServiceGatewayTests {
     @Test
     func contendingDetachedRemovalsDrainDeterministically() async throws {
         // Two detached removals of the same item under a one-permit pool:
-        // FIFO order makes the first succeed and the second fail with the
-        // mapped missing-item error; the failed job still drains its
-        // permit and record. Cooperative mode serializes identically.
+        // detached-task start order is deliberately unspecified, so record
+        // the actual order immediately before each submission. FIFO makes
+        // whichever operation submitted first succeed and the other fail
+        // with the mapped missing-item error; the failed job still drains
+        // its permit and record. Cooperative mode serializes identically.
         let source = """
+        final class RemovalStartTrace {
+            var labels: [String] = []
+
+            func record(_ label: String) {
+                labels.append(label)
+            }
+        }
+
         func probe() async -> String {
             let manager = FileManager.default
             let victim = manager.temporaryDirectory
                 .appendingPathComponent("contended-remove", isDirectory: true)
             try? manager.createDirectory(
                 at: victim, withIntermediateDirectories: true)
+            let starts = RemovalStartTrace()
             let first = Task.detached(priority: .userInitiated) {
+                starts.record("first")
                 try FileManager.default.removeItem(at: victim)
             }
             let second = Task.detached(priority: .userInitiated) {
+                starts.record("second")
                 try FileManager.default.removeItem(at: victim)
             }
             var outcomes: [String] = []
@@ -615,7 +628,8 @@ struct ParallelFileServiceGatewayTests {
             catch { outcomes.append("error") }
             do { try await second.value; outcomes.append("ok") }
             catch { outcomes.append("error") }
-            return outcomes.joined(separator: "|")
+            return starts.labels.joined(separator: ">")
+                + "|" + outcomes.joined(separator: "|")
         }
 
         await probe()
@@ -630,8 +644,12 @@ struct ParallelFileServiceGatewayTests {
         let cooperativeValue = try await cooperative.runAsync(source: source)
         let parallelValue = try await parallel.runAsync(source: source)
 
-        #expect(cooperativeValue.stringValue == "ok|error")
-        #expect(parallelValue.stringValue == "ok|error")
+        let validTraces = Set([
+            "first>second|ok|error",
+            "second>first|error|ok",
+        ])
+        #expect(validTraces.contains(cooperativeValue.stringValue ?? ""))
+        #expect(validTraces.contains(parallelValue.stringValue ?? ""))
         #expect(parallel.concurrencyRuntime
             .totalPhysicalHostOperationSubmissions == 2)
         #expect(parallel.concurrencyRuntime
