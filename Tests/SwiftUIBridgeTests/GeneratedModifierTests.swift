@@ -154,18 +154,6 @@ import SwiftInterpreter
             $0.params.map(\.label) == ["perform"]
                 && $0.params.map(\.tag) == [.syncVoidClosure]
         })
-
-        let symbolEffect = GeneratedModifiers.table["symbolEffect"]?
-            .byArity[2] ?? []
-        #expect(symbolEffect.contains {
-            $0.params.map(\.label) == [nil, "value"]
-                && $0.params.map(\.tag) == [
-                    .sdkProtocolValue([
-                        "DiscreteSymbolEffect", "SymbolEffect",
-                    ]),
-                    .equatable,
-                ]
-        })
     }
 
     /// IceCubes' status rows pass their URL through SwiftUI's

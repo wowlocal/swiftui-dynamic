@@ -1,5 +1,4 @@
 import Foundation
-import Symbols
 import SwiftUI
 import SwiftInterpreter
 #if canImport(AppKit)
@@ -36,11 +35,6 @@ enum ParamTag: Hashable {
     /// payload-free enum cases or same-type static properties on value types.
     /// The associated value is its normalized Swift type name.
     case sdkEnum(String)
-    /// A leading-dot SDK value whose concrete type is selected by a
-    /// marker-refined protocol constraint set on a generic parameter. The
-    /// sorted protocol names come directly from the interface declaration;
-    /// generated coercions resolve only an unambiguous conforming static.
-    case sdkProtocolValue([String])
     /// A native AppKit/UIKit payload selected from the platform symbol graph.
     case platformValue(String, String)
     /// A platform value accepted by a target SwiftUI overlay but rendered on
@@ -399,9 +393,6 @@ enum GeneratedDispatch {
             return Set(try array.map(Coerce.calendarComponent))
         case .sdkEnum(let typeName):
             return try GeneratedSDKEnumCoercions.coerce(typeName, value)
-        case .sdkProtocolValue(let constraints):
-            return try GeneratedSDKEnumCoercions.coerceProtocolValue(
-                constraints, value)
         case .platformValue(let framework, let typeName):
             let resolved: RuntimeValue
             if case .implicitMember(let member) = value,

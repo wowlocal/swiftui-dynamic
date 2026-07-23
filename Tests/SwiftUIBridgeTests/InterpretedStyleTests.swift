@@ -694,45 +694,6 @@ import Testing
         #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
     }
 
-    /// IceCubes' `NextPageView` passes `.pulse` to the interface-declared
-    /// `symbolEffect<T, U>` overload. The leading-dot value is supplied by a
-    /// protocol extension (`SymbolEffect where Self == PulseSymbolEffect`),
-    /// while the modifier constrains that generic through two marker
-    /// protocols. Native accepts that structural shape without absorbing the
-    /// modifier or changing its inactive initial pixels.
-    @MainActor
-    @Test func protocolConstrainedSDKValueFeedsModifierWithoutDiagnostics() throws {
-        let source = """
-        @main
-        struct P: App {
-            var body: some Scene {
-                WindowGroup {
-                    Label("Loading next page", systemImage: "arrow.down")
-                        .font(.system(size: 18, weight: .semibold))
-                        .symbolEffect(.pulse, value: false)
-                }
-            }
-        }
-        """
-        RenderDiagnostics.reset()
-        defer { RenderDiagnostics.reset() }
-        let rendered = InterpreterHost().render(
-            source: source, lazyTopLevelGlobals: true)
-        guard case .success(let view) = rendered else {
-            Issue.record("render failed: \(rendered)")
-            return
-        }
-        let size = NSSize(width: 260, height: 70)
-        let interpreted = Self.bitmap(view, size: size)
-        let native = Self.bitmap(AnyView(
-            Label("Loading next page", systemImage: "arrow.down")
-                .font(.system(size: 18, weight: .semibold))
-                .symbolEffect(.pulse, value: false)
-        ), size: size)
-        #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
-        #expect(RenderDiagnostics.errors.isEmpty)
-    }
-
     /// The same explicit-return rule applies to an inferred `View.body`
     /// accessor, not only a `ViewModifier.body(content:)` method witness.
     @MainActor

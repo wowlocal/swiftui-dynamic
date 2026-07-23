@@ -65,7 +65,7 @@ func catalystOverlayInterfacePath(framework: String) -> String? {
     return "\(moduleDir)/\(name)"
 }
 
-let interfaceFiles = ["SwiftUICore", "SwiftUI", "Charts", "Symbols"].compactMap { framework -> SourceFileSyntax? in
+let interfaceFiles = ["SwiftUICore", "SwiftUI", "Charts"].compactMap { framework -> SourceFileSyntax? in
     guard let path = interfacePath(framework: framework),
           let source = try? String(contentsOfFile: path, encoding: .utf8) else {
         print("warning: no swiftinterface for \(framework)")
@@ -96,7 +96,6 @@ let modulePrefixes = [
     "CoreTransferable.",
     "CoreFoundation.", "CoreGraphics.", "Charts.",
     "Observation.", "SwiftUICore.", "Foundation.", "CoreData.", "SwiftUI.",
-    "Symbols.",
     "_Concurrency.",
     "AppKit.", "UIKit.", "Metal.", "QuartzCore.", "ObjectiveC.",
     "Combine.", "Swift.", "os.",
@@ -153,26 +152,6 @@ var sdkEnumFrameworkRequirements: [String: Set<String>] = [:]
 /// This remains separate from member discovery so composition is enabled by
 /// the nominal's structural contract, never by its SDK identity.
 var sdkSetAlgebraTypes: Set<String> = []
-
-/// Public SDK protocol-extension statics such as
-/// `SymbolEffect where Self == PulseSymbolEffect { static var pulse: ... }`.
-/// Their concrete result and the nominal's conformances are both read from
-/// swiftinterfaces so a generic parameter constrained by protocols can retain
-/// native leading-dot member semantics without an API or type-name allowlist.
-struct SDKProtocolContextualValue: Hashable {
-    let declaringProtocol: String
-    let concreteType: String
-    let member: String
-}
-
-var sdkProtocolNames: Set<String> = []
-var sdkMarkerProtocolNames: Set<String> = []
-var sdkProtocolInheritance: [String: Set<String>] = [:]
-var sdkNominalConformances: [String: Set<String>] = [:]
-var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
-/// The source-code ParamTag spelling is a stable bridge between parameter
-/// analysis and generated coercion emission.
-var sdkProtocolConstraintsByTag: [String: Set<String>] = [:]
 
 func directMapping(for normalized: String) -> TypeMapping? {
     switch normalized {
@@ -259,53 +238,6 @@ func constraintMapping(for constraint: String) -> TypeMapping? {
     case "Transferable": return .init(tag: "url", cast: "%@ as! URL")
     default: return nil
     }
-}
-
-func expandedSDKProtocolConstraints(_ constraints: Set<String>) -> Set<String> {
-    var result = constraints
-    var changed = true
-    while changed {
-        changed = false
-        for name in Array(result) {
-            for inherited in sdkProtocolInheritance[name] ?? []
-            where result.insert(inherited).inserted {
-                changed = true
-            }
-        }
-    }
-    return result
-}
-
-func expandedSDKConformances(of type: String) -> Set<String> {
-    expandedSDKProtocolConstraints(sdkNominalConformances[type] ?? [])
-}
-
-func sdkProtocolContextualCandidates(
-    satisfying constraints: Set<String>
-) -> [SDKProtocolContextualValue] {
-    let visibleProtocols = expandedSDKProtocolConstraints(constraints)
-    return sdkProtocolContextualValues.filter { value in
-        visibleProtocols.contains(value.declaringProtocol)
-            && expandedSDKConformances(of: value.concreteType)
-                .isSuperset(of: constraints)
-    }
-}
-
-func sdkProtocolConstraintMapping(
-    for constraints: Set<String>
-) -> TypeMapping? {
-    guard !constraints.isEmpty,
-          constraints.allSatisfy(sdkProtocolNames.contains),
-          !constraints.isDisjoint(with: sdkMarkerProtocolNames),
-          !sdkProtocolContextualCandidates(
-            satisfying: constraints).isEmpty else { return nil }
-    let sorted = constraints.sorted()
-    let tag = "sdkProtocolValue(["
-        + sorted.map { "\"\($0)\"" }.joined(separator: ", ") + "])"
-    sdkProtocolConstraintsByTag[tag] = constraints
-    return .init(
-        tag: tag,
-        cast: "%@ as! any " + sorted.joined(separator: " & "))
 }
 
 // MARK: - Generics
@@ -583,12 +515,6 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         case .constraints(let set):
             if set.count == 1, let mapping = constraintMapping(for: set.first!) {
                 return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: constraintConcreteType(for: set.first!))
-            }
-            if let mapping = sdkProtocolConstraintMapping(for: set) {
-                return .init(
-                    label: label, mapping: mapping,
-                    hasDefault: hasDefault, blocker: nil,
-                    usesGeneric: normalized)
             }
             return .init(label: label, mapping: nil, hasDefault: hasDefault,
                          blocker: "<\(set.sorted().joined(separator: "&"))>", usesGeneric: normalized)
@@ -993,247 +919,6 @@ func collectSDKEnums(
             in: extensionDecl.memberBlock.members,
             path: extendedPath,
             guarded: guarded, frameworkRequirements: requirements)
-    }
-}
-
-func inheritedSDKTypes(
-    _ inheritanceClause: InheritanceClauseSyntax?
-) -> Set<String> {
-    Set(inheritanceClause?.inheritedTypes.map {
-        normalize($0.type.trimmedDescription)
-    } ?? [])
-}
-
-func recordSDKConformanceSurface(
-    type: String, inheritanceClause: InheritanceClauseSyntax?,
-    isProtocol: Bool, guarded: Bool
-) {
-    guard !guarded else { return }
-    let inherited = inheritedSDKTypes(inheritanceClause)
-    if isProtocol {
-        sdkProtocolNames.insert(type)
-        sdkProtocolInheritance[type, default: []].formUnion(inherited)
-    } else {
-        sdkNominalConformances[type, default: []].formUnion(inherited)
-    }
-}
-
-func collectSDKConformanceSurface(
-    in members: MemberBlockItemListSyntax, path: [String],
-    guarded: Bool
-) {
-    for member in members {
-        collectSDKConformanceSurface(
-            in: member.decl, path: path, guarded: guarded)
-    }
-}
-
-/// Discover nominal/protocol conformance properties before parameter analysis.
-/// Extension-declared conformances are as authoritative as inheritance clauses
-/// on the nominal declaration, and protocol inheritance is expanded later.
-func collectSDKConformanceSurface(
-    in decl: DeclSyntax, path: [String], guarded inheritedGuarded: Bool
-) {
-    if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
-        guard isPublicSDKDecl(protocolDecl.modifiers),
-              isUniversallyUsable(protocolDecl.attributes),
-              !protocolDecl.name.text.hasPrefix("_") else { return }
-        let childPath = path + [protocolDecl.name.text]
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(protocolDecl.attributes)
-        recordSDKConformanceSurface(
-            type: childPath.joined(separator: "."),
-            inheritanceClause: protocolDecl.inheritanceClause,
-            isProtocol: true, guarded: guarded)
-        if !guarded, protocolDecl.attributes.contains(where: {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-                == "_marker"
-        }) {
-            sdkMarkerProtocolNames.insert(
-                childPath.joined(separator: "."))
-        }
-        collectSDKConformanceSurface(
-            in: protocolDecl.memberBlock.members,
-            path: childPath, guarded: guarded)
-        return
-    }
-
-    if let structDecl = decl.as(StructDeclSyntax.self) {
-        guard isPublicSDKDecl(structDecl.modifiers),
-              isUniversallyUsable(structDecl.attributes),
-              !structDecl.name.text.hasPrefix("_") else { return }
-        let childPath = path + [structDecl.name.text]
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(structDecl.attributes)
-        recordSDKConformanceSurface(
-            type: childPath.joined(separator: "."),
-            inheritanceClause: structDecl.inheritanceClause,
-            isProtocol: false, guarded: guarded)
-        collectSDKConformanceSurface(
-            in: structDecl.memberBlock.members,
-            path: childPath, guarded: guarded)
-        return
-    }
-
-    if let enumDecl = decl.as(EnumDeclSyntax.self) {
-        guard isPublicSDKDecl(enumDecl.modifiers),
-              isUniversallyUsable(enumDecl.attributes),
-              !enumDecl.name.text.hasPrefix("_") else { return }
-        let childPath = path + [enumDecl.name.text]
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(enumDecl.attributes)
-        recordSDKConformanceSurface(
-            type: childPath.joined(separator: "."),
-            inheritanceClause: enumDecl.inheritanceClause,
-            isProtocol: false, guarded: guarded)
-        collectSDKConformanceSurface(
-            in: enumDecl.memberBlock.members,
-            path: childPath, guarded: guarded)
-        return
-    }
-
-    if let classDecl = decl.as(ClassDeclSyntax.self) {
-        guard isPublicSDKDecl(classDecl.modifiers),
-              isUniversallyUsable(classDecl.attributes),
-              !classDecl.name.text.hasPrefix("_") else { return }
-        let childPath = path + [classDecl.name.text]
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(classDecl.attributes)
-        recordSDKConformanceSurface(
-            type: childPath.joined(separator: "."),
-            inheritanceClause: classDecl.inheritanceClause,
-            isProtocol: false, guarded: guarded)
-        collectSDKConformanceSurface(
-            in: classDecl.memberBlock.members,
-            path: childPath, guarded: guarded)
-        return
-    }
-
-    if let actorDecl = decl.as(ActorDeclSyntax.self) {
-        guard isPublicSDKDecl(actorDecl.modifiers),
-              isUniversallyUsable(actorDecl.attributes),
-              !actorDecl.name.text.hasPrefix("_") else { return }
-        let childPath = path + [actorDecl.name.text]
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(actorDecl.attributes)
-        recordSDKConformanceSurface(
-            type: childPath.joined(separator: "."),
-            inheritanceClause: actorDecl.inheritanceClause,
-            isProtocol: false, guarded: guarded)
-        collectSDKConformanceSurface(
-            in: actorDecl.memberBlock.members,
-            path: childPath, guarded: guarded)
-        return
-    }
-
-    if let extensionDecl = decl.as(ExtensionDeclSyntax.self),
-       isUniversallyUsable(extensionDecl.attributes) {
-        let extendedPath = normalize(
-            extensionDecl.extendedType.trimmedDescription)
-            .split(separator: ".").map(String.init)
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(extensionDecl.attributes)
-        recordSDKConformanceSurface(
-            type: extendedPath.joined(separator: "."),
-            inheritanceClause: extensionDecl.inheritanceClause,
-            isProtocol: sdkProtocolNames.contains(
-                extendedPath.joined(separator: ".")),
-            guarded: guarded)
-        collectSDKConformanceSurface(
-            in: extensionDecl.memberBlock.members,
-            path: extendedPath, guarded: guarded)
-    }
-}
-
-func selfConcreteType(
-    in whereClause: GenericWhereClauseSyntax?
-) -> String? {
-    guard let whereClause else { return nil }
-    for requirement in whereClause.requirements {
-        guard let sameType = requirement.requirement.as(
-            SameTypeRequirementSyntax.self) else { continue }
-        let left = normalize(sameType.leftType.trimmedDescription)
-        let right = normalize(sameType.rightType.trimmedDescription)
-        if left == "Self", right != "Self" { return right }
-        if right == "Self", left != "Self" { return left }
-    }
-    return nil
-}
-
-/// Collect leading-dot values declared on a protocol extension with a
-/// same-type Self requirement. The concrete return type and member spelling
-/// are emitted verbatim only after the nominal's conformance set proves it can
-/// satisfy a modifier's generic constraints.
-func collectSDKProtocolContextualValues(in decl: DeclSyntax) {
-    if let extensionDecl = decl.as(ExtensionDeclSyntax.self),
-       isUniversallyUsable(extensionDecl.attributes),
-       !needsAvailabilityGuard(extensionDecl.attributes) {
-        let extended = normalize(
-            extensionDecl.extendedType.trimmedDescription)
-        if sdkProtocolNames.contains(extended),
-           let concrete = selfConcreteType(
-            in: extensionDecl.genericWhereClause) {
-            for member in extensionDecl.memberBlock.members {
-                guard let variable = member.decl.as(
-                    VariableDeclSyntax.self),
-                    isPublicSDKDecl(variable.modifiers),
-                    variable.modifiers.contains(where: {
-                        $0.name.text == "static"
-                    }),
-                    isUniversallyUsable(variable.attributes),
-                    !needsAvailabilityGuard(variable.attributes)
-                else { continue }
-                for binding in variable.bindings {
-                    guard let identifier = binding.pattern.as(
-                        IdentifierPatternSyntax.self),
-                        let annotation = binding.typeAnnotation,
-                        normalize(annotation.type.trimmedDescription)
-                            == concrete
-                    else { continue }
-                    sdkProtocolContextualValues.insert(.init(
-                        declaringProtocol: extended,
-                        concreteType: concrete,
-                        member: identifier.identifier.text
-                            .trimmingCharacters(in: CharacterSet(
-                                charactersIn: "`"))))
-                }
-            }
-        }
-    }
-
-    let members: MemberBlockItemListSyntax?
-    if let nominal = decl.as(StructDeclSyntax.self) {
-        members = nominal.memberBlock.members
-    } else if let nominal = decl.as(EnumDeclSyntax.self) {
-        members = nominal.memberBlock.members
-    } else if let nominal = decl.as(ClassDeclSyntax.self) {
-        members = nominal.memberBlock.members
-    } else if let nominal = decl.as(ActorDeclSyntax.self) {
-        members = nominal.memberBlock.members
-    } else if let nominal = decl.as(ProtocolDeclSyntax.self) {
-        members = nominal.memberBlock.members
-    } else if let ext = decl.as(ExtensionDeclSyntax.self) {
-        members = ext.memberBlock.members
-    } else {
-        members = nil
-    }
-    for member in members ?? [] {
-        collectSDKProtocolContextualValues(in: member.decl)
-    }
-}
-
-for file in interfaceFiles {
-    for statement in file.statements {
-        guard case .decl(let decl) = statement.item else { continue }
-        collectSDKConformanceSurface(
-            in: decl, path: [], guarded: false)
-    }
-}
-
-for file in interfaceFiles {
-    for statement in file.statements {
-        guard case .decl(let decl) = statement.item else { continue }
-        collectSDKProtocolContextualValues(in: decl)
     }
 }
 
@@ -2643,29 +2328,6 @@ let emittedSDKEnumTypes = Set(
         .flatMap(\.params)
         .compactMap { sdkEnumType(from: $0.tag) })
 
-var emittedSDKProtocolConstraintSets: [String: Set<String>] = [:]
-for parameter in (variants + initVariants).flatMap(\.params) {
-    if let constraints = sdkProtocolConstraintsByTag[parameter.tag] {
-        emittedSDKProtocolConstraintSets[parameter.tag] = constraints
-    }
-}
-
-func unambiguousSDKProtocolMembers(
-    satisfying constraints: Set<String>
-) -> [(member: String, concreteType: String)] {
-    var concreteTypesByMember: [String: Set<String>] = [:]
-    for candidate in sdkProtocolContextualCandidates(
-        satisfying: constraints) {
-        concreteTypesByMember[candidate.member, default: []]
-            .insert(candidate.concreteType)
-    }
-    return concreteTypesByMember.compactMap { member, concreteTypes in
-        guard concreteTypes.count == 1,
-              let concreteType = concreteTypes.first else { return nil }
-        return (member, concreteType)
-    }.sorted { ($0.member, $0.concreteType) < ($1.member, $1.concreteType) }
-}
-
 // A stable, machine-readable surface inventory lets CI distinguish an SDK
 // expansion from an accidental generator regression. It also makes the
 // automatic/manual boundary inspectable without scraping the human report.
@@ -2751,15 +2413,9 @@ func paramSpecCode(_ parameter: EmittableParam) -> String {
 
 func generatedCallPreamble(_ variant: Variant) -> [String] {
     var lines = variant.params.enumerated().compactMap { index, param in
-        if param.tag == "builder" {
-            return "        let b\(index) = try generatedBuilder(v[\(index)])"
-        }
-        if param.tag.hasPrefix("sdkProtocolValue(") {
-            return "        let p\(index) = "
-                + param.cast.replacingOccurrences(
-                    of: "%@", with: "v[\(index)]")
-        }
-        return nil
+        param.tag == "builder"
+            ? "        let b\(index) = try generatedBuilder(v[\(index)])"
+            : nil
     }
     if let index = variant.trailingClosureIndex {
         switch variant.params[index].tag {
@@ -2780,10 +2436,7 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
         .map { index, param in
             let value = param.tag == "builder"
                 ? "{ b\(index) }"
-                : param.tag.hasPrefix("sdkProtocolValue(")
-                    ? "p\(index)"
-                    : param.cast.replacingOccurrences(
-                        of: "%@", with: "v[\(index)]")
+                : param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
             return (param.label.map { "\($0): " } ?? "") + value
         }
         .joined(separator: ", ")
@@ -2847,11 +2500,10 @@ let chunks = stride(from: 0, to: sorted.count, by: chunkSize).map {
 }
 
 var output = """
-// GENERATED by BridgeGen from the SDK's SwiftUICore/SwiftUI/Charts/Symbols swiftinterfaces.
+// GENERATED by BridgeGen from the SDK's SwiftUICore/SwiftUI/Charts swiftinterfaces.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(sorted.count) modifier overload variants across \(Set(sorted.map(\.name)).count) names.
 import Charts
-import Symbols
 import SwiftUI
 import SwiftInterpreter
 #if canImport(AppKit)
@@ -2919,10 +2571,9 @@ let initChunks = stride(from: 0, to: sortedInits.count, by: chunkSize).map {
 }
 
 var viewsOutput = """
-// GENERATED by BridgeGen from the SDK's SwiftUICore/SwiftUI/Symbols swiftinterfaces.
+// GENERATED by BridgeGen from the SDK's SwiftUICore/SwiftUI swiftinterfaces.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(sortedInits.count) initializer variants across \(Set(sortedInits.map(\.name)).count) View structs.
-import Symbols
 import SwiftUI
 import SwiftInterpreter
 #if canImport(AppKit)
@@ -2971,11 +2622,10 @@ print("wrote \(viewsPath) (\(sortedInits.count) variants)")
 // MARK: - Emit contextual SDK value coercions
 
 var enumsOutput = """
-// GENERATED by BridgeGen from public SDK contextual values and protocol constraints.
+// GENERATED by BridgeGen from public SwiftUI SDK enum cases and same-type statics.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(emittedSDKEnumTypes.count) contextual value types.
 import Charts
-import Symbols
 import SwiftUI
 import SwiftInterpreter
 
@@ -3014,40 +2664,6 @@ for type in emittedSDKEnumTypes.sorted() {
 enumsOutput += """
         default:
             throw RuntimeError(message: "unknown generated SDK contextual type '\\(typeName)'")
-        }
-    }
-"""
-
-enumsOutput += """
-
-    static func coerceProtocolValue(
-        _ constraints: [String], _ value: RuntimeValue
-    ) throws -> Any {
-        switch constraints.sorted().joined(separator: "&") {
-
-"""
-for (_, constraints) in emittedSDKProtocolConstraintSets.sorted(by: {
-    $0.key < $1.key
-}) {
-    let sortedConstraints = constraints.sorted()
-    let key = sortedConstraints.joined(separator: "&")
-    enumsOutput += "        case \"\(key)\":\n"
-    enumsOutput += "            guard case .implicitMember(let member) = value else {\n"
-    enumsOutput += "                throw RuntimeError(message: \"expected a protocol-constrained SDK implicit member\")\n"
-    enumsOutput += "            }\n"
-    enumsOutput += "            switch member {\n"
-    for candidate in unambiguousSDKProtocolMembers(
-        satisfying: constraints) {
-        enumsOutput += "            case \"\(candidate.member)\": return \(candidate.concreteType).`\(candidate.member)` as \(candidate.concreteType)\n"
-    }
-    enumsOutput += "            default:\n"
-    enumsOutput += "                throw RuntimeError(message: \"unknown SDK member '.\\(member)' for constraints \(key)\")\n"
-    enumsOutput += "            }\n"
-}
-enumsOutput += """
-        default:
-            throw RuntimeError(message:
-                "unknown generated SDK protocol constraints '\\(constraints)'")
         }
     }
 }
