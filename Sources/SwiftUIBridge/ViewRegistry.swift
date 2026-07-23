@@ -295,33 +295,19 @@ public final class ViewRegistry: HostRegistry {
                         members.append(next.member)
                         root = next.base
                     }
-                    // Opaque View preservation is SwiftUI magic: an
-                    // unbridged modifier can lose its own semantics, but it
-                    // must not erase a host value already proven renderable.
-                    // Keep the diagnostic as the demand signal and recover
-                    // only the root—not an unresolved SDK marker or stub.
-                    let preservedRoot: AnyView? = {
-                        guard case .host(let base) = root,
-                              !(base is UIKitStub),
-                              !(base is ImplicitMemberCall),
-                              !(base is ChainedImplicitCall) else {
-                            return nil
-                        }
-                        return try? Self.anyView(root)
-                    }()
-                    var wrapsView = preservedRoot != nil
+                    var wrapsView = false
+                    if case .host(let base) = root {
+                        wrapsView = base is AnyView || base is TextBox
+                            || base is ImageBox || base is ShapeBox
+                    }
                     if case .instance = root { wrapsView = true }
                     if wrapsView {
                         var rootType = "?"
                         if case .host(let base) = root { rootType = String(describing: type(of: base)) }
                         if case .instance(let instance) = root { rootType = instance.symbol.name }
-                        let outcome = preservedRoot == nil
-                            ? "renders EMPTY"
-                            : "modifier semantics unavailable; preserving rendered root"
                         RenderDiagnostics.record(
-                            RuntimeError(message: "[platform=\(Interpreter.interpretsAsPlatform) root=\(rootType)] unbridged view modifier chain '.\(members.reversed().joined(separator: "."))' absorbed a rendered view; \(outcome)"),
+                            RuntimeError(message: "[platform=\(Interpreter.interpretsAsPlatform) root=\(rootType)] unbridged view modifier chain '.\(members.reversed().joined(separator: "."))' absorbed a rendered view; renders EMPTY"),
                             in: "anyView")
-                        if let preservedRoot { return preservedRoot }
                     }
                 }
                 return AnyView(EmptyView())
