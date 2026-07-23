@@ -866,7 +866,10 @@ extension Interpreter {
                     .trimmedDescription.contains("some View") ?? false
                 let computed = ComputedProperty(
                     accessor: accessors.getter,
-                    isBuilder: hasBuilderAttribute || returnsView,
+                    isBuilder: hasBuilderAttribute
+                        || (returnsView
+                            && !parsedBodyContainsExplicitReturn(
+                                accessors.getter)),
                     setter: accessors.setter,
                     typeAnnotation: bindingMetadata.typeAnnotation,
                     declarationID: binding.id,
@@ -1165,7 +1168,10 @@ extension Interpreter {
                     if isStaticDecl {
                         symbol.staticComputedProperties[memberName] = ComputedProperty(
                             accessor: accessors.getter,
-                            isBuilder: hasBuilderAttribute || returnsView,
+                            isBuilder: hasBuilderAttribute
+                                || (returnsView
+                                    && !parsedBodyContainsExplicitReturn(
+                                        accessors.getter)),
                             setter: accessors.setter,
                             typeAnnotation: bindingMetadata.typeAnnotation,
                             declarationID: binding.id,
@@ -1180,7 +1186,10 @@ extension Interpreter {
                     }
                     symbol.computedProperties[memberName] = ComputedProperty(
                         accessor: accessors.getter,
-                        isBuilder: hasBuilderAttribute || returnsView,
+                        isBuilder: hasBuilderAttribute
+                            || (returnsView
+                                && !parsedBodyContainsExplicitReturn(
+                                    accessors.getter)),
                         setter: accessors.setter,
                         typeAnnotation: bindingMetadata.typeAnnotation,
                         declarationID: binding.id,

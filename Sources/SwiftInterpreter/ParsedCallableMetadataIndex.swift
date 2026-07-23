@@ -226,8 +226,19 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
         body = declaration.body
         self.returnType = returnType
         self.returnTypeName = returnTypeName
-        isBuilder = returnTypeName?.contains("some View") == true
-            || attributeNames.contains(where: { $0.hasSuffix("Builder") })
+        let hasBuilderAttribute = attributeNames.contains {
+            $0.hasSuffix("Builder")
+        }
+        // Swift disables an inferred result-builder transform when the
+        // witness uses an explicit return. This is observable for protocol
+        // requirements such as ViewModifier.body(content:): the selected
+        // return is the whole result, not one sibling among every later
+        // return in the source body. An explicit builder attribute remains
+        // authoritative (and native compilation rejects invalid returns).
+        isBuilder = hasBuilderAttribute
+            || (returnTypeName?.contains("some View") == true
+                && !parsedBodyContainsExplicitReturn(
+                    declaration.body?.statements))
         genericParameters = declaration.genericParameterClause?.parameters
             .map(\.name.text) ?? []
         genericConformanceRequirements =
@@ -254,6 +265,34 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
         isTypeMember = modifierNames.contains("static")
             || modifierNames.contains("class")
     }
+}
+
+/// Whether an explicit return belongs to this callable rather than a nested
+/// closure, declaration, or accessor. Result-builder inference uses precisely
+/// that structural property; a lexical token search would incorrectly let an
+/// action closure's `return` disable its surrounding view builder.
+nonisolated func parsedBodyContainsExplicitReturn(
+    _ body: CodeBlockItemListSyntax?
+) -> Bool {
+    guard let body else { return false }
+    func containsReturn(_ syntax: Syntax) -> Bool {
+        if syntax.is(ReturnStmtSyntax.self) { return true }
+        if syntax.is(ClosureExprSyntax.self)
+            || syntax.is(FunctionDeclSyntax.self)
+            || syntax.is(InitializerDeclSyntax.self)
+            || syntax.is(DeinitializerDeclSyntax.self)
+            || syntax.is(AccessorDeclSyntax.self)
+            || syntax.is(ActorDeclSyntax.self)
+            || syntax.is(ClassDeclSyntax.self)
+            || syntax.is(EnumDeclSyntax.self)
+            || syntax.is(ProtocolDeclSyntax.self)
+            || syntax.is(StructDeclSyntax.self) {
+            return false
+        }
+        return syntax.children(viewMode: .sourceAccurate)
+            .contains(where: containsReturn)
+    }
+    return body.contains { containsReturn(Syntax($0)) }
 }
 
 nonisolated struct ParsedInitializerMetadata: Sendable {

@@ -10,6 +10,28 @@ import Testing
 /// held on the macOS canvas and the hierarchical style chain
 /// `.quaternary.opacity(0.5)` threw out of the style funnel.
 @Suite struct InterpretedStyleTests {
+    private struct NativeOptionalWrapper: ViewModifier {
+        let wraps: Bool
+
+        func body(content: Content) -> some View {
+            if !wraps {
+                return AnyView(content)
+            }
+            return AnyView(content.opacity(0.5))
+        }
+    }
+
+    private struct NativeReturnedBody: View {
+        let dimmed: Bool
+
+        var body: some View {
+            if !dimmed {
+                return AnyView(Text("Selected body"))
+            }
+            return AnyView(Text("Selected body").opacity(0.5))
+        }
+    }
+
     /// A nested source nominal is visible through its lexical owner, not as a
     /// bare declaration in an unrelated flattened module. IceCubes includes
     /// `ImageProcessors.Circle`; StatusKit's unqualified `Circle()` must still
@@ -537,6 +559,124 @@ import Testing
         }
 
         #expect(mismatched == 0)
+    }
+
+    /// Distilled from IceCubes' Catalyst-only `AccountPopoverModifier`: an
+    /// inferred-builder witness with explicit returns selects exactly one
+    /// opaque `AnyView(content)` branch.
+    @MainActor
+    @Test func customModifierAnyViewPreservesContentPixelExactly() throws {
+        let source = """
+        struct OptionalWrapper: ViewModifier {
+            let wraps: Bool
+
+            func body(content: Content) -> some View {
+                if !wraps {
+                    return AnyView(content)
+                }
+                return AnyView(content.opacity(0.5))
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Text("Visible account")
+                        .font(.system(size: 18, weight: .semibold))
+                        .modifier(OptionalWrapper(wraps: false))
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let size = NSSize(width: 220, height: 60)
+        let interpreted = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            Text("Visible account")
+                .font(.system(size: 18, weight: .semibold))
+                .modifier(NativeOptionalWrapper(wraps: false))
+        ), size: size)
+        #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
+    }
+
+    /// The same explicit-return rule applies to an inferred `View.body`
+    /// accessor, not only a `ViewModifier.body(content:)` method witness.
+    @MainActor
+    @Test func explicitReturnSelectsOneOpaqueViewBodyPixelExactly() throws {
+        let source = """
+        struct ReturnedBody: View {
+            let dimmed: Bool
+
+            var body: some View {
+                if !dimmed {
+                    return AnyView(Text("Selected body"))
+                }
+                return AnyView(Text("Selected body").opacity(0.5))
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup { ReturnedBody(dimmed: false) }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let size = NSSize(width: 220, height: 60)
+        let interpreted = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            NativeReturnedBody(dimmed: false)
+        ), size: size)
+        #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
+    }
+
+    /// A return nested inside an action closure belongs to that closure and
+    /// must not disable the surrounding inferred view builder.
+    @Test func nestedActionReturnDoesNotDisableViewBuilder() async throws {
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    VStack {
+                        Button("Action") {
+                            if Bool(true) { return }
+                        }
+                        Text("Builder sibling")
+                    }
+                }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("Builder sibling"))
+    }
+
+    private static func mismatchedPixels(
+        _ lhs: NSBitmapImageRep,
+        _ rhs: NSBitmapImageRep,
+        size: NSSize
+    ) -> Int {
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height)
+                where lhs.colorAt(x: x, y: y) != rhs.colorAt(x: x, y: y) {
+                mismatched += 1
+            }
+        }
+        return mismatched
     }
 
     @MainActor

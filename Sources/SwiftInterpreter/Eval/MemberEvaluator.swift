@@ -1651,8 +1651,18 @@ extension Interpreter {
         return try withComputedPropertyContext(
             computed, selfValue: selfValue, name: name
         ) { env in
-            let views = try collectBuilderViews(computed.accessor, in: env)
-            return try groupViews(views)
+            if computed.isBuilder {
+                let views = try collectBuilderViews(computed.accessor, in: env)
+                return try groupViews(views)
+            }
+            let result = try executeBlock(computed.accessor, in: env)
+            switch result {
+            case .normal(let value), .returnValue(let value):
+                return value
+            case .breakLoop, .continueLoop:
+                throw RuntimeError(message:
+                    "control flow escaped computed property '\(name)'")
+            }
         }
     }
 

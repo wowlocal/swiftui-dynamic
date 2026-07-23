@@ -2,8 +2,9 @@ import SwiftSyntax
 
 /// An interpreted function or closure: parameter list, body syntax, and the
 /// environment captured at creation. Methods are represented as closures whose
-/// captured environment has `self` bound. `isBuilder` marks `@ViewBuilder`
-/// functions and `some View` returns — their bodies evaluate in builder mode.
+/// captured environment has `self` bound. `isBuilder` marks explicit result
+/// builders and eligible inferred `some View` witnesses — their bodies evaluate
+/// in builder mode. An explicit return disables an inferred transform.
 @MainActor
 public final class ClosureValue {
     enum PhysicalExplicitMainActorContinuationSignature {
