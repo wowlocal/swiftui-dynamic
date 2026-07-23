@@ -71,6 +71,47 @@ import Testing
         #expect(RenderDiagnostics.errors.isEmpty)
     }
 
+    /// IceCubes' status rows surfaced the opaque-View preservation class:
+    /// one unavailable modifier turned the remaining, otherwise renderable
+    /// chain into `ChainedImplicitCall` and `anyView` erased the whole row.
+    /// Missing modifier semantics must stay diagnostic, but the proven View
+    /// root has the same pixels as its native unmodified fallback.
+    @MainActor
+    @Test func opaqueModifierChainPreservesRenderableRoot() throws {
+        let native = AnyView(
+            Text("preserved modifier root")
+                .font(.title)
+                .foregroundStyle(.black))
+        let opaque = RuntimeValue.native(ChainedImplicitCall(
+            base: .native(ChainedImplicitCall(
+                base: .native(native),
+                member: "unavailableSemanticModifier",
+                arguments: CallArguments())),
+            member: "downstreamSemanticModifier",
+            arguments: CallArguments()))
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let interpreted = try ViewRegistry.anyView(opaque)
+        let size = NSSize(width: 320, height: 100)
+        let expected = Self.bitmap(native, size: size)
+        let actual = Self.bitmap(interpreted, size: size)
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height) {
+                if expected.colorAt(x: x, y: y) != actual.colorAt(x: x, y: y) {
+                    mismatched += 1
+                }
+            }
+        }
+
+        #expect(mismatched == 0)
+        #expect(RenderDiagnostics.errors.contains {
+            $0.error.message.contains("unbridged view modifier chain")
+                && $0.error.message.contains("preserving rendered root")
+        })
+    }
+
     // A custom LabelStyle conformer resolved from a protocol-extension
     // static runs its interpreted makeBody with configuration.title/.icon.
     @MainActor
