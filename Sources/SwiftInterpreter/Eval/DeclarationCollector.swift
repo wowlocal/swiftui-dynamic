@@ -439,6 +439,14 @@ extension Interpreter {
         default:
             return
         }
+        // Preserve the declaration path as well as its identity. Imported
+        // lookup must be able to ask for `Module.Outer.Inner`; flattening a
+        // nested nominal to only `Outer.Inner` cannot prove which imported
+        // module supplied it when sibling packages use the same names.
+        if let path = sourceQualifiedNominalPath(of: value), path.count > 1 {
+            globals.define(
+                ([moduleName] + path).joined(separator: "."), value)
+        }
         let inserted = sourceModuleNamesByNominalIdentity[
             identity, default: []
         ].insert(moduleName).inserted
@@ -446,6 +454,37 @@ extension Interpreter {
         for nested in nestedTypes {
             registerSourceModuleOwnership(nested, moduleName: moduleName)
         }
+    }
+
+    private func sourceQualifiedNominalPath(
+        of value: RuntimeValue
+    ) -> [String]? {
+        var components: [String] = []
+        var current: AnyObject?
+        switch value {
+        case .type(let symbol):
+            components.append(symbol.name)
+            current = symbol.lexicalTypeOwner
+        case .enumType(let symbol):
+            components.append(symbol.name)
+            current = symbol.lexicalTypeOwner
+        default:
+            return nil
+        }
+        var seen: Set<ObjectIdentifier> = []
+        while let owner = current,
+              seen.insert(ObjectIdentifier(owner)).inserted {
+            if let symbol = owner as? StructSymbol {
+                components.append(symbol.name)
+                current = symbol.lexicalTypeOwner
+            } else if let symbol = owner as? EnumSymbol {
+                components.append(symbol.name)
+                current = symbol.lexicalTypeOwner
+            } else {
+                break
+            }
+        }
+        return components.reversed()
     }
 
     private func inheritSourceModuleOwnership(

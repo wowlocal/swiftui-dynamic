@@ -885,8 +885,7 @@ public final class Interpreter {
         }
 
         var importedNominalIsAmbiguous = false
-        if components.count == 1,
-           lexicalModule != nil || hasFileScopedImports {
+        if lexicalModule != nil || hasFileScopedImports {
             var identities: Set<ObjectIdentifier> = []
             var candidates: [RuntimeValue] = []
             for importedModule in lexicalImports.sorted()

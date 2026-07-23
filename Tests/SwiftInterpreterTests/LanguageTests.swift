@@ -698,6 +698,40 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 42)
     }
 
+    /// A nested nominal reached through an imported outer type keeps the
+    /// outer type's module path in annotation context. Nuke's
+    /// `ImageProcessors.Resize` surfaced this when a flattened dependency's
+    /// unrelated bare nested types gained source-module ownership.
+    @Test func importedQualifiedNestedAnnotationUsesDeclaringModule() throws {
+        let source = """
+        // swift-interpreter-source-module ImagePipeline
+        public enum ImageProcessors {
+            public struct Resize {
+                public init() {}
+
+                public var marker: Int { 42 }
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-source-module RowFeature
+        // swift-interpreter-source-import ImagePipeline
+        struct Row {
+            let processor: ImageProcessors.Resize = .init()
+
+            func marker() -> Int {
+                processor.marker
+            }
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-module RowFeature
+        RowFeature.Row().marker()
+        """
+
+        #expect(try eval(source).intValue == 42)
+    }
+
     /// Optional class elements survive assignment into and retrieval from a
     /// collection built inside a stored static property's initializer.
     @Test func staticOptionalArrayLookupPreservesClassElement() throws {
