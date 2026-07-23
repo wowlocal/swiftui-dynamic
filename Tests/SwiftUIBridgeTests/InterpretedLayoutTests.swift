@@ -123,6 +123,104 @@ import Testing
     }
 }
 
+/// An unbridged modifier must not make later collection children move into the
+/// erased receiver's place. The modifier's pixels are unknowable, so the
+/// fallback is deliberately invisible; its receiver-derived layout and hidden
+/// separator are the reusable collection-composition contract.
+@Suite struct UnbridgedModifierLayoutTests {
+    @MainActor
+    @Test func erasedCollectionChildrenKeepInvisibleLayout() throws {
+        let source = """
+        List {
+            Text("ROW A")
+                .font(.title)
+                .frame(height: 90)
+                .fixtureUnbridgedModifier()
+            Text("ROW B")
+                .font(.title)
+                .frame(height: 90)
+                .fixtureUnbridgedModifier()
+            Text("FOOTER")
+        }
+        .listStyle(.plain)
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("unbridged collection fixture failed: \(rendered)")
+            return
+        }
+        #expect(RenderDiagnostics.errors.count == 2)
+
+        let native = AnyView(
+            List {
+                Text("ROW A")
+                    .font(.title)
+                    .frame(height: 90)
+                    .hidden()
+                    .listRowSeparator(.hidden)
+                Text("ROW B")
+                    .font(.title)
+                    .frame(height: 90)
+                    .hidden()
+                    .listRowSeparator(.hidden)
+                Text("FOOTER")
+            }
+            .listStyle(.plain)
+        )
+        let size = NSSize(width: 260, height: 160)
+        #expect(
+            Self.mismatchedPixels(
+                Self.bitmap(interpreted, size: size),
+                Self.bitmap(native, size: size),
+                size: size
+            ) == 0
+        )
+    }
+
+    private static func mismatchedPixels(
+        _ lhs: NSBitmapImageRep,
+        _ rhs: NSBitmapImageRep,
+        size: NSSize
+    ) -> Int {
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height)
+                where lhs.colorAt(x: x, y: y) != rhs.colorAt(x: x, y: y) {
+                mismatched += 1
+            }
+        }
+        return mismatched
+    }
+
+    @MainActor
+    private static func bitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = size
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        return rep
+    }
+}
+
 /// FoodTruck card tiles: `.strokeBorder(.quaternary, lineWidth: 0.5)` —
 /// the REAL InsettableShape inside-stroke (retained at ShapeBox
 /// construction; erasure loses the conformance and a centered stroke
