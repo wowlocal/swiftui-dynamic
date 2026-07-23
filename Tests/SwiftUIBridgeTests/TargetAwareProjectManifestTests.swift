@@ -11,6 +11,45 @@ struct TargetAwareProjectManifestTests {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
+    /// A live merged-source render must retain the complete selected target,
+    /// not collapse macCatalyst into its shared iOS platform spelling. SDK
+    /// sources use this property to choose branches before any API dispatch.
+    @Test
+    func liveRenderUsesCapturedTargetEnvironment() async throws {
+        let target = try CompilerPreflightBuildTarget(
+            moduleName: "LiveCatalystFixture",
+            sdk: .macCatalyst,
+            architecture: "arm64",
+            deploymentTarget: "18.0",
+            compilerVersion: CompilerPreflightVersion(6, 3, 3),
+            swiftConditionalCompilationVersion:
+                CompilerPreflightVersion(6, 3, 3),
+            importableModules: ["SwiftUI"])
+        let environment = LiveCheckEnvironment(
+            networkPolicy: .absorbed,
+            projectResourceRoot: nil,
+            buildConfiguration: InterpreterBuildConfiguration(
+                buildTarget: target))
+        let source = """
+        struct ConditionalRoot: View {
+            var body: some View {
+                #if targetEnvironment(macCatalyst)
+                Text("selected-catalyst-environment")
+                #else
+                Text("selected-non-catalyst-environment")
+                #endif
+            }
+        }
+        """
+
+        let result = try await LiveCheckSupport.render(
+            source: source,
+            environment: environment)
+
+        #expect(result.strings.contains("selected-catalyst-environment"))
+        #expect(!result.strings.contains("selected-non-catalyst-environment"))
+    }
+
     @Test
     func explicitIOSSimulatorTargetSelectsConditionsAndMembership() throws {
         let root = try temporaryProjectRoot()

@@ -16,13 +16,20 @@ public struct LiveCheckRenderResult: Sendable {
 public struct LiveCheckEnvironment: Sendable {
     public let networkPolicy: NetworkPolicy
     public let projectResourceRoot: String?
+    public let buildConfiguration: InterpreterBuildConfiguration
 
     public init(
         networkPolicy: NetworkPolicy,
-        projectResourceRoot: String?
+        projectResourceRoot: String?,
+        buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
         self.networkPolicy = networkPolicy
         self.projectResourceRoot = projectResourceRoot
+        self.buildConfiguration = buildConfiguration
+            ?? InterpreterBuildConfiguration(
+                platformName: Interpreter.interpretsAsPlatform,
+                activeCompilationConditions:
+                    Interpreter.interpretsWithCompilationConditions)
     }
 
     public static var current: LiveCheckEnvironment {
@@ -114,7 +121,8 @@ public enum LiveCheckSupport {
             ) {
                 try await renderInCurrentReplayScope(
                     source: source,
-                    afterActions: actionCount)
+                    afterActions: actionCount,
+                    buildConfiguration: environment.buildConfiguration)
             }
         }
         var result = scoped.value
@@ -142,10 +150,13 @@ public enum LiveCheckSupport {
 
     private static func renderInCurrentReplayScope(
         source: String,
-        afterActions actionCount: Int
+        afterActions actionCount: Int,
+        buildConfiguration: InterpreterBuildConfiguration
     ) async throws -> LiveCheckRenderResult {
         HeadlessVerifier.resetBridgeEnvironment()
-        let interpreter = Interpreter(registry: TraceRegistry())
+        let interpreter = Interpreter(
+            registry: TraceRegistry(),
+            buildConfiguration: buildConfiguration)
         // The live-probe contract: @State/@StateObject boxes persist per view
         // identity so the fetch pass sees .onAppear's writes.
         interpreter.persistentViewState = true
