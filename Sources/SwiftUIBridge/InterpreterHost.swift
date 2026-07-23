@@ -25,6 +25,25 @@ public struct InterpreterHost {
             source: source,
             compilerSources: nil,
             buildTarget: nil,
+            buildConfiguration: nil,
+            lazyTopLevelGlobals: lazyTopLevelGlobals
+        )
+    }
+
+    /// Render merged source against one immutable conditional-compilation
+    /// identity. Compiler-checked callers must instead provide a project
+    /// manifest so native checking and interpretation cannot disagree about
+    /// their selected target.
+    public func render(
+        source: String,
+        buildConfiguration: InterpreterBuildConfiguration,
+        lazyTopLevelGlobals: Bool = false
+    ) -> Result<AnyView, RuntimeError> {
+        render(
+            source: source,
+            compilerSources: nil,
+            buildTarget: nil,
+            buildConfiguration: buildConfiguration,
             lazyTopLevelGlobals: lazyTopLevelGlobals
         )
     }
@@ -41,6 +60,7 @@ public struct InterpreterHost {
             source: ProjectMaterial.mergedSource(for: project),
             compilerSources: project.sources,
             buildTarget: project.buildTarget,
+            buildConfiguration: nil,
             lazyTopLevelGlobals: lazyTopLevelGlobals
         )
     }
@@ -49,6 +69,8 @@ public struct InterpreterHost {
         source: String,
         compilerSources explicitCompilerSources: [CompilerPreflightSource]?,
         buildTarget: CompilerPreflightBuildTarget?,
+        buildConfiguration explicitBuildConfiguration:
+            InterpreterBuildConfiguration?,
         lazyTopLevelGlobals: Bool
     ) -> Result<AnyView, RuntimeError> {
         // Reset deterministic probe state. Interactive wall-clock delivery
@@ -75,8 +97,16 @@ public struct InterpreterHost {
             } else {
                 switch compilerPreflightMode {
                 case .disabled:
-                    interpreter = Interpreter(registry: registry)
+                    interpreter = Interpreter(
+                        registry: registry,
+                        buildConfiguration: explicitBuildConfiguration)
                 case .diagnosticsOnly, .required:
+                    guard explicitBuildConfiguration == nil else {
+                        return .failure(RuntimeError(message:
+                            "compiler preflight requires a target-aware "
+                                + "project manifest when an explicit build "
+                                + "configuration is supplied"))
+                    }
                     interpreter = try Interpreter.withActiveCompilerPreflight(
                         registry: registry,
                         mode: compilerPreflightMode

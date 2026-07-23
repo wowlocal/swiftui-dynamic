@@ -50,6 +50,33 @@ struct TargetAwareProjectManifestTests {
         #expect(!result.strings.contains("selected-non-catalyst-environment"))
     }
 
+    /// A direct source render can carry the same immutable target projection
+    /// when there is no compiler manifest. This is intentionally distinct from
+    /// the legacy mutable platform canvas used by editor callers.
+    @Test
+    func hostRenderUsesExplicitTargetEnvironment() throws {
+        let configuration = InterpreterBuildConfiguration(
+            platformName: "iOS",
+            targetEnvironment: "macCatalyst")
+        let source = """
+        struct ConditionalRoot: View {
+            var body: some View {
+                #if targetEnvironment(macCatalyst)
+                Text("selected-catalyst-environment")
+                #else
+                MissingNonCatalystRoot()
+                #endif
+            }
+        }
+        ConditionalRoot()
+        """
+
+        _ = try InterpreterHost().render(
+            source: source,
+            buildConfiguration: configuration,
+            lazyTopLevelGlobals: true).get()
+    }
+
     @Test
     func explicitIOSSimulatorTargetSelectsConditionsAndMembership() throws {
         let root = try temporaryProjectRoot()
