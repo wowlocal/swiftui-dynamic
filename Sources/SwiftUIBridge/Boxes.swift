@@ -73,8 +73,21 @@ final class TextBox {
 /// `Image` flows through the interpreter as an ImageBox rather than AnyView so
 /// Image-typed modifiers (`.resizable()`) can still apply before the value is
 /// erased. Converting to AnyView happens lazily in `ViewRegistry.anyView`.
-final class ImageBox {
+///
+/// SwiftUI-magic allowlist entry (first attachment provider): the interface
+/// declares `Text.init(Image)` and image interpolation, but does not expose
+/// `LocalizedStringKey`'s opaque typed-segment storage. Conformance carries
+/// that missing relationship without an Image/API-name branch in evaluation.
+protocol SwiftUITextInterpolationAttachment:
+    RuntimeStringInterpolationAttachment
+{
+    var swiftUITextInterpolation: Text { get }
+}
+
+final class ImageBox: SwiftUITextInterpolationAttachment {
     let image: Image
+
+    var swiftUITextInterpolation: Text { Text(image) }
 
     init(_ image: Image) {
         self.image = image

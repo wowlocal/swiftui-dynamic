@@ -495,6 +495,50 @@ import Testing
         #expect(mismatched == 0)
     }
 
+    /// `LocalizedStringKey.StringInterpolation` accepts image attachments.
+    /// Keep that typed segment until Text consumes it instead of flattening
+    /// the opaque host box into its debug type name.
+    @MainActor
+    @Test func textImageInterpolationMatchesNative() throws {
+        let source = #"""
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Text("\(Image(systemName: "globe")) ⸱ 6 days ago")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.gray)
+                }
+            }
+        }
+        """#
+        let rendered = InterpreterHost().render(
+            source: source,
+            lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let size = NSSize(width: 260, height: 60)
+        let interpreted = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            Text("\(Image(systemName: "globe")) ⸱ 6 days ago")
+                .font(.system(size: 18))
+                .foregroundStyle(.gray)
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height) {
+                if interpreted.colorAt(x: x, y: y)
+                    != native.colorAt(x: x, y: y) {
+                    mismatched += 1
+                }
+            }
+        }
+
+        #expect(mismatched == 0)
+    }
+
     @MainActor
     private static func bitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
         let hosting = NSHostingView(

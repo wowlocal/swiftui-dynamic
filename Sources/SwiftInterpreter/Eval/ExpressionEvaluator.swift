@@ -100,7 +100,8 @@ extension Interpreter {
         case .nilLiteralExpr:
             return .nilValue
         case .stringLiteralExpr:
-            return .native(try stringLiteral(expr.cast(StringLiteralExprSyntax.self), in: env))
+            return try stringLiteral(
+                expr.cast(StringLiteralExprSyntax.self), in: env)
         case .arrayExpr:
             let array = expr.cast(ArrayExprSyntax.self)
             return .native(try array.elements.map { try evaluate($0.expression, in: env) })

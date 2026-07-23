@@ -18,6 +18,32 @@ public protocol RuntimeMaterializedSequence: AnyObject {
     var runtimeMaterializedElements: [RuntimeValue] { get }
 }
 
+/// A host value that must remain a typed segment when it appears in string
+/// interpolation. Ordinary string consumers still receive `plainText`; a
+/// framework adapter can consume the preserved attachment without the core
+/// interpreter knowing its concrete type.
+@MainActor
+public protocol RuntimeStringInterpolationAttachment: AnyObject {}
+
+/// The structured form of an interpolated string containing at least one
+/// opted-in host attachment. Text-only interpolation stays on the ordinary
+/// `String` fast path.
+@MainActor
+public final class RuntimeInterpolatedString {
+    public enum Segment {
+        case text(String)
+        case attachment(RuntimeValue)
+    }
+
+    public let segments: [Segment]
+    public let plainText: String
+
+    init(segments: [Segment], plainText: String) {
+        self.segments = segments
+        self.plainText = plainText
+    }
+}
+
 /// The type-erased runtime representation of every value the interpreter touches.
 ///
 /// Swift-language values live in dedicated cases so evaluator semantics never
@@ -172,7 +198,11 @@ extension RuntimeValue {
     public var stringValue: String? {
         switch self {
         case .string(let string): return string
-        case .host(let any): return any as? String
+        case .host(let any):
+            if let interpolated = any as? RuntimeInterpolatedString {
+                return interpolated.plainText
+            }
+            return any as? String
         default: return nil
         }
     }
@@ -296,6 +326,9 @@ extension RuntimeValue {
         case .tuple(let tuple): return tuple.description
         case .range(let range): return range.description
         case .host(let any):
+            if let interpolated = any as? RuntimeInterpolatedString {
+                return interpolated.plainText
+            }
             if let arr = any as? [RuntimeValue] {
                 return "[" + arr.map(\.debugStringified).joined(separator: ", ") + "]"
             }

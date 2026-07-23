@@ -20,6 +20,24 @@ extension ViewRegistry {
                let carrier = any as? GeneratedAttributedTextCarrier {
                 return .native(TextBox(Text(carrier.generatedAttributedText)))
             }
+            if case .host(let any) = value,
+               let interpolation = any as? RuntimeInterpolatedString {
+                var text = Text("")
+                for segment in interpolation.segments {
+                    switch segment {
+                    case .text(let fragment):
+                        text = text + Text(fragment)
+                    case .attachment(let value):
+                        if let attachment = value.hostPayload
+                            as? SwiftUITextInterpolationAttachment {
+                            text = text + attachment.swiftUITextInterpolation
+                        } else {
+                            text = text + Text(value.stringified)
+                        }
+                    }
+                }
+                return .native(TextBox(text))
+            }
             // TYPED markers resolve at this boundary (the computed-property
             // laziness contract): `var title: LocalizedStringKey { .init(x) }`
             // reaches Text as an init marker hinted with the property type.

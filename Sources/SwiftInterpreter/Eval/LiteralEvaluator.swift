@@ -35,20 +35,42 @@ extension Interpreter {
         return .native(magnitude)
     }
 
-    func stringLiteral(_ lit: StringLiteralExprSyntax, in env: Environment) throws -> String {
-        if let simple = lit.representedLiteralValue { return simple }
+    func stringLiteral(
+        _ lit: StringLiteralExprSyntax,
+        in env: Environment
+    ) throws -> RuntimeValue {
+        if let simple = lit.representedLiteralValue { return .native(simple) }
         var out = ""
+        var segments: [RuntimeInterpolatedString.Segment] = []
+        var hasAttachment = false
+
+        func appendText(_ text: String) {
+            out += text
+            segments.append(.text(text))
+        }
+
+        func appendInterpolation(_ value: RuntimeValue) {
+            if case .host(let any) = value,
+               any is RuntimeStringInterpolationAttachment {
+                hasAttachment = true
+                segments.append(.attachment(value))
+                if let text = interpolationText(value) { out += text }
+            } else if let text = interpolationText(value) {
+                appendText(text)
+            }
+        }
+
         for segment in lit.segments {
             switch segment {
             case .stringSegment(let s):
-                out += unescape(s.content.text)
+                appendText(unescape(s.content.text))
             case .expressionSegment(let e):
                 // Keep ordinary `\(value)` on the original allocation-free
                 // path; labeled interpolation is the uncommon case.
                 if e.expressions.count == 1, let only = e.expressions.first,
                    only.label == nil {
                     let value = try evaluate(only.expression, in: env)
-                    if let text = interpolationText(value) { out += text }
+                    appendInterpolation(value)
                     continue
                 }
                 // One expression segment is one appendInterpolation call.
@@ -68,13 +90,19 @@ extension Interpreter {
                     guard let specifier = specifierArgument.value.stringValue else {
                         throw error(e, "string interpolation specifier must be a String")
                     }
-                    out += Self.cFormattedString(specifier, values: [value])
+                    appendText(Self.cFormattedString(
+                        specifier, values: [value]))
                     continue
                 }
-                if let text = interpolationText(value) { out += text }
+                appendInterpolation(value)
             }
         }
-        return out
+        if hasAttachment {
+            return .native(RuntimeInterpolatedString(
+                segments: segments,
+                plainText: out))
+        }
+        return .native(out)
     }
 
     private func interpolationText(_ value: RuntimeValue) -> String? {
