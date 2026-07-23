@@ -36,5 +36,35 @@ DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macos.dylib" \
 .build/arm64-apple-macosx/debug/IceCubesCheck --capture "$INTERP_DIR" || exit 2
 
 echo "── R2 AE board ──"
-xcrun swift Scripts/pixel-ae.swift \
-  "$TWIN_DIR/timeline.png" "$INTERP_DIR/timeline.png"
+# Ratchet floor — enforced, committed baseline (AUDIT-2026-07-23-R2-stall.md rec #2,
+# mirroring Scripts/foodtruck-r3.sh). Before this, the R2 floor lived only in commit
+# prose and .gitignored .claude/claims.md and was measured out-of-band, which let
+# 0b47a4db land at AE 158,178 on main (2.6x) before a post-hoc capture caught it.
+# The board now FAILS on a regression above the floor and passes at/below it; the
+# floor ratchets DOWN only — when a run measures below it, tighten this number in
+# the same commit.
+ICECUBES_R2_FLOOR=59695
+
+ae_line="$(xcrun swift Scripts/pixel-ae.swift \
+  "$TWIN_DIR/timeline.png" "$INTERP_DIR/timeline.png")"
+ae_status=$?
+print -r -- "$ae_line"
+if (( ae_status == 2 )); then
+  echo "R2 board: pixel comparison failed (size mismatch or unreadable capture)" >&2
+  exit 2
+fi
+ae_count="$(print -r -- "$ae_line" | sed -E 's/^AE ([0-9]+) of .*/\1/')"
+if [[ ! "$ae_count" == <-> ]]; then
+  echo "R2 board: could not parse AE count from '$ae_line'" >&2
+  exit 2
+fi
+if (( ae_count > ICECUBES_R2_FLOOR )); then
+  echo "═══ R2 board: OVER FLOOR — AE $ae_count > floor $ICECUBES_R2_FLOOR (regression) ═══"
+  exit 1
+fi
+if (( ae_count < ICECUBES_R2_FLOOR )); then
+  echo "═══ R2 board: BELOW FLOOR — AE $ae_count < $ICECUBES_R2_FLOOR; ratchet ICECUBES_R2_FLOOR to $ae_count in this commit ═══"
+  exit 0
+fi
+echo "═══ R2 board: AT FLOOR — AE $ae_count == $ICECUBES_R2_FLOOR ═══"
+exit 0
