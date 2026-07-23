@@ -92,6 +92,68 @@ verify regressions along the way:
   before the rung moves) and continue. Never accumulate a multi-hour unlanded,
   un-gated pile — it hides regressions and blocks the batch.
 
+## Binding after the 2026-07-23 trajectory audit (see `AUDIT-2026-07-23-R2-stall.md`)
+
+The audit found the methodology HEALTHY (anti-drift fingerprint flat; every kept
+commit dispatches on a property, not an identity) but TARGET PROGRESS STALLED: the
+R2 AE floor held at 59,695/630,000 for 35h+ while ~40% of a day's commits (5 add + 5
+revert) self-cancelled. Root cause is a characterized local minimum plus two process
+gaps — NOT a discipline failure. Do NOT respond by tightening `AGENTS.md`; it is
+working. The following six amendments are binding.
+
+1. **The current R2 frontier is DECOUPLING, not another whole-screen slice.** All 20
+   timeline rows terminate at the SDK cross-import modifier `.translationPresentation`,
+   which the interpreter absorbs. Rendering the rows and fixing the offscreen
+   pagination footer are COUPLED at the whole-screen AE, so every capability slice that
+   renders more raises the floor and gets reverted (all 5 reverts this shape: `19336b79`,
+   `ef6bd671`, …). Apply the repro doctrine to the FLOOR-BLOCKER, not just to capability:
+   build separate MicroTwin repros for (a) one row THROUGH `.translationPresentation` and
+   (b) the pagination-footer position, each driven to AE=0 independently, so a row-render
+   win is not masked by the footer regression. Do NOT land another whole-screen slice
+   whose only measurable effect is to raise the floor. This supersedes the "Capability
+   gaps" queue head: the biggest failure class is now "the R2 metric couples independent
+   divergences," fixed by metric decomposition, not more coverage.
+
+2. **R2 is now an ENFORCED, committed floor — not prose.** `Scripts/icecubes-r2.sh`
+   carries `ICECUBES_R2_FLOOR` and exits non-zero when AE exceeds it (mirroring
+   `Scripts/foodtruck-r3.sh`). The R2 board is part of the close gate: a receipt is
+   MERGE-READY only if `Scripts/icecubes-r2.sh` exits 0. The floor ratchets DOWN only —
+   when a run measures below it, tighten `ICECUBES_R2_FLOOR` in the same commit. This
+   closes the gap that let `0b47a4db` land at AE 158,178 on main (2.6×) before a post-hoc
+   capture caught it — R2 was measured out-of-band and committed nowhere.
+
+3. **One concern per commit; protect regression tests.** The `7ca94306` incident — a
+   landed opaque-root fix AND its regression test silently reverted inside an unrelated
+   "nested source types" commit, then re-done and re-reverted (net absent at HEAD) —
+   was possible because unrelated changes rode in one commit and the co-deleted test
+   could not turn the suite red. Binding: (a) one concern per commit; its diff touches
+   only files the subject names. (b) Before close, rebase the lane onto main OR diff
+   against main for lines main changed that the lane reverts (accidental-clobber check).
+   (c) Never delete a regression test in the same commit as the code it guards — a test
+   removal is its own reviewed commit with a stated reason.
+
+4. **Every commit body states its metric delta.** Bodies are mostly empty; the metric
+   trajectory lives only in `.gitignored` `.claude/claims.md`, so `git log` alone reads
+   as churn. Binding: every commit body names its failure class and its metric delta
+   (R2 AE before→after, IceCubesCheck rungs, or "additive — R2 unchanged at N").
+
+5. **Stall-detector: motion without progress must self-escalate.** A human, not the
+   loop, noticed the 35h floor stall. Binding: if the north star (IceCubesCheck rungs /
+   R2 floor) does not improve for 5 consecutive landed iterations, STOP landing
+   incremental capability, post a `STALL` note in `.claude/claims.md`, and either do a
+   dedicated root-cause decomposition (§1 micro-twins) or escalate for human steering.
+   The existing time-cap bounds iteration LENGTH; this bounds unproductive iteration
+   COUNT.
+
+6. **Settle the opaque-value fallback question once, centrally.** The preserve-vs-collapse
+   decision for a partially-opaque value at a boundary (operator, `String` slot, modifier
+   chain) is being answered per-boundary and thrashing (`0e1dff50`, `f0577484`,
+   `0b47a4db` all reverted). The general answer — a conformance-dispatched carrier
+   (`1d82bb4f`'s `GeneratedBinaryOperatorCarrier`) — survives. Generalize that ONE
+   primitive to the modifier-chain and scalar boundaries instead of re-litigating each
+   boundary with a local heuristic; it is a reusable semantic primitive under the
+   `AGENTS.md` SwiftUI-magic allowlist, not a per-boundary special case.
+
 ## The instrument: `swift run IceCubesCheck` — bootstrap it first
 
 Per-screen rung ladder, strictly-improving total-rungs score, same discipline as
