@@ -32,9 +32,34 @@ struct NavigationChromeTargetProbeTests {
         #expect(macOSHostChrome.count == 0)
     }
 
+    /// Target-aware renders own one immutable build identity. SwiftUI-magic
+    /// adapters must consume that identity through their EvalContext rather
+    /// than consulting the legacy process-global default.
+    @MainActor
+    @Test func explicitBuildConfigurationOwnsNavigationPlatform() throws {
+        let previous = Interpreter.interpretsAsPlatform
+        defer { Interpreter.interpretsAsPlatform = previous }
+
+        Interpreter.interpretsAsPlatform = "macOS"
+        let catalystChrome = try Self.titleInk(
+            navigationStack: true,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"))
+        #expect(catalystChrome.count > 1_500)
+        #expect(catalystChrome.minY == 76)
+        #expect(catalystChrome.maxY == 99)
+
+        Interpreter.interpretsAsPlatform = "iOS"
+        let macOSChrome = try Self.titleInk(
+            navigationStack: true,
+            buildConfiguration: .init(platformName: "macOS"))
+        #expect(macOSChrome.count == 0)
+    }
+
     @MainActor
     private static func titleInk(
-        navigationStack: Bool
+        navigationStack: Bool,
+        buildConfiguration: InterpreterBuildConfiguration? = nil
     ) throws -> (count: Int, minX: Int, maxX: Int, minY: Int, maxY: Int) {
         let content = "Color.white.navigationTitle(\"Federated\")"
         let root = navigationStack
@@ -51,8 +76,15 @@ struct NavigationChromeTargetProbeTests {
             }
         }
         """
-        let rendered = InterpreterHost().render(
-            source: source, lazyTopLevelGlobals: true)
+        let host = InterpreterHost()
+        let rendered = if let buildConfiguration {
+            host.render(
+                source: source,
+                buildConfiguration: buildConfiguration,
+                lazyTopLevelGlobals: true)
+        } else {
+            host.render(source: source, lazyTopLevelGlobals: true)
+        }
         guard case .success(let view) = rendered else {
             Issue.record("navigation chrome probe failed to render")
             return (0, 0, 0, 0, 0)

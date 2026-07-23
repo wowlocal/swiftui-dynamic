@@ -119,6 +119,10 @@ public protocol EvalContext: AnyObject {
     /// Interpreter-backed SwiftUI adapters use this to distinguish sibling
     /// rows created at one source call site.
     var currentViewIdentityPath: String { get }
+    /// Immutable conditional-compilation identity of the source program that
+    /// entered this gateway. Semantic adapters must use this per-render value
+    /// instead of the legacy process-global defaults.
+    var buildConfiguration: InterpreterBuildConfiguration { get }
     func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     /// Enter interpreted code from a synchronous external host callback such
     /// as a SwiftUI action. Interpreter-backed contexts override this entry to
@@ -256,6 +260,12 @@ public protocol EvalContext: AnyObject {
 extension EvalContext {
     public var sourceExecutor: RuntimeExecutorKind { .mainActor }
     public var currentViewIdentityPath: String { "" }
+    public var buildConfiguration: InterpreterBuildConfiguration {
+        InterpreterBuildConfiguration(
+            platformName: Interpreter.interpretsAsPlatform,
+            activeCompilationConditions:
+                Interpreter.interpretsWithCompilationConditions)
+    }
 
     /// Compatibility fallback for non-interpreter embedders. The interpreter
     /// supplies the task-aware implementation; legacy contexts preserve their

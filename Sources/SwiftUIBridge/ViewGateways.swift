@@ -479,10 +479,12 @@ extension ViewRegistry {
                 // suppress the initial interpreted root outside its App
                 // scene, so preserve that root in a stack-shaped fallback.
                 return .native(NavigationPresentationBridge.contain(
-                    AnyView(VStack { Self.indexed(content) })))
+                    AnyView(VStack { Self.indexed(content) }),
+                    context: ctx))
             }
             return .native(NavigationPresentationBridge.contain(
-                AnyView(NavigationStack { Self.indexed(content) })))
+                AnyView(NavigationStack { Self.indexed(content) }),
+                context: ctx))
         }
         constructors["NavigationStack"] = navigationStack
         constructors["NavigationView"] = navigationStack // old samples

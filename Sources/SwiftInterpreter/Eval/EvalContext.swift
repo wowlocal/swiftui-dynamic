@@ -19,6 +19,9 @@ final class TaskBoundEvalContext: EvalContext {
     var sourceExecutor: RuntimeExecutorKind {
         evaluationContext.currentExecutor
     }
+    var buildConfiguration: InterpreterBuildConfiguration {
+        interpreter.buildConfiguration
+    }
 
     private func bound<T>(_ operation: () throws -> T) rethrows -> T {
         try EvaluationTaskContext.$current.withValue(

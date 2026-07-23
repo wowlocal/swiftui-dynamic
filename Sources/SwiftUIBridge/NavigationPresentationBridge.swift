@@ -40,9 +40,13 @@ enum NavigationPresentationBridge {
     }
 
     @MainActor
-    static func contain(_ content: AnyView) -> AnyView {
+    static func contain(
+        _ content: AnyView, context: EvalContext
+    ) -> AnyView {
 #if os(macOS)
-        guard Interpreter.interpretsAsPlatform == "iOS" else { return content }
+        guard context.buildConfiguration.platformName == "iOS" else {
+            return content
+        }
         return AnyView(IOSNavigationChromeContainer(content: content))
 #else
         return content
