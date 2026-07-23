@@ -221,6 +221,14 @@ private struct PlatformInterpretedLifecycleAdapter {
     let entryPoint: String
 }
 
+/// Some target-framework transforms differ only by an optional environment
+/// parameter: `T -> T` plus `T, Context? -> T`. On an opposite-platform host
+/// that environment is unavailable, but preserving the input is a typed,
+/// deterministic semantic fallback derived from the complete overload family.
+private struct PlatformContextualIdentityAdapter {
+    let parameterIndex: Int
+}
+
 private enum PlatformPointerKind {
     case raw
     case mutableRaw
@@ -243,6 +251,7 @@ private struct PlatformCallable {
     let isThrowing: Bool
     let isFailable: Bool
     var interpretedLifecycleAdapter: PlatformInterpretedLifecycleAdapter? = nil
+    var contextualIdentityAdapter: PlatformContextualIdentityAdapter? = nil
 
     private func formattedDeclaration(useContractTypes: Bool) -> String {
         let parameters = params.enumerated().map { index, param in
@@ -949,6 +958,43 @@ private func parsePlatformFramework(
             isFailable: false))
     }
 
+    // Infer target-context-only transforms from the complete SDK overload
+    // family. A same-typed first parameter/result plus a sibling overload
+    // whose only additional inputs are optional context values means the
+    // target runtime adjusts T for an environment the opposite host cannot
+    // manufacture. Preserve T there instead of inventing the scalar/reference
+    // default for the return type. No receiver or method identity participates.
+    let methodFamilies = Dictionary(grouping: methods.indices) { index in
+        let method = methods[index]
+        return "\(method.receiverType)|\(method.name)|\(method.resultType)"
+    }
+    for indices in methodFamilies.values {
+        let hasContextFreeOverload = indices.contains { index in
+            let method = methods[index]
+            return method.params.count == 1
+                && method.params[0].contractType == method.resultType
+                && method.resultType != "Void"
+        }
+        let hasContextualOverload = indices.contains { index in
+            let method = methods[index]
+            guard method.params.count > 1,
+                  method.params[0].contractType == method.resultType,
+                  method.resultType != "Void" else { return false }
+            return method.params.dropFirst().allSatisfy {
+                $0.contractType.hasSuffix("?")
+            }
+        }
+        guard hasContextFreeOverload, hasContextualOverload else { continue }
+        for index in indices {
+            let method = methods[index]
+            guard method.params.first?.contractType == method.resultType,
+                  method.params.dropFirst().allSatisfy({
+                      $0.contractType.hasSuffix("?")
+                  }) else { continue }
+            methods[index].contextualIdentityAdapter = .init(parameterIndex: 0)
+        }
+    }
+
     for index in methods.indices {
         let method = methods[index]
         guard schedulerTypes.contains(method.receiverType),
@@ -1594,20 +1640,35 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
     invocation = wrapPlatformPointerArguments(
         invocation, params: value.params, framework: value.framework)
     invocation = indent(invocation, by: 12)
-    let semanticAdapter = value.interpretedLifecycleAdapter.map { adapter in
-        """
+    var semanticAdapterLines: [String] = []
+    if let adapter = value.contextualIdentityAdapter {
+        semanticAdapterLines += [
+            "if !GeneratedPlatformBridge.frameworkIsNative("
+                + "\(swiftLiteral(value.framework))) {",
+            "    return v[\(adapter.parameterIndex)]",
+            "}",
+        ]
+    }
+    if let adapter = value.interpretedLifecycleAdapter {
+        semanticAdapterLines += [
+            "if generatedPlatformScheduleInterpretedLifecycle(",
+            "    v[\(adapter.parameterIndex)],",
+            "    entryPoint: \(swiftLiteral(adapter.entryPoint)), context: ctx",
+            ") {",
+            "    return .void",
+            "}",
+        ]
+    }
+    semanticAdapterLines.append("return nil")
+    let semanticAdapter = value.contextualIdentityAdapter != nil
+        || value.interpretedLifecycleAdapter != nil
+        ? """
         ,
                     semanticAdapter: { _, v, ctx in
-                        if generatedPlatformScheduleInterpretedLifecycle(
-                            v[\(adapter.parameterIndex)],
-                            entryPoint: \(swiftLiteral(adapter.entryPoint)), context: ctx
-                        ) {
-                            return .void
-                        }
-                        return nil
+        \(indent(semanticAdapterLines.joined(separator: "\n"), by: 16))
                     }
         """
-    } ?? ""
+        : ""
     return """
             registerMethod(
                 &t, framework: \(swiftLiteral(value.framework)),

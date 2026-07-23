@@ -11787,7 +11787,13 @@ extension GeneratedPlatformBridge {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIFontMetrics.scaledFont(for p0: UIFont) -> UIFont",
-            resultType: "UIFont") { base, v, ctx in
+            resultType: "UIFont",
+            semanticAdapter: { _, v, ctx in
+                if !GeneratedPlatformBridge.frameworkIsNative("UIKit") {
+                    return v[0]
+                }
+                return nil
+            }) { base, v, ctx in
 #if canImport(UIKit)
             guard let receiver = base.payload as? UIFontMetrics else {
                 throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
@@ -11803,7 +11809,13 @@ extension GeneratedPlatformBridge {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIFontMetrics.scaledFont(for p0: UIFont, compatibleWith p1: UITraitCollection?) -> UIFont",
-            resultType: "UIFont") { base, v, ctx in
+            resultType: "UIFont",
+            semanticAdapter: { _, v, ctx in
+                if !GeneratedPlatformBridge.frameworkIsNative("UIKit") {
+                    return v[0]
+                }
+                return nil
+            }) { base, v, ctx in
 #if canImport(UIKit)
             guard let receiver = base.payload as? UIFontMetrics else {
                 throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
@@ -11842,7 +11854,13 @@ extension GeneratedPlatformBridge {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIFontMetrics.scaledValue(for p0: CGFloat) -> CGFloat",
-            resultType: "CGFloat") { base, v, ctx in
+            resultType: "CGFloat",
+            semanticAdapter: { _, v, ctx in
+                if !GeneratedPlatformBridge.frameworkIsNative("UIKit") {
+                    return v[0]
+                }
+                return nil
+            }) { base, v, ctx in
 #if canImport(UIKit)
             guard let receiver = base.payload as? UIFontMetrics else {
                 throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
@@ -11855,7 +11873,13 @@ extension GeneratedPlatformBridge {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIFontMetrics.scaledValue(for p0: CGFloat, compatibleWith p1: UITraitCollection?) -> CGFloat",
-            resultType: "CGFloat") { base, v, ctx in
+            resultType: "CGFloat",
+            semanticAdapter: { _, v, ctx in
+                if !GeneratedPlatformBridge.frameworkIsNative("UIKit") {
+                    return v[0]
+                }
+                return nil
+            }) { base, v, ctx in
 #if canImport(UIKit)
             guard let receiver = base.payload as? UIFontMetrics else {
                 throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)

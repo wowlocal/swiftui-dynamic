@@ -694,6 +694,57 @@ import Testing
         #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
     }
 
+    /// Design-system fonts commonly select target-specific stored constants,
+    /// then expose them through a contextual source-extension static value.
+    /// The interpreted Catalyst path must retain the selected numeric size.
+    @MainActor
+    @Test func targetConditionalSourceStaticFontIsPixelExact() throws {
+        let source = """
+        import UIKit
+
+        @MainActor
+        extension Font {
+            #if targetEnvironment(macCatalyst)
+            private static let fixtureBody = 19.0
+            #else
+            private static let fixtureBody = 13.0
+            #endif
+
+            static var fixtureScaledBody: Font {
+                .system(
+                    size: UIFontMetrics.default.scaledValue(for: fixtureBody),
+                    design: .default)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Text("Catalyst body font")
+                        .font(.fixtureScaledBody)
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let size = NSSize(width: 240, height: 70)
+        let interpreted = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            Text("Catalyst body font")
+                .font(.system(size: 19, design: .default))
+        ), size: size)
+        #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
+    }
+
     /// The same explicit-return rule applies to an inferred `View.body`
     /// accessor, not only a `ViewModifier.body(content:)` method witness.
     @MainActor
