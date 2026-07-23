@@ -799,7 +799,10 @@ struct IceCubesCheckMain {
         window.orderFrontRegardless()
         hosting.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(1.0))
+        let settleDeadline = ContinuousClock.now.advanced(by: .seconds(1))
+        repeat {
+            _ = CFRunLoopRunInMode(.defaultMode, 0.05, true)
+        } while ContinuousClock.now < settleDeadline
         for entry in RenderDiagnostics.errors.prefix(20) {
             print("diagnostic\t\(entry.view)\t\(entry.error.message)")
         }
