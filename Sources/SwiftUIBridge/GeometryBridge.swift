@@ -1007,12 +1007,15 @@ extension ViewRegistry {
             settingMember: name, on: value, to: newValue)
     }
 
-    /// `Text("a") + Text("b")` — both sides are AnyView-erased by the time
-    /// they meet, so concatenation approximates as an adjacent zero-spacing
-    /// HStack (documented divergence: no line-wrap continuity).
+    /// Preserve the concrete result of any mapped opaque carrier before the
+    /// generic adjacent-View fallback erases it. The carrier property comes
+    /// from the same native type-mapping layer generated consumers use.
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? {
         if let attributed = generatedAttributedTextCombination(op, lhs, rhs) {
             return attributed
+        }
+        if let native = generatedBinaryOperatorCombination(op, lhs, rhs) {
+            return native
         }
         // DynamicTypeSize markers order by the REAL case ladder
         // (WidthThresholdReader's `dynamicType >= .xxLarge`).

@@ -62,11 +62,18 @@ final class AttributedRangeProxy: CustomStringConvertible,
 /// `Text` remains type-preserving until a consumer requires view erasure.
 /// This lets generated SDK bridges pass interpreted `Text(...)` values to
 /// concrete `Text` parameters such as ContentUnavailableView's description.
-final class TextBox {
+final class TextBox: GeneratedBinaryOperatorCarrier {
     let text: Text
 
     init(_ text: Text) {
         self.text = text
+    }
+
+    func applyingGeneratedBinaryOperator(
+        _ op: String, rhs: Any
+    ) -> Any? {
+        guard op == "+", let rhs = rhs as? TextBox else { return nil }
+        return TextBox(text + rhs.text)
     }
 }
 

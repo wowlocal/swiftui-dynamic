@@ -656,6 +656,44 @@ import Testing
         #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
     }
 
+    /// IceCubes' StatusRowReblogView builds one accessibility label with
+    /// `Text + Text + Text`. Native SwiftUI preserves concrete Text across
+    /// that operator, so an interface-generated Text consumer must still
+    /// accept the composed result without erasing the visible receiver.
+    @MainActor
+    @Test func textConcatenationStaysConcreteForTextConsumerPixelExactly() throws {
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Text("Visible boosted row")
+                        .font(.system(size: 18, weight: .semibold))
+                        .accessibilityLabel(
+                            Text("Alice") + Text(" ") + Text("boosted")
+                        )
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let size = NSSize(width: 240, height: 60)
+        let interpreted = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            Text("Visible boosted row")
+                .font(.system(size: 18, weight: .semibold))
+                .accessibilityLabel(
+                    Text("Alice") + Text(" ") + Text("boosted")
+                )
+        ), size: size)
+        #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
+    }
+
     /// The same explicit-return rule applies to an inferred `View.body`
     /// accessor, not only a `ViewModifier.body(content:)` method witness.
     @MainActor

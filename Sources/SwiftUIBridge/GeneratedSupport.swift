@@ -1370,6 +1370,29 @@ func generatedAttributedTextCombination(
     return .native(AttributedStringBox(left))
 }
 
+/// An opaque native carrier whose interface-declared binary operator retains
+/// a concrete result type. Dispatch asks for this semantic property instead
+/// of branching on an SDK type or consumer identity; additional mapped
+/// carriers can adopt the same adapter without growing the registry surface.
+protocol GeneratedBinaryOperatorCarrier {
+    func applyingGeneratedBinaryOperator(
+        _ op: String, rhs: Any
+    ) -> Any?
+}
+
+func generatedBinaryOperatorCombination(
+    _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+) -> RuntimeValue? {
+    guard case .host(let left) = lhs,
+          let carrier = left as? GeneratedBinaryOperatorCarrier,
+          case .host(let right) = rhs,
+          let result = carrier.applyingGeneratedBinaryOperator(
+            op, rhs: right) else {
+        return nil
+    }
+    return .native(result)
+}
+
 extension GeneratedMemberCarrier {
     func writeGeneratedMemberValue(_ value: Any) -> Bool { false }
     func replacingGeneratedMemberValue(_ value: Any) -> Any? { nil }
