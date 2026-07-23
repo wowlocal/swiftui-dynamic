@@ -32,6 +32,14 @@ import Testing
         }
     }
 
+    private struct NativeHoverWrapper: ViewModifier {
+        func body(content: Content) -> some View {
+            return AnyView(content.onHover { _ in
+                // The hover callback is inert in a headless pixel capture.
+            })
+        }
+    }
+
     /// A nested source nominal is visible through its lexical owner, not as a
     /// bare declaration in an unrelated flattened module. IceCubes includes
     /// `ImageProcessors.Circle`; StatusKit's unqualified `Circle()` must still
@@ -601,6 +609,49 @@ import Testing
             Text("Visible account")
                 .font(.system(size: 18, weight: .semibold))
                 .modifier(NativeOptionalWrapper(wraps: false))
+        ), size: size)
+        #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
+    }
+
+    /// IceCubes' Catalyst AccountPopoverModifier first applies `onHover`, whose
+    /// synchronous Bool callback is interface-declared but was absent from the
+    /// generated modifier surface.
+    @MainActor
+    @Test func customModifierOnHoverPreservesContentPixelExactly() throws {
+        let source = """
+        struct HoverWrapper: ViewModifier {
+            func body(content: Content) -> some View {
+                return AnyView(content.onHover { hovering in
+                    if hovering {
+                        _ = true
+                    }
+                })
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Text("Hover account")
+                        .font(.system(size: 18, weight: .semibold))
+                        .modifier(HoverWrapper())
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let size = NSSize(width: 220, height: 60)
+        let interpreted = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            Text("Hover account")
+                .font(.system(size: 18, weight: .semibold))
+                .modifier(NativeHoverWrapper())
         ), size: size)
         #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
     }

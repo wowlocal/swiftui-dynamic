@@ -148,6 +148,12 @@ import SwiftInterpreter
         #expect(blendMode.contains {
             $0.params.map(\.tag) == [.sdkEnum("BlendMode")]
         })
+
+        let onHover = GeneratedModifiers.table["onHover"]?.byArity[1] ?? []
+        #expect(onHover.contains {
+            $0.params.map(\.label) == ["perform"]
+                && $0.params.map(\.tag) == [.syncVoidClosure]
+        })
     }
 
     /// IceCubes' status rows pass their URL through SwiftUI's

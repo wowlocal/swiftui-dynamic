@@ -283,6 +283,17 @@ func collectGenericClause(_ clause: GenericParameterClauseSyntax?, into generics
     }
 }
 
+/// Whether a normalized type expression contains a declared generic as a
+/// complete identifier. Token boundaries cover nested spellings such as
+/// `[T]`, tuples, and `Result<T, Error>` without confusing a concrete type
+/// whose name merely contains the same letters.
+func referencesGenericIdentifier(_ type: String, generics: Generics) -> Bool {
+    let identifiers = Set(type.split {
+        !($0.isLetter || $0.isNumber || $0 == "_")
+    }.map(String.init))
+    return !identifiers.isDisjoint(with: generics.keys)
+}
+
 // MARK: - Parameter analysis
 
 struct AnalyzedParam {
@@ -351,7 +362,10 @@ func parameterSelections(_ analyzed: [AnalyzedParam]) -> [ParameterSelection] {
         // unlabeled argument positionally. A final closure is the structural
         // exception: trailing-closure syntax binds it after the omitted slot.
         let isFinalClosure = index == analyzed.count - 1
-            && ["builder", "action", "asyncAction", "syncCGFloatClosure"].contains(
+            && [
+                "builder", "action", "asyncAction",
+                "syncVoidClosure", "syncCGFloatClosure",
+            ].contains(
                 parameter.mapping?.tag ?? "")
         let requiresTrailingClosure = omittedUnlabeledDefault
             && parameter.label == nil
@@ -453,28 +467,39 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             hasDefault: hasDefault, blocker: nil, usesGeneric: nil
         )
     }
-    // Framework-owned synchronous callbacks with one input and a scalar
-    // layout result share one adapter. The SDK supplies the concrete input
-    // value; the interpreted closure computes the CGFloat. This is driven by
-    // closure shape, not by the modifier or input type's identity.
+    // Framework-owned synchronous callbacks with one concrete input share one
+    // argument adapter. The SDK supplies the input value; the declared result
+    // shape selects whether the interpreter result is discarded or coerced.
+    // This is driven by closure structure, not modifier or input identity.
     if let closure = type.as(FunctionTypeSyntax.self),
        closure.parameters.count == 1,
-       let input = closure.parameters.first.map({
+       let inputParameter = closure.parameters.first,
+       inputParameter.type.as(AttributedTypeSyntax.self)?
+           .specifiers.isEmpty != false,
+       let input = Optional({
            normalize($0.type.trimmedDescription)
-       }),
-       !generics.keys.contains(where: {
-           input == $0 || input.hasPrefix("\($0).")
-               || input.contains("<\($0)")
-               || input.contains(",\($0)")
-       }),
-       normalize(closure.returnClause.type.trimmedDescription) == "CGFloat" {
-        return .init(
-            label: label,
-            mapping: .init(
+       }(inputParameter)),
+       !referencesGenericIdentifier(input, generics: generics) {
+        let result = normalize(
+            closure.returnClause.type.trimmedDescription)
+        let mapping: TypeMapping? = switch result {
+        case "Void":
+            .init(
+                tag: "syncVoidClosure",
+                cast: "generatedSyncVoidClosure(%@)")
+        case "CGFloat":
+            .init(
                 tag: "syncCGFloatClosure",
-                cast: "generatedSyncCGFloatClosure(%@)"),
-            hasDefault: hasDefault, blocker: nil, usesGeneric: nil,
-            contractType: normalized)
+                cast: "generatedSyncCGFloatClosure(%@)")
+        default:
+            nil
+        }
+        if let mapping {
+            return .init(
+                label: label, mapping: mapping,
+                hasDefault: hasDefault, blocker: nil, usesGeneric: nil,
+                contractType: normalized)
+        }
     }
     // A generic parameter can legally shadow a concrete SDK type (`Data` is
     // common in collection initializers). Resolve declared generics first so
@@ -2398,8 +2423,6 @@ func generatedCallPreamble(_ variant: Variant) -> [String] {
             lines.append("        let a\(index) = generatedAction(v[\(index)])")
         case "asyncAction":
             lines.append("        let a\(index) = generatedAsyncAction(v[\(index)])")
-        case "syncCGFloatClosure":
-            lines.append("        let c\(index) = generatedSyncCGFloatClosure(v[\(index)])")
         default:
             break
         }
@@ -2425,7 +2448,10 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
     case "builder": "{ b\(trailingIndex) }"
     case "action": "{ a\(trailingIndex)() }"
     case "asyncAction": "{ await a\(trailingIndex)() }"
-    case "syncCGFloatClosure": "{ value in c\(trailingIndex)(value) }"
+    case "syncVoidClosure":
+        "{ value in generatedSyncVoidClosure(v[\(trailingIndex)])(value) }"
+    case "syncCGFloatClosure":
+        "{ value in generatedSyncCGFloatClosure(v[\(trailingIndex)])(value) }"
     default: fatalError("trailing call argument is not a generated closure")
     }
     return "\(head) \(closure)"

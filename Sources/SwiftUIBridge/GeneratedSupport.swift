@@ -24,7 +24,8 @@ enum ParamTag: Hashable {
     case visibility, axisSet, edgeInsets, gradient, gridItems
     case axis, colorArray, annotationPosition
     case dimension, measurement
-    case builder, action, asyncAction, syncCGFloatClosure, equatable
+    case builder, action, asyncAction
+    case syncVoidClosure, syncCGFloatClosure, equatable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
     case decimal, characterSet, indexSet, dateComponents, dateInterval
@@ -76,28 +77,18 @@ struct AsyncActionValue: @unchecked Sendable {
     let run: @MainActor @Sendable () async -> Void
 }
 
-/// A synchronous source closure whose argument is manufactured by SwiftUI
-/// during layout and whose result is consumed immediately by the framework.
+/// A synchronous source closure whose argument is manufactured by SwiftUI.
 /// The generator selects this by closure shape; the wrapper retains the
 /// interpreter context without encoding a modifier or SDK input identity.
-struct SyncCGFloatClosureValue: @unchecked Sendable {
+/// Result-specific generated adapters either discard or coerce the returned
+/// RuntimeValue according to the interface-declared closure result.
+struct SyncClosureValue: @unchecked Sendable {
     let closure: ClosureValue
     let context: EvalContext
 
     @MainActor
-    func call(argument: RuntimeValue) -> CGFloat {
-        do {
-            return try Coerce.cgFloat(
-                context.callHostCallback(closure, arguments: [argument]))
-        } catch let error as RuntimeError {
-            RenderDiagnostics.record(
-                error, in: "generated synchronous CGFloat closure")
-        } catch {
-            RenderDiagnostics.record(
-                RuntimeError(message: String(describing: error)),
-                in: "generated synchronous CGFloat closure")
-        }
-        return 0
+    func call(argument: RuntimeValue) throws -> RuntimeValue {
+        try context.callHostCallback(closure, arguments: [argument])
     }
 }
 
@@ -311,11 +302,11 @@ enum GeneratedDispatch {
                 context: ctx,
                 diagnosticContext: "generated SwiftUI async action")
             return AsyncActionValue(run: { await callback.call() })
-        case .syncCGFloatClosure:
+        case .syncVoidClosure, .syncCGFloatClosure:
             guard let closure = value.closureValue else {
                 throw RuntimeError(message: "expected a synchronous closure")
             }
-            return SyncCGFloatClosureValue(closure: closure, context: ctx)
+            return SyncClosureValue(closure: closure, context: ctx)
         case .equatable:
             return value.stringified
         case .date:
@@ -462,6 +453,7 @@ enum GeneratedDispatch {
             let isClosureParam = param.tag == .builder
                 || param.tag == .action
                 || param.tag == .asyncAction
+                || param.tag == .syncVoidClosure
                 || param.tag == .syncCGFloatClosure
             let labelOK = argument.label == param.label
                 || (argument.isTrailing && argument.label == nil && isClosureParam)
@@ -1169,17 +1161,49 @@ func generatedAsyncAction(
     return { await action.run() }
 }
 
-/// Adapts any Sendable framework-supplied callback input to the interpreter's
-/// native-value boundary. This single primitive serves every generated
-/// one-input synchronous closure returning CGFloat.
+/// Adapts any framework-supplied callback input to the interpreter's
+/// native-value boundary. Result-specific overloads share one callback value;
+/// their shapes come directly from the SDK interface.
+nonisolated func generatedSyncVoidClosure<Input>(
+    _ value: Any
+) -> @Sendable (Input) -> Void {
+    let callback = value as! SyncClosureValue
+    return { input in
+        let argument = SyncClosureRuntimeArgument(value: .host(input))
+        MainActor.assumeIsolated {
+            do {
+                _ = try callback.call(argument: argument.value)
+            } catch let error as RuntimeError {
+                RenderDiagnostics.record(
+                    error, in: "generated synchronous Void closure")
+            } catch {
+                RenderDiagnostics.record(
+                    RuntimeError(message: String(describing: error)),
+                    in: "generated synchronous Void closure")
+            }
+        }
+    }
+}
+
 nonisolated func generatedSyncCGFloatClosure<Input>(
     _ value: Any
 ) -> @Sendable (Input) -> CGFloat {
-    let callback = value as! SyncCGFloatClosureValue
+    let callback = value as! SyncClosureValue
     return { input in
         let argument = SyncClosureRuntimeArgument(value: .host(input))
         return MainActor.assumeIsolated {
-            callback.call(argument: argument.value)
+            do {
+                return try Coerce.cgFloat(
+                    callback.call(argument: argument.value))
+            } catch let error as RuntimeError {
+                RenderDiagnostics.record(
+                    error, in: "generated synchronous CGFloat closure")
+            } catch {
+                RenderDiagnostics.record(
+                    RuntimeError(message: String(describing: error)),
+                    in: "generated synchronous CGFloat closure")
+            }
+            return 0
         }
     }
 }
