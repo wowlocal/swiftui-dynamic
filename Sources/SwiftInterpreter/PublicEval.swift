@@ -95,7 +95,14 @@ extension Interpreter {
             default: break
             }
         }
-        return typeValue(named: name)
+        guard let owner else { return typeValue(named: name) }
+        let ownerModules = sourceModuleNames(owning: .type(owner))
+        if ownerModules.count == 1 {
+            return lexicallyVisibleType(
+                named: name, from: owner,
+                sourceModuleName: ownerModules.first)
+        }
+        return lexicallyVisibleType(named: name, from: owner)
     }
 
     /// The full EXPRESSION the app declares as its root — the first

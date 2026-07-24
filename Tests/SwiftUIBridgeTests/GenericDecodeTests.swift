@@ -123,6 +123,48 @@ import SwiftInterpreter
             #expect(result.stringValue == "el")
         }
     }
+
+    /// A field's unqualified nominal is bound in the declaring compiler
+    /// module. Flattening another imported module with a later same-spelled
+    /// Codable type must not make structural decode depend on merge order.
+    @Test func structuralDecodeUsesOwnerModuleForFieldTypes() throws {
+        try Self.withFixture(#"{"tags":[{"name":"swift"}]}"#) { directory in
+            NetworkBridge.policy = .replay(fixturesDirectory: directory)
+            defer { NetworkBridge.policy = .absorbed }
+            let models = ProjectMaterial.mergedSource(source: """
+                import Foundation
+
+                struct Tag: Codable {
+                    let name: String
+                }
+
+                struct Envelope: Codable {
+                    let tags: [Tag]
+                }
+                """, moduleName: "Models")
+            let parser = ProjectMaterial.mergedSource(source: """
+                import Foundation
+
+                struct Tag: Codable {
+                    let tagName: String
+                }
+                """, moduleName: "Parser")
+            let probe = ProjectMaterial.mergedSource(source: """
+                import Foundation
+                import Models
+                import Parser
+
+                let decoder = JSONDecoder()
+                let envelope = try decoder.decode(
+                    Models.Envelope.self, from: __fixtureData("payload"))
+                envelope.tags[0].name
+                """, moduleName: "Probe")
+
+            let result = try Interpreter(registry: ViewRegistry()).run(
+                source: models + parser + probe)
+            #expect(result.stringValue == "swift")
+        }
+    }
 }
 
 /// Custom `init(from: Decoder)` runs against Decoder stubs (iteration 193):
