@@ -270,6 +270,32 @@ import SwiftInterpreter
             .description.contains("plain") == true)
     }
 
+    @Test func importedNestedTypeBeatsHostExtensionFallback() throws {
+        let source = ProjectMaterial.mergedSource(
+            source: """
+        import Foundation
+
+        extension AttributedString {
+            var nestedTypeResolutionProbe: Bool { true }
+        }
+
+        let options = AttributedString.MarkdownParsingOptions(
+            allowsExtendedAttributes: true,
+            interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        let attributed = try AttributedString(
+            markdown: "[visible label](https://example.com/hidden)",
+            options: options)
+        attributed
+        """,
+            moduleName: "ImportedNestedTypeProbe")
+
+        let value = try Interpreter(registry: ViewRegistry()).run(
+            source: source, lazyTopLevelGlobals: true)
+        let attributed = try #require(
+            value.hostPayload as? AttributedStringBox)
+        #expect(String(attributed.attributed.characters) == "visible label")
+    }
+
     @Test func generatedContractsContextualizeEnumSetLiterals() throws {
         let registry = ViewRegistry()
         let calendar = Calendar(identifier: .gregorian)

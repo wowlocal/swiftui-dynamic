@@ -2232,18 +2232,21 @@ extension Interpreter {
                 deferringAsyncProperty: deferringAsyncHostProperty) {
                 return value
             }
+            // An imported nested nominal is interface-proven. It must beat
+            // the open-ended typed marker used to resolve otherwise unknown
+            // static members on a source-extended host type.
+            if let importedType = registry?.importedNestedTypeName(
+                for: "\(function.name).\(name)"
+            ) {
+                return .native(HostTypeMarker(
+                    name: importedType))
+            }
             // The program EXTENDS this host type: mint a TYPED marker so the
             // extension's instance members dispatch on it
             // (`UNAuthorizationStatus.notDetermined.map`).
             if hostExtensionSymbols[function.name] != nil {
                 return .native(ImplicitMemberCall(
                     name: name, arguments: CallArguments(), typeHint: function.name))
-            }
-            if let importedType = registry?.importedNestedTypeName(
-                for: "\(function.name).\(name)"
-            ) {
-                return .native(HostTypeMarker(
-                    name: importedType))
             }
             return .implicitMember(name)
 
@@ -2594,18 +2597,21 @@ extension Interpreter {
                     named: name, moduleName: marker.name) {
                     return global
                 }
+                // Interface metadata proves this member path denotes a type;
+                // do not let the host-extension fallback reinterpret it as an
+                // arbitrary static value.
+                if let importedType = registry?.importedNestedTypeName(
+                    for: "\(marker.name).\(name)"
+                ) {
+                    return .native(HostTypeMarker(
+                        name: importedType))
+                }
                 // `UNAuthorizationStatus.notDetermined` where the program
                 // EXTENDS the host type: mint a TYPED marker so `.map`
                 // (the extension's member) dispatches on it.
                 if hostExtensionSymbols[marker.name] != nil {
                     return .native(ImplicitMemberCall(
                         name: name, arguments: CallArguments(), typeHint: marker.name))
-                }
-                if let importedType = registry?.importedNestedTypeName(
-                    for: "\(marker.name).\(name)"
-                ) {
-                    return .native(HostTypeMarker(
-                        name: importedType))
                 }
                 // `Color.red` ≡ `.red` — resolved by expected type at gateways.
                 return .implicitMember(name)
