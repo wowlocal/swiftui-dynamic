@@ -77,6 +77,50 @@ struct TargetAwareProjectManifestTests {
             lazyTopLevelGlobals: true).get()
     }
 
+    /// Source-only capture tools still need one immutable target identity and
+    /// one immutable resource root; neither property may silently discard the
+    /// other when there is no compiler manifest.
+    @Test
+    func hostRenderCombinesTargetEnvironmentAndProjectResources() throws {
+        let root = NSTemporaryDirectory()
+            + "target-resource-host-\(UUID().uuidString)"
+        let resourceDirectory = root + "/Resources"
+        try FileManager.default.createDirectory(
+            atPath: resourceDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let markerPath = resourceDirectory + "/marker.txt"
+        try "target-resource".write(
+            toFile: markerPath, atomically: true, encoding: .utf8)
+
+        let configuration = InterpreterBuildConfiguration(
+            platformName: "iOS",
+            targetEnvironment: "macCatalyst")
+        let source = """
+        #if targetEnvironment(macCatalyst)
+        let markerPath = Bundle.main.path(
+            forResource: "marker", ofType: "txt")!
+        #else
+        MissingNonCatalystRoot()
+        #endif
+
+        struct ConditionalRoot: View {
+            var body: some View {
+                if markerPath != "\(markerPath)" {
+                    fatalError("wrong project resource: \\(markerPath)")
+                }
+                return Text(markerPath)
+            }
+        }
+        ConditionalRoot()
+        """
+
+        _ = try InterpreterHost().render(
+            source: source,
+            buildConfiguration: configuration,
+            projectResourceRoot: root,
+            lazyTopLevelGlobals: true).get()
+    }
+
     @Test
     func explicitIOSSimulatorTargetSelectsConditionsAndMembership() throws {
         let root = try temporaryProjectRoot()

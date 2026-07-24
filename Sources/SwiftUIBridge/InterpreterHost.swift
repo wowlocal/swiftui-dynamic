@@ -66,6 +66,25 @@ public struct InterpreterHost {
         )
     }
 
+    /// Render merged source with both of its immutable execution inputs when
+    /// no compiler manifest exists: conditional-compilation identity and the
+    /// project resource root are independent properties of the same render.
+    public func render(
+        source: String,
+        buildConfiguration: InterpreterBuildConfiguration,
+        projectResourceRoot: String,
+        lazyTopLevelGlobals: Bool = false
+    ) -> Result<AnyView, RuntimeError> {
+        render(
+            source: source,
+            compilerSources: nil,
+            buildTarget: nil,
+            buildConfiguration: buildConfiguration,
+            projectResourceRoot: projectResourceRoot,
+            lazyTopLevelGlobals: lazyTopLevelGlobals
+        )
+    }
+
     /// Render one explicitly selected build target. Compiler checking sees the
     /// manifest's original files and imports, while runtime interpretation uses
     /// the deterministic projection derived from those exact same inputs.
