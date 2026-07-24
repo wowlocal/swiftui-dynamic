@@ -1,18 +1,27 @@
 import SwiftInterpreter
 
-/// Capability for a host reference box whose writable SDK property contracts
-/// come from BridgeGen. The box owns only its logical native type and inert
-/// property storage; the generated table owns which names and types are legal.
+/// Capability for a host reference box whose SDK property contracts come from
+/// BridgeGen. The box owns only its logical native type and property payload;
+/// the generated table owns which names, accessors, and types are legal.
 @MainActor
 protocol GeneratedReferencePropertyCarrier: AnyObject {
     var generatedReferenceTypeName: String { get }
     var generatedReferencePropertyValues: [String: RuntimeValue] { get set }
+    func generatedReferencePropertyValue(
+        _ name: String, declaredType: String
+    ) throws -> RuntimeValue?
     func applyGeneratedReferenceProperty(
         _ name: String, declaredType: String, value: RuntimeValue
     ) throws -> Bool
 }
 
 extension GeneratedReferencePropertyCarrier {
+    func generatedReferencePropertyValue(
+        _ name: String, declaredType: String
+    ) throws -> RuntimeValue? {
+        nil
+    }
+
     func applyGeneratedReferenceProperty(
         _ name: String, declaredType: String, value: RuntimeValue
     ) throws -> Bool {
@@ -61,6 +70,12 @@ enum GeneratedReferencePropertySupport {
                         }
                         if let value =
                             carrier.generatedReferencePropertyValues[name] {
+                            return value
+                        }
+                        if let declaredType = signature.returnType,
+                           let value = try carrier
+                            .generatedReferencePropertyValue(
+                                name, declaredType: declaredType) {
                             return value
                         }
                         if let typeName = signature.returnType,

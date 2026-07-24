@@ -48,6 +48,30 @@ import SwiftInterpreter
         #expect(traced.stringValue == "0|first,second")
     }
 
+    /// The generated gettable tier must read live Objective-C payloads rather
+    /// than treating every carrier like inert storage. This covers both an
+    /// object result and a scalar result through one metadata/KVC path.
+    @Test func generatedReadOnlyContractsReadLiveObjCPayloads() throws {
+        let native = NSError(
+            domain: "generated.getter", code: 17,
+            userInfo: [NSLocalizedDescriptionKey: "native description"])
+        let interpreter = Interpreter(registry: ViewRegistry())
+        interpreter.globals.define(
+            "nativeError", .native(ObjCBox(native)))
+
+        let result = try interpreter.run(source: """
+            (
+                nativeError.domain,
+                nativeError.code,
+                nativeError.localizedDescription
+            )
+            """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].stringValue == "generated.getter")
+        #expect(tuple.values[1].intValue == 17)
+        #expect(tuple.values[2].stringValue == "native description")
+    }
+
     @Test func nonAllowlistedClassesStillAbsorb() throws {
         // Process is deliberately NOT on the allowlist — it must keep
         // falling to the absorbing bag, not gain real side effects.

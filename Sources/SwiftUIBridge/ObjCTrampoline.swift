@@ -204,6 +204,32 @@ enum ObjCTrampoline {
         return marshalToRuntime(unmanaged.takeUnretainedValue())
     }
 
+    /// Generated property metadata supplies the declared accessor and result
+    /// type. KVC can therefore read both object and scalar Objective-C
+    /// properties without growing a member-name table; optional nil retains
+    /// its generated wrapped type.
+    static func generatedReferencePropertyRead(
+        _ name: String,
+        declaredType: String,
+        on box: ObjCBox
+    ) throws -> RuntimeValue? {
+        guard box.object.responds(to: Selector(name)) else { return nil }
+        var nativeValue: Any?
+        if let exception = DSUICatchObjCException({
+            nativeValue = box.object.value(forKey: name)
+        }) {
+            throw RuntimeError(message:
+                "ObjC exception: \(exception.name.rawValue) — "
+                    + (exception.reason ?? "no reason"))
+        }
+        guard let nativeValue else {
+            guard let wrapped = RuntimeOptionalValue.wrappedType(
+                in: declaredType) else { return nil }
+            return .none(wrappedTypeName: wrapped)
+        }
+        return marshalToRuntime(nativeValue as AnyObject)
+    }
+
     static func propertyWrite(_ name: String, on box: ObjCBox, value: RuntimeValue) -> Bool {
         guard let marshaled = marshalToObjC(value) else { return false }
         let object = box.object
@@ -563,6 +589,13 @@ public final class ObjCBox: GeneratedReferencePropertyCarrier {
     ) throws -> Bool {
         try ObjCTrampoline.applyGeneratedReferenceProperty(
             name, declaredType: declaredType, value: value, on: self)
+    }
+
+    func generatedReferencePropertyValue(
+        _ name: String, declaredType: String
+    ) throws -> RuntimeValue? {
+        try ObjCTrampoline.generatedReferencePropertyRead(
+            name, declaredType: declaredType, on: self)
     }
 }
 
