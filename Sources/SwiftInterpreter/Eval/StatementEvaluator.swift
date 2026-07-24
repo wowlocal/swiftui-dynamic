@@ -218,7 +218,7 @@ extension Interpreter {
                 // source extensions after runtime representation erases it.
                 let declaredTypeName = hint
                     ?? declaredMemberReceiverTypeName(
-                        for: initializer, in: env)
+                        for: initializer, in: env, evaluatedValue: resolved)
                 env.define(
                     ident.identifier.text, resolved,
                     declaredTypeName: declaredTypeName,

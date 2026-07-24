@@ -272,7 +272,8 @@ extension Interpreter {
                 baseValue = try evaluate(baseExpr, in: env)
             }
             let declaredBaseTypeName = evaluatedBaseTypeName
-                ?? declaredMemberReceiverTypeName(for: baseExpr, in: env)
+                ?? declaredMemberReceiverTypeName(
+                    for: baseExpr, in: env, evaluatedValue: baseValue)
             // A call continuing an Optional chain dispatches the METHOD on
             // the payload, then lifts the result. This matters for names that
             // also have a property spelling (`array?.first(where:)`): member
@@ -694,7 +695,8 @@ extension Interpreter {
             named: name,
             on: baseValue,
             declaredTypeName: declaredBaseTypeName
-                ?? declaredMemberReceiverTypeName(for: base, in: env)
+                ?? declaredMemberReceiverTypeName(
+                    for: base, in: env, evaluatedValue: baseValue)
         ) {
             let args = try collectArguments(of: call, in: env)
             let target = try resolveHostExtensionMethodTarget(

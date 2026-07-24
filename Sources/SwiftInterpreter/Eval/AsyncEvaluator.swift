@@ -1134,7 +1134,8 @@ extension Interpreter {
                 named: name,
                 on: baseValue,
                 declaredTypeName: declaredMemberReceiverTypeName(
-                    for: baseExpression, in: env)
+                    for: baseExpression, in: env,
+                    evaluatedValue: baseValue)
             ) {
                 let args = try await collectArgumentsSuspending(
                     of: call, in: env)

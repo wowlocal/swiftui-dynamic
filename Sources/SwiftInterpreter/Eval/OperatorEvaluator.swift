@@ -165,9 +165,11 @@ extension Interpreter {
                     lhs,
                     rhs,
                     lhsDeclaredTypeName: declaredMemberReceiverTypeName(
-                        for: infix.leftOperand, in: env),
+                        for: infix.leftOperand, in: env,
+                        evaluatedValue: lhs),
                     rhsDeclaredTypeName: declaredMemberReceiverTypeName(
-                        for: infix.rightOperand, in: env)) {
+                        for: infix.rightOperand, in: env,
+                        evaluatedValue: rhs)) {
                     return viaDeclared
                 }
                 // User-defined infix operators (`|>` pipe-forward, `~=`

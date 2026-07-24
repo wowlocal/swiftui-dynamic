@@ -690,6 +690,30 @@ import Testing
         #expect(value.boolValue == true)
     }
 
+    /// An interpreted collection can overload its subscript by index shape.
+    /// The selected getter's declared result type must survive the integer
+    /// runtime carrier both inline and through an inferred local binding.
+    @Test func overloadedUserSubscriptRetainsScalarResultType() throws {
+        let source = """
+        extension UInt8 {
+            var whitespaceProbe: Bool { self == 32 }
+        }
+
+        struct Bytes {
+            subscript(position: Int) -> UInt8 { 32 }
+            subscript(bounds: Range<Int>) -> Bytes { self }
+        }
+
+        let bytes = Bytes()
+        let first = bytes[0]
+        (first.whitespaceProbe ? 10 : 0)
+            + (bytes[1].whitespaceProbe ? 1 : 0)
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.intValue == 11)
+    }
+
     @Test func enumPayloadBindingRetainsByteArrayElementType() throws {
         let source = """
         enum Backing {
@@ -770,6 +794,49 @@ import Testing
             + "|🌉 [bridged](https://fed.brid.gy/bsky/antyfaszysta.bsky.social)"
             + " from 🦋 [antyfaszysta.bsky.social]"
             + "(https://bsky.app/profile/antyfaszysta.bsky.social)")
+    }
+
+    /// A linked multi-paragraph status must finish the complete HTMLString
+    /// initializer. Falling into its catch after Markdown traversal leaves
+    /// `asRawText` equal to the original markup and can falsely classify a
+    /// short visible post as a long one.
+    @Test func swiftSoupHTMLStringSanitizesLinkedParagraphRawText() throws {
+        let root = FileManager.default.currentDirectoryPath
+        let fixtureURL = URL(fileURLWithPath: root)
+            .appendingPathComponent(
+                "Fixtures/mastodon-public-timeline/"
+                    + "api_v1_timelines_public.json")
+        let fixtureData = try Data(contentsOf: fixtureURL)
+        let fixture = try #require(
+            JSONSerialization.jsonObject(with: fixtureData)
+                as? [[String: Any]])
+        let html = try #require(fixture[1]["content"] as? String)
+        let encoded = String(
+            data: try JSONEncoder().encode(["content": html]),
+            encoding: .utf8)!
+        let htmlStringURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/IceCubesHTMLString.swift")
+        let htmlStringSource = try String(
+            contentsOf: htmlStringURL,
+            encoding: .utf8)
+        let value = try swiftSoupEvaluation(
+            "", additionalSource: htmlStringSource,
+            additionalSourceModule: "Models", suffix: """
+            import Models
+
+            struct Input: Decodable {
+                let content: HTMLString
+            }
+            let input = try JSONDecoder().decode(
+                Input.self,
+                from: \(String(reflecting: encoded)).data(using: .utf8)!)
+            input.content.asRawText
+            """, suffixModule: "LinkedParagraphRegressionProbe")
+        let rawText = try #require(value.stringValue)
+        #expect(rawText.contains("NATO: Revólver oferecido"))
+        #expect(!rawText.contains("<p>"))
+        #expect(rawText.unicodeScalars.count < 750)
     }
 
     /// A parsed HTML fragment returns nodes, not the integer indices used

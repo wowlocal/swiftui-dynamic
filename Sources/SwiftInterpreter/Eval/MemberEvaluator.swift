@@ -830,11 +830,14 @@ extension Interpreter {
 
     /// Recover the source type of a member receiver without attaching type
     /// metadata to every RuntimeValue. Native array-payload subscripting
-    /// produces the declared element type, while a standard-library `filter`
-    /// preserves its receiver's array type even when the result is empty.
+    /// produces the declared element type; an interpreted subscript's result
+    /// value disambiguates overloads with different declared result types; and
+    /// a standard-library `filter` preserves its receiver's array type even
+    /// when the result is empty.
     func declaredMemberReceiverTypeName(
         for expression: ExprSyntax,
-        in environment: Environment
+        in environment: Environment,
+        evaluatedValue: RuntimeValue? = nil
     ) -> String? {
         func storedValue(
             for expression: ExprSyntax
@@ -874,10 +877,29 @@ extension Interpreter {
         }
 
         if let subscriptCall = expression.as(SubscriptCallExprSyntax.self) {
-            if let base = storedValue(for: subscriptCall.calledExpression),
-               case .host(let payload) = base,
+            if let base = storedValue(for: subscriptCall.calledExpression) {
+                if case .host(let payload) = base,
                let readable = payload as? any RuntimeIntegerSubscriptReadable {
-                return readable.runtimeElementTypeName
+                    return readable.runtimeElementTypeName
+                }
+                if let evaluatedValue,
+                   let (symbol, _) = userSubscriptOwner(for: base) {
+                    let arityMatches = symbol.subscripts.filter {
+                        $0.parameters.count == subscriptCall.arguments.count
+                    }
+                    let shaped = arityMatches.isEmpty
+                        ? symbol.subscripts : arityMatches
+                    let matchingResultTypes = shaped.compactMap(
+                        \.resultTypeName).filter {
+                            valueIsType(evaluatedValue, $0)
+                        }
+                    if let first = matchingResultTypes.first,
+                       matchingResultTypes.dropFirst().allSatisfy({
+                           HostSignature.equivalentTypeName($0, first)
+                       }) {
+                        return first
+                    }
+                }
             }
             let collectionTypeName = declaredMemberReceiverTypeName(
                 for: subscriptCall.calledExpression, in: environment)
@@ -1747,7 +1769,8 @@ extension Interpreter {
     ) throws -> RuntimeValue {
         let declaredBaseTypeName = declaredTypeName
             ?? Syntax(node).as(MemberAccessExprSyntax.self)?.base.flatMap {
-                declaredMemberReceiverTypeName(for: $0, in: env)
+                declaredMemberReceiverTypeName(
+                    for: $0, in: env, evaluatedValue: baseValue)
             }
         if name == "self" {
             return baseValue // `SizeKey.self`, `x.self` — the value itself

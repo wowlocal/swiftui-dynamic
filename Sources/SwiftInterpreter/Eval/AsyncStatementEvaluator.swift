@@ -282,7 +282,7 @@ extension Interpreter {
             } ?? value
             let declaredTypeName = hint
                 ?? declaredMemberReceiverTypeName(
-                    for: initializer, in: env)
+                    for: initializer, in: env, evaluatedValue: resolved)
             env.define(
                 name, resolved, declaredTypeName: declaredTypeName,
                 isMutableBinding: isMutableBinding)
