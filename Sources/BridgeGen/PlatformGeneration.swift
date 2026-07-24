@@ -221,6 +221,13 @@ private struct PlatformInterpretedLifecycleAdapter {
     let entryPoint: String
 }
 
+/// Closure-taking Scheduler submissions retain their scheduling semantics,
+/// but an interpreted closure must re-enter through the registry's callback
+/// delivery queue instead of escaping onto a physical SDK worker.
+private struct PlatformInterpretedActionAdapter {
+    let parameterIndex: Int
+}
+
 /// Some target-framework transforms differ only by an optional environment
 /// parameter: `T -> T` plus `T, Context? -> T`. On an opposite-platform host
 /// that environment is unavailable, but preserving the input is a typed,
@@ -251,6 +258,7 @@ private struct PlatformCallable {
     let isThrowing: Bool
     let isFailable: Bool
     var interpretedLifecycleAdapter: PlatformInterpretedLifecycleAdapter? = nil
+    var interpretedActionAdapter: PlatformInterpretedActionAdapter? = nil
     var contextualIdentityAdapter: PlatformContextualIdentityAdapter? = nil
 
     private func formattedDeclaration(useContractTypes: Bool) -> String {
@@ -1017,11 +1025,15 @@ private func parsePlatformFramework(
     for index in methods.indices {
         let method = methods[index]
         guard schedulerTypes.contains(method.receiverType),
-              method.params.count == 1,
-              let entryPoint = lifecycleEntryPointByType[method.params[0].type]
-        else { continue }
-        methods[index].interpretedLifecycleAdapter = .init(
-            parameterIndex: 0, entryPoint: entryPoint)
+              method.params.count == 1 else { continue }
+        if method.resultType == "Void", method.params[0].isAction {
+            methods[index].interpretedActionAdapter = .init(
+                parameterIndex: 0)
+        } else if let entryPoint =
+            lifecycleEntryPointByType[method.params[0].type] {
+            methods[index].interpretedLifecycleAdapter = .init(
+                parameterIndex: 0, entryPoint: entryPoint)
+        }
     }
 
     return ParsedPlatformFramework(
@@ -1678,9 +1690,19 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
             "}",
         ]
     }
+    if let adapter = value.interpretedActionAdapter {
+        semanticAdapterLines += [
+            "if generatedPlatformScheduleInterpretedAction(",
+            "    v[\(adapter.parameterIndex)], context: ctx",
+            ") {",
+            "    return .void",
+            "}",
+        ]
+    }
     semanticAdapterLines.append("return nil")
     let semanticAdapter = value.contextualIdentityAdapter != nil
         || value.interpretedLifecycleAdapter != nil
+        || value.interpretedActionAdapter != nil
         ? """
         ,
                     semanticAdapter: { _, v, ctx in

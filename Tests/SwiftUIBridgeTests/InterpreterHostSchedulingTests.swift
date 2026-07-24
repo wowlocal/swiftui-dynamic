@@ -204,6 +204,42 @@ private final class NativeQueueRecorder: @unchecked Sendable {
         #expect(recorder.box(for: "fired")?.value.boolValue == true)
     }
 
+    /// A Scheduler's closure-taking submission cannot execute an interpreted
+    /// closure on an arbitrary physical worker. It joins the registry's
+    /// callback delivery queue, retaining submission order and actor safety.
+    @Test func operationQueueClosuresUseInterpreterDeliveryOrder() throws {
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: """
+        import Foundation
+
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let recorder = Recorder()
+        let queue = OperationQueue()
+        queue.addOperation {
+            recorder.events.append("first")
+        }
+        queue.addOperation {
+            recorder.events.append("second")
+        }
+        """)
+        guard case .instance(let recorder)? = interpreter.globals.lookup(
+            "recorder") else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(recorder.box(for: "events")?.value.arrayValue?.isEmpty == true)
+
+        MainQueueDrain.drain()
+
+        #expect(
+            recorder.box(for: "events")?.value.arrayValue?
+                .compactMap(\.stringValue)
+                == ["first", "second"])
+    }
+
     /// Nuke combines host-extension overloads, a nested function alias, and a
     /// source subclass whose unqualified name matches its Foundation base.
     /// The selected overload must still submit the source instance so its

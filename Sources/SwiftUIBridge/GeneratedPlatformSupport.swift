@@ -1357,6 +1357,25 @@ func generatedPlatformScheduleInterpretedLifecycle(
     return true
 }
 
+/// Closure counterpart to the lifecycle-object adapter above. SDK metadata
+/// selects this only for a Scheduler's single action parameter; callback
+/// execution then follows the registry's one actor-safe delivery policy.
+@MainActor
+func generatedPlatformScheduleInterpretedAction(
+    _ value: RuntimeValue,
+    context: EvalContext
+) -> Bool {
+    guard let closure = value.closureValue else { return false }
+    let action = ActionValue(run: {
+        _ = try? context.callHostCallback(closure, arguments: [])
+    })
+    MainQueueDrain.schedule(
+        action,
+        after: 0,
+        mode: MainQueueDrain.deliveryMode(for: context))
+    return true
+}
+
 private protocol GeneratedPlatformRuntimeConvertible {
     static func generatedPlatformValue(
         from value: RuntimeValue,

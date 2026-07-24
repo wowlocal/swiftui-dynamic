@@ -3824,7 +3824,15 @@ extension GeneratedPlatformBridge {
         registerMethod(
             &t, framework: "Foundation",
             declaration: "func OperationQueue.addBarrierBlock(_ p0: () -> Void) -> Void",
-            resultType: "Void") { base, v, ctx in
+            resultType: "Void",
+            semanticAdapter: { _, v, ctx in
+                if generatedPlatformScheduleInterpretedAction(
+                    v[0], context: ctx
+                ) {
+                    return .void
+                }
+                return nil
+            }) { base, v, ctx in
 #if canImport(Foundation)
             guard let receiver = base.payload as? OperationQueue else {
                 throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
@@ -3838,7 +3846,15 @@ extension GeneratedPlatformBridge {
         registerMethod(
             &t, framework: "Foundation",
             declaration: "func OperationQueue.addOperation(_ p0: () -> Void) -> Void",
-            resultType: "Void") { base, v, ctx in
+            resultType: "Void",
+            semanticAdapter: { _, v, ctx in
+                if generatedPlatformScheduleInterpretedAction(
+                    v[0], context: ctx
+                ) {
+                    return .void
+                }
+                return nil
+            }) { base, v, ctx in
 #if canImport(Foundation)
             guard let receiver = base.payload as? OperationQueue else {
                 throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
