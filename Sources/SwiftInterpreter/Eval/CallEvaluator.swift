@@ -173,6 +173,11 @@ extension Interpreter {
                HostSignature.equivalentTypeName(observed, typeName) {
                 return true
             }
+            if registry?.hostValue(
+                any, matchesImportedType: typeName
+            ) == true {
+                return true
+            }
             if any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
                 return false // unknowable: fresh state IS nothing yet
             }

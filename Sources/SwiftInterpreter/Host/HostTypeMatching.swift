@@ -395,7 +395,9 @@ extension HostSignature {
         }
     }
 
-    static func equivalentTypeName(_ lhs: String, _ rhs: String) -> Bool {
+    public static func equivalentTypeName(
+        _ lhs: String, _ rhs: String
+    ) -> Bool {
         let left = lhs.replacingOccurrences(of: " ", with: "")
         let right = rhs.replacingOccurrences(of: " ", with: "")
         if left == right || left.hasSuffix("." + right)

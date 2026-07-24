@@ -30,6 +30,25 @@ enum GeneratedReferencePropertySupport {
             do {
                 let signature = try HostSignature(parsing: declaration)
                 let name = signature.name
+                let setter: HostProperty.Setter?
+                if signature.isSettable {
+                    setter = { receiver, value, _ in
+                        guard case .host(let raw) = receiver,
+                              let carrier = raw as?
+                                GeneratedReferencePropertyCarrier else {
+                            throw RuntimeError(
+                                message: "generated reference property setter receiver mismatch",
+                                fatal: true)
+                        }
+                        if let declaredType = signature.returnType {
+                            _ = try carrier.applyGeneratedReferenceProperty(
+                                name, declaredType: declaredType, value: value)
+                        }
+                        carrier.generatedReferencePropertyValues[name] = value
+                    }
+                } else {
+                    setter = nil
+                }
                 result[key] = try HostProperty(
                     signature: signature,
                     get: { receiver, _ in
@@ -53,20 +72,7 @@ enum GeneratedReferencePropertySupport {
                             "generated reference property '\(declaration)' "
                                 + "has no host value")
                     },
-                    set: { receiver, value, _ in
-                        guard case .host(let raw) = receiver,
-                              let carrier = raw as?
-                                GeneratedReferencePropertyCarrier else {
-                            throw RuntimeError(
-                                message: "generated reference property setter receiver mismatch",
-                                fatal: true)
-                        }
-                        if let declaredType = signature.returnType {
-                            _ = try carrier.applyGeneratedReferenceProperty(
-                                name, declaredType: declaredType, value: value)
-                        }
-                        carrier.generatedReferencePropertyValues[name] = value
-                    })
+                    set: setter)
             } catch {
                 preconditionFailure(
                     "BridgeGen emitted an invalid reference property "
@@ -79,6 +85,31 @@ enum GeneratedReferencePropertySupport {
     static func property(
         _ name: String, on carrier: GeneratedReferencePropertyCarrier
     ) -> HostProperty? {
-        properties["\(carrier.generatedReferenceTypeName).\(name)"]
+        var type: String? = carrier.generatedReferenceTypeName
+        var visited = Set<String>()
+        while let current = type, visited.insert(current).inserted {
+            if let property = properties["\(current).\(name)"] {
+                return property
+            }
+            type = GeneratedFoundationReferenceProperties
+                .superclassByType[current]
+        }
+        return nil
+    }
+
+    static func carrier(
+        _ carrier: GeneratedReferencePropertyCarrier,
+        matchesImportedType expectedType: String
+    ) -> Bool {
+        var type: String? = carrier.generatedReferenceTypeName
+        var visited = Set<String>()
+        while let current = type, visited.insert(current).inserted {
+            if HostSignature.equivalentTypeName(current, expectedType) {
+                return true
+            }
+            type = GeneratedFoundationReferenceProperties
+                .superclassByType[current]
+        }
+        return false
     }
 }

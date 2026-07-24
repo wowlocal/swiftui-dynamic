@@ -101,6 +101,33 @@ import SwiftInterpreter
         #expect(NetworkBridge.requestLog.contains { $0.contains("generated-property") })
     }
 
+    /// Foundation's symbol graph declares `URLSessionTask.response` read-only,
+    /// and a data task inherits that contract. Both facts are metadata—not a
+    /// reason for a handwritten `response` member branch.
+    @Test func generatedReadOnlyTaskPropertyFollowsReferenceInheritance() throws {
+        #expect(
+            GeneratedFoundationReferenceProperties.declarationsByKey[
+                "URLSessionTask.response"]
+                == "var URLSessionTask.response: URLResponse? { get }")
+        #expect(
+            GeneratedFoundationReferenceProperties.superclassByType[
+                "URLSessionDataTask"]
+                == "URLSessionTask")
+
+        let task = DataTaskBox(url: nil, completion: nil)
+        #expect(task.generatedReferenceTypeName == "URLSessionDataTask")
+        #expect(
+            GeneratedReferencePropertySupport.property(
+                "response", on: task) != nil)
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+            let task = URLSession.shared.dataTask(
+                with: URL(string: "https://example.com/inherited-response")!)
+            task.response == nil
+            """)
+        #expect(result.boolValue == true)
+    }
+
     /// `resume()` initiates every URLSession task. A task that reports through
     /// a session delegate has no per-task completion closure, but it must not
     /// become inert at the replay boundary.

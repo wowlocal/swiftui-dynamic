@@ -563,7 +563,7 @@ func interpretedProtocolResponse(
 public final class DataTaskBox {
     let url: URL?
     let completion: ClosureValue?
-    let generatedReferenceTypeName = "URLSessionTask"
+    let generatedReferenceTypeName = "URLSessionDataTask"
     var generatedReferencePropertyValues: [String: RuntimeValue] = [:]
 
     init(url: URL?, completion: ClosureValue?) {
