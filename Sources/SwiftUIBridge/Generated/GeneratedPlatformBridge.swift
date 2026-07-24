@@ -45,6 +45,23 @@ extension GeneratedPlatformBridge {
     private static func buildConstructorsFoundation0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "Foundation",
+            declaration: "init BlockOperation(block p0: () -> Void)",
+            resultType: "BlockOperation",
+            semanticAdapter: { v, _ in
+                generatedPlatformDeferredLifecycleAction(
+                    v[0],
+                    framework: "Foundation",
+                    type: "BlockOperation",
+                    entryPoint: "start")
+            }) { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(BlockOperation(block: generatedAction(try GeneratedDispatch.coerce(.action, v[0], ctx))), framework: "Foundation", declaredType: "BlockOperation")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
             declaration: "init Operation()",
             resultType: "Operation") { v, ctx in
 #if canImport(Foundation)
@@ -3711,6 +3728,20 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildMethodsFoundation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func BlockOperation.addExecutionBlock(_ p0: () -> Void) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? BlockOperation else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            receiver.`addExecutionBlock`(generatedAction(try GeneratedDispatch.coerce(.action, v[0], ctx)))
+            return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
         registerMethod(
             &t, framework: "Foundation",
             declaration: "func Operation.addDependency(_ p0: Operation) -> Void",
@@ -63049,6 +63080,7 @@ extension GeneratedPlatformBridge {
         var t: [GeneratedPlatformMemberKey: Bool] = [:]
         buildKnownMembersFoundation0(&t)
         buildKnownMembersFoundation1(&t)
+        buildKnownMembersFoundation2(&t)
         buildKnownMembersAppKit0(&t)
         buildKnownMembersAppKit1(&t)
         buildKnownMembersAppKit2(&t)
@@ -63137,6 +63169,14 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildKnownMembersFoundation0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "BlockOperation",
+            member: "addExecutionBlock")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "BlockOperation",
+            member: "executionBlocks")] = false
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "Operation",
@@ -63269,6 +63309,9 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "OperationQueue",
             member: "waitUntilAllOperationsAreFinished")] = true
+    }
+
+    private static func buildKnownMembersFoundation1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "OperationQueue.SchedulerTimeType",
@@ -63277,9 +63320,6 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "OperationQueue.SchedulerTimeType",
             member: "date")] = false
-    }
-
-    private static func buildKnownMembersFoundation1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "OperationQueue.SchedulerTimeType",
@@ -63412,6 +63452,9 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "ProcessInfo",
             member: "thermalState")] = false
+    }
+
+    private static func buildKnownMembersFoundation2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
@@ -74957,6 +75000,7 @@ extension GeneratedPlatformBridge {
     static func buildEqualityAdapters() -> [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] {
         var t: [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] = [:]
 #if canImport(Foundation)
+        registerEqualityAdapter(&t, framework: "Foundation", type: "BlockOperation", BlockOperation.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "Operation", Operation.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "Operation.QueuePriority", Operation.QueuePriority.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "OperationQueue", OperationQueue.self)
@@ -75207,6 +75251,7 @@ extension GeneratedPlatformBridge {
 
     static func buildNominalKinds() -> [GeneratedPlatformTypeKey: Bool] {
         var t: [GeneratedPlatformTypeKey: Bool] = [:]
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "BlockOperation")] = false
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation")] = false
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation.QueuePriority")] = true
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue")] = false
@@ -75470,6 +75515,7 @@ extension GeneratedPlatformBridge {
 
     static func buildSupertypes() -> [GeneratedPlatformTypeKey: [String]] {
         var t: [GeneratedPlatformTypeKey: [String]] = [:]
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "BlockOperation")] = ["Operation"]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation")] = ["NSObject"]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue")] = ["NSObject", "ProgressReporting"]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo")] = ["NSObject"]

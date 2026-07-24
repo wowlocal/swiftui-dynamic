@@ -228,6 +228,16 @@ private struct PlatformInterpretedActionAdapter {
     let parameterIndex: Int
 }
 
+/// A public subclass of a scheduler-submitted lifecycle type can expose its
+/// work as a single action constructor. Keep that action interpreter-owned
+/// until the generated scheduler handoff invokes the inherited lifecycle
+/// entry point; constructing a native worker object would let the closure
+/// escape the interpreter's actor.
+private struct PlatformInterpretedLifecycleActionConstructorAdapter {
+    let parameterIndex: Int
+    let entryPoint: String
+}
+
 /// Some target-framework transforms differ only by an optional environment
 /// parameter: `T -> T` plus `T, Context? -> T`. On an opposite-platform host
 /// that environment is unavailable, but preserving the input is a typed,
@@ -259,6 +269,8 @@ private struct PlatformCallable {
     let isFailable: Bool
     var interpretedLifecycleAdapter: PlatformInterpretedLifecycleAdapter? = nil
     var interpretedActionAdapter: PlatformInterpretedActionAdapter? = nil
+    var interpretedLifecycleActionConstructorAdapter:
+        PlatformInterpretedLifecycleActionConstructorAdapter? = nil
     var contextualIdentityAdapter: PlatformContextualIdentityAdapter? = nil
 
     private func formattedDeclaration(useContractTypes: Bool) -> String {
@@ -598,25 +610,21 @@ private func parsePlatformFramework(
             isEquatable: equatableNominals.contains(symbol.identifier.precise))
     }
 
-    let selected = allNominals.filter { spec.roots.contains($0.value.root) }
-    // Cross-framework references bridge when the referenced type is selected
-    // by ANY sweep (MKMapCamera's initializer takes CoreLocation's
-    // CLLocationCoordinate2D); the runtime unwraps platform values by
-    // dynamic cast, so acceptance is framework-agnostic.
-    let selectedTypes = Set(selected.values.map(\.type))
-        .union(platformCrossFrameworkSelectedTypes)
     var parentByMember: [String: String] = [:]
     for relationship in graph.relationships
         where relationship.kind == "memberOf" || relationship.kind == "requirementOf"
     {
         parentByMember[relationship.source] = relationship.target
     }
+    let rootSelected = allNominals.filter {
+        spec.roots.contains($0.value.root)
+    }
     let schedulerTypes: Set<String> = Set(
         graph.relationships.compactMap { relationship -> String? in
             guard relationship.kind == "conformsTo",
                   relationship.targetFallback?.split(separator: ".").last
                     == "Scheduler",
-                  let nominal = selected[relationship.source]
+                  let nominal = rootSelected[relationship.source]
             else { return nil }
             return nominal.type
         })
@@ -627,7 +635,7 @@ private func parsePlatformFramework(
     var lifecycleEntryPointByType: [String: String] = [:]
     for symbol in graph.symbols where symbol.kind.identifier == "swift.method" {
         guard let parent = parentByMember[symbol.identifier.precise],
-              let nominal = selected[parent],
+              let nominal = rootSelected[parent],
               let function = parsePlatformDecl(symbol.declaration)?
                 .as(FunctionDeclSyntax.self),
               platformIdentifier(function.name.text) == "start",
@@ -637,6 +645,112 @@ private func parsePlatformFramework(
         lifecycleEntryPointByType[nominal.type] =
             platformIdentifier(function.name.text)
     }
+
+    // Select action-constructed subclasses only when the symbol graph proves
+    // the complete structural chain:
+    //
+    //   Scheduler receiver -> one lifecycle parameter -> zero-argument
+    //   lifecycle entry point -> public subclass -> one action initializer.
+    //
+    // This lets a root bring in the adapter types required to manufacture its
+    // submitted values without naming a framework type or constructor.
+    let submittedLifecycleTypes: Set<String> = Set(
+        graph.symbols.compactMap { symbol -> String? in
+            guard symbol.kind.identifier == "swift.method",
+                  platformSymbolIsAvailable(symbol, for: spec),
+                  let parent = parentByMember[symbol.identifier.precise],
+                  let receiver = rootSelected[parent],
+                  schedulerTypes.contains(receiver.type),
+                  let function = parsePlatformDecl(symbol.declaration)?
+                    .as(FunctionDeclSyntax.self),
+                  function.genericParameterClause == nil,
+                  function.genericWhereClause == nil,
+                  !(function.signature.effectSpecifiers?
+                    .trimmedDescription.contains("async") ?? false),
+                  function.signature.parameterClause.parameters.count == 1,
+                  let parameter =
+                    function.signature.parameterClause.parameters.first
+            else { return nil }
+            let parameterType =
+                parameter.type.as(AttributedTypeSyntax.self)?.baseType
+                    .trimmedDescription
+                ?? parameter.type.trimmedDescription
+            let type = platformContractType(
+                platformNativeType(parameterType))
+            return lifecycleEntryPointByType[type] == nil ? nil : type
+        })
+
+    var superclassByPrecise: [String: String] = [:]
+    var superclassFallbackByPrecise: [String: String] = [:]
+    for relationship in graph.relationships
+        where relationship.kind == "inheritsFrom"
+    {
+        superclassByPrecise[relationship.source] = relationship.target
+        if let fallback = relationship.targetFallback {
+            superclassFallbackByPrecise[relationship.source] =
+                fallback.split(separator: ".").dropFirst()
+                    .joined(separator: ".")
+        }
+    }
+
+    var lifecycleActionEntryPointByType: [String: String] = [:]
+    for (precise, nominal) in allNominals where nominal.kind == .class {
+        var current: String? = precise
+        var visited = Set<String>()
+        var inheritedEntryPoint: String?
+        while let candidate = current, visited.insert(candidate).inserted {
+            if let type = allNominals[candidate]?.type,
+               submittedLifecycleTypes.contains(type) {
+                inheritedEntryPoint = lifecycleEntryPointByType[type]
+                break
+            }
+            if let parent = superclassByPrecise[candidate] {
+                current = parent
+            } else {
+                if let fallback = superclassFallbackByPrecise[candidate],
+                   submittedLifecycleTypes.contains(fallback) {
+                    inheritedEntryPoint = lifecycleEntryPointByType[fallback]
+                }
+                current = nil
+            }
+        }
+        guard let inheritedEntryPoint else { continue }
+        let hasSingleActionInitializer = graph.symbols.contains { symbol in
+            guard symbol.kind.identifier == "swift.init",
+                  parentByMember[symbol.identifier.precise] == precise,
+                  platformSymbolIsAvailable(symbol, for: spec),
+                  let initializer = parsePlatformDecl(symbol.declaration)?
+                    .as(InitializerDeclSyntax.self),
+                  initializer.genericParameterClause == nil,
+                  initializer.genericWhereClause == nil,
+                  initializer.signature.parameterClause.parameters.count == 1,
+                  let parameter =
+                    initializer.signature.parameterClause.parameters.first
+            else { return false }
+            let parameterType =
+                parameter.type.as(AttributedTypeSyntax.self)?.baseType
+                    .trimmedDescription
+                ?? parameter.type.trimmedDescription
+            return platformContractType(
+                platformNativeType(parameterType)) == "() -> Void"
+        }
+        if hasSingleActionInitializer {
+            lifecycleActionEntryPointByType[nominal.type] =
+                inheritedEntryPoint
+        }
+    }
+
+    let selected = allNominals.filter {
+        spec.roots.contains($0.value.root)
+            || lifecycleActionEntryPointByType[$0.value.type] != nil
+    }
+    // Cross-framework references bridge when the referenced type is selected
+    // by ANY sweep (MKMapCamera's initializer takes CoreLocation's
+    // CLLocationCoordinate2D); the runtime unwraps platform values by
+    // dynamic cast, so acceptance is framework-agnostic.
+    let selectedTypes = Set(selected.values.map(\.type))
+        .union(platformCrossFrameworkSelectedTypes)
+
     var supertypesByType: [String: [String]] = [:]
     for relationship in graph.relationships
         where relationship.kind == "inheritsFrom" || relationship.kind == "conformsTo"
@@ -805,7 +919,7 @@ private func parsePlatformFramework(
                 allowNilOnlyPointers: true,
                 blockers: &blockers) else { continue }
             for selection in platformParameterSelections(analyzed) {
-                let callable = PlatformCallable(
+                var callable = PlatformCallable(
                     framework: spec.name, kind: .constructor,
                     receiverType: nominal.type,
                     nativeReceiverType: nominal.type,
@@ -817,6 +931,12 @@ private func parsePlatformFramework(
                     params: selection,
                     isThrowing: effects.contains("throws") || effects.contains("rethrows"),
                     isFailable: initDecl.optionalMark != nil)
+                if selection.count == 1, selection[0].isAction,
+                   let entryPoint =
+                    lifecycleActionEntryPointByType[nominal.type] {
+                    callable.interpretedLifecycleActionConstructorAdapter =
+                        .init(parameterIndex: 0, entryPoint: entryPoint)
+                }
                 if callableSeen.insert(callable.signatureKey).inserted {
                     constructors.append(callable)
                 }
@@ -1645,11 +1765,27 @@ private func emitPlatformConstructor(_ value: PlatformCallable) -> String {
     body = wrapPlatformPointerArguments(
         body, params: value.params, framework: value.framework)
     body = indent(body, by: 12)
+    let semanticAdapter: String
+    if let adapter =
+        value.interpretedLifecycleActionConstructorAdapter {
+        semanticAdapter = """
+        ,
+                    semanticAdapter: { v, _ in
+                        generatedPlatformDeferredLifecycleAction(
+                            v[\(adapter.parameterIndex)],
+                            framework: \(swiftLiteral(value.framework)),
+                            type: \(swiftLiteral(value.resultType)),
+                            entryPoint: \(swiftLiteral(adapter.entryPoint)))
+                    }
+        """
+    } else {
+        semanticAdapter = ""
+    }
     return """
             registerConstructor(
                 &t, framework: \(swiftLiteral(value.framework)),
                 declaration: \(swiftLiteral(value.hostDeclaration)),
-                resultType: \(swiftLiteral(value.resultType))) { v, ctx in
+                resultType: \(swiftLiteral(value.resultType))\(semanticAdapter)) { v, ctx in
     #if \(platformNativeImportCondition(for: value.framework))
     \(body)
     #else

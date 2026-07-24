@@ -301,6 +301,57 @@ private final class NativeQueueRecorder: @unchecked Sendable {
         #expect(recorder.box(for: "fired")?.value.boolValue == true)
     }
 
+    /// Nuke's `OperationQueue.add(_:)` block overload constructs the
+    /// Foundation `BlockOperation` subclass, then submits that value through
+    /// the generated `Operation` parameter. Native Foundation accepts the
+    /// subclass and runs its block; imported inheritance must remain visible
+    /// at the generated overload boundary.
+    @Test func importedHostSubclassMatchesGeneratedSuperclassParameter() throws {
+        let nativeRecorder = NativeQueueRecorder()
+        let nativeQueue = OperationQueue()
+        let nativeOperation = BlockOperation {
+            nativeRecorder.fired = true
+        }
+        nativeQueue.addOperation(nativeOperation)
+        nativeQueue.waitUntilAllOperationsAreFinished()
+        #expect(nativeRecorder.fired)
+
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: """
+        import Foundation
+
+        final class Recorder {
+            var fired = false
+        }
+
+        extension OperationQueue {
+            func add(
+                _ action: @Sendable @escaping () -> Void
+            ) -> BlockOperation {
+                let operation = BlockOperation(block: action)
+                addOperation(operation)
+                return operation
+            }
+        }
+
+        let recorder = Recorder()
+        let queue = OperationQueue()
+        _ = queue.add {
+            recorder.fired = true
+        }
+        """)
+        guard case .instance(let recorder)? = interpreter.globals.lookup(
+            "recorder") else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(recorder.box(for: "fired")?.value.boolValue == false)
+
+        MainQueueDrain.drain()
+
+        #expect(recorder.box(for: "fired")?.value.boolValue == true)
+    }
+
     /// A generated scheduler may be an inert platform value (an opposite-
     /// platform fallback or a source value materialized without native
     /// backing). Its interface-derived lifecycle adapter still owns source

@@ -62,6 +62,8 @@ final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntim
     var payload: Any?
     var config: [String: RuntimeValue]
     let semanticRoles: Set<SemanticRole>
+    let interpretedLifecycleEntryPoint: String?
+    let interpretedLifecycleAction: RuntimeValue?
 
     init(
         framework: String,
@@ -69,7 +71,9 @@ final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntim
         isValueType: Bool,
         payload: Any?,
         config: [String: RuntimeValue] = [:],
-        semanticRoles: Set<SemanticRole> = []
+        semanticRoles: Set<SemanticRole> = [],
+        interpretedLifecycleEntryPoint: String? = nil,
+        interpretedLifecycleAction: RuntimeValue? = nil
     ) {
         self.framework = framework
         self.typeName = typeName
@@ -77,6 +81,9 @@ final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntim
         self.payload = payload
         self.config = config
         self.semanticRoles = semanticRoles
+        self.interpretedLifecycleEntryPoint =
+            interpretedLifecycleEntryPoint
+        self.interpretedLifecycleAction = interpretedLifecycleAction
     }
 
     var description: String {
@@ -91,7 +98,11 @@ final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntim
             isValueType: true,
             payload: payload,
             config: config.mapValues { $0.copiedForValueSemantics() },
-            semanticRoles: semanticRoles)
+            semanticRoles: semanticRoles,
+            interpretedLifecycleEntryPoint:
+                interpretedLifecycleEntryPoint,
+            interpretedLifecycleAction:
+                interpretedLifecycleAction?.copiedForValueSemantics())
     }
 
     func runtimeEquals(_ other: Any) -> Bool? {
@@ -258,6 +269,9 @@ struct GeneratedPlatformConstructorEntry {
     let type: String
     let function: HostFunction
 }
+
+typealias GeneratedPlatformConstructorSemanticAdapter = @MainActor
+    ([RuntimeValue], EvalContext) throws -> RuntimeValue?
 
 struct GeneratedPlatformMethodEntry {
     typealias Invoke = @MainActor
@@ -1099,12 +1113,20 @@ enum GeneratedPlatformBridge {
         framework: String,
         declaration: String,
         resultType: String,
+        semanticAdapter:
+            GeneratedPlatformConstructorSemanticAdapter? = nil,
         invoke: @escaping @MainActor
             ([RuntimeValue], EvalContext) throws -> RuntimeValue
     ) {
         do {
             let signature = try HostSignature(parsing: declaration)
             let function = try HostFunction(signature: signature) { arguments, context in
+                let values = arguments.arguments.map(\.value)
+                if let result = try semanticAdapter?(values, context) {
+                    return signature.isFailable
+                        ? .some(result, wrappedTypeName: resultType)
+                        : result
+                }
                 if !frameworkIsNative(framework) {
                     var config: [String: RuntimeValue] = [:]
                     for argument in arguments.arguments {
@@ -1120,7 +1142,7 @@ enum GeneratedPlatformBridge {
                         ? .some(value, wrappedTypeName: resultType)
                         : value
                 }
-                return try invoke(arguments.arguments.map(\.value), context)
+                return try invoke(values, context)
             }
             table[signature.callableName, default: []].append(
                 GeneratedPlatformConstructorEntry(
@@ -1344,17 +1366,51 @@ func generatedPlatformScheduleInterpretedLifecycle(
     entryPoint: String,
     context: EvalContext
 ) -> Bool {
-    guard case .instance(let instance) = value,
-          let interpreter = context as? Interpreter else { return false }
-    let action = ActionValue(run: {
-        _ = try? interpreter.callMethod(
-            named: entryPoint, on: instance, arguments: [])
-    })
+    let action: ActionValue
+    if case .instance(let instance) = value,
+       let interpreter = context as? Interpreter {
+        action = ActionValue(run: {
+            _ = try? interpreter.callMethod(
+                named: entryPoint, on: instance, arguments: [])
+        })
+    } else if case .host(let raw) = value,
+              let platform = raw as? GeneratedPlatformValue,
+              platform.interpretedLifecycleEntryPoint == entryPoint,
+              let closure =
+                platform.interpretedLifecycleAction?.closureValue {
+        action = ActionValue(run: {
+            _ = try? context.callHostCallback(closure, arguments: [])
+        })
+    } else {
+        return false
+    }
     MainQueueDrain.schedule(
         action,
         after: 0,
         mode: MainQueueDrain.deliveryMode(for: context))
     return true
+}
+
+/// Preserve an interpreted action carried by a generated SDK subclass until
+/// its metadata-derived lifecycle scheduler submits it. The generated
+/// constructor selects this adapter only for a single-action initializer on a
+/// subclass of a scheduler's lifecycle parameter, so neither a type nor a
+/// constructor identity is encoded here.
+@MainActor
+func generatedPlatformDeferredLifecycleAction(
+    _ value: RuntimeValue,
+    framework: String,
+    type: String,
+    entryPoint: String
+) -> RuntimeValue? {
+    guard value.closureValue != nil else { return nil }
+    return .native(GeneratedPlatformValue(
+        framework: framework,
+        typeName: type,
+        isValueType: false,
+        payload: nil,
+        interpretedLifecycleEntryPoint: entryPoint,
+        interpretedLifecycleAction: value))
 }
 
 /// Closure counterpart to the lifecycle-object adapter above. SDK metadata
