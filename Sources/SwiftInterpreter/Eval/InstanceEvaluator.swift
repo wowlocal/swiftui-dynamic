@@ -1766,6 +1766,20 @@ extension Interpreter {
                 call.name, on: HostTypeMarker(name: typeName)) {
             return try factory.invoke(call.arguments, self)
         }
+        // A generic imported enum can remain fully semantic without a host
+        // registry when BridgeGen proves its case-selective transform shape
+        // from the active stdlib interface. Materialize a typed carrier here
+        // so later generated map/flat-map adapters dispatch on capability,
+        // not on a concrete bridge box or nominal identity.
+        if case .host(let any) = value,
+           let call = any as? ImplicitMemberCall,
+           GeneratedCaseTransformSurface.containsCase(
+               call.name, nominalName: typeName) {
+            return .native(RuntimeImportedCaseValue(
+                nominalName: typeName,
+                caseName: call.name,
+                payloads: call.arguments.arguments.map(\.value)))
+        }
         // `.now.startOfMonth` — chained markers resolve their base against
         // the type, then the member (host natives and user extensions both).
         if case .host(let any) = value, let chained = any as? ChainedImplicitCall {

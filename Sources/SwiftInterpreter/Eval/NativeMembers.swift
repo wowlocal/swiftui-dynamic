@@ -224,6 +224,43 @@ extension Interpreter {
     /// This is the compatibility path for opaque framework values. Swift-shaped
     /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
+        if let carrier = any as? GeneratedCaseTransformable,
+           let operation = GeneratedCaseTransformSurface.operation(
+               nominalName: carrier.caseNominalName,
+               memberName: name) {
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                guard args.arguments.count == 1 else {
+                    throw RuntimeError(
+                        message: "\(carrier.caseNominalName).\(name) "
+                            + "requires one transform")
+                }
+                let closure = operation.argumentLabel.flatMap {
+                    args.closure(labeled: $0)
+                } ?? args.firstUnlabeledClosure
+                    ?? args.positional(0)?.closureValue
+                guard let closure else {
+                    throw RuntimeError(
+                        message: "\(carrier.caseNominalName).\(name) "
+                            + "requires a transform closure")
+                }
+                guard carrier.casePayloads.count == 1 else {
+                    throw RuntimeError(
+                        message: "\(carrier.caseNominalName).\(name) "
+                            + "requires a single-payload case")
+                }
+                guard carrier.caseName == operation.selectedCaseName else {
+                    return .native(any)
+                }
+                let transformed = try ctx.callClosure(
+                    closure, arguments: carrier.casePayloads)
+                switch operation.application {
+                case .payload:
+                    return carrier.replacingCasePayload(transformed)
+                case .carrier:
+                    return transformed
+                }
+            })
+        }
         if let sequence = any as? any RuntimeMaterializedSequence {
             return try arrayMember(name, sequence.runtimeMaterializedElements)
         }

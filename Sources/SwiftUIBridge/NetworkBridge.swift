@@ -346,7 +346,7 @@ public enum ValueOutcome {
 
 /// `Result(catching:)` / `.success(x)` / `.failure(e)` — success/failure
 /// carried for `.publisher`, `.get()`, and pattern access.
-public final class ResultBox: CaseShaped {
+public final class ResultBox: GeneratedCaseTransformable {
     let outcome: ValueOutcome
 
     init(_ outcome: ValueOutcome) {
@@ -362,6 +362,19 @@ public final class ResultBox: CaseShaped {
         switch outcome {
         case .success(let value): return [value]
         case .failure(let error): return [error]
+        }
+    }
+
+    public var caseNominalName: String { "Result" }
+
+    public func replacingCasePayload(
+        _ payload: RuntimeValue
+    ) -> RuntimeValue {
+        switch outcome {
+        case .success:
+            return .native(ResultBox(.success(payload)))
+        case .failure:
+            return .native(ResultBox(.failure(payload)))
         }
     }
 }
