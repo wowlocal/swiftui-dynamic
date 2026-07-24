@@ -154,6 +154,64 @@ working. The following six amendments are binding.
    boundary with a local heuristic; it is a reusable semantic primitive under the
    `AGENTS.md` SwiftUI-magic allowlist, not a per-boundary special case.
 
+## Binding after the 2026-07-24 execution-gap audit (see `AUDIT-2026-07-24-execution-gap.md`)
+
+The six amendments above were adopted as text within 4 hours and then **were not
+carried out**. 19 hours and 12 landed iterations later: R2 is still exactly
+59,695/630,000, `grep -c STALL .claude/claims.md` is 0, `Scripts/gate.sh` still has zero
+references to `Scripts/icecubes-r2.sh`, and the quarantined overlay has been flat at AE
+105,445 for three cycles. Engineering discipline meanwhile IMPROVED (handwritten
+identity-keyed branches 1092 → 1092 over 13 commits, `bridgeHostObjectConstructor`
+42 → 42, zero reverts) — so this is NOT a discipline failure and `AGENTS.md` must not be
+touched. The distinguishing fact: amendment #2 was given an *exit code*
+(`ICECUBES_R2_FLOOR`) and held under pressure; the five left as prose degraded,
+half-landed, or never ran once.
+
+**Therefore the governing rule of this section: a binding rule that can be checked
+mechanically MUST be checked by a script that fails the close gate. Prose-only rules are
+advisory by construction — do not answer a missed rule by writing another paragraph.**
+
+7. **Execute the §5 stall-detector in code, this iteration.** The close path parses R2
+   from the last N `MERGE-DONE` entries in `.claude/claims.md`; ≥5 consecutive landed
+   iterations with no decrease → print `STALL`, fail the close, and require either a
+   posted `STALL` note plus a §1 decomposition iteration, or human escalation. Prose
+   triggered 0 times out of 12 eligible iterations.
+
+8. **`Scripts/gate.sh` must invoke `Scripts/icecubes-r2.sh`** and propagate its exit
+   status. Today the floor holds only because the lane remembers to run the board
+   out-of-band; MERGE-READY must be structurally impossible without a green R2 board.
+
+9. **`Metric delta:` must quote the north star literally.** Binding form: every commit
+   body carries `R2 <before> -> <after> / 630000` (use the same value twice for additive
+   work), verified by the same close script. 12 of 13 bodies in the audited window
+   reported only a self-selected local board (`0/1 -> 1/1`, `6/6 -> 7/7`, `373 -> 988`)
+   which cannot fail, because the commit ships the test that defines it. Local boards are
+   supplementary evidence, never the delta. Commit bodies are now a parsed channel: write
+   real newlines, never a literal `\n` (5 of 13 bodies are currently single-line), and do
+   not overload the `Model:` trailer — it is the semantic model of the fix.
+
+10. **The frontier does not live in `git stash`.** Six stashes currently carry the
+    cross-import overlay, `stash@{0}` an "exact duplicate" of an earlier one — on no
+    branch, in no gate, pushed nowhere, lost if the worktree is cleaned. Put it on a
+    pushed branch (`overlay-cross-import`) and advance it in slices that clear the floor
+    individually. A stash chain is the multi-hour un-landed pile this file already bans,
+    relocated somewhere strictly less recoverable.
+
+11. **Finish the §1 decomposition on the BLOCKING half.**
+    `Tests/SwiftUIBridgeTests/IceCubesMicroTwinTests.swift` has exactly one `@Test`; it
+    measures the pagination footer, explicitly masks row pixels, and was born at AE 0 —
+    a test green on arrival pins a non-problem. The `NativeTranslatedRow` scaffold is
+    already in the file. Write the row-through-`.translationPresentation` twin, drive it
+    RED → GREEN, and measure row rendering by IT, not by whole-screen R2. Until that
+    exists, the local minimum has not actually been decomposed.
+
+12. **Skip the 15-minute steward window while no other lane is live** (mechanically: no
+    other lane has posted a claim in `.claude/claims.md` within 6h). 8 of 8 iterations in
+    the audited window waited out an absent counterparty and then self-merged — ~2h of
+    deliberate idle. Restore the window the moment a second lane posts. Related: the
+    independently repeated full `swift test` (~30 min) re-covers what the clean-detached
+    gate already runs; keep it only when the gate did not run this iteration.
+
 ## The instrument: `swift run IceCubesCheck` — bootstrap it first
 
 Per-screen rung ladder, strictly-improving total-rungs score, same discipline as
