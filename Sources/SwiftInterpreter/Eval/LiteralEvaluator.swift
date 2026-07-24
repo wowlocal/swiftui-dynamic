@@ -322,9 +322,25 @@ extension Interpreter {
         if let (symbol, selfValue) = userSubscriptOwner(for: base) {
             // User subscript getter: `matrix[index]` / `grid[x, y]` — and
             // host-extension subscripts (`appState[\\.permissions.push]`).
-            let indexArgs = CallArguments(arguments: try call.arguments.map {
+            var indexArgs = CallArguments(arguments: try call.arguments.map {
                 .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
             })
+            if indexArgs.arguments.count == 1,
+               matchingUserSubscriptMember(
+                   in: symbol, args: indexArgs) == nil,
+               let range = index.rangeValue,
+               let relative = try interpretedIntegerIndexedCollectionRange(
+                   range, relativeTo: selfValue) {
+                let relativeArgs = CallArguments(arguments: [
+                    .init(
+                        label: indexArgs.arguments[0].label,
+                        value: relative),
+                ])
+                if matchingUserSubscriptMember(
+                    in: symbol, args: relativeArgs) != nil {
+                    indexArgs = relativeArgs
+                }
+            }
             return chained(try relocating(call) {
                 try runUserSubscriptGetter(symbol, selfValue: selfValue, args: indexArgs)
             })

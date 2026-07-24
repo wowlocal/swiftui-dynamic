@@ -1188,24 +1188,74 @@ extension Interpreter {
     /// conformance; at runtime, readable `startIndex`/`endIndex` plus a
     /// one-argument subscript are the reusable capabilities needed by
     /// synchronous `for in` execution.
+    func interpretedIntegerIndexedCollectionBounds(
+        _ value: RuntimeValue
+    ) throws -> Range<Int>? {
+        guard case .instance(let instance) = value,
+              !instance.symbol.subscripts.isEmpty,
+              let start = try instanceMember(
+                  "startIndex", on: instance)?.intValue,
+              let end = try instanceMember(
+                  "endIndex", on: instance)?.intValue,
+              start <= end else {
+            return nil
+        }
+        return start..<end
+    }
+
+    /// Resolve any integer RangeExpression against an interpreted
+    /// collection's actual indices. Collection's generic range-expression
+    /// subscript performs this projection before calling the conformer's
+    /// required Range subscript.
+    func interpretedIntegerIndexedCollectionRange(
+        _ range: RuntimeRangeValue,
+        relativeTo value: RuntimeValue
+    ) throws -> RuntimeValue? {
+        guard let bounds = try interpretedIntegerIndexedCollectionBounds(
+            value) else {
+            return nil
+        }
+        let lower: Int
+        if let lowerValue = range.lowerBound {
+            guard let provided = lowerValue.intValue else { return nil }
+            lower = provided
+        } else {
+            lower = bounds.lowerBound
+        }
+        let upper: Int
+        if let upperValue = range.upperBound {
+            guard let provided = upperValue.intValue else { return nil }
+            if range.includesUpperBound {
+                let incremented = provided.addingReportingOverflow(1)
+                guard !incremented.overflow else { return nil }
+                upper = incremented.partialValue
+            } else {
+                upper = provided
+            }
+        } else {
+            upper = bounds.upperBound
+        }
+        return .native(RuntimeRangeValue(
+            lowerBound: .native(lower),
+            upperBound: .native(upper)))
+    }
+
     func interpretedIntegerIndexedCollectionElements(
         _ value: RuntimeValue
     ) throws -> [RuntimeValue]? {
         guard case .instance(let instance) = value,
-              !instance.symbol.subscripts.isEmpty,
-              let start = try instanceMember("startIndex", on: instance)?.intValue,
-              let end = try instanceMember("endIndex", on: instance)?.intValue,
-              start <= end else {
+              let bounds = try interpretedIntegerIndexedCollectionBounds(
+                  value) else {
             return nil
         }
         let probe = CallArguments(arguments: [
-            .init(label: nil, value: .native(start)),
+            .init(label: nil, value: .native(bounds.lowerBound)),
         ])
         let member = try userSubscriptMember(
             in: instance.symbol, args: probe)
         var elements: [RuntimeValue] = []
-        elements.reserveCapacity(end - start)
-        for index in start..<end {
+        elements.reserveCapacity(bounds.count)
+        for index in bounds {
             let arguments = CallArguments(arguments: [
                 .init(label: nil, value: .native(index)),
             ])
@@ -1272,14 +1322,24 @@ extension Interpreter {
             $0.parameters.count == args.arguments.count
         }
         let shaped = arityMatches.isEmpty ? symbol.subscripts : arityMatches
-        let typed = shaped.filter {
-            runtimeArgumentsFitDeclaredTypes(
-                $0.parameters, args: args, lexicalOwner: symbol)
-        }
-        guard let member = typed.first ?? shaped.first else {
+        guard let member = matchingUserSubscriptMember(
+            in: symbol, args: args) ?? shaped.first else {
             throw RuntimeError(message: "'\(symbol.name)' has no subscript")
         }
         return member
+    }
+
+    func matchingUserSubscriptMember(
+        in symbol: StructSymbol, args: CallArguments
+    ) -> StructSymbol.SubscriptMember? {
+        let arityMatches = symbol.subscripts.filter {
+            $0.parameters.count == args.arguments.count
+        }
+        let shaped = arityMatches.isEmpty ? symbol.subscripts : arityMatches
+        return shaped.first {
+            runtimeArgumentsFitDeclaredTypes(
+                $0.parameters, args: args, lexicalOwner: symbol)
+        }
     }
 
     func runUserSubscriptGetter(
