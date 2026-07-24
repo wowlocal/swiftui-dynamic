@@ -350,6 +350,7 @@ nonisolated struct ParsedAccessorMetadata: Sendable {
     nonisolated struct Setter: Sendable {
         let body: CodeBlockItemListSyntax
         let parameterName: String
+        let isNonmutating: Bool
     }
 
     let getter: CodeBlockItemListSyntax
@@ -381,7 +382,9 @@ nonisolated struct ParsedAccessorMetadata: Sendable {
                     setter = Setter(
                         body: body,
                         parameterName: accessor.parameters?.name.text
-                            ?? "newValue")
+                            ?? "newValue",
+                        isNonmutating:
+                            accessor.modifier?.name.text == "nonmutating")
                 default:
                     break
                 }

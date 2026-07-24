@@ -1,6 +1,24 @@
 import Testing
 @testable import SwiftInterpreter
 
+private final class NativeNonmutatingProxyStorage {
+    var values: [Int: Int] = [:]
+}
+
+private struct NativeNonmutatingProxy {
+    let storage: NativeNonmutatingProxyStorage
+
+    subscript(key: Int) -> Int? {
+        get { storage.values[key] }
+        nonmutating set { storage.values[key] = newValue }
+    }
+}
+
+private final class NativeNonmutatingProxyOwner {
+    let storage = NativeNonmutatingProxyStorage()
+    var proxy: NativeNonmutatingProxy { .init(storage: storage) }
+}
+
 @MainActor
 @Suite("User subscript overloads")
 struct UserSubscriptOverloadTests {
@@ -67,5 +85,38 @@ struct UserSubscriptOverloadTests {
 
         let value = try Interpreter().run(source: source)
         #expect(value.intValue == 30_503_030)
+    }
+
+    @Test func nonmutatingSetterWritesThroughComputedStructProxy() throws {
+        let nativeOwner = NativeNonmutatingProxyOwner()
+        nativeOwner.proxy[7] = 41
+        let native = nativeOwner.proxy[7]
+
+        let source = """
+        final class Storage {
+            var values: [Int: Int] = [:]
+        }
+
+        struct Proxy {
+            let storage: Storage
+
+            subscript(key: Int) -> Int? {
+                get { storage.values[key] }
+                nonmutating set { storage.values[key] = newValue }
+            }
+        }
+
+        final class Owner {
+            let storage = Storage()
+            var proxy: Proxy { .init(storage: storage) }
+        }
+
+        let owner = Owner()
+        owner.proxy[7] = 41
+        owner.proxy[7] ?? -1
+        """
+
+        let interpreted = try Interpreter().run(source: source)
+        #expect(interpreted.intValue == native)
     }
 }

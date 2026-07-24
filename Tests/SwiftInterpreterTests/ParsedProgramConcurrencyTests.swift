@@ -759,7 +759,7 @@ struct ParsedProgramConcurrencyTests {
 
             subscript(label label: String) -> String {
                 get { label }
-                set(replacement) {}
+                nonmutating set(replacement) {}
             }
         }
         """)
@@ -801,6 +801,7 @@ struct ParsedProgramConcurrencyTests {
         #expect(!syncAccessor.isAsync)
         #expect(!syncAccessor.isThrowing)
         #expect(syncAccessor.setter?.parameterName == "replacement")
+        #expect(syncAccessor.setter?.isNonmutating == true)
     }
 
     @Test func parsedProgramOwnsSendableNominalMetadataIndex() async throws {

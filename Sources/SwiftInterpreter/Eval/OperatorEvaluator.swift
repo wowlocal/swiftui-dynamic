@@ -1528,10 +1528,17 @@ extension Interpreter {
                 let indexArgs = CallArguments(arguments: try subscriptCall.arguments.map {
                     .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
                 })
+                let member = try userSubscriptMember(
+                    in: instance.symbol, args: indexArgs)
                 if !instance.symbol.isClass,
+                   member.setter?.isNonmutating != true,
                    let owner = try? resolveLValue(subscriptCall.calledExpression, in: env) {
                     return .instanceValueSubscript(owner, indexArgs)
                 }
+                // A nonmutating setter is callable on a temporary struct
+                // projection because it cannot replace `self`; its side
+                // effects flow through referenced storage and need no
+                // receiver copy-out.
                 return .instanceSubscript(instance, indexArgs)
             }
             if baseValue?.dictValue != nil {

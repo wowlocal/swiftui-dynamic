@@ -15,10 +15,19 @@ public struct ComputedProperty {
         public let body: CodeBlockItemListSyntax
         /// `newValue`, or the custom name from `set(custom)`.
         public let parameterName: String
+        /// A `nonmutating set` accessor may act on a temporary value (usually
+        /// by forwarding through referenced storage) and requires no
+        /// copy-out through the receiver's owning lvalue.
+        public let isNonmutating: Bool
 
-        public init(body: CodeBlockItemListSyntax, parameterName: String) {
+        public init(
+            body: CodeBlockItemListSyntax,
+            parameterName: String,
+            isNonmutating: Bool = false
+        ) {
             self.body = body
             self.parameterName = parameterName
+            self.isNonmutating = isNonmutating
         }
     }
 

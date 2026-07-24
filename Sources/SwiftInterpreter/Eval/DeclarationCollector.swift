@@ -1620,7 +1620,8 @@ extension Interpreter {
         let setter = metadata.setter.map {
             ComputedProperty.Setter(
                 body: $0.body,
-                parameterName: $0.parameterName)
+                parameterName: $0.parameterName,
+                isNonmutating: $0.isNonmutating)
         }
         return (
             metadata.getter,
