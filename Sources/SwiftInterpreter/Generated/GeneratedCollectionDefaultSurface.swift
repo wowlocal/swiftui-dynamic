@@ -139,11 +139,47 @@ enum GeneratedCollectionDefaultSurface {
                     return .native(index.advanced(
                         by: 1))
                 }
+                if !conformances.isDisjoint(with: Set(["RandomAccessCollection", "_ArrayBufferProtocol"])),
+                   args.arguments.count == 3,
+                   let index = args.positional(0)?.intValue,
+                   let distance = args.labeled("offsetBy")?.intValue,
+                   let limit = args.labeled("limitedBy")?.intValue {
+                    return limitedIntegerIndex(
+                        from: index, by: distance, limitedBy: limit)
+                }
+                if !conformances.isDisjoint(with: Set(["RandomAccessCollection", "_ArrayBufferProtocol"])),
+                   args.arguments.count == 2,
+                   let index = args.positional(0)?.intValue,
+                   let distance = args.labeled("offsetBy")?.intValue {
+                    return .native(index + distance)
+                }
+                if !conformances.isDisjoint(with: Set(["RandomAccessCollection", "_ArrayBufferProtocol"])),
+                   args.arguments.count == 1,
+                   let index = args.labeled("before")?.intValue {
+                    return .native(index + -1)
+                }
                 throw RuntimeError(
                     message: "generated collection default argument mismatch")
             }
         }
         return nil
+    }
+
+    @MainActor
+    private static func limitedIntegerIndex(
+        from index: Int,
+        by distance: Int,
+        limitedBy limit: Int
+    ) -> RuntimeValue {
+        let delta = limit - index
+        let crossesLimit = distance > 0
+            ? delta >= 0 && delta < distance
+            : delta <= 0 && distance < delta
+        guard !crossesLimit else {
+            return .none(wrappedTypeName: "Int")
+        }
+        return .some(
+            .native(index + distance), wrappedTypeName: "Int")
     }
 
     @MainActor

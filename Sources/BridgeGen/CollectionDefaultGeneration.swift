@@ -78,6 +78,13 @@ struct NativeIndexMotionDefault: Hashable {
     let memberName: String
     let argumentLabels: [String?]
     let kind: NativeIndexMotionKind
+    let eligibleProtocolNames: [String]
+}
+
+private struct NativeIndexMotionSignature: Hashable {
+    let memberName: String
+    let argumentLabels: [String?]
+    let kind: NativeIndexMotionKind
 }
 
 /// A no-result mutation declared directly by the standard-library nominal
@@ -683,7 +690,7 @@ func nativeIndexMotionDefaults(
         }
     }
 
-    var defaults = Set<NativeIndexMotionDefault>()
+    var defaults: [NativeIndexMotionDefault] = []
     for root in protocols where structurallyOwnsCollectionIndex(root) {
         let rootName = canonical(root.name.text)
         let eligible = Set(refinementEligibility[rootName] ?? [rootName])
@@ -721,19 +728,42 @@ func nativeIndexMotionDefaults(
                     kind = nil
                 }
                 guard let kind else { continue }
-                defaults.insert(NativeIndexMotionDefault(
+                let declarationName = canonical(declaration.name.text)
+                defaults.append(NativeIndexMotionDefault(
                     memberName: function.name.text,
                     argumentLabels: labels(parameters),
-                    kind: kind))
+                    kind: kind,
+                    eligibleProtocolNames:
+                        refinementEligibility[declarationName]
+                            ?? [declarationName]))
             }
         }
     }
 
-    return defaults.sorted {
-        ($0.memberName, $0.kind.rawValue, $0.argumentLabels
-            .map { $0 ?? "" }.joined(separator: ":"))
-            < ($1.memberName, $1.kind.rawValue, $1.argumentLabels
-                .map { $0 ?? "" }.joined(separator: ":"))
+    let coalesced = Dictionary(grouping: defaults) {
+        NativeIndexMotionSignature(
+            memberName: $0.memberName,
+            argumentLabels: $0.argumentLabels,
+            kind: $0.kind)
+    }.map { signature, variants in
+        NativeIndexMotionDefault(
+            memberName: signature.memberName,
+            argumentLabels: signature.argumentLabels,
+            kind: signature.kind,
+            eligibleProtocolNames: Set(
+                variants.flatMap(\.eligibleProtocolNames)).sorted())
+    }
+
+    return coalesced.sorted {
+        (
+            $0.memberName, $0.kind.rawValue,
+            $0.argumentLabels.map { $0 ?? "" }.joined(separator: ":"),
+            $0.eligibleProtocolNames.joined(separator: ":")
+        ) < (
+            $1.memberName, $1.kind.rawValue,
+            $1.argumentLabels.map { $0 ?? "" }.joined(separator: ":"),
+            $1.eligibleProtocolNames.joined(separator: ":")
+        )
     }
 }
 

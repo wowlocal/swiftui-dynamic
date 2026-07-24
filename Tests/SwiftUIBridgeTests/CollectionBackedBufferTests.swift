@@ -648,6 +648,50 @@ import Testing
         #expect(value.intValue == 41)
     }
 
+    /// A generated protocol default owns an overload family, not only the
+    /// first call shape BridgeGen discovered. Distilled from SwiftSoup's
+    /// RandomAccessCollection path while decoding consecutive IceCubes rows.
+    @Test func integerIndexedCollectionDispatchesEveryIndexMotionShape() throws {
+        let source = """
+        struct Bytes: RandomAccessCollection {
+            typealias Index = Int
+            typealias Element = Int
+            typealias SubSequence = Bytes
+
+            let storage: [Int]
+            let lower: Int
+            let upper: Int
+
+            var startIndex: Int { lower }
+            var endIndex: Int { upper }
+
+            subscript(position: Int) -> Int {
+                storage[position]
+            }
+
+            subscript(bounds: Range<Int>) -> Bytes {
+                Bytes(storage: storage, lower: bounds.lowerBound,
+                      upper: bounds.upperBound)
+            }
+        }
+
+        let bytes = Bytes(
+            storage: [10, 20, 30, 40], lower: 0, upper: 4)
+        let offset = bytes.index(bytes.startIndex, offsetBy: 2)
+        let before = bytes.index(before: bytes.endIndex)
+        let limited = bytes.index(
+            bytes.startIndex, offsetBy: 3, limitedBy: 3)
+        let beyond = bytes.index(
+            bytes.startIndex, offsetBy: 4, limitedBy: 3)
+        offset * 100 + before * 10
+            + (limited == 3 ? 1 : 0)
+            + (beyond == nil ? 1_000 : 0)
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(value.intValue == 1_231)
+    }
+
     /// Distilled from HtmlTreeBuilder's state-machine reprocessing: an active
     /// overload remains recursively callable when every inactive sibling has
     /// a different argument shape.

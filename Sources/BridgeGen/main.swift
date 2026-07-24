@@ -4223,6 +4223,57 @@ for (memberName, defaults) in Dictionary(
                 }
 """ + "\n"
     }
+    for rule in generatedNativeIndexMotionDefaults
+    where rule.memberName == memberName {
+        var eligibleProtocols = Set(defaults.flatMap(
+            \.eligibleProtocolNames
+        )).intersection(rule.eligibleProtocolNames)
+        for direct in defaults
+        where rule.argumentLabels == [direct.argumentLabel] {
+            eligibleProtocols.subtract(direct.eligibleProtocolNames)
+        }
+        guard !eligibleProtocols.isEmpty else { continue }
+        let eligibility = eligibleProtocols.sorted()
+            .map(String.init(reflecting:))
+            .joined(separator: ", ")
+        let arguments = rule.argumentLabels.enumerated().map {
+            index, label in
+            label.map {
+                "args.labeled(\(String(reflecting: $0)))"
+            } ?? "args.positional(\(index))"
+        }
+        switch rule.kind {
+        case .successor, .predecessor:
+            let distance = rule.kind == .successor ? 1 : -1
+            collectionDefaultsOutput += """
+                if !conformances.isDisjoint(with: Set([\(eligibility)])),
+                   args.arguments.count == 1,
+                   let index = \(arguments[0])?.intValue {
+                    return .native(index + \(distance))
+                }
+""" + "\n"
+        case .offset:
+            collectionDefaultsOutput += """
+                if !conformances.isDisjoint(with: Set([\(eligibility)])),
+                   args.arguments.count == 2,
+                   let index = \(arguments[0])?.intValue,
+                   let distance = \(arguments[1])?.intValue {
+                    return .native(index + distance)
+                }
+""" + "\n"
+        case .limitedOffset:
+            collectionDefaultsOutput += """
+                if !conformances.isDisjoint(with: Set([\(eligibility)])),
+                   args.arguments.count == 3,
+                   let index = \(arguments[0])?.intValue,
+                   let distance = \(arguments[1])?.intValue,
+                   let limit = \(arguments[2])?.intValue {
+                    return limitedIntegerIndex(
+                        from: index, by: distance, limitedBy: limit)
+                }
+""" + "\n"
+        }
+    }
     collectionDefaultsOutput += """
                 throw RuntimeError(
                     message: "generated collection default argument mismatch")
@@ -4232,6 +4283,23 @@ for (memberName, defaults) in Dictionary(
 }
 collectionDefaultsOutput += """
         return nil
+    }
+
+    @MainActor
+    private static func limitedIntegerIndex(
+        from index: Int,
+        by distance: Int,
+        limitedBy limit: Int
+    ) -> RuntimeValue {
+        let delta = limit - index
+        let crossesLimit = distance > 0
+            ? delta >= 0 && delta < distance
+            : delta <= 0 && distance < delta
+        guard !crossesLimit else {
+            return .none(wrappedTypeName: "Int")
+        }
+        return .some(
+            .native(index + distance), wrappedTypeName: "Int")
     }
 
     @MainActor
