@@ -695,6 +695,28 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Once source initializer binding rejects a colliding nominal, the host
+    /// constructor owns the call. A failure raised while that constructor
+    /// executes its builder is the real source failure, not another overload
+    /// miss to replace with the earlier stored-property diagnostic.
+    @Test func hostConstructorRetryPreservesBuilderFailure() throws {
+        let source = """
+        struct VStack {
+            let value: Int
+        }
+
+        let value = VStack {
+            fatalError("nested host builder failure")
+        }
+        """
+        do {
+            _ = try Interpreter(registry: ViewRegistry()).run(source: source)
+            Issue.record("the nested builder failure was absorbed")
+        } catch let error as RuntimeError {
+            #expect(error.message == "fatalError: nested host builder failure")
+        }
+    }
+
     /// Fresh-store persistence reads fail honestly: Data(contentsOf:)
     /// of a missing sandbox file throws (try? -> nil), decode through a
     /// stub decoder throws, so archived-state restores take their else

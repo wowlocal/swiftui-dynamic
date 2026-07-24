@@ -367,14 +367,13 @@ extension Interpreter {
                 guard let ctor = registry?.constructor(named: symbol.name) else {
                     throw bindingError
                 }
-                do {
-                    return try ctor.invoke(args, self)
-                } catch {
-                    if symbol.name == "Section" {
-                        FileHandle.standardError.write(Data("SECTION RETRY FAILED: \(error)\n".utf8))
-                    }
-                    throw bindingError
-                }
+                // Once a host candidate accepts responsibility for this call,
+                // its own overload diagnostic or any error raised while
+                // executing a builder is authoritative. Replacing it with the
+                // rejected source nominal's memberwise diagnostic masks the
+                // actual source location and can turn successful SDK fallback
+                // into an apparent stored-property failure.
+                return try ctor.invoke(args, self)
             }
         case .closure(let closure):
             return try callWithArguments(closure, args: args, node: Syntax(node))
