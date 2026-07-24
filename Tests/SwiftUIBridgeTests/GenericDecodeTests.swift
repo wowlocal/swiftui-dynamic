@@ -1000,6 +1000,59 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 /// deliver the CURRENT value synchronously in replay (the doctrine fork);
 /// Bundle.module resolves committed resources.
 @Suite(.serialized) struct BundledResourcePipelineTests {
+    @Test func standaloneVerifierDoesNotInheritAnotherProjectResourceRoot() throws {
+        let previousRoot = BundleBox.projectResourceRoot
+        let foreignRoot = NSTemporaryDirectory()
+            + "bundle-foreign-root-\(UUID().uuidString)"
+        let plistURL = URL(fileURLWithPath: foreignRoot)
+            .appendingPathComponent("Resources/Info.plist")
+        try FileManager.default.createDirectory(
+            at: plistURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        defer {
+            BundleBox.projectResourceRoot = previousRoot
+            try? FileManager.default.removeItem(atPath: foreignRoot)
+        }
+        let foreignInfo: NSDictionary = [
+            "CFBundleShortVersionString": "9.9.9",
+        ]
+        #expect(foreignInfo.write(to: plistURL, atomically: true))
+
+        // A parallel project render may own the process-wide compatibility
+        // default. A standalone verifier still owns an empty project-resource
+        // scope and must read its per-registry seeded plist.
+        BundleBox.projectResourceRoot = foreignRoot
+        func source(expecting expectedVersion: String) -> String {
+            """
+            struct ContentView: View {
+                var body: some View {
+                    let url = Bundle.main.url(
+                        forResource: "Info.plist", withExtension: nil)
+                    let info = url.flatMap {
+                        NSDictionary(contentsOf: $0) as? [String: Any]
+                    }
+                    let version =
+                        (info?["CFBundleShortVersionString"] as? String)
+                            ?? "missing"
+                    if version != "\(expectedVersion)" {
+                        fatalError(
+                            "wrong project resource version: \\(version)")
+                    }
+                    return Text(version)
+                }
+            }
+            """
+        }
+
+        _ = try HeadlessVerifier.verify(
+            source: source(expecting: "1.0.0"),
+            interactions: false)
+        _ = try HeadlessVerifier.verify(
+            source: source(expecting: "9.9.9"),
+            interactions: false,
+            projectResourceRoot: foreignRoot)
+    }
+
     @Test func projectResourceScopeSurvivesSuspensionAndChildTasks() async throws {
         let previousRoot = BundleBox.projectResourceRoot
         let pinnedRoot = NSTemporaryDirectory()
@@ -1055,7 +1108,8 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             .write(toFile: sourcePath, atomically: true, encoding: .utf8)
 
         let source = ProjectMaterial.mergedSource(at: root, files: [sourcePath])
-        let interpreter = Interpreter(registry: TraceRegistry())
+        let interpreter = Interpreter(
+            registry: TraceRegistry(projectResourceRoot: root))
         try interpreter.run(source: source)
 
         #expect(interpreter.globals.lookup("assetText")?.stringValue == "first\nsecond")
@@ -1100,7 +1154,8 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             .write(toFile: sourcePath, atomically: true, encoding: .utf8)
 
         let source = ProjectMaterial.mergedSource(at: root, files: [sourcePath])
-        let interpreter = Interpreter(registry: TraceRegistry())
+        let interpreter = Interpreter(
+            registry: TraceRegistry(projectResourceRoot: root))
         try interpreter.run(source: source)
 
         #expect(interpreter.globals.lookup("resourcePath")?.stringValue == resourcePath)
@@ -1401,7 +1456,8 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         let count = fishNames.count
         let first = fishNames.first ?? "NONE"
         """
-        let interpreter = Interpreter(registry: TraceRegistry())
+        let interpreter = Interpreter(
+            registry: TraceRegistry(projectResourceRoot: root))
         try interpreter.run(source: source)
         #expect(interpreter.globals.lookup("count")?.stringified == "1")
         #expect(interpreter.globals.lookup("first")?.stringified == "Goldfish")

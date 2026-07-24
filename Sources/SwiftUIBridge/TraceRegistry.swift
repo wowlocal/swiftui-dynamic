@@ -69,7 +69,7 @@ public final class TraceNode: InertCallable {
 public final class TraceRegistry: HostRegistry {
     /// Nested `Task {}` bodies are scheduled, never run synchronously.
     var taskDepth = 0
-    let fileManagerBox = FileManagerBox()
+    let fileManagerBox: FileManagerBox
     let applicationShells = FrameworkApplicationShellStore()
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
     /// Projection delivery is a property of this verification environment.
@@ -89,7 +89,12 @@ public final class TraceRegistry: HostRegistry {
         "List": Int(844 / 44),
     ]
 
-    public init(networkPolicy: NetworkPolicy? = nil) {
+    public init(
+        networkPolicy: NetworkPolicy? = nil,
+        projectResourceRoot: String? = nil
+    ) {
+        fileManagerBox = FileManagerBox(
+            projectResourceRoot: projectResourceRoot)
         publishedProjectionPolicy = networkPolicy ?? NetworkBridge.activePolicy
     }
 
@@ -203,7 +208,8 @@ public final class TraceRegistry: HostRegistry {
             return ObjCTrampoline.constructor(named: name)
         }
         if let dataAsset = ObjCTrampoline.projectDataAssetConstructor(
-            named: name
+            named: name,
+            projectResourceRoot: fileManagerBox.projectResourceRoot
         ) {
             return dataAsset
         }

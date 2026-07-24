@@ -115,7 +115,10 @@ struct ProjectPreviewView: View {
         }
         .task {
             let source = mergedProjectSource(at: directory)
-            rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+            rendered = InterpreterHost().render(
+                source: source,
+                projectResourceRoot: directory,
+                lazyTopLevelGlobals: true)
         }
     }
 }
@@ -176,7 +179,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             source = sample.source
             lazyGlobals = false
         }
-        switch InterpreterHost().render(source: source, lazyTopLevelGlobals: lazyGlobals) {
+        let rendered = if let directory = DemoApp.projectDirectory {
+            InterpreterHost().render(
+                source: source,
+                projectResourceRoot: directory,
+                lazyTopLevelGlobals: lazyGlobals)
+        } else {
+            InterpreterHost().render(
+                source: source,
+                lazyTopLevelGlobals: lazyGlobals)
+        }
+        switch rendered {
         case .success(let view):
             let darkSnapshot = CommandLine.arguments.firstIndex(of: "--appearance").flatMap { index in
                 CommandLine.arguments.indices.contains(index + 1)

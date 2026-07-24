@@ -136,16 +136,24 @@ private struct InterpreterBench {
                     return tree.statements.count
                 }),
                 ("run", {
-                    let interpreter = Interpreter(registry: TraceRegistry())
+                    let interpreter = Interpreter(
+                        registry: TraceRegistry(
+                            projectResourceRoot: project))
                     let value = try interpreter.run(source: source)
                     return value.stringified.count
                 }),
                 ("render", {
-                    let report = try HeadlessVerifier.verify(source: source, interactions: false)
+                    let report = try HeadlessVerifier.verify(
+                        source: source,
+                        interactions: false,
+                        projectResourceRoot: project)
                     return report.nodeCount
                 }),
                 ("verify_actions", {
-                    let report = try HeadlessVerifier.verify(source: source, interactions: true)
+                    let report = try HeadlessVerifier.verify(
+                        source: source,
+                        interactions: true,
+                        projectResourceRoot: project)
                     return report.nodeCount &+ report.actionsInvoked
                 }),
                 ("initializer_dispatch", {

@@ -67,15 +67,23 @@ enum ObjCTrampoline {
     /// data-asset property/initializer contract through Objective-C metadata.
     /// Trace-mode callers use this narrower capability instead of admitting
     /// every unrelated class on the general Objective-C allowlist.
-    static func projectDataAssetConstructor(named name: String) -> HostFunction? {
+    static func projectDataAssetConstructor(
+        named name: String,
+        projectResourceRoot: String? = nil
+    ) -> HostFunction? {
         guard let cls = resolveClass(name), supportsProjectDataAsset(cls) else {
             return nil
         }
-        return constructor(named: name)
+        return constructor(
+            named: name,
+            projectResourceRoot: projectResourceRoot)
     }
 
     /// `RelativeDateTimeFormatter()` — no-argument construction.
-    static func constructor(named name: String) -> HostFunction? {
+    static func constructor(
+        named name: String,
+        projectResourceRoot: String? = nil
+    ) -> HostFunction? {
         guard let cls = resolveClass(name) else { return nil }
         return HostFunction(name: name) { args, _ in
             if supportsProjectDataAsset(cls) {
@@ -85,7 +93,10 @@ enum ObjCTrampoline {
                     throw RuntimeError(
                         message: "\(name)(…): expected name: and optional bundle:")
                 }
-                guard let asset = BundleBox.projectDataAsset(named: assetName) else {
+                guard let asset = BundleBox.projectDataAsset(
+                    named: assetName,
+                    projectResourceRoot: projectResourceRoot
+                ) else {
                     return .none(wrappedTypeName: name)
                 }
                 return .some(

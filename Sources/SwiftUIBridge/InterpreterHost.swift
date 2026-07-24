@@ -26,8 +26,25 @@ public struct InterpreterHost {
             compilerSources: nil,
             buildTarget: nil,
             buildConfiguration: nil,
+            projectResourceRoot: nil,
             lazyTopLevelGlobals: lazyTopLevelGlobals
         )
+    }
+
+    /// Render a merged source projection with one immutable bundled-resource
+    /// root. Source-only renders intentionally receive no project resources.
+    public func render(
+        source: String,
+        projectResourceRoot: String,
+        lazyTopLevelGlobals: Bool = false
+    ) -> Result<AnyView, RuntimeError> {
+        render(
+            source: source,
+            compilerSources: nil,
+            buildTarget: nil,
+            buildConfiguration: nil,
+            projectResourceRoot: projectResourceRoot,
+            lazyTopLevelGlobals: lazyTopLevelGlobals)
     }
 
     /// Render merged source against one immutable conditional-compilation
@@ -44,6 +61,7 @@ public struct InterpreterHost {
             compilerSources: nil,
             buildTarget: nil,
             buildConfiguration: buildConfiguration,
+            projectResourceRoot: nil,
             lazyTopLevelGlobals: lazyTopLevelGlobals
         )
     }
@@ -55,12 +73,12 @@ public struct InterpreterHost {
         project: ProjectBuildManifest,
         lazyTopLevelGlobals: Bool = true
     ) -> Result<AnyView, RuntimeError> {
-        BundleBox.projectResourceRoot = project.projectRoot
-        return render(
+        render(
             source: ProjectMaterial.mergedSource(for: project),
             compilerSources: project.sources,
             buildTarget: project.buildTarget,
             buildConfiguration: nil,
+            projectResourceRoot: project.projectRoot,
             lazyTopLevelGlobals: lazyTopLevelGlobals
         )
     }
@@ -71,12 +89,14 @@ public struct InterpreterHost {
         buildTarget: CompilerPreflightBuildTarget?,
         buildConfiguration explicitBuildConfiguration:
             InterpreterBuildConfiguration?,
+        projectResourceRoot: String?,
         lazyTopLevelGlobals: Bool
     ) -> Result<AnyView, RuntimeError> {
         // Reset deterministic probe state. Interactive wall-clock delivery
         // is selected by this host's ViewRegistry, never mutable global state.
         HeadlessVerifier.resetBridgeEnvironment()
-        let registry = ViewRegistry()
+        let registry = ViewRegistry(
+            projectResourceRoot: projectResourceRoot)
         do {
             let interpreter: Interpreter
             if let buildTarget {

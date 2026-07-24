@@ -264,8 +264,12 @@ final class BundleBox {
 
     /// Find a resource file by name under the project root (bounded walk,
     /// build dirs skipped).
-    static func projectResource(named name: String, extension ext: String?) -> URL? {
-        guard let root = activeProjectResourceRoot else { return nil }
+    static func projectResource(
+        named name: String,
+        extension ext: String?,
+        projectResourceRoot: String? = activeProjectResourceRoot
+    ) -> URL? {
+        guard let root = projectResourceRoot else { return nil }
         var target = name
         if let ext, !ext.isEmpty, !target.hasSuffix(".\(ext)") { target += ".\(ext)" }
         target = target.replacingOccurrences(of: "\\", with: "/")
@@ -285,11 +289,14 @@ final class BundleBox {
 
     static func projectResource(
         for arguments: CallArguments,
+        projectResourceRoot: String? = activeProjectResourceRoot,
         fallback: (String, String?) -> URL?
     ) -> RuntimeValue? {
         guard let request = ResourceRequest(arguments) else { return nil }
         let url = projectResource(
-            named: request.name, extension: request.extensionName)
+            named: request.name,
+            extension: request.extensionName,
+            projectResourceRoot: projectResourceRoot)
             ?? fallback(request.name, request.extensionName)
         return url.map(request.value(for:))
     }
@@ -297,8 +304,11 @@ final class BundleBox {
     /// Resolve a data entry from an uncompiled asset catalog by its catalog
     /// metadata. The runtime adapter keys on the Objective-C interface shape;
     /// this lookup keys on `.dataset` structure, never a type or asset name.
-    static func projectDataAsset(named name: String) -> DataAssetResource? {
-        guard let root = activeProjectResourceRoot else { return nil }
+    static func projectDataAsset(
+        named name: String,
+        projectResourceRoot: String? = activeProjectResourceRoot
+    ) -> DataAssetResource? {
+        guard let root = projectResourceRoot else { return nil }
         let datasetName = "\(name.split(separator: "/").last.map(String.init) ?? name).dataset"
         let skip: Set<String> = [".git", ".build", "DerivedData", "__MACOSX", "Tests"]
         guard let walker = FileManager.default.enumerator(atPath: root) else { return nil }
@@ -825,6 +835,11 @@ public final class FileManagerBox {
     /// In-run persistence for interpreted encode→write→read→decode cycles.
     var blobStore: [String: RuntimeValue] = [:]
 
+    /// Immutable bundled-resource scope for the registry that owns this
+    /// filesystem capability. Project bytes and the sandbox travel together;
+    /// another render cannot redirect either one through process-global state.
+    let projectResourceRoot: String?
+
     /// One registry owns one app-container capability. A process-global root
     /// lets an unrelated interpreter delete or redirect an in-flight task's
     /// files while that task is suspended — the parallel-worker sandbox race.
@@ -836,6 +851,10 @@ public final class FileManagerBox {
             isDirectory: true)
 
     let manager = FileManager.default
+
+    init(projectResourceRoot: String? = nil) {
+        self.projectResourceRoot = projectResourceRoot
+    }
 
     deinit {
         try? FileManager.default.removeItem(at: sandboxRoot)
@@ -1275,6 +1294,8 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                     let ext = args.labeled("withExtension")?.stringValue ?? ""
                     if let real = BundleBox.projectResource(
                         for: args,
+                        projectResourceRoot:
+                            box.fileManager.projectResourceRoot,
                         fallback: BundleResources.url(forResource:extension:)) {
                         return real
                     }
@@ -1328,6 +1349,8 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .hostFunction(HostFunction(name: name) { args, _ in
                 if let resource = BundleBox.projectResource(
                     for: args,
+                    projectResourceRoot:
+                        box.fileManager.projectResourceRoot,
                     fallback: BundleResources.url(forResource:extension:)) {
                     return resource
                 }

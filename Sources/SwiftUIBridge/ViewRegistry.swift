@@ -16,11 +16,24 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public convenience init() {
-        self.init(mainQueueDeliveryMode: .wallClock)
+        self.init(
+            mainQueueDeliveryMode: .wallClock,
+            projectResourceRoot: nil)
     }
 
-    init(mainQueueDeliveryMode: MainQueueDeliveryMode) {
+    public convenience init(projectResourceRoot: String?) {
+        self.init(
+            mainQueueDeliveryMode: .wallClock,
+            projectResourceRoot: projectResourceRoot)
+    }
+
+    init(
+        mainQueueDeliveryMode: MainQueueDeliveryMode,
+        projectResourceRoot: String? = nil
+    ) {
         self.mainQueueDeliveryMode = mainQueueDeliveryMode
+        fileManagerBox = FileManagerBox(
+            projectResourceRoot: projectResourceRoot)
         registerViews()
         registerModifiers()
         registerGeometryViews()
@@ -52,7 +65,7 @@ public final class ViewRegistry: HostRegistry {
 
     /// One registry owns one sandbox/blob container — the fresh-container
     /// guarantee is per registry, never process-global.
-    let fileManagerBox = FileManagerBox()
+    let fileManagerBox: FileManagerBox
     let applicationShells = FrameworkApplicationShellStore()
 
     public func storeBlob(_ value: RuntimeValue, at path: String) {

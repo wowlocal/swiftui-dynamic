@@ -94,6 +94,22 @@ struct TargetAwareProjectManifestTests {
             "SiblingInvalid.swift",
             to: "Sources/Sibling/Invalid.swift",
             under: root)
+        try write(
+            """
+            import Foundation
+
+            let targetResourceURL = Bundle.main.url(
+                forResource: "TargetScope", withExtension: "txt")
+            let targetResourceData = try! Data(contentsOf: targetResourceURL!)
+            let targetResourceText = String(
+                decoding: targetResourceData, as: UTF8.self)
+            """,
+            to: "Sources/App/ResourceProbe.swift",
+            under: root)
+        try write(
+            "scoped-project-resource",
+            to: "Resources/TargetScope.txt",
+            under: root)
 
         let target = try CompilerPreflightBuildTarget(
             moduleName: "TargetAwareFixture",
@@ -164,6 +180,7 @@ struct TargetAwareProjectManifestTests {
             files: [
                 "Sources/App/ContentView.swift",
                 "Sources/App/BuildConditions.swift",
+                "Sources/App/ResourceProbe.swift",
             ],
             buildTarget: target)
 
@@ -171,6 +188,7 @@ struct TargetAwareProjectManifestTests {
         #expect(project.sources.map(\.fileName) == [
             "Sources/App/ContentView.swift",
             "Sources/App/BuildConditions.swift",
+            "Sources/App/ResourceProbe.swift",
         ])
         #expect(project.sources[0].source.contains("import SwiftUI"))
         #expect(!project.sources.contains {
@@ -181,6 +199,8 @@ struct TargetAwareProjectManifestTests {
             "// FILE: Sources/App/ContentView.swift"))
         #expect(runtimeSource.contains(
             "// FILE: Sources/App/BuildConditions.swift"))
+        #expect(runtimeSource.contains(
+            "// FILE: Sources/App/ResourceProbe.swift"))
         #expect(!runtimeSource.contains("\nimport SwiftUI\n"))
         #expect(!runtimeSource.contains("invalid sibling target"))
         #expect(project.fingerprint.count == 64)
@@ -214,14 +234,16 @@ struct TargetAwareProjectManifestTests {
         #expect(preflightResult.succeeded,
             Comment(rawValue: preflightResult.standardError))
 
-        let previousResourceRoot = BundleBox.projectResourceRoot
-        defer { BundleBox.projectResourceRoot = previousResourceRoot }
+        let compatibilityRoot = BundleBox.projectResourceRoot
         let outcome = InterpreterHost(compilerPreflightMode: .required)
             .render(project: project, lazyTopLevelGlobals: false)
         if case .failure(let error) = outcome {
             Issue.record("target-aware positive project failed: \(error)")
         }
-        #expect(BundleBox.projectResourceRoot == project.projectRoot)
+        #expect(InterpreterHost.lastInterpreter?.globals
+            .lookup("targetResourceText")?.stringValue
+            == "scoped-project-resource")
+        #expect(BundleBox.projectResourceRoot == compatibilityRoot)
     }
 
     @Test

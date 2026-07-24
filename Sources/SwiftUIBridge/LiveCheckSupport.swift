@@ -122,7 +122,8 @@ public enum LiveCheckSupport {
                 try await renderInCurrentReplayScope(
                     source: source,
                     afterActions: actionCount,
-                    buildConfiguration: environment.buildConfiguration)
+                    buildConfiguration: environment.buildConfiguration,
+                    projectResourceRoot: environment.projectResourceRoot)
             }
         }
         var result = scoped.value
@@ -151,11 +152,13 @@ public enum LiveCheckSupport {
     private static func renderInCurrentReplayScope(
         source: String,
         afterActions actionCount: Int,
-        buildConfiguration: InterpreterBuildConfiguration
+        buildConfiguration: InterpreterBuildConfiguration,
+        projectResourceRoot: String?
     ) async throws -> LiveCheckRenderResult {
         HeadlessVerifier.resetBridgeEnvironment()
         let interpreter = Interpreter(
-            registry: TraceRegistry(),
+            registry: TraceRegistry(
+                projectResourceRoot: projectResourceRoot),
             buildConfiguration: buildConfiguration)
         // The live-probe contract: @State/@StateObject boxes persist per view
         // identity so the fetch pass sees .onAppear's writes.

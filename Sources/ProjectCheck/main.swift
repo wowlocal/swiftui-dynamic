@@ -367,7 +367,10 @@ for unit in units {
     do {
         // Merged multi-file units have no main.swift: library globals are
         // lazy, exactly as compiled Swift initializes them.
-        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        let report = try HeadlessVerifier.verify(
+            source: source,
+            lazyTopLevelGlobals: true,
+            projectResourceRoot: unit.projectRoot)
         passed += 1
         print("✅ \(unit.name)  (\(report.nodeCount) nodes, \(report.actionsInvoked) actions)")
     } catch let error as RuntimeError {
