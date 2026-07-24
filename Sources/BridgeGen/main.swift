@@ -229,6 +229,18 @@ func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
         cast: "%@ as! any \(ordered.joined(separator: " & "))")
 }
 
+/// Supporting SDK interfaces are collected under their module-qualified
+/// paths, while a consuming declaration may spell the same contextual type
+/// without that module. Resolve only a unique suffix match: ambiguity remains
+/// blocked exactly as it would at a native import boundary.
+func contextualSDKTypeName(matching normalized: String) -> String? {
+    if sdkEnumCases[normalized] != nil { return normalized }
+    let matches = sdkEnumCases.keys.filter {
+        $0.hasSuffix("." + normalized)
+    }
+    return matches.count == 1 ? matches[0] : nil
+}
+
 func directMapping(for normalized: String) -> TypeMapping? {
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
@@ -281,10 +293,15 @@ func directMapping(for normalized: String) -> TypeMapping? {
                 cast: "%@ as! \(normalized)",
                 requiredFramework: framework)
         }
-        guard sdkEnumCases[normalized] != nil else { return nil }
-        let requirements = sdkEnumFrameworkRequirements[normalized] ?? []
+        guard let contextualType =
+                contextualSDKTypeName(matching: normalized) else {
+            return nil
+        }
+        let requirements =
+            sdkEnumFrameworkRequirements[contextualType] ?? []
         return .init(
-            tag: "sdkEnum(\"\(normalized)\")", cast: "%@ as! \(normalized)",
+            tag: "sdkEnum(\"\(contextualType)\")",
+            cast: "%@ as! \(contextualType)",
             requiredFramework: requirements.count == 1
                 ? requirements.first : nil)
     }
@@ -2130,6 +2147,26 @@ struct CarrierInit {
 
 var carrierInits: [CarrierInit] = []
 
+/// Concrete SDK value types reached as parameters of an interface-declared
+/// throwing initializer. Their own public, mechanically coercible initializers
+/// are generated below so overload validation receives the real native value
+/// instead of an interpreted storage-shaped surrogate.
+var throwingConstructorValueParameterTypes: Set<String> = []
+
+struct NativeValueInit {
+    let type: String
+    let params: [AnalyzedParam]
+
+    var key: String {
+        type + "|" + params.map {
+            "\($0.label ?? "_"):\($0.mapping?.tag ?? "?")"
+        }.joined(separator: ",")
+    }
+}
+
+var nativeValueInits: [NativeValueInit] = []
+var nativeValueInitSeen: Set<String> = []
+
 /// Throwing constructor contracts for the Foundation value tier. Their
 /// native implementation may still live in a compatibility box, but labels,
 /// defaults, and argument types come from the SDK interface so an opaque
@@ -2158,6 +2195,18 @@ func processThrowingConstructorContract(
     let declaration = "init\(optionalMark) \(typeName)"
         + initDecl.signature.trimmedDescription
     throwingConstructorContracts[typeName, default: []].insert(declaration)
+
+    for parameter in initDecl.signature.parameterClause.parameters {
+        var type = parameter.type
+        if let attributed = type.as(AttributedTypeSyntax.self) {
+            type = attributed.baseType
+        }
+        var normalized = normalize(type.trimmedDescription)
+        if normalized.hasSuffix("?") {
+            normalized.removeLast()
+        }
+        throwingConstructorValueParameterTypes.insert(normalized)
+    }
 }
 
 /// Initializers of generic-struct carrier types: swept with the generic
@@ -2295,6 +2344,18 @@ let foundationFile: SourceFileSyntax? = {
     return Parser.parse(source: source)
 }()
 
+// Foundation is also the member/value source below, not merely a supporting
+// constraint module. Collect its contextual enums under their native
+// unqualified paths before analyzing transitive value constructors.
+if let foundationFile {
+    for statement in foundationFile.statements {
+        guard case .decl(let declaration) = statement.item else { continue }
+        collectSDKEnums(
+            in: declaration, path: [], guarded: false,
+            frameworkRequirements: [])
+    }
+}
+
 /// Foundation properties whose declared result conforms to a standard
 /// sequence protocol cross into the interpreter's ordinary array plane. The
 /// set is derived from extension conformances in Foundation.swiftinterface;
@@ -2401,6 +2462,140 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
 if let foundationFile {
     sweepMemberFile(foundationFile)
 }
+
+func processNativeValueInitializer(
+    typeName: String,
+    _ initDecl: InitializerDeclSyntax,
+    guarded: Bool
+) {
+    guard hasModifier(initDecl.modifiers, "public"),
+          initDecl.optionalMark == nil,
+          initDecl.genericParameterClause == nil,
+          initDecl.genericWhereClause == nil,
+          initDecl.signature.effectSpecifiers == nil,
+          !initDecl.signature.parameterClause.parameters.contains(where: {
+              $0.ellipsis != nil
+          }),
+          !guarded,
+          !needsAvailabilityGuard(initDecl.attributes)
+    else { return }
+
+    let analyzed = initDecl.signature.parameterClause.parameters.map {
+        analyzeParameter($0, generics: [:])
+    }
+    guard analyzed.allSatisfy({ $0.mapping != nil }) else { return }
+
+    for selection in parameterSelections(analyzed)
+    where selection.trailingClosureIndex == nil {
+        let entry = NativeValueInit(
+            type: typeName, params: selection.params)
+        if nativeValueInitSeen.insert(entry.key).inserted {
+            nativeValueInits.append(entry)
+        }
+    }
+}
+
+/// Walk nominal nesting and extensions from the Foundation swiftinterface.
+/// Selection is demand-derived from throwing-constructor parameter types;
+/// traversal never keys on an SDK nominal or initializer label.
+func collectNativeValueInitializers(
+    in declaration: DeclSyntax,
+    path inheritedPath: [String],
+    guarded inheritedGuarded: Bool,
+    candidates: Set<String>
+) {
+    func visitMembers(
+        _ members: MemberBlockItemListSyntax,
+        path: [String],
+        guarded: Bool
+    ) {
+        let typeName = path.joined(separator: ".")
+        for member in members {
+            if candidates.contains(typeName),
+               let initializer = member.decl.as(
+                InitializerDeclSyntax.self
+               ),
+               memberIsUsable(initializer.attributes) {
+                processNativeValueInitializer(
+                    typeName: typeName, initializer, guarded: guarded)
+            } else {
+                collectNativeValueInitializers(
+                    in: member.decl,
+                    path: path,
+                    guarded: guarded,
+                    candidates: candidates)
+            }
+        }
+    }
+
+    if let structure = declaration.as(StructDeclSyntax.self) {
+        guard isPublicSDKDecl(structure.modifiers),
+              isUniversallyUsable(structure.attributes),
+              !structure.name.text.hasPrefix("_") else { return }
+        let path = inheritedPath + [structure.name.text]
+        visitMembers(
+            structure.memberBlock.members,
+            path: path,
+            guarded: inheritedGuarded
+                || needsAvailabilityGuard(structure.attributes))
+        return
+    }
+
+    if let enumeration = declaration.as(EnumDeclSyntax.self) {
+        guard isPublicSDKDecl(enumeration.modifiers),
+              isUniversallyUsable(enumeration.attributes),
+              !enumeration.name.text.hasPrefix("_") else { return }
+        visitMembers(
+            enumeration.memberBlock.members,
+            path: inheritedPath + [enumeration.name.text],
+            guarded: inheritedGuarded
+                || needsAvailabilityGuard(enumeration.attributes))
+        return
+    }
+
+    if let classDeclaration = declaration.as(ClassDeclSyntax.self) {
+        guard isPublicSDKDecl(classDeclaration.modifiers),
+              isUniversallyUsable(classDeclaration.attributes),
+              !classDeclaration.name.text.hasPrefix("_") else { return }
+        visitMembers(
+            classDeclaration.memberBlock.members,
+            path: inheritedPath + [classDeclaration.name.text],
+            guarded: inheritedGuarded
+                || needsAvailabilityGuard(classDeclaration.attributes))
+        return
+    }
+
+    if let extensionDeclaration = declaration.as(
+        ExtensionDeclSyntax.self
+    ), isUniversallyUsable(extensionDeclaration.attributes) {
+        let path = normalize(
+            extensionDeclaration.extendedType.trimmedDescription)
+            .split(separator: ".").map(String.init)
+        visitMembers(
+            extensionDeclaration.memberBlock.members,
+            path: path,
+            guarded: inheritedGuarded
+                || needsAvailabilityGuard(
+                    extensionDeclaration.attributes))
+    }
+}
+
+if let foundationFile {
+    let candidates = Set(
+        throwingConstructorValueParameterTypes.filter {
+            directMapping(for: $0) == nil
+        })
+    for statement in foundationFile.statements {
+        guard case .decl(let declaration) = statement.item else { continue }
+        collectNativeValueInitializers(
+            in: declaration, path: [], guarded: false,
+            candidates: candidates)
+    }
+}
+print(
+    "Foundation native constructor parameters: "
+        + "\(Set(nativeValueInits.map(\.type)).count) value types, "
+        + "\(nativeValueInits.count) call shapes")
 
 // Foundation's unit system: Dimension subclasses and their class-var unit
 // instances (UnitTemperature.fahrenheit, …). Swept for the shared
@@ -2869,7 +3064,13 @@ func sdkProtocolComposition(from tag: String) -> String? {
 let emittedSDKEnumTypes = Set(
     (variants + initVariants)
         .flatMap(\.params)
-        .compactMap { sdkEnumType(from: $0.tag) })
+        .compactMap { sdkEnumType(from: $0.tag) }
+        + nativeValueInits.flatMap(\.params)
+            .compactMap { parameter in
+                parameter.mapping.flatMap {
+                    sdkEnumType(from: $0.tag)
+                }
+            })
 let emittedSDKProtocolCompositions = Set(
     (variants + initVariants)
         .flatMap(\.params)
@@ -3377,6 +3578,7 @@ let sortedMembers = memberMethodVariants.sorted { ($0.type, $0.name, $0.params.c
 var knownImportedNestedTypePaths: Set<String> = []
 let importedNestedTypeSeeds = memberTypes
     .union(foundationMaterializableSequenceTypes)
+    .union(nativeValueInits.map(\.type))
     .union(foundationRuntimeAliasMap.keys)
     .union(foundationRuntimeAliasMap.values.flatMap { $0 })
     .union(foundationAttributedStringKeySurface.keyTypeNames)
@@ -3524,6 +3726,39 @@ if throwingConstructorContracts.isEmpty {
             membersOutput += "            parseConstructorContract(\(String(reflecting: declaration))),\n"
         }
         membersOutput += "        ],\n"
+    }
+    membersOutput += "    ]\n\n"
+}
+
+if nativeValueInits.isEmpty {
+    membersOutput += "    static let nativeValueConstructors: [String: GeneratedConstructorSet] = [:]\n\n"
+} else {
+    membersOutput += "    /// Concrete value constructors selected transitively from throwing\n"
+    membersOutput += "    /// initializer parameter types in Foundation.swiftinterface.\n"
+    membersOutput += "    static let nativeValueConstructors: [String: GeneratedConstructorSet] = [\n"
+    for (type, entries) in Dictionary(
+        grouping: nativeValueInits, by: \.type
+    ).sorted(by: { $0.key < $1.key }) {
+        membersOutput += "        \(String(reflecting: type)): GeneratedConstructorSet([\n"
+        for entry in entries.sorted(by: { $0.key < $1.key }) {
+            let specs = entry.params.map { parameter in
+                let label = parameter.label.map(String.init(reflecting:))
+                    ?? "nil"
+                return "ParamSpec(\(label), .\(parameter.mapping!.tag))"
+            }.joined(separator: ", ")
+            let arguments = entry.params.enumerated().map {
+                index, parameter -> String in
+                let value = "("
+                    + parameter.mapping!.cast.replacingOccurrences(
+                        of: "%@", with: "values[\(index)]")
+                    + ")"
+                return (parameter.label.map { "\($0): " } ?? "") + value
+            }.joined(separator: ", ")
+            membersOutput += "            GeneratedConstructor(params: [\(specs)]) { values in\n"
+            membersOutput += "                \(type)(\(arguments))\n"
+            membersOutput += "            },\n"
+        }
+        membersOutput += "        ]),\n"
     }
     membersOutput += "    ]\n\n"
 }

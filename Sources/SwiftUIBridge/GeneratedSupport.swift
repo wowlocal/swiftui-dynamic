@@ -804,6 +804,26 @@ protocol GeneratedMetatypeSubscriptCarrier {
     ) -> RuntimeValue?
 }
 
+/// A concrete SDK value used by another generated initializer contract keeps
+/// its native representation across registries. BridgeGen selects both the
+/// type and its callable shapes transitively from interface metadata.
+@MainActor
+func generatedNativeValueConstructor(
+    named name: String
+) -> HostFunction? {
+    guard let overloads =
+            GeneratedMembers.nativeValueConstructors[name] else {
+        return nil
+    }
+    return HostFunction(name: name) { arguments, context in
+        .native(try GeneratedDispatch.construct(
+            name: name,
+            overloads: overloads,
+            args: arguments,
+            ctx: context))
+    }
+}
+
 extension GeneratedDispatch {
     /// Interface-declared throwing initializers own calls whose LABEL SHAPE
     /// matches them, even when their native implementation still lives in a

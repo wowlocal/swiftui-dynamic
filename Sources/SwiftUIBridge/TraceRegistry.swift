@@ -197,6 +197,9 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func constructor(named name: String) -> HostFunction? {
+        if let nativeValue = generatedNativeValueConstructor(named: name) {
+            return nativeValue
+        }
         if let hostObject = interfaceValidatedHostObjectConstructor(
             named: name,
             fileManager: fileManagerBox

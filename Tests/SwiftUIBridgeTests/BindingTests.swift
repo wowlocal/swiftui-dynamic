@@ -327,6 +327,27 @@ import SwiftInterpreter
 /// Keep the distilled shape native-valid and require the interpreted render to
 /// preserve the same visible text.
 @Suite struct AttributedStringCollectionTests {
+    @Test func markdownParsingOptionsCollapseLinkDestinations() async throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let options = AttributedString.MarkdownParsingOptions(
+                    allowsExtendedAttributes: true,
+                    interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                let attributed = try! AttributedString(
+                    markdown: "[visible label](https://example.com/hidden)",
+                    options: options)
+                Text(attributed)
+            }
+        }
+        """
+
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("visible label"), "link label must render, got \(strings)")
+        #expect(!strings.contains { $0.contains("example.com") },
+                "link destination must remain an attribute, got \(strings)")
+    }
+
     @Test func throwingConversionPreservesFallbackForOpaqueParserOutput() async throws {
         let source = ProjectMaterial.mergedSource(source: """
         import OpaqueMarkdown

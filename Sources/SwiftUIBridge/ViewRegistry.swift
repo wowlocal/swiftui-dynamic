@@ -124,6 +124,11 @@ public final class ViewRegistry: HostRegistry {
         ) {
             return nativePlatform
         }
+        if let nativeValue = generatedNativeValueConstructor(
+            named: resolvedName
+        ) {
+            return nativeValue
+        }
         if let hostObject = interfaceValidatedHostObjectConstructor(
             named: resolvedName,
             fileManager: fileManagerBox
