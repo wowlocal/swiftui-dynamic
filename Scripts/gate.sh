@@ -7,6 +7,7 @@
 #         GATE_EVAL_WORKERS, GATE_LIVE_WORKERS, GATE_*_TIMEOUT_SECONDS,
 #         GATE_TERMINATION_GRACE_SECONDS, GATE_KEEP_LOGS, GATE_RECEIPT_PATH,
 #         GATE_CONTINUE_AFTER_FAILURE, GATE_LOCK_DIRECTORY,
+#         GATE_CLAIMS_PATH, GATE_INTEGRATION_BASE,
 #         GATE_EXPECTED_TOOLCHAIN_FINGERPRINT,
 #         GATE_CAPABILITY_{INVENTORY,STATUS}_INPUT_PATH (negative controls)
 set -u
@@ -137,6 +138,7 @@ if ! build_timeout=$(positive_integer_value GATE_BUILD_TIMEOUT_SECONDS 1800); th
 if ! test_timeout=$(positive_integer_value GATE_TEST_TIMEOUT_SECONDS 1800); then exit 2; fi
 if ! eval_timeout=$(positive_integer_value GATE_EVAL_TIMEOUT_SECONDS 1800); then exit 2; fi
 if ! live_timeout=$(positive_integer_value GATE_LIVE_TIMEOUT_SECONDS 1800); then exit 2; fi
+if ! r2_timeout=$(positive_integer_value GATE_R2_TIMEOUT_SECONDS 1800); then exit 2; fi
 if ! child_timeout=$(positive_integer_value GATE_CHILD_TIMEOUT_SECONDS 1500); then exit 2; fi
 if ! termination_grace=$(positive_integer_value GATE_TERMINATION_GRACE_SECONDS 5); then exit 2; fi
 continue_after_failure="${GATE_CONTINUE_AFTER_FAILURE:-0}"
@@ -150,11 +152,15 @@ typeset -a active_pids
 receipt_path="${GATE_RECEIPT_PATH:-$PWD/.build/gate-receipt.json}"
 typeset build_stage_status="not-run" test_stage_status="not-run"
 typeset eval_stage_status="not-run" live_stage_status="not-run"
+typeset r2_stage_status="not-run"
 integer build_stage_seconds=0 test_stage_seconds=0
 integer eval_stage_seconds=0 live_stage_seconds=0
+integer r2_stage_seconds=0
 typeset suite_summary="" corpus_summary="" parity_summary="" live_summary=""
+typeset r2_summary=""
 typeset parity_shard_validation="not-run"
 typeset parity_shard_receipt_json='{"version":1,"status":"not-run"}'
+typeset close_policy_json='{"version":1,"status":"not-run","errors":[]}'
 typeset gate_diagnostics="" test_worker_statuses=""
 typeset current_stage="initialization"
 typeset source_end_captured=false source_drift_detected=false
@@ -163,6 +169,10 @@ typeset git_dirty_at_end=false worktree_fingerprint_at_end=""
 integer test_count=0
 integer build_status=-1 test_discovery_status=-1
 integer corpus_status=-1 parity_status=-1 live_status=-1
+integer close_policy_status=-1 r2_status=-1
+
+claims_path="${GATE_CLAIMS_PATH:-${git_common_dir:h}/.claude/claims.md}"
+integration_base="${GATE_INTEGRATION_BASE:-origin/main}"
 
 git_commit=$(git rev-parse HEAD 2>/dev/null || echo unknown)
 git_status_at_start=$(git status --porcelain --untracked-files=normal 2>/dev/null || true)
@@ -315,6 +325,9 @@ mark_current_stage_interrupted() {
         live)
             live_stage_status="interrupted"
             live_stage_seconds=$(( SECONDS - stage_started )) ;;
+        icecubes-r2)
+            r2_stage_status="interrupted"
+            r2_stage_seconds=$(( SECONDS - stage_started )) ;;
     esac
 }
 handle_gate_signal() {
@@ -547,7 +560,7 @@ write_receipt() {
         receipt_integer "stages.$stage.durationSeconds" "$3"
     }
 
-    receipt_integer schemaVersion 2
+    receipt_integer schemaVersion 3
     receipt_string result "$result"
     receipt_integer exitStatus "$exit_status"
     receipt_string startedAt "$gate_started_at"
@@ -566,6 +579,8 @@ write_receipt() {
         "$acceptance_schema_version"
     /usr/bin/plutil -insert source.concurrencyCapabilityAccounting -json \
         "$capability_accounting_json" "$plist" >/dev/null
+    /usr/bin/plutil -insert source.iceCubesClosePolicy -json \
+        "$close_policy_json" "$plist" >/dev/null
     receipt_string source.commitAtStart "$git_commit"
     receipt_string source.commitAtEnd "$git_commit_at_end"
     receipt_bool source.dirtyAtEnd "$git_dirty_at_end"
@@ -609,6 +624,7 @@ write_receipt() {
     receipt_integer configuration.testTimeoutSeconds "$test_timeout"
     receipt_integer configuration.evalTimeoutSeconds "$eval_timeout"
     receipt_integer configuration.liveTimeoutSeconds "$live_timeout"
+    receipt_integer configuration.r2TimeoutSeconds "$r2_timeout"
     receipt_integer configuration.childTimeoutSeconds "$child_timeout"
     receipt_integer configuration.terminationGraceSeconds "$termination_grace"
     /usr/bin/plutil -insert configuration.effectiveEnvironment -dictionary \
@@ -636,6 +652,7 @@ write_receipt() {
     receipt_stage tests "$test_stage_status" "$test_stage_seconds"
     receipt_stage evaluation "$eval_stage_status" "$eval_stage_seconds"
     receipt_stage live "$live_stage_status" "$live_stage_seconds"
+    receipt_stage iceCubesR2 "$r2_stage_status" "$r2_stage_seconds"
 
     /usr/bin/plutil -insert boards -dictionary "$plist" >/dev/null
     receipt_integer boards.discoveredTestCount "$test_count"
@@ -643,11 +660,13 @@ write_receipt() {
     receipt_string boards.corpus "$corpus_summary"
     receipt_string boards.apiParity "$parity_summary"
     receipt_string boards.live "$live_summary"
+    receipt_string boards.iceCubesR2 "$r2_summary"
     receipt_string boards.concurrencyParityShards "$parity_shard_validation"
     receipt_string evidenceLogsSHA256 "$logs_sha256"
 
     local build_log_tail="" test_logs_tail="" validator_log_tail=""
     local corpus_log_tail="" parity_log_tail="" live_log_tail=""
+    local close_policy_log_tail="" r2_log_tail=""
     if (( exit_status != 0 )); then
         build_log_tail=$(bounded_log_tail "$out/build.log" 80)
         test_logs_tail=$(combined_test_log_tail)
@@ -656,6 +675,8 @@ write_receipt() {
         corpus_log_tail=$(bounded_log_tail "$out/corpus.log" 80)
         parity_log_tail=$(bounded_log_tail "$out/parity.log" 80)
         live_log_tail=$(bounded_log_tail "$out/live.log" 80)
+        close_policy_log_tail=$(bounded_log_tail "$out/close-policy.log" 80)
+        r2_log_tail=$(bounded_log_tail "$out/icecubes-r2.log" 80)
     fi
     /usr/bin/plutil -insert diagnostics -dictionary "$plist" >/dev/null
     receipt_integer diagnostics.exitStatus "$exit_status"
@@ -668,6 +689,8 @@ write_receipt() {
     receipt_string diagnostics.corpusLogTail "$corpus_log_tail"
     receipt_string diagnostics.apiParityLogTail "$parity_log_tail"
     receipt_string diagnostics.liveLogTail "$live_log_tail"
+    receipt_string diagnostics.closePolicyLogTail "$close_policy_log_tail"
+    receipt_string diagnostics.iceCubesR2LogTail "$r2_log_tail"
     /usr/bin/plutil -insert diagnostics.timeouts -dictionary "$plist" >/dev/null
     receipt_string diagnostics.timeouts.build \
         "$(timeout_message "$out/build.timeout")"
@@ -677,6 +700,8 @@ write_receipt() {
         "$(timeout_message "$out/evaluation.timeout")"
     receipt_string diagnostics.timeouts.live \
         "$(timeout_message "$out/live.timeout")"
+    receipt_string diagnostics.timeouts.iceCubesR2 \
+        "$(timeout_message "$out/icecubes-r2.timeout")"
     /usr/bin/plutil -insert diagnostics.exitStatuses -dictionary \
         "$plist" >/dev/null
     receipt_integer diagnostics.exitStatuses.build "$build_status"
@@ -685,6 +710,9 @@ write_receipt() {
     receipt_integer diagnostics.exitStatuses.projectCheck "$corpus_status"
     receipt_integer diagnostics.exitStatuses.apiParity "$parity_status"
     receipt_integer diagnostics.exitStatuses.live "$live_status"
+    receipt_integer diagnostics.exitStatuses.closePolicy \
+        "$close_policy_status"
+    receipt_integer diagnostics.exitStatuses.iceCubesR2 "$r2_status"
 
     mkdir -p "${receipt_path:h}"
     if /usr/bin/plutil -convert json -r -o "$receipt_tmp" "$plist" 2>/dev/null \
@@ -727,6 +755,9 @@ write_receipt() {
               source.concurrencyCapabilityAccounting.semanticCapabilityCount
               source.concurrencyCapabilityAccounting.semanticImplementationCounts
               source.concurrencyCapabilityAccounting.semanticVerificationCounts
+              source.iceCubesClosePolicy.version
+              source.iceCubesClosePolicy.status
+              source.iceCubesClosePolicy.errors
               source.commitAtStart source.commitAtEnd source.dirtyAtEnd
               source.worktreeFingerprintAtEnd source.driftDetected
               toolchain.swiftVersion toolchain.swiftcPath toolchain.macOSSDKPath
@@ -742,21 +773,25 @@ write_receipt() {
               configuration.parityTestWorkers configuration.evalWorkers
               configuration.liveWorkers configuration.buildTimeoutSeconds
               configuration.testTimeoutSeconds configuration.evalTimeoutSeconds
-              configuration.liveTimeoutSeconds configuration.childTimeoutSeconds
+              configuration.liveTimeoutSeconds configuration.r2TimeoutSeconds
+              configuration.childTimeoutSeconds
               configuration.terminationGraceSeconds
               configuration.effectiveEnvironment
               stages.build.status stages.build.durationSeconds
               stages.tests.status stages.tests.durationSeconds
               stages.evaluation.status stages.evaluation.durationSeconds
               stages.live.status stages.live.durationSeconds
+              stages.iceCubesR2.status stages.iceCubesR2.durationSeconds
               boards.discoveredTestCount boards.suite boards.corpus
-              boards.apiParity boards.live boards.concurrencyParityShards
+              boards.apiParity boards.live boards.iceCubesR2
+              boards.concurrencyParityShards
               evidenceLogsSHA256 diagnostics.exitStatus
               diagnostics.currentStage diagnostics.messages
               diagnostics.testWorkerStatuses diagnostics.buildLogTail
               diagnostics.testLogsTail diagnostics.parityValidatorLogTail
               diagnostics.corpusLogTail diagnostics.apiParityLogTail
-              diagnostics.liveLogTail diagnostics.timeouts
+              diagnostics.liveLogTail diagnostics.closePolicyLogTail
+              diagnostics.iceCubesR2LogTail diagnostics.timeouts
               diagnostics.exitStatuses
             ]
             missing = paths.reject do |path|
@@ -836,6 +871,26 @@ if (( gate_lock_status != 0 )); then
     echo "$gate_lock_conflict" >&2
     exit 75
 fi
+
+current_stage="close-policy"
+close_policy_status=0
+/usr/bin/ruby Scripts/validate-icecubes-close-policy.rb \
+    "$claims_path" "$integration_base" \
+    > "$out/close-policy.log" 2>&1 || close_policy_status=$?
+close_policy_marker=$(grep '^@@icecubes-close-policy ' \
+    "$out/close-policy.log" | tail -1 || true)
+if [[ -n "$close_policy_marker" ]]; then
+    close_policy_json="${close_policy_marker#@@icecubes-close-policy }"
+fi
+if (( close_policy_status != 0 )); then
+    build_stage_status="blocked-close-policy"
+    append_gate_diagnostic \
+        "IceCubes close policy rejected the candidate: $(bounded_log_tail "$out/close-policy.log" 20)"
+    /bin/cat "$out/close-policy.log" >&2
+    echo "ICECUBES CLOSE POLICY RED" >&2
+    exit 1
+fi
+echo "IceCubes close policy GREEN"
 
 current_stage="build"
 echo "── build (once) ──"
@@ -1129,14 +1184,47 @@ else
 fi
 echo "live completed in ${live_stage_seconds}s"
 
+current_stage="icecubes-r2"
+echo "── IceCubes R2 ──"
+stage_started=$SECONDS
+r2_status=0
+Scripts/icecubes-r2.sh > "$out/icecubes-r2.log" 2>&1 &
+r2_pid=$!
+active_pids=($r2_pid)
+r2_timeout_marker="$out/icecubes-r2.timeout"
+start_stage_watchdog icecubes-r2 "$r2_timeout" "$r2_timeout_marker" \
+    "$r2_pid"
+r2_watchdog_pid=$stage_watchdog_pid
+wait "$r2_pid" || r2_status=$?
+remove_active_pid "$r2_pid"
+stop_stage_watchdog "$r2_watchdog_pid" "$r2_timeout_marker"
+r2_stage_seconds=$(( SECONDS - stage_started ))
+grep '^AE [0-9][0-9]* of 630000 ' "$out/icecubes-r2.log" \
+    | tail -1 > "$out/r2" || true
+if [[ -f "$r2_timeout_marker" ]]; then
+    r2_stage_status="timeout"
+    append_gate_diagnostic "$(timeout_message "$r2_timeout_marker")"
+elif (( r2_status == 0 )); then
+    r2_stage_status="passed"
+else
+    r2_stage_status="failed"
+fi
+if (( r2_status != 0 )); then
+    append_gate_diagnostic "IceCubes R2 exited with status $r2_status"
+    echo "IceCubes R2 RED" >&2
+    tail -80 "$out/icecubes-r2.log" >&2
+fi
+echo "IceCubes R2 completed in ${r2_stage_seconds}s"
+
 red=$test_red
-for board in suite corpus live parity; do
+for board in suite corpus live parity r2; do
     line=$(cat "$out/$board" 2>/dev/null)
     case "$board" in
         suite) suite_summary="$line" ;;
         corpus) corpus_summary="$line" ;;
         live) live_summary="$line" ;;
         parity) parity_summary="$line" ;;
+        r2) r2_summary="$line" ;;
     esac
     echo "$board: $line"
     case "$board:$line" in
@@ -1152,14 +1240,17 @@ for board in suite corpus live parity; do
         corpus:*"678/680 projects pass"*) ;;
         live:*"5/5 live-data scenarios pass"*) ;;
         parity:*"0 diverge / 0 interp-error"*) ;;
+        r2:"AE "*" of 630000 "*) ;;
         *)
             append_gate_diagnostic \
                 "$board board summary did not satisfy the gate contract: $line"
             red=1 ;;
     esac
 done
-if (( corpus_status != 0 || parity_status != 0 || live_status != 0 )); then red=1; fi
-if [[ -f "$eval_timeout_marker" || -f "$live_timeout_marker" ]]; then red=1; fi
+if (( corpus_status != 0 || parity_status != 0 || live_status != 0 \
+      || r2_status != 0 )); then red=1; fi
+if [[ -f "$eval_timeout_marker" || -f "$live_timeout_marker" \
+      || -f "$r2_timeout_marker" ]]; then red=1; fi
 current_stage="completion"
 capture_source_at_end
 report_source_drift
