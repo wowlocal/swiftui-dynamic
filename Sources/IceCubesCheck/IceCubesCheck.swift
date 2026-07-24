@@ -787,7 +787,11 @@ struct IceCubesCheckMain {
             atPath: directory, withIntermediateDirectories: true)
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
-        let value = try InterpreterHost().render(source: source, lazyTopLevelGlobals: true).get()
+        let value = try InterpreterHost().render(
+            source: source,
+            projectResourceRoot: paths.app,
+            lazyTopLevelGlobals: true
+        ).get()
         let hosting = NSHostingView(rootView: value.frame(
             width: screenSize.width, height: screenSize.height))
         hosting.frame = NSRect(origin: .zero, size: screenSize)

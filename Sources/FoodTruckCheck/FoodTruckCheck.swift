@@ -217,7 +217,11 @@ struct FoodTruckCheckMain {
             func capturePNG(_ id: String, source: String, size: NSSize) {
                 if let screenFilter, !id.localizedCaseInsensitiveContains(screenFilter) { return }
                 RenderDiagnostics.reset()
-                switch InterpreterHost().render(source: source, lazyTopLevelGlobals: true) {
+                switch InterpreterHost().render(
+                    source: source,
+                    projectResourceRoot: sampleRoot,
+                    lazyTopLevelGlobals: true
+                ) {
                 case .failure(let error):
                     print("\(id)\tRENDER-FAILED \(error.message.prefix(80))")
                 case .success(let view):
