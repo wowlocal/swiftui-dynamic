@@ -15,7 +15,7 @@ public enum RuntimeTaskOutcome {
 /// `get()` can rethrow an app-defined error rather than reducing it to text.
 @MainActor
 public final class RuntimeResultValue:
-    CaseShaped, @preconcurrency CustomStringConvertible
+    GeneratedCaseTransformable, @preconcurrency CustomStringConvertible
 {
     @MainActor
     public enum Outcome {
@@ -37,6 +37,12 @@ public final class RuntimeResultValue:
         }
     }
 
+    private init(outcome: Outcome) {
+        self.outcome = outcome
+    }
+
+    public var caseNominalName: String { "Result" }
+
     public var caseName: String {
         switch outcome {
         case .success: "success"
@@ -48,6 +54,18 @@ public final class RuntimeResultValue:
         switch outcome {
         case .success(let value, _), .failure(let value, _): [value]
         }
+    }
+
+    public func replacingCasePayload(
+        _ payload: RuntimeValue
+    ) -> RuntimeValue {
+        let transformed: Outcome = switch outcome {
+        case .success(_, let type):
+            .success(payload, type: type)
+        case .failure(_, let type):
+            .failure(payload, type: type)
+        }
+        return .native(RuntimeResultValue(outcome: transformed))
     }
 
     public var description: String {

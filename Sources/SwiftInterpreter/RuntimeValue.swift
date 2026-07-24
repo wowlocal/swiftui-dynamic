@@ -444,6 +444,53 @@ public protocol CaseShaped {
     var casePayloads: [RuntimeValue] { get }
 }
 
+/// An imported enum carrier whose case-selective functional members are
+/// derived from the active standard-library interface. Conformance is the
+/// runtime property used for dispatch; evaluator code does not key behavior
+/// on a concrete host box or nominal type.
+@MainActor
+public protocol GeneratedCaseTransformable: CaseShaped {
+    var caseNominalName: String { get }
+    func replacingCasePayload(_ payload: RuntimeValue) -> RuntimeValue
+}
+
+/// Core carrier for imported enum cases when no host registry supplies a more
+/// specialized representation. It keeps contextual enum identity and payload
+/// shape across generated map/flat-map adapters.
+@MainActor
+public struct RuntimeImportedCaseValue:
+    GeneratedCaseTransformable, @preconcurrency CustomStringConvertible
+{
+    public let caseNominalName: String
+    public let caseName: String
+    public let casePayloads: [RuntimeValue]
+
+    public init(
+        nominalName: String,
+        caseName: String,
+        payloads: [RuntimeValue]
+    ) {
+        caseNominalName = nominalName
+        self.caseName = caseName
+        casePayloads = payloads
+    }
+
+    public func replacingCasePayload(
+        _ payload: RuntimeValue
+    ) -> RuntimeValue {
+        .native(RuntimeImportedCaseValue(
+            nominalName: caseNominalName,
+            caseName: caseName,
+            payloads: [payload]))
+    }
+
+    public var description: String {
+        "\(caseNominalName).\(caseName)("
+            + casePayloads.map(\.stringified).joined(separator: ", ")
+            + ")"
+    }
+}
+
 /// `/AppAction.milestone` — the CasePaths/TCA case-path prefix operator.
 /// The path itself is inert: whatever consumes it (reducer scoping,
 /// pullbacks) is external framework machinery that absorbs markers.

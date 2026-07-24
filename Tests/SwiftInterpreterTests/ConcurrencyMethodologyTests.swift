@@ -3011,6 +3011,48 @@ struct ConcurrencyMethodologyTests {
         #expect(!script.contains("\nswift test"))
     }
 
+    @Test func closingGateExecutesIceCubesPolicyAndR2Boards() throws {
+        let gate = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+        for required in [
+            "Scripts/validate-icecubes-close-policy.rb",
+            "Scripts/icecubes-r2.sh",
+            "receipt_stage iceCubesR2",
+            "receipt_string boards.iceCubesR2",
+            "diagnostics.exitStatuses.closePolicy",
+            "diagnostics.exitStatuses.iceCubesR2",
+        ] {
+            #expect(gate.contains(required),
+                Comment(rawValue:
+                    "closing gate lost executable IceCubes enforcement: "
+                        + required))
+        }
+
+        let validator = Self.packageRoot.appendingPathComponent(
+            "Scripts/validate-icecubes-close-policy.rb")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ruby")
+        process.standardInput = FileHandle.nullDevice
+        process.arguments = [validator.path, "--self-test"]
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+        let output = String(
+            decoding: stdout.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self)
+        let error = String(
+            decoding: stderr.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self)
+        #expect(process.terminationStatus == 0, Comment(rawValue: error))
+        #expect(output.contains(
+            "@@icecubes-close-policy-self-test passed"))
+    }
+
     @Test func closingGatePinsTheCurrentProjectCorpusCensus() throws {
         let script = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(
@@ -3160,7 +3202,7 @@ struct ConcurrencyMethodologyTests {
             status.semanticCapabilities,
             by: { $0.verificationStatus.rawValue }).mapValues(\.count)
         #expect(receipt["result"] as? String == "RED")
-        #expect(receipt["schemaVersion"] as? Int == 2)
+        #expect(receipt["schemaVersion"] as? Int == 3)
         #expect(source["commitAtStart"] is String)
         #expect(source["commitAtEnd"] is String)
         #expect(source["worktreeFingerprint"] is String)

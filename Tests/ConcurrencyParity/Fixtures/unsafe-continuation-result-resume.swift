@@ -8,7 +8,8 @@ nonisolated func unsafeContinuationResultValue(
     try await withUnsafeThrowingContinuation(isolation: nil) { continuation in
         Task.detached {
             await Task.yield()
-            continuation.resume(with: result)
+            let widened = result.mapError { $0 as Error }
+            continuation.resume(with: widened)
         }
     }
 }
