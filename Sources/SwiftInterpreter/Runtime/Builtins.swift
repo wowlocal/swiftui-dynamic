@@ -875,17 +875,6 @@ public enum Builtins {
             if let l = la as? CGSize, let r = ra as? CGSize { return l == r }
             if let l = la as? CGPoint, let r = ra as? CGPoint { return l == r }
             if let l = la as? CGRect, let r = ra as? CGRect { return l == r }
-            // Once explicit bridge/native value equality has declined the
-            // operands, opaque class payloads retain ordinary reference
-            // identity. This is also the Hashable equality witness used when
-            // a hosted SDK superclass (for example URLSessionTask) is a
-            // Dictionary key.
-            let leftIsReference = type(of: la) is AnyClass
-            let rightIsReference = type(of: ra) is AnyClass
-            if leftIsReference || rightIsReference {
-                guard leftIsReference && rightIsReference else { return false }
-                return (la as AnyObject) === (ra as AnyObject)
-            }
         }
         if case .instance(let l) = lhs, case .instance(let r) = rhs { return l === r }
         // Enum cases compare by name (+ associated values); a bare implicit

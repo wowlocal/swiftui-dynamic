@@ -110,18 +110,21 @@ struct RuntimePayloadTests {
     @Test func opaqueHostReferencesUseIdentityAsCollectionKeys() throws {
         let first = OpaqueHostReference()
         let second = OpaqueHostReference()
+        let interpreter = Interpreter()
         var dictionary = DictValue()
 
         try dictionary.setValue(
             .native(first), to: .native("registered"),
-            by: Builtins.areEqual)
+            by: interpreter.collectionStorageValuesAreEqual)
 
         #expect(
             try dictionary.value(
-                forKey: .native(first), by: Builtins.areEqual)?
+                forKey: .native(first),
+                by: interpreter.collectionStorageValuesAreEqual)?
                 .stringValue == "registered")
         #expect(
             try dictionary.value(
-                forKey: .native(second), by: Builtins.areEqual) == nil)
+                forKey: .native(second),
+                by: interpreter.collectionStorageValuesAreEqual) == nil)
     }
 }

@@ -1063,8 +1063,28 @@ extension Interpreter {
     public func collectionStorageValuesAreEqual(
         _ lhs: RuntimeValue, _ rhs: RuntimeValue
     ) throws -> Bool {
-        try equalsViaDeclaredOperator(lhs, rhs, node: nil)
-            ?? Builtins.areEqual(lhs, rhs)
+        if let declared = try equalsViaDeclaredOperator(
+            lhs, rhs, node: nil
+        ) {
+            return declared
+        }
+        do {
+            return try Builtins.areEqual(lhs, rhs)
+        } catch let comparisonError as EvalMessage {
+            // Static Set/Dictionary checking has already established a
+            // Hashable element/key contract. A host bridge can preserve the
+            // referenced SDK object while erasing that conformance behind
+            // Any; after explicit native/bridge equality declines, restore
+            // the class reference's identity witness at this storage-only
+            // boundary. Ordinary `==` remains fail-closed.
+            guard case .host(let left) = lhs,
+                  case .host(let right) = rhs,
+                  type(of: left) is AnyClass,
+                  type(of: right) is AnyClass else {
+                throw comparisonError
+            }
+            return (left as AnyObject) === (right as AnyObject)
+        }
     }
 
     func makeRuntimeSet(
