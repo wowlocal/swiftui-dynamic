@@ -921,6 +921,42 @@ extension Interpreter {
         return try callClosure(closure, arguments: arguments)
     }
 
+    /// Call a source instance method through its complete argument shape.
+    /// Framework delegate protocols commonly overload one base name; keeping
+    /// the labels lets the ordinary source overload resolver choose the same
+    /// requirement that a compiled protocol witness call would select.
+    public func callMethod(
+        named name: String,
+        on instance: Instance,
+        arguments: CallArguments
+    ) throws -> RuntimeValue {
+        steps = 0
+        guard let overloads = instanceMethodOverloads(
+            named: name, on: instance
+        ) else {
+            throw RuntimeError(
+                message: "'\(instance.symbol.name)' has no method '\(name)'")
+        }
+        let available = functionsAvailableForCall(
+            from: overloads, args: arguments)
+        guard let method = chooseFunction(
+            from: available, for: arguments),
+              let body = functionMetadata(for: method).body else {
+            let labels = arguments.arguments
+                .map { $0.label ?? "_" }
+                .joined(separator: ",")
+            throw RuntimeError(message:
+                "'\(instance.symbol.name)' has no matching method "
+                    + "'\(name)' for labels '(\(labels))'")
+        }
+        let closure = makeFunctionClosure(
+            method,
+            body: body,
+            captured: instanceMethodEnvironment(instance))
+        return try callWithArguments(
+            closure, args: arguments, node: nil)
+    }
+
     /// Run the declared `deinit` bodies for an instance being discarded —
     /// own class first, then up the superclass chain, in native order. Host
     /// ARC calls this when the final strong edge to a source-class instance

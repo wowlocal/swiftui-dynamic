@@ -30,4 +30,51 @@ import Testing
         #expect(try interpreter.callClosure(arguments.lastUnlabeledClosure!, arguments: []).intValue == 2)
         #expect(arguments.unlabeledClosures.count == 2)
     }
+
+    /// Host frameworks call source protocol requirements by their complete
+    /// argument shape. Delegate families commonly share one base name, so a
+    /// bridge entry point must retain labels instead of selecting the first
+    /// declaration and rebinding its parameters positionally.
+    @Test func labeledBridgeCallSelectsSourceMethodOverload() throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+        final class Delegate {
+            func deliver(
+                _ session: String,
+                dataTask: Int,
+                didReceive data: String
+            ) -> String {
+                "data:\\(session):\\(dataTask):\\(data)"
+            }
+
+            func deliver(
+                _ session: String,
+                task: Int,
+                didCompleteWithError error: String?
+            ) -> String {
+                "complete:\\(session):\\(task):\\(error ?? "nil")"
+            }
+        }
+        """)
+        let symbol = try #require(
+            interpreter.structSymbols.first { $0.name == "Delegate" })
+        guard case .instance(let delegate) =
+            try interpreter.instantiateRoot(symbol) else {
+            Issue.record("Delegate did not instantiate")
+            return
+        }
+
+        let result = try interpreter.callMethod(
+            named: "deliver",
+            on: delegate,
+            arguments: CallArguments(arguments: [
+                .init(label: nil, value: .native("session")),
+                .init(label: "task", value: .native(7)),
+                .init(
+                    label: "didCompleteWithError",
+                    value: .none(wrappedTypeName: "String")),
+            ]))
+
+        #expect(result.stringValue == "complete:session:7:nil")
+    }
 }
