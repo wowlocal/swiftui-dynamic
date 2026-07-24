@@ -2,6 +2,8 @@ import Foundation
 import Testing
 @testable import SwiftInterpreter
 
+private final class OpaqueHostReference {}
+
 @Suite("Typed runtime storage")
 struct RuntimePayloadTests {
     @Test func classifiesSwiftShapedValuesBeforeTheHostBoundary() throws {
@@ -103,5 +105,23 @@ struct RuntimePayloadTests {
         } else {
             Issue.record("Foundation values should remain host payloads")
         }
+    }
+
+    @Test func opaqueHostReferencesUseIdentityAsCollectionKeys() throws {
+        let first = OpaqueHostReference()
+        let second = OpaqueHostReference()
+        var dictionary = DictValue()
+
+        try dictionary.setValue(
+            .native(first), to: .native("registered"),
+            by: Builtins.areEqual)
+
+        #expect(
+            try dictionary.value(
+                forKey: .native(first), by: Builtins.areEqual)?
+                .stringValue == "registered")
+        #expect(
+            try dictionary.value(
+                forKey: .native(second), by: Builtins.areEqual) == nil)
     }
 }

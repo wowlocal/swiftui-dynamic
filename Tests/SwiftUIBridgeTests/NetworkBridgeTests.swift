@@ -228,6 +228,25 @@ import SwiftInterpreter
                 ])
     }
 
+    /// Nuke stores each concrete data task in a dictionary whose key is the
+    /// declared URLSessionTask superclass, then retrieves the same object from
+    /// delegate callbacks. A native scratch run of this source prints
+    /// "registered"; hosted reference carriers must retain that identity.
+    @Test func hostedReferenceDictionaryKeyRoundTripsByIdentity() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+            import Foundation
+
+            let task = URLSession.shared.dataTask(
+                with: URL(string: "https://fixture.invalid/avatar.png")!)
+            var handlers: [URLSessionTask: String] = [:]
+            handlers[task] = "registered"
+            handlers[task]
+            """)
+
+        #expect(
+            result.unwrappedOptionalOrSelf?.stringValue == "registered")
+    }
+
     /// IceCubes' Nuke 12.8 `ImageCache.init` derives its cost limit from this
     /// exact read-only SDK-property expression. A compiled native run returns
     /// the host's physical byte count divided by five; the interpreter must
