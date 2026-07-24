@@ -1235,6 +1235,7 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is Measurement<Dimension>: return "Measurement"
     case is URLComponentsBox: return "URLComponents"
     case is URLRequestBox: return "URLRequest"
+    case is HTTPResponseBox: return "HTTPURLResponse"
     case let platform as GeneratedPlatformValue: return platform.typeName
     default: return nil
     }

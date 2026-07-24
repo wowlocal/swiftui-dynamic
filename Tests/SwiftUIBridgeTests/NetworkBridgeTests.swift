@@ -143,6 +143,91 @@ import SwiftInterpreter
         #expect(NetworkBridge.requestLog.contains { $0.contains("delegate-task") })
     }
 
+    /// Native URLSession delivery for a delegate-backed data task is
+    /// response-disposition, data, then completion. The same serial callback
+    /// queue first runs work submitted before `resume()`, and `task.response`
+    /// is populated by the time data arrives.
+    @Test func delegateBackedDataTaskDeliversNativeCallbackContract() throws {
+        NetworkBridge.policy = .replay(
+            fixturesDirectory: NSTemporaryDirectory())
+        defer { NetworkBridge.policy = .absorbed }
+        let interpreter = Interpreter(registry: TraceRegistry())
+        _ = try interpreter.run(source: """
+        import Foundation
+
+        final class Recorder: NSObject, URLSessionDataDelegate {
+            var events: [String] = []
+
+            func urlSession(
+                _ session: URLSession,
+                dataTask: URLSessionDataTask,
+                didReceive response: URLResponse,
+                completionHandler: @escaping (
+                    URLSession.ResponseDisposition
+                ) -> Void
+            ) {
+                events.append(
+                    response is HTTPURLResponse
+                        ? "response:http" : "response:other")
+                completionHandler(.allow)
+            }
+
+            func urlSession(
+                _ session: URLSession,
+                dataTask: URLSessionDataTask,
+                didReceive data: Data
+            ) {
+                events.append(data.isEmpty ? "data:empty" : "data:set")
+                events.append(
+                    dataTask.response == nil
+                        ? "task-response:nil" : "task-response:set")
+            }
+
+            func urlSession(
+                _ session: URLSession,
+                task: URLSessionTask,
+                didCompleteWithError error: Error?
+            ) {
+                events.append(
+                    error == nil ? "complete:nil" : "complete:error")
+            }
+        }
+
+        let recorder = Recorder()
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        let session = URLSession(
+            configuration: URLSessionConfiguration.ephemeral,
+            delegate: recorder,
+            delegateQueue: queue)
+        queue.addOperation {
+            recorder.events.append("registered")
+        }
+        session.dataTask(
+            with: URL(string: "https://fixture.invalid/avatar.png")!
+        ).resume()
+        """)
+        guard case .instance(let recorder)? = interpreter.globals.lookup(
+            "recorder") else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(recorder.box(for: "events")?.value.arrayValue?.isEmpty == true)
+
+        MainQueueDrain.drain()
+
+        #expect(
+            recorder.box(for: "events")?.value.arrayValue?
+                .compactMap(\.stringValue)
+                == [
+                    "registered",
+                    "response:http",
+                    "data:set",
+                    "task-response:set",
+                    "complete:nil",
+                ])
+    }
+
     /// IceCubes' Nuke 12.8 `ImageCache.init` derives its cost limit from this
     /// exact read-only SDK-property expression. A compiled native run returns
     /// the host's physical byte count divided by five; the interpreter must

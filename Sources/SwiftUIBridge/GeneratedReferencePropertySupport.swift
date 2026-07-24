@@ -101,7 +101,16 @@ enum GeneratedReferencePropertySupport {
         _ carrier: GeneratedReferencePropertyCarrier,
         matchesImportedType expectedType: String
     ) -> Bool {
-        var type: String? = carrier.generatedReferenceTypeName
+        type(
+            carrier.generatedReferenceTypeName,
+            matchesImportedType: expectedType)
+    }
+
+    static func type(
+        _ observedType: String,
+        matchesImportedType expectedType: String
+    ) -> Bool {
+        var type: String? = observedType
         var visited = Set<String>()
         while let current = type, visited.insert(current).inserted {
             if HostSignature.equivalentTypeName(current, expectedType) {

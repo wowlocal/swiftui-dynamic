@@ -258,13 +258,52 @@ public final class CurrentValueSubjectBox {
     }
 }
 
+/// Reusable callback boundary for host objects whose delegate is implemented
+/// in source. The owning adapter supplies the protocol requirement name and
+/// complete argument shape; overload selection and execution stay in the
+/// interpreter.
+@MainActor
+final class HostDelegateDispatcher {
+    private let delegate: Instance
+
+    init?(_ value: RuntimeValue?) {
+        guard let value = value?.unwrappedOptionalOrSelf,
+              case .instance(let delegate) = value else { return nil }
+        self.delegate = delegate
+    }
+
+    func call(
+        requirement name: String,
+        arguments: CallArguments,
+        context: EvalContext
+    ) throws -> RuntimeValue {
+        guard let interpreter = context as? Interpreter else {
+            throw RuntimeError(
+                message: "source delegate callback requires an interpreter")
+        }
+        return try interpreter.callMethod(
+            named: name, on: delegate, arguments: arguments)
+    }
+}
+
 /// `URLSession.shared` and friends.
 public final class URLSessionBox {
     let generatedReferenceTypeName: String
-    var generatedReferencePropertyValues: [String: RuntimeValue] = [:]
+    var generatedReferencePropertyValues: [String: RuntimeValue]
+    let sourceDelegate: HostDelegateDispatcher?
 
-    public init(generatedReferenceTypeName: String) {
+    public init(
+        generatedReferenceTypeName: String,
+        constructorArguments: CallArguments = CallArguments()
+    ) {
         self.generatedReferenceTypeName = generatedReferenceTypeName
+        self.generatedReferencePropertyValues = Dictionary(
+            uniqueKeysWithValues: constructorArguments.arguments.compactMap {
+                argument in
+                argument.label.map { ($0, argument.value) }
+            })
+        self.sourceDelegate = HostDelegateDispatcher(
+            constructorArguments.labeled("delegate"))
     }
 }
 
@@ -563,16 +602,164 @@ func interpretedProtocolResponse(
 public final class DataTaskBox {
     let url: URL?
     let completion: ClosureValue?
+    let session: URLSessionBox?
     let generatedReferenceTypeName = "URLSessionDataTask"
     var generatedReferencePropertyValues: [String: RuntimeValue] = [:]
 
-    init(url: URL?, completion: ClosureValue?) {
+    init(
+        url: URL?,
+        completion: ClosureValue?,
+        session: URLSessionBox? = nil
+    ) {
         self.url = url
         self.completion = completion
+        self.session = session
     }
 }
 
 extension DataTaskBox: GeneratedReferencePropertyCarrier {}
+
+/// Runtime callback order is not present in Foundation's symbol graph: it
+/// declares URLSessionDataDelegate requirements, but not that a successful
+/// data task offers response disposition before data and completion. Keep
+/// that single interface-inexpressible semantic adapter here; source-method
+/// dispatch, overload selection, queueing, and task properties are shared
+/// capabilities outside this allowlist.
+@MainActor
+private enum NetworkDelegateSemanticAdapters {
+    private final class ResponseDisposition {
+        var allowsDelivery = true
+    }
+
+    static func scheduleDataTaskSuccess(
+        _ task: DataTaskBox,
+        data: Data,
+        response: HTTPURLResponse,
+        context: EvalContext
+    ) {
+        guard let session = task.session,
+              let delegate = session.sourceDelegate else { return }
+        let sessionValue = RuntimeValue.native(session)
+        let taskValue = RuntimeValue.native(task)
+        let responseValue = RuntimeValue.native(HTTPResponseBox(response))
+        task.generatedReferencePropertyValues["response"] = .some(
+            responseValue, wrappedTypeName: "URLResponse")
+        task.generatedReferencePropertyValues["error"] = .none(
+            wrappedTypeName: "Error")
+
+        let action = ActionValue(run: {
+            let disposition = ResponseDisposition()
+            let completionHandler = RuntimeValue.hostFunction(HostFunction(
+                name: "completionHandler"
+            ) { arguments, _ in
+                if let value = arguments.positional(0) {
+                    disposition.allowsDelivery =
+                        responseDispositionName(value) == "allow"
+                }
+                return .void
+            })
+            _ = try? delegate.call(
+                requirement: "urlSession",
+                arguments: CallArguments(arguments: [
+                    .init(label: nil, value: sessionValue),
+                    .init(label: "dataTask", value: taskValue),
+                    .init(label: "didReceive", value: responseValue),
+                    .init(
+                        label: "completionHandler",
+                        value: completionHandler),
+                ]),
+                context: context)
+            guard disposition.allowsDelivery else {
+                deliverCompletion(
+                    task: taskValue,
+                    session: sessionValue,
+                    error: .some(
+                        .native(RuntimeError(
+                            message: "URLSession response cancelled")),
+                        wrappedTypeName: "Error"),
+                    to: delegate,
+                    context: context)
+                return
+            }
+            _ = try? delegate.call(
+                requirement: "urlSession",
+                arguments: CallArguments(arguments: [
+                    .init(label: nil, value: sessionValue),
+                    .init(label: "dataTask", value: taskValue),
+                    .init(label: "didReceive", value: .native(data)),
+                ]),
+                context: context)
+            deliverCompletion(
+                task: taskValue,
+                session: sessionValue,
+                error: .none(wrappedTypeName: "Error"),
+                to: delegate,
+                context: context)
+        })
+        MainQueueDrain.schedule(
+            action,
+            after: 0,
+            mode: MainQueueDrain.deliveryMode(for: context))
+    }
+
+    static func scheduleDataTaskFailure(
+        _ task: DataTaskBox,
+        error: RuntimeError,
+        context: EvalContext
+    ) {
+        guard let session = task.session,
+              let delegate = session.sourceDelegate else { return }
+        let errorValue = RuntimeValue.some(
+            .native(error), wrappedTypeName: "Error")
+        task.generatedReferencePropertyValues["error"] = errorValue
+        let sessionValue = RuntimeValue.native(session)
+        let taskValue = RuntimeValue.native(task)
+        let action = ActionValue(run: {
+            deliverCompletion(
+                task: taskValue,
+                session: sessionValue,
+                error: errorValue,
+                to: delegate,
+                context: context)
+        })
+        MainQueueDrain.schedule(
+            action,
+            after: 0,
+            mode: MainQueueDrain.deliveryMode(for: context))
+    }
+
+    private static func deliverCompletion(
+        task: RuntimeValue,
+        session: RuntimeValue,
+        error: RuntimeValue,
+        to delegate: HostDelegateDispatcher,
+        context: EvalContext
+    ) {
+        _ = try? delegate.call(
+            requirement: "urlSession",
+            arguments: CallArguments(arguments: [
+                .init(label: nil, value: session),
+                .init(label: "task", value: task),
+                .init(label: "didCompleteWithError", value: error),
+            ]),
+            context: context)
+    }
+
+    private static func responseDispositionName(
+        _ value: RuntimeValue
+    ) -> String? {
+        switch value {
+        case .implicitMember(let name):
+            return name
+        case .enumCase(let value):
+            return value.name
+        case .host(let payload):
+            return (payload as? ImplicitMemberCall)?.name
+        default:
+            return nil
+        }
+    }
+}
 
 /// `HTTPURLResponse` face for interpreted code (`response.statusCode`).
 public final class HTTPResponseBox {
@@ -781,7 +968,7 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .void
         })
     }
-    if value is URLSessionBox {
+    if let session = value as? URLSessionBox {
         switch name {
         case "data":
             // async forms: `let (data, response) = try await session.data(from:/for:)`
@@ -868,7 +1055,8 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 let completion: ClosureValue? = args.arguments
                     .compactMap { if case .closure(let c) = $0.value { c } else { nil } }
                     .first
-                return .native(DataTaskBox(url: url, completion: completion))
+                return .native(DataTaskBox(
+                    url: url, completion: completion, session: session))
             })
         default:
             return nil
@@ -900,6 +1088,9 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                                 wrappedTypeName: "URLResponse"),
                             .none(wrappedTypeName: "Error"),
                         ])
+                    } else {
+                        NetworkDelegateSemanticAdapters.scheduleDataTaskSuccess(
+                            task, data: data, response: response, context: ctx)
                     }
                 } catch let error as RuntimeError {
                     if let completion = task.completion {
@@ -908,6 +1099,9 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                             .none(wrappedTypeName: "URLResponse"),
                             .some(.native(error), wrappedTypeName: "Error"),
                         ])
+                    } else {
+                        NetworkDelegateSemanticAdapters.scheduleDataTaskFailure(
+                            task, error: error, context: ctx)
                     }
                 }
                 return .void
@@ -1292,11 +1486,13 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
                 wrappedTypeName: "HTTPURLResponse")
         }
     case "URLSession":
-        return HostFunction(name: name) { _, _ in
-            // URLSession(configuration:) — the box; interpreted URLProtocol
-            // subclasses are consulted globally by data(), so the
-            // configuration's protocolClasses need no threading.
-            .native(URLSessionBox(generatedReferenceTypeName: name))
+        return HostFunction(name: name) { arguments, _ in
+            // Constructor labels seed generated read-only properties such as
+            // delegateQueue, while the reusable source-delegate dispatcher
+            // retains the delegate callback endpoint.
+            .native(URLSessionBox(
+                generatedReferenceTypeName: name,
+                constructorArguments: arguments))
         }
     case "URLComponents":
         return HostFunction(name: name) { args, _ in

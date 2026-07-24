@@ -113,9 +113,9 @@ public final class TraceRegistry: HostRegistry {
         if GeneratedPlatformBridge.value(value, matchesType: typeName) {
             return true
         }
-        if let carrier = value as? GeneratedReferencePropertyCarrier,
-           GeneratedReferencePropertySupport.carrier(
-               carrier, matchesImportedType: typeName) {
+        if let observedType = bridgeHostTypeName(of: value),
+           GeneratedReferencePropertySupport.type(
+               observedType, matchesImportedType: typeName) {
             return true
         }
         guard let node = value as? TraceNode,
