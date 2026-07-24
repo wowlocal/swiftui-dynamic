@@ -867,6 +867,7 @@ import Testing
         let value = try swiftSoupEvaluation(
             "", additionalSource: htmlStringSource,
             additionalSourceModule: "Models", suffix: """
+            import Foundation
             import Models
 
             struct Input: Decodable {
@@ -881,6 +882,97 @@ import Testing
         #expect(rawText.contains("NATO: Revólver oferecido"))
         #expect(!rawText.contains("<p>"))
         #expect(rawText.unicodeScalars.count < 750)
+    }
+
+    /// A host-driven `Decodable.init(from:)` callback executes in the
+    /// declaration's compiler-input context. Imported value constructors used
+    /// inside that body must see the same file imports as an ordinary call.
+    @Test func customDecoderInitializerRetainsDeclaringFileImports() throws {
+        let model = ProjectMaterial.mergedSource(
+            source: """
+            import Foundation
+
+            public struct MarkdownModel: Decodable {
+                public var attributed: AttributedString = .init()
+                public var errorMessage = ""
+
+                public init(from decoder: Decoder) {
+                    do {
+                        let options = AttributedString.MarkdownParsingOptions(
+                            allowsExtendedAttributes: true,
+                            interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                        attributed = try AttributedString(
+                            markdown: "[visible label](https://example.com/hidden)",
+                            options: options)
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
+                }
+            }
+            """,
+            moduleName: "Models")
+        let probe = ProjectMaterial.mergedSource(
+            source: """
+            import Foundation
+            import Models
+
+            let decoded = try JSONDecoder().decode(
+                MarkdownModel.self,
+                from: "{}".data(using: .utf8)!)
+            decoded.errorMessage
+            """,
+            moduleName: "Probe")
+        let value = try Interpreter(registry: ViewRegistry()).run(
+            source: model + probe, lazyTopLevelGlobals: true)
+        #expect(value.stringValue == "")
+    }
+
+    /// IceCubes renders the same decoded value through `Text(AttributedString)`.
+    /// Markdown link destinations remain attributes under native Foundation;
+    /// only the visible anchor label belongs to the character stream.
+    @Test func swiftSoupHTMLStringHidesAttributedLinkDestinations() throws {
+        let root = FileManager.default.currentDirectoryPath
+        let fixtureURL = URL(fileURLWithPath: root)
+            .appendingPathComponent(
+                "Fixtures/mastodon-public-timeline/"
+                    + "api_v1_timelines_public.json")
+        let fixtureData = try Data(contentsOf: fixtureURL)
+        let fixture = try #require(
+            JSONSerialization.jsonObject(with: fixtureData)
+                as? [[String: Any]])
+        let html = try #require(fixture[1]["content"] as? String)
+        let encoded = String(
+            data: try JSONEncoder().encode(["content": html]),
+            encoding: .utf8)!
+        let htmlStringURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/IceCubesHTMLString.swift")
+        let htmlStringSource = try String(
+            contentsOf: htmlStringURL,
+            encoding: .utf8)
+        let value = try swiftSoupEvaluation(
+            "", additionalSource: htmlStringSource,
+            additionalSourceModule: "Models", suffix: """
+            import Foundation
+            import Models
+
+            struct Input: Decodable {
+                let content: HTMLString
+            }
+            let input = try JSONDecoder().decode(
+                Input.self,
+                from: \(String(reflecting: encoded)).data(using: .utf8)!)
+            input.content.asSafeMarkdownAttributedString
+            """, suffixModule: "LinkedAttributedRegressionProbe",
+            useViewRegistry: true, lazyTopLevelGlobals: true)
+        let attributed = try #require(
+            value.hostPayload as? AttributedStringBox)
+        let characters = String(attributed.attributed.characters)
+        #expect(characters.contains("NATO: Revólver oferecido"))
+        #expect(characters.contains("expresso.pt/internacional/2026…"))
+        #expect(!characters.contains("https://"))
+        #expect(!characters.contains("["))
+        #expect(characters.unicodeScalars.count < 140)
     }
 
     /// A parsed HTML fragment returns nodes, not the integer indices used
@@ -962,7 +1054,9 @@ import Testing
         additionalSource: String = "",
         additionalSourceModule: String? = nil,
         suffix: String,
-        suffixModule: String? = nil
+        suffixModule: String? = nil,
+        useViewRegistry: Bool = false,
+        lazyTopLevelGlobals: Bool = false
     ) throws -> RuntimeValue {
         let root = FileManager.default.currentDirectoryPath
         let sourceRoot = root + "/.build/checkouts/SwiftSoup/Sources"
@@ -987,7 +1081,14 @@ import Testing
             + "let document = try SwiftSoup.parse(\(String(reflecting: html)))\n"
             + projectedSuffix
 
-        return try Interpreter(registry: TraceRegistry()).run(source: source)
+        if useViewRegistry {
+            return try Interpreter(registry: ViewRegistry()).run(
+                source: source,
+                lazyTopLevelGlobals: lazyTopLevelGlobals)
+        }
+        return try Interpreter(registry: TraceRegistry()).run(
+            source: source,
+            lazyTopLevelGlobals: lazyTopLevelGlobals)
     }
 
 }
