@@ -565,6 +565,12 @@ enum GeneratedPlatformBridge {
         switch framework {
         case "Foundation":
             true
+        case "ObjectiveC":
+#if canImport(ObjectiveC)
+            true
+#else
+            false
+#endif
         case "AppKit":
 #if canImport(AppKit)
             true
@@ -608,11 +614,20 @@ enum GeneratedPlatformBridge {
 
     private static var frameworkPreference: [String] {
 #if canImport(AppKit)
-        ["AppKit", "Foundation", "Metal", "MapKit", "CoreLocation", "WebKit", "UIKit"]
+        [
+            "AppKit", "Foundation", "ObjectiveC", "Metal", "MapKit",
+            "CoreLocation", "WebKit", "UIKit",
+        ]
 #elseif canImport(UIKit)
-        ["UIKit", "Foundation", "Metal", "MapKit", "CoreLocation", "WebKit", "AppKit"]
+        [
+            "UIKit", "Foundation", "ObjectiveC", "Metal", "MapKit",
+            "CoreLocation", "WebKit", "AppKit",
+        ]
 #else
-        ["Foundation", "Metal", "MapKit", "CoreLocation", "WebKit", "UIKit", "AppKit"]
+        [
+            "Foundation", "ObjectiveC", "Metal", "MapKit", "CoreLocation",
+            "WebKit", "UIKit", "AppKit",
+        ]
 #endif
     }
 
