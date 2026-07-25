@@ -659,6 +659,30 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 3)
     }
 
+    /// A qualified global function selects only overloads exported by that
+    /// compiler module. Flattening another target with the same function name
+    /// must not let declaration order steal `Module.function(...)`.
+    @Test func moduleQualifiedGlobalOverloadsStayInDeclaringModule() throws {
+        let source = """
+        // swift-interpreter-source-module OtherParser
+        public func parse(_ input: String) -> String {
+            "wrong " + input
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-source-module MarkupParser
+        public func parse(_ input: String) -> String {
+            "right " + input
+        }
+        // swift-interpreter-source-module-end
+
+        // swift-interpreter-module MarkupParser
+        MarkupParser.parse("document")
+        """
+
+        #expect(try eval(source).stringValue == "right document")
+    }
+
     /// Unqualified sibling type annotations and references are bound in the
     /// declaration's source module, not to a same-named nominal from a later
     /// flattened module.

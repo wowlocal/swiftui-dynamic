@@ -22,6 +22,34 @@ extension Interpreter {
         currentProgramMetadata?.importedModuleNames.contains(name) == true
     }
 
+    /// Project merging preserves each compiler input's declaring module as a
+    /// source region. Qualified lookup must rank only declarations from that
+    /// region; otherwise an unrelated target's same-named global can win by
+    /// collection order. Legacy single-file inputs have no regions, so they
+    /// retain their historical unscoped overload family.
+    private func globalFunctionOverloads(
+        _ overloads: [FunctionDeclSyntax],
+        declaredIn moduleName: String
+    ) -> [FunctionDeclSyntax] {
+        let owned = overloads.map { function in
+            let state = programStateOwningDeclaration(function.id)
+            let metadata = state?.programPlan?.metadata
+                ?? currentProgramMetadata
+            return (
+                function,
+                metadata?.sourceModuleName(
+                    at: function.positionAfterSkippingLeadingTrivia)
+            )
+        }
+        let matching = owned.compactMap { function, owner in
+            owner == moduleName ? function : nil
+        }
+        if !matching.isEmpty {
+            return matching
+        }
+        return owned.allSatisfy { $0.1 == nil } ? overloads : []
+    }
+
     /// Resolve `Module.global` without collapsing a source overload family to
     /// whichever declaration happened to be collected last.
     private func moduleQualifiedGlobal(
@@ -32,7 +60,10 @@ extension Interpreter {
         if let sourceDeclaration = globals.lookup("\(moduleName).\(name)") {
             return sourceDeclaration
         }
-        if let overloads = globalFunctionOverloads[name], !overloads.isEmpty {
+        let allOverloads = globalFunctionOverloads[name] ?? []
+        let overloads = globalFunctionOverloads(
+            allOverloads, declaredIn: moduleName)
+        if !overloads.isEmpty {
             return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
                 guard let self else { return .void }
                 let available = self.functionsAvailableForCall(
@@ -52,7 +83,10 @@ extension Interpreter {
                     closure, args: args, node: nil)
             })
         }
-        if let global = globals.lookup(name) {
+        // A differently owned source function is not a member of this
+        // qualifier. Suppress the unqualified global fallback so imported
+        // registry dispatch can answer (or absorb) the qualified call.
+        if allOverloads.isEmpty, let global = globals.lookup(name) {
             switch global {
             case .type, .enumType:
                 break
