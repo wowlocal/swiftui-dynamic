@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SwiftInterpreter
 @testable import SwiftUIBridge
@@ -627,6 +628,65 @@ import Testing
         """
 
         let value = try Interpreter().run(source: source)
+        #expect(value.intValue == 7)
+    }
+
+    /// Nuke's ImageDecoding default adapts a context to its Data witness from
+    /// inside a throwing scope. Keep that host-payload and return-type shape
+    /// independent of the package that surfaced it.
+    @Test func protocolDefaultDelegatesHostPayloadInsideThrowingClosure() throws {
+        let source = """
+        import Foundation
+
+        struct Container {
+            let marker: Int
+        }
+
+        struct Response {
+            let container: Container
+        }
+
+        struct DecodeContext {
+            let data: Data
+            let isCompleted: Bool
+        }
+
+        enum DecodeError: Error {
+            case incomplete
+        }
+
+        protocol Decoding {
+            func decode(_ data: Data) throws -> Container
+        }
+
+        extension Decoding {
+            func decode(_ context: DecodeContext) throws -> Response {
+                let container: Container = try autoreleasepool {
+                    guard context.isCompleted else {
+                        throw DecodeError.incomplete
+                    }
+                    return try decode(context.data)
+                }
+                return Response(container: container)
+            }
+        }
+
+        final class DefaultDecoder: Decoding {
+            func decode(_ data: Data) throws -> Container {
+                Container(marker: data.count)
+            }
+        }
+
+        let decoder: any Decoding = DefaultDecoder()
+        try decoder.decode(
+            DecodeContext(data: payloadData, isCompleted: true)
+        ).container.marker
+        """
+
+        let interpreter = Interpreter(registry: TraceRegistry())
+        interpreter.globals.define(
+            "payloadData", .native(Data([0, 1, 2, 3, 4, 5, 6])))
+        let value = try interpreter.run(source: source)
         #expect(value.intValue == 7)
     }
 

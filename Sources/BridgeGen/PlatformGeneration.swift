@@ -29,6 +29,11 @@ struct FoundationReferencePropertyGenerationResult {
     let propertyCount: Int
 }
 
+private enum PlatformGlobalFunctionSelection: Equatable {
+    case mechanicallyBridgeable
+    case interpretedResultScopes
+}
+
 private struct PlatformFrameworkSpec {
     let name: String
     let sdkName: String
@@ -46,6 +51,10 @@ private struct PlatformFrameworkSpec {
     /// symbol graph comes from one SDK family. Its nominal hierarchy remains
     /// available as string metadata on every host.
     var nativeImportCondition: String?
+    /// Runtime modules can contribute only structurally recognized closure
+    /// scopes instead of exposing unrelated low-level global entry points.
+    var globalFunctionSelection: PlatformGlobalFunctionSelection =
+        .mechanicallyBridgeable
 }
 
 /// Type-level policy, not a member allowlist: once a type is selected, every
@@ -62,6 +71,15 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         target: "arm64-apple-macosx15.0",
         deployments: ["macOS": (15, 0)],
         roots: ["Operation", "OperationQueue", "ProcessInfo"]),
+    .init(
+        // Foundation re-exports ObjectiveC's Swift overlay. Its generic
+        // result scopes can execute interpreter closures without sweeping
+        // the module's unrelated low-level runtime functions.
+        name: "ObjectiveC", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0)],
+        roots: [],
+        globalFunctionSelection: .interpretedResultScopes),
     .init(
         name: "AppKit", sdkName: "macosx",
         target: "arm64-apple-macosx15.0",
@@ -228,6 +246,14 @@ private struct PlatformInterpretedActionAdapter {
     let parameterIndex: Int
 }
 
+/// A native generic scope owns its runtime lifecycle while an interpreter
+/// closure supplies the scope's result. The SDK declaration proves this
+/// adapter from one zero-argument throwing closure whose result is also the
+/// enclosing function's generic result.
+private struct PlatformInterpretedResultScopeAdapter {
+    let parameterIndex: Int
+}
+
 /// A public subclass of a scheduler-submitted lifecycle type can expose its
 /// work as a single action constructor. Keep that action interpreter-owned
 /// until the generated scheduler handoff invokes the inherited lifecycle
@@ -269,6 +295,8 @@ private struct PlatformCallable {
     let isFailable: Bool
     var interpretedLifecycleAdapter: PlatformInterpretedLifecycleAdapter? = nil
     var interpretedActionAdapter: PlatformInterpretedActionAdapter? = nil
+    var interpretedResultScopeAdapter:
+        PlatformInterpretedResultScopeAdapter? = nil
     var interpretedLifecycleActionConstructorAdapter:
         PlatformInterpretedLifecycleActionConstructorAdapter? = nil
     var contextualIdentityAdapter: PlatformContextualIdentityAdapter? = nil
@@ -833,8 +861,6 @@ private func parsePlatformFramework(
         guard platformSymbolIsAvailable(symbol, for: spec),
               let function = parsePlatformDecl(symbol.declaration)?
                 .as(FunctionDeclSyntax.self),
-              function.genericParameterClause == nil,
-              function.genericWhereClause == nil,
               !function.signature.parameterClause.parameters.contains(where: {
                   $0.ellipsis != nil
               }) else { continue }
@@ -842,6 +868,40 @@ private func parsePlatformFramework(
         guard !effects.contains("async") else { continue }
         let name = platformIdentifier(function.name.text)
         guard name.first?.isLetter == true, !name.hasPrefix("_") else { continue }
+        if let scope = analyzePlatformInterpretedResultScope(function) {
+            guard let parameter =
+                function.signature.parameterClause.parameters.first
+            else { continue }
+            let labelText = parameter.firstName.text
+            let label = labelText == "_" ? nil : labelText
+            let closureType = parameter.type.trimmedDescription
+            var callable = PlatformCallable(
+                framework: spec.name, kind: .globalFunction,
+                receiverType: "", nativeReceiverType: "",
+                receiverIsValueType: false,
+                name: name, resultType: "Any",
+                nativeResultType: function.signature.returnClause?
+                    .type.trimmedDescription ?? "Any",
+                resultPointerKind: nil,
+                params: [PlatformParameter(
+                    label: label,
+                    type: closureType,
+                    nativeType: closureType,
+                    contractType: "() throws -> Any",
+                    hasDefault: false,
+                    isAction: false,
+                    pointerKind: nil)],
+                isThrowing: true,
+                isFailable: false)
+            callable.interpretedResultScopeAdapter = scope
+            if callableSeen.insert(callable.signatureKey).inserted {
+                globalFunctions.append(callable)
+            }
+            continue
+        }
+        guard spec.globalFunctionSelection == .mechanicallyBridgeable,
+              function.genericParameterClause == nil,
+              function.genericWhereClause == nil else { continue }
         let nativeResultType = function.signature.returnClause.map {
             platformNativeType($0.type.trimmedDescription)
         } ?? "Void"
@@ -1176,6 +1236,41 @@ private func parsePlatformFramework(
             ($0.type, $0.name) < ($1.type, $1.name)
         },
         blockers: blockers)
+}
+
+/// Recognize effect-polymorphic native scopes by declaration structure, never
+/// by module or API identity. Calling the real native function preserves its
+/// lifecycle while `RuntimeValue` supplies the generic result at the bridge.
+private func analyzePlatformInterpretedResultScope(
+    _ function: FunctionDeclSyntax
+) -> PlatformInterpretedResultScopeAdapter? {
+    guard let genericClause = function.genericParameterClause,
+          let returnType = function.signature.returnClause?
+            .type.trimmedDescription,
+          genericClause.parameters.contains(where: {
+              $0.name.text == returnType
+          }),
+          function.signature.parameterClause.parameters.count == 1,
+          let parameter =
+            function.signature.parameterClause.parameters.first,
+          parameter.defaultValue == nil,
+          parameter.modifiers.isEmpty
+    else { return nil }
+
+    var parameterType = parameter.type
+    while let attributed = parameterType.as(AttributedTypeSyntax.self) {
+        guard attributed.specifiers.isEmpty else { return nil }
+        parameterType = attributed.baseType
+    }
+    guard let closure = parameterType.as(FunctionTypeSyntax.self),
+          closure.parameters.isEmpty,
+          closure.returnClause.type.trimmedDescription == returnType,
+          closure.effectSpecifiers?.trimmedDescription
+            .contains("throws") == true,
+          function.signature.effectSpecifiers?.trimmedDescription
+            .contains("throws") == true
+    else { return nil }
+    return .init(parameterIndex: 0)
 }
 
 private func platformSymbolGraphURL(
@@ -1595,10 +1690,13 @@ private func emitPlatformBridge(
     _ frameworks: [ParsedPlatformFramework]
 ) -> String {
     var output = """
-    // GENERATED by BridgeGen from Foundation/AppKit/UIKit/WebKit/Metal/MapKit/CoreLocation SDK symbol graphs.
+    // GENERATED by BridgeGen from Foundation/ObjectiveC/AppKit/UIKit/WebKit/Metal/MapKit/CoreLocation SDK symbol graphs.
     // Do not edit. Regenerate: swift run BridgeGen --emit
     import Foundation
     import SwiftInterpreter
+    #if canImport(ObjectiveC)
+    import ObjectiveC
+    #endif
     #if canImport(AppKit)
     import AppKit
     #elseif canImport(UIKit)
@@ -1864,6 +1962,27 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
 }
 
 private func emitPlatformGlobalFunction(_ value: PlatformCallable) -> String {
+    if let adapter = value.interpretedResultScopeAdapter {
+        let parameter = value.params[adapter.parameterIndex]
+        let label = parameter.label.map { "\($0): " } ?? ""
+        return """
+            registerGlobalFunction(
+                &t, framework: \(swiftLiteral(value.framework)),
+                declaration: \(swiftLiteral(value.hostDeclaration)),
+                resultType: \(swiftLiteral(value.resultType))) { v, ctx in
+    #if \(platformNativeImportCondition(for: value.framework))
+                guard let closure = v[\(adapter.parameterIndex)].closureValue else {
+                    throw RuntimeError(message: "generated native result scope expected a closure")
+                }
+                return try `\(value.name)`(\(label){
+                    try ctx.callClosure(closure, arguments: [])
+                })
+    #else
+                preconditionFailure("\(value.framework) gateway invoked off-platform")
+    #endif
+            }
+    """
+    }
     let arguments = platformCallArguments(value.params)
     let call = "`\(value.name)`(\(arguments))"
     var body = platformInvocationBody(
