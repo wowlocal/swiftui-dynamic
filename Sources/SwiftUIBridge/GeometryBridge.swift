@@ -197,7 +197,7 @@ struct ScreenStub {
 /// UIKit hosting island (`window.rootViewController`, its `.view`, …):
 /// property writes round-trip, unknown reads/calls chain more stubs — the
 /// hosted view-controller machinery is inert but configurable.
-final class UIKitStub: InertCallable {
+final class UIKitStub: InertCallable, GeneratedPlatformOpaqueReferenceCarrier {
     var config: [String: RuntimeValue] = [:]
     /// Host type/protocol names this stub STANDS FOR (`Task {…}` returns a
     /// stub playing ["Task", "Cancellable"]) so user extensions dispatch.
@@ -205,6 +205,12 @@ final class UIKitStub: InertCallable {
 
     init(roles: [String] = []) {
         self.roles = roles
+    }
+
+    var generatedPlatformOpaqueTypeNames: [String] { roles }
+    var generatedPlatformOpaqueConfiguration: [String: RuntimeValue] {
+        get { config }
+        set { config = newValue }
     }
 }
 
@@ -901,6 +907,12 @@ private enum HandNormalizedGeneratedPropertyCache {
 func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
     if let platform = value as? GeneratedPlatformValue,
        let property = GeneratedPlatformBridge.property(name, on: platform) {
+        return property
+    }
+    if let opaque = value as?
+        any GeneratedPlatformOpaqueReferenceCarrier,
+       let property = GeneratedPlatformBridge.property(
+           name, onOpaqueReference: opaque) {
         return property
     }
     if let carrier = value as? GeneratedReferencePropertyCarrier,
