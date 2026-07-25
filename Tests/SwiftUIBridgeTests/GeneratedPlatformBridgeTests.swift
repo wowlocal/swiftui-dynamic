@@ -99,6 +99,26 @@ import AppKit
         #expect(result.doubleValue == expected)
     }
 
+    /// An opaque carrier has no native payload from which optional presence
+    /// can be observed. The generated adapter must not turn interface
+    /// optionality into an invented nil; configured optionals still use the
+    /// generated contract, while unknown presence remains absorptive.
+    @Test func opaqueGeneratedReferenceDoesNotInventOptionalAbsence() throws {
+        let previousPlatform = Interpreter.interpretsAsPlatform
+        Interpreter.interpretsAsPlatform = "iOS"
+        defer { Interpreter.interpretsAsPlatform = previousPlatform }
+
+        let image = UIKitStub(roles: ["UIImage"])
+        #expect(GeneratedPlatformBridge.property(
+            "size", onOpaqueReference: image) != nil)
+        #expect(GeneratedPlatformBridge.property(
+            "cgImage", onOpaqueReference: image) == nil)
+
+        image.config["cgImage"] = .none(wrappedTypeName: "CGImage")
+        #expect(GeneratedPlatformBridge.property(
+            "cgImage", onOpaqueReference: image) != nil)
+    }
+
     @Test func annotatedOpaquePipelineResultUsesSweptPropertyContract() throws {
         let previousPlatform = Interpreter.interpretsAsPlatform
         Interpreter.interpretsAsPlatform = "iOS"
