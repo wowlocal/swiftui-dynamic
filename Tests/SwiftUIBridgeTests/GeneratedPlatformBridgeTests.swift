@@ -63,6 +63,44 @@ import AppKit
     }
 
 #if canImport(AppKit)
+    /// EmojiText's platform-image extension reads `size.height` from an
+    /// opaque image produced by its UIKit pipeline. The declared SDK role
+    /// must expose the same swept property contract as the native AppKit
+    /// platform image rather than degrading into an unknown dynamic member.
+    @Test func opaqueGeneratedReferenceUsesSweptPropertyContract() throws {
+        let previousPlatform = Interpreter.interpretsAsPlatform
+        Interpreter.interpretsAsPlatform = "iOS"
+        defer { Interpreter.interpretsAsPlatform = previousPlatform }
+
+        let source = ProjectMaterial.mergedSource(
+            source: """
+            #if canImport(UIKit)
+            import UIKit
+            typealias PlatformImage = UIImage
+            #elseif canImport(AppKit)
+            import AppKit
+            typealias PlatformImage = NSImage
+            #endif
+
+            extension PlatformImage {
+                func sourceHeight() -> CGFloat {
+                    size.height
+                }
+            }
+
+            let image: PlatformImage = PlatformImage()
+            image.sourceHeight()
+            """,
+            moduleName: "ImagePipeline")
+        let expected = Double(NSImage().size.height)
+
+        let result = try Interpreter(registry: ViewRegistry()).run(
+            source: source)
+        #expect(result.doubleValue == expected)
+    }
+#endif
+
+#if canImport(AppKit)
     @Test func oppositePlatformGraphicsContextPreservesImageLifecycle() throws {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

@@ -118,8 +118,11 @@ public final class TraceRegistry: HostRegistry {
                observedType, matchesImportedType: typeName) {
             return true
         }
-        guard let node = value as? TraceNode,
-              node.absorbsUnknownMembers else { return false }
+        guard value is any GeneratedPlatformOpaqueReferenceCarrier
+                || (value as? TraceNode)?.absorbsUnknownMembers == true
+        else {
+            return false
+        }
         return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
     }
 

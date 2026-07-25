@@ -98,7 +98,9 @@ public final class ViewRegistry: HostRegistry {
                observedType, matchesImportedType: typeName) {
             return true
         }
-        guard value is UIKitStub else { return false }
+        guard value is any GeneratedPlatformOpaqueReferenceCarrier else {
+            return false
+        }
         return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
     }
 

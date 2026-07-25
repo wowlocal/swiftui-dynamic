@@ -57,6 +57,17 @@ protocol GeneratedPlatformSemanticCarrier {
     var generatedPlatformViewValue: Any? { get }
 }
 
+/// An opaque reference bag whose source SDK roles are known even though no
+/// native object exists on this host. Generated property lookup uses those
+/// roles to select a swiftinterface contract; unknown members remain ordinary
+/// fallback capabilities.
+protocol GeneratedPlatformOpaqueReferenceCarrier: AnyObject {
+    var generatedPlatformOpaqueTypeNames: [String] { get }
+    var generatedPlatformOpaqueConfiguration: [String: RuntimeValue] {
+        get set
+    }
+}
+
 /// A platform value whose API contract came from BridgeGen's platform SDK
 /// symbol-graph sweep. On the framework's native platform `payload` is the
 /// real SDK value. On the opposite platform it is nil and the same generated
@@ -444,6 +455,7 @@ struct GeneratedPlatformPropertyEntry {
     let resultType: String
     let isImplicitlyUnwrapped: Bool
     let contract: HostProperty
+    let opaqueReferenceContract: HostProperty
 }
 
 struct GeneratedPlatformStaticPropertyEntry {
@@ -853,6 +865,43 @@ enum GeneratedPlatformBridge {
                 if let property = properties[GeneratedPlatformMemberKey(
                     framework: framework, type: type, member: name)] {
                     return property.contract
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Select a generated property from an opaque carrier's declared SDK
+    /// roles. Only non-native reference nominals qualify: a native framework
+    /// must still receive its concrete object, while an off-host reference
+    /// executes the same typed fallback result as GeneratedPlatformValue.
+    static func property(
+        _ name: String,
+        onOpaqueReference base: any GeneratedPlatformOpaqueReferenceCarrier
+    ) -> HostProperty? {
+        for rawType in base.generatedPlatformOpaqueTypeNames {
+            let typeName = generatedNominalName(rawType)
+            guard let owner = owningFramework(
+                    ofType: typeName, preferring: frameworkPreference[0]),
+                  !frameworkIsNative(owner),
+                  nominalKinds[GeneratedPlatformTypeKey(
+                    framework: owner, type: typeName)] == false
+            else {
+                continue
+            }
+            let frameworks = [owner] + frameworkPreference.filter {
+                $0 != owner
+            }
+            for framework in frameworks {
+                for type in typeCandidates(
+                    framework: framework, type: typeName
+                ) {
+                    if let property = properties[
+                        GeneratedPlatformMemberKey(
+                            framework: framework, type: type, member: name)
+                    ] {
+                        return property.opaqueReferenceContract
+                    }
                 }
             }
         }
@@ -1314,13 +1363,55 @@ enum GeneratedPlatformBridge {
                         isImplicitlyUnwrapped: isImplicitlyUnwrapped)
                 },
                 set: propertySetter)
+            let opaqueReferenceSetter: HostProperty.Setter?
+            if set != nil {
+                opaqueReferenceSetter = { receiver, value, _ in
+                    guard case .host(let any) = receiver,
+                          let base = any as?
+                            any GeneratedPlatformOpaqueReferenceCarrier
+                    else {
+                        throw RuntimeError(
+                            message: "generated platform opaque property "
+                                + "setter receiver mismatch",
+                            fatal: true)
+                    }
+                    var configuration =
+                        base.generatedPlatformOpaqueConfiguration
+                    configuration[signature.name] = value
+                    base.generatedPlatformOpaqueConfiguration = configuration
+                }
+            } else {
+                opaqueReferenceSetter = nil
+            }
+            let opaqueReferenceContract = try HostProperty(
+                signature: signature,
+                get: { receiver, _ in
+                    guard case .host(let any) = receiver,
+                          let base = any as?
+                            any GeneratedPlatformOpaqueReferenceCarrier
+                    else {
+                        throw RuntimeError(
+                            message: "generated platform opaque property "
+                                + "receiver mismatch",
+                            fatal: true)
+                    }
+                    let value = base.generatedPlatformOpaqueConfiguration[
+                        signature.name
+                    ] ?? fallbackResult(
+                        framework: framework, type: resultType)
+                    return applyingImplicitlyUnwrappedOptional(
+                        value, resultType: resultType,
+                        isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+                },
+                set: opaqueReferenceSetter)
             let key = GeneratedPlatformMemberKey(
                 framework: framework, type: type, member: signature.name)
             table[key] = GeneratedPlatformPropertyEntry(
                 framework: framework, type: type,
                 resultType: resultType,
                 isImplicitlyUnwrapped: isImplicitlyUnwrapped,
-                contract: contract)
+                contract: contract,
+                opaqueReferenceContract: opaqueReferenceContract)
         } catch {
             preconditionFailure(
                 "BridgeGen emitted an invalid platform property '\(declaration)': \(error)")
