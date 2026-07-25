@@ -501,4 +501,114 @@ extension Interpreter {
             descriptor: descriptor,
             closure: closure)
     }
+
+    /// Resolve a contextual static factory declared on a protocol extension
+    /// whose sole same-type requirement proves the concrete `Self`.
+    ///
+    /// This is the inverse of ordinary protocol-default lookup: the expected
+    /// existential supplies the protocol, interface metadata supplies the
+    /// concrete conformer, and the declared return type must preserve that
+    /// same concrete identity. No protocol, member, or nominal spelling is
+    /// privileged.
+    func resolveUniqueConstrainedProtocolStaticFactoryCallTarget(
+        named name: String,
+        inContextualProtocol protocolName: String,
+        arguments: CallArguments
+    ) -> RuntimeResolvedSourceFunctionCall? {
+        guard protocolInheritance[protocolName] != nil,
+              let overloads = hostExtensionSymbols[protocolName]?
+                .staticMethods[name] else {
+            return nil
+        }
+
+        struct Candidate {
+            let declaration: FunctionDeclSyntax
+            let concreteType: StructSymbol
+        }
+
+        func visibleType(
+            named typeName: String,
+            for declaration: FunctionDeclSyntax
+        ) -> RuntimeValue? {
+            let state = programStateOwningDeclaration(declaration.id)
+            let metadata = state?.programPlan?.metadata
+                ?? currentProgramMetadata
+            let position = declaration.positionAfterSkippingLeadingTrivia
+            return lexicallyVisibleType(
+                named: typeName,
+                from: state?.lexicalOwner(of: declaration.id),
+                sourceModuleName: metadata?.sourceModuleName(at: position),
+                sourceImportedModuleNames:
+                    metadata?.sourceImportedModuleNames(at: position))
+        }
+
+        let fitting = functionsFittingCall(
+            from: overloads.filter { declaration in
+                guard !activeFunctionBodies.contains(declaration.id),
+                      functionMetadata(for: declaration).body != nil else {
+                    return false
+                }
+                let extensionMetadata =
+                    programStateOwningDeclaration(declaration.id)?
+                        .programPlan?.metadata.extensionMetadataIndex.metadata(
+                            containing: declaration)
+                    ?? currentProgramMetadata?.extensionMetadataIndex.metadata(
+                        containing: declaration)
+                return extensionMetadata?.attributeNames.isEmpty == true
+                    && extensionMetadata?.modifierNames.isEmpty == true
+                    && extensionMetadata?
+                        .soleSelfSameTypeConcreteTypeName != nil
+            },
+            args: arguments)
+        let candidates = fitting.compactMap { declaration -> Candidate? in
+            let extensionMetadata =
+                programStateOwningDeclaration(declaration.id)?
+                    .programPlan?.metadata.extensionMetadataIndex.metadata(
+                        containing: declaration)
+                ?? currentProgramMetadata?.extensionMetadataIndex.metadata(
+                    containing: declaration)
+            guard let concreteName = extensionMetadata?
+                    .soleSelfSameTypeConcreteTypeName,
+                  case .type(let concreteType)? = visibleType(
+                    named: concreteName, for: declaration),
+                  transitiveConformances(of: concreteType).contains(
+                    where: {
+                        HostSignature.equivalentTypeName($0, protocolName)
+                    }),
+                  let returnTypeName = functionMetadata(
+                    for: declaration).returnTypeName else {
+                return nil
+            }
+            if returnTypeName != "Self" {
+                guard case .type(let returnType)? = visibleType(
+                    named: returnTypeName, for: declaration),
+                      returnType === concreteType else {
+                    return nil
+                }
+            }
+            return Candidate(
+                declaration: declaration,
+                concreteType: concreteType)
+        }
+        guard candidates.count == 1,
+              let candidate = candidates.first,
+              let body = functionMetadata(
+                for: candidate.declaration).body else {
+            return nil
+        }
+
+        let closure = makeFunctionClosure(
+            candidate.declaration,
+            body: body,
+            captured: selfEnvironment(.type(candidate.concreteType)))
+        guard let descriptor = closure.sourceFunctionTargetDescriptor,
+              case .lexicalType(
+                _, isTypeMember: true, isActor: false
+              ) = descriptor.lexicalPlacement else {
+            return nil
+        }
+        return RuntimeResolvedSourceFunctionCall(
+            descriptor: descriptor,
+            closure: closure)
+    }
 }

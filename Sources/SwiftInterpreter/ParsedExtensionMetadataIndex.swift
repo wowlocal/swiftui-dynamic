@@ -86,6 +86,11 @@ nonisolated struct ParsedExtensionMetadata: Sendable {
     let extendedTypeName: String
     let inheritedTypeNames: [String]
     let genericRequirements: [String]
+    /// The concrete side of the extension's only generic requirement when
+    /// that requirement is structurally `Self == Concrete` (in either
+    /// order). Runtime contextual-member lookup can use this compiler-facing
+    /// fact without matching an API or reparsing description text.
+    let soleSelfSameTypeConcreteTypeName: String?
     let attributeNames: [String]
     let modifierNames: [String]
 
@@ -93,8 +98,8 @@ nonisolated struct ParsedExtensionMetadata: Sendable {
         extendedTypeName = declaration.extendedType.trimmedDescription
         inheritedTypeNames = declaration.inheritanceClause?.inheritedTypes
             .map { $0.type.trimmedDescription } ?? []
-        genericRequirements = declaration.genericWhereClause?.requirements
-            .map { requirement in
+        let requirements = declaration.genericWhereClause?.requirements
+        genericRequirements = requirements?.map { requirement in
                 switch requirement.requirement {
                 case .sameTypeRequirement(let value):
                     value.trimmedDescription
@@ -104,6 +109,21 @@ nonisolated struct ParsedExtensionMetadata: Sendable {
                     value.trimmedDescription
                 }
             } ?? []
+        if requirements?.count == 1,
+           let requirement = requirements?.first,
+           case .sameTypeRequirement(let sameType) = requirement.requirement {
+            let left = sameType.leftType.trimmedDescription
+            let right = sameType.rightType.trimmedDescription
+            if left == "Self", right != "Self" {
+                soleSelfSameTypeConcreteTypeName = right
+            } else if right == "Self", left != "Self" {
+                soleSelfSameTypeConcreteTypeName = left
+            } else {
+                soleSelfSameTypeConcreteTypeName = nil
+            }
+        } else {
+            soleSelfSameTypeConcreteTypeName = nil
+        }
         attributeNames = declaration.attributes.compactMap {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
         }

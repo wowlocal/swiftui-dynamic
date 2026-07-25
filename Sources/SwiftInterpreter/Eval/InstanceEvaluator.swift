@@ -1568,6 +1568,33 @@ extension Interpreter {
             }
         }
 
+        // `[any Processor] = [.factory(...)]`: contextual member lookup on a
+        // protocol existential may select a static factory from an extension
+        // constrained by `Self == Concrete`. The parsed constraint, concrete
+        // conformance, call shape, and return identity jointly prove the
+        // target; unresolved or ambiguous families remain markers.
+        let contextualProtocolName: String? = {
+            let prefixes = ["any ", "some "]
+            if let prefix = prefixes.first(where: { typeName.hasPrefix($0) }) {
+                return String(typeName.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespaces)
+            }
+            return protocolInheritance[typeName] == nil ? nil : typeName
+        }()
+        if let protocolName = contextualProtocolName,
+           case .host(let payload) = value,
+           let call = payload as? ImplicitMemberCall,
+           let target =
+               resolveUniqueConstrainedProtocolStaticFactoryCallTarget(
+                   named: call.name,
+                   inContextualProtocol: protocolName,
+                   arguments: call.arguments) {
+            return try callWithArguments(
+                target.closure,
+                args: call.arguments,
+                node: nil)
+        }
+
         // `Loadable<V>` — generic applications resolve by their HEAD
         // (generics drop everywhere): a generic enum method's return
         // annotation must still turn `.loaded(x)` markers into cases.

@@ -3,6 +3,37 @@ import Testing
 import SwiftUIBridge
 
 @Suite struct ProtocolExtensionDispatchTests {
+    /// A contextual protocol existential can name a static factory supplied
+    /// by a same-type-constrained protocol extension. The constraint proves
+    /// the concrete `Self` used to execute the factory.
+    @Test func contextualFactoryUsesConstrainedConcreteSelf() throws {
+        let source = """
+        protocol Processor {
+            func process(_ value: Int) -> Int
+        }
+
+        struct OffsetProcessor: Processor {
+            let amount: Int
+
+            func process(_ value: Int) -> Int {
+                value + amount
+            }
+        }
+
+        extension Processor where Self == OffsetProcessor {
+            static func offset(_ amount: Int) -> OffsetProcessor {
+                OffsetProcessor(amount: amount)
+            }
+        }
+
+        let processors: [any Processor] = [.offset(3)]
+        processors[0].process(4)
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.intValue == 7)
+    }
+
     @Test func inheritedInstanceOverloadUsesRuntimeType() throws {
         let source = """
         struct Slice {}
