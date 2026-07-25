@@ -768,6 +768,33 @@ extension Interpreter {
         return nil
     }
 
+    /// Canonical host-extension names proven by the receiver's source type.
+    /// A host payload may deliberately erase its concrete SDK type, so source
+    /// aliases must be followed through the declaring file's module/import
+    /// visibility before an absorbing imported member gets first refusal.
+    func declaredHostExtensionTypeNames(
+        _ declaredTypeName: String?
+    ) -> [String] {
+        guard var current = RuntimeDeclaredType.nominalTypeName(
+            declaredTypeName
+        ) else {
+            return []
+        }
+
+        var names: [String] = []
+        var seen: Set<String> = []
+        while seen.insert(current).inserted {
+            names.append(current)
+            guard let target = lexicallyVisibleTypeAliasHead(named: current),
+                  let canonical = RuntimeDeclaredType.nominalTypeName(target)
+            else {
+                break
+            }
+            current = canonical
+        }
+        return names
+    }
+
     /// Preserve compiler-style overload selection for source extensions on a
     /// host type, including families that also contain an imported member.
     /// Returning a closure during bare member lookup is too early: for example,
@@ -791,6 +818,9 @@ extension Interpreter {
             let declared = declaredTypeName.trimmingCharacters(
                 in: .whitespacesAndNewlines)
             appendTypeName(declared)
+            for typeName in declaredHostExtensionTypeNames(declared) {
+                appendTypeName(typeName)
+            }
             if let element = RuntimeDeclaredType.arrayElementTypeName(
                 in: declared) {
                 appendTypeName("[\(element)]")
@@ -2564,10 +2594,10 @@ extension Interpreter {
             // `extension UIColor { … }` on a recorded UIColor node).
             // Core stubs the bridge can't name map explicitly (Binding).
             var extensionCandidates: [String] = []
-            if let declaredNominal = RuntimeDeclaredType.nominalTypeName(
-                declaredBaseTypeName),
-               hostExtensionSymbols[declaredNominal] != nil {
-                extensionCandidates.append(declaredNominal)
+            for typeName in declaredHostExtensionTypeNames(
+                declaredBaseTypeName
+            ) where hostExtensionSymbols[typeName] != nil {
+                extensionCandidates.append(typeName)
             }
             if let typeName = registry?.hostTypeName(of: any) {
                 if !extensionCandidates.contains(typeName) {
