@@ -1267,5 +1267,15 @@ register(&t, "Color", [ParamSpec("uiColor", .platformSemanticValue("UIKit", "UIC
     return generatedPlatformShapeStyleValue(v[0])
 }
 #endif
+#if !canImport(AppKit)
+register(&t, "Image", [ParamSpec("nsImage", .platformSemanticValue("AppKit", "NSImage"), contextualType: "NSImage")]) { v in
+    return try generatedPlatformViewValue(v[0])
+}
+#endif
+#if !canImport(UIKit)
+register(&t, "Image", [ParamSpec("uiImage", .platformSemanticValue("UIKit", "UIImage"), contextualType: "UIImage")]) { v in
+    return try generatedPlatformViewValue(v[0])
+}
+#endif
     }
 }

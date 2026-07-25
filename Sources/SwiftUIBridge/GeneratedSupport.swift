@@ -410,12 +410,13 @@ enum GeneratedDispatch {
                 resolved = value
             }
             guard case .host(let any) = resolved,
-                  let box = any as? GeneratedPlatformValue,
-                  box.framework == framework,
+                  let carrier = any as? GeneratedPlatformSemanticCarrier,
+                  carrier.generatedPlatformFramework == framework,
                   GeneratedPlatformBridge.typeCandidates(
-                    framework: framework, type: box.typeName
+                    framework: framework,
+                    type: carrier.generatedPlatformTypeName
                   ).contains(typeName),
-                  let payload = box.payload else {
+                  let payload = carrier.generatedPlatformNativePayload else {
                 throw RuntimeError(message:
                     "expected a native \(framework).\(typeName) value")
             }
@@ -430,15 +431,16 @@ enum GeneratedDispatch {
                 resolved = value
             }
             guard case .host(let any) = resolved,
-                  let box = any as? GeneratedPlatformValue,
-                  box.framework == framework,
+                  let carrier = any as? GeneratedPlatformSemanticCarrier,
+                  carrier.generatedPlatformFramework == framework,
                   GeneratedPlatformBridge.typeCandidates(
-                    framework: framework, type: box.typeName
+                    framework: framework,
+                    type: carrier.generatedPlatformTypeName
                   ).contains(typeName) else {
                 throw RuntimeError(message:
                     "expected a generated \(framework).\(typeName) value")
             }
-            return box
+            return carrier
         }
     }
 
@@ -1156,20 +1158,35 @@ enum GeneratedConstructors {
 /// deterministic dynamic foreground style without inspecting SDK identities.
 @MainActor
 func generatedPlatformShapeStyleValue(_ value: Any) -> Any {
-    guard let box = value as? GeneratedPlatformValue else {
+    guard let carrier = value as? GeneratedPlatformSemanticCarrier else {
         return Color.secondary
     }
 #if canImport(AppKit)
-    if let color = box.payload as? NSColor {
+    if let color = carrier.generatedPlatformNativePayload as? NSColor {
         return Color(nsColor: color)
     }
 #endif
 #if canImport(UIKit)
-    if let color = box.payload as? UIColor {
+    if let color = carrier.generatedPlatformNativePayload as? UIColor {
         return Color(uiColor: color)
     }
 #endif
     return Color.secondary
+}
+
+/// A target-platform payload may carry a native-equivalent primitive View
+/// even when its framework is unavailable to this host. BridgeGen emits this
+/// adapter from the structural shape "View initializer with one platform
+/// value"; the payload capability supplies the renderable value, so runtime
+/// dispatch contains no constructor or SDK identity.
+@MainActor
+func generatedPlatformViewValue(_ value: Any) throws -> Any {
+    guard let carrier = value as? GeneratedPlatformSemanticCarrier,
+          let view = carrier.generatedPlatformViewValue else {
+        throw RuntimeError(message:
+            "platform value has no transferable SwiftUI View semantics")
+    }
+    return view
 }
 
 /// Bridges an ActionValue (from `[Any]`) into the plain `() -> Void` shape

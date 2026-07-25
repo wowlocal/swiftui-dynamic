@@ -126,6 +126,36 @@ public final class UIImageBox {
     }
 }
 
+/// A decoded target bitmap is still renderable when UIKit source is
+/// interpreted on an AppKit host. The generated constructor adapter asks for
+/// this capability rather than branching on Image, UIImage, a member name, or
+/// a call-site spelling.
+extension UIImageBox: GeneratedPlatformSemanticCarrier {
+    var generatedPlatformFramework: String { "UIKit" }
+    var generatedPlatformTypeName: String { "UIImage" }
+
+    var generatedPlatformNativePayload: Any? {
+#if canImport(UIKit)
+        pngData.flatMap(UIImage.init(data:)) ?? UIImage()
+#else
+        nil
+#endif
+    }
+
+    var generatedPlatformViewValue: Any? {
+#if canImport(AppKit)
+        let native = pngData.flatMap(NSImage.init(data:))
+            ?? NSImage(size: size)
+        return ImageBox(Image(nsImage: native))
+#elseif canImport(UIKit)
+        let native = pngData.flatMap(UIImage.init(data:)) ?? UIImage()
+        return ImageBox(Image(uiImage: native))
+#else
+        return nil
+#endif
+    }
+}
+
 /// `UIGraphicsImageRenderer(size:format:)` — carries the size; `image { }`
 /// runs the drawing closure (fills absorb) and returns the solid bitmap.
 public final class GraphicsRendererBox {
