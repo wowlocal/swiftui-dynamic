@@ -518,6 +518,12 @@ public protocol HostRegistry: AnyObject {
     /// imported reference bags whose concrete class is unavailable on the
     /// interpreter's host platform.
     func hostValue(_ value: Any, matchesImportedType typeName: String) -> Bool
+    /// Apply source type context to an unresolved imported value when
+    /// registry metadata proves the annotation is an off-host reference
+    /// nominal. Value types and native-framework references must decline.
+    func contextualizeOpaqueHostValue(
+        _ value: RuntimeValue, as typeName: String
+    ) -> RuntimeValue?
     /// Whether interface-derived imported nominal metadata proves that one
     /// named SDK type is the same as, inherits from, or conforms to another.
     /// This supplies type evidence for interpreter-owned source subclasses
@@ -569,6 +575,9 @@ extension HostRegistry {
     public func hostValue(
         _ value: Any, matchesImportedType typeName: String
     ) -> Bool { false }
+    public func contextualizeOpaqueHostValue(
+        _ value: RuntimeValue, as typeName: String
+    ) -> RuntimeValue? { nil }
     public func importedType(
         named typeName: String, matchesImportedType expectedTypeName: String
     ) -> Bool { false }

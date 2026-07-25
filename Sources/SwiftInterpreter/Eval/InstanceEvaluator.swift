@@ -1898,6 +1898,18 @@ extension Interpreter {
                 return try callWithArguments(closure, args: call.arguments, node: nil)
             }
         }
+        // A compiled-import result can retain only its unresolved call chain
+        // until a parameter, return, or storage annotation supplies a type.
+        // Let the registry materialize a typed carrier only when generated
+        // metadata proves an off-host reference nominal. This preserves the
+        // original marker for native references, values, and unknown types.
+        if case .host(let opaque) = value,
+           opaque is ChainedImplicitCall || opaque is ImplicitMemberCall,
+           let contextualized = registry?.contextualizeOpaqueHostValue(
+               value, as: typeName
+           ) {
+            return contextualized
+        }
         return value
     }
 

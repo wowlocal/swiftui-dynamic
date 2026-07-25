@@ -80,14 +80,25 @@ public final class UIImageBox {
     /// default in test helpers) — lockFocus would rasterize at the
     /// screen's backing scale and double the decoded size.
     static func solid(size: CGSize) -> UIImageBox {
+        func rasterDimension(_ value: CGFloat) -> CGFloat {
+            guard value.isFinite, value > 0,
+                  Int(exactly: value.rounded(.towardZero)) != nil
+            else {
+                return 1
+            }
+            return value
+        }
+        let rasterSize = CGSize(
+            width: rasterDimension(size.width),
+            height: rasterDimension(size.height))
 #if canImport(AppKit)
-        let width = max(1, Int(size.width))
-        let height = max(1, Int(size.height))
+        let width = max(1, Int(rasterSize.width))
+        let height = max(1, Int(rasterSize.height))
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
-            return UIImageBox(size: size, pngData: nil)
+            return UIImageBox(size: rasterSize, pngData: nil)
         }
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
@@ -95,16 +106,17 @@ public final class UIImageBox {
         NSRect(x: 0, y: 0, width: width, height: height).fill()
         NSGraphicsContext.restoreGraphicsState()
         let png = rep.representation(using: .png, properties: [:])
-        return UIImageBox(size: size, pngData: png)
+        return UIImageBox(size: rasterSize, pngData: png)
 #else
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let renderer = UIGraphicsImageRenderer(
+            size: rasterSize, format: format)
         let data = renderer.image { context in
             UIColor.red.setFill()
-            context.fill(CGRect(origin: .zero, size: size))
+            context.fill(CGRect(origin: .zero, size: rasterSize))
         }.pngData()
-        return UIImageBox(size: size, pngData: data)
+        return UIImageBox(size: rasterSize, pngData: data)
 #endif
     }
 

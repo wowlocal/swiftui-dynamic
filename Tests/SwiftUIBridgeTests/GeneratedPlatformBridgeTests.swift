@@ -98,6 +98,57 @@ import AppKit
             source: source)
         #expect(result.doubleValue == expected)
     }
+
+    @Test func annotatedOpaquePipelineResultUsesSweptPropertyContract() throws {
+        let previousPlatform = Interpreter.interpretsAsPlatform
+        Interpreter.interpretsAsPlatform = "iOS"
+        defer { Interpreter.interpretsAsPlatform = previousPlatform }
+
+        let source = ProjectMaterial.mergedSource(
+            source: """
+            #if canImport(UIKit)
+            import UIKit
+            typealias PlatformImage = UIImage
+            #elseif canImport(AppKit)
+            import AppKit
+            typealias PlatformImage = NSImage
+            #endif
+
+            extension PlatformImage {
+                func sourceHeight() -> CGFloat {
+                    size.height
+                }
+            }
+
+            func sourceHeight(of image: PlatformImage) -> CGFloat {
+                image.sourceHeight()
+            }
+
+            sourceHeight(of: importedImagePipeline())
+            """,
+            moduleName: "ImagePipeline")
+        let expected = Double(NSImage().size.height)
+
+        let interpreter = Interpreter(registry: ViewRegistry())
+        interpreter.globals.define(
+            "importedImagePipeline",
+            .hostFunction(HostFunction(name: "importedImagePipeline") { _, _ in
+                .native(ChainedImplicitCall(
+                    base: .implicitMember("opaque"),
+                    member: "result",
+                    arguments: CallArguments()))
+            }))
+        let result = try interpreter.run(source: source)
+        #expect(result.doubleValue == expected)
+    }
+
+    @Test func headlessBitmapNormalizesNonfiniteDimensions() {
+        let image = UIImageBox.solid(size: CGSize(
+            width: CGFloat.nan, height: CGFloat.infinity))
+
+        #expect(image.size == CGSize(width: 1, height: 1))
+        #expect(image.pngData != nil)
+    }
 #endif
 
 #if canImport(AppKit)
