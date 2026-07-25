@@ -1048,6 +1048,29 @@ enum GeneratedPlatformBridge {
                 framework: owner, type: type)] == false
     }
 
+    /// Source type context turns an unresolved compiled-import chain into the
+    /// same generated carrier used by an off-host SDK call. Nominal kind,
+    /// framework ownership, and native availability all come from swept
+    /// metadata; callers never classify a concrete SDK type by identity.
+    static func contextualizedOpaqueReference(
+        named rawType: String
+    ) -> RuntimeValue? {
+        let type = generatedNominalName(rawType)
+        guard let owner = owningFramework(
+                ofType: type, preferring: frameworkPreference[0]),
+              !frameworkIsNative(owner),
+              nominalKinds[GeneratedPlatformTypeKey(
+                  framework: owner, type: type)] == false
+        else {
+            return nil
+        }
+        return .native(GeneratedPlatformValue(
+            framework: owner,
+            typeName: type,
+            isValueType: false,
+            payload: nil))
+    }
+
     private static func generatedNominalName(_ rawType: String) -> String {
         var type = (optionalWrappedType(rawType) ?? rawType)
             .trimmingCharacters(in: .whitespacesAndNewlines)

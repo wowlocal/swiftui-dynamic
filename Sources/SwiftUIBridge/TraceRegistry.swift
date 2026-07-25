@@ -126,6 +126,13 @@ public final class TraceRegistry: HostRegistry {
         return GeneratedPlatformBridge.acceptsOpaqueReference(for: typeName)
     }
 
+    public func contextualizeOpaqueHostValue(
+        _ value: RuntimeValue, as typeName: String
+    ) -> RuntimeValue? {
+        GeneratedPlatformBridge.contextualizedOpaqueReference(
+            named: typeName)
+    }
+
     public func importedType(
         named typeName: String, matchesImportedType expectedTypeName: String
     ) -> Bool {
