@@ -577,6 +577,25 @@ public final class Interpreter {
             self.unlabeledCount = unlabeledCount
             self.unlabeledTrailingCount = unlabeledTrailingCount
         }
+
+        init(_ arguments: [ParsedCallArgumentMetadata]) {
+            count = arguments.count
+            var labels: Set<String> = []
+            var unlabeledCount = 0
+            var unlabeledTrailingCount = 0
+            for argument in arguments {
+                if let label = argument.label {
+                    labels.insert(label)
+                } else if argument.isTrailing {
+                    unlabeledTrailingCount += 1
+                } else {
+                    unlabeledCount += 1
+                }
+            }
+            self.labels = labels
+            self.unlabeledCount = unlabeledCount
+            self.unlabeledTrailingCount = unlabeledTrailingCount
+        }
     }
 
     /// Last immutable program metadata used by the synchronous compatibility
