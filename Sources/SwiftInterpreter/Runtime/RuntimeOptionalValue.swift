@@ -139,16 +139,11 @@ extension RuntimeValue {
         case .none:
             return nil
         case .notOptional:
-            switch self {
-            case .host(let chain as ChainedImplicitCall):
-                return chain.base.hasConcreteAbsorbedReceiver ? self : nil
-            case .host(let value) where value is ImplicitMemberCall:
+            if isReceiverlessAbsorbedValue {
                 return nil
-            case .hostFunction, .implicitMember:
-                return nil
-            default:
-                return self
             }
+            if case .hostFunction = self { return nil }
+            return self
         }
     }
 
@@ -182,11 +177,27 @@ extension RuntimeValue {
     }
 }
 
-private extension RuntimeValue {
+extension RuntimeValue {
+    /// An absorbed value whose call/member chain begins at an unresolved
+    /// import rather than a runtime receiver. Such a value carries no object
+    /// that could satisfy optional binding or prove a conditional cast.
+    var isReceiverlessAbsorbedValue: Bool {
+        switch self {
+        case .host(let chain as ChainedImplicitCall):
+            return !chain.base.hasConcreteAbsorbedReceiver
+        case .host(let value) where value is ImplicitMemberCall:
+            return true
+        case .implicitMember:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Whether an absorbed chain ultimately starts from a runtime value rather
     /// than an unresolved import, host type marker, or synthesized void.
     /// Dispatch is structural: no SDK type or member identity is involved.
-    var hasConcreteAbsorbedReceiver: Bool {
+    private var hasConcreteAbsorbedReceiver: Bool {
         switch self {
         case .host(let chain as ChainedImplicitCall):
             return chain.base.hasConcreteAbsorbedReceiver
