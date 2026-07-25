@@ -119,6 +119,43 @@ import AppKit
             "cgImage", onOpaqueReference: image) != nil)
     }
 
+    /// A native reference returned by one imported framework method can feed
+    /// an opposite-platform constructor, then reappear through that value's
+    /// generated optional property contract. The result type must come from
+    /// SDK metadata rather than the unresolved method-chain spelling.
+    @Test func importedReferenceMethodResultKeepsConstructorTypeContext() throws {
+        let previousPlatform = Interpreter.interpretsAsPlatform
+        Interpreter.interpretsAsPlatform = "iOS"
+        defer { Interpreter.interpretsAsPlatform = previousPlatform }
+
+        let source = """
+        import CoreGraphics
+        import UIKit
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            fatalError("context creation failed")
+        }
+        guard let output = context.makeImage() else {
+            fatalError("image creation failed")
+        }
+        let image = UIImage(cgImage: output)
+        image.cgImage != nil
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: source)
+        #expect(value.boolValue == true)
+    }
+
     @Test func annotatedOpaquePipelineResultUsesSweptPropertyContract() throws {
         let previousPlatform = Interpreter.interpretsAsPlatform
         Interpreter.interpretsAsPlatform = "iOS"

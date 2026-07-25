@@ -31,6 +31,7 @@ struct FoundationReferencePropertyGenerationResult {
 
 private enum PlatformGlobalFunctionSelection: Equatable {
     case mechanicallyBridgeable
+    case referencingSelectedTypes
     case interpretedResultScopes
 }
 
@@ -51,6 +52,9 @@ private struct PlatformFrameworkSpec {
     /// symbol graph comes from one SDK family. Its nominal hierarchy remains
     /// available as string metadata on every host.
     var nativeImportCondition: String?
+    /// Platform UI frameworks win ambiguous imported names on their native
+    /// host and move behind support frameworks on the opposite host.
+    var isPlatformSurface = false
     /// Runtime modules can contribute only structurally recognized closure
     /// scopes instead of exposing unrelated low-level global entry points.
     var globalFunctionSelection: PlatformGlobalFunctionSelection =
@@ -81,6 +85,18 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         roots: [],
         globalFunctionSelection: .interpretedResultScopes),
     .init(
+        // Core Graphics reference values cross UIKit/AppKit boundaries as
+        // constructor arguments and method results. Sweep the connected
+        // raster/context family so those values retain their interface types
+        // instead of degrading into unresolved call-chain spellings.
+        name: "CoreGraphics", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0), "iOS": (18, 0)],
+        roots: [
+            "CGColorSpace", "CGContext", "CGImage", "CGImageAlphaInfo",
+        ],
+        globalFunctionSelection: .referencingSelectedTypes),
+    .init(
         name: "AppKit", sdkName: "macosx",
         target: "arm64-apple-macosx15.0",
         deployments: ["macOS": (15, 0)],
@@ -93,7 +109,8 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
             "NSDirectionalEdgeInsets", "NSButton", "NSImageView",
             "NSScrollView", "NSTableView", "NSCollectionView",
             "NSTextField", "NSTextView",
-        ]),
+        ],
+        isPlatformSurface: true),
     .init(
         name: "UIKit", sdkName: "iphoneos",
         target: "arm64-apple-ios18.0",
@@ -105,7 +122,8 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
             "UIEdgeInsets", "UIOffset", "NSDirectionalEdgeInsets",
             "UIButton", "UIImageView", "UILabel", "UIScrollView",
             "UITableView", "UICollectionView", "UITextField", "UITextView",
-        ]),
+        ],
+        isPlatformSurface: true),
     .init(
         // WebKit source subclasses cross both representable families. Sweep
         // the iOS hierarchy so opposite-platform checking retains the
@@ -214,6 +232,10 @@ private struct PlatformNominal {
     let root: String
     let kind: PlatformNominalKind
     let isEquatable: Bool
+    /// Clang CF typedefs import as Swift classes but reject conditional
+    /// downcasts from `Any` as vacuous. Their `c:@T@...Ref` symbol identity
+    /// distinguishes that importer category from Objective-C classes.
+    let isCoreFoundationReference: Bool
 }
 
 private struct PlatformParameter {
@@ -286,6 +308,7 @@ private struct PlatformCallable {
     let receiverType: String
     let nativeReceiverType: String
     let receiverIsValueType: Bool
+    let receiverIsCoreFoundationReference: Bool
     let name: String
     let resultType: String
     let nativeResultType: String
@@ -336,6 +359,7 @@ private struct PlatformProperty {
     let receiverType: String
     let nativeReceiverType: String
     let receiverIsValueType: Bool
+    let receiverIsCoreFoundationReference: Bool
     let name: String
     let resultType: String
     let nativeResultType: String
@@ -622,6 +646,11 @@ private func parsePlatformFramework(
         $0.kind == "conformsTo"
             && ($0.target == "s:SQ" || $0.targetFallback == "Swift.Equatable")
     }.map(\.source))
+    let rawRepresentableNominals = Set(graph.relationships.lazy.filter {
+        $0.kind == "conformsTo"
+            && ($0.target == "s:SY"
+                || $0.targetFallback == "Swift.RawRepresentable")
+    }.map(\.source))
     var allNominals: [String: PlatformNominal] = [:]
     for symbol in graph.symbols {
         guard let kind = nominalKindBySymbolKind[symbol.kind.identifier],
@@ -635,7 +664,11 @@ private func parsePlatformFramework(
             type: type,
             root: symbol.pathComponents[0],
             kind: kind,
-            isEquatable: equatableNominals.contains(symbol.identifier.precise))
+            isEquatable: equatableNominals.contains(symbol.identifier.precise),
+            isCoreFoundationReference:
+                kind == .class
+                    && symbol.identifier.precise.hasPrefix("c:@T@")
+                    && symbol.identifier.precise.hasSuffix("Ref"))
     }
 
     var parentByMember: [String: String] = [:]
@@ -879,6 +912,7 @@ private func parsePlatformFramework(
                 framework: spec.name, kind: .globalFunction,
                 receiverType: "", nativeReceiverType: "",
                 receiverIsValueType: false,
+                receiverIsCoreFoundationReference: false,
                 name: name, resultType: "Any",
                 nativeResultType: function.signature.returnClause?
                     .type.trimmedDescription ?? "Any",
@@ -899,7 +933,7 @@ private func parsePlatformFramework(
             }
             continue
         }
-        guard spec.globalFunctionSelection == .mechanicallyBridgeable,
+        guard spec.globalFunctionSelection != .interpretedResultScopes,
               function.genericParameterClause == nil,
               function.genericWhereClause == nil else { continue }
         let nativeResultType = function.signature.returnClause.map {
@@ -917,11 +951,22 @@ private func parsePlatformFramework(
                 framework: spec.name, selectedTypes: selectedTypes,
                 allowNilOnlyPointers: false, blockers: &blockers)
         else { continue }
+        if spec.globalFunctionSelection == .referencingSelectedTypes {
+            let referencesSelectedType =
+                platformTypeReferencesSelected(
+                    resultType, selectedTypes: selectedTypes)
+                || analyzed.contains {
+                    platformTypeReferencesSelected(
+                        $0.type, selectedTypes: selectedTypes)
+                }
+            guard referencesSelectedType else { continue }
+        }
         for selection in platformParameterSelections(analyzed) {
             let callable = PlatformCallable(
                 framework: spec.name, kind: .globalFunction,
                 receiverType: "", nativeReceiverType: "",
                 receiverIsValueType: false,
+                receiverIsCoreFoundationReference: false,
                 name: name, resultType: resultType,
                 nativeResultType: nativeResultType,
                 resultPointerKind: resultPointerKind,
@@ -984,6 +1029,8 @@ private func parsePlatformFramework(
                     receiverType: nominal.type,
                     nativeReceiverType: nominal.type,
                     receiverIsValueType: nominal.kind.isValueType,
+                    receiverIsCoreFoundationReference:
+                        nominal.isCoreFoundationReference,
                     name: nominal.type,
                     resultType: nominal.type,
                     nativeResultType: nominal.type,
@@ -1062,6 +1109,8 @@ private func parsePlatformFramework(
                     receiverType: nominal.type,
                     nativeReceiverType: nominal.kind.nativePrefix + nominal.type,
                     receiverIsValueType: nominal.kind.isValueType,
+                    receiverIsCoreFoundationReference:
+                        nominal.isCoreFoundationReference,
                     name: name, resultType: resultType,
                     nativeResultType: nativeResultType,
                     resultPointerKind: resultPointerKind,
@@ -1106,6 +1155,8 @@ private func parsePlatformFramework(
                 receiverType: nominal.type,
                 nativeReceiverType: nominal.kind.nativePrefix + nominal.type,
                 receiverIsValueType: nominal.kind.isValueType,
+                receiverIsCoreFoundationReference:
+                    nominal.isCoreFoundationReference,
                 name: name, resultType: resultType,
                 nativeResultType: nativeResultType, pointerKind: pointerKind,
                 isImplicitlyUnwrapped: rawType
@@ -1141,13 +1192,15 @@ private func parsePlatformFramework(
     }
 
     // ObjC classes inherit NSObject's plain initializer, which symbol
-    // graphs omit (-skip-synthesized-members). A selected class that swept
-    // NO initializer still constructs natively via `Type()` — synthesize
-    // that variant so inherited-init-only subclasses (MKMapView) are
-    // constructible. A synthesis that does not compile joins the deny set.
+    // graphs omit (-skip-synthesized-members). A selected ObjC class
+    // that swept NO initializer still constructs natively via `Type()` —
+    // synthesize that variant so inherited-init-only subclasses (MKMapView)
+    // are constructible. The symbol identity distinguishes these from CF
+    // typedef classes, which must never receive this synthetic shape.
     let constructedTypes = Set(constructors.map(\.receiverType))
     for nominal in selected.values.sorted(by: { $0.type < $1.type })
     where nominal.kind == .class
+        && nominal.precise.hasPrefix("c:objc(cs)")
         && !constructedTypes.contains(nominal.type)
         && !platformNoArgInitDeny.contains(nominal.type)
     {
@@ -1156,6 +1209,8 @@ private func parsePlatformFramework(
             receiverType: nominal.type,
             nativeReceiverType: nominal.type,
             receiverIsValueType: false,
+            receiverIsCoreFoundationReference:
+                nominal.isCoreFoundationReference,
             name: nominal.type,
             resultType: nominal.type,
             nativeResultType: nominal.type,
@@ -1163,6 +1218,47 @@ private func parsePlatformFramework(
             params: [],
             isThrowing: false,
             isFailable: false))
+    }
+
+    // Imported RawRepresentable conformances expose `init(rawValue:)` in the
+    // module symbol graph, while the protocol-supplied `rawValue` requirement
+    // is not repeated as a nominal member. Reconstruct that inherited
+    // property only when BOTH the conformance edge and one unambiguous emitted
+    // raw-value initializer prove its receiver and associated value type.
+    // This is a protocol adapter, not an SDK enum/member allowlist.
+    for nominal in selected.values.sorted(by: { $0.type < $1.type })
+    where rawRepresentableNominals.contains(nominal.precise)
+    {
+        let rawInitializers = constructors.filter {
+            $0.receiverType == nominal.type
+                && $0.params.count == 1
+                && $0.params[0].label == "rawValue"
+        }
+        guard let rawInitializer = rawInitializers.first,
+              rawInitializers.allSatisfy({
+                  $0.params[0].type == rawInitializer.params[0].type
+                      && $0.params[0].nativeType
+                          == rawInitializer.params[0].nativeType
+              })
+        else { continue }
+        let rawValue = rawInitializer.params[0]
+        let property = PlatformProperty(
+            framework: spec.name,
+            receiverType: nominal.type,
+            nativeReceiverType: nominal.kind.nativePrefix + nominal.type,
+            receiverIsValueType: nominal.kind.isValueType,
+            receiverIsCoreFoundationReference:
+                nominal.isCoreFoundationReference,
+            name: "rawValue",
+            resultType: rawValue.type,
+            nativeResultType: rawValue.nativeType,
+            pointerKind: rawValue.pointerKind,
+            isImplicitlyUnwrapped: false,
+            isSettable: false,
+            isStatic: false)
+        if propertySeen.insert(property.signatureKey).inserted {
+            properties.append(property)
+        }
     }
 
     // Infer target-context-only transforms from the complete SDK overload
@@ -1689,8 +1785,9 @@ private func platformPropertyIsSettable(_ variable: VariableDeclSyntax) -> Bool 
 private func emitPlatformBridge(
     _ frameworks: [ParsedPlatformFramework]
 ) -> String {
+    let frameworkNames = frameworks.map(\.spec.name)
     var output = """
-    // GENERATED by BridgeGen from Foundation/ObjectiveC/AppKit/UIKit/WebKit/Metal/MapKit/CoreLocation SDK symbol graphs.
+    // GENERATED by BridgeGen from \(frameworkNames.joined(separator: "/")) SDK symbol graphs.
     // Do not edit. Regenerate: swift run BridgeGen --emit
     import Foundation
     import SwiftInterpreter
@@ -1716,6 +1813,28 @@ private func emitPlatformBridge(
     #endif
 
     extension GeneratedPlatformBridge {
+
+    """
+    output += """
+        static let platformFrameworkOrder = \(String(reflecting: frameworkNames))
+        static let platformSurfaceFrameworks: Set<String> = \(String(reflecting:
+            frameworks.filter(\.spec.isPlatformSurface).map(\.spec.name)))
+
+        static func buildNativeFrameworks() -> Set<String> {
+            var values: Set<String> = []
+
+    """
+    for framework in frameworks {
+        output += """
+        #if \(platformNativeImportCondition(for: framework.spec.name))
+            values.insert(\(swiftLiteral(framework.spec.name)))
+        #endif
+
+        """
+    }
+    output += """
+            return values
+        }
 
     """
     let constructorGroups = frameworks.map { ($0.spec.name, $0.constructors) }
@@ -1944,15 +2063,28 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
                     }
         """
         : ""
+    let receiverBinding: String
+    if value.receiverIsCoreFoundationReference {
+        receiverBinding = indent("""
+        guard let payload = base.payload else {
+            throw RuntimeError(message: "generated \(value.framework) receiver mismatch", fatal: true)
+        }
+        let receiver = payload as! \(value.nativeReceiverType)
+        """, by: 12)
+    } else {
+        receiverBinding = indent("""
+        guard let receiver = base.payload as? \(value.nativeReceiverType) else {
+            throw RuntimeError(message: "generated \(value.framework) receiver mismatch", fatal: true)
+        }
+        """, by: 12)
+    }
     return """
             registerMethod(
                 &t, framework: \(swiftLiteral(value.framework)),
                 declaration: \(swiftLiteral(value.hostDeclaration)),
                 resultType: \(swiftLiteral(value.resultType))\(semanticAdapter)) { base, v, ctx in
     #if \(platformNativeImportCondition(for: value.framework))
-                guard let receiver = base.payload as? \(value.nativeReceiverType) else {
-                    throw RuntimeError(message: "generated \(value.framework) receiver mismatch", fatal: true)
-                }
+    \(receiverBinding)
     \(invocation)
     #else
                 preconditionFailure("\(value.framework) gateway invoked off-platform")
@@ -2060,15 +2192,35 @@ private func emitPlatformProperty(_ value: PlatformProperty) -> String {
     let iuoArgument = value.isImplicitlyUnwrapped
         ? "\n            isImplicitlyUnwrapped: true,"
         : ""
+    let getterReceiver: String
+    if value.receiverIsCoreFoundationReference {
+        getterReceiver =
+            "let receiver = base as! \(value.nativeReceiverType)"
+    } else {
+        getterReceiver = """
+        guard let receiver = base as? \(value.nativeReceiverType) else {
+            throw RuntimeError(message: "generated \(value.framework) property receiver mismatch", fatal: true)
+        }
+        """
+    }
     let setter: String
     if value.isSettable {
-        let binding = value.receiverIsValueType ? "var" : "let"
+        let setterReceiver: String
+        if value.receiverIsCoreFoundationReference {
+            setterReceiver =
+                "let receiver = base as! \(value.nativeReceiverType)"
+        } else {
+            let binding = value.receiverIsValueType ? "var" : "let"
+            setterReceiver = """
+            guard \(binding) receiver = base as? \(value.nativeReceiverType) else {
+                throw RuntimeError(message: "generated \(value.framework) property receiver mismatch", fatal: true)
+            }
+            """
+        }
         setter = """
                 }, set: { base, newValue, ctx in
     #if \(platformNativeImportCondition(for: value.framework))
-                    guard \(binding) receiver = base as? \(value.nativeReceiverType) else {
-                        throw RuntimeError(message: "generated \(value.framework) property receiver mismatch", fatal: true)
-                    }
+    \(indent(setterReceiver, by: 16))
                     receiver.`\(value.name)` = try generatedPlatformArgument(
                         newValue, as: \(platformNativeMetatype(value.nativeResultType)),
                         framework: \(swiftLiteral(value.framework)),
@@ -2089,9 +2241,7 @@ private func emitPlatformProperty(_ value: PlatformProperty) -> String {
                 resultType: \(swiftLiteral(value.resultType)),\(iuoArgument)
                 get: { base in
     #if \(platformNativeImportCondition(for: value.framework))
-                    guard let receiver = base as? \(value.nativeReceiverType) else {
-                        throw RuntimeError(message: "generated \(value.framework) property receiver mismatch", fatal: true)
-                    }
+    \(indent(getterReceiver, by: 16))
                     return \(platformPropertyResultExpression(value))
     #else
                     preconditionFailure("\(value.framework) getter invoked off-platform")
