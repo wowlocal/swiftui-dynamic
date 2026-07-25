@@ -57,6 +57,56 @@ protocol GeneratedPlatformSemanticCarrier {
     var generatedPlatformViewValue: Any? { get }
 }
 
+/// A semantic carrier can expose a native value by its RESULT TYPE when the
+/// target SDK property is the unique property of that type on the receiver.
+/// The generated property table supplies both sides of that proof; carriers
+/// never name an SDK member. This is the reusable off-platform path for
+/// semantic values such as a decoded raster's Core Graphics backing image.
+struct GeneratedPlatformTypedPropertyValue {
+    let typeName: String
+    let value: RuntimeValue
+
+    static func optional<T>(
+        _ value: T?,
+        as type: T.Type,
+        framework: String
+    ) -> GeneratedPlatformTypedPropertyValue {
+        var typeName = String(describing: type)
+        // Clang reference types surface as `CGImageRef.self` while their
+        // swiftinterface contract uses `CGImage`. Normalize the importer
+        // convention itself rather than enumerating SDK type identities.
+        let isImportedReference = typeName.hasSuffix("Ref")
+        if isImportedReference {
+            typeName.removeLast(3)
+        }
+        let wrapped = value.map { value -> RuntimeValue in
+            guard isImportedReference else {
+                return .native(value)
+            }
+            // The Objective-C runtime erases imported CF reference classes
+            // to `__NSCFType`. Retain the swiftinterface-facing nominal beside
+            // the native payload so HostSignature can validate the result.
+            return .native(GeneratedPlatformValue(
+                framework: framework,
+                typeName: typeName,
+                isValueType: false,
+                payload: value))
+        }
+        return GeneratedPlatformTypedPropertyValue(
+            typeName: typeName,
+            value: .optional(
+                wrapped,
+                wrappedTypeName: typeName))
+    }
+}
+
+protocol GeneratedPlatformTypedPropertyCarrier:
+    GeneratedPlatformSemanticCarrier
+{
+    var generatedPlatformTypedPropertyValues:
+        [GeneratedPlatformTypedPropertyValue] { get }
+}
+
 /// An opaque reference bag whose source SDK roles are known even though no
 /// native object exists on this host. Generated property lookup uses those
 /// roles to select a swiftinterface contract; unknown members remain ordinary
@@ -455,6 +505,7 @@ struct GeneratedPlatformPropertyEntry {
     let resultType: String
     let isImplicitlyUnwrapped: Bool
     let contract: HostProperty
+    let semanticCarrierContract: HostProperty
     let opaqueReferenceContract: HostProperty
 }
 
@@ -866,6 +917,54 @@ enum GeneratedPlatformBridge {
                     framework: framework, type: type, member: name)] {
                     return property.contract
                 }
+            }
+        }
+        return nil
+    }
+
+    /// Match a semantic carrier by generated receiver metadata and by the
+    /// requested property's result shape. A typed value is usable only when
+    /// that result type identifies exactly one property on the receiver;
+    /// ambiguous scalar families remain unavailable rather than guessing.
+    static func property(
+        _ name: String,
+        onSemanticCarrier base: any GeneratedPlatformTypedPropertyCarrier
+    ) -> HostProperty? {
+        let frameworks = [base.generatedPlatformFramework]
+            + frameworkPreference.filter {
+                $0 != base.generatedPlatformFramework
+            }
+        for framework in frameworks {
+            let receiverTypes = typeCandidates(
+                framework: framework,
+                type: base.generatedPlatformTypeName)
+            for receiverType in receiverTypes {
+                let key = GeneratedPlatformMemberKey(
+                    framework: framework,
+                    type: receiverType,
+                    member: name)
+                guard let property = properties[key] else { continue }
+                let resultType = generatedNominalName(property.resultType)
+                guard base.generatedPlatformTypedPropertyValues.contains(
+                    where: {
+                        generatedNominalName($0.typeName) == resultType
+                    })
+                else {
+                    continue
+                }
+                let matchingMembers = Set(properties.compactMap {
+                    candidateKey, candidate -> String? in
+                    guard candidateKey.framework == framework,
+                          receiverTypes.contains(candidateKey.type),
+                          generatedNominalName(candidate.resultType)
+                            == resultType
+                    else {
+                        return nil
+                    }
+                    return candidateKey.member
+                })
+                guard matchingMembers == Set([name]) else { continue }
+                return property.semanticCarrierContract
             }
         }
         return nil
@@ -1399,6 +1498,41 @@ enum GeneratedPlatformBridge {
                         isImplicitlyUnwrapped: isImplicitlyUnwrapped)
                 },
                 set: propertySetter)
+            let semanticCarrierSetter: HostProperty.Setter?
+            if set != nil {
+                semanticCarrierSetter = { _, _, _ in
+                    throw RuntimeError(
+                        message: "generated platform semantic properties "
+                            + "are read-only",
+                        fatal: true)
+                }
+            } else {
+                semanticCarrierSetter = nil
+            }
+            let semanticCarrierContract = try HostProperty(
+                signature: signature,
+                get: { receiver, _ in
+                    guard case .host(let any) = receiver,
+                          let base = any as?
+                            any GeneratedPlatformTypedPropertyCarrier
+                    else {
+                        throw RuntimeError(
+                            message: "generated platform semantic property "
+                                + "receiver mismatch",
+                            fatal: true)
+                    }
+                    let expectedType = generatedNominalName(resultType)
+                    let value = base.generatedPlatformTypedPropertyValues
+                        .first {
+                            generatedNominalName($0.typeName) == expectedType
+                        }?.value
+                        ?? fallbackResult(
+                            framework: framework, type: resultType)
+                    return applyingImplicitlyUnwrappedOptional(
+                        value, resultType: resultType,
+                        isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+                },
+                set: semanticCarrierSetter)
             let opaqueReferenceSetter: HostProperty.Setter?
             if set != nil {
                 opaqueReferenceSetter = { receiver, value, _ in
@@ -1447,6 +1581,7 @@ enum GeneratedPlatformBridge {
                 resultType: resultType,
                 isImplicitlyUnwrapped: isImplicitlyUnwrapped,
                 contract: contract,
+                semanticCarrierContract: semanticCarrierContract,
                 opaqueReferenceContract: opaqueReferenceContract)
         } catch {
             preconditionFailure(

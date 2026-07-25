@@ -168,6 +168,30 @@ extension UIImageBox: GeneratedPlatformSemanticCarrier {
     }
 }
 
+/// A decoded target bitmap owns real pixels even when its UIKit nominal is
+/// unavailable on the AppKit host. Expose that raster by result TYPE; the
+/// generated property table decides which unique SDK property consumes it.
+extension UIImageBox: GeneratedPlatformTypedPropertyCarrier {
+    var generatedPlatformTypedPropertyValues:
+        [GeneratedPlatformTypedPropertyValue]
+    {
+        let image: CGImage?
+#if canImport(AppKit)
+        image = pngData.flatMap {
+            NSBitmapImageRep(data: $0)?.cgImage
+        }
+#else
+        image = pngData.flatMap {
+            UIImage(data: $0)?.cgImage
+        }
+#endif
+        return [.optional(
+            image,
+            as: CGImage.self,
+            framework: generatedPlatformFramework)]
+    }
+}
+
 /// `UIGraphicsImageRenderer(size:format:)` — carries the size; `image { }`
 /// runs the drawing closure (fills absorb) and returns the solid bitmap.
 public final class GraphicsRendererBox {
