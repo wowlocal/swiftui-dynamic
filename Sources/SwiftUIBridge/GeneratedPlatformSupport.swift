@@ -900,6 +900,19 @@ enum GeneratedPlatformBridge {
                         GeneratedPlatformMemberKey(
                             framework: framework, type: type, member: name)
                     ] {
+                        // Interface optionality permits absence; without a
+                        // payload it does not prove that this opaque runtime
+                        // value is absent. Preserve explicitly configured
+                        // optionals, but otherwise leave unknown presence to
+                        // the carrier's established fallback policy.
+                        guard base.generatedPlatformOpaqueConfiguration[
+                                name] != nil
+                                || (optionalWrappedType(
+                                    property.resultType) == nil
+                                    && !property.isImplicitlyUnwrapped)
+                        else {
+                            continue
+                        }
                         return property.opaqueReferenceContract
                     }
                 }
