@@ -1207,6 +1207,25 @@ extension Interpreter {
                 }
             }
 
+            if case .instance(let instance) = baseValue,
+               let defaults = protocolDefaultsRequiredByCallShape(
+                   named: name, on: instance, call: call) {
+                let args = try await collectArgumentsSuspending(
+                    of: call, in: env)
+                let available = functionsAvailableForCall(
+                    from: defaults, args: args)
+                if let method = chooseFunction(
+                    from: available, for: args
+                ) ?? available.first,
+                   let body = functionMetadata(for: method).body {
+                    let closure = makeFunctionClosure(
+                        method, body: body,
+                        captured: instanceMethodEnvironment(instance))
+                    return try await invokeSuspending(
+                        .closure(closure), with: args, node: call)
+                }
+            }
+
             // FoodTruck's detached updates loop is the first demand-cited
             // source-call target. Resolve an argument-free own reference
             // method to one exact origin declaration before invocation; the
@@ -1357,6 +1376,24 @@ extension Interpreter {
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
                    let body = functionMetadata(for: function).body {
                     let closure = makeFunctionClosure(function, body: body, captured: globals)
+                    return try await invokeSuspending(
+                        .closure(closure), with: args, node: call)
+                }
+            }
+            if case .instance(let instance)? = env.lookup("self"),
+               let defaults = protocolDefaultsRequiredByCallShape(
+                   named: name, on: instance, call: call) {
+                let args = try await collectArgumentsSuspending(
+                    of: call, in: env)
+                let available = functionsAvailableForCall(
+                    from: defaults, args: args)
+                if let method = chooseFunction(
+                    from: available, for: args
+                ) ?? available.first,
+                   let body = functionMetadata(for: method).body {
+                    let closure = makeFunctionClosure(
+                        method, body: body,
+                        captured: instanceMethodEnvironment(instance))
                     return try await invokeSuspending(
                         .closure(closure), with: args, node: call)
                 }

@@ -298,6 +298,29 @@ extension Interpreter {
                 declaredBaseTypeName: declaredBaseTypeName) {
                 return liftsMemberResult ? result.liftedToOptional() : result
             }
+            // A differently shaped protocol default remains an overload even
+            // when the conformer owns a unique same-named witness.
+            if case .instance(let instance) = specialBaseValue,
+               let defaults = protocolDefaultsRequiredByCallShape(
+                   named: name, on: instance, call: call) {
+                let args = try collectArguments(of: call, in: env)
+                let available = functionsAvailableForCall(
+                    from: defaults, args: args)
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
+                   let body = functionMetadata(for: method).body {
+                    let closure = makeFunctionClosure(
+                        method, body: body,
+                        captured: instanceMethodEnvironment(instance))
+                    let result = try invoke(
+                        .closure(closure), with: args, node: call)
+                    return liftsMemberResult
+                        ? result.liftedToOptional() : result
+                }
+            }
             // Methods dispatch from call syntax, where labels disambiguate
             // overloads and a host-superclass property can coexist with a
             // same-named subclass method (`window` vs `window(_:)`).
@@ -537,6 +560,25 @@ extension Interpreter {
                     allowsExplicitThrowingSource:
                         callAllowsExplicitThrowingOverload(call))
                 return try invoke(target, with: args, node: call)
+            }
+            if case .instance(let instance)? = env.lookup("self"),
+               let defaults = protocolDefaultsRequiredByCallShape(
+                   named: name, on: instance, call: call) {
+                let args = try collectArguments(of: call, in: env)
+                let available = functionsAvailableForCall(
+                    from: defaults, args: args)
+                if let method = chooseFunction(
+                    from: available,
+                    for: args,
+                    contextualResultMember: contextualResultMember
+                ) ?? available.first,
+                   let body = functionMetadata(for: method).body {
+                    let closure = makeFunctionClosure(
+                        method, body: body,
+                        captured: instanceMethodEnvironment(instance))
+                    return try invoke(
+                        .closure(closure), with: args, node: call)
+                }
             }
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instanceMethodOverloads(

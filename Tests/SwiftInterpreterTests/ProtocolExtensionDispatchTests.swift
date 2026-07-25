@@ -34,6 +34,101 @@ import SwiftUIBridge
         #expect(value.intValue == 7)
     }
 
+    /// A protocol default can adapt a container requirement to a concrete
+    /// conformer's same-named scalar requirement. Calls through an existential
+    /// must retain the concrete witness while the default body executes.
+    @Test func existentialDefaultCallsConcreteOverloadedWitness() throws {
+        let source = """
+        struct Container {
+            var value: Int
+        }
+
+        enum ProcessingError: Error {
+            case failed
+        }
+
+        protocol Processing {
+            func process(_ value: Int) -> Int?
+            func process(
+                _ container: Container, context: Int
+            ) throws -> Container
+        }
+
+        extension Processing {
+            func process(
+                _ container: Container, context: Int
+            ) throws -> Container {
+                guard let output = process(container.value) else {
+                    throw ProcessingError.failed
+                }
+                var container = container
+                container.value = output
+                return container
+            }
+        }
+
+        struct Offset: Processing {
+            func process(_ value: Int) -> Int? {
+                value + 3
+            }
+        }
+
+        let processors: [any Processing] = [Offset()]
+        try processors[0].process(
+            Container(value: 4), context: 0
+        ).value
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.intValue == 7)
+    }
+
+    @Test func asyncExistentialDefaultCallsConcreteOverloadedWitness() async throws {
+        let source = """
+        struct Container {
+            var value: Int
+        }
+
+        enum ProcessingError: Error {
+            case failed
+        }
+
+        protocol Processing {
+            func process(_ value: Int) async -> Int?
+            func process(
+                _ container: Container, context: Int
+            ) async throws -> Container
+        }
+
+        extension Processing {
+            func process(
+                _ container: Container, context: Int
+            ) async throws -> Container {
+                guard let output = await process(container.value) else {
+                    throw ProcessingError.failed
+                }
+                var container = container
+                container.value = output
+                return container
+            }
+        }
+
+        struct Offset: Processing {
+            func process(_ value: Int) async -> Int? {
+                value + 3
+            }
+        }
+
+        let processors: [any Processing] = [Offset()]
+        try await processors[0].process(
+            Container(value: 4), context: 0
+        ).value
+        """
+
+        let value = try await Interpreter().runAsync(source: source)
+        #expect(value.intValue == 7)
+    }
+
     @Test func inheritedInstanceOverloadUsesRuntimeType() throws {
         let source = """
         struct Slice {}

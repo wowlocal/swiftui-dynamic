@@ -773,6 +773,47 @@ extension Interpreter {
             named: name, on: instance.symbol, table: \.methods)
     }
 
+    /// A unique concrete method cannot consume a differently shaped call merely
+    /// because it shares the base name. When no concrete/inherited declaration
+    /// fits the syntax shape, return only fitting protocol-extension defaults.
+    /// This leaves ordinary witness dispatch untouched while admitting adapter
+    /// defaults such as `process(Container, context:)` beside
+    /// `process(Image)`.
+    func protocolDefaultsRequiredByCallShape(
+        named name: String,
+        on instance: Instance,
+        call: FunctionCallExprSyntax
+    ) -> [FunctionDeclSyntax]? {
+        let shape = ArgumentShape(callSiteMetadata(for: call).arguments)
+        let concrete = instanceMethodOverloads(named: name, on: instance) ?? []
+        guard !concrete.contains(where: {
+            functionMetadata(for: $0).shape.matches(shape)
+        }) else {
+            return nil
+        }
+
+        var result: [FunctionDeclSyntax] = []
+        var shadowed = Set<String>()
+        for conformance in transitiveConformances(of: instance.symbol) {
+            guard let defaults = hostExtensionSymbols[conformance]?
+                .methods[name] else {
+                continue
+            }
+            for method in defaults {
+                guard functionMetadata(for: method).shape.matches(shape) else {
+                    continue
+                }
+                guard shadowed.insert(
+                    methodOverrideSignature(method)
+                ).inserted else {
+                    continue
+                }
+                result.append(method)
+            }
+        }
+        return result.isEmpty ? nil : result
+    }
+
     /// Static lookup follows the same overload/override rule as instances.
     func staticMethodOverloads(
         named name: String, on symbol: StructSymbol
