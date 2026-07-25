@@ -922,10 +922,10 @@ enum GeneratedPlatformBridge {
         return nil
     }
 
-    /// Match a semantic carrier by generated receiver metadata and by the
-    /// requested property's result shape. A typed value is usable only when
-    /// that result type identifies exactly one property on the receiver;
-    /// ambiguous scalar families remain unavailable rather than guessing.
+    /// Match a semantic carrier by generated receiver metadata. An exact
+    /// typed value is usable only when that result type identifies one unique
+    /// property on the receiver; every other property keeps the generated
+    /// interface fallback rather than becoming an untyped missing member.
     static func property(
         _ name: String,
         onSemanticCarrier base: any GeneratedPlatformTypedPropertyCarrier
@@ -945,25 +945,25 @@ enum GeneratedPlatformBridge {
                     member: name)
                 guard let property = properties[key] else { continue }
                 let resultType = generatedNominalName(property.resultType)
-                guard base.generatedPlatformTypedPropertyValues.contains(
+                let hasTypedValue =
+                    base.generatedPlatformTypedPropertyValues.contains(
                     where: {
                         generatedNominalName($0.typeName) == resultType
                     })
-                else {
-                    continue
+                if hasTypedValue {
+                    let matchingMembers = Set(properties.compactMap {
+                        candidateKey, candidate -> String? in
+                        guard candidateKey.framework == framework,
+                              receiverTypes.contains(candidateKey.type),
+                              generatedNominalName(candidate.resultType)
+                                == resultType
+                        else {
+                            return nil
+                        }
+                        return candidateKey.member
+                    })
+                    guard matchingMembers == Set([name]) else { continue }
                 }
-                let matchingMembers = Set(properties.compactMap {
-                    candidateKey, candidate -> String? in
-                    guard candidateKey.framework == framework,
-                          receiverTypes.contains(candidateKey.type),
-                          generatedNominalName(candidate.resultType)
-                            == resultType
-                    else {
-                        return nil
-                    }
-                    return candidateKey.member
-                })
-                guard matchingMembers == Set([name]) else { continue }
                 return property.semanticCarrierContract
             }
         }
