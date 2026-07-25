@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import Testing
 import SwiftInterpreter
@@ -29,5 +30,108 @@ import SwiftInterpreter
 
         #expect(result.hostPayload is ImageBox)
         #expect(registry.isViewValue(result))
+    }
+
+    /// Nuke keeps its target-platform bitmap behind a nested reference
+    /// container, projects it through `Optional.map`, and only then unwraps
+    /// the resulting SwiftUI `Image` in a builder. The transferable platform
+    /// value must retain pixels through that ownership shape.
+    @MainActor
+    @Test func targetPlatformBitmapRendersThroughNestedContainer() throws {
+        let rendered = InterpreterHost().render(
+            source: """
+            typealias PlatformImage = UIImage
+
+            struct ImageContainer {
+                private final class Storage {
+                    var image: PlatformImage
+
+                    init(image: PlatformImage) {
+                        self.image = image
+                    }
+                }
+
+                private var storage: Storage
+
+                var image: PlatformImage {
+                    get { storage.image }
+                    set { storage.image = newValue }
+                }
+
+                init(image: PlatformImage) {
+                    storage = Storage(image: image)
+                }
+            }
+
+            struct State {
+                let imageContainer: ImageContainer?
+
+                var image: Image? {
+                    imageContainer.map { Image(uiImage: $0.image) }
+                }
+            }
+
+            struct BitmapView: View {
+                var body: some View {
+                    let bitmap = UIGraphicsImageRenderer(
+                        size: CGSize(width: 8, height: 8)
+                    ).image { _ in }
+                    let state = State(
+                        imageContainer: ImageContainer(image: bitmap)
+                    )
+                    if let image = state.image {
+                        image
+                            .resizable()
+                            .frame(width: 40, height: 40)
+                    }
+                }
+            }
+            """,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("nested platform bitmap failed to render: \(rendered)")
+            return
+        }
+
+        let bitmap = Self.bitmap(view, size: NSSize(width: 80, height: 80))
+        var redPixels = 0
+        for x in 0..<bitmap.pixelsWide {
+            for y in 0..<bitmap.pixelsHigh {
+                guard let color = bitmap.colorAt(x: x, y: y) else { continue }
+                if color.redComponent > 0.8,
+                   color.greenComponent < 0.3,
+                   color.blueComponent < 0.3 {
+                    redPixels += 1
+                }
+            }
+        }
+        #expect(redPixels >= 1_500)
+    }
+
+    @MainActor
+    private static func bitmap(
+        _ view: AnyView, size: NSSize
+    ) -> NSBitmapImageRep {
+        let hosting = NSHostingView(
+            rootView: view
+                .frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        guard let bitmap = hosting.bitmapImageRepForCachingDisplay(
+            in: hosting.bounds
+        ) else {
+            fatalError("could not allocate bitmap")
+        }
+        hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+        return bitmap
     }
 }
