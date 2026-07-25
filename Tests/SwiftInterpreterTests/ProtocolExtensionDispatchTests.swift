@@ -129,6 +129,104 @@ import SwiftUIBridge
         #expect(value.intValue == 7)
     }
 
+    /// A source alias and its extension commonly live in different files of
+    /// one package target. The runtime carrier can be intentionally opaque;
+    /// the receiver's declared alias must still select the canonical host
+    /// extension before an absorbing imported member gets first refusal.
+    @Test func opaqueCarrierDispatchesCrossFileTypeAliasExtension() throws {
+        let alias = ProjectMaterial.mergedSource(
+            source: """
+            import UIKit
+            typealias PlatformImage = UIImage
+            """,
+            moduleName: "ImagePipeline")
+        let imageExtensions = ProjectMaterial.mergedSource(
+            source: """
+            import UIKit
+
+            extension PlatformImage {
+                var pixelWidth: Int { 8 }
+            }
+
+            final class Recorder {
+                var witnessCalls = 0
+            }
+
+            let recorder = Recorder()
+            """,
+            moduleName: "ImagePipeline")
+        let pipeline = ProjectMaterial.mergedSource(
+            source: """
+            import UIKit
+
+            struct Container {
+                var image: PlatformImage
+            }
+
+            protocol Processing {
+                func process(_ image: PlatformImage) -> Int
+                func process(
+                    _ container: Container, context: Int
+                ) throws -> Int
+            }
+
+            extension Processing {
+                func process(
+                    _ container: Container, context: Int
+                ) throws -> Int {
+                    process(container.image)
+                }
+            }
+
+            struct Resize: Processing {
+                func process(_ image: PlatformImage) -> Int {
+                    recorder.witnessCalls += 1
+                    return image.pixelWidth
+                }
+            }
+
+            func enqueue(_ operation: @escaping () -> Void) {
+                operation()
+            }
+
+            final class Loader {
+                var output = -1
+
+                func start(_ processor: any Processing) {
+                    enqueue { [weak self] in
+                        guard let self else { return }
+                        let bitmap = UIImage(named: "fixture")!
+                        let result = Result {
+                            try processor.process(
+                                Container(image: bitmap), context: 0
+                            )
+                        }
+                        switch result {
+                        case .success(let value):
+                            output = value
+                        case .failure:
+                            output = -2
+                        }
+                    }
+                }
+            }
+
+            let loader = Loader()
+            loader.start(Resize())
+            (
+                loader.output,
+                recorder.witnessCalls
+            )
+            """,
+            moduleName: "ImagePipeline")
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: alias + imageExtensions + pipeline)
+        let tuple = try #require(value.tupleValue)
+        #expect(tuple.values[0].intValue == 8)
+        #expect(tuple.values[1].intValue == 1)
+    }
+
     @Test func inheritedInstanceOverloadUsesRuntimeType() throws {
         let source = """
         struct Slice {}
