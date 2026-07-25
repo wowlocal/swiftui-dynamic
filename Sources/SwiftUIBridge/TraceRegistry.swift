@@ -701,6 +701,9 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue? {
+        if let bridged = bridgeFallbackHostMember(name, on: value) {
+            return bridged
+        }
         guard !Self.isBuilderOnlyModifier(name),
               let node = value as? TraceNode, node.absorbsUnknownMembers else {
             return nil

@@ -666,15 +666,15 @@ func bridgeHostMember(
     if let stub = value as? UIKitStub {
         if let stored = stub.config[name] { return stored }
         // Geometry members read real fresh-layout values so CGRect/CGPoint
-        // math works; everything else reads as a fresh stub. Both memoize
-        // so writes persist (`vc.view.tag = 7` then `vc.view.tag`); calling
-        // a stub is also inert (see the evaluator's invoke fallback).
+        // math works. Unknown members belong to bridgeFallbackHostMember:
+        // they are absorbing capabilities, not declarations that may shadow
+        // lexical names inside a source extension.
         let fresh: RuntimeValue
         switch name {
         case "bounds", "frame": fresh = .native(CGRect.zero)
         case "center", "contentOffset": fresh = .native(CGPoint.zero)
         case "contentSize": fresh = .native(CGSize.zero)
-        default: fresh = .native(UIKitStub())
+        default: return nil
         }
         stub.config[name] = fresh
         return fresh
@@ -865,6 +865,20 @@ func bridgeHostMember(
     return nil
 }
 
+/// Unknown reads on an opaque imported object are deliberately absorbing, but
+/// they remain fallback capabilities. Keeping them out of `hostMember` lets
+/// Swift's lexical lookup resolve globals and helper types before implicit
+/// self considers a member that no interface or stored write declared.
+func bridgeFallbackHostMember(
+    _ name: String, on value: Any
+) -> RuntimeValue? {
+    guard let stub = value as? UIKitStub else { return nil }
+    if let stored = stub.config[name] { return stored }
+    let fresh = RuntimeValue.native(UIKitStub())
+    stub.config[name] = fresh
+    return fresh
+}
+
 private enum HandNormalizedGeneratedPropertyCache {
     static let properties: [String: HostProperty] = {
         var result: [String: HostProperty] = [:]
@@ -982,6 +996,12 @@ extension ViewRegistry {
         bridgeHostMember(
             name, on: value, fileManager: fileManagerBox,
             applicationShells: applicationShells)
+    }
+
+    public func fallbackHostMember(
+        _ name: String, on value: Any
+    ) -> RuntimeValue? {
+        bridgeFallbackHostMember(name, on: value)
     }
 
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {

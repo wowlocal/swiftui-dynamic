@@ -227,6 +227,46 @@ import SwiftUIBridge
         #expect(tuple.values[1].intValue == 1)
     }
 
+    /// Unknown reads on an opaque imported carrier are fallback capabilities,
+    /// not statically declared members. Otherwise implicit-self lookup inside
+    /// a host extension consumes a same-module helper type before lexical
+    /// lookup can resolve it.
+    @Test func opaqueHostExtensionBodyPrefersLexicalHelperType() throws {
+        let helper = ProjectMaterial.mergedSource(
+            source: """
+            import UIKit
+
+            struct ImageProcessingExtensions {
+                let image: UIImage
+                var pixelWidth: Int { 8 }
+            }
+            """,
+            moduleName: "ImagePipeline")
+        let imageExtension = ProjectMaterial.mergedSource(
+            source: """
+            import UIKit
+
+            extension UIImage {
+                var processed: ImageProcessingExtensions {
+                    ImageProcessingExtensions(image: self)
+                }
+            }
+            """,
+            moduleName: "ImagePipeline")
+        let consumer = ProjectMaterial.mergedSource(
+            source: """
+            import UIKit
+
+            let bitmap: UIImage = UIImage(named: "fixture")!
+            bitmap.processed.pixelWidth
+            """,
+            moduleName: "ImagePipeline")
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: helper + imageExtension + consumer)
+        #expect(value.intValue == 8)
+    }
+
     @Test func inheritedInstanceOverloadUsesRuntimeType() throws {
         let source = """
         struct Slice {}
