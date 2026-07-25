@@ -1234,6 +1234,13 @@ struct ParsedProgramConcurrencyTests {
         #expect(rangeMetadata.extendedTypeName == "ClosedRange")
         #expect(rangeMetadata.genericRequirements
             == ["Bound: BinaryFloatingPoint"])
+        #expect(rangeMetadata.soleSelfSameTypeConcreteTypeName == nil)
+
+        let labelStyle = try #require(extensions.dropFirst(3).first)
+        let labelStyleMetadata = try #require(
+            program.extensionMetadataIndex.metadata(for: labelStyle))
+        #expect(labelStyleMetadata.soleSelfSameTypeConcreteTypeName
+            == "FoodTruckStyle")
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
