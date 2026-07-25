@@ -593,6 +593,43 @@ import Testing
         #expect(value.stringValue == "content")
     }
 
+    /// Protocol convenience overloads can share the witness's argument labels
+    /// while adapting a different type. Runtime argument types must select the
+    /// default for the outer call and the concrete witness for its delegation.
+    @Test func protocolDefaultWinsSameShapeByRuntimeArgumentType() throws {
+        let source = """
+        struct Payload {
+            let marker: Int
+        }
+
+        struct DecodeContext {
+            let payload: Payload
+        }
+
+        protocol Decoding {
+            func decode(_ payload: Payload) -> Int
+        }
+
+        extension Decoding {
+            func decode(_ context: DecodeContext) -> Int {
+                decode(context.payload)
+            }
+        }
+
+        struct DefaultDecoder: Decoding {
+            func decode(_ payload: Payload) -> Int {
+                payload.marker
+            }
+        }
+
+        let decoder: any Decoding = DefaultDecoder()
+        decoder.decode(DecodeContext(payload: Payload(marker: 7)))
+        """
+
+        let value = try Interpreter().run(source: source)
+        #expect(value.intValue == 7)
+    }
+
     /// A refined nonthrowing requirement is a better match for an unmarked
     /// call than its same-shaped throwing ancestor. This is the delegation
     /// pattern used when a throwing protocol default adapts a nonthrowing
