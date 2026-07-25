@@ -550,6 +550,7 @@ enum GeneratedPlatformBridge {
     private static let nominalKinds = buildNominalKinds()
     private static let supertypes = buildSupertypes()
     private static let typeAliases = buildTypeAliases()
+    private static let nativeFrameworks = buildNativeFrameworks()
 
     static func canonicalTypeName(_ name: String) -> String {
         var current = name
@@ -562,73 +563,22 @@ enum GeneratedPlatformBridge {
     }
 
     static func frameworkIsNative(_ framework: String) -> Bool {
-        switch framework {
-        case "Foundation":
-            true
-        case "ObjectiveC":
-#if canImport(ObjectiveC)
-            true
-#else
-            false
-#endif
-        case "AppKit":
-#if canImport(AppKit)
-            true
-#else
-            false
-#endif
-        case "UIKit":
-#if canImport(UIKit)
-            true
-#else
-            false
-#endif
-        case "Metal":
-#if canImport(Metal)
-            true
-#else
-            false
-#endif
-        case "MapKit":
-#if canImport(MapKit)
-            true
-#else
-            false
-#endif
-        case "CoreLocation":
-#if canImport(CoreLocation)
-            true
-#else
-            false
-#endif
-        case "WebKit":
-#if canImport(UIKit) && canImport(WebKit)
-            true
-#else
-            false
-#endif
-        default:
-            false
-        }
+        nativeFrameworks.contains(framework)
     }
 
     private static var frameworkPreference: [String] {
-#if canImport(AppKit)
-        [
-            "AppKit", "Foundation", "ObjectiveC", "Metal", "MapKit",
-            "CoreLocation", "WebKit", "UIKit",
-        ]
-#elseif canImport(UIKit)
-        [
-            "UIKit", "Foundation", "ObjectiveC", "Metal", "MapKit",
-            "CoreLocation", "WebKit", "AppKit",
-        ]
-#else
-        [
-            "Foundation", "ObjectiveC", "Metal", "MapKit", "CoreLocation",
-            "WebKit", "UIKit", "AppKit",
-        ]
-#endif
+        let nativeSurfaces = platformFrameworkOrder.filter {
+            platformSurfaceFrameworks.contains($0)
+                && frameworkIsNative($0)
+        }
+        let support = platformFrameworkOrder.filter {
+            !platformSurfaceFrameworks.contains($0)
+        }
+        let unavailableSurfaces = platformFrameworkOrder.filter {
+            platformSurfaceFrameworks.contains($0)
+                && !frameworkIsNative($0)
+        }
+        return nativeSurfaces + support + unavailableSurfaces
     }
 
     static func globalFunction(
@@ -1895,16 +1845,20 @@ func generatedPlatformArgument<T>(
     typeName: String,
     context: EvalContext
 ) throws -> T {
+    // Unwrap our typed carrier before attempting a direct dynamic cast.
+    // Clang-imported reference typedefs can report a vacuous conditional cast
+    // from arbitrary host objects; letting that cast see the carrier itself
+    // fabricates a reference instead of recovering its native payload.
+    if case .host(let any) = value,
+       let box = any as? GeneratedPlatformValue,
+       let payload = box.payload as? T {
+        return payload
+    }
     if let direct = value.hostPayload as? T { return direct }
     if let backing = value.importedSuperclassBacking {
         return try generatedPlatformArgument(
             backing, as: T.self, framework: framework,
             typeName: typeName, context: context)
-    }
-    if case .host(let any) = value,
-       let box = any as? GeneratedPlatformValue,
-       let payload = box.payload as? T {
-        return payload
     }
     if let carrier = value.hostPayload as? GeneratedMemberCarrier,
        let payload = carrier.generatedMemberValue as? T {
