@@ -298,14 +298,15 @@ extension Interpreter {
                 declaredBaseTypeName: declaredBaseTypeName) {
                 return liftsMemberResult ? result.liftedToOptional() : result
             }
-            // A differently shaped protocol default remains an overload even
-            // when the conformer owns a unique same-named witness.
+            // A structurally distinct protocol default remains an overload
+            // even when it has the same labels as the concrete witness.
+            // Runtime types select the adapter or witness from one family.
             if case .instance(let instance) = specialBaseValue,
-               let defaults = protocolDefaultsRequiredByCallShape(
+               let overloads = instanceCallOverloadsIncludingProtocolDefaults(
                    named: name, on: instance, call: call) {
                 let args = try collectArguments(of: call, in: env)
                 let available = functionsAvailableForCall(
-                    from: defaults, args: args)
+                    from: overloads, args: args)
                 if let method = chooseFunction(
                     from: available,
                     for: args,
@@ -562,11 +563,11 @@ extension Interpreter {
                 return try invoke(target, with: args, node: call)
             }
             if case .instance(let instance)? = env.lookup("self"),
-               let defaults = protocolDefaultsRequiredByCallShape(
+               let overloads = instanceCallOverloadsIncludingProtocolDefaults(
                    named: name, on: instance, call: call) {
                 let args = try collectArguments(of: call, in: env)
                 let available = functionsAvailableForCall(
-                    from: defaults, args: args)
+                    from: overloads, args: args)
                 if let method = chooseFunction(
                     from: available,
                     for: args,

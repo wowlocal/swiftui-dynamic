@@ -1208,12 +1208,12 @@ extension Interpreter {
             }
 
             if case .instance(let instance) = baseValue,
-               let defaults = protocolDefaultsRequiredByCallShape(
+               let overloads = instanceCallOverloadsIncludingProtocolDefaults(
                    named: name, on: instance, call: call) {
                 let args = try await collectArgumentsSuspending(
                     of: call, in: env)
                 let available = functionsAvailableForCall(
-                    from: defaults, args: args)
+                    from: overloads, args: args)
                 if let method = chooseFunction(
                     from: available, for: args
                 ) ?? available.first,
@@ -1381,12 +1381,12 @@ extension Interpreter {
                 }
             }
             if case .instance(let instance)? = env.lookup("self"),
-               let defaults = protocolDefaultsRequiredByCallShape(
+               let overloads = instanceCallOverloadsIncludingProtocolDefaults(
                    named: name, on: instance, call: call) {
                 let args = try await collectArgumentsSuspending(
                     of: call, in: env)
                 let available = functionsAvailableForCall(
-                    from: defaults, args: args)
+                    from: overloads, args: args)
                 if let method = chooseFunction(
                     from: available, for: args
                 ) ?? available.first,

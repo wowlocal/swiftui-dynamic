@@ -861,27 +861,21 @@ extension Interpreter {
             named: name, on: instance.symbol, table: \.methods)
     }
 
-    /// A unique concrete method cannot consume a differently shaped call merely
-    /// because it shares the base name. When no concrete/inherited declaration
-    /// fits the syntax shape, return only fitting protocol-extension defaults.
-    /// This leaves ordinary witness dispatch untouched while admitting adapter
-    /// defaults such as `process(Container, context:)` beside
-    /// `process(Image)`.
-    func protocolDefaultsRequiredByCallShape(
+    /// Concrete methods and protocol-extension conveniences form one overload
+    /// family when a default contributes a structurally distinct declaration
+    /// that fits the call shape. Runtime argument types then choose between
+    /// same-labeled adapters such as `decode(Context)` and `decode(Data)`.
+    /// Concrete witnesses pre-shadow identical default signatures.
+    func instanceCallOverloadsIncludingProtocolDefaults(
         named name: String,
         on instance: Instance,
         call: FunctionCallExprSyntax
     ) -> [FunctionDeclSyntax]? {
         let shape = ArgumentShape(callSiteMetadata(for: call).arguments)
         let concrete = instanceMethodOverloads(named: name, on: instance) ?? []
-        guard !concrete.contains(where: {
-            functionMetadata(for: $0).shape.matches(shape)
-        }) else {
-            return nil
-        }
-
-        var result: [FunctionDeclSyntax] = []
-        var shadowed = Set<String>()
+        var result = concrete
+        var shadowed = Set(concrete.map(methodOverrideSignature))
+        var addedDefault = false
         for conformance in transitiveConformances(of: instance.symbol) {
             guard let defaults = hostExtensionSymbols[conformance]?
                 .methods[name] else {
@@ -897,9 +891,10 @@ extension Interpreter {
                     continue
                 }
                 result.append(method)
+                addedDefault = true
             }
         }
-        return result.isEmpty ? nil : result
+        return addedDefault ? result : nil
     }
 
     /// Static lookup follows the same overload/override rule as instances.
