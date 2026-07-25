@@ -2020,19 +2020,27 @@ for file in targetOverlayFiles {
 }
 
 struct PlatformSemanticAdapterVariant {
+    enum ResultKind {
+        case shapeStyle
+        case view
+    }
+
     let variant: Variant
     let unavailableFramework: String
+    let resultKind: ResultKind
 }
 
-/// A one-parameter platform initializer for a View+ShapeStyle value carries
-/// enough structural information to retain style semantics off-platform. The
-/// generated adapter accepts the typed inert box only where the exact native
-/// initializer cannot compile; no target/member identity participates.
+/// A one-parameter platform initializer carries enough structural information
+/// to ask its argument for off-host semantics. View+ShapeStyle results retain
+/// style behavior; every other View result accepts only a payload which
+/// explicitly advertises a transferable primitive View. The generated adapter
+/// exists only where the exact native initializer cannot compile, and no
+/// target/member identity participates.
 let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
     var seen: Set<String> = []
     return initVariants.compactMap {
         (variant: Variant) -> PlatformSemanticAdapterVariant? in
-        guard variant.preservesSemanticValue, variant.params.count == 1,
+        guard variant.params.count == 1,
               let parameter = variant.params.first,
               parameter.tag.hasPrefix("platformValue("),
               let framework = parameter.requiredFramework else { return nil }
@@ -2052,7 +2060,9 @@ let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
         let key = "\(framework)|\(adapter.key)"
         guard seen.insert(key).inserted else { return nil }
         return PlatformSemanticAdapterVariant(
-            variant: adapter, unavailableFramework: framework)
+            variant: adapter,
+            unavailableFramework: framework,
+            resultKind: variant.preservesSemanticValue ? .shapeStyle : .view)
     }
 }()
 
@@ -3473,9 +3483,15 @@ func platformSemanticAdapterEntryCode(
 ) -> String {
     let variant = adapter.variant
     let specs = variant.params.map(paramSpecCode).joined(separator: ", ")
+    let result = switch adapter.resultKind {
+    case .shapeStyle:
+        "generatedPlatformShapeStyleValue(v[0])"
+    case .view:
+        "try generatedPlatformViewValue(v[0])"
+    }
     let source = """
     register(&t, "\(variant.name)", [\(specs)]) { v in
-        return generatedPlatformShapeStyleValue(v[0])
+        return \(result)
     }
     """
     return "#if !canImport(\(adapter.unavailableFramework))\n\(source)\n#endif"

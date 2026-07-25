@@ -43,12 +43,26 @@ private final class GeneratedPlatformRawMemory: HostRawMemory,
     }
 }
 
+/// Common capability for a target-platform value which can cross a generated
+/// SwiftUI initializer while the interpreter renders on another host.
+///
+/// The framework/type pair retains the swiftinterface contract. A native
+/// payload drives the exact initializer when that framework is present; a
+/// semantic View value lets an off-host adapter preserve renderable content
+/// without identifying an initializer or SDK type in dispatch.
+protocol GeneratedPlatformSemanticCarrier {
+    var generatedPlatformFramework: String { get }
+    var generatedPlatformTypeName: String { get }
+    var generatedPlatformNativePayload: Any? { get }
+    var generatedPlatformViewValue: Any? { get }
+}
+
 /// A platform value whose API contract came from BridgeGen's platform SDK
 /// symbol-graph sweep. On the framework's native platform `payload` is the
 /// real SDK value. On the opposite platform it is nil and the same generated
 /// contract supplies deterministic, typed inert behavior.
 final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntimeEquatable,
-    CustomStringConvertible
+    CustomStringConvertible, GeneratedPlatformSemanticCarrier
 {
     enum SemanticRole: Hashable {
         /// Framework-owned application/window/scene objects configured by the
@@ -89,6 +103,11 @@ final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntim
     var description: String {
         payload.map(String.init(describing:)) ?? "<\(framework).\(typeName) stub>"
     }
+
+    var generatedPlatformFramework: String { framework }
+    var generatedPlatformTypeName: String { typeName }
+    var generatedPlatformNativePayload: Any? { payload }
+    var generatedPlatformViewValue: Any? { nil }
 
     func copiedHostValue() -> Any {
         guard isValueType else { return self }
