@@ -1,6 +1,6 @@
 import Testing
 @testable import SwiftInterpreter
-import SwiftUIBridge
+@testable import SwiftUIBridge
 
 @Suite struct ProtocolExtensionDispatchTests {
     /// A contextual protocol existential can name a static factory supplied
@@ -130,10 +130,10 @@ import SwiftUIBridge
     }
 
     /// A source alias and its extension commonly live in different files of
-    /// one package target. The runtime carrier can be intentionally opaque;
-    /// the receiver's declared alias must still select the canonical host
-    /// extension before an absorbing imported member gets first refusal.
-    @Test func opaqueCarrierDispatchesCrossFileTypeAliasExtension() throws {
+    /// one package target. An existential default can call a concrete overload
+    /// that returns a decoded semantic carrier through another extension
+    /// method; its generated raster property must survive every boundary.
+    @Test func decodedRasterDispatchesCrossFileTypeAliasExtension() throws {
         let alias = ProjectMaterial.mergedSource(
             source: """
             import UIKit
@@ -144,12 +144,32 @@ import SwiftUIBridge
             source: """
             import UIKit
 
-            extension PlatformImage {
+            struct ImageProcessingExtensions {
+                let image: PlatformImage
+
                 var pixelWidth: Int { 8 }
+
+                func byResizing(to width: Int) -> PlatformImage? {
+                    recorder.resizeCalls += 1
+                    guard image.cgImage != nil else {
+                        return nil
+                    }
+                    recorder.imagePropertyCalls += 1
+                    return image
+                }
+            }
+
+            extension PlatformImage {
+                var processed: ImageProcessingExtensions {
+                    ImageProcessingExtensions(image: self)
+                }
             }
 
             final class Recorder {
                 var witnessCalls = 0
+                var resizeCalls = 0
+                var imagePropertyCalls = 0
+                var directImagePropertyCalls = 0
             }
 
             let recorder = Recorder()
@@ -160,28 +180,54 @@ import SwiftUIBridge
             import UIKit
 
             struct Container {
-                var image: PlatformImage
+                private final class Storage {
+                    var image: PlatformImage
+
+                    init(image: PlatformImage) {
+                        self.image = image
+                    }
+                }
+
+                private var storage: Storage
+
+                var image: UIImage {
+                    get { storage.image }
+                    set { storage.image = newValue }
+                }
+
+                init(image: PlatformImage) {
+                    self.storage = Storage(image: image)
+                }
             }
 
             protocol Processing {
-                func process(_ image: PlatformImage) -> Int
+                func process(_ image: PlatformImage) -> PlatformImage?
                 func process(
                     _ container: Container, context: Int
-                ) throws -> Int
+                ) throws -> Container
             }
 
             extension Processing {
                 func process(
                     _ container: Container, context: Int
-                ) throws -> Int {
-                    process(container.image)
+                ) throws -> Container {
+                    guard let output = process(container.image) else {
+                        throw ProcessingError.failed
+                    }
+                    var container = container
+                    container.image = output
+                    return container
                 }
             }
 
+            enum ProcessingError: Error {
+                case failed
+            }
+
             struct Resize: Processing {
-                func process(_ image: PlatformImage) -> Int {
+                func process(_ image: PlatformImage) -> PlatformImage? {
                     recorder.witnessCalls += 1
-                    return image.pixelWidth
+                    return image.processed.byResizing(to: 8)
                 }
             }
 
@@ -195,7 +241,11 @@ import SwiftUIBridge
                 func start(_ processor: any Processing) {
                     enqueue { [weak self] in
                         guard let self else { return }
-                        let bitmap = UIImage(named: "fixture")!
+                        let bitmap = UIImage(
+                            data: bitmapFixture, scale: 1)!
+                        if bitmap.cgImage != nil {
+                            recorder.directImagePropertyCalls += 1
+                        }
                         let result = Result {
                             try processor.process(
                                 Container(image: bitmap), context: 0
@@ -203,7 +253,7 @@ import SwiftUIBridge
                         }
                         switch result {
                         case .success(let value):
-                            output = value
+                            output = value.image.processed.pixelWidth
                         case .failure:
                             output = -2
                         }
@@ -215,16 +265,34 @@ import SwiftUIBridge
             loader.start(Resize())
             (
                 loader.output,
-                recorder.witnessCalls
+                recorder.witnessCalls,
+                recorder.resizeCalls,
+                recorder.imagePropertyCalls,
+                recorder.directImagePropertyCalls
             )
             """,
             moduleName: "ImagePipeline")
 
-        let value = try Interpreter(registry: TraceRegistry()).run(
+        let decoded = try #require(
+            UIImageBox.decoding(NetworkBridge.placeholderPNG))
+        #expect(
+            GeneratedPlatformBridge.property(
+                "cgImage", onSemanticCarrier: decoded) != nil)
+        #expect(
+            TraceRegistry().hostProperty(
+                named: "cgImage", on: decoded) != nil)
+
+        let interpreter = Interpreter(registry: TraceRegistry())
+        interpreter.globals.define(
+            "bitmapFixture", .native(NetworkBridge.placeholderPNG))
+        let value = try interpreter.run(
             source: alias + imageExtensions + pipeline)
         let tuple = try #require(value.tupleValue)
         #expect(tuple.values[0].intValue == 8)
         #expect(tuple.values[1].intValue == 1)
+        #expect(tuple.values[2].intValue == 1)
+        #expect(tuple.values[3].intValue == 1)
+        #expect(tuple.values[4].intValue == 1)
     }
 
     /// Unknown reads on an opaque imported carrier are fallback capabilities,
