@@ -909,12 +909,6 @@ func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
        let property = GeneratedPlatformBridge.property(name, on: platform) {
         return property
     }
-    if let carrier = value as?
-        any GeneratedPlatformTypedPropertyCarrier,
-       let property = GeneratedPlatformBridge.property(
-           name, onSemanticCarrier: carrier) {
-        return property
-    }
     if let opaque = value as?
         any GeneratedPlatformOpaqueReferenceCarrier,
        let property = GeneratedPlatformBridge.property(
@@ -939,6 +933,16 @@ func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
             return nil
         }
         return HandNormalizedGeneratedPropertyCache.property(name, on: value)
+    }
+    // Concrete semantic members (for example a decoded bitmap's real size)
+    // already had first refusal above. Remaining target-SDK properties keep
+    // their generated typed contract; a uniquely typed carrier value can
+    // replace that fallback without naming the property.
+    if let carrier = value as?
+        any GeneratedPlatformTypedPropertyCarrier,
+       let property = GeneratedPlatformBridge.property(
+           name, onSemanticCarrier: carrier) {
+        return property
     }
     if let generated = GeneratedMembers.property(name, on: value) {
         return generated

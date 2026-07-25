@@ -144,17 +144,38 @@ import Testing
             source: """
             import UIKit
 
+            extension CGSize {
+                func rotatedForOrientation(
+                    _ orientation: UIImage.Orientation
+                ) -> CGSize {
+                    recorder.orientationCalls += 1
+                    switch orientation {
+                    case .left, .leftMirrored, .right, .rightMirrored:
+                        return CGSize(width: height, height: width)
+                    case .up, .upMirrored, .down, .downMirrored:
+                        return self
+                    @unknown default:
+                        return self
+                    }
+                }
+            }
+
             struct ImageProcessingExtensions {
                 let image: PlatformImage
 
                 var pixelWidth: Int { 8 }
 
-                func byResizing(to width: Int) -> PlatformImage? {
+                func byResizing(to targetSize: CGSize) -> PlatformImage? {
                     recorder.resizeCalls += 1
                     guard image.cgImage != nil else {
                         return nil
                     }
                     recorder.imagePropertyCalls += 1
+                    let targetSize = targetSize.rotatedForOrientation(
+                        image.imageOrientation)
+                    guard targetSize.width == 8 else {
+                        return nil
+                    }
                     return image
                 }
             }
@@ -170,6 +191,7 @@ import Testing
                 var resizeCalls = 0
                 var imagePropertyCalls = 0
                 var directImagePropertyCalls = 0
+                var orientationCalls = 0
             }
 
             let recorder = Recorder()
@@ -227,7 +249,8 @@ import Testing
             struct Resize: Processing {
                 func process(_ image: PlatformImage) -> PlatformImage? {
                     recorder.witnessCalls += 1
-                    return image.processed.byResizing(to: 8)
+                    return image.processed.byResizing(
+                        to: CGSize(width: 8, height: 8))
                 }
             }
 
@@ -268,7 +291,8 @@ import Testing
                 recorder.witnessCalls,
                 recorder.resizeCalls,
                 recorder.imagePropertyCalls,
-                recorder.directImagePropertyCalls
+                recorder.directImagePropertyCalls,
+                recorder.orientationCalls
             )
             """,
             moduleName: "ImagePipeline")
@@ -293,6 +317,7 @@ import Testing
         #expect(tuple.values[2].intValue == 1)
         #expect(tuple.values[3].intValue == 1)
         #expect(tuple.values[4].intValue == 1)
+        #expect(tuple.values[5].intValue == 1)
     }
 
     /// Unknown reads on an opaque imported carrier are fallback capabilities,
