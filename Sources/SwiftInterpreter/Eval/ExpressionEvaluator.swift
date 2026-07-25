@@ -364,6 +364,13 @@ extension Interpreter {
             if isConditionalCast, value.isNil {
                 return .none(wrappedTypeName: typeName)
             }
+            // A receiverless absorber is the absence of a runtime result, not
+            // evidence that an arbitrary imported call produced the requested
+            // type. Absorbed members rooted in a concrete receiver retain the
+            // optimistic path below.
+            if isConditionalCast, value.isReceiverlessAbsorbedValue {
+                return .none(wrappedTypeName: typeName)
+            }
             if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
             // A DEFINITE mismatch is nil when both sides are declared in
             // this merge (`action as? AsyncAction` over a plain Action —

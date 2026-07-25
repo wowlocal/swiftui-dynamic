@@ -447,6 +447,24 @@ struct OptionalSemanticsTests {
         }
     }
 
+    /// A receiverless imported call has no runtime object that could prove a
+    /// dynamic cast. Native optional-returning foreign APIs therefore take the
+    /// `nil` branch when their fresh value is absent; an opaque absorber must
+    /// not turn that absence into `Optional.some(marker)`.
+    @Test func receiverlessAbsorbedCallFailsConditionalCast() throws {
+        let nativeValue: Any? = nil
+        let native = (nativeValue as? Bool) ?? false
+
+        let interpreted = try evaluateOptionalSemantics("""
+        let key = malloc(1)!
+        let value = foreign_object_lookup(1, key)
+        (value as? Bool) ?? false
+        """)
+
+        #expect(native == false)
+        #expect(interpreted.boolValue == native)
+    }
+
     @Test func compactMapFlattensFailableHostInitializerResults() throws {
         let value = try evaluateOptionalSemantics("""
         extension String {
