@@ -129,6 +129,67 @@ import Testing
         #expect(value.intValue == 7)
     }
 
+    /// A nested source initializer converted to a callback keeps its exact
+    /// nominal target and adapts the initializer's argument labels to the
+    /// unlabeled function value. A same-spelled host constructor must not
+    /// capture the callback when it escapes through stored registry state.
+    @Test func escapedNestedInitializerReferenceKeepsSourceNominal() throws {
+        let source = """
+        struct DecodeContext {
+            let marker: Int
+        }
+
+        protocol Decoding {
+            var marker: Int { get }
+        }
+
+        enum Decoders {
+            final class Default: Decoding {
+                let marker: Int
+
+                init?(context: DecodeContext) {
+                    self.marker = context.marker
+                }
+            }
+        }
+
+        final class DecoderRegistry {
+            private var factories =
+                [(DecodeContext) -> (any Decoding)?]()
+
+            init() {
+                register(Decoders.Default.init)
+            }
+
+            func register(
+                _ factory: @escaping
+                    (DecodeContext) -> (any Decoding)?
+            ) {
+                factories.append(factory)
+            }
+
+            func decoder(
+                for context: DecodeContext
+            ) -> (any Decoding)? {
+                for factory in factories.reversed() {
+                    if let decoder = factory(context) {
+                        return decoder
+                    }
+                }
+                return nil
+            }
+        }
+
+        DecoderRegistry()
+            .decoder(for: DecodeContext(marker: 7))!
+            .marker
+        """
+
+        let value = try Interpreter(registry: TraceRegistry())
+            .run(source: source)
+        #expect(value.intValue == 7)
+    }
+
     /// A source alias and its extension commonly live in different files of
     /// one package target. An existential default can call a concrete overload
     /// that returns a decoded semantic carrier through another extension

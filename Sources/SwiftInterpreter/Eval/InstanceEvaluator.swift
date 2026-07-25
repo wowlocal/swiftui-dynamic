@@ -263,6 +263,94 @@ extension Interpreter {
         return (effective, strict, memberwise)
     }
 
+    /// A source initializer reference has function-value arguments, so its
+    /// external labels are absent at the eventual call site. Reconstruct the
+    /// declaration call shape before ordinary initializer dispatch. This also
+    /// keeps the exact nested `StructSymbol` captured by the reference instead
+    /// of retrying a same-spelled host constructor by bare nominal name.
+    private func adaptedInitializerReferenceArguments(
+        for symbol: StructSymbol, arguments: CallArguments
+    ) -> CallArguments? {
+        let available = effectiveInitializers(for: symbol).filter {
+            !activeInitializers.contains($0.id)
+        }
+        var firstStructuralFit: CallArguments?
+
+        for initializer in available {
+            let metadata = initializerMetadata(for: initializer)
+            let bound = matchedParameterArguments(
+                metadata.parameters,
+                to: arguments,
+                lexicalOwner: lexicalOwner(of: initializer.id))
+            let consumedCount = zip(metadata.parameters, bound).reduce(into: 0) {
+                count, pair in
+                let (parameter, value) = pair
+                if parameter.isVariadic {
+                    count += value?.arrayValue?.count ?? 0
+                } else if value != nil {
+                    count += 1
+                }
+            }
+            guard consumedCount == arguments.arguments.count,
+                  zip(metadata.parameters, bound).allSatisfy({
+                      parameter, value in
+                      value != nil
+                          || parameter.defaultValue != nil
+                          || parameter.isVariadic
+                  }) else {
+                continue
+            }
+
+            var relabeled: [CallArguments.Argument] = []
+            for (parameter, value) in zip(metadata.parameters, bound) {
+                guard let value else { continue }
+                if parameter.isVariadic, let elements = value.arrayValue {
+                    for (index, element) in elements.enumerated() {
+                        relabeled.append(.init(
+                            label: index == 0 ? parameter.label : nil,
+                            value: element))
+                    }
+                } else {
+                    relabeled.append(.init(
+                        label: parameter.label,
+                        value: value))
+                }
+            }
+            let adapted = CallArguments(
+                arguments: relabeled,
+                sourceSiteID: arguments.sourceSiteID)
+            guard chooseInitializerStrict(
+                from: [initializer], for: adapted) != nil else {
+                continue
+            }
+            if firstStructuralFit == nil {
+                firstStructuralFit = adapted
+            }
+            if runtimeArgumentsFitDeclaredTypes(
+                metadata.parameters,
+                args: adapted,
+                genericParameterNames: Set(metadata.genericParameters),
+                genericConformanceRequirements:
+                    metadata.genericConformanceRequirements,
+                lexicalOwner: lexicalOwner(of: initializer.id)
+            ) {
+                return adapted
+            }
+        }
+        return firstStructuralFit
+    }
+
+    private func invokeInitializerReference(
+        _ symbol: StructSymbol, with arguments: CallArguments
+    ) throws -> RuntimeValue {
+        guard let adapted = adaptedInitializerReferenceArguments(
+            for: symbol, arguments: arguments
+        ) else {
+            return try instantiate(symbol, with: arguments)
+        }
+        return try instantiate(symbol, with: adapted)
+    }
+
     private func initializerIsAsync(
         _ initializer: InitializerDeclSyntax
     ) -> Bool {
@@ -1428,6 +1516,22 @@ extension Interpreter {
         _ value: RuntimeValue, parameter: ClosureValue.Parameter
     ) throws -> RuntimeValue {
         guard let typeName = parameter.typeName else { return value }
+        // `Nested.Type.init` is currently represented by its exact source
+        // metatype. Function conversion removes initializer argument labels;
+        // retain that symbol in a callable adapter and restore the labels from
+        // declaration metadata when the escaped value is eventually invoked.
+        if case .type(let symbol) = value, isFunctionType(typeName) {
+            return .hostFunction(HostFunction(
+                name: "\(symbol.name).init"
+            ) { [weak self] arguments, _ in
+                guard let self else {
+                    throw RuntimeError(
+                        message: "initializer reference outlived its interpreter")
+                }
+                return try self.invokeInitializerReference(
+                    symbol, with: arguments)
+            })
+        }
         // A closure literal bound to a FUNCTION-TYPED parameter inherits
         // the annotation's return type, so its `return .none` implicit
         // members resolve on exit (`Reducer { … in return .none }` — the
