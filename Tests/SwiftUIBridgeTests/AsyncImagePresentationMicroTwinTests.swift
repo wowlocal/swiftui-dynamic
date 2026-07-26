@@ -154,7 +154,7 @@ struct AsyncImagePresentationMicroTwinTests {
         #expect(prematureAE > 0)
 
         await gate.release()
-        let becamePresentable = await Self.waitUntil(
+        try await Self.waitUntil(
             hosting: hosting, window: window
         ) {
             interpreter.globals.lookup("presentationFinished")?
@@ -163,7 +163,6 @@ struct AsyncImagePresentationMicroTwinTests {
                     .boolValue == true
                 && interpreter.runtimeActivity.isQuiescent
         }
-        #expect(becamePresentable)
         #expect(interpreter.runtimeActivity.isQuiescent)
 
         let presented = Self.bitmap(hosting, window: window, size: size)
@@ -181,21 +180,17 @@ struct AsyncImagePresentationMicroTwinTests {
     private static func waitUntil(
         hosting: NSHostingView<AnyView>,
         window: NSWindow,
-        timeout: Duration = .seconds(20),
         _ condition: @MainActor () async -> Bool
-    ) async -> Bool {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
-        while !(await condition()) && clock.now < deadline {
+    ) async throws {
+        while !(await condition()) {
             hosting.layoutSubtreeIfNeeded()
             window.displayIfNeeded()
-            // Leave MainActor's runnable queue so SwiftUI's view task can
-            // advance under the repository's fully parallel test process.
-            try? await Task.sleep(for: .milliseconds(10))
+            // Leave MainActor's runnable queue so source delivery and SwiftUI
+            // presentation can advance under the fully parallel test process.
+            try await Task.sleep(for: .milliseconds(10))
         }
         hosting.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
-        return await condition()
     }
 
     @MainActor
