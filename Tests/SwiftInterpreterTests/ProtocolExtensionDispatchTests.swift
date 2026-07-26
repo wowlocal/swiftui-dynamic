@@ -448,6 +448,42 @@ import Testing
         }
     }
 
+    /// Once a direct SDK value enters a source extension, operators declared
+    /// on that same host-type extension must dispatch from the receiver's
+    /// runtime nominal even when the expression itself is unannotated.
+    /// Gifski surfaces this as a `CGSize` aspect-fit helper whose body uses
+    /// its source-declared `CGSize * Double` operator.
+    @Test func directHostExtensionMethodUsesDeclaredStaticOperator() throws {
+        let nativeInput = CGSize(width: 3, height: 2)
+        let nativeResult = CGSize(
+            width: nativeInput.width * 2,
+            height: nativeInput.height * 2)
+        let expected = "\(Int(nativeResult.width))x\(Int(nativeResult.height))"
+
+        let source = """
+        import CoreGraphics
+
+        extension CGSize {
+            static func * (lhs: Self, rhs: Double) -> Self {
+                Self(width: lhs.width * rhs, height: lhs.height * rhs)
+            }
+
+            func scaledByDeclaredOperator(_ factor: Double) -> Self {
+                self * factor
+            }
+        }
+
+        let result = CGSize(width: 3, height: 2)
+            .scaledByDeclaredOperator(2)
+        "\\(Int(result.width))x\\(Int(result.height))"
+        """
+
+        for registry: any HostRegistry in [ViewRegistry(), TraceRegistry()] {
+            let value = try Interpreter(registry: registry).run(source: source)
+            #expect(value.stringValue == expected)
+        }
+    }
+
     /// Unknown reads on an opaque imported carrier are fallback capabilities,
     /// not statically declared members. Otherwise implicit-self lookup inside
     /// a host extension consumes a same-module helper type before lexical
