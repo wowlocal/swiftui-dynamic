@@ -160,6 +160,14 @@ struct GeneratedConstructorSet {
     }
 }
 
+private extension RuntimeValue {
+    var isUnresolvedContextualMember: Bool {
+        if case .implicitMember = self { return true }
+        guard case .host(let payload) = self else { return false }
+        return payload is ImplicitMemberCall || payload is ChainedImplicitCall
+    }
+}
+
 enum GeneratedDispatch {
     static func coerce(
         _ tag: ParamTag, _ unresolvedValue: RuntimeValue,
@@ -455,24 +463,86 @@ enum GeneratedDispatch {
         return nil
     }
 
-    private static func matches(_ params: [ParamSpec], _ args: CallArguments, _ ctx: EvalContext) -> [Any]? {
-        guard params.count == args.arguments.count else { return nil }
-        var values: [Any] = []
+    private static func labelsMatch(
+        _ params: [ParamSpec], _ args: CallArguments
+    ) -> Bool {
+        guard params.count == args.arguments.count else { return false }
         for (param, argument) in zip(params, args.arguments) {
             let isClosureParam = param.tag == .builder
                 || param.tag == .action
                 || param.tag == .asyncAction
                 || param.tag == .syncVoidClosure
                 || param.tag == .syncCGFloatClosure
-            let labelOK = argument.label == param.label
-                || (argument.isTrailing && argument.label == nil && isClosureParam)
-            guard labelOK,
-                  let coerced = try? coerce(
+            guard argument.label == param.label
+                || (argument.isTrailing && argument.label == nil
+                    && isClosureParam)
+            else {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func matches(_ params: [ParamSpec], _ args: CallArguments, _ ctx: EvalContext) -> [Any]? {
+        guard labelsMatch(params, args) else { return nil }
+        var values: [Any] = []
+        for (param, argument) in zip(params, args.arguments) {
+            guard let coerced = try? coerce(
                     param.tag, argument.value, ctx,
                     contextualType: param.contextualType) else { return nil }
             values.append(coerced)
         }
         return values
+    }
+
+    /// Return every interface-derived contextual type shape that can accept
+    /// these labels and arity. Unlike matchingParameters, this deliberately
+    /// performs no coercion, so overload resolution can inspect metadata
+    /// without triggering source static initialization.
+    static func contextualParameterTypeCandidates(
+        overloads: GeneratedOverloadSet,
+        args: CallArguments,
+        ctx: EvalContext
+    ) -> [[String?]] {
+        (overloads.byArity[args.arguments.count] ?? []).compactMap {
+            guard isAvailable($0, in: ctx),
+                  labelsMatch($0.params, args) else {
+                return nil
+            }
+            return $0.params.map(\.contextualType)
+        }
+    }
+
+    /// Whether an interface-shaped overload can consume every unresolved
+    /// leading-dot marker through the adapter's own static coercions. Passing
+    /// no contextual type intentionally excludes interpreted extension
+    /// statics; the core resolver proves those from declaration metadata.
+    static func contextualArgumentsMatch(
+        overloads: GeneratedOverloadSet,
+        args: CallArguments,
+        ctx: EvalContext
+    ) -> Bool {
+        for overload in overloads.byArity[args.arguments.count] ?? [] {
+            guard isAvailable(overload, in: ctx),
+                  labelsMatch(overload.params, args) else {
+                continue
+            }
+            var matches = true
+            for (param, argument) in zip(
+                overload.params, args.arguments
+            ) where argument.value.isUnresolvedContextualMember {
+                do {
+                    _ = try coerce(
+                        param.tag, argument.value, ctx,
+                        contextualType: nil)
+                } catch {
+                    matches = false
+                    break
+                }
+            }
+            if matches { return true }
+        }
+        return false
     }
 
     /// Return the interface-derived parameter shape selected by the same

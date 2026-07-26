@@ -482,6 +482,35 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         }
     }
 
+    /// An implicit static member is viable only for overload parameter types
+    /// that actually declare that member. A source View overload must not
+    /// claim a native Font value merely because the argument is still an
+    /// unresolved `.preset` marker at the call site.
+    @Test func contextualStaticMemberChoosesImportedModifier() throws {
+        let source = """
+        struct SourceStyle {
+            let label: String
+        }
+
+        extension View {
+            func font(_ style: SourceStyle) -> some View {
+                Text("source \\(style.label)")
+            }
+        }
+
+        extension Font {
+            static let preset = Font.system(size: 16)
+        }
+
+        Text("native").font(.preset)
+        """
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.args == ["native"])
+        #expect(node.modifiers == ["font(.preset)"])
+    }
+
     /// Protocol-extension overloads whose imported argument values remain
     /// opaque still dispatch by their source labels. They must not enter the
     /// concrete-host overload matcher merely because the receiver conforms to
