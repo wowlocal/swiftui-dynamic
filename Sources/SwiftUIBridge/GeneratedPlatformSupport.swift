@@ -1,6 +1,12 @@
 import CoreGraphics
 import Foundation
 import SwiftInterpreter
+#if canImport(AppKit)
+import AppKit
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Owned representation of an SDK pointer result. The originating framework
 /// value is retained for the pointer's lifetime, and all access is expressed
@@ -493,6 +499,38 @@ enum GeneratedPlatformGlobalFallbackEffect {
 private struct GeneratedPlatformGlobalFunctionKey: Hashable {
     let framework: String
     let name: String
+}
+
+enum GeneratedPlatformPropertyFallbackSemantic {
+    case renderingScale
+
+    @MainActor
+    func result() -> RuntimeValue {
+        switch self {
+        case .renderingScale:
+            return .native(
+                GeneratedPlatformEnvironmentValueProvider.renderingScale)
+        }
+    }
+}
+
+/// Host-side values for interface-inexpressible ambient platform semantics.
+/// Generated metadata selects a semantic role; this provider knows only the
+/// role and the native host environment, never the target SDK API identity.
+private enum GeneratedPlatformEnvironmentValueProvider {
+    @MainActor
+    static var renderingScale: CGFloat {
+        let candidate: CGFloat?
+#if canImport(AppKit)
+        candidate = NSScreen.main?.backingScaleFactor
+#elseif canImport(UIKit)
+        candidate = UITraitCollection.current.displayScale
+#else
+        candidate = nil
+#endif
+        guard let candidate, candidate > 0 else { return 1 }
+        return candidate
+    }
 }
 
 struct GeneratedPlatformPropertyEntry {
@@ -1423,6 +1461,7 @@ enum GeneratedPlatformBridge {
         declaration: String,
         resultType: String,
         isImplicitlyUnwrapped: Bool = false,
+        fallbackSemantic: GeneratedPlatformPropertyFallbackSemantic? = nil,
         get: @escaping GeneratedPlatformPropertyEntry.Get,
         set: GeneratedPlatformPropertyEntry.Set?
     ) {
@@ -1466,7 +1505,9 @@ enum GeneratedPlatformBridge {
                     }
                     guard frameworkIsNative(framework), let payload = base.payload else {
                         return applyingImplicitlyUnwrappedOptional(
-                            fallbackResult(framework: framework, type: resultType),
+                            fallbackSemantic?.result()
+                                ?? fallbackResult(
+                                    framework: framework, type: resultType),
                             resultType: resultType,
                             isImplicitlyUnwrapped: isImplicitlyUnwrapped)
                     }

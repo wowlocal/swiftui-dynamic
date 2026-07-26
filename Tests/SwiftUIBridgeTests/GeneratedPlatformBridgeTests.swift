@@ -94,6 +94,42 @@ import AppKit
     }
 
 #if canImport(AppKit)
+    /// A compiled Catalyst twin reports the same positive rendering scale
+    /// through `UITraitCollection.current` and the host screen (2x on the
+    /// captured host). Preserve that ambient value when an iOS SDK carrier is
+    /// interpreted on macOS so ordinary geometry transforms cannot collapse
+    /// nonzero image targets.
+    @Test func oppositePlatformRenderingScaleMatchesNativeHost() throws {
+        let previousPlatform = Interpreter.interpretsAsPlatform
+        Interpreter.interpretsAsPlatform = "iOS"
+        defer { Interpreter.interpretsAsPlatform = previousPlatform }
+
+        let source = """
+        import CoreGraphics
+        import UIKit
+
+        extension CGSize {
+            func scaled(by scale: CGFloat) -> CGSize {
+                CGSize(width: width * scale, height: height * scale)
+            }
+        }
+
+        let scale = UITraitCollection.current.displayScale
+        let scaled = CGSize(width: 40, height: 12).scaled(by: scale)
+        (scale, scaled.width, scaled.height)
+        """
+        let expectedScale = Double(
+            NSScreen.main?.backingScaleFactor ?? 1)
+
+        for registry: any HostRegistry in [ViewRegistry(), TraceRegistry()] {
+            let result = try Interpreter(registry: registry).run(source: source)
+            let tuple = try #require(result.tupleValue)
+            #expect(tuple.values[0].doubleValue == expectedScale)
+            #expect(tuple.values[1].doubleValue == 40 * expectedScale)
+            #expect(tuple.values[2].doubleValue == 12 * expectedScale)
+        }
+    }
+
     /// EmojiText's platform-image extension reads `size.height` from an
     /// opaque image produced by its UIKit pipeline. The declared SDK role
     /// must expose the same swept property contract as the native AppKit
