@@ -897,8 +897,10 @@ extension Interpreter {
                 typeName: typeName, member: name))
         }
         let importedModifier: HostModifier?
-        if let registry, registry.isViewValue(receiver) {
-            importedModifier = registry.modifier(named: name)
+        if let registry, registry.isViewValue(receiver),
+           let modifier = registry.modifier(named: name),
+           modifier.exposesInterfaceParameterTypes {
+            importedModifier = modifier
         } else {
             importedModifier = nil
         }
@@ -908,8 +910,7 @@ extension Interpreter {
            case .hostFunction(let method) = imported,
            !method.canSuspend {
             importedMethod = method
-        } else if importedModifier == nil
-            && assumesCompiledImports && delegatesFromSourceExtension {
+        } else if assumesCompiledImports && delegatesFromSourceExtension {
             // The merged source was accepted by its original compiler, so a
             // same-named call from inside a source extension that fits no
             // source declaration may target an imported SDK peer the runtime
@@ -1196,16 +1197,16 @@ extension Interpreter {
             closure.functionDeclID = declaration.id
             return .closure(closure)
         }
-        if let importedMethod = overloads.importedMethod,
-           importedScore != nil || importedMethod.signatures.isEmpty {
-            return .hostFunction(importedMethod)
-        }
         if let modifier = overloads.importedModifier,
            modifierMatches {
             return .hostFunction(HostFunction(name: modifier.name) {
                 [receiver = overloads.receiver] args, context in
                 try modifier.apply(receiver, args, context)
             })
+        }
+        if let importedMethod = overloads.importedMethod,
+           importedScore != nil || importedMethod.signatures.isEmpty {
+            return .hostFunction(importedMethod)
         }
         let memberName = overloads.sourceMethods.first?.name.text
             ?? overloads.importedMethod?.name
