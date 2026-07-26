@@ -511,6 +511,68 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         #expect(node.modifiers == ["font(.preset)"])
     }
 
+    /// A generated modifier whose labels fit remains viable when no argument
+    /// needs contextual static-member lookup. An incompatible source overload
+    /// must not turn ordinary generated dispatch into "no matching overload".
+    @Test func generatedModifierWithoutContextualMarkerKeepsFallback() throws {
+        let source = """
+        extension View {
+            func offset(
+                _ coordinateSpace: String,
+                completion: (CGRect) -> Void
+            ) -> some View {
+                Text("source \\(coordinateSpace)")
+            }
+        }
+
+        Text("native").offset(y: 5)
+        """
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.args == ["native"])
+        #expect(node.modifiers == ["offset(y: 5)"])
+    }
+
+    /// Chaining from an unresolved leading-dot value remains provisional for
+    /// source overload matching just like the root marker itself.
+    @Test func chainedContextualMemberKeepsSourceOverloadViable() throws {
+        let source = """
+        extension View {
+            func border(_ width: CGFloat, _ color: Color) -> some View {
+                Text("source")
+            }
+        }
+
+        Text("native").border(1, .gray.opacity(0.5))
+        """
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.args == ["source"])
+    }
+
+    /// A same-name generated modifier that owns no matching call shape does
+    /// not make an opaque imported source parameter fail closed.
+    @Test func noncompetingModifierKeepsOpaqueSourceShapeDispatch() throws {
+        let source = """
+        extension View {
+            func offset(
+                _ coordinateSpace: AnyHashable,
+                completion: (CGRect) -> Void
+            ) -> some View {
+                Text("source")
+            }
+        }
+
+        Text("native").offset("CONTENTVIEW") { _ in }
+        """
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.args == ["source"])
+    }
+
     /// Protocol-extension overloads whose imported argument values remain
     /// opaque still dispatch by their source labels. They must not enter the
     /// concrete-host overload matcher merely because the receiver conforms to

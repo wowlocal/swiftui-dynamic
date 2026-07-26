@@ -1086,6 +1086,23 @@ extension Interpreter {
         let available = functionsAvailableForCall(
             from: sourceMethods, args: arguments)
 
+        func sourceTarget(
+            for declaration: FunctionDeclSyntax
+        ) -> RuntimeValue? {
+            guard let body = functionMetadata(for: declaration).body else {
+                return nil
+            }
+            let closure = makeFunctionClosure(
+                declaration,
+                body: body,
+                captured: selfEnvironment(overloads.receiver))
+            closure.extensionFrame = ExtensionFrame(
+                typeName: overloads.typeName,
+                member: functionMetadata(for: declaration).name)
+            closure.functionDeclID = declaration.id
+            return .closure(closure)
+        }
+
         var sourceCandidates: [(
             declaration: FunctionDeclSyntax,
             score: Int,
@@ -1139,15 +1156,26 @@ extension Interpreter {
                     contextualStaticMemberFit(
                         signature: signature,
                         match: match,
-                        arguments: arguments)
+                    arguments: arguments)
                 )
             } ?? []
-        let modifierCandidates = overloads.importedModifier?
-            .parameterTypeCandidates(for: arguments, in: self)
-            .map {
+        let modifierParameterCandidates = overloads.importedModifier?
+            .parameterTypeCandidates(for: arguments, in: self) ?? []
+        let modifierCandidates = modifierParameterCandidates.map {
                 contextualStaticMemberFit(
                     parameterTypes: $0, arguments: arguments)
-            } ?? []
+            }
+        // A same-name generated modifier is an imported overload peer only
+        // when an interface declaration owns this call's labels and arity.
+        // Otherwise preserve source label dispatch for values whose imported
+        // runtime type is deliberately opaque to HostSignature.
+        if overloads.importedMethod == nil,
+           modifierParameterCandidates.isEmpty,
+           sourceCandidates.isEmpty,
+           let declaration = available.first,
+           let target = sourceTarget(for: declaration) {
+            return target
+        }
         let shouldProbeModifier = sourceCandidates.isEmpty
             || sourceCandidates.contains {
                 $0.contextualFit == .missing
@@ -1186,16 +1214,8 @@ extension Interpreter {
             return .hostFunction(importedMethod)
         }
         if let declaration = bestSource?.declaration,
-           let body = functionMetadata(for: declaration).body {
-            let closure = makeFunctionClosure(
-                declaration,
-                body: body,
-                captured: selfEnvironment(overloads.receiver))
-            closure.extensionFrame = ExtensionFrame(
-                typeName: overloads.typeName,
-                member: functionMetadata(for: declaration).name)
-            closure.functionDeclID = declaration.id
-            return .closure(closure)
+           let target = sourceTarget(for: declaration) {
+            return target
         }
         if let modifier = overloads.importedModifier,
            modifierMatches {
