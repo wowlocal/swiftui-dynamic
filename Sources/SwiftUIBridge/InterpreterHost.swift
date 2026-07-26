@@ -1,6 +1,17 @@
 import SwiftInterpreter
 import SwiftUI
 
+/// One rendered view and the exact interpreter that owns its source state and
+/// asynchronous runtime activity.
+///
+/// Keeping the pair as a value lets independent hosts observe their own work
+/// without consulting `InterpreterHost.lastInterpreter`, whose process-global
+/// identity is retained only as a compatibility probe.
+public struct InterpreterRenderSession {
+    public let view: AnyView
+    public let interpreter: Interpreter
+}
+
 /// Public facade for the demo: source in, rendered root view (or a located
 /// error) out. Each render gets a fresh interpreter and registry so edits
 /// can't leave stale declarations behind.
@@ -21,14 +32,14 @@ public struct InterpreterHost {
         source: String,
         lazyTopLevelGlobals: Bool = false
     ) -> Result<AnyView, RuntimeError> {
-        render(
+        renderSessionCore(
             source: source,
             compilerSources: nil,
             buildTarget: nil,
             buildConfiguration: nil,
             projectResourceRoot: nil,
             lazyTopLevelGlobals: lazyTopLevelGlobals
-        )
+        ).map(\.view)
     }
 
     /// Render a merged source projection with one immutable bundled-resource
@@ -38,13 +49,14 @@ public struct InterpreterHost {
         projectResourceRoot: String,
         lazyTopLevelGlobals: Bool = false
     ) -> Result<AnyView, RuntimeError> {
-        render(
+        renderSessionCore(
             source: source,
             compilerSources: nil,
             buildTarget: nil,
             buildConfiguration: nil,
             projectResourceRoot: projectResourceRoot,
-            lazyTopLevelGlobals: lazyTopLevelGlobals)
+            lazyTopLevelGlobals: lazyTopLevelGlobals
+        ).map(\.view)
     }
 
     /// Render merged source against one immutable conditional-compilation
@@ -56,14 +68,14 @@ public struct InterpreterHost {
         buildConfiguration: InterpreterBuildConfiguration,
         lazyTopLevelGlobals: Bool = false
     ) -> Result<AnyView, RuntimeError> {
-        render(
+        renderSessionCore(
             source: source,
             compilerSources: nil,
             buildTarget: nil,
             buildConfiguration: buildConfiguration,
             projectResourceRoot: nil,
             lazyTopLevelGlobals: lazyTopLevelGlobals
-        )
+        ).map(\.view)
     }
 
     /// Render merged source with both of its immutable execution inputs when
@@ -75,14 +87,14 @@ public struct InterpreterHost {
         projectResourceRoot: String,
         lazyTopLevelGlobals: Bool = false
     ) -> Result<AnyView, RuntimeError> {
-        render(
+        renderSessionCore(
             source: source,
             compilerSources: nil,
             buildTarget: nil,
             buildConfiguration: buildConfiguration,
             projectResourceRoot: projectResourceRoot,
             lazyTopLevelGlobals: lazyTopLevelGlobals
-        )
+        ).map(\.view)
     }
 
     /// Render one explicitly selected build target. Compiler checking sees the
@@ -92,17 +104,50 @@ public struct InterpreterHost {
         project: ProjectBuildManifest,
         lazyTopLevelGlobals: Bool = true
     ) -> Result<AnyView, RuntimeError> {
-        render(
+        renderSessionCore(
             source: ProjectMaterial.mergedSource(for: project),
             compilerSources: project.sources,
             buildTarget: project.buildTarget,
             buildConfiguration: nil,
             projectResourceRoot: project.projectRoot,
             lazyTopLevelGlobals: lazyTopLevelGlobals
-        )
+        ).map(\.view)
     }
 
-    private func render(
+    /// Render source while retaining the exact interpreter that owns the
+    /// resulting view. Optional execution inputs cover every source-based
+    /// `render` overload through one property-driven entry point.
+    public func renderSession(
+        source: String,
+        buildConfiguration: InterpreterBuildConfiguration? = nil,
+        projectResourceRoot: String? = nil,
+        lazyTopLevelGlobals: Bool = false
+    ) -> Result<InterpreterRenderSession, RuntimeError> {
+        renderSessionCore(
+            source: source,
+            compilerSources: nil,
+            buildTarget: nil,
+            buildConfiguration: buildConfiguration,
+            projectResourceRoot: projectResourceRoot,
+            lazyTopLevelGlobals: lazyTopLevelGlobals)
+    }
+
+    /// Target-aware counterpart to `render(project:)`, retaining the session
+    /// while native preflight and interpretation consume the same manifest.
+    public func renderSession(
+        project: ProjectBuildManifest,
+        lazyTopLevelGlobals: Bool = true
+    ) -> Result<InterpreterRenderSession, RuntimeError> {
+        renderSessionCore(
+            source: ProjectMaterial.mergedSource(for: project),
+            compilerSources: project.sources,
+            buildTarget: project.buildTarget,
+            buildConfiguration: nil,
+            projectResourceRoot: project.projectRoot,
+            lazyTopLevelGlobals: lazyTopLevelGlobals)
+    }
+
+    private func renderSessionCore(
         source: String,
         compilerSources explicitCompilerSources: [CompilerPreflightSource]?,
         buildTarget: CompilerPreflightBuildTarget?,
@@ -110,7 +155,7 @@ public struct InterpreterHost {
             InterpreterBuildConfiguration?,
         projectResourceRoot: String?,
         lazyTopLevelGlobals: Bool
-    ) -> Result<AnyView, RuntimeError> {
+    ) -> Result<InterpreterRenderSession, RuntimeError> {
         // Reset deterministic probe state. Interactive wall-clock delivery
         // is selected by this host's ViewRegistry, never mutable global state.
         HeadlessVerifier.resetBridgeEnvironment()
@@ -169,12 +214,14 @@ public struct InterpreterHost {
 
             // A trailing view expression (e.g. `ContentView()`) is an explicit root.
             if case let .host(any) = last, let view = any as? AnyView {
-                return .success(view)
+                return .success(InterpreterRenderSession(
+                    view: view, interpreter: interpreter))
             }
             if case let .instance(instance) = last, instance.symbol.conformsToView {
-                return try .success(ViewRegistry.anyView(
-                    registry.makeRenderable(instance: instance, interpreter: interpreter)
-                ))
+                return try .success(InterpreterRenderSession(
+                    view: ViewRegistry.anyView(registry.makeRenderable(
+                        instance: instance, interpreter: interpreter)),
+                    interpreter: interpreter))
             }
 
             // Whole projects should launch through their @main App's
@@ -190,12 +237,14 @@ public struct InterpreterHost {
                 }
                 let root = try interpreter.evaluateAppRootExpression(declared.expression, app: app)
                 if case let .instance(instance) = root, instance.symbol.conformsToView {
-                    return try .success(ViewRegistry.anyView(
-                        registry.makeRenderable(instance: instance, interpreter: interpreter)
-                    ))
+                    return try .success(InterpreterRenderSession(
+                        view: ViewRegistry.anyView(registry.makeRenderable(
+                            instance: instance, interpreter: interpreter)),
+                        interpreter: interpreter))
                 }
                 if let view = try? ViewRegistry.anyView(root) {
-                    return .success(view)
+                    return .success(InterpreterRenderSession(
+                        view: view, interpreter: interpreter))
                 }
             }
 
@@ -206,9 +255,10 @@ public struct InterpreterHost {
             guard case let .instance(instance) = try interpreter.instantiateRoot(symbol) else {
                 return .failure(RuntimeError(message: "could not instantiate '\(symbol.name)'", line: 1, column: 1))
             }
-            return try .success(ViewRegistry.anyView(
-                registry.makeRenderable(instance: instance, interpreter: interpreter)
-            ))
+            return try .success(InterpreterRenderSession(
+                view: ViewRegistry.anyView(registry.makeRenderable(
+                    instance: instance, interpreter: interpreter)),
+                interpreter: interpreter))
         } catch let error as RuntimeError {
             return .failure(error)
         } catch {
