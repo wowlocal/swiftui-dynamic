@@ -159,7 +159,9 @@ struct AsyncImagePresentationMicroTwinTests {
         while !condition() && clock.now < deadline {
             hosting.layoutSubtreeIfNeeded()
             window.displayIfNeeded()
-            await Task.yield()
+            // Leave MainActor's runnable queue so SwiftUI's view task can
+            // advance under the repository's fully parallel test process.
+            try? await Task.sleep(for: .milliseconds(10))
         }
         hosting.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
