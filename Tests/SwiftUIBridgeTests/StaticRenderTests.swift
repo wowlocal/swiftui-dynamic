@@ -461,6 +461,10 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
             func offset(coordinateSpace: String, completion: (CGFloat) -> Void) -> some View {
                 self
             }
+
+            func offset(named name: String) -> some View {
+                self
+            }
         }
 
         struct ContentView: View {
@@ -476,6 +480,36 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         if case .failure(let error) = outcome {
             Issue.record("render failed: \(error)")
         }
+    }
+
+    /// Protocol-extension overloads whose imported argument values remain
+    /// opaque still dispatch by their source labels. They must not enter the
+    /// concrete-host overload matcher merely because the receiver conforms to
+    /// the extended protocol.
+    @Test func protocolExtensionOpaqueOverloadUsesSourceLabelDispatch() throws {
+        let source = """
+        extension View {
+            func onKeyboardShortcut(
+                _ shortcut: KeyboardShortcut?,
+                perform action: @escaping () -> Void
+            ) -> some View {
+                self
+            }
+
+            func onKeyboardShortcut(
+                _ key: KeyEquivalent,
+                modifiers: SwiftUI.EventModifiers = .command,
+                isEnabled: Bool = true,
+                perform action: @escaping () -> Void
+            ) -> some View {
+                self
+            }
+        }
+
+        Text("shortcut")
+            .onKeyboardShortcut(.escape, modifiers: []) {}
+        """
+        _ = try Interpreter(registry: ViewRegistry()).run(source: source)
     }
 
     /// IceCubes' `ConditionalModifier.swift` declares the keyword-named
