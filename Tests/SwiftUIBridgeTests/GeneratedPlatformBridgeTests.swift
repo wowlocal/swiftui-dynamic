@@ -8,6 +8,37 @@ import AppKit
 #endif
 
 @Suite(.serialized) struct GeneratedPlatformBridgeTests {
+    /// Imported framework code can wrap a terminal callback in a generic
+    /// result scope that also takes an ordinary SDK control value. The
+    /// headless registry may carry that value opaquely, but the interface
+    /// contract still requires the body to run and its result to escape.
+    @Test func genericResultScopeExecutesWithOpaqueControlValue() throws {
+        let source = ProjectMaterial.mergedSource(
+            source: """
+            import SwiftUI
+
+            final class ScopeRecorder {
+                var value = "pending"
+            }
+
+            let scopeRecorder = ScopeRecorder()
+            let scopeResult: String = withTransaction(
+                Transaction(animation: nil)
+            ) {
+                scopeRecorder.value = "entered"
+                return "returned"
+            }
+            (scopeResult, scopeRecorder.value)
+            """,
+            moduleName: "ImportedPipeline")
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: source)
+        let tuple = try #require(value.tupleValue)
+        #expect(tuple.values[0].stringValue == "returned")
+        #expect(tuple.values[1].stringValue == "entered")
+    }
+
     @Test func darwinSocketMemoryLayoutsMatchNativeSwift() throws {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
