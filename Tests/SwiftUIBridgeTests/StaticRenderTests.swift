@@ -17,6 +17,24 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         #expect(node.modifiers == ["padding", "font(.title)"])
     }
 
+    @Test func genericRecorderPublishesOnlyDirectScalarArguments() throws {
+        let source = """
+        struct Payload {
+            let title: String
+            let values: [String]
+        }
+
+        OpaqueWidget(
+            "visible",
+            payload: Payload(title: "configuration", values: ["nested"]))
+        """
+
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.args == ["visible"])
+        #expect(node.config.keys.contains("payload"))
+    }
+
     /// Generic recorder nodes also stand for native views. Their dynamic
     /// fallback members must not swallow a declared View modifier before its
     /// result-builder closure can be composed into the render tree.

@@ -1750,7 +1750,7 @@ extension Interpreter {
             return (owner as? StructSymbol)?.nestedTypes[typeName] != nil
                 || (owner as? EnumSymbol)?.nestedTypes[typeName] != nil
         }()
-        let visibleDeclaredType = lexicallyVisibleType(
+        var visibleDeclaredType = lexicallyVisibleType(
             named: typeName, from: lexicalOwnerFrames.last)
         if visibleDeclaredType == nil,
            !ownerHasNested,
@@ -1763,6 +1763,8 @@ extension Interpreter {
                 hops += 1
             }
             typeName = canonical
+            visibleDeclaredType = lexicallyVisibleType(
+                named: typeName, from: lexicalOwnerFrames.last)
         }
         // Annotation names resolve in the LEXICAL scope of the declaration
         // they annotate: the running function's declaring type sees its own
@@ -1771,8 +1773,7 @@ extension Interpreter {
         // nested enum claimed the bare global slot).
         var scopedEnum: EnumSymbol?
         var scopedStruct: StructSymbol?
-        if let qualified = lexicallyVisibleType(
-               named: typeName, from: lexicalOwnerFrames.last) {
+        if let qualified = visibleDeclaredType {
             switch qualified {
             case .enumType(let symbol):
                 scopedEnum = symbol
