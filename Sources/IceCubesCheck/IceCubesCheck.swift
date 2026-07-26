@@ -789,6 +789,9 @@ struct IceCubesCheckMain {
         app.setActivationPolicy(.prohibited)
         let session = try InterpreterHost().renderSession(
             source: source,
+            buildConfiguration: .init(
+                platformName: "iOS",
+                targetEnvironment: "macCatalyst"),
             projectResourceRoot: paths.app,
             lazyTopLevelGlobals: true
         ).get()
