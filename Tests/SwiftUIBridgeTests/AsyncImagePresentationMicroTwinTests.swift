@@ -57,7 +57,6 @@ struct AsyncImagePresentationMicroTwinTests {
     func captureFollowsOwnedTaskThroughPresentation() async throws {
         let source = """
         var presentationFinished = false
-        var presentationBodyObserved = false
 
         final class AsyncImagePresentationModel: ObservableObject {
             @Published var isPresented = false
@@ -83,9 +82,6 @@ struct AsyncImagePresentationMicroTwinTests {
                             .scaledToFit()
                             .foregroundStyle(Color.blue)
                             .frame(width: 48, height: 48)
-                            .onAppear {
-                                presentationBodyObserved = true
-                            }
                     } else {
                         Rectangle()
                             .fill(Color.orange)
@@ -121,9 +117,11 @@ struct AsyncImagePresentationMicroTwinTests {
         let interpreted = try ViewRegistry.anyView(
             registry.makeRenderable(
                 instance: instance, interpreter: interpreter))
+        let session = InterpreterRenderSession(
+            view: interpreted, interpreter: interpreter)
 
         let size = NSSize(width: 96, height: 72)
-        let hosting = NSHostingView(rootView: interpreted)
+        let hosting = NSHostingView(rootView: session.view)
         hosting.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(
             contentRect: hosting.frame,
@@ -139,6 +137,8 @@ struct AsyncImagePresentationMicroTwinTests {
         }
 
         #expect(!interpreter.runtimeActivity.isQuiescent)
+        let pendingRenderActivity = session.renderActivity
+        #expect(pendingRenderActivity.bodyEvaluationCount > 0)
 
         let pending = Self.bitmap(hosting, window: window, size: size)
         let nativePending = Self.bitmap(
@@ -159,11 +159,13 @@ struct AsyncImagePresentationMicroTwinTests {
         ) {
             interpreter.globals.lookup("presentationFinished")?
                 .boolValue == true
-                && interpreter.globals.lookup("presentationBodyObserved")?
-                    .boolValue == true
                 && interpreter.runtimeActivity.isQuiescent
+                && session.renderActivity.bodyEvaluationCount
+                    > pendingRenderActivity.bodyEvaluationCount
         }
         #expect(interpreter.runtimeActivity.isQuiescent)
+        #expect(session.renderActivity.bodyEvaluationCount
+            > pendingRenderActivity.bodyEvaluationCount)
 
         let presented = Self.bitmap(hosting, window: window, size: size)
         let presentedAE = Self.pixelAE(
