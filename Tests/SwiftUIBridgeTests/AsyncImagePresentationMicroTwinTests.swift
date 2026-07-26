@@ -5,6 +5,23 @@ import SwiftInterpreter
 import Testing
 @testable import SwiftUIBridge
 
+private actor AsyncImagePresentationGate {
+    private(set) var started = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        started = true
+        await withCheckedContinuation { continuation in
+            waiter = continuation
+        }
+    }
+
+    func release() {
+        waiter?.resume()
+        waiter = nil
+    }
+}
+
 private struct NativeAsyncImagePresentationTwin: View {
     let isPresented: Bool
 
@@ -37,8 +54,6 @@ struct AsyncImagePresentationMicroTwinTests {
     @Test
     func captureFollowsOwnedTaskThroughPresentation() async throws {
         let source = """
-        var presentationStarted = false
-        var presentationRelease = false
         var presentationFinished = false
 
         struct AsyncImagePresentationTwin: View {
@@ -61,10 +76,7 @@ struct AsyncImagePresentationMicroTwinTests {
                 }
                 .frame(width: 96, height: 72)
                 .task {
-                    presentationStarted = true
-                    while !presentationRelease {
-                        await Task.yield()
-                    }
+                    await waitForAsyncImagePresentation()
                     isPresented = true
                     presentationFinished = true
                 }
@@ -80,6 +92,15 @@ struct AsyncImagePresentationMicroTwinTests {
             source: source, lazyTopLevelGlobals: true)
         let interpreted = try #require(rendered.success)
         let interpreter = try #require(InterpreterHost.lastInterpreter)
+        let gate = AsyncImagePresentationGate()
+        interpreter.globals.define(
+            "waitForAsyncImagePresentation",
+            .hostFunction(HostFunction(
+                name: "waitForAsyncImagePresentation",
+                asyncInvoke: { _, _ in
+                    await gate.wait()
+                    return .void
+                })))
 
         let size = NSSize(width: 96, height: 72)
         let hosting = NSHostingView(rootView: interpreted)
@@ -100,8 +121,7 @@ struct AsyncImagePresentationMicroTwinTests {
         let becameActive = await Self.waitUntil(
             hosting: hosting, window: window
         ) {
-            interpreter.globals.lookup("presentationStarted")?
-                .boolValue == true
+            await gate.started
                 && !interpreter.runtimeActivity.isQuiescent
         }
         #expect(becameActive)
@@ -121,8 +141,7 @@ struct AsyncImagePresentationMicroTwinTests {
         #expect(prematureAE > 0)
 
         let bodyCountBeforeRelease = InterpretedView.bodyEvaluationCount
-        interpreter.globals.box(for: "presentationRelease")?.value
-            = .native(true)
+        await gate.release()
         let becamePresentable = await Self.waitUntil(
             hosting: hosting, window: window
         ) {
@@ -152,11 +171,11 @@ struct AsyncImagePresentationMicroTwinTests {
         hosting: NSHostingView<AnyView>,
         window: NSWindow,
         timeout: Duration = .seconds(20),
-        _ condition: () -> Bool
+        _ condition: @MainActor () async -> Bool
     ) async -> Bool {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
-        while !condition() && clock.now < deadline {
+        while !(await condition()) && clock.now < deadline {
             hosting.layoutSubtreeIfNeeded()
             window.displayIfNeeded()
             // Leave MainActor's runnable queue so SwiftUI's view task can
@@ -165,7 +184,7 @@ struct AsyncImagePresentationMicroTwinTests {
         }
         hosting.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
-        return condition()
+        return await condition()
     }
 
     @MainActor
