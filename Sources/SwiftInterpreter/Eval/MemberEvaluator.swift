@@ -429,6 +429,28 @@ extension Interpreter {
                 if name == "wrappedValue" { return stub.box.value }
                 if name == "projectedValue" { return selfValue }
             }
+            // `modifier(SourceModifier(...))` inside `extension View` is the
+            // implicit-self spelling of the same generic SwiftUI operation
+            // handled for `self.modifier(...)` at member call sites. The
+            // interface cannot bridge an interpreted generic conformer into
+            // native SwiftUI, so run its source body through the shared
+            // ViewModifier semantic primitive.
+            if name == "modifier",
+               let target = modifierTarget(for: selfValue) {
+                return .hostFunction(HostFunction(name: name) {
+                    [weak self] args, _ in
+                    guard let self else {
+                        throw RuntimeError(message: "interpreter gone")
+                    }
+                    guard let result = try self.applyCustomViewModifierArgument(
+                        args, to: target, node: nil
+                    ) else {
+                        throw RuntimeError(
+                            message: "modifier requires a source ViewModifier")
+                    }
+                    return result
+                })
+            }
             if let value = try nativeMember(name, on: selfValue) { return value }
             if let value = try readHostMember(
                 name, on: any, includingFallback: false
@@ -828,6 +850,16 @@ extension Interpreter {
             }
         }
         if let typeName = registry?.hostTypeName(of: payload) {
+            appendTypeName(typeName)
+        }
+        // Source extensions on protocols a host value conforms to participate
+        // in the same overload family as concrete host members. In
+        // particular, a bridged SwiftUI value reaches `extension View`
+        // through conformance evidence rather than a concrete nominal name.
+        // Reuse the ordinary member-dispatch candidates so call-site
+        // overload resolution cannot be pre-empted by an open-ended host
+        // fallback.
+        for typeName in hostCandidates(for: payload) {
             appendTypeName(typeName)
         }
         if payload is String, !typeNames.contains("String") {
@@ -2599,24 +2631,12 @@ extension Interpreter {
             ) where hostExtensionSymbols[typeName] != nil {
                 extensionCandidates.append(typeName)
             }
-            if let typeName = registry?.hostTypeName(of: any) {
+            for typeName in hostCandidates(for: any)
+            where hostExtensionSymbols[typeName] != nil {
                 if !extensionCandidates.contains(typeName) {
                     extensionCandidates.append(typeName)
                 }
             }
-            // Core RuntimeValue payloads do not require a HostRegistry, but
-            // same-module extensions still shadow their imported members.
-            // Keep the concrete type ahead of nativeMember so ordinary
-            // evaluation and physical target admission select the same
-            // source declaration.
-            if any is String, !extensionCandidates.contains("String") {
-                extensionCandidates.append("String")
-            }
-            if any is [RuntimeValue],
-               !extensionCandidates.contains("Array") {
-                extensionCandidates.append("Array")
-            }
-            if any is BindingStub { extensionCandidates.append("Binding") }
             if !extensionCandidates.isEmpty,
                let value = try hostExtensionMember(
                    name, candidates: extensionCandidates, selfValue: baseValue) {
