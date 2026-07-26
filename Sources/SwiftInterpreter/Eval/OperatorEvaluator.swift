@@ -876,6 +876,25 @@ extension Interpreter {
             if case .enumCase(let caseValue) = value { return (nil, caseValue.symbol) }
             return (nil, nil)
         }
+        func operandTypeCandidates(
+            _ value: RuntimeValue, declaredTypeName: String?
+        ) -> [String] {
+            var candidates: [String] = []
+            for candidate in [declaredTypeName, hostTypeName(of: value)] {
+                guard let candidate,
+                      !candidates.contains(where: {
+                          HostSignature.equivalentTypeName($0, candidate)
+                      }) else {
+                    continue
+                }
+                candidates.append(candidate)
+            }
+            return candidates
+        }
+        let operandTypes = [
+            operandTypeCandidates(lhs, declaredTypeName: lhsDeclaredTypeName),
+            operandTypeCandidates(rhs, declaredTypeName: rhsDeclaredTypeName),
+        ]
         func declared(_ name: String) -> (FunctionDeclSyntax, RuntimeValue)? {
             for operand in [lhs, rhs] {
                 let (structSym, enumSym) = operatorHome(operand)
@@ -886,18 +905,13 @@ extension Interpreter {
                     return (method, .enumType(enumSym!))
                 }
             }
-            for declaredTypeName in [
-                lhsDeclaredTypeName, rhsDeclaredTypeName,
-            ] {
+            for operandType in operandTypes.flatMap({ $0 }) {
                 guard let nominal = RuntimeDeclaredType.nominalTypeName(
-                    declaredTypeName),
+                    operandType),
                       let symbol = hostExtensionSymbols[nominal],
                       let overloads = symbol.staticMethods[name] else {
                     continue
                 }
-                let operandTypes = [
-                    lhsDeclaredTypeName, rhsDeclaredTypeName,
-                ]
                 let method = overloads.first(where: { declaration in
                     let parameters = functionMetadata(
                         for: declaration).parameters
@@ -906,12 +920,15 @@ extension Interpreter {
                     }
                     return zip(parameters, operandTypes).allSatisfy {
                         parameter, operandType in
-                        guard let parameterType = parameter.typeName,
-                              let operandType else {
+                        guard let parameterType = parameter.typeName else {
                             return false
                         }
-                        return HostSignature.equivalentTypeName(
-                            parameterType, operandType)
+                        let expectedType = parameterType == "Self"
+                            ? nominal : parameterType
+                        return operandType.contains {
+                            HostSignature.equivalentTypeName(
+                                expectedType, $0)
+                        }
                     }
                 }) ?? overloads.first
                 guard let method else { continue }
