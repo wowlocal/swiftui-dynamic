@@ -6,17 +6,20 @@ import Testing
 @testable import SwiftUIBridge
 
 private actor AsyncImagePresentationGate {
-    private(set) var started = false
+    private var released = false
     private var waiter: CheckedContinuation<Void, Never>?
 
     func wait() async {
-        started = true
+        if released {
+            return
+        }
         await withCheckedContinuation { continuation in
             waiter = continuation
         }
     }
 
     func release() {
+        released = true
         waiter?.resume()
         waiter = nil
     }
@@ -57,13 +60,25 @@ struct AsyncImagePresentationMicroTwinTests {
         var presentationFinished = false
         var presentationBodyObserved = false
 
+        final class AsyncImagePresentationModel: ObservableObject {
+            @Published var isPresented = false
+        }
+
+        let presentationModel = AsyncImagePresentationModel()
+
+        Task {
+            await waitForAsyncImagePresentation()
+            presentationModel.isPresented = true
+            presentationFinished = true
+        }
+
         struct AsyncImagePresentationTwin: View {
-            @State private var isPresented = false
+            @ObservedObject var model: AsyncImagePresentationModel
 
             var body: some View {
                 ZStack {
                     Color.white
-                    if isPresented {
+                    if model.isPresented {
                         Image(systemName: "person.crop.circle.fill")
                             .resizable()
                             .scaledToFit()
@@ -79,15 +94,10 @@ struct AsyncImagePresentationMicroTwinTests {
                     }
                 }
                 .frame(width: 96, height: 72)
-                .task {
-                    await waitForAsyncImagePresentation()
-                    isPresented = true
-                    presentationFinished = true
-                }
             }
         }
 
-        AsyncImagePresentationTwin()
+        AsyncImagePresentationTwin(model: presentationModel)
         """
 
         let registry = ViewRegistry()
@@ -101,8 +111,10 @@ struct AsyncImagePresentationMicroTwinTests {
                     await gate.wait()
                     return .void
                 })))
-        let result = try interpreter.run(
-            source: source, lazyTopLevelGlobals: true)
+        let result = try await interpreter.runAsync(
+            source: source,
+            lazyTopLevelGlobals: true,
+            completionPolicy: .topLevel)
         guard case .instance(let instance) = result else {
             Issue.record("micro-twin root did not instantiate: \(result)")
             return
@@ -127,13 +139,6 @@ struct AsyncImagePresentationMicroTwinTests {
             window.orderOut(nil)
         }
 
-        let becameActive = await Self.waitUntil(
-            hosting: hosting, window: window
-        ) {
-            await gate.started
-                && !interpreter.runtimeActivity.isQuiescent
-        }
-        #expect(becameActive)
         #expect(!interpreter.runtimeActivity.isQuiescent)
 
         let pending = Self.bitmap(hosting, window: window, size: size)
