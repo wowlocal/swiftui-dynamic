@@ -85,6 +85,17 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         roots: [],
         globalFunctionSelection: .interpretedResultScopes),
     .init(
+        // SwiftUI's public module re-exports the declarations owned by
+        // SwiftUICore. Select only structurally recognized generic result
+        // scopes so imported framework callbacks retain their SDK control
+        // values without sweeping unrelated global UI entry points.
+        name: "SwiftUI", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0), "iOS": (18, 0)],
+        roots: [],
+        extractionModule: "SwiftUICore",
+        globalFunctionSelection: .interpretedResultScopes),
+    .init(
         // Core Graphics reference values cross UIKit/AppKit boundaries as
         // constructor arguments and method results. Sweep the connected
         // raster/context family so those values retain their interface types
@@ -270,8 +281,9 @@ private struct PlatformInterpretedActionAdapter {
 
 /// A native generic scope owns its runtime lifecycle while an interpreter
 /// closure supplies the scope's result. The SDK declaration proves this
-/// adapter from one zero-argument throwing closure whose result is also the
-/// enclosing function's generic result.
+/// adapter from exactly one zero-argument throwing closure whose result is
+/// also the enclosing function's generic result. Other concrete parameters
+/// are scope controls, not callback inputs.
 private struct PlatformInterpretedResultScopeAdapter {
     let parameterIndex: Int
 }
@@ -902,12 +914,10 @@ private func parsePlatformFramework(
         let name = platformIdentifier(function.name.text)
         guard name.first?.isLetter == true, !name.hasPrefix("_") else { continue }
         if let scope = analyzePlatformInterpretedResultScope(function) {
-            guard let parameter =
-                function.signature.parameterClause.parameters.first
+            guard let parameters =
+                analyzePlatformInterpretedResultScopeParameters(
+                    function, adapter: scope, blockers: &blockers)
             else { continue }
-            let labelText = parameter.firstName.text
-            let label = labelText == "_" ? nil : labelText
-            let closureType = parameter.type.trimmedDescription
             var callable = PlatformCallable(
                 framework: spec.name, kind: .globalFunction,
                 receiverType: "", nativeReceiverType: "",
@@ -917,14 +927,7 @@ private func parsePlatformFramework(
                 nativeResultType: function.signature.returnClause?
                     .type.trimmedDescription ?? "Any",
                 resultPointerKind: nil,
-                params: [PlatformParameter(
-                    label: label,
-                    type: closureType,
-                    nativeType: closureType,
-                    contractType: "() throws -> Any",
-                    hasDefault: false,
-                    isAction: false,
-                    pointerKind: nil)],
+                params: parameters,
                 isThrowing: true,
                 isFailable: false)
             callable.interpretedResultScopeAdapter = scope
@@ -1337,36 +1340,96 @@ private func parsePlatformFramework(
 /// Recognize effect-polymorphic native scopes by declaration structure, never
 /// by module or API identity. Calling the real native function preserves its
 /// lifecycle while `RuntimeValue` supplies the generic result at the bridge.
+///
+/// Every non-callback input must be concrete at the generated call site.
+/// Generic control values would require synthesizing a new generic bridge
+/// declaration, while defaults would require remapping the callback index for
+/// every omitted-argument selection; both remain outside this narrow adapter.
 private func analyzePlatformInterpretedResultScope(
     _ function: FunctionDeclSyntax
 ) -> PlatformInterpretedResultScopeAdapter? {
     guard let genericClause = function.genericParameterClause,
           let returnType = function.signature.returnClause?
             .type.trimmedDescription,
-          genericClause.parameters.contains(where: {
-              $0.name.text == returnType
-          }),
-          function.signature.parameterClause.parameters.count == 1,
-          let parameter =
-            function.signature.parameterClause.parameters.first,
-          parameter.defaultValue == nil,
-          parameter.modifiers.isEmpty
-    else { return nil }
-
-    var parameterType = parameter.type
-    while let attributed = parameterType.as(AttributedTypeSyntax.self) {
-        guard attributed.specifiers.isEmpty else { return nil }
-        parameterType = attributed.baseType
-    }
-    guard let closure = parameterType.as(FunctionTypeSyntax.self),
-          closure.parameters.isEmpty,
-          closure.returnClause.type.trimmedDescription == returnType,
-          closure.effectSpecifiers?.trimmedDescription
-            .contains("throws") == true,
+          case let genericNames = Set(
+              genericClause.parameters.map { $0.name.text }),
+          genericNames.contains(returnType),
           function.signature.effectSpecifiers?.trimmedDescription
             .contains("throws") == true
     else { return nil }
-    return .init(parameterIndex: 0)
+
+    var callbackIndices: [Int] = []
+    let parameters = function.signature.parameterClause.parameters
+    for (index, parameter) in parameters.enumerated() {
+        guard parameter.defaultValue == nil,
+              parameter.modifiers.isEmpty else { return nil }
+        var parameterType = parameter.type
+        while let attributed = parameterType.as(AttributedTypeSyntax.self) {
+            guard attributed.specifiers.isEmpty else { return nil }
+            parameterType = attributed.baseType
+        }
+        if let closure = parameterType.as(FunctionTypeSyntax.self) {
+            guard closure.parameters.isEmpty,
+                  closure.returnClause.type.trimmedDescription == returnType,
+                  closure.effectSpecifiers?.trimmedDescription
+                    .contains("throws") == true
+            else { return nil }
+            callbackIndices.append(index)
+            continue
+        }
+        guard !parameterType.tokens(viewMode: .sourceAccurate).contains(
+            where: { genericNames.contains($0.text) })
+        else { return nil }
+    }
+    guard callbackIndices.count == 1,
+          let callbackIndex = callbackIndices.first else { return nil }
+    return .init(parameterIndex: callbackIndex)
+}
+
+/// Runtime scope contracts keep concrete control types in coverage metadata
+/// and emitted native calls, while accepting them as opaque values at host
+/// dispatch. A trace registry can therefore execute the callback even when it
+/// cannot manufacture the SDK control payload; a real registry still enters
+/// the native scope after successful generated coercion.
+private func analyzePlatformInterpretedResultScopeParameters(
+    _ function: FunctionDeclSyntax,
+    adapter: PlatformInterpretedResultScopeAdapter,
+    blockers: inout [String: Int]
+) -> [PlatformParameter]? {
+    var result: [PlatformParameter] = []
+    for (index, parameter) in
+        function.signature.parameterClause.parameters.enumerated()
+    {
+        let labelText = parameter.firstName.text
+        let label = labelText == "_" ? nil : labelText
+        let nativeType = platformNativeType(
+            parameter.type.trimmedDescription)
+        if index == adapter.parameterIndex {
+            result.append(PlatformParameter(
+                label: label,
+                type: nativeType,
+                nativeType: nativeType,
+                contractType: "() throws -> Any",
+                hasDefault: false,
+                isAction: false,
+                pointerKind: nil))
+            continue
+        }
+        let type = platformContractType(nativeType)
+        guard !type.isEmpty, !type.contains("->") else {
+            blockers["result-scope control \(type)", default: 0] += 1
+            return nil
+        }
+        result.append(PlatformParameter(
+            label: label,
+            type: type,
+            nativeType: nativeType,
+            contractType: type.hasSuffix("?") ? "Any?" : "Any",
+            hasDefault: false,
+            isAction: false,
+            pointerKind: nil))
+    }
+    return result
 }
 
 private func platformSymbolGraphURL(
@@ -1789,29 +1852,18 @@ private func emitPlatformBridge(
     var output = """
     // GENERATED by BridgeGen from \(frameworkNames.joined(separator: "/")) SDK symbol graphs.
     // Do not edit. Regenerate: swift run BridgeGen --emit
-    import Foundation
     import SwiftInterpreter
-    #if canImport(ObjectiveC)
-    import ObjectiveC
-    #endif
-    #if canImport(AppKit)
-    import AppKit
-    #elseif canImport(UIKit)
-    import UIKit
-    #endif
-    #if canImport(Metal)
-    import Metal
-    #endif
-    #if canImport(MapKit)
-    import MapKit
-    #endif
-    #if canImport(CoreLocation)
-    import CoreLocation
-    #endif
-    #if canImport(UIKit) && canImport(WebKit)
-    import WebKit
-    #endif
 
+    """
+    for framework in frameworks {
+        output += """
+        #if \(platformNativeImportCondition(for: framework.spec.name))
+        import \(framework.spec.name)
+        #endif
+
+        """
+    }
+    output += """
     extension GeneratedPlatformBridge {
 
     """
@@ -2095,8 +2147,47 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
 
 private func emitPlatformGlobalFunction(_ value: PlatformCallable) -> String {
     if let adapter = value.interpretedResultScopeAdapter {
-        let parameter = value.params[adapter.parameterIndex]
-        let label = parameter.label.map { "\($0): " } ?? ""
+        let closureFallback =
+            "return try ctx.callClosure(closure, arguments: [])"
+        let controls = value.params.enumerated().filter {
+            $0.offset != adapter.parameterIndex
+        }
+        let controlDeclarations = controls.map { index, parameter in
+            "            let p\(index): \(parameter.nativeType)"
+        }.joined(separator: "\n")
+        let controlAssignments = controls.map { index, parameter in
+            """
+                        p\(index) = try generatedPlatformArgument(
+                            v[\(index)], as: \(platformNativeMetatype(parameter.nativeType)),
+                            framework: \(swiftLiteral(value.framework)),
+                            typeName: \(swiftLiteral(parameter.type)), context: ctx)
+            """
+        }.joined(separator: "\n")
+        let controlPreamble: String
+        if controls.isEmpty {
+            controlPreamble = ""
+        } else {
+            controlPreamble = """
+            \(controlDeclarations)
+                        do {
+            \(controlAssignments)
+                        } catch let error as RuntimeError where !error.fatal {
+                            \(closureFallback)
+                        }
+
+            """
+        }
+        let arguments = value.params.enumerated().map { index, parameter in
+            let label = parameter.label.map { "\($0): " } ?? ""
+            if index == adapter.parameterIndex {
+                return """
+                \(label){
+                                try ctx.callClosure(closure, arguments: [])
+                            }
+                """
+            }
+            return "\(label)p\(index)"
+        }.joined(separator: ", ")
         return """
             registerGlobalFunction(
                 &t, framework: \(swiftLiteral(value.framework)),
@@ -2106,9 +2197,7 @@ private func emitPlatformGlobalFunction(_ value: PlatformCallable) -> String {
                 guard let closure = v[\(adapter.parameterIndex)].closureValue else {
                     throw RuntimeError(message: "generated native result scope expected a closure")
                 }
-                return try `\(value.name)`(\(label){
-                    try ctx.callClosure(closure, arguments: [])
-                })
+    \(controlPreamble)            return try `\(value.name)`(\(arguments))
     #else
                 preconditionFailure("\(value.framework) gateway invoked off-platform")
     #endif

@@ -752,17 +752,6 @@ extension ViewRegistry {
             }
             return .native(transaction)
         }
-        constructors["withTransaction"] = HostFunction(name: "withTransaction") { args, ctx in
-            guard let closure = args.firstUnlabeledClosure else {
-                throw RuntimeError(message: "withTransaction needs a closure")
-            }
-            guard case .host(let any)? = args.positional(0), let transaction = any as? Transaction else {
-                return try ctx.callClosure(closure, arguments: [])
-            }
-            return try withTransaction(transaction) {
-                try ctx.callClosure(closure, arguments: [])
-            }
-        }
     }
 
     // MARK: - Shared helpers
