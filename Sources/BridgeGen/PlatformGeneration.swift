@@ -1871,6 +1871,8 @@ private func emitPlatformBridge(
         static let platformFrameworkOrder = \(String(reflecting: frameworkNames))
         static let platformSurfaceFrameworks: Set<String> = \(String(reflecting:
             frameworks.filter(\.spec.isPlatformSurface).map(\.spec.name)))
+        static let platformDirectRuntimeTypeNames: Set<String> = \(String(
+            reflecting: platformDirectTypes.sorted()))
 
         static func buildNativeFrameworks() -> Set<String> {
             var values: Set<String> = []

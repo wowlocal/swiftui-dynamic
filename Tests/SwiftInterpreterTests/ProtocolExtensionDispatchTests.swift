@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import SwiftInterpreter
@@ -380,6 +381,71 @@ import Testing
         #expect(tuple.values[3].intValue == 1)
         #expect(tuple.values[4].intValue == 1)
         #expect(tuple.values[5].intValue == 1)
+    }
+
+    /// A generated SDK Optional can unwrap to one imported reference whose
+    /// source computed property returns a direct SDK value. The direct value
+    /// must retain its interface nominal so source-extension methods chained
+    /// directly from that property keep dispatching. IceCubes' image pipeline
+    /// surfaces this as `cgImage.size.scaled(by:).rounded()`.
+    @Test func generatedDirectValueDispatchesChainedSourceExtensions() throws {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let nativeContext = try #require(CGContext(
+            data: nil,
+            width: 3,
+            height: 2,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        let nativeImage = try #require(nativeContext.makeImage())
+        let nativeResult = CGSize(
+            width: CGFloat(nativeImage.width),
+            height: CGFloat(nativeImage.height))
+        let expected = "\(Int(round(nativeResult.width * 0.5)))x"
+            + "\(Int(round(nativeResult.height * 0.5)))"
+
+        let source = """
+        import CoreGraphics
+
+        extension CGImage {
+            var rasterSize: CGSize {
+                CGSize(width: width, height: height)
+            }
+        }
+
+        extension CGSize {
+            func scaled(by scale: CGFloat) -> CGSize {
+                CGSize(width: width * scale, height: height * scale)
+            }
+
+            func rounded() -> CGSize {
+                CGSize(
+                    width: CGFloat(round(width)),
+                    height: CGFloat(round(height)))
+            }
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: 3,
+            height: 2,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ), let image = context.makeImage() else {
+            fatalError("bitmap creation failed")
+        }
+        let size = image.rasterSize.scaled(by: 0.5).rounded()
+        "\\(Int(size.width))x\\(Int(size.height))"
+        """
+
+        for registry: any HostRegistry in [ViewRegistry(), TraceRegistry()] {
+            let value = try Interpreter(registry: registry).run(source: source)
+            #expect(value.stringValue == expected)
+        }
     }
 
     /// Unknown reads on an opaque imported carrier are fallback capabilities,

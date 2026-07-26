@@ -1255,6 +1255,9 @@ func bridgeHostTypeName(of value: Any) -> String? {
     if let carrier = value as? GeneratedMemberCarrier {
         return GeneratedMembers.keyTypeName(of: carrier.generatedMemberValue)
     }
+    if let direct = GeneratedPlatformBridge.directRuntimeTypeName(of: value) {
+        return direct
+    }
     switch value {
     case is RuntimeTaskHandle: return "Task"
     case is ResultBox: return "Result"
