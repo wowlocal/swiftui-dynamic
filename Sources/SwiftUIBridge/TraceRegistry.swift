@@ -179,6 +179,30 @@ public final class TraceRegistry: HostRegistry {
         return String(index)
     }
 
+    /// Only direct scalar constructor arguments are visible text. Structured
+    /// values are configuration/model inputs, and recursively describing them
+    /// both invents UI strings and can repeatedly walk a large object graph.
+    private static func directTraceText(
+        from value: RuntimeValue
+    ) -> String? {
+        switch value {
+        case .string(let text):
+            return text
+        case .int(let integer):
+            return String(integer)
+        case .double(let double):
+            return String(double)
+        case .bool(let boolean):
+            return boolean ? "true" : "false"
+        case .optional(let optional):
+            return optional.wrapped.flatMap(directTraceText(from:))
+        case .host:
+            return value.stringValue
+        default:
+            return nil
+        }
+    }
+
     /// A host collection has already been materialized before this entry, so
     /// every builder row is finite in cardinality while retaining its own
     /// ordinary infinite-work guard. Identity salting and budget slicing are
@@ -496,7 +520,11 @@ public final class TraceRegistry: HostRegistry {
                         } else {
                             data = argument.value
                         }
-                        node.args.append(argument.value.stringified)
+                        if let text = Self.directTraceText(
+                            from: argument.value
+                        ) {
+                            node.args.append(text)
+                        }
                     }
                 }
                 return .native(node)
