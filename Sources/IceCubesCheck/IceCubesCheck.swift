@@ -787,12 +787,12 @@ struct IceCubesCheckMain {
             atPath: directory, withIntermediateDirectories: true)
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
-        let value = try InterpreterHost().render(
+        let session = try InterpreterHost().renderSession(
             source: source,
             projectResourceRoot: paths.app,
             lazyTopLevelGlobals: true
         ).get()
-        let hosting = NSHostingView(rootView: value.frame(
+        let hosting = NSHostingView(rootView: session.view.frame(
             width: screenSize.width, height: screenSize.height))
         hosting.frame = NSRect(origin: .zero, size: screenSize)
         let window = NSWindow(
@@ -803,10 +803,46 @@ struct IceCubesCheckMain {
         window.orderFrontRegardless()
         hosting.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
+        let initialRenderRevision =
+            session.renderActivity.bodyEvaluationCount
+        var firstActiveRenderRevision: UInt64?
+        var lastActiveRenderRevision: UInt64?
+        func observeCaptureActivity() {
+            let runtimeActivity = session.interpreter.runtimeActivity
+            guard !runtimeActivity.isQuiescent else { return }
+            let revision = session.renderActivity.bodyEvaluationCount
+            firstActiveRenderRevision = firstActiveRenderRevision
+                ?? revision
+            lastActiveRenderRevision = revision
+        }
+        observeCaptureActivity()
         let settleDeadline = ContinuousClock.now.advanced(by: .seconds(1))
         repeat {
             _ = CFRunLoopRunInMode(.defaultMode, 0.05, true)
+            observeCaptureActivity()
         } while ContinuousClock.now < settleDeadline
+        if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+            let finalRuntimeActivity = session.interpreter.runtimeActivity
+            let finalRenderRevision =
+                session.renderActivity.bodyEvaluationCount
+            print(
+                "@@icecubes-capture-activity"
+                    + " observedActive=\(firstActiveRenderRevision != nil)"
+                    + " initialRevision=\(initialRenderRevision)"
+                    + " firstActiveRevision="
+                    + "\(firstActiveRenderRevision.map(String.init) ?? "none")"
+                    + " lastActiveRevision="
+                    + "\(lastActiveRenderRevision.map(String.init) ?? "none")"
+                    + " finalRevision=\(finalRenderRevision)"
+                    + " finalQuiescent=\(finalRuntimeActivity.isQuiescent)"
+                    + " activeTasks=\(finalRuntimeActivity.activeTaskCount)"
+                    + " scheduledTasks="
+                    + "\(finalRuntimeActivity.scheduledTaskCount)"
+                    + " hostOperations="
+                    + "\(finalRuntimeActivity.activeHostOperationCount)"
+                    + " continuations="
+                    + "\(finalRuntimeActivity.activeContinuationCount)")
+        }
         for entry in RenderDiagnostics.errors.prefix(20) {
             print("diagnostic\t\(entry.view)\t\(entry.error.message)")
         }
