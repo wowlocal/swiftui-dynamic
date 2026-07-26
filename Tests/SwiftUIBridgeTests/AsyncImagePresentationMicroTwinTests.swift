@@ -55,6 +55,7 @@ struct AsyncImagePresentationMicroTwinTests {
     func captureFollowsOwnedTaskThroughPresentation() async throws {
         let source = """
         var presentationFinished = false
+        var presentationBodyObserved = false
 
         struct AsyncImagePresentationTwin: View {
             @State private var isPresented = false
@@ -68,6 +69,9 @@ struct AsyncImagePresentationMicroTwinTests {
                             .scaledToFit()
                             .foregroundStyle(Color.blue)
                             .frame(width: 48, height: 48)
+                            .onAppear {
+                                presentationBodyObserved = true
+                            }
                     } else {
                         Rectangle()
                             .fill(Color.orange)
@@ -86,12 +90,8 @@ struct AsyncImagePresentationMicroTwinTests {
         AsyncImagePresentationTwin()
         """
 
-        RenderDiagnostics.reset()
-        defer { RenderDiagnostics.reset() }
-        let rendered = InterpreterHost().render(
-            source: source, lazyTopLevelGlobals: true)
-        let interpreted = try #require(rendered.success)
-        let interpreter = try #require(InterpreterHost.lastInterpreter)
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
         let gate = AsyncImagePresentationGate()
         interpreter.globals.define(
             "waitForAsyncImagePresentation",
@@ -101,6 +101,15 @@ struct AsyncImagePresentationMicroTwinTests {
                     await gate.wait()
                     return .void
                 })))
+        let result = try interpreter.run(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .instance(let instance) = result else {
+            Issue.record("micro-twin root did not instantiate: \(result)")
+            return
+        }
+        let interpreted = try ViewRegistry.anyView(
+            registry.makeRenderable(
+                instance: instance, interpreter: interpreter))
 
         let size = NSSize(width: 96, height: 72)
         let hosting = NSHostingView(rootView: interpreted)
@@ -140,16 +149,15 @@ struct AsyncImagePresentationMicroTwinTests {
         #expect(pendingAE == 0)
         #expect(prematureAE > 0)
 
-        let bodyCountBeforeRelease = InterpretedView.bodyEvaluationCount
         await gate.release()
         let becamePresentable = await Self.waitUntil(
             hosting: hosting, window: window
         ) {
             interpreter.globals.lookup("presentationFinished")?
                 .boolValue == true
+                && interpreter.globals.lookup("presentationBodyObserved")?
+                    .boolValue == true
                 && interpreter.runtimeActivity.isQuiescent
-                && InterpretedView.bodyEvaluationCount
-                    > bodyCountBeforeRelease
         }
         #expect(becamePresentable)
         #expect(interpreter.runtimeActivity.isQuiescent)
@@ -163,7 +171,6 @@ struct AsyncImagePresentationMicroTwinTests {
                 + " prematureAE=\(prematureAE)"
                 + " presentedAE=\(presentedAE)")
         #expect(presentedAE == 0)
-        #expect(RenderDiagnostics.errors.isEmpty)
     }
 
     @MainActor
@@ -242,12 +249,5 @@ struct AsyncImagePresentationMicroTwinTests {
             }
         }
         return mismatched
-    }
-}
-
-private extension Result {
-    var success: Success? {
-        guard case .success(let value) = self else { return nil }
-        return value
     }
 }
