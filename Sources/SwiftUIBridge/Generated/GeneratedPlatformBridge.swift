@@ -34,6 +34,7 @@ import Metal
 extension GeneratedPlatformBridge {
     static let platformFrameworkOrder = ["Foundation", "ObjectiveC", "SwiftUI", "CoreGraphics", "AppKit", "UIKit", "WebKit", "MapKit", "CoreLocation", "Metal"]
     static let platformSurfaceFrameworks: Set<String> = ["AppKit", "UIKit"]
+    static let platformDirectRuntimeTypeNames: Set<String> = ["()", "Any", "Bool", "Bundle", "CGAffineTransform", "CGColor", "CGFloat", "CGImage", "CGPoint", "CGRect", "CGSize", "CGVector", "Character", "ComparisonResult", "Data", "Date", "Double", "Error", "Float", "IndexPath", "Int", "Int16", "Int32", "Int64", "Int8", "NSAttributedString", "NSRange", "Notification.Name", "String", "Substring", "TimeInterval", "UInt", "UInt16", "UInt32", "UInt64", "UInt8", "URL", "Void"]
 
     static func buildNativeFrameworks() -> Set<String> {
         var values: Set<String> = []

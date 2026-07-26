@@ -562,6 +562,18 @@ enum GeneratedPlatformBridge {
         return current
     }
 
+    /// A platform-call argument/result which uses the generator's direct
+    /// contract representation remains a native Swift value instead of a
+    /// `GeneratedPlatformValue`. Recover its interface nominal from the same
+    /// generated type classification so subsequent source extensions can
+    /// dispatch without an API- or runtime-type allowlist here.
+    static func directRuntimeTypeName(of value: Any) -> String? {
+        let observed = canonicalTypeName(
+            GeneratedMembers.keyTypeName(of: value))
+        return platformDirectRuntimeTypeNames.contains(observed)
+            ? observed : nil
+    }
+
     static func frameworkIsNative(_ framework: String) -> Bool {
         nativeFrameworks.contains(framework)
     }
