@@ -821,6 +821,80 @@ struct IceCubesCheckMain {
             _ = CFRunLoopRunInMode(.defaultMode, 0.05, true)
             observeCaptureActivity()
         } while ContinuousClock.now < settleDeadline
+        var firstQuiescentRenderRevision: UInt64?
+        var readyRenderRevision: UInt64?
+        var readinessDeadlineReached = false
+        let traceReadiness =
+            ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1"
+                && ProcessInfo.processInfo.environment[
+                    "ICECUBES_TRACE_READINESS"
+                ] == "1"
+        if traceReadiness {
+            // This opt-in diagnostic extends only traced captures. The normal
+            // R2 path above keeps its exact one-second boundary.
+            let readinessDeadline =
+                ContinuousClock.now.advanced(by: .seconds(30))
+            var previousActivity =
+                session.interpreter.runtimeActivity
+            var previousRevision =
+                session.renderActivity.bodyEvaluationCount
+            func printReadinessSample(
+                _ activity: InterpreterRuntimeActivity,
+                revision: UInt64
+            ) {
+                print(
+                    "@@icecubes-readiness-sample"
+                        + " revision=\(revision)"
+                        + " quiescent=\(activity.isQuiescent)"
+                        + " activeTasks=\(activity.activeTaskCount)"
+                        + " scheduledTasks=\(activity.scheduledTaskCount)"
+                        + " hostOperations="
+                        + "\(activity.activeHostOperationCount)"
+                        + " continuations="
+                        + "\(activity.activeContinuationCount)")
+            }
+            printReadinessSample(
+                previousActivity, revision: previousRevision)
+            while ContinuousClock.now < readinessDeadline {
+                _ = CFRunLoopRunInMode(.defaultMode, 0.05, true)
+                hosting.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
+                let activity = session.interpreter.runtimeActivity
+                let revision =
+                    session.renderActivity.bodyEvaluationCount
+                if activity != previousActivity
+                    || revision != previousRevision
+                {
+                    printReadinessSample(activity, revision: revision)
+                    previousActivity = activity
+                    previousRevision = revision
+                }
+                if activity.isQuiescent {
+                    firstQuiescentRenderRevision =
+                        firstQuiescentRenderRevision ?? revision
+                    if let firstActiveRenderRevision,
+                       revision > firstActiveRenderRevision
+                    {
+                        readyRenderRevision = revision
+                        break
+                    }
+                } else {
+                    firstQuiescentRenderRevision = nil
+                    lastActiveRenderRevision = revision
+                }
+            }
+            // The deadline is a failure guard for the probe, never a second
+            // way to declare capture eligibility.
+            readinessDeadlineReached = readyRenderRevision == nil
+            print(
+                "@@icecubes-capture-readiness"
+                    + " ready=\(readyRenderRevision != nil)"
+                    + " deadline=\(readinessDeadlineReached)"
+                    + " firstQuiescentRevision="
+                    + "\(firstQuiescentRenderRevision.map(String.init) ?? "none")"
+                    + " readyRevision="
+                    + "\(readyRenderRevision.map(String.init) ?? "none")")
+        }
         if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
             let finalRuntimeActivity = session.interpreter.runtimeActivity
             let finalRenderRevision =
