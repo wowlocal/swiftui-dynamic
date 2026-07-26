@@ -53,7 +53,6 @@ private struct NativeAsyncImagePresentationTwin: View {
 /// pixels from a delivered native Image.
 @Suite(.serialized)
 struct AsyncImagePresentationMicroTwinTests {
-    @MainActor
     @Test
     func captureFollowsOwnedTaskThroughPresentation() async throws {
         let source = """
