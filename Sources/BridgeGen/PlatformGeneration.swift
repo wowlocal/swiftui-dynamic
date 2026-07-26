@@ -306,6 +306,37 @@ private struct PlatformContextualIdentityAdapter {
     let parameterIndex: Int
 }
 
+/// Ambient values whose cross-platform equivalence is absent from SDK symbol
+/// metadata. This is the first generated property-fallback semantic: the
+/// allowlist names the complete native spelling set once, while runtime
+/// dispatch consumes only this role and never an SDK type or member identity.
+private enum PlatformPropertyFallbackSemantic: String {
+    case renderingScale
+}
+
+private struct PlatformPropertyFallbackSemanticKey: Hashable {
+    let framework: String
+    let receiverType: String
+    let name: String
+}
+
+/// `swiftinterface` exposes each scalar property but cannot state that these
+/// properties are the same ambient screen value across platform frameworks.
+/// Keep that irreducibly interface-inexpressible equivalence in one audited
+/// generator allowlist instead of branching on the API identities at runtime.
+private let platformPropertyFallbackSemantics:
+    [PlatformPropertyFallbackSemanticKey: PlatformPropertyFallbackSemantic] = [
+        .init(
+            framework: "AppKit", receiverType: "NSScreen",
+            name: "backingScaleFactor"): .renderingScale,
+        .init(
+            framework: "UIKit", receiverType: "UIScreen",
+            name: "scale"): .renderingScale,
+        .init(
+            framework: "UIKit", receiverType: "UITraitCollection",
+            name: "displayScale"): .renderingScale,
+    ]
+
 private enum PlatformPointerKind {
     case raw
     case mutableRaw
@@ -379,6 +410,7 @@ private struct PlatformProperty {
     let isImplicitlyUnwrapped: Bool
     let isSettable: Bool
     let isStatic: Bool
+    let fallbackSemantic: PlatformPropertyFallbackSemantic?
 
     var declaration: String {
         let prefix = isStatic ? "static var" : "var"
@@ -1165,7 +1197,13 @@ private func parsePlatformFramework(
                 isImplicitlyUnwrapped: rawType
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                     .hasSuffix("!"),
-                isSettable: isSettable, isStatic: isStatic)
+                isSettable: isSettable, isStatic: isStatic,
+                fallbackSemantic: platformPropertyFallbackSemantics[
+                    .init(
+                        framework: spec.name,
+                        receiverType: nominal.type,
+                        name: name)
+                ])
             if propertySeen.insert(property.signatureKey).inserted {
                 if isStatic { staticProperties.append(property) }
                 else { properties.append(property) }
@@ -1258,7 +1296,8 @@ private func parsePlatformFramework(
             pointerKind: rawValue.pointerKind,
             isImplicitlyUnwrapped: false,
             isSettable: false,
-            isStatic: false)
+            isStatic: false,
+            fallbackSemantic: nil)
         if propertySeen.insert(property.signatureKey).inserted {
             properties.append(property)
         }
@@ -2283,6 +2322,9 @@ private func emitPlatformProperty(_ value: PlatformProperty) -> String {
     let iuoArgument = value.isImplicitlyUnwrapped
         ? "\n            isImplicitlyUnwrapped: true,"
         : ""
+    let fallbackSemanticArgument = value.fallbackSemantic.map {
+        "\n            fallbackSemantic: .\($0.rawValue),"
+    } ?? ""
     let getterReceiver: String
     if value.receiverIsCoreFoundationReference {
         getterReceiver =
@@ -2329,7 +2371,7 @@ private func emitPlatformProperty(_ value: PlatformProperty) -> String {
             registerProperty(
                 &t, framework: \(swiftLiteral(value.framework)),
                 declaration: \(swiftLiteral(value.declaration)),
-                resultType: \(swiftLiteral(value.resultType)),\(iuoArgument)
+                resultType: \(swiftLiteral(value.resultType)),\(iuoArgument)\(fallbackSemanticArgument)
                 get: { base in
     #if \(platformNativeImportCondition(for: value.framework))
     \(indent(getterReceiver, by: 16))

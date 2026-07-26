@@ -25952,6 +25952,7 @@ extension GeneratedPlatformBridge {
             &t, framework: "AppKit",
             declaration: "var NSScreen.backingScaleFactor: CGFloat { get }",
             resultType: "CGFloat",
+            fallbackSemantic: .renderingScale,
             get: { base in
 #if canImport(AppKit)
                 guard let receiver = base as? NSScreen else {
@@ -38088,6 +38089,7 @@ extension GeneratedPlatformBridge {
             &t, framework: "UIKit",
             declaration: "var UIScreen.scale: CGFloat { get }",
             resultType: "CGFloat",
+            fallbackSemantic: .renderingScale,
             get: { base in
 #if canImport(UIKit)
                 guard let receiver = base as? UIScreen else {
@@ -41420,6 +41422,7 @@ extension GeneratedPlatformBridge {
             &t, framework: "UIKit",
             declaration: "var UITraitCollection.displayScale: CGFloat { get }",
             resultType: "CGFloat",
+            fallbackSemantic: .renderingScale,
             get: { base in
 #if canImport(UIKit)
                 guard let receiver = base as? UITraitCollection else {
