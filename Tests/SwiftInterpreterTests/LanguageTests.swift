@@ -1134,6 +1134,22 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "1234- 5678 1 2")
     }
 
+    /// A protocol-extension method participates when called, but must not
+    /// replace an exact native property during bare member lookup.
+    @Test func protocolExtensionMethodDoesNotShadowNativeProperty() throws {
+        let source = """
+        extension Collection {
+            func count(where test: (Element) throws -> Bool) rethrows -> Int {
+                try filter(test).count
+            }
+        }
+
+        let values = [1, 2, 3]
+        "\\(values.count):\\(values.count(where: { $0 > 1 }))"
+        """
+        #expect(try eval(source).stringValue == "3:2")
+    }
+
     /// Static-context self/Self, Type.init, and flatMap — the batch that
     /// carried oss:SwiftUI-2048 to a full pass.
     @Test func staticSelfTypeInitFlatMap() throws {

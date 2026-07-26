@@ -852,16 +852,6 @@ extension Interpreter {
         if let typeName = registry?.hostTypeName(of: payload) {
             appendTypeName(typeName)
         }
-        // Source extensions on protocols a host value conforms to participate
-        // in the same overload family as concrete host members. In
-        // particular, a bridged SwiftUI value reaches `extension View`
-        // through conformance evidence rather than a concrete nominal name.
-        // Reuse the ordinary member-dispatch candidates so call-site
-        // overload resolution cannot be pre-empted by an open-ended host
-        // fallback.
-        for typeName in hostCandidates(for: payload) {
-            appendTypeName(typeName)
-        }
         if payload is String, !typeNames.contains("String") {
             appendTypeName("String")
         }
@@ -879,6 +869,15 @@ extension Interpreter {
         }
         if payload is BindingStub, !typeNames.contains("Binding") {
             appendTypeName("Binding")
+        }
+        let directTypeNames = Set(typeNames)
+        // Conformance evidence makes source protocol extensions visible on a
+        // host value, but it does not turn them into concrete host overloads.
+        // Admit a conformance-only family to this signature matcher only when
+        // an exact imported peer participates; otherwise ordinary source
+        // label dispatch must remain free to accept opaque imported values.
+        for typeName in hostCandidates(for: payload) {
+            appendTypeName(typeName)
         }
 
         let delegatesFromSourceExtension = typeNames.contains { typeName in
@@ -909,6 +908,8 @@ extension Interpreter {
             guard let sourceMethods = hostExtensionSymbols[typeName]?
                 .methods[name],
                   !sourceMethods.isEmpty,
+                  directTypeNames.contains(typeName)
+                      || importedMethod != nil,
                   sourceMethods.count > 1 || importedMethod != nil,
                   sourceMethods.allSatisfy({
                     !functionMetadata(for: $0).isAsync
@@ -2631,16 +2632,63 @@ extension Interpreter {
             ) where hostExtensionSymbols[typeName] != nil {
                 extensionCandidates.append(typeName)
             }
-            for typeName in hostCandidates(for: any)
-            where hostExtensionSymbols[typeName] != nil {
+            if let typeName = registry?.hostTypeName(of: any) {
                 if !extensionCandidates.contains(typeName) {
                     extensionCandidates.append(typeName)
                 }
             }
+            // Core RuntimeValue payloads do not require a HostRegistry, but
+            // same-module extensions still shadow their imported members.
+            // Keep the concrete type ahead of nativeMember so ordinary
+            // evaluation and physical target admission select the same
+            // source declaration.
+            if any is String, !extensionCandidates.contains("String") {
+                extensionCandidates.append("String")
+            }
+            if any is [RuntimeValue],
+               !extensionCandidates.contains("Array") {
+                extensionCandidates.append("Array")
+            }
+            if any is BindingStub { extensionCandidates.append("Binding") }
             if !extensionCandidates.isEmpty,
                let value = try hostExtensionMember(
                    name, candidates: extensionCandidates, selfValue: baseValue) {
                 return value
+            }
+            // A protocol conformance makes its source extensions visible,
+            // but a conformance-only method must not replace an exact native
+            // property during bare lookup (`Collection.count(where:)` beside
+            // Array.count). Probe exact members first, then source protocol
+            // extensions, and only afterward permit the open-ended fallback.
+            var conformanceExtensionCandidates: [String] = []
+            for typeName in hostCandidates(for: any)
+            where !extensionCandidates.contains(typeName) {
+                guard let symbol = hostExtensionSymbols[typeName],
+                      symbol.methods[name] != nil
+                          || symbol.computedProperties[name] != nil
+                else { continue }
+                conformanceExtensionCandidates.append(typeName)
+            }
+            if !conformanceExtensionCandidates.isEmpty {
+                if let value = try nativeMember(
+                    name,
+                    on: baseValue,
+                    declaredTypeName: declaredBaseTypeName) {
+                    return value
+                }
+                if let value = try readHostMember(
+                    name,
+                    on: any,
+                    deferringAsyncProperty: deferringAsyncHostProperty,
+                    includingFallback: false) {
+                    return value
+                }
+                if let value = try hostExtensionMember(
+                    name,
+                    candidates: conformanceExtensionCandidates,
+                    selfValue: baseValue) {
+                    return value
+                }
             }
             // Program extensions SHADOW imported statics — `extension Date {
             // static var now }` wins over Foundation's own, exactly like a
