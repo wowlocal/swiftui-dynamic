@@ -721,6 +721,64 @@ import Testing
         #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
     }
 
+    /// A target-selected source extension can hide a custom ViewModifier
+    /// behind an opaque result. The receiver must survive the full
+    /// extension-method -> modifier initializer -> body(content:) chain.
+    @MainActor
+    @Test
+    func targetConditionalSourceExtensionModifierPreservesReceiverPixelExactly()
+        throws
+    {
+        let source = """
+        struct TargetWrapper: ViewModifier {
+            let wraps: Bool
+
+            func body(content: Content) -> some View {
+                if !wraps {
+                    return AnyView(content)
+                }
+                return AnyView(content.opacity(0.5))
+            }
+        }
+
+        extension View {
+            func targetWrapper(_ wraps: Bool) -> some View {
+                modifier(TargetWrapper(wraps: wraps))
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Text("Visible target account")
+                        .font(.system(size: 18, weight: .semibold))
+                        #if targetEnvironment(macCatalyst)
+                        .targetWrapper(false)
+                        #endif
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        let size = NSSize(width: 260, height: 60)
+        let interpreted = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            Text("Visible target account")
+                .font(.system(size: 18, weight: .semibold))
+                .modifier(NativeOptionalWrapper(wraps: false))
+        ), size: size)
+        #expect(Self.mismatchedPixels(interpreted, native, size: size) == 0)
+    }
+
     /// IceCubes' StatusRowReblogView builds one accessibility label with
     /// `Text + Text + Text`. Native SwiftUI preserves concrete Text across
     /// that operator, so an interface-generated Text consumer must still

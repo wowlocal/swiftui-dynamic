@@ -205,6 +205,27 @@ extension Interpreter {
             node: node)
     }
 
+    /// Apply the source-defined half of SwiftUI's generic
+    /// `View.modifier(_:)` contract. A swiftinterface describes the generic
+    /// method, but cannot encode that an interpreted `ViewModifier`'s
+    /// `body(content:)` must execute with the receiver supplied as Content.
+    /// Keep both explicit-member and implicit-self spellings on this one
+    /// conformance/body-shape primitive.
+    func applyCustomViewModifierArgument(
+        _ args: CallArguments, to content: RuntimeValue, node: Syntax?
+    ) throws -> RuntimeValue? {
+        guard case .instance(let modifier)? = args.positional(0),
+              modifier.symbol.conformances.contains("ViewModifier"),
+              let overloads = modifier.symbol.methods["body"],
+              let method = overloads.first,
+              functionMetadata(for: method).body != nil,
+              functionMetadata(for: method).parameters.count == 1 else {
+            return nil
+        }
+        injectEnvironmentValues(into: modifier, values: [:])
+        return try applyViewModifier(modifier, to: content, node: node)
+    }
+
     func evaluateCall(
         _ call: FunctionCallExprSyntax,
         in env: Environment,
@@ -726,14 +747,10 @@ extension Interpreter {
         // method whose single parameter is the content.
         if name == "modifier" {
             let args = try collectArguments(of: call, in: env)
-            if case .instance(let modifier)? = args.positional(0),
-               modifier.symbol.conformances.contains("ViewModifier"),
-               let overloads = modifier.symbol.methods["body"],
-               let method = overloads.first,
-               functionMetadata(for: method).body != nil,
-               functionMetadata(for: method).parameters.count == 1 {
-                injectEnvironmentValues(into: modifier, values: [:])
-                return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
+            if let result = try applyCustomViewModifierArgument(
+                args, to: baseValue, node: Syntax(call)
+            ) {
+                return result
             }
         }
         // Host-type source extensions, plus any imported peer, form one
