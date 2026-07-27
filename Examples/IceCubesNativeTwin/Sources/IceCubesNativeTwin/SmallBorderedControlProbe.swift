@@ -11,35 +11,11 @@ private struct SmallBorderedControlFramesKey: PreferenceKey {
     }
 }
 
-private struct SmallBorderedControl: View {
+private struct SmallBorderedControlFrameReader: View {
     let name: String
     let rootFrame: CGRect
-    let tint: Color?
 
     var body: some View {
-        let button = Button {} label: {
-            Text("Control")
-                .font(.footnote)
-                .fontWeight(.medium)
-                .lineLimit(1)
-                .background {
-                    frameReader(named: "\(name)-label")
-                }
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .background {
-            frameReader(named: "\(name)-button")
-        }
-
-        if let tint {
-            button.tint(tint)
-        } else {
-            button
-        }
-    }
-
-    private func frameReader(named name: String) -> some View {
         GeometryReader { proxy in
             let frame = proxy.frame(in: .global)
             Color.clear.preference(
@@ -53,6 +29,40 @@ private struct SmallBorderedControl: View {
     }
 }
 
+private struct SmallBorderedControl: View {
+    let name: String
+    let rootFrame: CGRect
+    let tint: Color?
+
+    var body: some View {
+        let button = Button {} label: {
+            Text("Control")
+                .font(.footnote)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .background {
+                    SmallBorderedControlFrameReader(
+                        name: "\(name)-label",
+                        rootFrame: rootFrame)
+                }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .background {
+            SmallBorderedControlFrameReader(
+                name: "\(name)-button",
+                rootFrame: rootFrame)
+        }
+
+        if let tint {
+            button.tint(tint)
+        } else {
+            button
+        }
+    }
+
+}
+
 /// Compiled-target oracle for the platform-owned chrome supplied by
 /// `BorderedButtonStyle` at a selected control size. The interface describes
 /// both modifiers, but not the target framework's intrinsic padding, corner
@@ -62,6 +72,15 @@ struct SmallBorderedControlProbe: View {
     var body: some View {
         GeometryReader { rootProxy in
             VStack(alignment: .leading, spacing: 16) {
+                Text("Control")
+                    .font(.footnote)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .background {
+                        SmallBorderedControlFrameReader(
+                            name: "bare-label",
+                            rootFrame: rootProxy.frame(in: .global))
+                    }
                 SmallBorderedControl(
                     name: "default",
                     rootFrame: rootProxy.frame(in: .global),
