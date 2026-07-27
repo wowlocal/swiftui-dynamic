@@ -600,6 +600,49 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    /// The compiled Catalyst oracle resolves an untinted bordered control to
+    /// a neutral surface while preserving the ambient accent for its label.
+    /// Supplying `.tint(.red)` changes the surface to the target's tinted
+    /// fill. A custom host style must preserve that explicitness
+    /// property instead of treating the default accent as an explicit tint.
+    @MainActor
+    @Test
+    func catalystTargetPreservesBorderedControlFillSemantics() throws {
+        let size = NSSize(width: 200, height: 100)
+        let variants: [(suffix: String, expectedRGB: [Int])] = [
+            ("", [233, 233, 235]),
+            (".tint(.red)", [255, 219, 220]),
+        ]
+        for variant in variants {
+            let source = """
+            Button {} label: {
+                Text("Control")
+                    .font(.footnote)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            \(variant.suffix)
+            """
+
+            let rendered = InterpreterHost().render(
+                source: source,
+                buildConfiguration: .init(
+                    platformName: "iOS", targetEnvironment: "macCatalyst"),
+                lazyTopLevelGlobals: true)
+            guard case .success(let interpreted) = rendered else {
+                Issue.record(
+                    "target bordered-fill microtwin failed: \(rendered)")
+                continue
+            }
+            let bitmap = Self.bitmap(interpreted, size: size)
+            #expect(
+                Self.dominantNonWhiteRGB(bitmap, size: size)
+                    == variant.expectedRGB)
+        }
+    }
+
     /// Interface-derived stack initializers must contextualize shorthand
     /// statics declared by source extensions before scalar coercion. IceCubes
     /// supplies both stack spacings this way; treating the markers as zero
@@ -932,6 +975,38 @@ struct IceCubesMicroTwinTests {
         }
         runs.append(lowerBound..<(previous + 1))
         return runs
+    }
+
+    private static func dominantNonWhiteRGB(
+        _ bitmap: NSBitmapImageRep,
+        size: NSSize
+    ) -> [Int] {
+        var counts: [UInt32: Int] = [:]
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height) {
+                guard let color = bitmap.colorAt(x: x, y: y)?
+                    .usingColorSpace(.deviceRGB)
+                else {
+                    continue
+                }
+                let red = Int((color.redComponent * 255).rounded())
+                let green = Int((color.greenComponent * 255).rounded())
+                let blue = Int((color.blueComponent * 255).rounded())
+                guard red < 250 || green < 250 || blue < 250 else {
+                    continue
+                }
+                let key = UInt32(red << 16 | green << 8 | blue)
+                counts[key, default: 0] += 1
+            }
+        }
+        guard let key = counts.max(by: { $0.value < $1.value })?.key else {
+            return []
+        }
+        return [
+            Int((key >> 16) & 0xff),
+            Int((key >> 8) & 0xff),
+            Int(key & 0xff),
+        ]
     }
 
     @MainActor

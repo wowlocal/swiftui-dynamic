@@ -11,6 +11,23 @@ import SwiftInterpreter
 /// never on a source view, app, label, fixture, or call site.
 enum TargetPlatformControlBridge {
     @MainActor
+    static func applyTint(
+        _ color: Color,
+        to view: AnyView,
+        context: EvalContext
+    ) -> AnyView {
+#if os(macOS)
+        if context.buildConfiguration.targetEnvironment == "macCatalyst" {
+            return AnyView(
+                view
+                    .tint(color)
+                    .environment(\.targetPlatformExplicitTint, color))
+        }
+#endif
+        return AnyView(view.tint(color))
+    }
+
+    @MainActor
     static func applyBorderedButtonStyle(
         to view: AnyView,
         context: EvalContext
@@ -24,8 +41,25 @@ enum TargetPlatformControlBridge {
     }
 }
 
+/// SwiftUI's public interface exposes the tint modifier but does not expose
+/// whether a downstream style is seeing the default accent or an explicitly
+/// supplied tint. Preserve that missing semantic property in the environment
+/// so any target-owned style adapter can make the same distinction.
+private struct TargetPlatformExplicitTintKey: EnvironmentKey {
+    static let defaultValue: Color? = nil
+}
+
+private extension EnvironmentValues {
+    var targetPlatformExplicitTint: Color? {
+        get { self[TargetPlatformExplicitTintKey.self] }
+        set { self[TargetPlatformExplicitTintKey.self] = newValue }
+    }
+}
+
 private struct CatalystBorderedButtonStyle: ButtonStyle {
     @SwiftUI.Environment(\.controlSize) private var controlSize
+    @SwiftUI.Environment(\.targetPlatformExplicitTint)
+    private var explicitTint
 
     private var chrome: (
         horizontal: CGFloat,
@@ -43,6 +77,19 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
         return (horizontal: 10, vertical: 5, cornerRadius: 7)
     }
 
+    private func surfaceColor(isPressed: Bool) -> Color {
+        if let explicitTint {
+            return explicitTint.opacity(isPressed ? 0.26 : 0.18)
+        }
+        // Compiled Catalyst's untinted bordered control uses its neutral
+        // system-fill surface; the ambient accent remains label-only.
+        return Color(
+            red: 233.0 / 255.0,
+            green: 233.0 / 255.0,
+            blue: 235.0 / 255.0)
+            .opacity(isPressed ? 0.82 : 1)
+    }
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding(.horizontal, chrome.horizontal)
@@ -53,8 +100,7 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
                     cornerRadius: chrome.cornerRadius,
                     style: .continuous
                 )
-                .fill(.tint)
-                .opacity(configuration.isPressed ? 0.18 : 0.10)
+                .fill(surfaceColor(isPressed: configuration.isPressed))
             }
     }
 }
