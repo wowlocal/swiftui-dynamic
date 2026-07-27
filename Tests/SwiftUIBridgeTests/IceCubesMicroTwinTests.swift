@@ -32,6 +32,48 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeInsetRows: View {
+        var body: some View {
+            ForEach(0..<2) { _ in
+                NativeInsetRow()
+            }
+        }
+    }
+
+    private struct NativeComposedInsetListTwin: View {
+        var body: some View {
+            List {
+                NativeInsetRows()
+            }
+            .listStyle(.plain)
+        }
+    }
+
+    private struct NativePostModifiedInsetRow: View {
+        var body: some View {
+            HStack {
+                Color.red
+                    .frame(width: 16, height: 16)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .listRowInsets(.init(
+                top: 0, leading: 20, bottom: 0, trailing: 20))
+            .background {
+                Color.clear
+            }
+        }
+    }
+
+    private struct NativePostModifiedInsetListTwin: View {
+        var body: some View {
+            List {
+                NativePostModifiedInsetRow()
+            }
+            .listStyle(.plain)
+        }
+    }
+
     private struct NativeTranslatedRow: View {
         let title: String
 
@@ -182,6 +224,143 @@ struct IceCubesMicroTwinTests {
             source: source, lazyTopLevelGlobals: true)
         guard case .success(let interpreted) = rendered else {
             Issue.record("row-inset microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 280, height: 120)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeInsetListTwin()), size: size)
+        #expect(
+            Self.redPixelBounds(actual, size: size)
+                == Self.redPixelBounds(expected, size: size))
+    }
+
+    @MainActor
+    @Test
+    func listRowInsetsPropagateThroughCustomCollectionBody() throws {
+        let source = """
+        struct InsetRow: View {
+            var body: some View {
+                HStack {
+                    Color.red
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0, leading: 20, bottom: 0, trailing: 20))
+            }
+        }
+
+        struct InsetRows: View {
+            var body: some View {
+                ForEach(0..<2) { _ in
+                    InsetRow()
+                }
+            }
+        }
+
+        List {
+            InsetRows()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("composed row-inset microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 280, height: 160)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeComposedInsetListTwin()), size: size)
+        #expect(
+            Self.redPixelBounds(actual, size: size)
+                == Self.redPixelBounds(expected, size: size))
+    }
+
+    @MainActor
+    @Test
+    func listRowInsetsSurviveFollowingViewModifier() throws {
+        let source = """
+        struct InsetRow: View {
+            var body: some View {
+                HStack {
+                    Color.red
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0, leading: 20, bottom: 0, trailing: 20))
+                .background {
+                    Color.clear
+                }
+            }
+        }
+
+        List {
+            InsetRow()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("post-modified row-inset microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 280, height: 120)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativePostModifiedInsetListTwin()), size: size)
+        #expect(
+            Self.redPixelBounds(actual, size: size)
+                == Self.redPixelBounds(expected, size: size))
+    }
+
+    @MainActor
+    @Test
+    func listRowInsetsResolveSourceStaticMembersInsideImplicitInitializer()
+        throws
+    {
+        let source = """
+        extension CGFloat {
+            static var rowInset: CGFloat { 20 }
+        }
+
+        struct InsetRow: View {
+            var body: some View {
+                HStack {
+                    Color.red
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0,
+                    leading: .rowInset,
+                    bottom: 0,
+                    trailing: .rowInset))
+            }
+        }
+
+        List {
+            InsetRow()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("contextual row-inset microtwin failed: \(rendered)")
             return
         }
 
