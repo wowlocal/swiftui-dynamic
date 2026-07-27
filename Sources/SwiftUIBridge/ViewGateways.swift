@@ -335,9 +335,14 @@ extension ViewRegistry {
                         box.value = NavigationSelectionValues.byTag[newTag] ?? .string(newTag)
                     }
                 )
-                return .native(AnyView(List(selection: binding) { Self.indexed(content) }))
+                let list = AnyView(
+                    List(selection: binding) { Self.indexed(content) })
+                return .native(TargetPlatformCollectionBridge.apply(
+                    to: list, context: ctx))
             }
-            return .native(AnyView(List { Self.indexed(content) }))
+            let list = AnyView(List { Self.indexed(content) })
+            return .native(TargetPlatformCollectionBridge.apply(
+                to: list, context: ctx))
         }
 
         constructors["Form"] = HostFunction(name: "Form") { args, ctx in
