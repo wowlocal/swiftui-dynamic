@@ -455,6 +455,18 @@ struct IceCubesMicroTwinTests {
     @Test
     func borderedSmallButtonsSurviveCustomCollectionComposition() throws {
         let source = """
+        struct AlternateButtonStyle: ButtonStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                configuration.label
+            }
+        }
+
+        extension ButtonStyle where Self == AlternateButtonStyle {
+            static var alternate: Self {
+                AlternateButtonStyle()
+            }
+        }
+
         struct Tag: Identifiable {
             let id: String
             let name: String
