@@ -49,6 +49,31 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativePostModifiedInsetRow: View {
+        var body: some View {
+            HStack {
+                Color.red
+                    .frame(width: 16, height: 16)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .listRowInsets(.init(
+                top: 0, leading: 20, bottom: 0, trailing: 20))
+            .background {
+                Color.clear
+            }
+        }
+    }
+
+    private struct NativePostModifiedInsetListTwin: View {
+        var body: some View {
+            List {
+                NativePostModifiedInsetRow()
+            }
+            .listStyle(.plain)
+        }
+    }
+
     private struct NativeTranslatedRow: View {
         let title: String
 
@@ -209,6 +234,48 @@ struct IceCubesMicroTwinTests {
         let actual = Self.bitmap(interpreted, size: size)
         let expected = Self.bitmap(
             AnyView(NativeComposedInsetListTwin()), size: size)
+        #expect(
+            Self.redPixelBounds(actual, size: size)
+                == Self.redPixelBounds(expected, size: size))
+    }
+
+    @MainActor
+    @Test
+    func listRowInsetsSurviveFollowingViewModifier() throws {
+        let source = """
+        struct InsetRow: View {
+            var body: some View {
+                HStack {
+                    Color.red
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0, leading: 20, bottom: 0, trailing: 20))
+                .background {
+                    Color.clear
+                }
+            }
+        }
+
+        List {
+            InsetRow()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("post-modified row-inset microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 280, height: 120)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativePostModifiedInsetListTwin()), size: size)
         #expect(
             Self.redPixelBounds(actual, size: size)
                 == Self.redPixelBounds(expected, size: size))
