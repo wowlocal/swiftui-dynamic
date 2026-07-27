@@ -10,30 +10,6 @@ extension ViewRegistry {
 
         // MARK: Spacing & sizing
 
-        register("padding") { view, args, _ in
-            if args.isEmpty { return AnyView(view.padding()) }
-            let first = args.positional(0)
-            let hasEdgeArgument: Bool
-            if let first, first.collectionElements != nil {
-                hasEdgeArgument = true
-            } else if case .implicitMember? = first {
-                hasEdgeArgument = true
-            } else {
-                hasEdgeArgument = false
-            }
-            if let first, hasEdgeArgument {
-                let edges = try Coerce.edgeSet(first)
-                if let length = args.positional(1) {
-                    return AnyView(view.padding(edges, try Coerce.cgFloat(length)))
-                }
-                return AnyView(view.padding(edges))
-            }
-            if let length = args.positional(0) {
-                return AnyView(view.padding(try Coerce.cgFloat(length)))
-            }
-            return AnyView(view.padding())
-        }
-
         register("frame") { view, args, _ in
             let width = try args.labeled("width").map(Coerce.cgFloat)
             let height = try args.labeled("height").map(Coerce.cgFloat)
