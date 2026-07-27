@@ -974,4 +974,74 @@ import Testing
         let value = try Interpreter().run(source: source)
         #expect(value.stringValue == "one")
     }
+
+    /// IceCubes' full app shell made protocol-candidate discovery visible on
+    /// every host member read. Native precedence is exact nominal member,
+    /// then a protocol-extension default when that exact lookup misses.
+    /// Preserve that semantic order so conformance enumeration is demand
+    /// driven rather than paid for by unrelated exact properties.
+    @Test func exactHostMemberDefersProtocolCandidateEnumerationUntilMiss()
+        throws
+    {
+        let registry = try ProtocolCandidateEnumerationRegistry()
+        let source = """
+        protocol Tagged {}
+
+        extension Tagged {
+            var fallback: Int { 9 }
+        }
+
+        let probe = ProtocolCandidateEnumerationProbe()
+        (probe.value, probe.fallback)
+        """
+
+        let value = try Interpreter(registry: registry).run(source: source)
+        let tuple = try #require(value.tupleValue)
+        #expect(tuple.values[0].intValue == 7)
+        #expect(tuple.values[1].intValue == 9)
+        #expect(registry.queryCount == 1)
+    }
+}
+
+private final class ProtocolCandidateEnumerationProbe {}
+
+@MainActor
+private final class ProtocolCandidateEnumerationRegistry: HostRegistry {
+    private let probe = ProtocolCandidateEnumerationProbe()
+    private let valueProperty: HostProperty
+    private(set) var queryCount = 0
+
+    init() throws {
+        valueProperty = try HostProperty(
+            declaration:
+                "var ProtocolCandidateEnumerationProbe.value: Int { get }",
+            get: { _, _ in .native(7) })
+    }
+
+    func cFunction(named name: String) -> HostFunction? { nil }
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? {
+        guard name == "ProtocolCandidateEnumerationProbe" else { return nil }
+        return HostFunction(name: name) { [probe] _, _ in .native(probe) }
+    }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+    func hostTypeName(of value: Any) -> String? {
+        value is ProtocolCandidateEnumerationProbe
+            ? "ProtocolCandidateEnumerationProbe" : nil
+    }
+    func hostProtocolCandidates(of value: Any) -> [String] {
+        guard value is ProtocolCandidateEnumerationProbe else { return [] }
+        queryCount += 1
+        return ["Tagged"]
+    }
+    func hostProperty(named name: String, on value: Any) -> HostProperty? {
+        value is ProtocolCandidateEnumerationProbe && name == "value"
+            ? valueProperty : nil
+    }
 }

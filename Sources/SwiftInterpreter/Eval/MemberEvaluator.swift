@@ -2969,6 +2969,36 @@ extension Interpreter {
                    name, candidates: extensionCandidates, selfValue: baseValue) {
                 return value
             }
+            // Program extensions SHADOW imported statics — `extension Date {
+            // static var now }` wins over Foundation's own, exactly like a
+            // same-module declaration beats an import in compiled Swift.
+            if let marker = any as? HostTypeMarker,
+               let hostSymbol = hostExtensionSymbols[marker.name] {
+                if let dispatcher = hostExtensionStaticMethodDispatcher(
+                    name, hostSymbol: hostSymbol, typeName: marker.name) {
+                    return dispatcher
+                }
+                if let value = try staticMember(name, of: hostSymbol) {
+                    return value
+                }
+            }
+            // Exact nominal members precede protocol-extension defaults.
+            // Besides matching native lookup order, this keeps conformance
+            // discovery demand-driven: a property the concrete host already
+            // serves never needs its protocol umbrella enumerated.
+            if let value = try nativeMember(
+                name,
+                on: baseValue,
+                declaredTypeName: declaredBaseTypeName) {
+                return value
+            }
+            if let value = try readHostMember(
+                name,
+                on: any,
+                deferringAsyncProperty: deferringAsyncHostProperty,
+                includingFallback: false) {
+                return value
+            }
             // A protocol conformance makes its source extensions visible,
             // but a conformance-only method must not replace an exact native
             // property during bare lookup (`Collection.count(where:)` beside
@@ -2984,19 +3014,6 @@ extension Interpreter {
                 conformanceExtensionCandidates.append(typeName)
             }
             if !conformanceExtensionCandidates.isEmpty {
-                if let value = try nativeMember(
-                    name,
-                    on: baseValue,
-                    declaredTypeName: declaredBaseTypeName) {
-                    return value
-                }
-                if let value = try readHostMember(
-                    name,
-                    on: any,
-                    deferringAsyncProperty: deferringAsyncHostProperty,
-                    includingFallback: false) {
-                    return value
-                }
                 if let value = try hostExtensionMember(
                     name,
                     candidates: conformanceExtensionCandidates,
@@ -3004,25 +3021,9 @@ extension Interpreter {
                     return value
                 }
             }
-            // Program extensions SHADOW imported statics — `extension Date {
-            // static var now }` wins over Foundation's own, exactly like a
-            // same-module declaration beats an import in compiled Swift.
-            if let marker = any as? HostTypeMarker,
-               let hostSymbol = hostExtensionSymbols[marker.name] {
-                if let dispatcher = hostExtensionStaticMethodDispatcher(
-                    name, hostSymbol: hostSymbol, typeName: marker.name) {
-                    return dispatcher
-                }
-                if let value = try staticMember(name, of: hostSymbol) {
-                    return value
-                }
-            }
-            // The bridge gets first refusal on host natives (GeometryProxy,
-            // CGRect, and static chains like UIScreen.main / DispatchQueue.main).
-            if let value = try readHostMember(
-                name,
-                on: any,
-                deferringAsyncProperty: deferringAsyncHostProperty) {
+            // Only unresolved exact and conformance-extension reads reach the
+            // open-ended imported fallback.
+            if let value = registry?.fallbackHostMember(name, on: any) {
                 return value
             }
             if let marker = any as? HostTypeMarker {
@@ -3101,15 +3102,6 @@ extension Interpreter {
                 throw error(node, "'$\(projection.model.symbol.name)' has no stored property '\(name)'")
             }
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
-                return value
-            }
-            if let value = try nativeMember(
-                name,
-                on: baseValue,
-                declaredTypeName: declaredBaseTypeName) {
-                return value
-            }
-            if let value = try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: baseValue) {
                 return value
             }
             if let registry, registry.isViewValue(baseValue), let modifier = registry.modifier(named: name) {
