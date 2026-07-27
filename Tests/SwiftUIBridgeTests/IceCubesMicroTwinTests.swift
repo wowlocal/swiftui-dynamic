@@ -44,7 +44,20 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    @MainActor
+    @Observable
+    final class NativeRouteStore {
+        enum Destination {
+            case hashTag(tag: String, account: String?)
+        }
+
+        func navigate(to destination: Destination) {}
+    }
+
     private struct NativeTrailingTagsTwin: View {
+        @SwiftUI.Environment(NativeRouteStore.self)
+        private var router: NativeRouteStore
+
         private let tags = ["noticias", "News", "portugal"]
 
         var body: some View {
@@ -52,6 +65,8 @@ struct IceCubesMicroTwinTests {
                 HStack(spacing: 8) {
                     ForEach(tags, id: \.self) { tag in
                         Button {
+                            router.navigate(to: .hashTag(
+                                tag: tag, account: nil))
                         } label: {
                             Text("#\(tag)")
                                 .font(.footnote)
@@ -455,6 +470,17 @@ struct IceCubesMicroTwinTests {
     @Test
     func borderedSmallButtonsSurviveCustomCollectionComposition() throws {
         let source = """
+        enum Destination {
+            case hashTag(tag: String, account: String?)
+        }
+
+        @MainActor
+        @Observable
+        final class RouteStore {
+            func navigate(to destination: Destination) {
+            }
+        }
+
         struct AlternateButtonStyle: ButtonStyle {
             func makeBody(configuration: Configuration) -> some View {
                 configuration.label
@@ -480,6 +506,8 @@ struct IceCubesMicroTwinTests {
         }
 
         struct TrailingTags: View {
+            @Environment(RouteStore.self) private var router
+
             let tags: [Tag]
 
             var body: some View {
@@ -487,6 +515,8 @@ struct IceCubesMicroTwinTests {
                     HStack(spacing: 8) {
                         ForEach(tags) { tag in
                             Button {
+                                router.navigate(to: .hashTag(
+                                    tag: tag.name, account: nil))
                             } label: {
                                 Text("#\\(tag.name)")
                                     .font(.footnote)
@@ -507,6 +537,7 @@ struct IceCubesMicroTwinTests {
             Tag(name: "News"),
             Tag(name: "portugal"),
         ])
+        .environment(RouteStore())
         """
 
         let rendered = InterpreterHost().render(
@@ -522,7 +553,8 @@ struct IceCubesMicroTwinTests {
         let size = NSSize(width: 300, height: 44)
         let actual = Self.bitmap(interpreted, size: size)
         let expected = Self.bitmap(
-            AnyView(NativeTrailingTagsTwin()), size: size)
+            AnyView(NativeTrailingTagsTwin().environment(
+                NativeRouteStore())), size: size)
         #expect(Self.pixelAE(actual, expected, size: size) == 0)
     }
 
