@@ -10,6 +10,28 @@ import Translation
 /// the other hiding it in the full-screen AE total.
 @Suite(.serialized)
 struct IceCubesMicroTwinTests {
+    private struct NativeInsetRow: View {
+        var body: some View {
+            HStack {
+                Color.red
+                    .frame(width: 16, height: 16)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .listRowInsets(.init(
+                top: 0, leading: 20, bottom: 0, trailing: 20))
+        }
+    }
+
+    private struct NativeInsetListTwin: View {
+        var body: some View {
+            List {
+                NativeInsetRow()
+            }
+            .listStyle(.plain)
+        }
+    }
+
     private struct NativeTranslatedRow: View {
         let title: String
 
@@ -89,6 +111,45 @@ struct IceCubesMicroTwinTests {
         #expect(Self.footerMaskAE(actual, expected, size: size) == 0)
     }
 
+    @MainActor
+    @Test
+    func listRowInsetsPropagateFromInterpretedRowBody() throws {
+        let source = """
+        struct InsetRow: View {
+            var body: some View {
+                HStack {
+                    Color.red
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0, leading: 20, bottom: 0, trailing: 20))
+            }
+        }
+
+        List {
+            InsetRow()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("row-inset microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 280, height: 120)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeInsetListTwin()), size: size)
+        #expect(
+            Self.redPixelBounds(actual, size: size)
+                == Self.redPixelBounds(expected, size: size))
+    }
+
     private static func isFooterPixel(_ color: NSColor?) -> Bool {
         guard let color = color?.usingColorSpace(.deviceRGB) else {
             return false
@@ -126,6 +187,33 @@ struct IceCubesMicroTwinTests {
             }
         }
         return mismatched
+    }
+
+    private static func redPixelBounds(
+        _ bitmap: NSBitmapImageRep,
+        size: NSSize
+    ) -> CGRect? {
+        var minimumX = Int(size.width)
+        var minimumY = Int(size.height)
+        var maximumX = -1
+        var maximumY = -1
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height)
+                where Self.isFooterPixel(bitmap.colorAt(x: x, y: y)) {
+                minimumX = min(minimumX, x)
+                minimumY = min(minimumY, y)
+                maximumX = max(maximumX, x)
+                maximumY = max(maximumY, y)
+            }
+        }
+        guard maximumX >= minimumX, maximumY >= minimumY else {
+            return nil
+        }
+        return CGRect(
+            x: minimumX,
+            y: minimumY,
+            width: maximumX - minimumX + 1,
+            height: maximumY - minimumY + 1)
     }
 
     @MainActor
