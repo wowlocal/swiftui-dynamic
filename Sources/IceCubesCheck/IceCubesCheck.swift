@@ -805,95 +805,85 @@ struct IceCubesCheckMain {
         window.displayIfNeeded()
         let initialRenderRevision =
             session.renderActivity.bodyEvaluationCount
-        var firstActiveRenderRevision: UInt64?
-        var lastActiveRenderRevision: UInt64?
+        var captureReadiness = InterpreterCaptureReadiness(
+            initialRenderRevision: initialRenderRevision)
         func observeCaptureActivity() {
-            let runtimeActivity = session.interpreter.runtimeActivity
-            guard !runtimeActivity.isQuiescent else { return }
-            let revision = session.renderActivity.bodyEvaluationCount
-            firstActiveRenderRevision = firstActiveRenderRevision
-                ?? revision
-            lastActiveRenderRevision = revision
+            captureReadiness.observe(
+                runtimeActivity: session.interpreter.runtimeActivity,
+                renderActivity: session.renderActivity)
         }
         observeCaptureActivity()
         let settleDeadline = ContinuousClock.now.advanced(by: .seconds(1))
         repeat {
             _ = CFRunLoopRunInMode(.defaultMode, 0.05, true)
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
             observeCaptureActivity()
         } while ContinuousClock.now < settleDeadline
-        var firstQuiescentRenderRevision: UInt64?
-        var readyRenderRevision: UInt64?
-        var readinessDeadlineReached = false
         let traceReadiness =
             ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1"
                 && ProcessInfo.processInfo.environment[
                     "ICECUBES_TRACE_READINESS"
                 ] == "1"
+        let readinessDeadline =
+            ContinuousClock.now.advanced(by: .seconds(30))
+        var previousActivity =
+            session.interpreter.runtimeActivity
+        var previousRevision =
+            session.renderActivity.bodyEvaluationCount
+        func printReadinessSample(
+            _ activity: InterpreterRuntimeActivity,
+            revision: UInt64
+        ) {
+            print(
+                "@@icecubes-readiness-sample"
+                    + " revision=\(revision)"
+                    + " quiescent=\(activity.isQuiescent)"
+                    + " activeTasks=\(activity.activeTaskCount)"
+                    + " scheduledTasks=\(activity.scheduledTaskCount)"
+                    + " hostOperations="
+                    + "\(activity.activeHostOperationCount)"
+                    + " continuations="
+                    + "\(activity.activeContinuationCount)")
+        }
         if traceReadiness {
-            // This opt-in diagnostic extends only traced captures. The normal
-            // R2 path above keeps its exact one-second boundary.
-            let readinessDeadline =
-                ContinuousClock.now.advanced(by: .seconds(30))
-            var previousActivity =
-                session.interpreter.runtimeActivity
-            var previousRevision =
-                session.renderActivity.bodyEvaluationCount
-            func printReadinessSample(
-                _ activity: InterpreterRuntimeActivity,
-                revision: UInt64
-            ) {
-                print(
-                    "@@icecubes-readiness-sample"
-                        + " revision=\(revision)"
-                        + " quiescent=\(activity.isQuiescent)"
-                        + " activeTasks=\(activity.activeTaskCount)"
-                        + " scheduledTasks=\(activity.scheduledTaskCount)"
-                        + " hostOperations="
-                        + "\(activity.activeHostOperationCount)"
-                        + " continuations="
-                        + "\(activity.activeContinuationCount)")
-            }
             printReadinessSample(
                 previousActivity, revision: previousRevision)
-            while ContinuousClock.now < readinessDeadline {
-                _ = CFRunLoopRunInMode(.defaultMode, 0.05, true)
-                hosting.layoutSubtreeIfNeeded()
-                window.displayIfNeeded()
-                let activity = session.interpreter.runtimeActivity
-                let revision =
-                    session.renderActivity.bodyEvaluationCount
-                if activity != previousActivity
-                    || revision != previousRevision
-                {
-                    printReadinessSample(activity, revision: revision)
-                    previousActivity = activity
-                    previousRevision = revision
-                }
-                if activity.isQuiescent {
-                    firstQuiescentRenderRevision =
-                        firstQuiescentRenderRevision ?? revision
-                    if let firstActiveRenderRevision,
-                       revision > firstActiveRenderRevision
-                    {
-                        readyRenderRevision = revision
-                        break
-                    }
-                } else {
-                    firstQuiescentRenderRevision = nil
-                    lastActiveRenderRevision = revision
-                }
+        }
+        while !captureReadiness.isReadyForCapture
+            && ContinuousClock.now < readinessDeadline
+        {
+            _ = CFRunLoopRunInMode(.defaultMode, 0.05, true)
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            observeCaptureActivity()
+            let activity = session.interpreter.runtimeActivity
+            let revision =
+                session.renderActivity.bodyEvaluationCount
+            if traceReadiness
+                && (activity != previousActivity
+                    || revision != previousRevision)
+            {
+                printReadinessSample(activity, revision: revision)
+                previousActivity = activity
+                previousRevision = revision
             }
-            // The deadline is a failure guard for the probe, never a second
-            // way to declare capture eligibility.
-            readinessDeadlineReached = readyRenderRevision == nil
+        }
+        let readinessDeadlineReached =
+            !captureReadiness.isReadyForCapture
+        if traceReadiness {
             print(
                 "@@icecubes-capture-readiness"
-                    + " ready=\(readyRenderRevision != nil)"
+                    + " ready=\(captureReadiness.isReadyForCapture)"
                     + " deadline=\(readinessDeadlineReached)"
                     + " firstQuiescentRevision="
-                    + "\(firstQuiescentRenderRevision.map(String.init) ?? "none")"
+                    + "\(captureReadiness.firstQuiescentRenderRevision.map(String.init) ?? "none")"
                     + " readyRevision="
-                    + "\(readyRenderRevision.map(String.init) ?? "none")")
+                    + "\(captureReadiness.readyRenderRevision.map(String.init) ?? "none")")
+        }
+        guard captureReadiness.isReadyForCapture else {
+            throw RuntimeError(
+                message: "capture did not reach owned presentation readiness")
         }
         if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
             let finalRuntimeActivity = session.interpreter.runtimeActivity
@@ -901,12 +891,13 @@ struct IceCubesCheckMain {
                 session.renderActivity.bodyEvaluationCount
             print(
                 "@@icecubes-capture-activity"
-                    + " observedActive=\(firstActiveRenderRevision != nil)"
+                    + " observedActive="
+                    + "\(captureReadiness.firstActiveRenderRevision != nil)"
                     + " initialRevision=\(initialRenderRevision)"
                     + " firstActiveRevision="
-                    + "\(firstActiveRenderRevision.map(String.init) ?? "none")"
+                    + "\(captureReadiness.firstActiveRenderRevision.map(String.init) ?? "none")"
                     + " lastActiveRevision="
-                    + "\(lastActiveRenderRevision.map(String.init) ?? "none")"
+                    + "\(captureReadiness.lastActiveRenderRevision.map(String.init) ?? "none")"
                     + " finalRevision=\(finalRenderRevision)"
                     + " finalQuiescent=\(finalRuntimeActivity.isQuiescent)"
                     + " activeTasks=\(finalRuntimeActivity.activeTaskCount)"
