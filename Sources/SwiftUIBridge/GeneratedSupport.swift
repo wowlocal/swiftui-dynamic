@@ -260,7 +260,8 @@ enum GeneratedDispatch {
         case .color:
             return try Coerce.color(value)
         case .font:
-            return try Coerce.font(value)
+            return try TargetPlatformTypographyBridge.font(
+                from: value, context: ctx)
         case .fontWeight:
             return try Coerce.fontWeight(value)
         case .symbolRenderingMode:

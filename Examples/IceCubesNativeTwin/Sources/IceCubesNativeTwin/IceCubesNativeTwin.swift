@@ -78,6 +78,8 @@ private enum TwinConfiguration {
         "--list-row-geometry-probe")
     static let capturesRepeatedRowGeometry = CommandLine.arguments.contains(
         "--repeated-row-geometry-probe")
+    static let capturesSmallBorderedControl = CommandLine.arguments.contains(
+        "--small-bordered-control-probe")
 }
 
 @MainActor
@@ -159,6 +161,8 @@ private struct TwinDriverView: View {
                 ListRowGeometryProbe()
             } else if TwinConfiguration.capturesRepeatedRowGeometry {
                 RepeatedRowGeometryProbe()
+            } else if TwinConfiguration.capturesSmallBorderedControl {
+                SmallBorderedControlProbe()
             } else if let focusedMedia {
                 FocusedMediaScreen(attachments: focusedMedia)
             } else if statuses.isEmpty {
@@ -194,6 +198,11 @@ private struct TwinDriverView: View {
             if TwinConfiguration.capturesRepeatedRowGeometry {
                 try await Task.sleep(for: .seconds(1))
                 try capturePNG(named: "repeated-row-geometry")
+                exit(0)
+            }
+            if TwinConfiguration.capturesSmallBorderedControl {
+                try await Task.sleep(for: .seconds(1))
+                try capturePNG(named: "small-bordered-control")
                 exit(0)
             }
             let decoded: [Status] = try await client.get(
