@@ -455,24 +455,44 @@ struct IceCubesMicroTwinTests {
     @Test
     func borderedSmallButtonsSurviveCustomCollectionComposition() throws {
         let source = """
-        let tags = ["noticias", "News", "portugal"]
+        struct Tag: Identifiable {
+            let id: String
+            let name: String
 
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(tags, id: \\.self) { tag in
-                    Button {
-                    } label: {
-                        Text("#\\(tag)")
-                            .font(.footnote)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+            init(name: String) {
+                id = name
+                self.name = name
             }
         }
-        .scrollClipDisabled()
+
+        struct TrailingTags: View {
+            let tags: [Tag]
+
+            var body: some View {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(tags) { tag in
+                            Button {
+                            } label: {
+                                Text("#\\(tag.name)")
+                                    .font(.footnote)
+                                    .fontWeight(.medium)
+                                    .lineLimit(1)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+                .scrollClipDisabled()
+            }
+        }
+
+        TrailingTags(tags: [
+            Tag(name: "noticias"),
+            Tag(name: "News"),
+            Tag(name: "portugal"),
+        ])
         """
 
         let rendered = InterpreterHost().render(
