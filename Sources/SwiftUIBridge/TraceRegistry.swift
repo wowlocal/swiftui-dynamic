@@ -576,7 +576,7 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func modifier(named name: String) -> HostModifier? {
-        HostModifier(name: name) { value, args, ctx in
+        let modifier = HostModifier(name: name) { value, args, ctx in
             let node = try Self.node(value)
             if name == "environmentObject" || name == "environment",
                let first = args.positional(0),
@@ -656,6 +656,20 @@ public final class TraceRegistry: HostRegistry {
             node.modifiers.append(argText.isEmpty ? name : "\(name)(\(argText))")
             return .native(node)
         }
+        guard let overloads = GeneratedModifiers.table[name] else {
+            return modifier
+        }
+        return HostModifier(
+            name: name,
+            parameterTypeCandidates: { args, ctx in
+                GeneratedDispatch.contextualParameterTypeCandidates(
+                    overloads: overloads, args: args, ctx: ctx)
+            },
+            argumentMatch: { args, ctx in
+                GeneratedDispatch.contextualArgumentsMatch(
+                    overloads: overloads, args: args, ctx: ctx)
+            },
+            apply: modifier.apply)
     }
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {

@@ -9,7 +9,19 @@ struct HostExtensionMethodOverloads {
     let typeName: String
     let sourceMethods: [FunctionDeclSyntax]
     let importedMethod: HostFunction?
+    let importedModifier: HostModifier?
     let receiver: RuntimeValue
+}
+
+private enum ContextualStaticMemberFit: Equatable {
+    /// This call has no unresolved leading-dot argument.
+    case notApplicable
+    /// The parameter type is imported or otherwise opaque to source metadata.
+    case unknown
+    /// A known interpreted parameter type does not declare the member.
+    case missing
+    /// Source metadata declares every unresolved leading-dot member.
+    case declared
 }
 
 extension Interpreter {
@@ -884,6 +896,14 @@ extension Interpreter {
             activeExtensionFrames.contains(ExtensionFrame(
                 typeName: typeName, member: name))
         }
+        let importedModifier: HostModifier?
+        if let registry, registry.isViewValue(receiver),
+           let modifier = registry.modifier(named: name),
+           modifier.exposesInterfaceParameterTypes {
+            importedModifier = modifier
+        } else {
+            importedModifier = nil
+        }
         let importedMethod: HostFunction?
         if let imported = try nativeMember(name, on: receiver)
             ?? registry?.hostMethod(name, on: payload),
@@ -909,8 +929,9 @@ extension Interpreter {
                 .methods[name],
                   !sourceMethods.isEmpty,
                   directTypeNames.contains(typeName)
-                      || importedMethod != nil,
-                  sourceMethods.count > 1 || importedMethod != nil,
+                      || importedMethod != nil || importedModifier != nil,
+                  sourceMethods.count > 1 || importedMethod != nil
+                      || importedModifier != nil,
                   sourceMethods.allSatisfy({
                     !functionMetadata(for: $0).isAsync
                   }) else {
@@ -920,6 +941,7 @@ extension Interpreter {
                 typeName: typeName,
                 sourceMethods: sourceMethods,
                 importedMethod: importedMethod,
+                importedModifier: importedModifier,
                 receiver: receiver)
         }
         return nil
@@ -1053,8 +1075,10 @@ extension Interpreter {
         // competes, preserving ordinary source recursion when no alternate
         // target exists. `rethrows` stays viable because argument effects,
         // rather than the declaration alone, govern its call site.
+        let hasImportedPeer = overloads.importedMethod != nil
+            || overloads.importedModifier != nil
         let sourceMethods = !allowsExplicitThrowingSource
-            && overloads.importedMethod != nil
+            && hasImportedPeer
             ? overloads.sourceMethods.filter {
                 !functionMetadata(for: $0).requiresExplicitTry
             }
@@ -1062,7 +1086,28 @@ extension Interpreter {
         let available = functionsAvailableForCall(
             from: sourceMethods, args: arguments)
 
-        var bestSource: (declaration: FunctionDeclSyntax, score: Int)?
+        func sourceTarget(
+            for declaration: FunctionDeclSyntax
+        ) -> RuntimeValue? {
+            guard let body = functionMetadata(for: declaration).body else {
+                return nil
+            }
+            let closure = makeFunctionClosure(
+                declaration,
+                body: body,
+                captured: selfEnvironment(overloads.receiver))
+            closure.extensionFrame = ExtensionFrame(
+                typeName: overloads.typeName,
+                member: functionMetadata(for: declaration).name)
+            closure.functionDeclID = declaration.id
+            return .closure(closure)
+        }
+
+        var sourceCandidates: [(
+            declaration: FunctionDeclSyntax,
+            score: Int,
+            contextualFit: ContextualStaticMemberFit
+        )] = []
         for declaration in available {
             let genericClause = declaration.genericParameterClause?
                 .trimmedDescription ?? ""
@@ -1086,40 +1131,309 @@ extension Interpreter {
                     arguments: arguments, in: self) else {
                 continue
             }
-            if bestSource == nil || match.score > bestSource!.score {
-                bestSource = (declaration, match.score)
-            }
+            sourceCandidates.append((
+                declaration,
+                match.score,
+                contextualStaticMemberFit(
+                    signature: runtimeSignature,
+                    match: match,
+                    arguments: arguments)
+            ))
         }
 
-        let importedScore = overloads.importedMethod?.signatures.compactMap {
-            $0.match(arguments: arguments, in: self)?.score
-        }.max()
+        let importedCandidates = overloads.importedMethod?.signatures
+            .compactMap { signature -> (
+                score: Int,
+                contextualFit: ContextualStaticMemberFit
+            )? in
+                guard let match = signature.match(
+                    arguments: arguments, in: self
+                ) else {
+                    return nil
+                }
+                return (
+                    match.score,
+                    contextualStaticMemberFit(
+                        signature: signature,
+                        match: match,
+                    arguments: arguments)
+                )
+            } ?? []
+        let modifierParameterCandidates = overloads.importedModifier?
+            .parameterTypeCandidates(for: arguments, in: self) ?? []
+        let modifierCandidates = modifierParameterCandidates.map {
+                contextualStaticMemberFit(
+                    parameterTypes: $0, arguments: arguments)
+            }
+        // A same-name generated modifier is an imported overload peer only
+        // when an interface declaration owns this call's labels and arity.
+        // Otherwise preserve source label dispatch for values whose imported
+        // runtime type is deliberately opaque to HostSignature.
+        if overloads.importedMethod == nil,
+           modifierParameterCandidates.isEmpty,
+           sourceCandidates.isEmpty,
+           let declaration = available.first,
+           let target = sourceTarget(for: declaration) {
+            return target
+        }
+        let shouldProbeModifier = sourceCandidates.isEmpty
+            || sourceCandidates.contains {
+                $0.contextualFit == .missing
+            }
+        let modifierMatches = !modifierCandidates.isEmpty
+            && (modifierCandidates.contains { $0 == .declared }
+                || (shouldProbeModifier
+                    && overloads.importedModifier?
+                        .argumentsMatch(arguments, in: self) == true))
+        // HostSignature deliberately gives an unresolved leading-dot value a
+        // provisional score because imported enum/static surfaces are not
+        // always enumerable. Once one competing contextual type has positive
+        // source declaration evidence, however, a known interpreted type
+        // that lacks that member is not a viable Swift overload.
+        let hasDeclaredContextualFit =
+            sourceCandidates.contains { $0.contextualFit == .declared }
+            || importedCandidates.contains {
+                $0.contextualFit == .declared
+            }
+            || modifierMatches
+        let viableSources = sourceCandidates.filter {
+            !hasDeclaredContextualFit || $0.contextualFit != .missing
+        }
+        let viableImported = importedCandidates.filter {
+            !hasDeclaredContextualFit || $0.contextualFit != .missing
+        }
+        var bestSource: (declaration: FunctionDeclSyntax, score: Int)?
+        for candidate in viableSources
+        where bestSource == nil || candidate.score > bestSource!.score {
+            bestSource = (candidate.declaration, candidate.score)
+        }
+        let importedScore = viableImported.map(\.score).max()
         if let importedScore,
            let importedMethod = overloads.importedMethod,
            importedScore > (bestSource?.score ?? Int.min) {
             return .hostFunction(importedMethod)
         }
         if let declaration = bestSource?.declaration,
-           let body = functionMetadata(for: declaration).body {
-            let closure = makeFunctionClosure(
-                declaration,
-                body: body,
-                captured: selfEnvironment(overloads.receiver))
-            closure.extensionFrame = ExtensionFrame(
-                typeName: overloads.typeName,
-                member: functionMetadata(for: declaration).name)
-            closure.functionDeclID = declaration.id
-            return .closure(closure)
+           let target = sourceTarget(for: declaration) {
+            return target
+        }
+        if let modifier = overloads.importedModifier,
+           modifierMatches {
+            return .hostFunction(HostFunction(name: modifier.name) {
+                [receiver = overloads.receiver] args, context in
+                try modifier.apply(receiver, args, context)
+            })
         }
         if let importedMethod = overloads.importedMethod,
            importedScore != nil || importedMethod.signatures.isEmpty {
             return .hostFunction(importedMethod)
         }
         let memberName = overloads.sourceMethods.first?.name.text
-            ?? overloads.importedMethod?.name ?? "member"
+            ?? overloads.importedMethod?.name
+            ?? overloads.importedModifier?.name ?? "member"
         throw RuntimeError(
             message: "no matching source or imported overload for "
                 + "'\(overloads.typeName).\(memberName)'")
+    }
+
+    private func contextualStaticMemberFit(
+        signature: HostSignature,
+        match: HostCallMatch,
+        arguments: CallArguments
+    ) -> ContextualStaticMemberFit {
+        contextualStaticMemberFit(
+            parameterTypes: match.parameterIndices.map {
+                signature.parameters[$0].type
+            },
+            arguments: arguments)
+    }
+
+    private func contextualStaticMemberFit(
+        parameterTypes: [String?],
+        arguments: CallArguments
+    ) -> ContextualStaticMemberFit {
+        var foundMarker = false
+        var foundUnknown = false
+        for (argument, parameterType) in zip(
+            arguments.arguments, parameterTypes
+        ) {
+            guard let member = contextualStaticMemberRoot(
+                in: argument.value
+            ) else {
+                continue
+            }
+            foundMarker = true
+            guard let parameterType else {
+                foundUnknown = true
+                continue
+            }
+            switch staticMemberDeclarationEvidence(
+                named: member, ofType: parameterType
+            ) {
+            case .declared:
+                continue
+            case .missing:
+                return .missing
+            case .unknown:
+                foundUnknown = true
+            case .notApplicable:
+                break
+            }
+        }
+        guard foundMarker else { return .notApplicable }
+        return foundUnknown ? .unknown : .declared
+    }
+
+    private func contextualStaticMemberRoot(
+        in value: RuntimeValue
+    ) -> String? {
+        if case .implicitMember(let name) = value {
+            return name
+        }
+        guard case .host(let payload) = value else { return nil }
+        if let call = payload as? ImplicitMemberCall {
+            return call.name
+        }
+        if let chain = payload as? ChainedImplicitCall {
+            return contextualStaticMemberRoot(in: chain.base)
+        }
+        return nil
+    }
+
+    private func staticMemberDeclarationEvidence(
+        named member: String,
+        ofType rawType: String
+    ) -> ContextualStaticMemberFit {
+        var typeName = HostSignature.normalizedType(rawType)
+        while let wrapped = RuntimeOptionalValue.wrappedType(in: typeName) {
+            typeName = HostSignature.normalizedType(wrapped)
+        }
+        guard let nominal = RuntimeDeclaredType.nominalTypeName(typeName)
+        else {
+            return .unknown
+        }
+
+        var sourceStructs: [StructSymbol] = []
+        var sourceEnums: [EnumSymbol] = []
+        for candidateName in [typeName, nominal] {
+            if case .type(let symbol)? = globals.lookup(candidateName),
+               hostExtensionSymbols[symbol.name] !== symbol,
+               !sourceStructs.contains(where: { $0 === symbol }) {
+                sourceStructs.append(symbol)
+            }
+            if case .enumType(let symbol)? = globals.lookup(candidateName),
+               !sourceEnums.contains(where: { $0 === symbol }) {
+                sourceEnums.append(symbol)
+            }
+            if let symbol = enumSymbols[candidateName],
+               !sourceEnums.contains(where: { $0 === symbol }) {
+                sourceEnums.append(symbol)
+            }
+        }
+        if sourceStructs.isEmpty {
+            sourceStructs = structSymbols.filter {
+                $0.name == typeName || $0.name == nominal
+            }
+        }
+
+        if sourceStructs.contains(where: {
+            declaresStaticMember(named: member, in: $0)
+        }) || sourceEnums.contains(where: {
+            declaresStaticMember(named: member, in: $0)
+        }) {
+            return .declared
+        }
+        if sourceStructs.contains(where: {
+            protocolExtensionDeclaresStaticMember(
+                named: member, conformances: $0.conformances)
+        }) || sourceEnums.contains(where: {
+            protocolExtensionDeclaresStaticMember(
+                named: member, conformances: $0.conformances)
+        }) {
+            return .declared
+        }
+
+        for candidateName in [typeName, nominal] {
+            if let symbol = hostExtensionSymbols[candidateName],
+               declaresStaticMember(named: member, in: symbol) {
+                return .declared
+            }
+        }
+
+        guard !sourceStructs.isEmpty || !sourceEnums.isEmpty else {
+            // No interpreted nominal owns this type. Its imported static
+            // surface may be larger than the runtime bridge can enumerate.
+            return .unknown
+        }
+        if sourceStructs.count + sourceEnums.count > 1
+            || sourceStructs.contains(where: {
+                $0.superclassName != nil
+            }) {
+            // Ambiguous flattened-module names and superclass statics require
+            // richer lookup than direct source metadata.
+            return .unknown
+        }
+        return .missing
+    }
+
+    private func protocolExtensionDeclaresStaticMember(
+        named member: String,
+        conformances: [String]
+    ) -> Bool {
+        var queue = conformances
+        var seen: Set<String> = []
+        while !queue.isEmpty {
+            let conformance = queue.removeFirst()
+            guard seen.insert(conformance).inserted else { continue }
+            if let symbol = hostExtensionSymbols[conformance],
+               declaresStaticMember(named: member, in: symbol) {
+                return true
+            }
+            queue.append(contentsOf: protocolInheritance[conformance] ?? [])
+        }
+        return false
+    }
+
+    private func declaresStaticMember(
+        named member: String,
+        in symbol: StructSymbol
+    ) -> Bool {
+        guard symbol.isStaticMember(
+            named: member,
+            visibleFrom: currentLexicalSourceFileIdentity
+        ) else {
+            return false
+        }
+        return symbol.staticProperties[member] != nil
+            || symbol.staticComputedProperties[member] != nil
+            || symbol.staticMethods[member] != nil
+            || symbol.staticWrapped[member] != nil
+            || symbol.staticCache[member] != nil
+            || symbol.staticReferenceBoxes[member] != nil
+            || symbol.staticUninitialized.contains(member)
+            || symbol.taskLocalProperties[member] != nil
+            || symbol.nestedTypes[member] != nil
+    }
+
+    private func declaresStaticMember(
+        named member: String,
+        in symbol: EnumSymbol
+    ) -> Bool {
+        guard symbol.isStaticMember(
+            named: member,
+            visibleFrom: currentLexicalSourceFileIdentity
+        ) else {
+            return false
+        }
+        return symbol.caseInfo(named: member) != nil
+            || symbol.staticProperties[member] != nil
+            || symbol.staticComputedProperties[member] != nil
+            || symbol.staticMethods[member] != nil
+            || symbol.staticCache[member] != nil
+            || symbol.staticReferenceBoxes[member] != nil
+            || symbol.staticUninitialized.contains(member)
+            || symbol.taskLocalProperties[member] != nil
+            || symbol.nestedTypes[member] != nil
     }
 
     func hostCandidates(for any: Any) -> [String] {
@@ -2655,6 +2969,37 @@ extension Interpreter {
                    name, candidates: extensionCandidates, selfValue: baseValue) {
                 return value
             }
+            // Program extensions SHADOW imported statics — `extension Date {
+            // static var now }` wins over Foundation's own, exactly like a
+            // same-module declaration beats an import in compiled Swift.
+            if let marker = any as? HostTypeMarker,
+               let hostSymbol = hostExtensionSymbols[marker.name] {
+                if let dispatcher = hostExtensionStaticMethodDispatcher(
+                    name, hostSymbol: hostSymbol, typeName: marker.name) {
+                    return dispatcher
+                }
+                if let value = try staticMember(name, of: hostSymbol) {
+                    return value
+                }
+            }
+            // Exact nominal members precede protocol-extension defaults.
+            // Registry-declared/generated members retain precedence over the
+            // core compatibility lookup. Both keep conformance discovery
+            // demand-driven: a property the concrete host already serves
+            // never needs its protocol umbrella enumerated.
+            if let value = try readHostMember(
+                name,
+                on: any,
+                deferringAsyncProperty: deferringAsyncHostProperty,
+                includingFallback: false) {
+                return value
+            }
+            if let value = try nativeMember(
+                name,
+                on: baseValue,
+                declaredTypeName: declaredBaseTypeName) {
+                return value
+            }
             // A protocol conformance makes its source extensions visible,
             // but a conformance-only method must not replace an exact native
             // property during bare lookup (`Collection.count(where:)` beside
@@ -2670,19 +3015,6 @@ extension Interpreter {
                 conformanceExtensionCandidates.append(typeName)
             }
             if !conformanceExtensionCandidates.isEmpty {
-                if let value = try nativeMember(
-                    name,
-                    on: baseValue,
-                    declaredTypeName: declaredBaseTypeName) {
-                    return value
-                }
-                if let value = try readHostMember(
-                    name,
-                    on: any,
-                    deferringAsyncProperty: deferringAsyncHostProperty,
-                    includingFallback: false) {
-                    return value
-                }
                 if let value = try hostExtensionMember(
                     name,
                     candidates: conformanceExtensionCandidates,
@@ -2690,25 +3022,9 @@ extension Interpreter {
                     return value
                 }
             }
-            // Program extensions SHADOW imported statics — `extension Date {
-            // static var now }` wins over Foundation's own, exactly like a
-            // same-module declaration beats an import in compiled Swift.
-            if let marker = any as? HostTypeMarker,
-               let hostSymbol = hostExtensionSymbols[marker.name] {
-                if let dispatcher = hostExtensionStaticMethodDispatcher(
-                    name, hostSymbol: hostSymbol, typeName: marker.name) {
-                    return dispatcher
-                }
-                if let value = try staticMember(name, of: hostSymbol) {
-                    return value
-                }
-            }
-            // The bridge gets first refusal on host natives (GeometryProxy,
-            // CGRect, and static chains like UIScreen.main / DispatchQueue.main).
-            if let value = try readHostMember(
-                name,
-                on: any,
-                deferringAsyncProperty: deferringAsyncHostProperty) {
+            // Only unresolved exact and conformance-extension reads reach the
+            // open-ended imported fallback.
+            if let value = registry?.fallbackHostMember(name, on: any) {
                 return value
             }
             if let marker = any as? HostTypeMarker {
@@ -2787,15 +3103,6 @@ extension Interpreter {
                 throw error(node, "'$\(projection.model.symbol.name)' has no stored property '\(name)'")
             }
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
-                return value
-            }
-            if let value = try nativeMember(
-                name,
-                on: baseValue,
-                declaredTypeName: declaredBaseTypeName) {
-                return value
-            }
-            if let value = try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: baseValue) {
                 return value
             }
             if let registry, registry.isViewValue(baseValue), let modifier = registry.modifier(named: name) {

@@ -98,11 +98,52 @@ public struct CallArguments {
 @MainActor
 public struct HostModifier {
     public let name: String
+    private let parameterTypeCandidatesBody:
+        (@MainActor (CallArguments, EvalContext) -> [[String?]])?
+    private let argumentMatchBody:
+        (@MainActor (CallArguments, EvalContext) -> Bool?)?
     public let apply: @MainActor (RuntimeValue, CallArguments, EvalContext) throws -> RuntimeValue
 
-    public init(name: String, apply: @escaping @MainActor (RuntimeValue, CallArguments, EvalContext) throws -> RuntimeValue) {
+    public init(
+        name: String,
+        parameterTypeCandidates:
+            (@MainActor (CallArguments, EvalContext) -> [[String?]])?
+            = nil,
+        argumentMatch:
+            (@MainActor (CallArguments, EvalContext) -> Bool?)?
+            = nil,
+        apply: @escaping @MainActor (
+            RuntimeValue, CallArguments, EvalContext
+        ) throws -> RuntimeValue
+    ) {
         self.name = name
+        self.parameterTypeCandidatesBody = parameterTypeCandidates
+        self.argumentMatchBody = argumentMatch
         self.apply = apply
+    }
+
+    /// Whether this adapter exposes generated/interface overload metadata.
+    /// Handwritten modifiers retain their established fallback dispatch.
+    public var exposesInterfaceParameterTypes: Bool {
+        parameterTypeCandidatesBody != nil
+    }
+
+    /// Interface-derived contextual parameter types for every overload whose
+    /// arity and labels fit the call. This is shape metadata only: querying it
+    /// never evaluates or coerces an argument during speculative resolution.
+    public func parameterTypeCandidates(
+        for arguments: CallArguments, in context: EvalContext
+    ) -> [[String?]] {
+        parameterTypeCandidatesBody?(arguments, context) ?? []
+    }
+
+    /// Ask whether the interface-derived adapter can consume the call's
+    /// unresolved contextual markers without consulting source extensions.
+    /// `nil` means a handwritten adapter exposes no match proof.
+    public func argumentsMatch(
+        _ arguments: CallArguments, in context: EvalContext
+    ) -> Bool? {
+        argumentMatchBody?(arguments, context)
     }
 }
 
