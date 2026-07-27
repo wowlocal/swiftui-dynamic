@@ -2,7 +2,7 @@ import Foundation
 
 /// A located evaluation or parse error, surfaced verbatim in the demo's error bar.
 public nonisolated struct RuntimeError:
-    Error, CustomStringConvertible, Sendable
+    Error, CustomStringConvertible, LocalizedError, Sendable
 {
     public let message: String
     public let line: Int
@@ -24,6 +24,7 @@ public nonisolated struct RuntimeError:
     }
 
     public var description: String { "\(line):\(column): \(message)" }
+    public var errorDescription: String? { message }
 }
 
 /// A value thrown by interpreted `throw` — caught by interpreted `catch`,
