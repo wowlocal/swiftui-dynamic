@@ -468,11 +468,13 @@ struct IceCubesMicroTwinTests {
         }
 
         struct Tag: Identifiable {
-            let id: String
             let name: String
 
+            var id: String {
+                name
+            }
+
             init(name: String) {
-                id = name
                 self.name = name
             }
         }
