@@ -33,6 +33,7 @@ private struct SmallBorderedControl: View {
     let name: String
     let rootFrame: CGRect
     let tint: Color?
+    let controlSize: ControlSize
 
     var body: some View {
         let button = Button {} label: {
@@ -47,7 +48,7 @@ private struct SmallBorderedControl: View {
                 }
         }
         .buttonStyle(.bordered)
-        .controlSize(.small)
+        .controlSize(controlSize)
         .background {
             SmallBorderedControlFrameReader(
                 name: "\(name)-button",
@@ -102,11 +103,33 @@ struct SmallBorderedControlProbe: View {
                 SmallBorderedControl(
                     name: "default",
                     rootFrame: rootProxy.frame(in: .global),
-                    tint: nil)
+                    tint: nil,
+                    controlSize: .small)
                 SmallBorderedControl(
                     name: "red",
                     rootFrame: rootProxy.frame(in: .global),
-                    tint: .red)
+                    tint: .red,
+                    controlSize: .small)
+                SmallBorderedControl(
+                    name: "mini",
+                    rootFrame: rootProxy.frame(in: .global),
+                    tint: nil,
+                    controlSize: .mini)
+                SmallBorderedControl(
+                    name: "regular",
+                    rootFrame: rootProxy.frame(in: .global),
+                    tint: nil,
+                    controlSize: .regular)
+                SmallBorderedControl(
+                    name: "large",
+                    rootFrame: rootProxy.frame(in: .global),
+                    tint: nil,
+                    controlSize: .large)
+                SmallBorderedControl(
+                    name: "extra-large",
+                    rootFrame: rootProxy.frame(in: .global),
+                    tint: nil,
+                    controlSize: .extraLarge)
                 Group {
                     SemanticFontLabel(
                         name: "largeTitle", font: .largeTitle,

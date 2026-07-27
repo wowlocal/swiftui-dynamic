@@ -600,6 +600,50 @@ struct IceCubesMicroTwinTests {
         #expect(bounds.size == CGSize(width: 48, height: 16))
     }
 
+    /// Once target typography supplies the native 48×16 label, the compiled
+    /// target's closed ControlSize table contributes 10×5 for mini/small,
+    /// 12×7 for regular, and 20×15 for large/extra-large chrome.
+    @MainActor
+    @Test
+    func catalystTargetPreservesBorderedControlExtents() throws {
+        let size = NSSize(width: 200, height: 100)
+        let expectations: [(String, CGSize)] = [
+            ("mini", CGSize(width: 68, height: 26)),
+            ("small", CGSize(width: 68, height: 26)),
+            ("regular", CGSize(width: 72, height: 30)),
+            ("large", CGSize(width: 88, height: 46)),
+            ("extraLarge", CGSize(width: 88, height: 46)),
+        ]
+        for (controlSize, expected) in expectations {
+            let source = """
+            Button {} label: {
+                Text("Control")
+                    .font(.footnote)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.\(controlSize))
+            .background(Color.red)
+            """
+
+            let rendered = InterpreterHost().render(
+                source: source,
+                buildConfiguration: .init(
+                    platformName: "iOS", targetEnvironment: "macCatalyst"),
+                lazyTopLevelGlobals: true)
+            guard case .success(let interpreted) = rendered,
+                  let bounds = Self.redPixelBounds(
+                    Self.bitmap(interpreted, size: size), size: size)
+            else {
+                Issue.record(
+                    "target \(controlSize) control microtwin failed: \(rendered)")
+                continue
+            }
+            #expect(bounds.size == expected)
+        }
+    }
+
     /// Interface-derived stack initializers must contextualize shorthand
     /// statics declared by source extensions before scalar coercion. IceCubes
     /// supplies both stack spacings this way; treating the markers as zero

@@ -637,7 +637,9 @@ extension ViewRegistry {
             guard let styleArg = args.positional(0) else { return view }
             if case .implicitMember(let name) = styleArg {
                 switch name {
-                case "bordered": return AnyView(view.buttonStyle(.bordered))
+                case "bordered":
+                    return TargetPlatformControlBridge
+                        .applyBorderedButtonStyle(to: view, context: ctx)
                 case "borderedProminent": return AnyView(view.buttonStyle(.borderedProminent))
                 case "plain": return AnyView(view.buttonStyle(.plain))
                 case "borderless": return AnyView(view.buttonStyle(.borderless))
