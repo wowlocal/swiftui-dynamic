@@ -1268,6 +1268,52 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "tuple=2,3")
     }
 
+    /// A generic nominal's `Self.Member` annotation denotes the member alias
+    /// on that lexical owner. Subscript fitting must expand that structural
+    /// relation before rejecting the user-defined subscript.
+    @Test func genericSelfTupleAliasSelectsSubscriptStructurally() throws {
+        let source = """
+        struct Matrix<Element> {
+            typealias Index = (Int, Int)
+
+            subscript(index: String) -> String {
+                "string"
+            }
+
+            subscript(index: Self.Index) -> String {
+                "tuple=\\(index.0),\\(index.1)"
+            }
+        }
+
+        Matrix<Int>()[(4, 5)]
+        """
+
+        #expect(try eval(source).stringValue == "tuple=4,5")
+    }
+
+    /// Parameters declared by the owning generic nominal remain valid
+    /// subscript parameter types. A concrete alias overload must still be
+    /// rejected when its structure does not fit the runtime argument.
+    @Test func ownerGenericParameterSelectsSubscriptStructurally() throws {
+        let source = """
+        final class Lookup<Key: Hashable, Value> {
+            typealias Index = Int
+
+            subscript(position: Index) -> String {
+                "position"
+            }
+
+            subscript(key: Key) -> String {
+                "key"
+            }
+        }
+
+        Lookup<String, Int>()["topic"]
+        """
+
+        #expect(try eval(source).stringValue == "key")
+    }
+
     /// User subscripts (get + set, tuple indices), typed empty containers,
     /// member typealiases, and defer LIFO semantics — the 2048 quartet.
     @Test func userSubscriptsTypealiasesAndDefer() throws {

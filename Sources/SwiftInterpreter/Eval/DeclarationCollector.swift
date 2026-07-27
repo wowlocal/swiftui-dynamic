@@ -585,6 +585,7 @@ extension Interpreter {
         let symbol = StructSymbol(
             name: metadata.name,
             conformsToView: inherited.contains("View"))
+        recordGenericParameters(metadata.genericParameters, into: symbol)
         symbol.isClass = true
         symbol.isActor = metadata.kind == .actor
         symbol.conformances = inherited

@@ -1745,21 +1745,37 @@ extension Interpreter {
     func expandedRuntimeTypeAlias(
         _ rawType: String, lexicalOwner: AnyObject?
     ) -> String {
+        func lexicalMemberAlias(
+            named name: String, from initialOwner: AnyObject?
+        ) -> String? {
+            var owner = initialOwner
+            while let current = owner {
+                if let symbol = current as? StructSymbol {
+                    if let target = symbol.typeAliases[name] { return target }
+                    owner = symbol.lexicalTypeOwner
+                    continue
+                }
+                if let symbol = current as? EnumSymbol {
+                    if let target = symbol.typeAliases[name] { return target }
+                    owner = symbol.lexicalTypeOwner
+                    continue
+                }
+                break
+            }
+            return nil
+        }
+
         func target(named name: String) -> String? {
+            let components = name.split(separator: ".", omittingEmptySubsequences: false)
+            if components.count == 2, components[0] == "Self" {
+                return lexicalMemberAlias(
+                    named: String(components[1]), from: lexicalOwner)
+            }
             if !name.contains(".") {
-                var owner = lexicalOwner
-                while let current = owner {
-                    if let symbol = current as? StructSymbol {
-                        if let target = symbol.typeAliases[name] { return target }
-                        owner = symbol.lexicalTypeOwner
-                        continue
-                    }
-                    if let symbol = current as? EnumSymbol {
-                        if let target = symbol.typeAliases[name] { return target }
-                        owner = symbol.lexicalTypeOwner
-                        continue
-                    }
-                    break
+                if let target = lexicalMemberAlias(
+                    named: name, from: lexicalOwner
+                ) {
+                    return target
                 }
             }
             return typeAliasTarget(named: name)

@@ -1853,7 +1853,10 @@ extension Interpreter {
         let shaped = arityMatches.isEmpty ? symbol.subscripts : arityMatches
         let fitting = shaped.filter {
             runtimeArgumentsFitDeclaredTypes(
-                $0.parameters, args: args, lexicalOwner: symbol)
+                $0.parameters,
+                args: args,
+                genericParameterNames: Set(symbol.genericParameters.keys),
+                lexicalOwner: symbol)
         }
         guard fitting.count > 1,
               var expectedResultType = expectedAnnotationStack.last
