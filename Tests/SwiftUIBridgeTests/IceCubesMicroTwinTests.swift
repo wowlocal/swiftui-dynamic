@@ -499,7 +499,10 @@ struct IceCubesMicroTwinTests {
         }
 
         extension ButtonStyle where Self == AlternateButtonStyle {
-            static var alternate: Self {
+            static func alternate(
+                isOn: Bool = false,
+                tintColor: Color? = nil
+            ) -> Self {
                 AlternateButtonStyle()
             }
         }
