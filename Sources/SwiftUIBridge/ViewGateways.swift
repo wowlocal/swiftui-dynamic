@@ -204,20 +204,6 @@ extension ViewRegistry {
 
         // MARK: Stacks & containers
 
-        constructors["VStack"] = HostFunction(name: "VStack") { args, ctx in
-            let alignment = try args.labeled("alignment").map(Coerce.horizontalAlignment) ?? .center
-            let spacing = try args.labeled("spacing").map(Coerce.cgFloat)
-            let content = try Self.builderContent(args, ctx)
-            return .native(AnyView(VStack(alignment: alignment, spacing: spacing) { Self.indexed(content) }))
-        }
-
-        constructors["HStack"] = HostFunction(name: "HStack") { args, ctx in
-            let alignment = try args.labeled("alignment").map(Coerce.verticalAlignment) ?? .center
-            let spacing = try args.labeled("spacing").map(Coerce.cgFloat)
-            let content = try Self.builderContent(args, ctx)
-            return .native(AnyView(HStack(alignment: alignment, spacing: spacing) { Self.indexed(content) }))
-        }
-
         constructors["ZStack"] = HostFunction(name: "ZStack") { args, ctx in
             let alignment = try args.labeled("alignment").map(Coerce.alignment) ?? .center
             let content = try Self.builderContent(args, ctx)

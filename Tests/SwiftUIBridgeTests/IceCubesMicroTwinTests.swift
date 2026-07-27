@@ -32,6 +32,18 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeGeneratedStackSpacingTwin: View {
+        var body: some View {
+            HStack(alignment: .top, spacing: 8) {
+                Color.red.frame(width: 48, height: 16)
+                VStack(spacing: 8) {
+                    Color.red.frame(width: 16, height: 16)
+                    Color.red.frame(width: 16, height: 16)
+                }
+            }
+        }
+    }
+
     private struct NativeInsetRows: View {
         var body: some View {
             ForEach(0..<2) { _ in
@@ -370,6 +382,46 @@ struct IceCubesMicroTwinTests {
         let bounds = Self.redPixelBounds(
             Self.bitmap(interpreted, size: size), size: size)
         #expect(bounds?.minX == 20)
+    }
+
+    /// Interface-derived stack initializers must contextualize shorthand
+    /// statics declared by source extensions before scalar coercion. IceCubes
+    /// supplies both stack spacings this way; treating the markers as zero
+    /// collapses each native eight-point gap.
+    @MainActor
+    @Test
+    func sourceStaticCGFloatControlsGeneratedStackSpacing() throws {
+        let source = """
+        extension CGFloat {
+            static let probeSpacing: CGFloat = 8
+        }
+
+        HStack(alignment: .top, spacing: .probeSpacing) {
+            Color.red.frame(width: 48, height: 16)
+            VStack(spacing: .probeSpacing) {
+                Color.red.frame(width: 16, height: 16)
+                Color.red.frame(width: 16, height: 16)
+            }
+        }
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("target nested-layout microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 120, height: 60)
+        let actual = Self.redPixelBounds(
+            Self.bitmap(interpreted, size: size), size: size)
+        let expected = Self.redPixelBounds(
+            Self.bitmap(AnyView(NativeGeneratedStackSpacingTwin()), size: size),
+            size: size)
+        #expect(actual == expected)
     }
 
     private static func isFooterPixel(_ color: NSColor?) -> Bool {
