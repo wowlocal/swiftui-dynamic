@@ -85,6 +85,14 @@ extension HostSignature {
             if case .void = value { return 30 }
             return nil
         }
+        if case .host(let any) = value,
+           any is KeyPathStub,
+           isKeyPathFamilyType(type) {
+            // A key-path literal is contextually converted to the concrete
+            // key-path class named by its parameter contract. Keep that
+            // concrete relation above SE-0249's callable conversion below.
+            return 27
+        }
         if isFunctionType(type) {
             switch value {
             case .closure, .hostFunction: return 25
@@ -361,6 +369,16 @@ extension HostSignature {
         return type
     }
 
+    /// Whether a source type has the structural nominal shape of Swift's
+    /// key-path class family. Runtime key-path literals intentionally retain
+    /// components rather than inventing unavailable Root/Value metadata, so
+    /// overload selection derives their contextual class from this contract.
+    static func isKeyPathFamilyType(_ rawType: String) -> Bool {
+        let type = normalizedType(rawType)
+        let nominal = genericApplication(type)?.name ?? type
+        return unqualified(nominal).hasSuffix("KeyPath")
+    }
+
     static func substitutingGenerics(
         in type: String, bindings: [String: String]
     ) -> String {
@@ -548,9 +566,15 @@ enum HostRuntimeTypeSystem {
             if case .void = value { return true }
             return false
         }
+        if case .host(let any) = value,
+           any is KeyPathStub,
+           HostSignature.isKeyPathFamilyType(type) {
+            return true
+        }
         if type.contains("->") {
             if case .closure = value { return true }
             if case .hostFunction = value { return true }
+            if case .host(let any) = value, any is KeyPathStub { return true }
             return false
         }
         switch value {

@@ -76,6 +76,11 @@ extension Interpreter {
         // nominal types. A trailing closure must positively fit a closure
         // parameter so an earlier, label-compatible overload cannot win by
         // declaration order. Key paths retain Swift's callable conversion.
+        if case .host(let any) = value,
+           any is KeyPathStub,
+           HostSignature.isKeyPathFamilyType(typeName) {
+            return true
+        }
         if isFunctionType(typeName) {
             switch value {
             case .closure, .hostFunction:
