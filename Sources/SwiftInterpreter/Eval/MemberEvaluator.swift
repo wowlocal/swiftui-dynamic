@@ -2983,20 +2983,21 @@ extension Interpreter {
                 }
             }
             // Exact nominal members precede protocol-extension defaults.
-            // Besides matching native lookup order, this keeps conformance
-            // discovery demand-driven: a property the concrete host already
-            // serves never needs its protocol umbrella enumerated.
-            if let value = try nativeMember(
-                name,
-                on: baseValue,
-                declaredTypeName: declaredBaseTypeName) {
-                return value
-            }
+            // Registry-declared/generated members retain precedence over the
+            // core compatibility lookup. Both keep conformance discovery
+            // demand-driven: a property the concrete host already serves
+            // never needs its protocol umbrella enumerated.
             if let value = try readHostMember(
                 name,
                 on: any,
                 deferringAsyncProperty: deferringAsyncHostProperty,
                 includingFallback: false) {
+                return value
+            }
+            if let value = try nativeMember(
+                name,
+                on: baseValue,
+                declaredTypeName: declaredBaseTypeName) {
                 return value
             }
             // A protocol conformance makes its source extensions visible,
