@@ -82,6 +82,17 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeTrailingTagsContentTwin: View {
+        var body: some View {
+            VStack(alignment: .leading) {
+                if true {
+                    NativeTrailingTagsTwin()
+                        .padding(.top, 8)
+                }
+            }
+        }
+    }
+
     private struct NativeInsetRows: View {
         var body: some View {
             ForEach(0..<2) { _ in
@@ -532,11 +543,24 @@ struct IceCubesMicroTwinTests {
             }
         }
 
-        TrailingTags(tags: [
-            Tag(name: "noticias"),
-            Tag(name: "News"),
-            Tag(name: "portugal"),
-        ])
+        struct RowContent: View {
+            let tags: [Tag]
+
+            var body: some View {
+                VStack(alignment: .leading) {
+                    if !tags.isEmpty {
+                        TrailingTags(tags: tags)
+                            .padding(.top, 8)
+                    }
+                }
+            }
+        }
+
+        RowContent(tags: [
+                Tag(name: "noticias"),
+                Tag(name: "News"),
+                Tag(name: "portugal"),
+            ])
         .environment(RouteStore())
         """
 
@@ -553,7 +577,7 @@ struct IceCubesMicroTwinTests {
         let size = NSSize(width: 300, height: 44)
         let actual = Self.bitmap(interpreted, size: size)
         let expected = Self.bitmap(
-            AnyView(NativeTrailingTagsTwin().environment(
+            AnyView(NativeTrailingTagsContentTwin().environment(
                 NativeRouteStore())), size: size)
         #expect(Self.pixelAE(actual, expected, size: size) == 0)
     }
