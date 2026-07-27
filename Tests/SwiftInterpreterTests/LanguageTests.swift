@@ -1245,6 +1245,29 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "selected")
     }
 
+    /// A member typealias may carry a complete tuple type into overload
+    /// selection. Runtime matching must inspect that tuple structurally
+    /// instead of falling back to the first same-shaped declaration.
+    @Test func memberTupleAliasSelectsSubscriptOverloadStructurally() throws {
+        let source = """
+        struct TupleIndexed {
+            typealias Index = (Int, Int)
+
+            subscript(index: String) -> String {
+                "string"
+            }
+
+            subscript(index: Index) -> String {
+                "tuple=\\(index.0),\\(index.1)"
+            }
+        }
+
+        TupleIndexed()[(2, 3)]
+        """
+
+        #expect(try eval(source).stringValue == "tuple=2,3")
+    }
+
     /// User subscripts (get + set, tuple indices), typed empty containers,
     /// member typealiases, and defer LIFO semantics — the 2048 quartet.
     @Test func userSubscriptsTypealiasesAndDefer() throws {

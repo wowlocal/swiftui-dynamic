@@ -91,6 +91,24 @@ extension Interpreter {
                 return false
             }
         }
+        if let tuple = value.tupleValue {
+            if typeName == "Tuple" { return true }
+            guard let inner = outerContents(
+                    typeName, opening: "(", closing: ")") else {
+                return false
+            }
+            let components = SwiftInterpreter.splitTopLevel(
+                inner, separator: ",")
+            guard components.count == tuple.values.count else {
+                return false
+            }
+            return zip(components, tuple.values).allSatisfy {
+                component, element in
+                valueIsType(
+                    element,
+                    HostSignature.tupleComponentType(component))
+            }
+        }
         if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
         if typeName.hasPrefix("Swift.") {
             typeName.removeFirst("Swift.".count)
@@ -109,7 +127,7 @@ extension Interpreter {
         case .set: return typeName == "Set"
         case .dictionary:
             return ["Dictionary", "NSDictionary"].contains(typeName) || typeName.hasPrefix("[")
-        case .tuple: return typeName == "Tuple"
+        case .tuple: return false
         case .range:
             return ["Range", "ClosedRange", "PartialRangeFrom", "PartialRangeUpTo",
                     "PartialRangeThrough", "RangeExpression"].contains(typeName)
