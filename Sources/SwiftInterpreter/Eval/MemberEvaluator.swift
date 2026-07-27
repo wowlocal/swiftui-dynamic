@@ -467,7 +467,13 @@ extension Interpreter {
             if let value = try readHostMember(
                 name, on: any, includingFallback: false
             ) { return value }
-            return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
+            var candidates = hostCandidates(for: any)
+            if let lexicalType = lexicalHostExtensionTypeName(),
+               !candidates.contains(lexicalType) {
+                candidates.insert(lexicalType, at: 0)
+            }
+            return try hostExtensionMember(
+                name, candidates: candidates, selfValue: selfValue)
         default:
             return nil
         }
@@ -949,10 +955,10 @@ extension Interpreter {
 
     /// Recover the source type of a member receiver without attaching type
     /// metadata to every RuntimeValue. Native array-payload subscripting
-    /// produces the declared element type; an interpreted subscript's result
-    /// value disambiguates overloads with different declared result types; and
-    /// a standard-library `filter` preserves its receiver's array type even
-    /// when the result is empty.
+    /// produces the declared element type; interpreted subscripts and calls
+    /// retain their source result annotations; and a standard-library
+    /// `filter` preserves its receiver's array type even when the result is
+    /// empty.
     func declaredMemberReceiverTypeName(
         for expression: ExprSyntax,
         in environment: Environment,
@@ -995,6 +1001,31 @@ extension Interpreter {
                 member.declName.baseName.text))?.value
         }
 
+        func uniqueDeclaredReturnType(
+            of candidates: [FunctionDeclSyntax],
+            matching call: FunctionCallExprSyntax,
+            contextualSelfTypeName: String
+        ) -> String? {
+            let shape = ArgumentShape(callSiteMetadata(for: call).arguments)
+            let shaped = candidates.filter {
+                functionMetadata(for: $0).shape.matches(shape)
+            }
+            guard !shaped.isEmpty else { return nil }
+            let returnTypes = shaped.compactMap {
+                functionMetadata(for: $0).returnTypeName
+            }.map {
+                $0 == "Self" ? contextualSelfTypeName : $0
+            }
+            guard returnTypes.count == shaped.count,
+                  let first = returnTypes.first,
+                  returnTypes.dropFirst().allSatisfy({
+                      HostSignature.equivalentTypeName($0, first)
+                  }) else {
+                return nil
+            }
+            return first
+        }
+
         if let subscriptCall = expression.as(SubscriptCallExprSyntax.self) {
             if let base = storedValue(for: subscriptCall.calledExpression) {
                 if case .host(let payload) = base,
@@ -1028,13 +1059,70 @@ extension Interpreter {
         if let call = expression.as(FunctionCallExprSyntax.self),
            let member = call.calledExpression.as(
                MemberAccessExprSyntax.self),
-           member.declName.baseName.text == "filter",
            let receiver = member.base {
-            return declaredMemberReceiverTypeName(
+            let name = member.declName.baseName.text
+            if case .instance(let instance)? = storedValue(for: receiver) {
+                let candidates = instanceCallOverloadsIncludingProtocolDefaults(
+                    named: name, on: instance, call: call)
+                    ?? instanceMethodOverloads(named: name, on: instance)
+                    ?? []
+                if let result = uniqueDeclaredReturnType(
+                    of: candidates,
+                    matching: call,
+                    contextualSelfTypeName: instance.symbol.name)
+                {
+                    return result
+                }
+            } else if case .type(let symbol)? = storedValue(for: receiver),
+                      let result = uniqueDeclaredReturnType(
+                          of: staticMethodOverloads(
+                              named: name, on: symbol) ?? [],
+                          matching: call,
+                          contextualSelfTypeName: symbol.name)
+            {
+                return result
+            } else if case .enumType(let symbol)? = storedValue(for: receiver),
+                      let result = uniqueDeclaredReturnType(
+                          of: symbol.staticMethods[name] ?? [],
+                          matching: call,
+                          contextualSelfTypeName: symbol.name)
+            {
+                return result
+            }
+
+            if let receiverTypeName = declaredMemberReceiverTypeName(
                 for: receiver, in: environment)
+            {
+                for typeName in declaredHostExtensionTypeNames(
+                    receiverTypeName)
+                {
+                    guard let candidates = hostExtensionSymbols[typeName]?
+                        .methods[name],
+                          let result = uniqueDeclaredReturnType(
+                              of: candidates,
+                              matching: call,
+                              contextualSelfTypeName: typeName) else {
+                        continue
+                    }
+                    return result
+                }
+            }
+
+            if name == "filter" {
+                return declaredMemberReceiverTypeName(
+                    for: receiver, in: environment)
+            }
         }
         if let reference = expression.as(DeclReferenceExprSyntax.self) {
             let name = reference.baseName.text
+            if name == "self",
+               let lexicalType = lexicalHostExtensionTypeName() {
+                // Primitive host storage can erase source distinctions
+                // (`Character` and `String` both use a native String).
+                // Inside a source extension, the declaration's lexical
+                // receiver type is the authoritative type of `self`.
+                return lexicalType
+            }
             if let annotation = environment.box(
                 for: name, before: globals)?.declaredTypeName {
                 return annotation
@@ -1059,6 +1147,14 @@ extension Interpreter {
                     .typeName
         }
         return nil
+    }
+
+    private func lexicalHostExtensionTypeName() -> String? {
+        guard let lexicalHost = lexicalOwnerFrames.last as? StructSymbol,
+              hostExtensionSymbols[lexicalHost.name] === lexicalHost else {
+            return nil
+        }
+        return lexicalHost.name
     }
 
     /// Resolve the overload set only after argument evaluation. Every source
@@ -1705,11 +1801,13 @@ extension Interpreter {
         if case .instance(let instance) = base, !instance.symbol.subscripts.isEmpty {
             return (instance.symbol, base)
         }
-        if case .host(let any) = base,
-           let typeName = registry?.hostTypeName(of: any),
-           let extensionSymbol = hostExtensionSymbols[typeName],
-           !extensionSymbol.subscripts.isEmpty {
-            return (extensionSymbol, base)
+        if let payload = base.hostPayload {
+            for typeName in hostCandidates(for: payload) {
+                if let extensionSymbol = hostExtensionSymbols[typeName],
+                   !extensionSymbol.subscripts.isEmpty {
+                    return (extensionSymbol, base)
+                }
+            }
         }
         return nil
     }
@@ -1747,10 +1845,29 @@ extension Interpreter {
             $0.parameters.count == args.arguments.count
         }
         let shaped = arityMatches.isEmpty ? symbol.subscripts : arityMatches
-        return shaped.first {
+        let fitting = shaped.filter {
             runtimeArgumentsFitDeclaredTypes(
                 $0.parameters, args: args, lexicalOwner: symbol)
         }
+        guard fitting.count > 1,
+              var expectedResultType = expectedAnnotationStack.last
+        else {
+            return fitting.first
+        }
+        if let wrapped = RuntimeOptionalValue.wrappedType(
+            in: expectedResultType)
+        {
+            expectedResultType = wrapped
+        }
+        // Swift permits subscript overloads that differ only by result type.
+        // Return/storage/cast context chooses among otherwise identical
+        // parameter fits; the declaration metadata supplies that context
+        // without attaching nominal tags to erased runtime scalar values.
+        return fitting.first {
+            guard let resultTypeName = $0.resultTypeName else { return false }
+            return HostSignature.equivalentTypeName(
+                resultTypeName, expectedResultType)
+        } ?? fitting.first
     }
 
     func runUserSubscriptGetter(
@@ -2999,6 +3116,11 @@ extension Interpreter {
                 on: baseValue,
                 declaredTypeName: declaredBaseTypeName) {
                 return value
+            }
+            if let property = registry?.fallbackHostProperty(
+                named: name, on: any
+            ) {
+                return try property.read(from: baseValue, in: self)
             }
             // A protocol conformance makes its source extensions visible,
             // but a conformance-only method must not replace an exact native

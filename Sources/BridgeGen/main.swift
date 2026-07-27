@@ -4108,6 +4108,70 @@ unicodeDecodingOutput += """
     }
 }
 """ + "\n"
+unicodeDecodingOutput += """
+
+enum GeneratedUnicodeScalarSurface {
+    enum InputKind {
+        case integer
+        case string
+        case scalar
+    }
+
+    struct Initializer {
+        let resultTypeName: String
+        let parameterTypeName: String
+        let label: String?
+        let inputKind: InputKind
+        let isFailable: Bool
+    }
+
+    static func initializers(named rawName: String) -> [Initializer] {
+        switch canonicalTypeName(rawName) {
+""" + "\n"
+for scalar in generatedUnicodeDecodingSurface.scalars {
+    let cases = scalar.sourceSpellings
+        .map(String.init(reflecting:))
+        .joined(separator: ", ")
+    let initializers = scalar.initializers.map { initializer in
+        let label = initializer.label.map(String.init(reflecting:)) ?? "nil"
+        return """
+                Initializer(
+                    resultTypeName: \(String(reflecting: scalar.typeName)),
+                    parameterTypeName: \(String(reflecting: initializer.parameterTypeName)),
+                    label: \(label),
+                    inputKind: .\(initializer.inputKind.rawValue),
+                    isFailable: \(initializer.isFailable))
+        """
+    }.joined(separator: ",\n")
+    unicodeDecodingOutput += """
+        case \(cases):
+            return [
+\(initializers)
+            ]
+""" + "\n"
+}
+unicodeDecodingOutput += """
+        default:
+            return []
+        }
+    }
+
+    static func representsScalarType(named rawName: String) -> Bool {
+        !initializers(named: rawName).isEmpty
+    }
+
+    private static func canonicalTypeName(_ rawName: String) -> String {
+        var name = rawName
+        if name.hasPrefix("Swift.") {
+            name.removeFirst("Swift.".count)
+        }
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return name
+    }
+}
+""" + "\n"
 let unicodeDecodingPath =
     "Sources/SwiftInterpreter/Generated/GeneratedUnicodeDecodingSurface.swift"
 try unicodeDecodingOutput.write(
@@ -4115,7 +4179,8 @@ try unicodeDecodingOutput.write(
 print(
     "wrote \(unicodeDecodingPath) "
         + "(\(generatedUnicodeDecodingSurface.initializers.count) initializers, "
-        + "\(generatedUnicodeDecodingSurface.encodings.count) encodings)")
+        + "\(generatedUnicodeDecodingSurface.encodings.count) encodings, "
+        + "\(generatedUnicodeDecodingSurface.scalars.count) scalar types)")
 
 var generatedCollectionPropertyProtocols: [String: Set<String>] = [:]
 for property in generatedBooleanIndexEndpointEqualityCollectionDefaults {

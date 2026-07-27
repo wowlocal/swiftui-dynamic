@@ -562,9 +562,12 @@ enum HostRuntimeTypeSystem {
                 .contains(HostSignature.unqualified(type))
         case .bool:
             return ["Bool", "NSNumber"].contains(HostSignature.unqualified(type))
-        case .string:
+        case .string(let string):
             return ["String", "Substring", "NSString"]
                 .contains(HostSignature.unqualified(type))
+                || (string.unicodeScalars.count == 1
+                    && GeneratedUnicodeScalarSurface
+                        .representsScalarType(named: type))
         case .array:
             return type.hasPrefix("[") || type.hasPrefix("Array<")
                 || type == "Array" || type == "NSArray"

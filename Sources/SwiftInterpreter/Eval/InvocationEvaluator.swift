@@ -443,7 +443,7 @@ extension Interpreter {
                     }
                 }
             }
-            if let generated = try RuntimeUnicodeDecodingConstructor.invoke(
+            if let generated = try RuntimeGeneratedConstructor.invoke(
                 named: function.name,
                 arguments: args
             ) {
@@ -538,7 +538,7 @@ extension Interpreter {
             return .native(ChainedImplicitCall(base: chained.base, member: chained.member, arguments: args))
         case .host(let any) where any is HostTypeMarker:
             let marker = any as! HostTypeMarker
-            if let generated = try RuntimeUnicodeDecodingConstructor.invoke(
+            if let generated = try RuntimeGeneratedConstructor.invoke(
                 named: marker.name,
                 arguments: args
             ) {

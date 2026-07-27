@@ -537,6 +537,32 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 2)
     }
 
+    /// Same-shaped initializer overloads use the argument's full interpreted
+    /// inheritance relation, not only its concrete nominal spelling.
+    @Test func initializerOverloadUsesInheritedArgumentType() throws {
+        let source = """
+        class Evaluator {}
+        final class Conjunction: Evaluator {}
+        final class Root {}
+
+        final class Selector {
+            let marker: String
+
+            init(_ query: String, _ root: Root) {
+                marker = "string"
+            }
+
+            init(_ evaluator: Evaluator, _ root: Root) {
+                marker = "evaluator"
+            }
+        }
+
+        Selector(Conjunction(), Root()).marker
+        """
+
+        #expect(try eval(source).stringValue == "evaluator")
+    }
+
     /// Native Swift keeps an unlabeled standard-library conversion separate
     /// from a labeled extension initializer. IceCubes' UInt RawRepresentable
     /// conformance exposed this through SwiftSoup pointer arithmetic:

@@ -12,9 +12,29 @@ struct UnicodeEncodingSurface: Hashable {
     let codeUnitTypeName: String
 }
 
+enum UnicodeScalarInputKind: String, Hashable {
+    case integer
+    case string
+    case scalar
+}
+
+struct UnicodeScalarInitializerSurface: Hashable {
+    let label: String?
+    let parameterTypeName: String
+    let inputKind: UnicodeScalarInputKind
+    let isFailable: Bool
+}
+
+struct UnicodeScalarConstructionSurface: Hashable {
+    let typeName: String
+    let sourceSpellings: [String]
+    let initializers: [UnicodeScalarInitializerSurface]
+}
+
 struct UnicodeDecodingSurface {
     let initializers: [UnicodeDecodingInitializerSurface]
     let encodings: [UnicodeEncodingSurface]
+    let scalars: [UnicodeScalarConstructionSurface]
 }
 
 /// Discovers string-protocol initializers whose generic contract is:
@@ -29,7 +49,8 @@ func unicodeDecodingSurface(
     in file: SourceFileSyntax?
 ) -> UnicodeDecodingSurface {
     guard let file else {
-        return UnicodeDecodingSurface(initializers: [], encodings: [])
+        return UnicodeDecodingSurface(
+            initializers: [], encodings: [], scalars: [])
     }
 
     func canonical(_ raw: String) -> String {
@@ -190,7 +211,7 @@ func unicodeDecodingSurface(
     }
 
     func ownerConforms(_ owner: String, to protocolName: String) -> Bool {
-        conformances[owner]?.contains {
+        conformances[resolvedAlias(owner)]?.contains {
             protocolRefines($0, protocolName)
         } == true
     }
@@ -296,7 +317,85 @@ func unicodeDecodingSurface(
             codeUnitTypeName: codeUnitTypeName)
     }.sorted { $0.typeName < $1.typeName }
 
+    /// A scalar-like standard-library value is identified by semantics the
+    /// interface exposes: it is both a Unicode-scalar literal and a lossless
+    /// string value, and it has a public unary integer initializer. Character
+    /// and String share the literal protocols but not that constructor shape,
+    /// so no nominal spelling or member name participates in selection.
+    func scalarInputKind(
+        parameterTypeName: String,
+        scalarTypeName: String
+    ) -> UnicodeScalarInputKind? {
+        let parameterTypeName = resolvedAlias(parameterTypeName)
+        if parameterTypeName == scalarTypeName {
+            return .scalar
+        }
+        if ownerConforms(parameterTypeName, to: "BinaryInteger") {
+            return .integer
+        }
+        if ownerConforms(parameterTypeName, to: "StringProtocol") {
+            return .string
+        }
+        return nil
+    }
+
+    func scalarInitializerSurface(
+        owner: String,
+        declaration: InitializerDeclSyntax
+    ) -> UnicodeScalarInitializerSurface? {
+        guard isPublic(declaration.modifiers),
+              declaration.signature.effectSpecifiers == nil,
+              declaration.genericParameterClause == nil
+        else { return nil }
+        let parameters = declaration.signature.parameterClause.parameters
+        guard parameters.count == 1, let parameter = parameters.first else {
+            return nil
+        }
+        let parameterTypeName = canonical(parameter.type.trimmedDescription)
+        guard let inputKind = scalarInputKind(
+            parameterTypeName: parameterTypeName,
+            scalarTypeName: owner)
+        else { return nil }
+        return UnicodeScalarInitializerSurface(
+            label: parameter.firstName.text == "_"
+                ? nil : parameter.firstName.text,
+            parameterTypeName: resolvedAlias(parameterTypeName),
+            inputKind: inputKind,
+            isFailable: declaration.optionalMark != nil)
+    }
+
+    let scalars = publicNominals.compactMap {
+        owner -> UnicodeScalarConstructionSurface? in
+        guard ownerConforms(
+                  owner, to: "ExpressibleByUnicodeScalarLiteral"),
+              ownerConforms(owner, to: "LosslessStringConvertible")
+        else { return nil }
+        let initializers = Set(ownedInitializers.compactMap {
+            candidate -> UnicodeScalarInitializerSurface? in
+            guard candidate.owner == owner else { return nil }
+            return scalarInitializerSurface(
+                owner: owner, declaration: candidate.declaration)
+        }).sorted {
+            ($0.parameterTypeName, $0.label ?? "",
+             $0.isFailable ? 1 : 0)
+                < ($1.parameterTypeName, $1.label ?? "",
+                   $1.isFailable ? 1 : 0)
+        }
+        guard initializers.contains(where: { $0.inputKind == .integer }) else {
+            return nil
+        }
+        var spellings: Set<String> = [owner]
+        for alias in aliases.keys where resolvedAlias(alias) == owner {
+            spellings.insert(alias)
+        }
+        return UnicodeScalarConstructionSurface(
+            typeName: owner,
+            sourceSpellings: spellings.sorted(),
+            initializers: initializers)
+    }.sorted { $0.typeName < $1.typeName }
+
     return UnicodeDecodingSurface(
         initializers: initializers,
-        encodings: encodings)
+        encodings: encodings,
+        scalars: scalars)
 }

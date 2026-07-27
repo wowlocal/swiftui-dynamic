@@ -946,9 +946,15 @@ func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
     }
     if let generated = GeneratedMembers.property(name, on: value) {
         return generated
-    } else {
-        return nil
     }
+    return nil
+}
+
+func bridgeFallbackHostProperty(
+    _ name: String, on value: Any
+) -> HostProperty? {
+    GeneratedReferencePropertySupport.bridgedReadOnlyProperty(
+        name, on: value)
 }
 
 /// `.global` / `.local` / `.named("x")` / `.scrollView(axis:)` in frame(in:).
@@ -1012,6 +1018,12 @@ private struct AnyCoordinateSpaceBox: CoordinateSpaceProtocol {
 extension ViewRegistry {
     public func hostProperty(named name: String, on value: Any) -> HostProperty? {
         bridgeHostProperty(name, on: value)
+    }
+
+    public func fallbackHostProperty(
+        named name: String, on value: Any
+    ) -> HostProperty? {
+        bridgeFallbackHostProperty(name, on: value)
     }
 
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {

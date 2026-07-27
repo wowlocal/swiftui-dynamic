@@ -1974,6 +1974,10 @@ func generatedPlatformArgument<T>(
        string.count == 1, let character = string.first {
         return character as! T
     }
+    if T.self == Unicode.Scalar.self, let string = value.stringValue,
+       let scalar = Unicode.Scalar(string) {
+        return scalar as! T
+    }
     if T.self == Bool.self, let flag = value.boolValue {
         return flag as! T
     }
@@ -2001,6 +2005,9 @@ func generatedPlatformResult<T>(
 ) -> RuntimeValue {
     let type = declaredType.trimmingCharacters(in: .whitespacesAndNewlines)
     let any: Any = value
+    if let scalar = any as? Unicode.Scalar {
+        return .native(String(scalar))
+    }
     // Optional<[Element]> reaches this overload with an erased generic
     // Wrapped type. Normalize it here as well as in the statically selected
     // Array overload so SDK collections never leak out as opaque host arrays.

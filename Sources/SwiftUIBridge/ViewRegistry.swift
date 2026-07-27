@@ -93,6 +93,10 @@ public final class ViewRegistry: HostRegistry {
         if GeneratedPlatformBridge.value(value, matchesType: typeName) {
             return true
         }
+        if GeneratedReferencePropertySupport.bridgedValue(
+            value, matchesImportedType: typeName) {
+            return true
+        }
         if let observedType = bridgeHostTypeName(of: value),
            GeneratedReferencePropertySupport.type(
                observedType, matchesImportedType: typeName) {

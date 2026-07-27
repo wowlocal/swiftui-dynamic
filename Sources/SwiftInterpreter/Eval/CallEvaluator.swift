@@ -533,9 +533,13 @@ extension Interpreter {
             }
             // GLOBAL function overloads pick by call shape with the
             // running-declaration exclusion (L10n's variadic form delegates
-            // to its single-argument sibling).
+            // to its single-argument sibling). A fitting implicit-self
+            // declaration has lexical precedence over an unrelated global
+            // family; leave that call on the ordinary member path.
             if let overloads = globalFunctionOverloads[name], overloads.count > 1,
-               env.box(for: name, before: globals) == nil {
+               env.box(for: name, before: globals) == nil,
+               !implicitSelfSourceFunctionFitsCall(
+                   named: name, call: call, in: env) {
                 let args = try collectArguments(of: call, in: env)
                 let available = functionsAvailableForCall(
                     from: overloads, args: args)
@@ -682,6 +686,53 @@ extension Interpreter {
         return overloads.allSatisfy { method in
             functionMetadata(for: method).parameters.contains {
                 $0.defaultValue == nil
+            }
+        }
+    }
+
+    /// Whether ordinary lexical lookup can bind a bare call to `self`.
+    /// Swift ranks a shape-compatible member ahead of same-named module
+    /// globals. Inspect declaration metadata only; evaluating a candidate
+    /// here could run a computed property before the call target is chosen.
+    func implicitSelfSourceFunctionFitsCall(
+        named name: String,
+        call: FunctionCallExprSyntax,
+        in environment: Environment
+    ) -> Bool {
+        let shape = ArgumentShape(callSiteMetadata(for: call).arguments)
+        func fits(_ candidates: [FunctionDeclSyntax]) -> Bool {
+            candidates.contains {
+                functionMetadata(for: $0).shape.matches(shape)
+            }
+        }
+
+        guard let selfValue = environment.lookup("self") else {
+            return false
+        }
+        switch selfValue {
+        case .instance(let instance):
+            let candidates = instanceCallOverloadsIncludingProtocolDefaults(
+                named: name, on: instance, call: call)
+                ?? instanceMethodOverloads(named: name, on: instance)
+                ?? []
+            return fits(candidates)
+        case .enumCase(let value):
+            return fits(value.symbol.methods[name] ?? [])
+        case .type(let symbol):
+            return fits(staticMethodOverloads(
+                named: name, on: symbol) ?? [])
+        case .enumType(let symbol):
+            return fits(symbol.staticMethods[name] ?? [])
+        default:
+            guard selfValue.hostPayload != nil else { return false }
+            var typeNames = hostCandidates(for: selfValue.hostPayload!)
+            if let lexicalHost = lexicalOwnerFrames.last as? StructSymbol,
+               hostExtensionSymbols[lexicalHost.name] === lexicalHost,
+               !typeNames.contains(lexicalHost.name) {
+                typeNames.insert(lexicalHost.name, at: 0)
+            }
+            return typeNames.contains { typeName in
+                fits(hostExtensionSymbols[typeName]?.methods[name] ?? [])
             }
         }
     }

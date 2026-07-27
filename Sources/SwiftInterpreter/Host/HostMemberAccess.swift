@@ -148,6 +148,7 @@ extension Interpreter {
     func hasHostMember(_ name: String, on value: Any) -> Bool {
         hasRuntimeAsyncStreamMember(name, on: value)
             || registry?.hostProperty(named: name, on: value) != nil
+            || registry?.fallbackHostProperty(named: name, on: value) != nil
             || registry?.hostMember(name, on: value) != nil
             || registry?.fallbackHostMember(name, on: value) != nil
     }

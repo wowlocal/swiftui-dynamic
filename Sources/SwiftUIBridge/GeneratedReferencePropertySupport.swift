@@ -1,3 +1,5 @@
+import Foundation
+import ObjectiveC
 import SwiftInterpreter
 
 /// Capability for a host reference box whose SDK property contracts come from
@@ -110,6 +112,113 @@ enum GeneratedReferencePropertySupport {
                 .superclassByType[current]
         }
         return nil
+    }
+
+    /// Swift Foundation values can be toll-free bridged to an Objective-C
+    /// reference whose property contract is emitted from the SDK symbol
+    /// graph. Serve only read-only contracts: mutating a temporary bridge
+    /// would not preserve Swift value semantics. Runtime class ancestry plus
+    /// generated declarations select the member, so this adapter contains no
+    /// property-name or bridged-type cases.
+    private static let bridgedReadOnlyProperties: [String: HostProperty] = {
+        var result: [String: HostProperty] = [:]
+        for (key, property) in properties
+        where !property.signature.isSettable {
+            guard let receiverType = property.signature.receiverType else {
+                continue
+            }
+            do {
+                result[key] = try HostProperty(
+                    signature: property.signature,
+                    get: { receiver, context in
+                        guard let raw = receiver.hostPayload,
+                              let box = bridgedBox(
+                                raw, matchingImportedType: receiverType)
+                        else {
+                            throw RuntimeError(
+                                message:
+                                    "generated bridged reference property "
+                                    + "receiver mismatch for "
+                                    + "\(receiverType).\(property.name)",
+                                fatal: true)
+                        }
+                        return try property.read(
+                            from: .native(box), in: context)
+                    })
+            } catch {
+                preconditionFailure(
+                    "generated bridged reference property became invalid: "
+                        + "\(error)")
+            }
+        }
+        return result
+    }()
+
+    static func bridgedReadOnlyProperty(
+        _ name: String, on value: Any
+    ) -> HostProperty? {
+        guard let object = bridgedNSObject(value) else { return nil }
+        for typeName in runtimeReferenceTypeNames(of: object) {
+            if object.responds(to: Selector(name)),
+               let property =
+                   bridgedReadOnlyProperties["\(typeName).\(name)"] {
+                return property
+            }
+        }
+        return nil
+    }
+
+    static func bridgedValue(
+        _ value: Any, matchesImportedType expectedType: String
+    ) -> Bool {
+        guard let object = bridgedNSObject(value) else { return false }
+        return runtimeReferenceTypeNames(of: object).contains {
+            type($0, matchesImportedType: expectedType)
+        }
+    }
+
+    private static func bridgedBox(
+        _ value: Any, matchingImportedType expectedType: String
+    ) -> ObjCBox? {
+        guard let object = bridgedNSObject(value),
+              runtimeReferenceTypeNames(of: object).contains(where: {
+                type($0, matchesImportedType: expectedType)
+              })
+        else {
+            return nil
+        }
+        return ObjCBox(
+            object, generatedReferenceTypeName: expectedType)
+    }
+
+    private static func bridgedNSObject(_ value: Any) -> NSObject? {
+        guard !(value is GeneratedReferencePropertyCarrier) else {
+            return nil
+        }
+        guard let object = value as AnyObject as? NSObject,
+              !(object is NSFastEnumeration) else {
+            // KVC deliberately broadcasts ordinary keys across Foundation
+            // collections. Those receivers keep the interpreter's native
+            // collection surface instead of treating an element property as
+            // the collection's generated scalar property.
+            return nil
+        }
+        return object
+    }
+
+    private static func runtimeReferenceTypeNames(
+        of object: NSObject
+    ) -> [String] {
+        var result: [String] = []
+        var current: AnyClass? = Swift.type(of: object)
+        while let type = current {
+            let qualified = NSStringFromClass(type)
+            result.append(
+                qualified.split(separator: ".").last.map(String.init)
+                    ?? qualified)
+            current = class_getSuperclass(type)
+        }
+        return result
     }
 
     static func carrier(

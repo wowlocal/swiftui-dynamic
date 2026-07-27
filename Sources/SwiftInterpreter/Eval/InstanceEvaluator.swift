@@ -946,8 +946,9 @@ extension Interpreter {
             ?? initializers[0]
     }
 
-    /// Shape-matching only — nil when NO candidate fits (callers decide
-    /// whether to fall back or treat the call as an inherited init).
+    /// Shape first, then positive runtime argument types when multiple
+    /// declarations share that shape. Nil means no declaration fits the call
+    /// shape; callers decide whether to fall back or treat it as inherited.
     func chooseInitializerStrict(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax? {
         let arguments = ArgumentShape(args)
         var fits: [InitializerDeclSyntax] = []
@@ -965,6 +966,34 @@ extension Interpreter {
             }
         }
         guard fits.count > 1 else { return fits.first }
+        let exact = fits.filter { candidate in
+            let metadata = initializerMetadata(for: candidate)
+            return runtimeArgumentsFitDeclaredTypes(
+                metadata.parameters,
+                args: args,
+                genericParameterNames: Set(metadata.genericParameters),
+                genericConformanceRequirements:
+                    metadata.genericConformanceRequirements,
+                allowValueCoercion: false,
+                lexicalOwner: lexicalOwner(of: candidate.id))
+        }
+        if exact.count == 1 { return exact[0] }
+        if !exact.isEmpty {
+            fits = exact
+        } else {
+            let coercible = fits.filter { candidate in
+                let metadata = initializerMetadata(for: candidate)
+                return runtimeArgumentsFitDeclaredTypes(
+                    metadata.parameters,
+                    args: args,
+                    genericParameterNames: Set(metadata.genericParameters),
+                    genericConformanceRequirements:
+                        metadata.genericConformanceRequirements,
+                    lexicalOwner: lexicalOwner(of: candidate.id))
+            }
+            if coercible.count == 1 { return coercible[0] }
+            if !coercible.isEmpty { fits = coercible }
+        }
         // Same-labeled overloads (`init(_ source:)` vs `init(_ sources:
         // [X])`; closure-taking convenience inits delegating to
         // value-taking designated ones): the argument's ARRAY-ness and

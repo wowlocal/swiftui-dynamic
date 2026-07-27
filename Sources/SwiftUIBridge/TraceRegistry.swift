@@ -113,6 +113,10 @@ public final class TraceRegistry: HostRegistry {
         if GeneratedPlatformBridge.value(value, matchesType: typeName) {
             return true
         }
+        if GeneratedReferencePropertySupport.bridgedValue(
+            value, matchesImportedType: typeName) {
+            return true
+        }
         if let observedType = bridgeHostTypeName(of: value),
            GeneratedReferencePropertySupport.type(
                observedType, matchesImportedType: typeName) {
@@ -709,6 +713,12 @@ public final class TraceRegistry: HostRegistry {
 
     public func hostProperty(named name: String, on value: Any) -> HostProperty? {
         bridgeHostProperty(name, on: value)
+    }
+
+    public func fallbackHostProperty(
+        named name: String, on value: Any
+    ) -> HostProperty? {
+        bridgeFallbackHostProperty(name, on: value)
     }
 
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
