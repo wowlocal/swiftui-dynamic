@@ -207,8 +207,12 @@ extension ViewRegistry {
         register("saturation") { view, args, _ in
             AnyView(view.saturation(try Coerce.double(args.positional(0) ?? .native(1.0))))
         }
-        register("tint") { view, args, _ in
-            AnyView(view.tint(try Coerce.color(args.positional(0) ?? .implicitMember("accentColor"))))
+        register("tint") { view, args, context in
+            try TargetPlatformControlBridge.applyTint(
+                try Coerce.color(
+                    args.positional(0) ?? .implicitMember("accentColor")),
+                to: view,
+                context: context)
         }
 
         // MARK: Geometry & animation
