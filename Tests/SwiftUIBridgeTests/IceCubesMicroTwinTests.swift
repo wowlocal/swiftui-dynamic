@@ -93,6 +93,16 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeTrailingTagsListTwin: View {
+        var body: some View {
+            List {
+                NativeTrailingTagsContentTwin()
+                    .environment(NativeRouteStore())
+            }
+            .listStyle(.plain)
+        }
+    }
+
     private struct NativeInsetRows: View {
         var body: some View {
             ForEach(0..<2) { _ in
@@ -559,12 +569,15 @@ struct IceCubesMicroTwinTests {
             }
         }
 
-        RowContent(tags: [
+        List {
+            RowContent(tags: [
                 Tag(name: "noticias"),
                 Tag(name: "News"),
                 Tag(name: "portugal"),
             ])
-        .environment(RouteStore())
+            .environment(RouteStore())
+        }
+        .listStyle(.plain)
         """
 
         let rendered = InterpreterHost().render(
@@ -577,12 +590,78 @@ struct IceCubesMicroTwinTests {
             return
         }
 
-        let size = NSSize(width: 300, height: 44)
+        let size = NSSize(width: 300, height: 120)
         let actual = Self.bitmap(interpreted, size: size)
         let expected = Self.bitmap(
-            AnyView(NativeTrailingTagsContentTwin().environment(
-                NativeRouteStore())), size: size)
-        #expect(Self.pixelAE(actual, expected, size: size) == 0)
+            AnyView(NativeTrailingTagsListTwin()), size: size)
+        // The selected Catalyst target deliberately removes the macOS
+        // List's outer leading margin (covered by the list-baseline twin).
+        // Normalize that one collection translation, then require every
+        // control/content pixel to remain native-identical.
+        #expect(Self.alignedContentPixelAE(
+            actual, expected, size: size) == 0)
+    }
+
+    private static func isContentPixel(_ color: NSColor?) -> Bool {
+        guard let color = color?.usingColorSpace(.deviceRGB) else {
+            return false
+        }
+        return color.redComponent < 0.99
+            || color.greenComponent < 0.99
+            || color.blueComponent < 0.99
+    }
+
+    private static func contentPixelBounds(
+        _ bitmap: NSBitmapImageRep,
+        size: NSSize
+    ) -> CGRect? {
+        var minimumX = Int(size.width)
+        var minimumY = Int(size.height)
+        var maximumX = -1
+        var maximumY = -1
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height)
+                where Self.isContentPixel(bitmap.colorAt(x: x, y: y)) {
+                minimumX = min(minimumX, x)
+                minimumY = min(minimumY, y)
+                maximumX = max(maximumX, x)
+                maximumY = max(maximumY, y)
+            }
+        }
+        guard maximumX >= minimumX, maximumY >= minimumY else {
+            return nil
+        }
+        return CGRect(
+            x: minimumX,
+            y: minimumY,
+            width: maximumX - minimumX + 1,
+            height: maximumY - minimumY + 1)
+    }
+
+    private static func alignedContentPixelAE(
+        _ lhs: NSBitmapImageRep,
+        _ rhs: NSBitmapImageRep,
+        size: NSSize
+    ) -> Int {
+        guard let lhsBounds = Self.contentPixelBounds(lhs, size: size),
+              let rhsBounds = Self.contentPixelBounds(rhs, size: size),
+              lhsBounds.size == rhsBounds.size
+        else {
+            return Int.max
+        }
+        var mismatched = 0
+        for x in 0..<Int(lhsBounds.width) {
+            for y in 0..<Int(lhsBounds.height)
+                where lhs.colorAt(
+                    x: Int(lhsBounds.minX) + x,
+                    y: Int(lhsBounds.minY) + y)
+                    != rhs.colorAt(
+                        x: Int(rhsBounds.minX) + x,
+                        y: Int(rhsBounds.minY) + y) {
+                mismatched += 1
+            }
+        }
+        return mismatched
     }
 
     private static func isFooterPixel(_ color: NSColor?) -> Bool {
