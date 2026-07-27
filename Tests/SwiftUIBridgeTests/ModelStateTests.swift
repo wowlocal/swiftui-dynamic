@@ -215,6 +215,29 @@ import SwiftInterpreter
         #expect(rerendered.findAll("Text").first?.args.first == "back")
     }
 
+    @Test func nestedStateLikeWrapperDefaultInitializesSingleton() throws {
+        let source = """
+        final class Settings {
+            final class Storage {
+                @AppStorage("native_parity_nested_default") var compact: Bool = true
+                init() {}
+            }
+
+            let storage = Storage()
+            var compact: Bool
+            static let shared = Settings()
+
+            private init() {
+                compact = storage.compact
+            }
+        }
+
+        Settings.shared.compact ? 20 : 8
+        """
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.intValue == 20)
+    }
+
     @Test func applicationWindowChain() throws {
         let interpreter = Interpreter(registry: TraceRegistry())
         let bottom = try interpreter.run(
