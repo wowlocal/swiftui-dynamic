@@ -490,17 +490,38 @@ struct IceCubesMicroTwinTests {
     @MainActor
     @Test
     func borderedSmallButtonsSurviveCustomCollectionComposition() throws {
-        let source = """
-        enum Destination {
+        let models = ProjectMaterial.mergedSource(source: """
+        public struct Tag: Identifiable {
+            public let name: String
+
+            public var id: String {
+                name
+            }
+
+            public init(name: String) {
+                self.name = name
+            }
+        }
+        """, moduleName: "Models")
+        let environment = ProjectMaterial.mergedSource(source: """
+        public enum Destination {
             case hashTag(tag: String, account: String?)
         }
 
         @MainActor
         @Observable
-        final class RouteStore {
-            func navigate(to destination: Destination) {
+        public final class RouteStore {
+            public init() {
+            }
+
+            public func navigate(to destination: Destination) {
             }
         }
+        """, moduleName: "Env")
+        let row = ProjectMaterial.mergedSource(source: """
+        import Env
+        import Models
+        import SwiftUI
 
         struct AlternateButtonStyle: ButtonStyle {
             func makeBody(configuration: Configuration) -> some View {
@@ -514,18 +535,6 @@ struct IceCubesMicroTwinTests {
                 tintColor: Color? = nil
             ) -> Self {
                 AlternateButtonStyle()
-            }
-        }
-
-        struct Tag: Identifiable {
-            let name: String
-
-            var id: String {
-                name
-            }
-
-            init(name: String) {
-                self.name = name
             }
         }
 
@@ -578,7 +587,8 @@ struct IceCubesMicroTwinTests {
             .environment(RouteStore())
         }
         .listStyle(.plain)
-        """
+        """, moduleName: "StatusKit")
+        let source = models + environment + row
 
         let rendered = InterpreterHost().render(
             source: source,
