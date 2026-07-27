@@ -238,6 +238,23 @@ import SwiftInterpreter
         #expect(result.intValue == 20)
     }
 
+    @Test func hostExtensionStaticImplicitMemberInTypedInitializer() throws {
+        let source = """
+            extension CGFloat {
+                static var nativeParityInset: CGFloat { 20 }
+            }
+
+            EdgeInsets(
+                top: 0,
+                leading: .nativeParityInset,
+                bottom: 0,
+                trailing: .nativeParityInset
+            ).leading
+            """
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.doubleValue == 20)
+    }
+
     @Test func applicationWindowChain() throws {
         let interpreter = Interpreter(registry: TraceRegistry())
         let bottom = try interpreter.run(
