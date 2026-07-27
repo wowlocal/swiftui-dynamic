@@ -521,6 +521,41 @@ struct IceCubesMicroTwinTests {
         } == [24, 34, 24])
     }
 
+    /// The compiled Catalyst typography oracle records the semantic footnote
+    /// label at 48×16 independently of button chrome. A macOS host otherwise
+    /// selects its own smaller 36×12 footnote metrics.
+    @MainActor
+    @Test
+    func catalystTargetPreservesSemanticFootnoteExtent() throws {
+        let source = """
+        Text("Control")
+            .font(.footnote)
+            .fontWeight(.medium)
+            .lineLimit(1)
+            .background(Color.red)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("target footnote microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 200, height: 100)
+        let bitmap = Self.bitmap(interpreted, size: size)
+        guard let bounds = Self.redPixelBounds(
+            bitmap, size: size)
+        else {
+            Issue.record("target footnote microtwin rendered no red extent")
+            return
+        }
+        #expect(bounds.size == CGSize(width: 48, height: 16))
+    }
+
     /// Interface-derived stack initializers must contextualize shorthand
     /// statics declared by source extensions before scalar coercion. IceCubes
     /// supplies both stack spacings this way; treating the markers as zero
@@ -670,8 +705,6 @@ struct IceCubesMicroTwinTests {
 
         let rendered = InterpreterHost().render(
             source: source,
-            buildConfiguration: .init(
-                platformName: "iOS", targetEnvironment: "macCatalyst"),
             lazyTopLevelGlobals: true)
         guard case .success(let interpreted) = rendered else {
             Issue.record("trailing-tag microtwin failed: \(rendered)")
@@ -682,10 +715,10 @@ struct IceCubesMicroTwinTests {
         let actual = Self.bitmap(interpreted, size: size)
         let expected = Self.bitmap(
             AnyView(NativeTrailingTagsListTwin()), size: size)
-        // The selected Catalyst target deliberately removes the macOS
-        // List's outer leading margin (covered by the list-baseline twin).
-        // Normalize that one collection translation, then require every
-        // control/content pixel to remain native-identical.
+        // This composition test deliberately uses host typography and list
+        // geometry; target-specific metrics have independent compiled oracles.
+        // Align collection origins, then require every control pixel to remain
+        // native-identical.
         #expect(Self.alignedContentPixelAE(
             actual, expected, size: size) == 0)
     }
