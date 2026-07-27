@@ -1,8 +1,8 @@
 import AppKit
 import Foundation
 import SwiftUI
-import SwiftInterpreter
 import Testing
+@testable import SwiftInterpreter
 @testable import SwiftUIBridge
 
 private actor AsyncImagePresentationGate {
@@ -53,6 +53,62 @@ private struct NativeAsyncImagePresentationTwin: View {
 /// pixels from a delivered native Image.
 @Suite(.serialized)
 struct AsyncImagePresentationMicroTwinTests {
+    @Test
+    func captureReadinessRequiresOwnedWorkToReachPresentedRevision() {
+        var readiness = InterpreterCaptureReadiness(
+            initialRenderRevision: 10)
+
+        readiness.observe(
+            runtimeActivity: InterpreterRuntimeActivity(
+                activeTaskCount: 1,
+                scheduledTaskCount: 1,
+                activeHostOperationCount: 0,
+                activeContinuationCount: 1),
+            renderActivity: InterpreterRenderActivity(
+                bodyEvaluationCount: 10))
+        #expect(!readiness.isReadyForCapture)
+
+        readiness.observe(
+            runtimeActivity: InterpreterRuntimeActivity(
+                activeTaskCount: 0,
+                scheduledTaskCount: 0,
+                activeHostOperationCount: 0,
+                activeContinuationCount: 0),
+            renderActivity: InterpreterRenderActivity(
+                bodyEvaluationCount: 10))
+        #expect(!readiness.isReadyForCapture)
+
+        readiness.observe(
+            runtimeActivity: InterpreterRuntimeActivity(
+                activeTaskCount: 0,
+                scheduledTaskCount: 0,
+                activeHostOperationCount: 0,
+                activeContinuationCount: 0),
+            renderActivity: InterpreterRenderActivity(
+                bodyEvaluationCount: 11))
+        #expect(readiness.isReadyForCapture)
+        #expect(readiness.firstActiveRenderRevision == 10)
+        #expect(readiness.readyRenderRevision == 11)
+    }
+
+    @Test
+    func captureReadinessAllowsSettledSessionsWithoutOwnedWork() {
+        var readiness = InterpreterCaptureReadiness(
+            initialRenderRevision: 7)
+        readiness.observe(
+            runtimeActivity: InterpreterRuntimeActivity(
+                activeTaskCount: 0,
+                scheduledTaskCount: 0,
+                activeHostOperationCount: 0,
+                activeContinuationCount: 0),
+            renderActivity: InterpreterRenderActivity(
+                bodyEvaluationCount: 7))
+
+        #expect(readiness.isReadyForCapture)
+        #expect(readiness.firstActiveRenderRevision == nil)
+        #expect(readiness.readyRenderRevision == 7)
+    }
+
     @Test
     func captureFollowsOwnedTaskThroughPresentation() async throws {
         let source = """

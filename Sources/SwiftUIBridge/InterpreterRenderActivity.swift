@@ -8,6 +8,56 @@ public struct InterpreterRenderActivity: Sendable, Equatable {
     public let bodyEvaluationCount: UInt64
 }
 
+/// Tracks whether a render session has reached a capture-safe presentation
+/// boundary. A session with no observed asynchronous work is ready after its
+/// caller-defined settle period. Once owned work appears, capture waits for
+/// both runtime quiescence and a later SwiftUI body evaluation so it cannot
+/// freeze the placeholder frame between delivery and presentation.
+public struct InterpreterCaptureReadiness: Sendable, Equatable {
+    public let initialRenderRevision: UInt64
+    public private(set) var firstActiveRenderRevision: UInt64?
+    public private(set) var lastActiveRenderRevision: UInt64?
+    public private(set) var firstQuiescentRenderRevision: UInt64?
+    public private(set) var readyRenderRevision: UInt64?
+
+    public init(initialRenderRevision: UInt64) {
+        self.initialRenderRevision = initialRenderRevision
+    }
+
+    public var isReadyForCapture: Bool {
+        readyRenderRevision != nil
+    }
+
+    public mutating func observe(
+        runtimeActivity: InterpreterRuntimeActivity,
+        renderActivity: InterpreterRenderActivity
+    ) {
+        let revision = renderActivity.bodyEvaluationCount
+        guard revision >= initialRenderRevision else {
+            readyRenderRevision = nil
+            return
+        }
+        guard runtimeActivity.isQuiescent else {
+            firstActiveRenderRevision =
+                firstActiveRenderRevision ?? revision
+            lastActiveRenderRevision = revision
+            firstQuiescentRenderRevision = nil
+            readyRenderRevision = nil
+            return
+        }
+
+        firstQuiescentRenderRevision =
+            firstQuiescentRenderRevision ?? revision
+        guard let firstActiveRenderRevision else {
+            readyRenderRevision = revision
+            return
+        }
+        if revision > firstActiveRenderRevision {
+            readyRenderRevision = revision
+        }
+    }
+}
+
 extension InterpreterRenderSession {
     /// Body evaluations owned by this session's exact interpreter.
     public var renderActivity: InterpreterRenderActivity {
