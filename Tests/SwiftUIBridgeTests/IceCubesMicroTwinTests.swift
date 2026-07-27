@@ -120,6 +120,30 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeRepeatedPaddedRows: View {
+        var body: some View {
+            ForEach(0..<2) { _ in
+                VStack(alignment: .leading, spacing: 8) {
+                    Color.red.frame(width: 16, height: 16)
+                    Color.red.frame(width: 16, height: 16)
+                }
+                .padding(.init(
+                    top: 12, leading: 0, bottom: 6, trailing: 0))
+                .listRowInsets(.init(
+                    top: 0, leading: 20, bottom: 0, trailing: 20))
+            }
+        }
+    }
+
+    private struct NativeRepeatedPaddedList: View {
+        var body: some View {
+            List {
+                NativeRepeatedPaddedRows()
+            }
+            .listStyle(.plain)
+        }
+    }
+
     private struct NativePostModifiedInsetRow: View {
         var body: some View {
             HStack {
@@ -487,6 +511,60 @@ struct IceCubesMicroTwinTests {
         #expect(bounds?.minX == 20)
     }
 
+    /// The compiled Catalyst repeated-row probe records four 16-point red
+    /// bands whose leading edges are separated by 24, 34, and 24 points.
+    /// That pins the complete 58-point child extent through a custom
+    /// collection body: 12 top + 16 content + 8 spacing + 16 content + 6
+    /// bottom.
+    @MainActor
+    @Test
+    func catalystTargetPreservesPaddingAcrossRepeatedRows() throws {
+        let source = """
+        struct RepeatedRows: View {
+            var body: some View {
+                ForEach(0..<2) { _ in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Color.red.frame(width: 16, height: 16)
+                        Color.red.frame(width: 16, height: 16)
+                    }
+                    .padding(.init(
+                        top: 12, leading: 0, bottom: 6, trailing: 0))
+                    .listRowInsets(.init(
+                        top: 0, leading: 20, bottom: 0, trailing: 20))
+                }
+            }
+        }
+
+        List {
+            RepeatedRows()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("target repeated-row microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 900, height: 160)
+        let runs = Self.redPixelYRuns(
+            Self.bitmap(interpreted, size: size), size: size)
+        let hostRuns = Self.redPixelYRuns(
+            Self.bitmap(
+                AnyView(NativeRepeatedPaddedList()), size: size),
+            size: size)
+        #expect(runs == hostRuns)
+        #expect(runs.map(\.count) == [16, 16, 16, 16])
+        #expect(zip(runs, runs.dropFirst()).map {
+            $1.lowerBound - $0.lowerBound
+        } == [24, 34, 24])
+    }
+
     /// Interface-derived stack initializers must contextualize shorthand
     /// statics declared by source extensions before scalar coercion. IceCubes
     /// supplies both stack spacings this way; treating the markers as zero
@@ -798,6 +876,30 @@ struct IceCubesMicroTwinTests {
             y: minimumY,
             width: maximumX - minimumX + 1,
             height: maximumY - minimumY + 1)
+    }
+
+    private static func redPixelYRuns(
+        _ bitmap: NSBitmapImageRep,
+        size: NSSize
+    ) -> [Range<Int>] {
+        let populatedRows = (0..<Int(size.height)).filter { y in
+            (0..<Int(size.width)).contains { x in
+                Self.isFooterPixel(bitmap.colorAt(x: x, y: y))
+            }
+        }
+        guard let first = populatedRows.first else { return [] }
+        var runs: [Range<Int>] = []
+        var lowerBound = first
+        var previous = first
+        for row in populatedRows.dropFirst() {
+            if row != previous + 1 {
+                runs.append(lowerBound..<(previous + 1))
+                lowerBound = row
+            }
+            previous = row
+        }
+        runs.append(lowerBound..<(previous + 1))
+        return runs
     }
 
     @MainActor

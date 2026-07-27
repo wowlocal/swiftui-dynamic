@@ -76,6 +76,8 @@ private enum TwinConfiguration {
         "--navigation-chrome-probe")
     static let capturesListRowGeometry = CommandLine.arguments.contains(
         "--list-row-geometry-probe")
+    static let capturesRepeatedRowGeometry = CommandLine.arguments.contains(
+        "--repeated-row-geometry-probe")
 }
 
 @MainActor
@@ -155,6 +157,8 @@ private struct TwinDriverView: View {
                 NavigationChromeProbe()
             } else if TwinConfiguration.capturesListRowGeometry {
                 ListRowGeometryProbe()
+            } else if TwinConfiguration.capturesRepeatedRowGeometry {
+                RepeatedRowGeometryProbe()
             } else if let focusedMedia {
                 FocusedMediaScreen(attachments: focusedMedia)
             } else if statuses.isEmpty {
@@ -185,6 +189,11 @@ private struct TwinDriverView: View {
             if TwinConfiguration.capturesListRowGeometry {
                 try await Task.sleep(for: .seconds(1))
                 try capturePNG(named: "list-row-geometry")
+                exit(0)
+            }
+            if TwinConfiguration.capturesRepeatedRowGeometry {
+                try await Task.sleep(for: .seconds(1))
+                try capturePNG(named: "repeated-row-geometry")
                 exit(0)
             }
             let decoded: [Status] = try await client.get(
