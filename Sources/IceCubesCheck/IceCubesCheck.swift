@@ -16,6 +16,11 @@ private struct RungRecord: Codable {
     let message: String
 }
 
+private struct CaptureMetadata: Codable {
+    let hostClockEpoch: TimeInterval
+    let interpretedClockEpoch: TimeInterval
+}
+
 private struct FixtureAccount: Decodable {
     let username: String
     let displayName: String?
@@ -619,6 +624,7 @@ struct IceCubesCheckMain {
         import SwiftUI
         import Timeline
 
+        let __iceInterpretedClockEpoch = Date().timeIntervalSince1970
         let __iceDecoder = JSONDecoder()
         __iceDecoder.keyDecodingStrategy = .convertFromSnakeCase
         \(fixtureDecodes)
@@ -747,6 +753,8 @@ struct IceCubesCheckMain {
             var body: some Scene {
                 WindowGroup {
                     \(rootView)
+                    .accessibilityLabel(
+                        Text(String(__iceInterpretedClockEpoch)))
                     .environment(Theme.shared)
                     .environment(CurrentAccount.shared)
                     .environment(CurrentInstance.shared)
@@ -927,5 +935,20 @@ struct IceCubesCheckMain {
         let output = URL(fileURLWithPath: directory).appendingPathComponent("timeline.png")
         try png.write(to: output, options: .atomic)
         print("timeline\t\(output.path)\t\(Int(screenSize.width))x\(Int(screenSize.height))")
+
+        guard let interpretedClockEpoch = session.interpreter.globals
+            .lookup("__iceInterpretedClockEpoch")?.doubleValue
+        else {
+            throw RuntimeError(
+                message: "interpreted capture clock did not materialize")
+        }
+        let metadata = CaptureMetadata(
+            hostClockEpoch: Date().timeIntervalSince1970,
+            interpretedClockEpoch: interpretedClockEpoch)
+        let metadataOutput = URL(fileURLWithPath: directory)
+            .appendingPathComponent("timeline.json")
+        try JSONEncoder().encode(metadata).write(
+            to: metadataOutput, options: .atomic)
+        print("metadata\t\(metadataOutput.path)")
     }
 }
