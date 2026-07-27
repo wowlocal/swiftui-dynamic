@@ -32,6 +32,23 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeInsetRows: View {
+        var body: some View {
+            ForEach(0..<2) { _ in
+                NativeInsetRow()
+            }
+        }
+    }
+
+    private struct NativeComposedInsetListTwin: View {
+        var body: some View {
+            List {
+                NativeInsetRows()
+            }
+            .listStyle(.plain)
+        }
+    }
+
     private struct NativeTranslatedRow: View {
         let title: String
 
@@ -145,6 +162,53 @@ struct IceCubesMicroTwinTests {
         let actual = Self.bitmap(interpreted, size: size)
         let expected = Self.bitmap(
             AnyView(NativeInsetListTwin()), size: size)
+        #expect(
+            Self.redPixelBounds(actual, size: size)
+                == Self.redPixelBounds(expected, size: size))
+    }
+
+    @MainActor
+    @Test
+    func listRowInsetsPropagateThroughCustomCollectionBody() throws {
+        let source = """
+        struct InsetRow: View {
+            var body: some View {
+                HStack {
+                    Color.red
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0, leading: 20, bottom: 0, trailing: 20))
+            }
+        }
+
+        struct InsetRows: View {
+            var body: some View {
+                ForEach(0..<2) { _ in
+                    InsetRow()
+                }
+            }
+        }
+
+        List {
+            InsetRows()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("composed row-inset microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 280, height: 160)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeComposedInsetListTwin()), size: size)
         #expect(
             Self.redPixelBounds(actual, size: size)
                 == Self.redPixelBounds(expected, size: size))
