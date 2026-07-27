@@ -35,6 +35,12 @@ ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
 DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macos.dylib" \
 .build/arm64-apple-macosx/debug/IceCubesCheck --capture "$INTERP_DIR" || exit 2
 
+INTERP_OBSERVED_CLOCK="$(jq -r '.interpretedClockEpoch' "$INTERP_DIR/timeline.json")"
+if [[ "$INTERP_OBSERVED_CLOCK" != "$FROZEN_NOW" ]]; then
+  echo "interpreted frozen clock mismatch: wanted $FROZEN_NOW, got $INTERP_OBSERVED_CLOCK" >&2
+  exit 2
+fi
+
 echo "── R2 AE board ──"
 # Ratchet floor — enforced, committed baseline (AUDIT-2026-07-23-R2-stall.md rec #2,
 # mirroring Scripts/foodtruck-r3.sh). Before this, the R2 floor lived only in commit
