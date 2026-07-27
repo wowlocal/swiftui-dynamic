@@ -44,6 +44,29 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeTrailingTagsTwin: View {
+        private let tags = ["noticias", "News", "portugal"]
+
+        var body: some View {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(tags, id: \.self) { tag in
+                        Button {
+                        } label: {
+                            Text("#\(tag)")
+                                .font(.footnote)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+            .scrollClipDisabled()
+        }
+    }
+
     private struct NativeInsetRows: View {
         var body: some View {
             ForEach(0..<2) { _ in
@@ -424,6 +447,51 @@ struct IceCubesMicroTwinTests {
         #expect(actual == expected)
     }
 
+    /// A protocol-constrained style value must survive the same
+    /// collection/control modifier chain as any other contextual SDK value.
+    /// Losing the style turns every bordered control into a plain label and
+    /// changes both its pixels and the enclosing row height.
+    @MainActor
+    @Test
+    func borderedSmallButtonsSurviveCustomCollectionComposition() throws {
+        let source = """
+        let tags = ["noticias", "News", "portugal"]
+
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(tags, id: \\.self) { tag in
+                    Button {
+                    } label: {
+                        Text("#\\(tag)")
+                            .font(.footnote)
+                            .fontWeight(.medium)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .scrollClipDisabled()
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("trailing-tag microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 300, height: 44)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeTrailingTagsTwin()), size: size)
+        #expect(Self.pixelAE(actual, expected, size: size) == 0)
+    }
+
     private static func isFooterPixel(_ color: NSColor?) -> Bool {
         guard let color = color?.usingColorSpace(.deviceRGB) else {
             return false
@@ -488,6 +556,21 @@ struct IceCubesMicroTwinTests {
             y: minimumY,
             width: maximumX - minimumX + 1,
             height: maximumY - minimumY + 1)
+    }
+
+    private static func pixelAE(
+        _ lhs: NSBitmapImageRep,
+        _ rhs: NSBitmapImageRep,
+        size: NSSize
+    ) -> Int {
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height)
+                where lhs.colorAt(x: x, y: y) != rhs.colorAt(x: x, y: y) {
+                mismatched += 1
+            }
+        }
+        return mismatched
     }
 
     @MainActor
