@@ -1779,6 +1779,13 @@ private func eval(_ source: String) throws -> RuntimeValue {
         let source = """
         struct Cargo { let marker: String }
         struct Other { let marker: String }
+        struct Unrelated {}
+
+        extension Array where Element == Unrelated {
+            func filter(_ values: [String]) -> Self {
+                self
+            }
+        }
 
         extension [Cargo] {
             func filter(_ query: String) -> Self {

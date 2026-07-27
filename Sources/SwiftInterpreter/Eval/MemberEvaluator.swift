@@ -808,23 +808,29 @@ extension Interpreter {
         return nil
     }
 
-    /// Canonical host-extension names proven by the receiver's source type.
-    /// A host payload may deliberately erase its concrete SDK type, so source
-    /// aliases must be followed through the declaring file's module/import
-    /// visibility before an absorbing imported member gets first refusal.
+    /// Host-extension names proven by the receiver's source type, ordered
+    /// from its exact spelling through canonical nominal/alias heads. The
+    /// exact spelling keeps constrained sugar extensions (`[Cargo]`) ahead
+    /// of an unrelated generic `Array` extension after an empty collection
+    /// has erased its element type at runtime.
     func declaredHostExtensionTypeNames(
         _ declaredTypeName: String?
     ) -> [String] {
+        guard let declaredTypeName else { return [] }
+        let exact = declaredTypeName.trimmingCharacters(
+            in: .whitespacesAndNewlines)
         guard var current = RuntimeDeclaredType.nominalTypeName(
-            declaredTypeName
+            exact
         ) else {
             return []
         }
 
-        var names: [String] = []
+        var names: [String] = exact.isEmpty ? [] : [exact]
         var seen: Set<String> = []
         while seen.insert(current).inserted {
-            names.append(current)
+            if !names.contains(current) {
+                names.append(current)
+            }
             guard let target = lexicallyVisibleTypeAliasHead(named: current),
                   let canonical = RuntimeDeclaredType.nominalTypeName(target)
             else {
