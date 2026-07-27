@@ -63,6 +63,24 @@ private struct SmallBorderedControl: View {
 
 }
 
+private struct SemanticFontLabel: View {
+    let name: String
+    let font: Font
+    let rootFrame: CGRect
+
+    var body: some View {
+        Text("Control")
+            .font(font)
+            .fontWeight(.medium)
+            .lineLimit(1)
+            .background {
+                SmallBorderedControlFrameReader(
+                    name: "semantic-\(name)",
+                    rootFrame: rootFrame)
+            }
+    }
+}
+
 /// Compiled-target oracle for the platform-owned chrome supplied by
 /// `BorderedButtonStyle` at a selected control size. The interface describes
 /// both modifiers, but not the target framework's intrinsic padding, corner
@@ -89,6 +107,41 @@ struct SmallBorderedControlProbe: View {
                     name: "red",
                     rootFrame: rootProxy.frame(in: .global),
                     tint: .red)
+                Group {
+                    SemanticFontLabel(
+                        name: "largeTitle", font: .largeTitle,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "title", font: .title,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "title2", font: .title2,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "title3", font: .title3,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "headline", font: .headline,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "body", font: .body,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "callout", font: .callout,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "subheadline", font: .subheadline,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "footnote", font: .footnote,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "caption", font: .caption,
+                        rootFrame: rootProxy.frame(in: .global))
+                    SemanticFontLabel(
+                        name: "caption2", font: .caption2,
+                        rootFrame: rootProxy.frame(in: .global))
+                }
             }
             .padding(20)
             .environment(\.colorScheme, .light)
