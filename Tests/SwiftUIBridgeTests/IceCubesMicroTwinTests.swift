@@ -281,6 +281,54 @@ struct IceCubesMicroTwinTests {
                 == Self.redPixelBounds(expected, size: size))
     }
 
+    @MainActor
+    @Test
+    func listRowInsetsResolveSourceStaticMembersInsideImplicitInitializer()
+        throws
+    {
+        let source = """
+        extension CGFloat {
+            static var rowInset: CGFloat { 20 }
+        }
+
+        struct InsetRow: View {
+            var body: some View {
+                HStack {
+                    Color.red
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0,
+                    leading: .rowInset,
+                    bottom: 0,
+                    trailing: .rowInset))
+            }
+        }
+
+        List {
+            InsetRow()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("contextual row-inset microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 280, height: 120)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeInsetListTwin()), size: size)
+        #expect(
+            Self.redPixelBounds(actual, size: size)
+                == Self.redPixelBounds(expected, size: size))
+    }
+
     private static func isFooterPixel(_ color: NSColor?) -> Bool {
         guard let color = color?.usingColorSpace(.deviceRGB) else {
             return false

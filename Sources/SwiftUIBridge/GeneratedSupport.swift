@@ -169,6 +169,32 @@ private extension RuntimeValue {
 }
 
 enum GeneratedDispatch {
+    /// A leading-dot initializer is contextual syntax: `.init(...)` names
+    /// the constructor of the parameter type supplied by the interface.
+    /// Keep the original arguments and evaluation context so nested source
+    /// statics are resolved by the generated constructor just as they are in
+    /// an explicit `Type(...)` call.
+    private static func generatedContextualInitializer(
+        _ value: RuntimeValue,
+        contextualType: String,
+        context: EvalContext
+    ) throws -> RuntimeValue? {
+        guard case .host(let payload) = value,
+              let call = payload as? ImplicitMemberCall,
+              call.name == "init" else {
+            return nil
+        }
+        let typeName = GeneratedPlatformBridge.canonicalTypeName(
+            contextualType)
+        guard GeneratedConstructors.table[typeName] != nil
+                || GeneratedMembers.nativeValueConstructors[typeName] != nil
+        else {
+            return nil
+        }
+        return try context.invokeHostConstructor(
+            named: typeName, arguments: call.arguments)
+    }
+
     static func coerce(
         _ tag: ParamTag, _ unresolvedValue: RuntimeValue,
         _ ctx: EvalContext, contextualType: String? = nil
@@ -179,6 +205,12 @@ enum GeneratedDispatch {
            let resolved = try ctx.sourceStaticMember(
             named: member, ofType: contextualType) {
             value = resolved
+        } else if let contextualType,
+                  let initialized = try generatedContextualInitializer(
+                    unresolvedValue,
+                    contextualType: contextualType,
+                    context: ctx) {
+            value = initialized
         } else {
             value = unresolvedValue
         }
