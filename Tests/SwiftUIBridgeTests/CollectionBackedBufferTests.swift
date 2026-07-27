@@ -1,5 +1,6 @@
 import Foundation
 import SwiftInterpreter
+import SwiftSoup
 import Testing
 @testable import SwiftUIBridge
 
@@ -758,6 +759,81 @@ import Testing
         #expect(value.intValue == 11)
     }
 
+    @Test func hostPrimitiveUsesSourceExtensionSubscript() throws {
+        let source = """
+        extension String {
+            subscript(position: Int) -> String {
+                "X"
+            }
+        }
+
+        let text = "native host storage"
+        String(text[0])
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: source)
+        #expect(value.stringValue == "X")
+    }
+
+    @Test func hostPrimitiveExtensionSelfRetainsLexicalType() throws {
+        let source = """
+        import Foundation
+
+        extension Character {
+            var sourceIsDigit: Bool {
+                isMemberOfCharacterSet(CharacterSet.decimalDigits)
+            }
+
+            func isMemberOfCharacterSet(_ set: CharacterSet) -> Bool {
+                let normalized =
+                    String(self).precomposedStringWithCanonicalMapping
+                let unicodes = normalized.unicodeScalars
+                guard unicodes.count == 1 else { return false }
+                return set.contains(UnicodeScalar(unicodes.first!.value)!)
+            }
+        }
+
+        let digit: Character = "7"
+        digit.sourceIsDigit
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: source)
+        #expect(value.boolValue == true)
+    }
+
+    @Test func implicitSelfCallShapeOutranksGlobalOverloads() throws {
+        let source = """
+        func clean(_ bodyHtml: String) -> String {
+            bodyHtml
+        }
+
+        func clean(_ bodyHtml: String, _ baseURI: String) -> String {
+            bodyHtml + baseURI
+        }
+
+        final class Cache {
+            private var wasCleaned = false
+
+            func clean() {
+                wasCleaned = true
+            }
+
+            func run() -> Bool {
+                clean()
+                return wasCleaned
+            }
+        }
+
+        Cache().run()
+        """
+
+        let value = try Interpreter(registry: TraceRegistry()).run(
+            source: source)
+        #expect(value.boolValue == true)
+    }
+
     @Test func enumPayloadBindingRetainsByteArrayElementType() throws {
         let source = """
         enum Backing {
@@ -882,6 +958,51 @@ import Testing
         #expect(rawText.contains("NATO: Revólver oferecido"))
         #expect(!rawText.contains("<p>"))
         #expect(rawText.unicodeScalars.count < 750)
+    }
+
+    /// IceCubes moves a final paragraph made only of hashtag anchors out of
+    /// its Markdown content and into separately styled controls. Derive that
+    /// predicate from native SwiftSoup over the recorded bytes, then require
+    /// the complete interpreted Codable initializer to select the same branch.
+    @Test func swiftSoupHTMLStringDetectsTrailingHashtagParagraph() throws {
+        let root = FileManager.default.currentDirectoryPath
+        let fixtureURL = URL(fileURLWithPath: root)
+            .appendingPathComponent(
+                "Fixtures/mastodon-public-timeline/"
+                    + "api_v1_timelines_public.json")
+        let fixtureData = try Data(contentsOf: fixtureURL)
+        let fixture = try #require(
+            JSONSerialization.jsonObject(with: fixtureData)
+                as? [[String: Any]])
+        let html = try #require(fixture[1]["content"] as? String)
+        let native = try Self.nativeLastParagraphContainsOnlyHashtagAnchors(
+            html)
+        #expect(native)
+
+        let encoded = String(
+            data: try JSONEncoder().encode(["content": html]),
+            encoding: .utf8)!
+        let htmlStringURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/IceCubesHTMLString.swift")
+        let htmlStringSource = try String(
+            contentsOf: htmlStringURL,
+            encoding: .utf8)
+        let value = try swiftSoupEvaluation(
+            "", additionalSource: htmlStringSource,
+            additionalSourceModule: "Models", suffix: """
+            import Foundation
+            import Models
+
+            struct Input: Decodable {
+                let content: HTMLString
+            }
+            let input = try JSONDecoder().decode(
+                Input.self,
+                from: \(String(reflecting: encoded)).data(using: .utf8)!)
+            input.content.hadTrailingTags
+            """, suffixModule: "TrailingHashtagRegressionProbe")
+        #expect(value.boolValue == native)
     }
 
     /// A host-driven `Decodable.init(from:)` callback executes in the
@@ -1047,6 +1168,38 @@ import Testing
     private func swiftSoupText(_ html: String) throws -> String? {
         try swiftSoupEvaluation(
             html, suffix: "try document.text()\n").stringValue
+    }
+
+    private static func nativeLastParagraphContainsOnlyHashtagAnchors(
+        _ html: String
+    ) throws -> Bool {
+        let document = try SwiftSoup.parse(html)
+        guard let paragraph = try document
+            .select("p:not(.quote-inline)")
+            .array()
+            .last
+        else {
+            return false
+        }
+        var foundHashtag = false
+        for child in paragraph.getChildNodes() {
+            switch child.nodeName() {
+            case "#text":
+                if !child.description
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .isEmpty {
+                    return false
+                }
+            case "a":
+                guard try child.attr("class").contains("hashtag") else {
+                    return false
+                }
+                foundHashtag = true
+            default:
+                return false
+            }
+        }
+        return foundHashtag
     }
 
     private func swiftSoupEvaluation(

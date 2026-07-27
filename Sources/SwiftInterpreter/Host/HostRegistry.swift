@@ -532,6 +532,12 @@ public protocol HostRegistry: AnyObject {
     /// Parsed property contract, consulted before the legacy dynamic member
     /// hook. Registries can migrate one declaration at a time.
     func hostProperty(named name: String, on value: Any) -> HostProperty?
+    /// Generated property available through a value/reference bridge. Core
+    /// value members receive first refusal so an Objective-C property import
+    /// cannot shadow a Swift method with the same base name.
+    func fallbackHostProperty(
+        named name: String, on value: Any
+    ) -> HostProperty?
     /// `$published` projection: replay/live registries deliver the CURRENT
     /// value as a synchronous publisher (the doctrine fork); absorbed mode
     /// returns nil and the projection stays inert.
@@ -630,6 +636,9 @@ extension HostRegistry {
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func fallbackHostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostProperty(named name: String, on value: Any) -> HostProperty? { nil }
+    public func fallbackHostProperty(
+        named name: String, on value: Any
+    ) -> HostProperty? { nil }
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostMemberHasWorkerOperation(
         _ name: String,

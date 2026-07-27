@@ -72,6 +72,35 @@ import SwiftInterpreter
         #expect(tuple.values[2].stringValue == "native description")
     }
 
+    /// Runtime failures caught by source also travel through the generated
+    /// NSError property bridge. Their diagnostic payload must remain the
+    /// localized description instead of collapsing to Foundation boilerplate.
+    @Test func generatedNSErrorPropertyPreservesRuntimeFailureMessage() throws {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        interpreter.globals.define(
+            "runtimeFailure",
+            .native(RuntimeError(message: "host operation failed")))
+        interpreter.globals.define(
+            "fail",
+            .hostFunction(HostFunction(name: "fail") { _, _ in
+                throw RuntimeError(message: "host operation failed")
+            }))
+
+        let result = try interpreter.run(source: """
+            var caught = ""
+            do {
+                try fail()
+            } catch {
+                caught = error.localizedDescription
+            }
+            (runtimeFailure.localizedDescription, caught)
+            """)
+
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].stringValue == "host operation failed")
+        #expect(tuple.values[1].stringValue == "host operation failed")
+    }
+
     @Test func nonAllowlistedClassesStillAbsorb() throws {
         // Process is deliberately NOT on the allowlist — it must keep
         // falling to the absorbing bag, not gain real side effects.

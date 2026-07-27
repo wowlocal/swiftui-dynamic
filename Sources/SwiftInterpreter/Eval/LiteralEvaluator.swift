@@ -341,9 +341,16 @@ extension Interpreter {
                     indexArgs = relativeArgs
                 }
             }
-            return chained(try relocating(call) {
-                try runUserSubscriptGetter(symbol, selfValue: selfValue, args: indexArgs)
-            })
+            if let member = matchingUserSubscriptMember(
+                in: symbol, args: indexArgs) {
+                return chained(try relocating(call) {
+                    try runUserSubscriptGetter(
+                        member,
+                        symbolName: symbol.name,
+                        selfValue: selfValue,
+                        args: indexArgs)
+                })
+            }
         }
         if let string = base.stringValue {
             // `text[range]` / `text[i]` with String.Index values.

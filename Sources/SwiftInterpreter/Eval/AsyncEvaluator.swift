@@ -1534,7 +1534,7 @@ extension Interpreter {
                     }
                 }
             }
-            if let generated = try RuntimeUnicodeDecodingConstructor.invoke(
+            if let generated = try RuntimeGeneratedConstructor.invoke(
                 named: function.name,
                 arguments: arguments
             ) {

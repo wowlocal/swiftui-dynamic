@@ -34,7 +34,7 @@ import Metal
 extension GeneratedPlatformBridge {
     static let platformFrameworkOrder = ["Foundation", "ObjectiveC", "SwiftUI", "CoreGraphics", "AppKit", "UIKit", "WebKit", "MapKit", "CoreLocation", "Metal"]
     static let platformSurfaceFrameworks: Set<String> = ["AppKit", "UIKit"]
-    static let platformDirectRuntimeTypeNames: Set<String> = ["()", "Any", "Bool", "Bundle", "CGAffineTransform", "CGColor", "CGFloat", "CGImage", "CGPoint", "CGRect", "CGSize", "CGVector", "Character", "ComparisonResult", "Data", "Date", "Double", "Error", "Float", "IndexPath", "Int", "Int16", "Int32", "Int64", "Int8", "NSAttributedString", "NSRange", "Notification.Name", "String", "Substring", "TimeInterval", "UInt", "UInt16", "UInt32", "UInt64", "UInt8", "URL", "Void"]
+    static let platformDirectRuntimeTypeNames: Set<String> = ["()", "Any", "Bool", "Bundle", "CGAffineTransform", "CGColor", "CGFloat", "CGImage", "CGPoint", "CGRect", "CGSize", "CGVector", "Character", "ComparisonResult", "Data", "Date", "Double", "Error", "Float", "IndexPath", "Int", "Int16", "Int32", "Int64", "Int8", "NSAttributedString", "NSRange", "Notification.Name", "String", "Substring", "TimeInterval", "UInt", "UInt16", "UInt32", "UInt64", "UInt8", "URL", "Unicode.Scalar", "Void"]
 
     static func buildNativeFrameworks() -> Set<String> {
         var values: Set<String> = []
@@ -106,6 +106,36 @@ extension GeneratedPlatformBridge {
             }) { v, ctx in
 #if canImport(Foundation)
             return generatedPlatformResult(BlockOperation(block: generatedAction(try GeneratedDispatch.coerce(.action, v[0], ctx))), framework: "Foundation", declaredType: "BlockOperation")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init CharacterSet()",
+            resultType: "CharacterSet") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(CharacterSet(), framework: "Foundation", declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init CharacterSet(bitmapRepresentation p0: Data)",
+            resultType: "CharacterSet") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(CharacterSet(bitmapRepresentation: try generatedPlatformArgument(v[0], as: Data.self, framework: "Foundation", typeName: "Data", context: ctx)), framework: "Foundation", declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init CharacterSet(charactersIn p0: String)",
+            resultType: "CharacterSet") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(CharacterSet(charactersIn: try generatedPlatformArgument(v[0], as: String.self, framework: "Foundation", typeName: "String", context: ctx)), framework: "Foundation", declaredType: "CharacterSet")
 #else
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
@@ -186,6 +216,16 @@ extension GeneratedPlatformBridge {
             resultType: "ProcessInfo.ActivityOptions") { v, ctx in
 #if canImport(Foundation)
             return generatedPlatformResult(ProcessInfo.ActivityOptions(rawValue: try generatedPlatformArgument(v[0], as: UInt64.self, framework: "Foundation", typeName: "UInt64", context: ctx)), framework: "Foundation", declaredType: "ProcessInfo.ActivityOptions")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "Foundation",
+            declaration: "init? CharacterSet(contentsOfFile p0: String)",
+            resultType: "CharacterSet") { v, ctx in
+#if canImport(Foundation)
+            return generatedPlatformResult(CharacterSet(contentsOfFile: try generatedPlatformArgument(v[0], as: String.self, framework: "Foundation", typeName: "String", context: ctx)), framework: "Foundation", declaredType: "CharacterSet")
 #else
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
@@ -3834,6 +3874,97 @@ extension GeneratedPlatformBridge {
             }
             receiver.`addExecutionBlock`(generatedAction(try GeneratedDispatch.coerce(.action, v[0], ctx)))
             return .void
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func CharacterSet.contains(_ p0: Unicode.Scalar) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? CharacterSet else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`contains`(try generatedPlatformArgument(v[0], as: Unicode.Scalar.self, framework: "Foundation", typeName: "Unicode.Scalar", context: ctx)), framework: "Foundation", declaredType: "Bool")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func CharacterSet.hasMember(inPlane p0: UInt8) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? CharacterSet else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`hasMember`(inPlane: try generatedPlatformArgument(v[0], as: UInt8.self, framework: "Foundation", typeName: "UInt8", context: ctx)), framework: "Foundation", declaredType: "Bool")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func CharacterSet.intersection(_ p0: CharacterSet) -> CharacterSet",
+            resultType: "CharacterSet") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? CharacterSet else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`intersection`(try generatedPlatformArgument(v[0], as: CharacterSet.self, framework: "Foundation", typeName: "CharacterSet", context: ctx)), framework: "Foundation", declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func CharacterSet.isSuperset(of p0: CharacterSet) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? CharacterSet else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`isSuperset`(of: try generatedPlatformArgument(v[0], as: CharacterSet.self, framework: "Foundation", typeName: "CharacterSet", context: ctx)), framework: "Foundation", declaredType: "Bool")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func CharacterSet.subtracting(_ p0: CharacterSet) -> CharacterSet",
+            resultType: "CharacterSet") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? CharacterSet else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`subtracting`(try generatedPlatformArgument(v[0], as: CharacterSet.self, framework: "Foundation", typeName: "CharacterSet", context: ctx)), framework: "Foundation", declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func CharacterSet.symmetricDifference(_ p0: CharacterSet) -> CharacterSet",
+            resultType: "CharacterSet") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? CharacterSet else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`symmetricDifference`(try generatedPlatformArgument(v[0], as: CharacterSet.self, framework: "Foundation", typeName: "CharacterSet", context: ctx)), framework: "Foundation", declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "Foundation",
+            declaration: "func CharacterSet.union(_ p0: CharacterSet) -> CharacterSet",
+            resultType: "CharacterSet") { base, v, ctx in
+#if canImport(Foundation)
+            guard let receiver = base.payload as? CharacterSet else {
+                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`union`(try generatedPlatformArgument(v[0], as: CharacterSet.self, framework: "Foundation", typeName: "CharacterSet", context: ctx)), framework: "Foundation", declaredType: "CharacterSet")
 #else
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
@@ -18833,6 +18964,81 @@ extension GeneratedPlatformBridge {
     private static func buildPropertiesFoundation0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "Foundation",
+            declaration: "var CharacterSet.bitmapRepresentation: Data { get }",
+            resultType: "Data",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? CharacterSet else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`bitmapRepresentation`, framework: "Foundation", declaredType: "Data")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var CharacterSet.debugDescription: String { get }",
+            resultType: "String",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? CharacterSet else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`debugDescription`, framework: "Foundation", declaredType: "String")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var CharacterSet.description: String { get }",
+            resultType: "String",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? CharacterSet else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`description`, framework: "Foundation", declaredType: "String")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var CharacterSet.hashValue: Int { get }",
+            resultType: "Int",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? CharacterSet else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`hashValue`, framework: "Foundation", declaredType: "Int")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
+            declaration: "var CharacterSet.inverted: CharacterSet { get }",
+            resultType: "CharacterSet",
+            get: { base in
+#if canImport(Foundation)
+                guard let receiver = base as? CharacterSet else {
+                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`inverted`, framework: "Foundation", declaredType: "CharacterSet")
+#else
+                preconditionFailure("Foundation getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "Foundation",
             declaration: "var Operation.QueuePriority.rawValue: Int { get }",
             resultType: "Int",
             get: { base in
@@ -19377,6 +19583,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesFoundation1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "Foundation",
             declaration: "var ProcessInfo.isLowPowerModeEnabled: Bool { get }",
@@ -19452,9 +19661,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesFoundation1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "Foundation",
             declaration: "var ProcessInfo.processIdentifier: Int32 { get }",
@@ -23514,6 +23720,21 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "AppKit",
+            declaration: "var NSFont.coveredCharacterSet: CharacterSet { get }",
+            resultType: "CharacterSet",
+            get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSFont else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`coveredCharacterSet`, framework: "AppKit", declaredType: "CharacterSet")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
             declaration: "var NSFont.descender: CGFloat { get }",
             resultType: "CGFloat",
             get: { base in
@@ -24022,6 +24243,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesAppKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSImage.matchesOnMultipleResolution: Bool { get set }",
@@ -24049,9 +24273,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSImage.matchesOnlyOnBestFittingAxis: Bool { get set }",
@@ -24851,6 +25072,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSMenu.highlightedItem: NSMenuItem? { get }",
@@ -24866,9 +25090,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSMenu.items: [NSMenuItem] { get set }",
@@ -25669,6 +25890,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSMenuItem.submenu: NSMenu? { get set }",
@@ -25696,9 +25920,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSMenuItem.subtitle: String? { get set }",
@@ -26354,6 +26575,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesAppKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSScrollView.drawsBackground: Bool { get set }",
@@ -26381,9 +26605,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSScrollView.findBarPosition: NSScrollView.FindBarPosition { get set }",
@@ -27194,6 +27415,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTableView.autosaveTableColumns: Bool { get set }",
@@ -27221,9 +27445,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTableView.backgroundColor: NSColor { get set }",
@@ -27974,6 +28195,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextField.backgroundColor: NSColor? { get set }",
@@ -28001,9 +28225,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextField.bezelStyle: NSTextField.BezelStyle { get set }",
@@ -28911,6 +29132,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextView.isFieldEditor: Bool { get set }",
@@ -28938,9 +29162,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextView.isGrammarCheckingEnabled: Bool { get set }",
@@ -29631,6 +29852,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.autoresizesSubviews: Bool { get set }",
@@ -29658,9 +29882,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.autoresizingMask: NSView.AutoresizingMask { get set }",
@@ -30351,6 +30572,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit14(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.mouseDownCanMoveWindow: Bool { get }",
@@ -30366,9 +30590,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit14(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.needsDisplay: Bool { get set }",
@@ -31035,6 +31256,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesAppKit15(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSViewController.parent: NSViewController? { get }",
@@ -31050,9 +31274,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit15(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSViewController.preferredContentSize: CGSize { get set }",
@@ -31659,6 +31880,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit16(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.allowsToolTipsWhenApplicationIsInactive: Bool { get set }",
@@ -31686,9 +31910,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit16(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.alphaValue: CGFloat { get set }",
@@ -32428,6 +32649,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit17(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.hasTitleBar: Bool { get }",
@@ -32443,9 +32667,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit17(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.hidesOnDeactivate: Bool { get set }",
@@ -33173,6 +33394,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit18(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.parent: NSWindow? { get set }",
@@ -33200,9 +33424,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit18(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.preservesContentDuringLiveResize: Bool { get set }",
@@ -46664,6 +46885,7 @@ extension GeneratedPlatformBridge {
     static func buildStaticProperties() -> [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry] {
         var t: [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry] = [:]
         buildStaticPropertiesFoundation0(&t)
+        buildStaticPropertiesFoundation1(&t)
         buildStaticPropertiesAppKit0(&t)
         buildStaticPropertiesAppKit1(&t)
         buildStaticPropertiesAppKit2(&t)
@@ -46694,6 +46916,321 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildStaticPropertiesFoundation0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "alphanumerics",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`alphanumerics`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "capitalizedLetters",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`capitalizedLetters`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "controlCharacters",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`controlCharacters`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "decimalDigits",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`decimalDigits`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "decomposables",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`decomposables`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "illegalCharacters",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`illegalCharacters`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "letters",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`letters`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "lowercaseLetters",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`lowercaseLetters`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "newlines",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`newlines`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "nonBaseCharacters",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`nonBaseCharacters`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "punctuationCharacters",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`punctuationCharacters`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "symbols",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`symbols`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "uppercaseLetters",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`uppercaseLetters`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "urlFragmentAllowed",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`urlFragmentAllowed`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "urlHostAllowed",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`urlHostAllowed`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "urlPasswordAllowed",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`urlPasswordAllowed`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "urlPathAllowed",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`urlPathAllowed`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "urlQueryAllowed",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`urlQueryAllowed`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "urlUserAllowed",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`urlUserAllowed`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "whitespaces",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`whitespaces`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+        registerStaticProperty(
+            &t, framework: "Foundation",
+            type: "CharacterSet",
+            name: "whitespacesAndNewlines",
+            resultType: "CharacterSet",
+            get: {
+#if canImport(Foundation)
+            generatedPlatformResult(
+                CharacterSet.`whitespacesAndNewlines`,
+                framework: "Foundation",
+                declaredType: "CharacterSet")
+#else
+            preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
         registerStaticProperty(
             &t, framework: "Foundation",
             type: "OperationQueue",
@@ -46904,6 +47441,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation getter invoked off-platform")
 #endif
         })
+    }
+
+    private static func buildStaticPropertiesFoundation1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "Foundation",
             type: "ProcessInfo",
@@ -58957,6 +59497,7 @@ extension GeneratedPlatformBridge {
     static func buildEnumValues() -> [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]] {
         var t: [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]] = [:]
         buildEnumValuesFoundation0(&t)
+        buildEnumValuesFoundation1(&t)
         buildEnumValuesCoreGraphics0(&t)
         buildEnumValuesAppKit0(&t)
         buildEnumValuesAppKit1(&t)
@@ -58991,6 +59532,195 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildEnumValuesFoundation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "alphanumerics") {
+#if canImport(Foundation)
+            CharacterSet.`alphanumerics`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "capitalizedLetters") {
+#if canImport(Foundation)
+            CharacterSet.`capitalizedLetters`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "controlCharacters") {
+#if canImport(Foundation)
+            CharacterSet.`controlCharacters`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "decimalDigits") {
+#if canImport(Foundation)
+            CharacterSet.`decimalDigits`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "decomposables") {
+#if canImport(Foundation)
+            CharacterSet.`decomposables`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "illegalCharacters") {
+#if canImport(Foundation)
+            CharacterSet.`illegalCharacters`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "letters") {
+#if canImport(Foundation)
+            CharacterSet.`letters`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "lowercaseLetters") {
+#if canImport(Foundation)
+            CharacterSet.`lowercaseLetters`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "newlines") {
+#if canImport(Foundation)
+            CharacterSet.`newlines`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "nonBaseCharacters") {
+#if canImport(Foundation)
+            CharacterSet.`nonBaseCharacters`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "punctuationCharacters") {
+#if canImport(Foundation)
+            CharacterSet.`punctuationCharacters`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "symbols") {
+#if canImport(Foundation)
+            CharacterSet.`symbols`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "uppercaseLetters") {
+#if canImport(Foundation)
+            CharacterSet.`uppercaseLetters`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "urlFragmentAllowed") {
+#if canImport(Foundation)
+            CharacterSet.`urlFragmentAllowed`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "urlHostAllowed") {
+#if canImport(Foundation)
+            CharacterSet.`urlHostAllowed`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "urlPasswordAllowed") {
+#if canImport(Foundation)
+            CharacterSet.`urlPasswordAllowed`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "urlPathAllowed") {
+#if canImport(Foundation)
+            CharacterSet.`urlPathAllowed`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "urlQueryAllowed") {
+#if canImport(Foundation)
+            CharacterSet.`urlQueryAllowed`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "urlUserAllowed") {
+#if canImport(Foundation)
+            CharacterSet.`urlUserAllowed`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "whitespaces") {
+#if canImport(Foundation)
+            CharacterSet.`whitespaces`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "Foundation",
+            type: "CharacterSet", name: "whitespacesAndNewlines") {
+#if canImport(Foundation)
+            CharacterSet.`whitespacesAndNewlines`
+#else
+            preconditionFailure("Foundation enum value invoked off-platform")
+#endif
+        }
         registerEnumValue(
             &t, framework: "Foundation",
             type: "Operation.QueuePriority", name: "high") {
@@ -59117,6 +59847,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesFoundation1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "Foundation",
             type: "ProcessInfo.ActivityOptions", name: "trackingEnabled") {
@@ -67506,6 +68239,94 @@ extension GeneratedPlatformBridge {
             member: "executionBlocks")] = false
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
+            type: "CharacterSet",
+            member: "bitmapRepresentation")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "contains")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "debugDescription")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "description")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "encode")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "formIntersection")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "formSymmetricDifference")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "formUnion")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "hasMember")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "hash")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "hashValue")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "insert")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "intersection")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "invert")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "inverted")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "isSuperset")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "remove")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "subtract")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "subtracting")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "symmetricDifference")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "union")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
+            type: "CharacterSet",
+            member: "update")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "Foundation",
             type: "Operation",
             member: "addDependency")] = true
         t[GeneratedPlatformMemberKey(
@@ -67548,6 +68369,9 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "Operation",
             member: "main")] = true
+    }
+
+    private static func buildKnownMembersFoundation1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "Operation",
@@ -67636,9 +68460,6 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "OperationQueue",
             member: "waitUntilAllOperationsAreFinished")] = true
-    }
-
-    private static func buildKnownMembersFoundation1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "OperationQueue.SchedulerTimeType",
@@ -67691,6 +68512,9 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "ProcessInfo",
             member: "beginActivity")] = true
+    }
+
+    private static func buildKnownMembersFoundation2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
@@ -67779,9 +68603,6 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "ProcessInfo",
             member: "thermalState")] = false
-    }
-
-    private static func buildKnownMembersFoundation2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
@@ -79880,6 +80701,7 @@ extension GeneratedPlatformBridge {
         var t: [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] = [:]
 #if canImport(Foundation)
         registerEqualityAdapter(&t, framework: "Foundation", type: "BlockOperation", BlockOperation.self)
+        registerEqualityAdapter(&t, framework: "Foundation", type: "CharacterSet", CharacterSet.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "Operation", Operation.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "Operation.QueuePriority", Operation.QueuePriority.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "OperationQueue", OperationQueue.self)
@@ -80137,6 +80959,7 @@ extension GeneratedPlatformBridge {
     static func buildNominalKinds() -> [GeneratedPlatformTypeKey: Bool] {
         var t: [GeneratedPlatformTypeKey: Bool] = [:]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "BlockOperation")] = false
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "CharacterSet")] = true
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation")] = false
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation.QueuePriority")] = true
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue")] = false
@@ -80405,6 +81228,7 @@ extension GeneratedPlatformBridge {
     static func buildSupertypes() -> [GeneratedPlatformTypeKey: [String]] {
         var t: [GeneratedPlatformTypeKey: [String]] = [:]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "BlockOperation")] = ["Operation"]
+        t[GeneratedPlatformTypeKey(framework: "Foundation", type: "CharacterSet")] = ["ReferenceConvertible"]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation")] = ["NSObject"]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue")] = ["NSObject", "ProgressReporting"]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo")] = ["NSObject"]

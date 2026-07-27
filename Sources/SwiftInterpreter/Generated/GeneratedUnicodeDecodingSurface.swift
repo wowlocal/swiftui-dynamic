@@ -57,3 +57,86 @@ enum GeneratedUnicodeDecodingSurface {
         return name
     }
 }
+
+enum GeneratedUnicodeScalarSurface {
+    enum InputKind {
+        case integer
+        case string
+        case scalar
+    }
+
+    struct Initializer {
+        let resultTypeName: String
+        let parameterTypeName: String
+        let label: String?
+        let inputKind: InputKind
+        let isFailable: Bool
+    }
+
+    static func initializers(named rawName: String) -> [Initializer] {
+        switch canonicalTypeName(rawName) {
+        case "CChar32", "CWideChar", "String.UnicodeScalarView.Element", "String.UnicodeScalarView.Iterator.Element", "Substring.UnicodeScalarView.Element", "Unicode.Scalar", "Unicode.Scalar.UnicodeScalarLiteralType", "UnicodeScalar":
+            return [
+        Initializer(
+            resultTypeName: "Unicode.Scalar",
+            parameterTypeName: "Int",
+            label: nil,
+            inputKind: .integer,
+            isFailable: true),
+        Initializer(
+            resultTypeName: "Unicode.Scalar",
+            parameterTypeName: "String",
+            label: nil,
+            inputKind: .string,
+            isFailable: true),
+        Initializer(
+            resultTypeName: "Unicode.Scalar",
+            parameterTypeName: "UInt16",
+            label: nil,
+            inputKind: .integer,
+            isFailable: true),
+        Initializer(
+            resultTypeName: "Unicode.Scalar",
+            parameterTypeName: "UInt32",
+            label: nil,
+            inputKind: .integer,
+            isFailable: true),
+        Initializer(
+            resultTypeName: "Unicode.Scalar",
+            parameterTypeName: "UInt8",
+            label: nil,
+            inputKind: .integer,
+            isFailable: false),
+        Initializer(
+            resultTypeName: "Unicode.Scalar",
+            parameterTypeName: "Unicode.Scalar",
+            label: nil,
+            inputKind: .scalar,
+            isFailable: false),
+        Initializer(
+            resultTypeName: "Unicode.Scalar",
+            parameterTypeName: "Unicode.Scalar",
+            label: "unicodeScalarLiteral",
+            inputKind: .scalar,
+            isFailable: false)
+            ]
+        default:
+            return []
+        }
+    }
+
+    static func representsScalarType(named rawName: String) -> Bool {
+        !initializers(named: rawName).isEmpty
+    }
+
+    private static func canonicalTypeName(_ rawName: String) -> String {
+        var name = rawName
+        if name.hasPrefix("Swift.") {
+            name.removeFirst("Swift.".count)
+        }
+        if let generic = name.firstIndex(of: "<") {
+            name = String(name[..<generic])
+        }
+        return name
+    }
+}

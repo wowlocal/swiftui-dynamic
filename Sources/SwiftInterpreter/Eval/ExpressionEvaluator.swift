@@ -334,8 +334,10 @@ extension Interpreter {
             // Dynamic casts: give the target type a chance to resolve markers,
             // bridge numerics, and otherwise pass the value through
             // (optimistic `as?` — documented divergence).
-            var value = try evaluate(asExpr.expression, in: env)
             var typeName = asExpr.type.trimmedDescription
+            var value = try withExpectedAnnotation(typeName) {
+                try evaluate(asExpr.expression, in: env)
+            }
             let isConditionalCast = asExpr.questionOrExclamationMark?.text == "?"
             let isForcedCast = asExpr.questionOrExclamationMark?.text == "!"
             let targetIsOptional = RuntimeOptionalValue.wrappedType(

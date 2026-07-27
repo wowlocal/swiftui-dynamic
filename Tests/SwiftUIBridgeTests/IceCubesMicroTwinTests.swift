@@ -44,6 +44,65 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    @MainActor
+    @Observable
+    final class NativeRouteStore {
+        enum Destination {
+            case hashTag(tag: String, account: String?)
+        }
+
+        func navigate(to destination: Destination) {}
+    }
+
+    private struct NativeTrailingTagsTwin: View {
+        @SwiftUI.Environment(NativeRouteStore.self)
+        private var router: NativeRouteStore
+
+        private let tags = ["noticias", "News", "portugal"]
+
+        var body: some View {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(tags, id: \.self) { tag in
+                        Button {
+                            router.navigate(to: .hashTag(
+                                tag: tag, account: nil))
+                        } label: {
+                            Text("#\(tag)")
+                                .font(.footnote)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+            .scrollClipDisabled()
+        }
+    }
+
+    private struct NativeTrailingTagsContentTwin: View {
+        var body: some View {
+            VStack(alignment: .leading) {
+                if true {
+                    NativeTrailingTagsTwin()
+                        .padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    private struct NativeTrailingTagsListTwin: View {
+        var body: some View {
+            List {
+                NativeTrailingTagsContentTwin()
+                    .environment(NativeRouteStore())
+            }
+            .listStyle(.plain)
+        }
+    }
+
     private struct NativeInsetRows: View {
         var body: some View {
             ForEach(0..<2) { _ in
@@ -466,6 +525,197 @@ struct IceCubesMicroTwinTests {
             Self.bitmap(AnyView(NativeGeneratedStackSpacingTwin()), size: size),
             size: size)
         #expect(actual == expected)
+    }
+
+    /// A protocol-constrained style value must survive the same
+    /// collection/control modifier chain as any other contextual SDK value.
+    /// Losing the style turns every bordered control into a plain label and
+    /// changes both its pixels and the enclosing row height.
+    @MainActor
+    @Test
+    func borderedSmallButtonsSurviveCustomCollectionComposition() throws {
+        let models = ProjectMaterial.mergedSource(source: """
+        public struct Tag: Identifiable {
+            public let name: String
+
+            public var id: String {
+                name
+            }
+
+            public init(name: String) {
+                self.name = name
+            }
+        }
+        """, moduleName: "Models")
+        let environment = ProjectMaterial.mergedSource(source: """
+        public enum Destination {
+            case hashTag(tag: String, account: String?)
+        }
+
+        @MainActor
+        @Observable
+        public final class RouteStore {
+            public init() {
+            }
+
+            public func navigate(to destination: Destination) {
+            }
+        }
+        """, moduleName: "Env")
+        let row = ProjectMaterial.mergedSource(source: """
+        import Env
+        import Models
+        import SwiftUI
+
+        struct AlternateButtonStyle: ButtonStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                configuration.label
+            }
+        }
+
+        extension ButtonStyle where Self == AlternateButtonStyle {
+            static func alternate(
+                isOn: Bool = false,
+                tintColor: Color? = nil
+            ) -> Self {
+                AlternateButtonStyle()
+            }
+        }
+
+        struct TrailingTags: View {
+            @Environment(RouteStore.self) private var router
+
+            let tags: [Tag]
+
+            var body: some View {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(tags) { tag in
+                            Button {
+                                router.navigate(to: .hashTag(
+                                    tag: tag.name, account: nil))
+                            } label: {
+                                Text("#\\(tag.name)")
+                                    .font(.footnote)
+                                    .fontWeight(.medium)
+                                    .lineLimit(1)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+                .scrollClipDisabled()
+            }
+        }
+
+        struct RowContent: View {
+            let tags: [Tag]
+
+            var body: some View {
+                VStack(alignment: .leading) {
+                    if !tags.isEmpty {
+                        TrailingTags(tags: tags)
+                            .padding(.top, 8)
+                    }
+                }
+            }
+        }
+
+        List {
+            RowContent(tags: [
+                Tag(name: "noticias"),
+                Tag(name: "News"),
+                Tag(name: "portugal"),
+            ])
+            .environment(RouteStore())
+        }
+        .listStyle(.plain)
+        """, moduleName: "StatusKit")
+        let source = models + environment + row
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("trailing-tag microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 300, height: 120)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeTrailingTagsListTwin()), size: size)
+        // The selected Catalyst target deliberately removes the macOS
+        // List's outer leading margin (covered by the list-baseline twin).
+        // Normalize that one collection translation, then require every
+        // control/content pixel to remain native-identical.
+        #expect(Self.alignedContentPixelAE(
+            actual, expected, size: size) == 0)
+    }
+
+    private static func isContentPixel(_ color: NSColor?) -> Bool {
+        guard let color = color?.usingColorSpace(.deviceRGB) else {
+            return false
+        }
+        return color.redComponent < 0.99
+            || color.greenComponent < 0.99
+            || color.blueComponent < 0.99
+    }
+
+    private static func contentPixelBounds(
+        _ bitmap: NSBitmapImageRep,
+        size: NSSize
+    ) -> CGRect? {
+        var minimumX = Int(size.width)
+        var minimumY = Int(size.height)
+        var maximumX = -1
+        var maximumY = -1
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height)
+                where Self.isContentPixel(bitmap.colorAt(x: x, y: y)) {
+                minimumX = min(minimumX, x)
+                minimumY = min(minimumY, y)
+                maximumX = max(maximumX, x)
+                maximumY = max(maximumY, y)
+            }
+        }
+        guard maximumX >= minimumX, maximumY >= minimumY else {
+            return nil
+        }
+        return CGRect(
+            x: minimumX,
+            y: minimumY,
+            width: maximumX - minimumX + 1,
+            height: maximumY - minimumY + 1)
+    }
+
+    private static func alignedContentPixelAE(
+        _ lhs: NSBitmapImageRep,
+        _ rhs: NSBitmapImageRep,
+        size: NSSize
+    ) -> Int {
+        guard let lhsBounds = Self.contentPixelBounds(lhs, size: size),
+              let rhsBounds = Self.contentPixelBounds(rhs, size: size),
+              lhsBounds.size == rhsBounds.size
+        else {
+            return Int.max
+        }
+        var mismatched = 0
+        for x in 0..<Int(lhsBounds.width) {
+            for y in 0..<Int(lhsBounds.height)
+                where lhs.colorAt(
+                    x: Int(lhsBounds.minX) + x,
+                    y: Int(lhsBounds.minY) + y)
+                    != rhs.colorAt(
+                        x: Int(rhsBounds.minX) + x,
+                        y: Int(rhsBounds.minY) + y) {
+                mismatched += 1
+            }
+        }
+        return mismatched
     }
 
     private static func isFooterPixel(_ color: NSColor?) -> Bool {

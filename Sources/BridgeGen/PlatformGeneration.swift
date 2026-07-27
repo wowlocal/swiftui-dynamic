@@ -74,7 +74,9 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         name: "Foundation", sdkName: "macosx",
         target: "arm64-apple-macosx15.0",
         deployments: ["macOS": (15, 0)],
-        roots: ["Operation", "OperationQueue", "ProcessInfo"]),
+        roots: [
+            "CharacterSet", "Operation", "OperationQueue", "ProcessInfo",
+        ]),
     .init(
         // Foundation re-exports ObjectiveC's Swift overlay. Its generic
         // result scopes can execute interpreter closures without sweeping
@@ -1659,6 +1661,7 @@ private func platformParameterSelections(
 
 private let platformDirectTypes: Set<String> = [
     "Void", "()", "Any", "Error", "Bool", "String", "Substring", "Character",
+    "Unicode.Scalar",
     "Int", "Int8", "Int16", "Int32", "Int64",
     "UInt", "UInt8", "UInt16", "UInt32", "UInt64",
     "Double", "Float", "CGFloat", "TimeInterval",
