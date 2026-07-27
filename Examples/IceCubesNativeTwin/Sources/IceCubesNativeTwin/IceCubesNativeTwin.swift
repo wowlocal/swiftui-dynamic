@@ -74,6 +74,8 @@ private enum TwinConfiguration {
         ?? "../../Fixtures/mastodon-public-timeline"
     static let capturesNavigationChrome = CommandLine.arguments.contains(
         "--navigation-chrome-probe")
+    static let capturesListRowGeometry = CommandLine.arguments.contains(
+        "--list-row-geometry-probe")
 }
 
 @MainActor
@@ -151,6 +153,8 @@ private struct TwinDriverView: View {
         Group {
             if TwinConfiguration.capturesNavigationChrome {
                 NavigationChromeProbe()
+            } else if TwinConfiguration.capturesListRowGeometry {
+                ListRowGeometryProbe()
             } else if let focusedMedia {
                 FocusedMediaScreen(attachments: focusedMedia)
             } else if statuses.isEmpty {
@@ -176,6 +180,11 @@ private struct TwinDriverView: View {
             if TwinConfiguration.capturesNavigationChrome {
                 try await Task.sleep(for: .seconds(1))
                 try capturePNG(named: "navigation-chrome")
+                exit(0)
+            }
+            if TwinConfiguration.capturesListRowGeometry {
+                try await Task.sleep(for: .seconds(1))
+                try capturePNG(named: "list-row-geometry")
                 exit(0)
             }
             let decoded: [Status] = try await client.get(

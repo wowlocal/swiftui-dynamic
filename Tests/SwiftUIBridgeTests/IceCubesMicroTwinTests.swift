@@ -373,6 +373,49 @@ struct IceCubesMicroTwinTests {
                 == Self.redPixelBounds(expected, size: size))
     }
 
+    /// The compiled Catalyst `ListRowGeometryProbe` measures the red view at
+    /// logical x=20 for a 20-point leading row inset. The same source
+    /// interpreted through macOS SwiftUI must honor the selected target's
+    /// collection baseline instead of composing the macOS host's extra margin.
+    @MainActor
+    @Test
+    func catalystTargetUsesCompiledListRowBaseline() throws {
+        let source = """
+        struct InsetRow: View {
+            var body: some View {
+                HStack {
+                    Color.red
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0, leading: 20, bottom: 0, trailing: 20))
+            }
+        }
+
+        List {
+            InsetRow()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("target list-row microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 900, height: 700)
+        let bounds = Self.redPixelBounds(
+            Self.bitmap(interpreted, size: size), size: size)
+        #expect(bounds?.minX == 20)
+    }
+
     private static func isFooterPixel(_ color: NSColor?) -> Bool {
         guard let color = color?.usingColorSpace(.deviceRGB) else {
             return false
