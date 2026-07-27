@@ -3,7 +3,9 @@ import AppKit
 #elseif canImport(UIKit)
 import UIKit
 #endif
+import CoreGraphics
 import Foundation
+import ImageIO
 import SwiftInterpreter
 
 /// The network bridge. Three modes, one hard rule:
@@ -104,24 +106,48 @@ public enum NetworkBridge {
     }
 
     static let placeholderPNG: Data = {
-#if canImport(AppKit)
-        let size = NSSize(width: 8, height: 8)
-        let image = NSImage(size: size)
-        image.lockFocus()
-        NSColor(calibratedRed: 0.55, green: 0.63, blue: 0.75, alpha: 1).setFill()
-        NSRect(origin: .zero, size: size).fill()
-        image.unlockFocus()
-        let rep = NSBitmapImageRep(data: image.tiffRepresentation!)!
-        return rep.representation(using: .png, properties: [:])!
-#else
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8), format: format)
-        return renderer.image { context in
-            UIColor(red: 0.55, green: 0.63, blue: 0.75, alpha: 1).setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
-        }.pngData()!
-#endif
+        // Frozen replay bytes must not depend on AppKit/UIKit backing scale or
+        // color conversion. These are the exact sRGB bytes emitted by the
+        // compiled twin's 0.30/0.50/0.72 UIKit fixture.
+        let width = 8
+        let height = 8
+        var pixels = [UInt8](
+            repeating: 0, count: width * height * 4)
+        for offset in stride(from: 0, to: pixels.count, by: 4) {
+            pixels[offset] = 77
+            pixels[offset + 1] = 128
+            pixels[offset + 2] = 184
+            pixels[offset + 3] = 255
+        }
+        guard let provider = CGDataProvider(
+            data: Data(pixels) as CFData),
+              let image = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 32,
+                bytesPerRow: width * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGBitmapInfo(
+                    rawValue: CGImageAlphaInfo.last.rawValue),
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: false,
+                intent: .defaultIntent)
+        else {
+            return Data()
+        }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output, "public.png" as CFString, 1, nil)
+        else {
+            return Data()
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            return Data()
+        }
+        return output as Data
     }()
 
     static func respond(to url: URL) throws -> (Data, HTTPURLResponse) {

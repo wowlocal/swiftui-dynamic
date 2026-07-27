@@ -1,4 +1,6 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
@@ -13,6 +15,36 @@ import SwiftInterpreter
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .appendingPathComponent("Fixtures").path
+
+    /// The compiled Catalyst twin generates its one generic replay image from
+    /// sRGB 0.30/0.50/0.72. UIKit encodes those channels as these exact bytes;
+    /// both sides must serve the same frozen input before rendering can be
+    /// compared.
+    @Test func replayImagePlaceholderMatchesNativeTwinPixelBytes() throws {
+        let source = try #require(CGImageSourceCreateWithData(
+            NetworkBridge.placeholderPNG as CFData, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(
+            source, 0, nil))
+        #expect(image.width == 8)
+        #expect(image.height == 8)
+
+        var pixels = [UInt8](
+            repeating: 0, count: image.width * image.height * 4)
+        let context = try #require(CGContext(
+            data: &pixels,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: image.width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(
+            image,
+            in: CGRect(
+                x: 0, y: 0, width: image.width, height: image.height))
+
+        #expect(Array(pixels.prefix(4)) == [77, 128, 184, 255])
+    }
 
     @Test func decodesMastodonTimelineFixture() throws {
         NetworkBridge.policy = .replay(fixturesDirectory: Self.fixturesRoot + "/mastodon-public-timeline")
