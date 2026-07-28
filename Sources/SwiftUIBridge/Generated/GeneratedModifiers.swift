@@ -4,71 +4,20 @@
 import Charts
 import SwiftUI
 import Symbols
-#if canImport(ARKit)
-import ARKit
-#endif
-#if canImport(AVKit)
-import AVKit
-#endif
-#if canImport(AppIntents)
-import AppIntents
-#endif
-#if canImport(AuthenticationServices)
-import AuthenticationServices
-#endif
-#if canImport(CompositorServices)
-import CompositorServices
-#endif
-#if canImport(DeviceActivity)
-import DeviceActivity
-#endif
-#if canImport(LocalAuthentication)
-import LocalAuthentication
-#endif
-#if canImport(ManagedAppDistribution)
-import ManagedAppDistribution
-#endif
 #if canImport(MapKit)
 import MapKit
 #endif
 #if canImport(MusicKit)
 import MusicKit
 #endif
-#if canImport(PassKit)
-import PassKit
-#endif
-#if canImport(PermissionKit)
-import PermissionKit
-#endif
 #if canImport(PhotosUI)
 import PhotosUI
-#endif
-#if canImport(QuickLook)
-import QuickLook
-#endif
-#if canImport(RealityKit)
-import RealityKit
-#endif
-#if canImport(SceneKit)
-import SceneKit
-#endif
-#if canImport(SpriteKit)
-import SpriteKit
 #endif
 #if canImport(StoreKit)
 import StoreKit
 #endif
-#if canImport(SwiftData)
-import SwiftData
-#endif
 #if canImport(Translation)
 import Translation
-#endif
-#if canImport(WebKit)
-import WebKit
-#endif
-#if canImport(WorkoutKit)
-import WorkoutKit
 #endif
 import SwiftInterpreter
 #if canImport(AppKit)

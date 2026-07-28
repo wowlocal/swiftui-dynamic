@@ -4024,9 +4024,13 @@ let chunks = stride(from: 0, to: sorted.count, by: chunkSize).map {
     Array(sorted[$0..<min($0 + chunkSize, sorted.count)])
 }
 
-let generatedCrossImportImports = Set(
+let generatedCrossImportTriggers = Set(
     swiftUICrossImportFiles.map(\.triggeringModule)
-).sorted().map {
+)
+let emittedCrossImportTriggers = Set(
+    variants.flatMap(\.targetImportRequirements)
+).intersection(generatedCrossImportTriggers)
+let generatedCrossImportImports = emittedCrossImportTriggers.sorted().map {
     "#if canImport(\($0))\nimport \($0)\n#endif"
 }.joined(separator: "\n")
 let generatedCrossImportImportBlock = generatedCrossImportImports.isEmpty
