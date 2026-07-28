@@ -1,10 +1,10 @@
 import SwiftUI
 import SwiftInterpreter
 
-/// SwiftUI's interface identifies `BorderedButtonStyle` and `ControlSize`, but
-/// does not encode the target framework's chrome padding, corner treatment, or
-/// tint rendering. A macOS host otherwise supplies macOS control semantics to
-/// source that selected Catalyst.
+/// SwiftUI's interface identifies control/menu styles and `ControlSize`, but
+/// does not encode the target framework's chrome padding, corner treatment,
+/// tint rendering, or default menu-indicator visibility. A macOS host otherwise
+/// supplies macOS control semantics to source that selected Catalyst.
 ///
 /// This is the single target-control-style boundary. Its layout dispatches on
 /// the closed `ControlSize` property supplied through SwiftUI's environment,
@@ -38,6 +38,25 @@ enum TargetPlatformControlBridge {
         }
 #endif
         return AnyView(view.buttonStyle(.bordered))
+    }
+
+    @MainActor
+    static func applyButtonMenuStyle(
+        to view: AnyView,
+        context: EvalContext
+    ) -> AnyView {
+        let styled = AnyView(view.menuStyle(.button))
+#if os(macOS)
+        // Compiled Catalyst's button-style menu presents only the supplied
+        // label; macOS adds a disclosure indicator by default. This is the
+        // third facet of the existing target-control-style primitive, selected
+        // by the style property and immutable target rather than a source/API
+        // call site, label, app, or fixture identity.
+        if context.buildConfiguration.targetEnvironment == "macCatalyst" {
+            return AnyView(styled.menuIndicator(.hidden))
+        }
+#endif
+        return styled
     }
 }
 
