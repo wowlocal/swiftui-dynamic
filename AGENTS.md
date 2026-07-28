@@ -64,3 +64,48 @@ concurrency). These safeguards close that gap and are binding:
    fingerprint; the health signal is that the count of identity-keyed branches
    over SDK/host names holds or falls as coverage grows, never scales linearly
    with features.
+
+4. **The PAYLOAD is a special case too, not just the key.** Safeguard 3 counts
+   what a branch is *keyed on*. That leaves a hole, and four adapters on main
+   are already in it (`AUDIT-2026-07-28-generation-leverage.md` §D): a branch
+   keyed on a closed property — `ControlSize`, a semantic font role, a scroll
+   axis — whose *body* carries a constant obtained by measuring the compiled
+   target. `(12,7,8)` of chrome padding, a transcribed `UIFont` role table,
+   fill RGB `233/233/235`, `.padding(.bottom, -1)`. The magic number moved out
+   of the condition into the body, where nothing counts it.
+
+   A constant calibrated by measuring the compiled target is the same
+   violation as `case "someAPI"`. If a number is not derivable from a
+   swiftinterface, it must not be hardcoded — **execute the target framework
+   instead of transcribing it**. Adding row N+1 to such a table is adding case
+   N+1 by hand. This class cannot converge: chrome metrics, role point sizes
+   and fill colors are compiled framework internals, so the tail is unbounded
+   by construction, and the residue it chases is dominated by glyph advance
+   widths that no table can express.
+
+   Ratchet (must hold or fall; **37** at 2026-07-28):
+   `grep -rhoE '\b[0-9]+(\.[0-9]+)?\b' Sources/SwiftUIBridge/TargetPlatform*.swift | wc -l`
+
+5. **Generation must keep its LEVERAGE.** "It is a generator, not a hand box"
+   is not sufficient — a generator that grows one module per API family is
+   hardcoding in a costume. Between 07-15 and 07-28 BridgeGen's leverage
+   (generated lines per generator line) fell **1:21.7 → 1:7.8**, marginally to
+   **1:2** over the last day, while seven single-family modules were added in
+   ten days (`UnicodeDecodingGeneration`, `CaseTransformGeneration`,
+   `AttributedStringKeyGeneration`, …). Hand-writing a bridge is 1:1.
+
+   Before adding a module to `Sources/BridgeGen`, state the leverage it buys
+   and whether it is the Nth single-family module. A new generator that serves
+   exactly one API family must instead be argued as a general mechanism, or
+   cite why the family is irreducibly specific. When the honest answer is that
+   a generic *shape* cannot be instantiated at runtime, that is a signal to
+   move the boundary — let the real compiler instantiate it — not to model the
+   shape by hand; see §D/§prototype of the audit, where a 66-line
+   signature-driven emitter covered 127/127 registered method overloads.
+
+   Ratchet (must hold or rise; **7** at 2026-07-28, down from 21 on 07-15):
+   `echo $(( $(cat Sources/SwiftUIBridge/Generated/*.swift | wc -l) / $(cat Sources/BridgeGen/*.swift | wc -l) ))`
+
+Safeguards 4 and 5 carry a command because this repository has now twice shown
+that a rule left as prose does not fire — only exit codes do
+(`AUDIT-2026-07-24-execution-gap.md`, `AUDIT-2026-07-28-generation-leverage.md`).
