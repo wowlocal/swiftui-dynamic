@@ -327,6 +327,53 @@ import SwiftInterpreter
 /// Keep the distilled shape native-valid and require the interpreted render to
 /// preserve the same visible text.
 @Suite struct AttributedStringCollectionTests {
+    @Test func defaultedOptionalClosureDoesNotSelectPresentBranch() async throws {
+        let source = """
+        struct MarkdownShell: View {
+            let markdown: AttributedString
+            let decorations: [String]
+            let append: (() -> Text)?
+
+            init(
+                _ raw: String,
+                decorations: [String] = [],
+                append: (() -> Text)? = nil
+            ) {
+                let options = AttributedString.MarkdownParsingOptions(
+                    allowsExtendedAttributes: true,
+                    interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                markdown = try! AttributedString(
+                    markdown: raw, options: options)
+                self.decorations = decorations.map { $0 }
+                self.append = append
+            }
+
+            var body: some View {
+                if let append {
+                    Text("unexpected append") + append()
+                } else if decorations.isEmpty {
+                    Text(markdown)
+                } else {
+                    Text("unexpected decoration")
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                MarkdownShell(
+                    "[visible label](https://example.com/hidden)")
+            }
+        }
+        """
+
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("visible label"), "nil callback branch lost: \(strings)")
+        #expect(!strings.contains("unexpected append"))
+        #expect(!strings.contains("unexpected decoration"))
+        #expect(!strings.contains { $0.contains("example.com") })
+    }
+
     @Test func markdownParsingOptionsCollapseLinkDestinations() async throws {
         let source = """
         struct ContentView: View {
