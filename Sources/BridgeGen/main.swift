@@ -65,18 +65,45 @@ func catalystOverlayInterfacePath(framework: String) -> String? {
     return "\(moduleDir)/\(name)"
 }
 
-let interfaceFiles = ["SwiftUICore", "SwiftUI", "Charts"].compactMap { framework -> SourceFileSyntax? in
+/// Some SDK interfaces are implementation-detail modules whose public import
+/// name is declared in the interface flags (for example, a split framework
+/// module can retain its own declaration qualifiers while being imported
+/// through its public umbrella). Honor that metadata instead of assuming the
+/// textual module name is directly importable.
+func publicImportModule(
+    declaredModule: String, interfaceSource: String
+) -> String {
+    let flagTokens = interfaceSource.prefix(4096).split(
+        whereSeparator: { $0.isWhitespace }
+    ).map(String.init)
+    for flag in ["-public-module-name", "-module-abi-name"] {
+        guard let index = flagTokens.firstIndex(of: flag),
+              flagTokens.indices.contains(index + 1) else { continue }
+        return flagTokens[index + 1]
+    }
+    return declaredModule
+}
+
+let primaryInterfaceFiles = ["SwiftUICore", "SwiftUI", "Charts"].compactMap {
+    framework
+        -> (module: String, importModule: String, file: SourceFileSyntax)? in
     guard let path = interfacePath(framework: framework),
           let source = try? String(contentsOfFile: path, encoding: .utf8) else {
         print("warning: no swiftinterface for \(framework)")
         return nil
     }
     print("parsing \(framework) (\(source.count) chars)…")
-    return Parser.parse(source: source)
+    return (
+        framework,
+        publicImportModule(
+            declaredModule: framework, interfaceSource: source),
+        Parser.parse(source: source))
 }
+let interfaceFiles = primaryInterfaceFiles.map(\.file)
 
-let targetOverlayFiles = ["SwiftUI"].compactMap {
-    framework -> SourceFileSyntax? in
+let targetOverlayInterfaceFiles = ["SwiftUI"].compactMap {
+    framework
+        -> (module: String, importModule: String, file: SourceFileSyntax)? in
     guard let path = catalystOverlayInterfacePath(framework: framework),
           let source = try? String(contentsOfFile: path, encoding: .utf8)
     else {
@@ -84,8 +111,13 @@ let targetOverlayFiles = ["SwiftUI"].compactMap {
         return nil
     }
     print("parsing \(framework) Catalyst overlay (\(source.count) chars)…")
-    return Parser.parse(source: source)
+    return (
+        framework,
+        publicImportModule(
+            declaredModule: framework, interfaceSource: source),
+        Parser.parse(source: source))
 }
+let targetOverlayFiles = targetOverlayInterfaceFiles.map(\.file)
 
 // MARK: - Type normalization & mapping
 
@@ -198,16 +230,33 @@ func nominal(_ type: String, satisfies required: Set<String>) -> Bool {
 /// the constraint set and exactly one satisfying concrete type owns that
 /// spelling, mirroring native ambiguity rather than picking by identity.
 func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
-    guard !constraints.isEmpty,
-          constraints.allSatisfy({ sdkProtocols.contains($0) }) else {
+    guard !constraints.isEmpty else {
         return nil
     }
-    let visibleProtocols = constraints.reduce(into: Set<String>()) {
+
+    // Primary SwiftUI interfaces normalize their own module qualifiers before
+    // parameter analysis, while contextual protocol metadata retains canonical
+    // module-qualified identities. Resolve only a unique canonical protocol;
+    // same-suffix declarations across modules remain ambiguous and blocked.
+    let canonicalConstraints = constraints.compactMap { constraint -> String? in
+        if sdkProtocols.contains(constraint) {
+            return constraint
+        }
+        let candidates = sdkProtocols.filter {
+            normalize($0) == constraint
+        }
+        return candidates.count == 1 ? candidates.first : nil
+    }
+    guard canonicalConstraints.count == constraints.count else {
+        return nil
+    }
+    let requiredProtocols = Set(canonicalConstraints)
+    let visibleProtocols = requiredProtocols.reduce(into: Set<String>()) {
         $0.formUnion(protocolClosure(of: $1))
     }
     let candidates = sdkProtocolContextualValues.filter {
         visibleProtocols.contains($0.declaringProtocol)
-            && nominal($0.concreteType, satisfies: constraints)
+            && nominal($0.concreteType, satisfies: requiredProtocols)
     }
     let byMember = Dictionary(grouping: candidates, by: \.member)
     let unambiguous = byMember.values.compactMap {
@@ -221,7 +270,7 @@ func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
     }.sorted { ($0.member, $0.concreteType) < ($1.member, $1.concreteType) }
     guard !unambiguous.isEmpty else { return nil }
 
-    let ordered = constraints.sorted()
+    let ordered = requiredProtocols.sorted()
     let key = ordered.joined(separator: "&")
     sdkProtocolCompositionValues[key] = unambiguous
     return .init(
@@ -718,16 +767,14 @@ func collectQualifiedConstraintModules(
     }
 }
 
-let primaryInterfaceFrameworks: Set<String> = [
-    "SwiftUICore", "SwiftUI", "Charts",
-]
+let primaryInterfaceFrameworks = Set(primaryInterfaceFiles.map(\.module))
 var qualifiedConstraintModules: Set<String> = []
 for file in interfaceFiles {
     collectQualifiedConstraintModules(
         in: Syntax(file), into: &qualifiedConstraintModules)
 }
 let supportingInterfaceFiles:
-    [(module: String, file: SourceFileSyntax)] =
+    [(module: String, importModule: String, file: SourceFileSyntax)] =
         qualifiedConstraintModules.sorted().compactMap { module in
             guard !primaryInterfaceFrameworks.contains(module),
                   let path = interfacePath(framework: module),
@@ -736,7 +783,11 @@ let supportingInterfaceFiles:
                 return nil
             }
             print("parsing contextual support \(module) (\(source.count) chars)…")
-            return (module, Parser.parse(source: source))
+            return (
+                module,
+                publicImportModule(
+                    declaredModule: module, interfaceSource: source),
+                Parser.parse(source: source))
         }
 
 // MARK: - Availability
@@ -1229,7 +1280,7 @@ func collectSDKProtocolMetadata(
         localTopLevelNames: localTopLevelNames, guarded: false)
 }
 
-for support in supportingInterfaceFiles {
+for support in primaryInterfaceFiles + supportingInterfaceFiles {
     let localNames = topLevelSDKNames(in: support.file)
     for statement in support.file.statements {
         guard case .decl(let decl) = statement.item else { continue }
@@ -3193,6 +3244,20 @@ let emittedSupportingImports = emittedSupportingModules.sorted()
     .joined(separator: "\n")
 let emittedSupportingImportBlock = emittedSupportingImports.isEmpty
     ? "" : "\(emittedSupportingImports)\n"
+let contextualImportModules = Dictionary(
+    uniqueKeysWithValues: (primaryInterfaceFiles + supportingInterfaceFiles)
+        .map { ($0.module, $0.importModule) })
+let emittedSDKProtocolModules = Set(
+    emittedSDKProtocolCompositions.flatMap {
+        $0.split(separator: "&").compactMap {
+            $0.split(separator: ".").first.map(String.init)
+        }
+    }.map { contextualImportModules[$0] ?? $0 })
+let emittedSDKProtocolImports = emittedSDKProtocolModules.sorted()
+    .map { "import \($0)" }
+    .joined(separator: "\n")
+let emittedSDKProtocolImportBlock = emittedSDKProtocolImports.isEmpty
+    ? "" : "\(emittedSDKProtocolImports)\n"
 
 // A stable, machine-readable surface inventory lets CI distinguish an SDK
 // expansion from an accidental generator regression. It also makes the
@@ -3338,6 +3403,41 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
     return "\(head) \(closure)"
 }
 
+/// Swift can implicitly open an existential at a generic call site, but an
+/// opaque native result may still depend on that opened type and therefore
+/// cannot escape the closure. Open every protocol-valued parameter in a local
+/// generic function and erase the result before it crosses that boundary.
+/// Both the constraints and the need for this adapter come from interface
+/// metadata; no SDK declaration identity participates in the decision.
+func generatedProtocolOpeningCall(
+    _ variant: Variant, resultType: String, returnedExpression: String
+) -> [String]? {
+    let protocolParameters = variant.params.enumerated().compactMap {
+        index, parameter -> (index: Int, composition: String)? in
+        guard let composition = sdkProtocolComposition(from: parameter.tag)
+        else { return nil }
+        return (index, composition)
+    }
+    guard !protocolParameters.isEmpty else { return nil }
+    let genericParameters = protocolParameters.map {
+        let constraint = $0.composition.replacingOccurrences(
+            of: "&", with: " & ")
+        return "P\($0.index): \(constraint)"
+    }.joined(separator: ", ")
+    let parameters = protocolParameters.map {
+        "_ p\($0.index): P\($0.index)"
+    }.joined(separator: ", ")
+    let arguments = protocolParameters.map {
+        "p\($0.index)"
+    }.joined(separator: ", ")
+    return [
+        "        func generatedInvoke<\(genericParameters)>(\(parameters)) -> \(resultType) {",
+        "            return \(returnedExpression)",
+        "        }",
+        "        return generatedInvoke(\(arguments))",
+    ]
+}
+
 func entryCode(_ variant: Variant) -> String {
     let specs = variant.params
         .map(paramSpecCode)
@@ -3349,7 +3449,16 @@ func entryCode(_ variant: Variant) -> String {
         ? "" : ", requiredImports: [\(imports)]"
     var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]\(importArgument)) { view, v in"]
     lines.append(contentsOf: generatedCallPreamble(variant))
-    lines.append("        return AnyView(\(generatedCall("view.\(variant.name)", variant)))")
+    let returnedExpression =
+        "AnyView(\(generatedCall("view.\(variant.name)", variant)))"
+    if let opened = generatedProtocolOpeningCall(
+        variant, resultType: "AnyView",
+        returnedExpression: returnedExpression
+    ) {
+        lines.append(contentsOf: opened)
+    } else {
+        lines.append("        return \(returnedExpression)")
+    }
     lines.append("    }")
     let exact = lines.joined(separator: "\n")
     guard !variant.targetImportRequirements.isEmpty else {
@@ -3490,9 +3599,16 @@ func initEntryCode(_ variant: Variant) -> String {
             "        return " + adapted.replacingOccurrences(
                 of: "\n", with: "\n        "))
     } else {
-        lines.append(variant.preservesSemanticValue
-            ? "        return \(constructed)"
-            : "        return AnyView(\(constructed))")
+        let returnedExpression = variant.preservesSemanticValue
+            ? constructed : "AnyView(\(constructed))"
+        if let opened = generatedProtocolOpeningCall(
+            variant, resultType: "Any",
+            returnedExpression: returnedExpression
+        ) {
+            lines.append(contentsOf: opened)
+        } else {
+            lines.append("        return \(returnedExpression)")
+        }
     }
     lines.append("    }")
     return compileGuarded(lines.joined(separator: "\n"), for: variant)
@@ -3630,8 +3746,7 @@ var protocolValuesOutput = """
 // contextual values and interface-declared conformances.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(emittedSDKProtocolCompositions.count) protocol compositions.
-import SwiftUI
-\(emittedSupportingImportBlock)import SwiftInterpreter
+\(emittedSDKProtocolImportBlock)import SwiftInterpreter
 
 enum GeneratedSDKProtocolValueCoercions {
     static func coerce(
