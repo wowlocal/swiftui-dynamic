@@ -357,7 +357,7 @@ import SwiftInterpreter
     @Test func generatedTintPreservesGenericShapeStyleAndTargetSemantics() throws {
         let overloads = GeneratedModifiers.table["tint"]?.byArity[1] ?? []
         #expect(overloads.contains {
-            $0.params.map(\.tag) == [.shapeStyle]
+            $0.params.map(\.tag) == [.genericShapeStyle]
                 && !$0.isDisfavored
                 && $0.semanticAdapter != nil
         })
@@ -376,6 +376,14 @@ import SwiftInterpreter
     }
 
     @Test func targetTintCarrierPreservesGeneratedConcreteType() throws {
+        let primary = try Coerce.genericShapeStyle(
+            .implicitMember("primary"))
+        #expect(primary is HierarchicalShapeStyle)
+
+        let generatedColor = try Coerce.genericShapeStyle(
+            .implicitMember("red"))
+        #expect(generatedColor is Color)
+
         let color = try #require(TargetPlatformExplicitTint(Color.red))
         guard case .color = color else {
             Issue.record("generated Color tint was erased to AnyShapeStyle")
@@ -386,6 +394,13 @@ import SwiftInterpreter
             AnyShapeStyle(.quaternary.opacity(0.5))))
         guard case .shapeStyle = style else {
             Issue.record("generic ShapeStyle tint lost its erased carrier")
+            return
+        }
+
+        let hierarchy = try #require(TargetPlatformExplicitTint(
+            HierarchicalShapeStyle.primary))
+        guard case .shapeStyle = hierarchy else {
+            Issue.record("generated hierarchical tint lost its style carrier")
             return
         }
     }

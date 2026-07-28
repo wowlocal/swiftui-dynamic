@@ -49,9 +49,15 @@ enum TargetPlatformExplicitTint {
             self = .color(color)
         } else if let erased = value as? AnyShapeStyle {
             self = .shapeStyle(erased)
+        } else if let style = value as? any ShapeStyle {
+            self = .shapeStyle(Self.erase(style))
         } else {
             return nil
         }
+    }
+
+    private static func erase<S: ShapeStyle>(_ style: S) -> AnyShapeStyle {
+        AnyShapeStyle(style)
     }
 }
 

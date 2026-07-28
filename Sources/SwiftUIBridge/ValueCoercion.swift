@@ -182,39 +182,65 @@ enum Coerce {
             : .inner(color: color, radius: radius, x: x, y: y)
     }
 
-    /// The wide funnel for style positions: colors, hierarchical styles,
-    /// materials, gradients, and `.color.opacity(x)` / `.color.gradient` chains.
-    static func shapeStyle(_ value: RuntimeValue) throws -> AnyShapeStyle {
+    private static func eraseShapeStyle<S: ShapeStyle>(
+        _ value: S
+    ) -> AnyShapeStyle {
+        AnyShapeStyle(value)
+    }
+
+    private static func opacityShapeStyle<S: ShapeStyle>(
+        _ value: S, amount: Double
+    ) -> any ShapeStyle {
+        value.opacity(amount)
+    }
+
+    private static func shadowShapeStyle<S: ShapeStyle>(
+        _ value: S, style: ShadowStyle
+    ) -> any ShapeStyle {
+        value.shadow(style)
+    }
+
+    /// The wide funnel for protocol-constrained ShapeStyle positions. Return
+    /// the concrete style existential so generated generic calls can reopen
+    /// it; erasing here changes SwiftUI rendering even when the visual value
+    /// appears equivalent.
+    static func genericShapeStyle(
+        _ value: RuntimeValue
+    ) throws -> any ShapeStyle {
         if case .host(let any) = value {
             if let style = any as? AnyShapeStyle { return style }
-            if let color = any as? Color { return AnyShapeStyle(color) }
-            if let gradient = any as? LinearGradient { return AnyShapeStyle(gradient) }
-            if let gradient = any as? AnyGradient { return AnyShapeStyle(gradient) }
-            if let gradient = any as? RadialGradient { return AnyShapeStyle(gradient) }
-            if let gradient = any as? AngularGradient { return AnyShapeStyle(gradient) }
+            if let color = any as? Color { return color }
+            if let gradient = any as? LinearGradient { return gradient }
+            if let gradient = any as? AnyGradient { return gradient }
+            if let gradient = any as? RadialGradient { return gradient }
+            if let gradient = any as? AngularGradient { return gradient }
             if let chained = any as? ChainedImplicitCall {
                 switch chained.member {
                 case "opacity":
                     let amount = try double(chained.arguments.positional(0) ?? .native(1.0))
                     if let base = colorLike(chained.base) {
-                        return AnyShapeStyle(base.opacity(amount))
+                        return base.opacity(amount)
                     }
                     // Hierarchical/material bases keep their REAL style
                     // through the chain (`.quaternary.opacity(0.5)` — the
                     // FoodTruck card-tile fill; a flat-gray stand-in reads
                     // 12/255 darker than the compiled render).
-                    return AnyShapeStyle(try shapeStyle(chained.base).opacity(amount))
+                    return opacityShapeStyle(
+                        try genericShapeStyle(chained.base),
+                        amount: amount)
                 case "gradient":
                     guard let base = colorLike(chained.base) else {
                         throw RuntimeError(message: "unknown color before '.gradient' in style chain")
                     }
-                    return AnyShapeStyle(base.gradient)
+                    return base.gradient
                 case "shadow":
                     // `.indigo.shadow(.drop(color:radius:x:))` — the
                     // FoodTruck forecast pillar. The chain keeps its REAL
                     // base style.
                     let style = try shadowStyle(chained.arguments.positional(0))
-                    return AnyShapeStyle(try shapeStyle(chained.base).shadow(style))
+                    return shadowShapeStyle(
+                        try genericShapeStyle(chained.base),
+                        style: style)
                 default:
                     throw RuntimeError(message: "unsupported style '.\(chained.baseName ?? "…").\(chained.member)'")
                 }
@@ -224,7 +250,7 @@ enum Coerce {
             // A zero-argument marker CALL is the marker itself — chain bases
             // arrive in this carrier (`.indigo` under `.shadow(…)`).
             if call.arguments.arguments.isEmpty {
-                return try shapeStyle(.implicitMember(call.name))
+                return try genericShapeStyle(.implicitMember(call.name))
             }
             // `.linearGradient(colors:startPoint:endPoint:)` — the factory
             // spelling of the gradient styles (FoodTruck's forecast fill).
@@ -236,8 +262,8 @@ enum Coerce {
                 let end = call.arguments.labeled("endPoint")
                     .flatMap { try? unitPoint($0) } ?? .bottom
                 if !colors.isEmpty {
-                    return AnyShapeStyle(LinearGradient(
-                        colors: colors, startPoint: start, endPoint: end))
+                    return LinearGradient(
+                        colors: colors, startPoint: start, endPoint: end)
                 }
             }
         }
@@ -247,21 +273,27 @@ enum Coerce {
             // styles deriving from the current primary (the accent-tinted
             // card-header icons) — Color.primary/.secondary are only for
             // COLOR positions (Coerce.color).
-            case "primary": return AnyShapeStyle(HierarchicalShapeStyle.primary)
-            case "secondary": return AnyShapeStyle(HierarchicalShapeStyle.secondary)
-            case "tertiary": return AnyShapeStyle(.tertiary)
-            case "quaternary": return AnyShapeStyle(.quaternary)
-            case "ultraThinMaterial": return AnyShapeStyle(.ultraThinMaterial)
-            case "thinMaterial": return AnyShapeStyle(.thinMaterial)
-            case "regularMaterial": return AnyShapeStyle(.regularMaterial)
-            case "thickMaterial": return AnyShapeStyle(.thickMaterial)
-            case "ultraThickMaterial": return AnyShapeStyle(.ultraThickMaterial)
-            case "bar": return AnyShapeStyle(.bar)
+            case "primary": return HierarchicalShapeStyle.primary
+            case "secondary": return HierarchicalShapeStyle.secondary
+            case "tertiary": return HierarchicalShapeStyle.tertiary
+            case "quaternary": return HierarchicalShapeStyle.quaternary
+            case "ultraThinMaterial": return Material.ultraThin
+            case "thinMaterial": return Material.thin
+            case "regularMaterial": return Material.regular
+            case "thickMaterial": return Material.thick
+            case "ultraThickMaterial": return Material.ultraThick
+            case "bar": return Material.bar
             default: break
             }
-            if let color = colorNamed(name) { return AnyShapeStyle(color) }
+            if let color = colorNamed(name) { return color }
         }
         throw RuntimeError(message: "expected a color/gradient/material, got \(value.stringified)")
+    }
+
+    /// Direct AnyShapeStyle parameters intentionally erase at their declared
+    /// boundary; generic ShapeStyle parameters use `genericShapeStyle` above.
+    static func shapeStyle(_ value: RuntimeValue) throws -> AnyShapeStyle {
+        eraseShapeStyle(try genericShapeStyle(value))
     }
 
     // MARK: - Fonts

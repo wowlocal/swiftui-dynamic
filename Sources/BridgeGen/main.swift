@@ -470,7 +470,10 @@ func constraintConcreteType(for constraint: String) -> String? {
 
 func constraintMapping(for constraint: String) -> TypeMapping? {
     switch constraint {
-    case "ShapeStyle": return .init(tag: "shapeStyle", cast: "%@ as! AnyShapeStyle")
+    case "ShapeStyle":
+        return .init(
+            tag: "genericShapeStyle",
+            cast: "%@ as! any ShapeStyle")
     case "View": return .init(tag: "anyView", cast: "%@ as! AnyView")
     case "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
     case "BinaryFloatingPoint": return .init(tag: "double", cast: "%@ as! Double")
@@ -3763,7 +3766,7 @@ func generatedCallPreamble(_ variant: Variant) -> [String] {
         if param.tag == "builder" {
             return "        let b\(index) = try generatedBuilder(v[\(index)])"
         }
-        if sdkProtocolComposition(from: param.tag) != nil {
+        if generatedProtocolConstraint(from: param.tag) != nil {
             let cast = param.cast.replacingOccurrences(
                 of: "%@", with: "v[\(index)]")
             return "        let p\(index) = \(cast)"
@@ -3790,7 +3793,7 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
             let value: String
             if param.tag == "builder" {
                 value = "{ b\(index) }"
-            } else if sdkProtocolComposition(from: param.tag) != nil {
+            } else if generatedProtocolConstraint(from: param.tag) != nil {
                 // A named existential is opened by Swift when passed to the
                 // native generic call; an inline cast fixes the generic
                 // argument to the existential type itself.
@@ -3819,6 +3822,17 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
     return "\(head) \(closure)"
 }
 
+/// Protocol constraints which retain the concrete runtime carrier through a
+/// generated native generic call. SDK protocol compositions carry their
+/// canonical interface names in the tag; ShapeStyle uses its rich coercion
+/// adapter but participates in the same existential-opening mechanism.
+func generatedProtocolConstraint(from tag: String) -> String? {
+    if tag == "genericShapeStyle" {
+        return "ShapeStyle"
+    }
+    return sdkProtocolComposition(from: tag)
+}
+
 /// Swift can implicitly open an existential at a generic call site, but an
 /// opaque native result may still depend on that opened type and therefore
 /// cannot escape the closure. Open every protocol-valued parameter in a local
@@ -3830,7 +3844,8 @@ func generatedProtocolOpeningCall(
 ) -> [String]? {
     let protocolParameters = variant.params.enumerated().compactMap {
         index, parameter -> (index: Int, composition: String)? in
-        guard let composition = sdkProtocolComposition(from: parameter.tag)
+        guard let composition = generatedProtocolConstraint(
+            from: parameter.tag)
         else { return nil }
         return (index, composition)
     }
@@ -3933,7 +3948,9 @@ func generatedModifierSemanticAdapter(_ variant: Variant) -> String? {
     switch specification.adapter {
     case .targetExplicitTint:
         let styleParameters = variant.params.enumerated().filter {
-            $0.element.tag == "shapeStyle" || $0.element.tag == "color"
+            $0.element.tag == "genericShapeStyle"
+                || $0.element.tag == "shapeStyle"
+                || $0.element.tag == "color"
         }
         guard styleParameters.count == 1,
               let parameter = styleParameters.first?.offset else {

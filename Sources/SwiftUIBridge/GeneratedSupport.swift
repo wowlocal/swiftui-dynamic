@@ -20,7 +20,7 @@ enum ParamTag: Hashable {
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
     case symbolRenderingMode
     case bindingBool, bindingString, bindingDouble
-    case shapeStyle, anyView, shape
+    case shapeStyle, genericShapeStyle, anyView, shape
     case visibility, axisSet, edgeInsets, gradient, gridItems
     case axis, colorArray, annotationPosition
     case dimension, measurement
@@ -361,6 +361,8 @@ enum GeneratedDispatch {
             return try Coerce.doubleBinding(value)
         case .shapeStyle:
             return try Coerce.shapeStyle(value)
+        case .genericShapeStyle:
+            return try Coerce.genericShapeStyle(value)
         case .anyView:
             return try ViewRegistry.anyView(value)
         case .shape:

@@ -401,8 +401,12 @@ extension GeneratedModifiers {
     register(&t, "background", [ParamSpec("ignoresSafeAreaEdges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
         return AnyView(view.background(ignoresSafeAreaEdges: v[0] as! Edge.Set))
     }
-    register(&t, "background", [ParamSpec(nil, .shapeStyle)]) { view, v in
-        return AnyView(view.background(v[0] as! AnyShapeStyle))
+    register(&t, "background", [ParamSpec(nil, .genericShapeStyle)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.background(p0))
+        }
+        return generatedInvoke(p0)
     }
     register(&t, "background", [ParamSpec("in", .shape)]) { view, v in
         return AnyView(view.background(in: v[0] as! AnyShape))
@@ -421,21 +425,34 @@ extension GeneratedModifiers {
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.background(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "background", [ParamSpec(nil, .shapeStyle), ParamSpec("ignoresSafeAreaEdges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
-        return AnyView(view.background(v[0] as! AnyShapeStyle, ignoresSafeAreaEdges: v[1] as! Edge.Set))
-    }
-    register(&t, "background", [ParamSpec(nil, .shapeStyle), ParamSpec("in", .shape)]) { view, v in
-        return AnyView(view.background(v[0] as! AnyShapeStyle, in: v[1] as! AnyShape))
-    }
-    register(&t, "background", [ParamSpec(nil, .shapeStyle), ParamSpec("in", .sdkProtocolValue("SwiftUICore.InsettableShape"), contextualType: "SwiftUICore.InsettableShape")]) { view, v in
-        let p1 = v[1] as! any SwiftUICore.InsettableShape
-        func generatedInvoke<P1: SwiftUICore.InsettableShape>(_ p1: P1) -> AnyView {
-            return AnyView(view.background(v[0] as! AnyShapeStyle, in: p1))
+    register(&t, "background", [ParamSpec(nil, .genericShapeStyle), ParamSpec("ignoresSafeAreaEdges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.background(p0, ignoresSafeAreaEdges: v[1] as! Edge.Set))
         }
-        return generatedInvoke(p1)
+        return generatedInvoke(p0)
     }
-    register(&t, "backgroundStyle", [ParamSpec(nil, .shapeStyle)]) { view, v in
-        return AnyView(view.backgroundStyle(v[0] as! AnyShapeStyle))
+    register(&t, "background", [ParamSpec(nil, .genericShapeStyle), ParamSpec("in", .shape)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.background(p0, in: v[1] as! AnyShape))
+        }
+        return generatedInvoke(p0)
+    }
+    register(&t, "background", [ParamSpec(nil, .genericShapeStyle), ParamSpec("in", .sdkProtocolValue("SwiftUICore.InsettableShape"), contextualType: "SwiftUICore.InsettableShape")]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        let p1 = v[1] as! any SwiftUICore.InsettableShape
+        func generatedInvoke<P0: ShapeStyle, P1: SwiftUICore.InsettableShape>(_ p0: P0, _ p1: P1) -> AnyView {
+            return AnyView(view.background(p0, in: p1))
+        }
+        return generatedInvoke(p0, p1)
+    }
+    register(&t, "backgroundStyle", [ParamSpec(nil, .genericShapeStyle)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.backgroundStyle(p0))
+        }
+        return generatedInvoke(p0)
     }
     register(&t, "badge", [ParamSpec(nil, .int, contextualType: "Int")]) { view, v in
         return AnyView(view.badge(v[0] as! Int))
@@ -467,11 +484,19 @@ extension GeneratedModifiers {
     register(&t, "bold", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.bold(v[0] as! Bool))
     }
-    register(&t, "border", [ParamSpec(nil, .shapeStyle)]) { view, v in
-        return AnyView(view.border(v[0] as! AnyShapeStyle))
+    register(&t, "border", [ParamSpec(nil, .genericShapeStyle)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.border(p0))
+        }
+        return generatedInvoke(p0)
     }
-    register(&t, "border", [ParamSpec(nil, .shapeStyle), ParamSpec("width", .cgFloat, contextualType: "CGFloat")]) { view, v in
-        return AnyView(view.border(v[0] as! AnyShapeStyle, width: v[1] as! CGFloat))
+    register(&t, "border", [ParamSpec(nil, .genericShapeStyle), ParamSpec("width", .cgFloat, contextualType: "CGFloat")]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.border(p0, width: v[1] as! CGFloat))
+        }
+        return generatedInvoke(p0)
     }
     register(&t, "brightness", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.brightness(v[0] as! Double))
@@ -1177,14 +1202,29 @@ extension GeneratedModifiers {
     register(&t, "foregroundColor", [ParamSpec(nil, .color, contextualType: "Color")]) { view, v in
         return AnyView(view.foregroundColor(v[0] as! Color))
     }
-    register(&t, "foregroundStyle", [ParamSpec(nil, .shapeStyle)]) { view, v in
-        return AnyView(view.foregroundStyle(v[0] as! AnyShapeStyle))
+    register(&t, "foregroundStyle", [ParamSpec(nil, .genericShapeStyle)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.foregroundStyle(p0))
+        }
+        return generatedInvoke(p0)
     }
-    register(&t, "foregroundStyle", [ParamSpec(nil, .shapeStyle), ParamSpec(nil, .shapeStyle)]) { view, v in
-        return AnyView(view.foregroundStyle(v[0] as! AnyShapeStyle, v[1] as! AnyShapeStyle))
+    register(&t, "foregroundStyle", [ParamSpec(nil, .genericShapeStyle), ParamSpec(nil, .genericShapeStyle)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        let p1 = v[1] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle, P1: ShapeStyle>(_ p0: P0, _ p1: P1) -> AnyView {
+            return AnyView(view.foregroundStyle(p0, p1))
+        }
+        return generatedInvoke(p0, p1)
     }
-    register(&t, "foregroundStyle", [ParamSpec(nil, .shapeStyle), ParamSpec(nil, .shapeStyle), ParamSpec(nil, .shapeStyle)]) { view, v in
-        return AnyView(view.foregroundStyle(v[0] as! AnyShapeStyle, v[1] as! AnyShapeStyle, v[2] as! AnyShapeStyle))
+    register(&t, "foregroundStyle", [ParamSpec(nil, .genericShapeStyle), ParamSpec(nil, .genericShapeStyle), ParamSpec(nil, .genericShapeStyle)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        let p1 = v[1] as! any ShapeStyle
+        let p2 = v[2] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle, P1: ShapeStyle, P2: ShapeStyle>(_ p0: P0, _ p1: P1, _ p2: P2) -> AnyView {
+            return AnyView(view.foregroundStyle(p0, p1, p2))
+        }
+        return generatedInvoke(p0, p1, p2)
     }
     register(&t, "formStyle", [ParamSpec(nil, .sdkProtocolValue("SwiftUI.FormStyle"), contextualType: "SwiftUI.FormStyle")]) { view, v in
         let p0 = v[0] as! any SwiftUI.FormStyle
@@ -2188,8 +2228,12 @@ register(&t, "onMapCameraChange", [ParamSpec(nil, .syncVoidClosure)], requiredIm
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.overlay(content: { b0 }))
     }
-    register(&t, "overlay", [ParamSpec(nil, .shapeStyle)]) { view, v in
-        return AnyView(view.overlay(v[0] as! AnyShapeStyle))
+    register(&t, "overlay", [ParamSpec(nil, .genericShapeStyle)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.overlay(p0))
+        }
+        return generatedInvoke(p0)
     }
     register(&t, "overlay", [ParamSpec(nil, .anyView), ParamSpec("alignment", .alignment, contextualType: "Alignment")], isDisfavored: true) { view, v in
         return AnyView(view.overlay(v[0] as! AnyView, alignment: v[1] as! Alignment))
@@ -2198,11 +2242,19 @@ register(&t, "onMapCameraChange", [ParamSpec(nil, .syncVoidClosure)], requiredIm
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.overlay(alignment: v[0] as! Alignment, content: { b1 }))
     }
-    register(&t, "overlay", [ParamSpec(nil, .shapeStyle), ParamSpec("ignoresSafeAreaEdges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
-        return AnyView(view.overlay(v[0] as! AnyShapeStyle, ignoresSafeAreaEdges: v[1] as! Edge.Set))
+    register(&t, "overlay", [ParamSpec(nil, .genericShapeStyle), ParamSpec("ignoresSafeAreaEdges", .edgeSet, contextualType: "Edge.Set")]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.overlay(p0, ignoresSafeAreaEdges: v[1] as! Edge.Set))
+        }
+        return generatedInvoke(p0)
     }
-    register(&t, "overlay", [ParamSpec(nil, .shapeStyle), ParamSpec("in", .shape)]) { view, v in
-        return AnyView(view.overlay(v[0] as! AnyShapeStyle, in: v[1] as! AnyShape))
+    register(&t, "overlay", [ParamSpec(nil, .genericShapeStyle), ParamSpec("in", .shape)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.overlay(p0, in: v[1] as! AnyShape))
+        }
+        return generatedInvoke(p0)
     }
     register(&t, "padding", []) { view, v in
         return AnyView(view.padding())
@@ -2278,8 +2330,12 @@ register(&t, "photosPickerAccessoryVisibility", [ParamSpec(nil, .visibility, con
     register(&t, "preferredColorScheme", [ParamSpec(nil, .sdkEnum("ColorScheme"), contextualType: "ColorScheme")]) { view, v in
         return AnyView(view.preferredColorScheme(v[0] as! ColorScheme))
     }
-    register(&t, "presentationBackground", [ParamSpec(nil, .shapeStyle)]) { view, v in
-        return AnyView(view.presentationBackground(v[0] as! AnyShapeStyle))
+    register(&t, "presentationBackground", [ParamSpec(nil, .genericShapeStyle)]) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.presentationBackground(p0))
+        }
+        return generatedInvoke(p0)
     }
     register(&t, "presentationBackground", [ParamSpec("content", .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
@@ -2942,8 +2998,12 @@ register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")],
     register(&t, "textSelectionAffinity", [ParamSpec(nil, .sdkEnum("TextSelectionAffinity"), contextualType: "TextSelectionAffinity")]) { view, v in
         return AnyView(view.textSelectionAffinity(v[0] as! TextSelectionAffinity))
     }
-    register(&t, "tint", [ParamSpec(nil, .shapeStyle)], semanticAdapter: .targetExplicitTint(parameter: 0)) { view, v in
-        return AnyView(view.tint(v[0] as! AnyShapeStyle))
+    register(&t, "tint", [ParamSpec(nil, .genericShapeStyle)], semanticAdapter: .targetExplicitTint(parameter: 0)) { view, v in
+        let p0 = v[0] as! any ShapeStyle
+        func generatedInvoke<P0: ShapeStyle>(_ p0: P0) -> AnyView {
+            return AnyView(view.tint(p0))
+        }
+        return generatedInvoke(p0)
     }
     register(&t, "tint", [ParamSpec(nil, .color, contextualType: "Color")], isDisfavored: true, semanticAdapter: .targetExplicitTint(parameter: 0)) { view, v in
         return AnyView(view.tint(v[0] as! Color))
