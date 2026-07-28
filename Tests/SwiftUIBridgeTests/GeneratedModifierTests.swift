@@ -358,10 +358,12 @@ import SwiftInterpreter
         let overloads = GeneratedModifiers.table["tint"]?.byArity[1] ?? []
         #expect(overloads.contains {
             $0.params.map(\.tag) == [.shapeStyle]
+                && !$0.isDisfavored
                 && $0.semanticAdapter != nil
         })
         #expect(overloads.contains {
             $0.params.map(\.tag) == [.color]
+                && $0.isDisfavored
                 && $0.semanticAdapter != nil
         })
 

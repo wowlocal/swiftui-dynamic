@@ -391,7 +391,7 @@ extension GeneratedModifiers {
     register(&t, "background", []) { view, v in
         return AnyView(view.background())
     }
-    register(&t, "background", [ParamSpec(nil, .anyView)]) { view, v in
+    register(&t, "background", [ParamSpec(nil, .anyView)], isDisfavored: true) { view, v in
         return AnyView(view.background(v[0] as! AnyView))
     }
     register(&t, "background", [ParamSpec("content", .builder)]) { view, v in
@@ -414,7 +414,7 @@ extension GeneratedModifiers {
         }
         return generatedInvoke(p0)
     }
-    register(&t, "background", [ParamSpec(nil, .anyView), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
+    register(&t, "background", [ParamSpec(nil, .anyView), ParamSpec("alignment", .alignment, contextualType: "Alignment")], isDisfavored: true) { view, v in
         return AnyView(view.background(v[0] as! AnyView, alignment: v[1] as! Alignment))
     }
     register(&t, "background", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
@@ -1082,7 +1082,7 @@ extension GeneratedModifiers {
     register(&t, "fileDialogBrowserOptions", [ParamSpec(nil, .sdkEnum("FileDialogBrowserOptions"), contextualType: "FileDialogBrowserOptions")]) { view, v in
         return AnyView(view.fileDialogBrowserOptions(v[0] as! FileDialogBrowserOptions))
     }
-    register(&t, "fileDialogConfirmationLabel", [ParamSpec(nil, .string)]) { view, v in
+    register(&t, "fileDialogConfirmationLabel", [ParamSpec(nil, .string)], isDisfavored: true) { view, v in
         return AnyView(view.fileDialogConfirmationLabel(v[0] as! String))
     }
     register(&t, "fileDialogConfirmationLabel", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
@@ -1673,11 +1673,11 @@ register(&t, "fullScreenCover", [ParamSpec("isPresented", .bindingBool, contextu
     }
 #endif
 #if canImport(UIKit)
-    register(&t, "hoverEffect", [], requiredImports: ["UIKit"]) { view, v in
+    register(&t, "hoverEffect", [], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
         return AnyView(view.hoverEffect())
     }
 #else
-register(&t, "hoverEffect", [], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
+register(&t, "hoverEffect", [], requiredImports: ["UIKit"], isDisfavored: true, executesBuilderArguments: false) { view, _ in
     return AnyView(view)
 }
 #endif
@@ -2097,10 +2097,10 @@ register(&t, "offerCodeRedemption", [ParamSpec("isPresented", .bindingBool, cont
     register(&t, "onChange", [ParamSpec("of", .equatable), ParamSpec("initial", .bool, contextualType: "Bool"), ParamSpec(nil, .action)]) { view, v in
         return AnyView(view.onChange(of: v[0] as! String, initial: v[1] as! Bool, generatedAction(v[2])))
     }
-    register(&t, "onContinuousHover", [ParamSpec("perform", .syncVoidClosure)]) { view, v in
+    register(&t, "onContinuousHover", [ParamSpec("perform", .syncVoidClosure)], isDisfavored: true) { view, v in
         return AnyView(view.onContinuousHover(perform: generatedSyncVoidClosure(v[0])))
     }
-    register(&t, "onContinuousHover", [ParamSpec("coordinateSpace", .sdkEnum("CoordinateSpace"), contextualType: "CoordinateSpace"), ParamSpec("perform", .syncVoidClosure)]) { view, v in
+    register(&t, "onContinuousHover", [ParamSpec("coordinateSpace", .sdkEnum("CoordinateSpace"), contextualType: "CoordinateSpace"), ParamSpec("perform", .syncVoidClosure)], isDisfavored: true) { view, v in
         return AnyView(view.onContinuousHover(coordinateSpace: v[0] as! CoordinateSpace, perform: generatedSyncVoidClosure(v[1])))
     }
     register(&t, "onDisappear", []) { view, v in
@@ -2163,25 +2163,25 @@ register(&t, "onMapCameraChange", [ParamSpec(nil, .syncVoidClosure)], requiredIm
     register(&t, "onTapGesture", [ParamSpec("perform", .action)]) { view, v in
         return AnyView(view.onTapGesture(perform: generatedAction(v[0])))
     }
-    register(&t, "onTapGesture", [ParamSpec("perform", .syncVoidClosure)]) { view, v in
+    register(&t, "onTapGesture", [ParamSpec("perform", .syncVoidClosure)], isDisfavored: true) { view, v in
         return AnyView(view.onTapGesture(perform: generatedSyncVoidClosure(v[0])))
     }
     register(&t, "onTapGesture", [ParamSpec("count", .int, contextualType: "Int"), ParamSpec("perform", .action)]) { view, v in
         return AnyView(view.onTapGesture(count: v[0] as! Int, perform: generatedAction(v[1])))
     }
-    register(&t, "onTapGesture", [ParamSpec("coordinateSpace", .sdkEnum("CoordinateSpace"), contextualType: "CoordinateSpace"), ParamSpec("perform", .syncVoidClosure)]) { view, v in
+    register(&t, "onTapGesture", [ParamSpec("coordinateSpace", .sdkEnum("CoordinateSpace"), contextualType: "CoordinateSpace"), ParamSpec("perform", .syncVoidClosure)], isDisfavored: true) { view, v in
         return AnyView(view.onTapGesture(coordinateSpace: v[0] as! CoordinateSpace, perform: generatedSyncVoidClosure(v[1])))
     }
-    register(&t, "onTapGesture", [ParamSpec("count", .int, contextualType: "Int"), ParamSpec("perform", .syncVoidClosure)]) { view, v in
+    register(&t, "onTapGesture", [ParamSpec("count", .int, contextualType: "Int"), ParamSpec("perform", .syncVoidClosure)], isDisfavored: true) { view, v in
         return AnyView(view.onTapGesture(count: v[0] as! Int, perform: generatedSyncVoidClosure(v[1])))
     }
-    register(&t, "onTapGesture", [ParamSpec("count", .int, contextualType: "Int"), ParamSpec("coordinateSpace", .sdkEnum("CoordinateSpace"), contextualType: "CoordinateSpace"), ParamSpec("perform", .syncVoidClosure)]) { view, v in
+    register(&t, "onTapGesture", [ParamSpec("count", .int, contextualType: "Int"), ParamSpec("coordinateSpace", .sdkEnum("CoordinateSpace"), contextualType: "CoordinateSpace"), ParamSpec("perform", .syncVoidClosure)], isDisfavored: true) { view, v in
         return AnyView(view.onTapGesture(count: v[0] as! Int, coordinateSpace: v[1] as! CoordinateSpace, perform: generatedSyncVoidClosure(v[2])))
     }
     register(&t, "opacity", [ParamSpec(nil, .double, contextualType: "Double")]) { view, v in
         return AnyView(view.opacity(v[0] as! Double))
     }
-    register(&t, "overlay", [ParamSpec(nil, .anyView)]) { view, v in
+    register(&t, "overlay", [ParamSpec(nil, .anyView)], isDisfavored: true) { view, v in
         return AnyView(view.overlay(v[0] as! AnyView))
     }
     register(&t, "overlay", [ParamSpec("content", .builder)]) { view, v in
@@ -2191,7 +2191,7 @@ register(&t, "onMapCameraChange", [ParamSpec(nil, .syncVoidClosure)], requiredIm
     register(&t, "overlay", [ParamSpec(nil, .shapeStyle)]) { view, v in
         return AnyView(view.overlay(v[0] as! AnyShapeStyle))
     }
-    register(&t, "overlay", [ParamSpec(nil, .anyView), ParamSpec("alignment", .alignment, contextualType: "Alignment")]) { view, v in
+    register(&t, "overlay", [ParamSpec(nil, .anyView), ParamSpec("alignment", .alignment, contextualType: "Alignment")], isDisfavored: true) { view, v in
         return AnyView(view.overlay(v[0] as! AnyView, alignment: v[1] as! Alignment))
     }
     register(&t, "overlay", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { view, v in
@@ -2945,7 +2945,7 @@ register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")],
     register(&t, "tint", [ParamSpec(nil, .shapeStyle)], semanticAdapter: .targetExplicitTint(parameter: 0)) { view, v in
         return AnyView(view.tint(v[0] as! AnyShapeStyle))
     }
-    register(&t, "tint", [ParamSpec(nil, .color, contextualType: "Color")], semanticAdapter: .targetExplicitTint(parameter: 0)) { view, v in
+    register(&t, "tint", [ParamSpec(nil, .color, contextualType: "Color")], isDisfavored: true, semanticAdapter: .targetExplicitTint(parameter: 0)) { view, v in
         return AnyView(view.tint(v[0] as! Color))
     }
     register(&t, "toggleStyle", [ParamSpec(nil, .sdkProtocolValue("SwiftUI.ToggleStyle"), contextualType: "SwiftUI.ToggleStyle")]) { view, v in
@@ -3006,7 +3006,7 @@ register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")],
     register(&t, "tracking", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.tracking(v[0] as! CGFloat))
     }
-    register(&t, "transition", [ParamSpec(nil, .sdkEnum("AnyTransition"), contextualType: "AnyTransition")]) { view, v in
+    register(&t, "transition", [ParamSpec(nil, .sdkEnum("AnyTransition"), contextualType: "AnyTransition")], isDisfavored: true) { view, v in
         return AnyView(view.transition(v[0] as! AnyTransition))
     }
     register(&t, "transition", [ParamSpec(nil, .sdkProtocolValue("SwiftUICore.Transition"), contextualType: "SwiftUICore.Transition")]) { view, v in

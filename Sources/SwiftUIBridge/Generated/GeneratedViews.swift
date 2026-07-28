@@ -128,7 +128,7 @@ extension GeneratedConstructors {
         return Color(v[0] as! String)
     }
 #if canImport(AppKit)
-    register(&t, "Color", [ParamSpec(nil, .platformValue("AppKit", "NSColor"), contextualType: "NSColor")]) { v in
+    register(&t, "Color", [ParamSpec(nil, .platformValue("AppKit", "NSColor"), contextualType: "NSColor")], isDisfavored: true) { v in
         return Color(v[0] as! NSColor)
     }
 #endif
@@ -138,7 +138,7 @@ extension GeneratedConstructors {
     }
 #endif
 #if canImport(UIKit)
-    register(&t, "Color", [ParamSpec(nil, .platformValue("UIKit", "UIColor"), contextualType: "UIColor")]) { v in
+    register(&t, "Color", [ParamSpec(nil, .platformValue("UIKit", "UIColor"), contextualType: "UIColor")], isDisfavored: true) { v in
         return Color(v[0] as! UIColor)
     }
 #endif
@@ -1149,7 +1149,7 @@ extension GeneratedConstructors {
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double)]) { v in
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(Slider(value: v[0] as! Binding<Double>, onEditingChanged: generatedSyncVoidClosure(v[1]), label: { b2 }))
     }
@@ -1174,7 +1174,7 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return AnyView(Slider(value: v[0] as! Binding<Double>, minimumValueLabel: v[1] as! AnyView, maximumValueLabel: v[2] as! AnyView, label: { b3 }))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
         let b3 = try generatedBuilder(v[3])
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, onEditingChanged: generatedSyncVoidClosure(v[2]), label: { b3 }))
     }
@@ -1202,7 +1202,7 @@ extension GeneratedConstructors {
         let b4 = try generatedBuilder(v[4])
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, minimumValueLabel: v[2] as! AnyView, maximumValueLabel: v[3] as! AnyView, label: { b4 }))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
         let b4 = try generatedBuilder(v[4])
         return AnyView(Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, onEditingChanged: generatedSyncVoidClosure(v[3]), label: { b4 }))
     }
@@ -1249,7 +1249,7 @@ extension GeneratedConstructors {
     register(&t, "Text", [ParamSpec("verbatim", .string, contextualType: "String")]) { v in
         return AnyView(Text(verbatim: v[0] as! String))
     }
-    register(&t, "Text", [ParamSpec(nil, .string)]) { v in
+    register(&t, "Text", [ParamSpec(nil, .string)], isDisfavored: true) { v in
         return AnyView(Text(v[0] as! String))
     }
     register(&t, "Text", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("tableName", .string, contextualType: "String")]) { v in

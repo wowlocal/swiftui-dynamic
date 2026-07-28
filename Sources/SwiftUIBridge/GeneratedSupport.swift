@@ -115,6 +115,9 @@ struct BuilderValue {
 
 struct GeneratedOverload {
     let params: [ParamSpec]
+    /// Interface-declared overload preference. Dispatch keeps viable favored
+    /// declarations ahead of `@_disfavoredOverload` fallbacks.
+    let isDisfavored: Bool
     /// Modules required by the interpreted source target, independently of
     /// which platform compiled this host bridge.
     let requiredImports: Set<String>
@@ -131,7 +134,18 @@ struct GeneratedOverload {
 
 struct GeneratedConstructor {
     let params: [ParamSpec]
+    let isDisfavored: Bool
     let invoke: @MainActor ([Any]) throws -> Any
+
+    init(
+        params: [ParamSpec],
+        isDisfavored: Bool = false,
+        invoke: @escaping @MainActor ([Any]) throws -> Any
+    ) {
+        self.params = params
+        self.isDisfavored = isDisfavored
+        self.invoke = invoke
+    }
 }
 
 /// Generated overloads grouped once by the only arity that can match. This
@@ -142,7 +156,10 @@ struct GeneratedOverloadSet {
 
     init(_ overloads: [GeneratedOverload]) {
         var byArity: [Int: [GeneratedOverload]] = [:]
-        for overload in overloads {
+        for overload in overloads where !overload.isDisfavored {
+            byArity[overload.params.count, default: []].append(overload)
+        }
+        for overload in overloads where overload.isDisfavored {
             byArity[overload.params.count, default: []].append(overload)
         }
         self.byArity = byArity
@@ -156,7 +173,10 @@ struct GeneratedConstructorSet {
 
     init(_ overloads: [GeneratedConstructor]) {
         var byArity: [Int: [GeneratedConstructor]] = [:]
-        for overload in overloads {
+        for overload in overloads where !overload.isDisfavored {
+            byArity[overload.params.count, default: []].append(overload)
+        }
+        for overload in overloads where overload.isDisfavored {
             byArity[overload.params.count, default: []].append(overload)
         }
         self.byArity = byArity
@@ -1254,12 +1274,14 @@ enum GeneratedModifiers {
         _ name: String,
         _ params: [ParamSpec],
         requiredImports: Set<String> = [],
+        isDisfavored: Bool = false,
         executesBuilderArguments: Bool = true,
         semanticAdapter: GeneratedModifierSemanticAdapter? = nil,
         _ invoke: @escaping @MainActor (AnyView, [Any]) throws -> AnyView
     ) {
         table[name, default: []].append(GeneratedOverload(
             params: params,
+            isDisfavored: isDisfavored,
             requiredImports: requiredImports,
             executesBuilderArguments: executesBuilderArguments,
             semanticAdapter: semanticAdapter,
@@ -1281,9 +1303,13 @@ enum GeneratedConstructors {
         _ table: inout [String: [GeneratedConstructor]],
         _ name: String,
         _ params: [ParamSpec],
+        isDisfavored: Bool = false,
         _ invoke: @escaping @MainActor ([Any]) throws -> Any
     ) {
-        table[name, default: []].append(GeneratedConstructor(params: params, invoke: invoke))
+        table[name, default: []].append(GeneratedConstructor(
+            params: params,
+            isDisfavored: isDisfavored,
+            invoke: invoke))
     }
 }
 

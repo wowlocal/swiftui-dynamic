@@ -1930,6 +1930,11 @@ struct Variant {
     let name: String
     let params: [EmittableParam]
     let trailingClosureIndex: Int?
+    /// Swift's overload solver ranks declarations carrying
+    /// `@_disfavoredOverload` after otherwise viable peers. Preserve that
+    /// interface metadata instead of depending on declaration discovery
+    /// order in the generated table.
+    let isDisfavoredOverload: Bool
     let inheritedFrameworkRequirements: Set<String>
     /// Imports required by the interpreted source target. Unlike compile-time
     /// framework guards, these survive into generated dispatch so a
@@ -2026,6 +2031,11 @@ func processModifier(
                     contextualType: $0.mapping!.contextualType)
             },
             trailingClosureIndex: selection.trailingClosureIndex,
+            isDisfavoredOverload: function.attributes.contains {
+                $0.as(AttributeSyntax.self)?
+                    .attributeName.trimmedDescription
+                    == "_disfavoredOverload"
+            },
             inheritedFrameworkRequirements: frameworkRequirements.union(
                 platformFrameworkRequirements(function.attributes)),
             targetImportRequirements: targetImportRequirements,
@@ -2116,6 +2126,11 @@ func processInit(
                     contextualType: $0.mapping!.contextualType)
             },
             trailingClosureIndex: selection.trailingClosureIndex,
+            isDisfavoredOverload: initDecl.attributes.contains {
+                $0.as(AttributeSyntax.self)?
+                    .attributeName.trimmedDescription
+                    == "_disfavoredOverload"
+            },
             inheritedFrameworkRequirements: frameworkRequirements.union(
                 platformFrameworkRequirements(initDecl.attributes)),
             targetImportRequirements: [],
@@ -2466,6 +2481,7 @@ let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
         let adapter = Variant(
             name: variant.name, params: [semanticParameter],
             trailingClosureIndex: nil,
+            isDisfavoredOverload: variant.isDisfavoredOverload,
             inheritedFrameworkRequirements: [],
             targetImportRequirements: [],
             unavailableTargetEnvironments: [],
@@ -3938,10 +3954,12 @@ func entryCode(_ variant: Variant) -> String {
         .joined(separator: ", ")
     let importArgument = variant.targetImportRequirements.isEmpty
         ? "" : ", requiredImports: [\(imports)]"
+    let preferenceArgument = variant.isDisfavoredOverload
+        ? ", isDisfavored: true" : ""
     let semanticAdapterArgument = generatedModifierSemanticAdapter(variant)
         .map { ", semanticAdapter: \($0)" } ?? ""
     var lines = [
-        "    register(&t, \"\(variant.name)\", [\(specs)]\(importArgument)\(semanticAdapterArgument)) { view, v in"
+        "    register(&t, \"\(variant.name)\", [\(specs)]\(importArgument)\(preferenceArgument)\(semanticAdapterArgument)) { view, v in"
     ]
     lines.append(contentsOf: generatedCallPreamble(variant))
     let returnedExpression =
@@ -3963,7 +3981,7 @@ func entryCode(_ variant: Variant) -> String {
         return exact
     }
     let fallback = """
-    register(&t, "\(variant.name)", [\(specs)]\(importArgument), executesBuilderArguments: false) { view, _ in
+    register(&t, "\(variant.name)", [\(specs)]\(importArgument)\(preferenceArgument), executesBuilderArguments: false) { view, _ in
         return AnyView(view)
     }
     """
@@ -4097,7 +4115,11 @@ func initEntryCode(_ variant: Variant) -> String {
     let specs = variant.params
         .map(paramSpecCode)
         .joined(separator: ", ")
-    var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]) { v in"]
+    let preferenceArgument = variant.isDisfavoredOverload
+        ? ", isDisfavored: true" : ""
+    var lines = [
+        "    register(&t, \"\(variant.name)\", [\(specs)]\(preferenceArgument)) { v in"
+    ]
     lines.append(contentsOf: generatedCallPreamble(variant))
     let constructed = generatedCall(variant.name, variant)
     if let adapted = swiftUIMagicConstructorAdapterCall(
