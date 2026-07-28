@@ -165,6 +165,179 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    /// A protocol-constrained SDK overload remains part of the imported
+    /// surface even when the SDK has no concrete `Self == Concrete` factory.
+    /// Custom ButtonStyle values are source-defined and receive a
+    /// framework-supplied Configuration at runtime, so BridgeGen must retain
+    /// that interface shape for overload resolution without learning a
+    /// project style or member name.
+    @MainActor
+    @Test func sourceProtocolStyleOverloadSurvivesCompetingSourceOverload()
+        throws
+    {
+        let descriptor = try #require(
+            GeneratedSDKProtocolValueCoercions
+                .frameworkConfigurationProtocols["SwiftUI.ButtonStyle"])
+        #expect(descriptor.configurationType
+            == "SwiftUI.ButtonStyleConfiguration")
+        #expect(descriptor.bodyMethod == "makeBody")
+        #expect(descriptor.configurationLabel == "configuration")
+        #expect(GeneratedSDKProtocolValueCoercions
+            .frameworkConfigurationProtocols["SwiftUI.LabelStyle"] != nil)
+
+        let overloads = GeneratedModifiers.table["buttonStyle"]?
+            .byArity[1] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag)
+                == [.sdkProtocolValue("SwiftUI.ButtonStyle")]
+                && $0.params.map(\.contextualType)
+                    == ["SwiftUI.ButtonStyle"]
+        })
+        #expect(overloads.contains {
+            $0.params.map(\.tag)
+                == [.sdkProtocolValue("SwiftUI.PrimitiveButtonStyle")]
+        })
+
+        let source = """
+        struct ProjectButtonStyle: ButtonStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                configuration.label
+            }
+        }
+
+        extension ButtonStyle where Self == ProjectButtonStyle {
+            static var projectPrimary: Self { .init() }
+        }
+
+        extension View {
+            func buttonStyle(
+                _ style: (some PrimitiveButtonStyle)?
+            ) -> some View {
+                self
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Button("Action") {}
+                    .buttonStyle(.projectPrimary)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount > 0)
+
+        let sourceInterpreter = Interpreter(registry: ViewRegistry())
+        let sourceStyle = try sourceInterpreter.run(
+            source: source + """
+
+            ProjectButtonStyle()
+            """)
+        let generatedStyle =
+            try GeneratedSDKProtocolValueCoercions.coerce(
+                "SwiftUI.ButtonStyle",
+                sourceStyle,
+                context: sourceInterpreter)
+        let nativeStyle = try #require(
+            generatedStyle as? any ButtonStyle)
+        func applying<S: ButtonStyle>(_ style: S) -> AnyView {
+            AnyView(Button("Generated source style") {}
+                .buttonStyle(style))
+        }
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let generatedBitmap = Self.bitmap(
+            applying(nativeStyle),
+            size: NSSize(width: 240, height: 100))
+        let hasInk = (0..<240).contains { x in
+            (0..<100).contains { y in
+                guard let color = generatedBitmap.colorAt(x: x, y: y)
+                else { return false }
+                return color.redComponent < 0.8
+                    || color.greenComponent < 0.8
+                    || color.blueComponent < 0.8
+            }
+        }
+        #expect(hasInk)
+        #expect(RenderDiagnostics.errors.isEmpty)
+
+        let registry = ViewRegistry()
+        let modifier = try #require(registry.modifier(named: "buttonStyle"))
+        #expect(modifier.exposesInterfaceParameterTypes)
+        let rendered = try Interpreter(registry: registry).run(
+            source: source + """
+
+            Button("Direct action") {}
+                .buttonStyle(.projectPrimary)
+            """)
+        #expect(registry.isViewValue(rendered))
+    }
+
+    /// Configuration properties belong to the same generated protocol
+    /// adapter as its conformer. ToggleStyle is a neutral proof: it has no
+    /// handwritten modifier gateway or configuration host-member switch.
+    @MainActor
+    @Test func sourceProtocolConfigurationMembersComeFromInterfaces() throws {
+        let descriptor = try #require(
+            GeneratedSDKProtocolValueCoercions
+                .frameworkConfigurationProtocols["SwiftUI.ToggleStyle"])
+        #expect(descriptor.configurationType
+            == "SwiftUI.ToggleStyleConfiguration")
+        #expect(descriptor.members
+            == ["$isOn", "isMixed", "isOn", "label"])
+
+        let source = """
+        struct ProjectToggleStyle: ToggleStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                HStack(spacing: 0) {
+                    configuration.label
+                    Rectangle()
+                        .fill(configuration.isOn ? Color.black : Color.white)
+                        .frame(width: 44, height: 26)
+                }
+            }
+        }
+
+        @main
+        struct ProbeApp: App {
+            @State private var enabled = true
+
+            var body: some Scene {
+                WindowGroup {
+                    Toggle("Interface members", isOn: $enabled)
+                        .toggleStyle(ProjectToggleStyle())
+                }
+            }
+        }
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("generated ToggleStyle failed to render: \(rendered)")
+            return
+        }
+        let bitmap = Self.bitmap(
+            view, size: NSSize(width: 240, height: 100))
+        var blackPixels = 0
+        for x in 0..<240 {
+            for y in 0..<100 {
+                guard let color = bitmap.colorAt(x: x, y: y) else {
+                    continue
+                }
+                if color.redComponent < 0.15,
+                   color.greenComponent < 0.15,
+                   color.blueComponent < 0.15 {
+                    blackPixels += 1
+                }
+            }
+        }
+        #expect(blackPixels > 500)
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
     @MainActor
     @Test func generatedProtocolValueCarriesTargetSemanticAdapter() throws {
         let composition = "SwiftUI.MenuStyle"

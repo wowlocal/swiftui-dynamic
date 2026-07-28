@@ -1204,7 +1204,12 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         if name == "vertical" { return .native(alignment.vertical) }
     }
     if let layout = layoutHostMember(name, on: value) { return layout }
-    if let style = styleHostMember(name, on: value) { return style }
+    if let configuration =
+        GeneratedSDKProtocolValueCoercions.frameworkConfigurationMember(
+            name, on: value
+        ) {
+        return configuration
+    }
     if let column = tableColumnSpecMember(name, on: value) { return column }
     if let chart = chartContentMember(name, on: value) { return chart }
     if let axis = axisValueMember(name, on: value) { return axis }

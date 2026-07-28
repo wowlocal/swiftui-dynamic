@@ -3,6 +3,7 @@
 
 require "json"
 require "open3"
+require "tempfile"
 
 POLICY_COMMIT = "b2ea7aa821237d2c0702c32f4d11c842c34da12d"
 STALL_WINDOW = 5
@@ -113,6 +114,58 @@ def verify_decomposition(acknowledgement, errors)
   }
 end
 
+def policy_payload(
+  integration_base:, commits:, metrics:, stall_active:, decomposition:, errors:
+)
+  payload = {
+    "version" => 1,
+    "status" => errors.empty? ? "passed" : "failed",
+    "integrationBase" => integration_base,
+    "policyCommit" => POLICY_COMMIT,
+    "checkedCommits" => commits.map { |commit| commit.fetch("sha") },
+    "landedR2Tail" => metrics.last(STALL_WINDOW),
+    "stallWindow" => STALL_WINDOW,
+    "stallActive" => stall_active,
+    "stallDisposition" =>
+      if !stall_active
+        "not-stalled"
+      elsif decomposition
+        "decomposition"
+      else
+        "unacknowledged"
+      end,
+    "errors" => errors
+  }
+  payload["decomposition"] = decomposition if decomposition
+  payload
+end
+
+def assert_plist_representable(payload)
+  Tempfile.create(["icecubes-close-policy", ".plist"]) do |receipt|
+    receipt.close
+    _, create_error, created = Open3.capture3(
+      "/usr/bin/plutil", "-create", "xml1", receipt.path
+    )
+    raise "could not create receipt fixture: #{create_error.strip}" unless
+      created.success?
+
+    _, source_error, source_inserted = Open3.capture3(
+      "/usr/bin/plutil", "-insert", "source", "-dictionary", receipt.path
+    )
+    raise "could not create receipt source fixture: #{source_error.strip}" unless
+      source_inserted.success?
+
+    _, insert_error, inserted = Open3.capture3(
+      "/usr/bin/plutil",
+      "-insert", "source.iceCubesClosePolicy",
+      "-json", JSON.generate(payload),
+      receipt.path
+    )
+    raise "close-policy payload is not plist-representable: " \
+      "#{insert_error.strip}" unless inserted.success?
+  end
+end
+
 def self_test
   sample = [
     "t lane MERGE-DONE x R2 exact 60000/630000",
@@ -147,6 +200,37 @@ def self_test
       "commit" => "abcdef12",
       "redAE" => 1228
     }
+
+  unstalled_payload = policy_payload(
+    integration_base: "origin/main",
+    commits: [],
+    metrics: [59_695],
+    stall_active: false,
+    decomposition: nil,
+    errors: []
+  )
+  raise "absent decomposition must be omitted" if
+    unstalled_payload.key?("decomposition")
+  assert_plist_representable(unstalled_payload)
+
+  decomposition = {
+    "commit" => "abcdef12",
+    "remoteTip" => "abcdef123456",
+    "redAE" => 1228,
+    "greenAE" => 0,
+    "microtwin" => ROW_MICROTWIN_NAME
+  }
+  stalled_payload = policy_payload(
+    integration_base: "origin/main",
+    commits: [],
+    metrics: Array.new(STALL_WINDOW, 59_695),
+    stall_active: true,
+    decomposition: decomposition,
+    errors: []
+  )
+  raise "present decomposition must be retained" unless
+    stalled_payload.fetch("decomposition") == decomposition
+  assert_plist_representable(stalled_payload)
 
   puts "@@icecubes-close-policy-self-test passed"
 end
@@ -208,26 +292,14 @@ if stall_active
   end
 end
 
-payload = {
-  "version" => 1,
-  "status" => errors.empty? ? "passed" : "failed",
-  "integrationBase" => integration_base,
-  "policyCommit" => POLICY_COMMIT,
-  "checkedCommits" => commits.map { |commit| commit.fetch("sha") },
-  "landedR2Tail" => metrics.last(STALL_WINDOW),
-  "stallWindow" => STALL_WINDOW,
-  "stallActive" => stall_active,
-  "stallDisposition" =>
-    if !stall_active
-      "not-stalled"
-    elsif decomposition
-      "decomposition"
-    else
-      "unacknowledged"
-    end,
-  "decomposition" => decomposition,
-  "errors" => errors
-}
+payload = policy_payload(
+  integration_base: integration_base,
+  commits: commits,
+  metrics: metrics,
+  stall_active: stall_active,
+  decomposition: decomposition,
+  errors: errors
+)
 puts "@@icecubes-close-policy #{JSON.generate(payload)}"
 errors.each { |error| warn(error) }
 exit(errors.empty? ? 0 : 1)

@@ -35,6 +35,97 @@ func interpretedStyleConformer(
     return (instance, interpreter)
 }
 
+/// Shared runtime state for every interface-discovered protocol whose body is
+/// invoked with a framework-supplied Configuration. BridgeGen emits the native
+/// protocol conformers; this carrier owns only the interface-inexpressible
+/// handoff from SwiftUI back into the interpreted requirement.
+final class InterpretedFrameworkConfigurationCarrier: @unchecked Sendable {
+    let instance: Instance
+    let interpreter: Interpreter
+    let bodyMethod: String
+    let configurationLabel: String?
+
+    nonisolated init(
+        instance: Instance,
+        interpreter: Interpreter,
+        bodyMethod: String,
+        configurationLabel: String?
+    ) {
+        self.instance = instance
+        self.interpreter = interpreter
+        self.bodyMethod = bodyMethod
+        self.configurationLabel = configurationLabel
+    }
+}
+
+@MainActor
+func interpretedFrameworkConfigurationConformer(
+    _ value: RuntimeValue,
+    protocolType: String,
+    descriptor: GeneratedSDKFrameworkConfigurationProtocol,
+    context: EvalContext
+) -> InterpretedFrameworkConfigurationCarrier? {
+    guard let interpreter = context as? Interpreter else { return nil }
+    let sourceProtocol = protocolType.split(separator: ".").last
+        .map(String.init) ?? protocolType
+    let resolved = interpreter.resolveForBridge(
+        value, typeName: sourceProtocol)
+    guard case .instance(let instance) = resolved,
+          interpreter.hostValue(resolved, conformsTo: sourceProtocol),
+          instance.symbol.methods[descriptor.bodyMethod] != nil else {
+        return nil
+    }
+    return .init(
+        instance: instance,
+        interpreter: interpreter,
+        bodyMethod: descriptor.bodyMethod,
+        configurationLabel: descriptor.configurationLabel)
+}
+
+@MainActor
+func interpretedFrameworkConfigurationBody(
+    carrier: InterpretedFrameworkConfigurationCarrier,
+    configuration: Any,
+    fallback: AnyView
+) -> AnyView {
+    do {
+        let value = try carrier.interpreter.callMethodLabeled(
+            named: carrier.bodyMethod,
+            on: carrier.instance,
+            arguments: [(
+                label: carrier.configurationLabel,
+                value: .native(configuration)
+            )])
+        return (try? ViewRegistry.anyView(value)) ?? fallback
+    } catch let error as RuntimeError {
+        RenderDiagnostics.record(error, in: carrier.instance.symbol.name)
+        return fallback
+    } catch {
+        return fallback
+    }
+}
+
+/// Preserve opaque View values while projecting interface-discovered
+/// Configuration properties into the interpreter. Non-View values retain
+/// their native type and optional shape through the shared runtime boundary.
+func generatedFrameworkConfigurationRuntimeValue<V: View>(
+    _ value: V
+) -> RuntimeValue {
+    .native(AnyView(value))
+}
+
+func generatedFrameworkConfigurationRuntimeValue<V: View>(
+    _ value: V?
+) -> RuntimeValue {
+    .native(value.map { AnyView($0) })
+}
+
+func generatedFrameworkConfigurationRuntimeValue<T>(
+    _ value: T
+) -> RuntimeValue {
+    .nativePreservingOptional(value as Any)
+}
+
 struct InterpretedLabelStyle: LabelStyle {
     private let carrier: StyleCarrier
 
@@ -102,24 +193,4 @@ struct InterpretedButtonStyle: ButtonStyle {
         }
         return result
     }
-}
-
-/// Host members for style configurations the interpreted makeBody reads.
-@MainActor
-func styleHostMember(_ name: String, on value: Any) -> RuntimeValue? {
-    if let configuration = value as? LabelStyleConfiguration {
-        switch name {
-        case "icon": return .native(AnyView(configuration.icon))
-        case "title": return .native(AnyView(configuration.title))
-        default: return nil
-        }
-    }
-    if let configuration = value as? ButtonStyleConfiguration {
-        switch name {
-        case "label": return .native(AnyView(configuration.label))
-        case "isPressed": return .native(configuration.isPressed)
-        default: return nil
-        }
-    }
-    return nil
 }

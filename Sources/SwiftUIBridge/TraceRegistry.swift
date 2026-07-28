@@ -660,20 +660,8 @@ public final class TraceRegistry: HostRegistry {
             node.modifiers.append(argText.isEmpty ? name : "\(name)(\(argText))")
             return .native(node)
         }
-        guard let overloads = GeneratedModifiers.table[name] else {
-            return modifier
-        }
-        return HostModifier(
-            name: name,
-            parameterTypeCandidates: { args, ctx in
-                GeneratedDispatch.contextualParameterTypeCandidates(
-                    overloads: overloads, args: args, ctx: ctx)
-            },
-            argumentMatch: { args, ctx in
-                GeneratedDispatch.contextualArgumentsMatch(
-                    overloads: overloads, args: args, ctx: ctx)
-            },
-            apply: modifier.apply)
+        return GeneratedDispatch.exposingInterfaceMetadata(
+            for: modifier, named: name)
     }
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {

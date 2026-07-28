@@ -224,7 +224,10 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func modifier(named name: String) -> HostModifier? {
-        if let handWritten = modifiers[name] { return handWritten }
+        if let handWritten = modifiers[name] {
+            return GeneratedDispatch.exposingInterfaceMetadata(
+                for: handWritten, named: name)
+        }
         guard let overloads = GeneratedModifiers.table[name] else { return nil }
         return HostModifier(
             name: name,

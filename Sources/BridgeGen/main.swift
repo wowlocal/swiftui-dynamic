@@ -264,6 +264,34 @@ var sdkProtocolRefinements: [String: Set<String>] = [:]
 var sdkNominalConformances: [String: Set<String>] = [:]
 var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
 
+/// A framework protocol whose interface describes the reusable SwiftUI style
+/// shape: an associated View body, a concrete Configuration alias, and one
+/// ViewBuilder requirement mapping that configuration to the body. The
+/// framework supplies the configuration at runtime; BridgeGen carries every
+/// other fact, including the requirement spelling, directly from the
+/// interface.
+struct SDKFrameworkConfigurationProtocol: Hashable {
+    let protocolType: String
+    let configurationType: String
+    let bodyMethod: String
+    let configurationLabel: String?
+}
+
+var sdkFrameworkConfigurationProtocols:
+    [String: SDKFrameworkConfigurationProtocol] = [:]
+var sdkFrameworkConfigurationTypes: Set<String> = []
+
+/// A public instance property on a framework-supplied Configuration nominal.
+/// The enclosing protocol selects the nominal; the interface alone selects
+/// the member spelling and declared type.
+struct SDKFrameworkConfigurationMember: Hashable {
+    let name: String
+    let type: String
+}
+
+var sdkFrameworkConfigurationMembers:
+    [String: Set<SDKFrameworkConfigurationMember>] = [:]
+
 /// Only compositions selected by emitted gateways are carried into generated
 /// coercion code. The key is a stable, sorted `P&Q` spelling.
 var sdkProtocolCompositionValues:
@@ -331,14 +359,22 @@ func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
                 < ($1.concreteType, $1.declaringProtocol)
         }.first
     }.sorted { ($0.member, $0.concreteType) < ($1.member, $1.concreteType) }
-    guard !unambiguous.isEmpty else { return nil }
-
     let ordered = requiredProtocols.sorted()
     let key = ordered.joined(separator: "&")
+    let hasFrameworkConfigurationAdapter =
+        requiredProtocols.count == 1
+        && requiredProtocols.allSatisfy {
+            sdkFrameworkConfigurationProtocols[$0] != nil
+        }
+    guard !unambiguous.isEmpty
+            || hasFrameworkConfigurationAdapter else {
+        return nil
+    }
     sdkProtocolCompositionValues[key] = unambiguous
     return .init(
         tag: "sdkProtocolValue(\"\(key)\")",
-        cast: "%@ as! any \(ordered.joined(separator: " & "))")
+        cast: "%@ as! any \(ordered.joined(separator: " & "))",
+        contextualType: ordered.joined(separator: " & "))
 }
 
 /// Supporting SDK interfaces are collected under their module-qualified
@@ -1085,6 +1121,82 @@ func collectSDKProtocolDeclarations(
     }
 }
 
+/// Discover the framework-supplied configuration pattern without depending on
+/// a protocol, modifier, configuration, or requirement name. Requiring a
+/// unique matching requirement keeps ambiguous protocols fail-closed.
+func frameworkConfigurationProtocol(
+    _ declaration: ProtocolDeclSyntax,
+    protocolType: String,
+    module: String,
+    localTopLevelNames: Set<String>
+) -> SDKFrameworkConfigurationProtocol? {
+    let members = declaration.memberBlock.members
+    let hasViewBody = members.contains { member in
+        guard let associated = member.decl.as(
+            AssociatedTypeDeclSyntax.self
+        ), associated.name.text == "Body" else {
+            return false
+        }
+        return associated.inheritanceClause?.inheritedTypes.contains {
+            normalize($0.type.trimmedDescription) == "View"
+        } == true
+    }
+    guard hasViewBody else { return nil }
+
+    let configurations = members.compactMap {
+        member -> String? in
+        guard let alias = member.decl.as(TypeAliasDeclSyntax.self),
+              alias.name.text == "Configuration" else {
+            return nil
+        }
+        return canonicalSDKType(
+            alias.initializer.value.trimmedDescription,
+            module: module,
+            localTopLevelNames: localTopLevelNames)
+    }
+    guard Set(configurations).count == 1,
+          let configurationType = configurations.first else {
+        return nil
+    }
+
+    let requirements = members.compactMap {
+        member -> (method: String, label: String?)? in
+        guard let function = member.decl.as(FunctionDeclSyntax.self),
+              function.attributes.contains(where: { element in
+                  guard let attribute = element.as(AttributeSyntax.self)
+                  else { return false }
+                  return normalize(
+                    attribute.attributeName.trimmedDescription)
+                    == "ViewBuilder"
+              }),
+              function.signature.returnClause.map({
+                  normalize($0.type.trimmedDescription)
+              }) == "Self.Body" else {
+            return nil
+        }
+        let parameters = Array(
+            function.signature.parameterClause.parameters)
+        guard parameters.count == 1,
+              normalize(parameters[0].type.trimmedDescription)
+                == "Self.Configuration" else {
+            return nil
+        }
+        let rawLabel = parameters[0].firstName.text
+        return (
+            function.name.text,
+            rawLabel == "_" ? nil : rawLabel)
+    }
+    guard requirements.count == 1, let requirement = requirements.first
+    else {
+        return nil
+    }
+    return .init(
+        protocolType: protocolType,
+        configurationType: configurationType,
+        bodyMethod: requirement.method,
+        configurationLabel: requirement.label)
+}
+
 /// First pass: establish every locally declared protocol before interpreting
 /// nominal/extension conformance clauses, whose order is not semantically
 /// significant in a swiftinterface.
@@ -1110,6 +1222,16 @@ func collectSDKProtocolDeclarations(
                 localTopLevelNames: localTopLevelNames)
         } ?? []
         sdkProtocolRefinements[type, default: []].formUnion(refinements)
+        if let configurationProtocol = frameworkConfigurationProtocol(
+            protocolDecl,
+            protocolType: type,
+            module: module,
+            localTopLevelNames: localTopLevelNames
+        ) {
+            sdkFrameworkConfigurationProtocols[type] = configurationProtocol
+            sdkFrameworkConfigurationTypes.insert(
+                configurationProtocol.configurationType)
+        }
         collectSDKProtocolDeclarations(
             in: protocolDecl.memberBlock.members,
             module: module, path: childPath,
@@ -1364,6 +1486,150 @@ func collectSDKProtocolMetadata(
         localTopLevelNames: localTopLevelNames, guarded: false)
 }
 
+func collectSDKFrameworkConfigurationMembers(
+    in members: MemberBlockItemListSyntax,
+    configurationType: String,
+    module: String,
+    localTopLevelNames: Set<String>,
+    guarded: Bool
+) {
+    guard !guarded else { return }
+    for member in members {
+        guard let variable = member.decl.as(VariableDeclSyntax.self),
+              isPublicSDKDecl(variable.modifiers),
+              !variable.modifiers.contains(where: {
+                  $0.name.text == "static" || $0.name.text == "class"
+              }),
+              isUniversallyUsable(variable.attributes),
+              !needsAvailabilityGuard(variable.attributes) else {
+            continue
+        }
+        for binding in variable.bindings {
+            guard let identifier = binding.pattern.as(
+                IdentifierPatternSyntax.self),
+                let annotation = binding.typeAnnotation else {
+                continue
+            }
+            sdkFrameworkConfigurationMembers[
+                configurationType, default: []
+            ].insert(.init(
+                name: identifier.identifier.text.trimmingCharacters(
+                    in: CharacterSet(charactersIn: "`")),
+                type: canonicalSDKType(
+                    annotation.type.trimmedDescription,
+                    module: module,
+                    localTopLevelNames: localTopLevelNames)))
+        }
+    }
+}
+
+/// Third pass: project the public value surface of every Configuration
+/// selected by the protocol-shape pass. Nominals and extensions use the same
+/// property rule, so coverage grows with interface metadata rather than a
+/// handwritten list of style or member identities.
+func collectSDKFrameworkConfigurationMembers(
+    in decl: DeclSyntax,
+    module: String,
+    path: [String],
+    localTopLevelNames: Set<String>,
+    guarded inheritedGuarded: Bool
+) {
+    func collect(
+        name: String,
+        modifiers: DeclModifierListSyntax,
+        attributes: AttributeListSyntax,
+        members: MemberBlockItemListSyntax
+    ) {
+        guard isPublicSDKDecl(modifiers),
+              isUniversallyUsable(attributes) else { return }
+        let childPath = path + [name]
+        let guarded = inheritedGuarded
+            || needsAvailabilityGuard(attributes)
+        let type = "\(module).\(childPath.joined(separator: "."))"
+        if sdkFrameworkConfigurationTypes.contains(type) {
+            collectSDKFrameworkConfigurationMembers(
+                in: members,
+                configurationType: type,
+                module: module,
+                localTopLevelNames: localTopLevelNames,
+                guarded: guarded)
+        }
+        for member in members {
+            collectSDKFrameworkConfigurationMembers(
+                in: member.decl,
+                module: module,
+                path: childPath,
+                localTopLevelNames: localTopLevelNames,
+                guarded: guarded)
+        }
+    }
+
+    if let nominal = decl.as(StructDeclSyntax.self) {
+        collect(
+            name: nominal.name.text,
+            modifiers: nominal.modifiers,
+            attributes: nominal.attributes,
+            members: nominal.memberBlock.members)
+        return
+    }
+    if let nominal = decl.as(EnumDeclSyntax.self) {
+        collect(
+            name: nominal.name.text,
+            modifiers: nominal.modifiers,
+            attributes: nominal.attributes,
+            members: nominal.memberBlock.members)
+        return
+    }
+    if let nominal = decl.as(ClassDeclSyntax.self) {
+        collect(
+            name: nominal.name.text,
+            modifiers: nominal.modifiers,
+            attributes: nominal.attributes,
+            members: nominal.memberBlock.members)
+        return
+    }
+    if let nominal = decl.as(ActorDeclSyntax.self) {
+        collect(
+            name: nominal.name.text,
+            modifiers: nominal.modifiers,
+            attributes: nominal.attributes,
+            members: nominal.memberBlock.members)
+        return
+    }
+    if let nominal = decl.as(ProtocolDeclSyntax.self) {
+        collect(
+            name: nominal.name.text,
+            modifiers: nominal.modifiers,
+            attributes: nominal.attributes,
+            members: nominal.memberBlock.members)
+        return
+    }
+    guard let extensionDecl = decl.as(ExtensionDeclSyntax.self),
+          isUniversallyUsable(extensionDecl.attributes) else { return }
+    let guarded = inheritedGuarded
+        || needsAvailabilityGuard(extensionDecl.attributes)
+    let extended = canonicalSDKType(
+        extensionDecl.extendedType.trimmedDescription,
+        module: module,
+        localTopLevelNames: localTopLevelNames)
+    if sdkFrameworkConfigurationTypes.contains(extended) {
+        collectSDKFrameworkConfigurationMembers(
+            in: extensionDecl.memberBlock.members,
+            configurationType: extended,
+            module: module,
+            localTopLevelNames: localTopLevelNames,
+            guarded: guarded)
+    }
+    for member in extensionDecl.memberBlock.members {
+        collectSDKFrameworkConfigurationMembers(
+            in: member.decl,
+            module: module,
+            path: nestedSDKPath(for: extended, module: module),
+            localTopLevelNames: localTopLevelNames,
+            guarded: guarded)
+    }
+}
+
 for support in primaryInterfaceFiles + supportingInterfaceFiles {
     let localNames = topLevelSDKNames(in: support.file)
     for statement in support.file.statements {
@@ -1375,6 +1641,12 @@ for support in primaryInterfaceFiles + supportingInterfaceFiles {
     for statement in support.file.statements {
         guard case .decl(let decl) = statement.item else { continue }
         collectSDKProtocolMetadata(
+            in: decl, module: support.module, path: [],
+            localTopLevelNames: localNames, guarded: false)
+    }
+    for statement in support.file.statements {
+        guard case .decl(let decl) = statement.item else { continue }
+        collectSDKFrameworkConfigurationMembers(
             in: decl, module: support.module, path: [],
             localTopLevelNames: localNames, guarded: false)
     }
@@ -3352,6 +3624,11 @@ let emittedSDKProtocolCompositions = Set(
     (variants + initVariants)
         .flatMap(\.params)
         .compactMap { sdkProtocolComposition(from: $0.tag) })
+let emittedSDKFrameworkConfigurationProtocols =
+    sdkFrameworkConfigurationProtocols
+        .filter { emittedSDKProtocolCompositions.contains($0.key) }
+let emittedSDKFrameworkConfigurationTypes = Set(
+    emittedSDKFrameworkConfigurationProtocols.values.map(\.configurationType))
 let supportingModules = Set(supportingInterfaceFiles.map(\.module))
 let emittedSupportingModules = Set(
     emittedSDKEnumTypes.compactMap {
@@ -3973,16 +4250,182 @@ try enumsOutput.write(toFile: enumsPath, atomically: true, encoding: .utf8)
 print("wrote \(enumsPath) (\(emittedSDKEnumTypes.count) enum types)")
 
 var protocolValuesOutput = """
-// GENERATED by BridgeGen from public protocol-extension `Self == Concrete`
-// contextual values and interface-declared conformances.
+// GENERATED by BridgeGen from interface-declared protocol shapes,
+// conformances, and public protocol-extension `Self == Concrete` values.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(emittedSDKProtocolCompositions.count) protocol compositions.
 \(emittedSDKProtocolImportBlock)import SwiftInterpreter
 
+struct GeneratedSDKFrameworkConfigurationProtocol {
+    let configurationType: String
+    let bodyMethod: String
+    let configurationLabel: String?
+    let members: [String]
+}
+
+
+"""
+
+func generatedFrameworkConfigurationWrapperName(
+    _ protocolType: String
+) -> String {
+    let identifier = protocolType.unicodeScalars.map {
+        CharacterSet.alphanumerics.contains($0) ? String($0) : "_"
+    }.joined()
+    return "GeneratedInterpreted_\(identifier)"
+}
+
+let generatedFrameworkConfigurationWrapperNames =
+    emittedSDKFrameworkConfigurationProtocols.keys.map(
+        generatedFrameworkConfigurationWrapperName)
+precondition(
+    Set(generatedFrameworkConfigurationWrapperNames).count
+        == generatedFrameworkConfigurationWrapperNames.count,
+    "framework configuration protocol wrapper identifiers collided")
+
+for (protocolType, descriptor) in
+    emittedSDKFrameworkConfigurationProtocols.sorted(
+        by: { $0.key < $1.key }
+    )
+{
+    let wrapper = generatedFrameworkConfigurationWrapperName(protocolType)
+    let parameter = descriptor.configurationLabel.map {
+        "\($0) generatedConfiguration"
+    } ?? "_ generatedConfiguration"
+    protocolValuesOutput += """
+struct \(wrapper): \(protocolType) {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func \(descriptor.bodyMethod)(
+        \(parameter): Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+
+"""
+}
+
+protocolValuesOutput += """
 enum GeneratedSDKProtocolValueCoercions {
+    static let frameworkConfigurationProtocols:
+        [String: GeneratedSDKFrameworkConfigurationProtocol] = [
+
+"""
+
+for (protocolType, descriptor) in
+    emittedSDKFrameworkConfigurationProtocols.sorted(
+        by: { $0.key < $1.key }
+    )
+{
+    let label = descriptor.configurationLabel.map { "\"\($0)\"" } ?? "nil"
+    let members = (sdkFrameworkConfigurationMembers[
+        descriptor.configurationType
+    ] ?? []).map(\.name).sorted()
+    let memberList = members.map { "\"\($0)\"" }.joined(separator: ", ")
+    protocolValuesOutput += """
+        "\(protocolType)": .init(
+            configurationType: "\(descriptor.configurationType)",
+            bodyMethod: "\(descriptor.bodyMethod)",
+            configurationLabel: \(label),
+            members: [\(memberList)]),
+
+"""
+}
+
+protocolValuesOutput += """
+    ]
+
+    static func frameworkConfigurationMember(
+        _ name: String, on value: Any
+    ) -> RuntimeValue? {
+        switch value {
+
+"""
+
+func generatedMemberAccess(_ name: String) -> String {
+    name.hasPrefix("$") ? name : "`\(name)`"
+}
+
+for configurationType in emittedSDKFrameworkConfigurationTypes.sorted() {
+    let members = (sdkFrameworkConfigurationMembers[
+        configurationType
+    ] ?? []).sorted {
+        ($0.name, $0.type) < ($1.name, $1.type)
+    }
+    guard !members.isEmpty else { continue }
+    protocolValuesOutput += """
+        case let configuration as \(configurationType):
+            switch name {
+
+"""
+    for member in members {
+        protocolValuesOutput += """
+            case "\(member.name)":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.\(generatedMemberAccess(member.name)))
+
+"""
+    }
+    protocolValuesOutput += """
+            default:
+                return nil
+            }
+
+"""
+}
+
+protocolValuesOutput += """
+        default:
+            return nil
+        }
+    }
+
     static func coerce(
-        _ composition: String, _ value: RuntimeValue
+        _ composition: String, _ value: RuntimeValue,
+        context: EvalContext? = nil
     ) throws -> Any {
+        if let context,
+           let descriptor = frameworkConfigurationProtocols[composition],
+           let carrier = interpretedFrameworkConfigurationConformer(
+            value,
+            protocolType: composition,
+            descriptor: descriptor,
+            context: context
+           ) {
+            switch composition {
+
+"""
+
+for (protocolType, _) in emittedSDKFrameworkConfigurationProtocols.sorted(
+    by: { $0.key < $1.key }
+) {
+    let wrapper = generatedFrameworkConfigurationWrapperName(protocolType)
+    protocolValuesOutput += """
+            case "\(protocolType)":
+                return \(wrapper)(carrier: carrier)
+
+"""
+}
+
+protocolValuesOutput += """
+            default:
+                break
+            }
+        }
         switch composition {
 
 """
