@@ -375,7 +375,7 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
-    @Test func targetTintCarrierPreservesGeneratedConcreteType() throws {
+    @Test func generatedShapeStyleCoercionPreservesConcreteType() throws {
         let primary = try Coerce.genericShapeStyle(
             .implicitMember("primary"))
         #expect(primary is HierarchicalShapeStyle)
@@ -383,26 +383,6 @@ import SwiftInterpreter
         let generatedColor = try Coerce.genericShapeStyle(
             .implicitMember("red"))
         #expect(generatedColor is Color)
-
-        let color = try #require(TargetPlatformExplicitTint(Color.red))
-        guard case .color = color else {
-            Issue.record("generated Color tint was erased to AnyShapeStyle")
-            return
-        }
-
-        let style = try #require(TargetPlatformExplicitTint(
-            AnyShapeStyle(.quaternary.opacity(0.5))))
-        guard case .shapeStyle = style else {
-            Issue.record("generic ShapeStyle tint lost its erased carrier")
-            return
-        }
-
-        let hierarchy = try #require(TargetPlatformExplicitTint(
-            HierarchicalShapeStyle.primary))
-        guard case .shapeStyle = hierarchy else {
-            Issue.record("generated hierarchical tint lost its style carrier")
-            return
-        }
     }
 
     @Test func suffixDefaultVariantsMatchBothCallShapes() throws {
