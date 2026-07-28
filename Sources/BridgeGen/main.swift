@@ -3555,6 +3555,63 @@ print("\nwrote \(outputPath) (\(sorted.count) variants)")
 
 // MARK: - Emit constructors
 
+enum SwiftUIMagicConstructorAdapter {
+    case targetScroll
+}
+
+/// Constructor semantics which the swiftinterface cannot encode. Keep this
+/// allowlist small and explicit: every entry names the missing framework
+/// behavior, while generated runtime dispatch still operates on declared
+/// argument properties rather than the constructor identity.
+let swiftUIMagicConstructorAdapters: [
+    String: (
+        adapter: SwiftUIMagicConstructorAdapter,
+        missingInterfaceSemantic: String
+    )
+] = [
+    "ScrollView": (
+        adapter: .targetScroll,
+        missingInterfaceSemantic:
+            "target framework intrinsic cross-axis scroll extent"),
+]
+
+func swiftUIMagicConstructorAdapterCall(
+    _ variant: Variant,
+    constructed: String
+) -> String? {
+    guard let specification = swiftUIMagicConstructorAdapters[variant.name]
+    else {
+        return nil
+    }
+    switch specification.adapter {
+    case .targetScroll:
+        guard let builderIndex = variant.params.firstIndex(where: {
+            $0.tag == "builder"
+        }) else {
+            fatalError(
+                "\(variant.name) target-scroll adapter has no builder: "
+                    + specification.missingInterfaceSemantic)
+        }
+        let axes = variant.params.firstIndex(where: {
+            $0.tag == "axisSet"
+        }).map {
+            "v[\($0)] as! Axis.Set"
+        } ?? "Axis.Set.vertical"
+        let showsIndicators = variant.params.firstIndex(where: {
+            $0.label == "showsIndicators" && $0.tag == "bool"
+        }).map {
+            "v[\($0)] as! Bool"
+        } ?? "true"
+        return """
+        TargetPlatformScrollBridge.applyGenerated(
+            to: AnyView(\(constructed)),
+            axes: \(axes),
+            showsIndicators: \(showsIndicators),
+            builderValue: v[\(builderIndex)])
+        """
+    }
+}
+
 func initEntryCode(_ variant: Variant) -> String {
     let specs = variant.params
         .map(paramSpecCode)
@@ -3562,9 +3619,17 @@ func initEntryCode(_ variant: Variant) -> String {
     var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]) { v in"]
     lines.append(contentsOf: generatedCallPreamble(variant))
     let constructed = generatedCall(variant.name, variant)
-    lines.append(variant.preservesSemanticValue
-        ? "        return \(constructed)"
-        : "        return AnyView(\(constructed))")
+    if let adapted = swiftUIMagicConstructorAdapterCall(
+        variant, constructed: constructed
+    ) {
+        lines.append(
+            "        return " + adapted.replacingOccurrences(
+                of: "\n", with: "\n        "))
+    } else {
+        lines.append(variant.preservesSemanticValue
+            ? "        return \(constructed)"
+            : "        return AnyView(\(constructed))")
+    }
     lines.append("    }")
     return compileGuarded(lines.joined(separator: "\n"), for: variant)
 }
