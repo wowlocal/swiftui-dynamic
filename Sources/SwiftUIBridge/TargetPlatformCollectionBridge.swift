@@ -94,22 +94,10 @@ private final class TargetPlatformListRowSeparatorView: NSView {
     }
 
     func updateSeparatorMask() {
-        var ancestor = superview
-        while let view = ancestor, !(view is NSTableRowView) {
-            ancestor = view.superview
-        }
-        guard let row = ancestor as? NSTableRowView else {
+        guard let target = structurallyResolvedSeparatorContainer() else {
             return
         }
-
-        var contentBranch: NSView = self
-        while let parent = contentBranch.superview, parent !== row {
-            contentBranch = parent
-        }
-        guard contentBranch.superview === row else {
-            return
-        }
-
+        let row = target.container
         let visible = row.visibleRect
         let targetTrailingBaseline: CGFloat = 20
         guard visible.width > targetTrailingBaseline else {
@@ -130,16 +118,16 @@ private final class TargetPlatformListRowSeparatorView: NSView {
                 height: row.bounds.height)
         }
 
-        let epsilon: CGFloat = 0.5
-        for separator in row.subviews where separator !== contentBranch {
-            guard separator.subviews.isEmpty,
-                  abs(separator.frame.minX - row.bounds.minX) < epsilon,
-                  abs(separator.frame.minY - row.bounds.minY) < epsilon,
-                  abs(separator.frame.width - row.bounds.width) < epsilon,
-                  abs(separator.frame.height - row.bounds.height) < epsilon
-            else {
-                continue
-            }
+        for separator in target.separators {
+            // The compiled Catalyst hierarchy positions its one-point
+            // separator on a one-eighth-point raster phase. Preserve the
+            // host-resolved line color and visibility, but place that leaf at
+            // the target phase so bitmap capture distributes its coverage
+            // across the same adjacent pixels.
+            let targetVerticalRasterPhase: CGFloat = 0.125
+            separator.setFrameOrigin(NSPoint(
+                x: separator.frame.minX,
+                y: row.bounds.minY + targetVerticalRasterPhase))
             separator.wantsLayer = true
             let localClip = separator.convert(clip, from: row)
             let mask = CAShapeLayer()
@@ -149,6 +137,32 @@ private final class TargetPlatformListRowSeparatorView: NSView {
             separator.layer?.mask = mask
             separator.needsDisplay = true
         }
+    }
+
+    private func structurallyResolvedSeparatorContainer()
+        -> (container: NSView, separators: [NSView])?
+    {
+        let epsilon: CGFloat = 0.5
+        var contentBranch: NSView = self
+        while let container = contentBranch.superview {
+            let separators = container.subviews.filter { sibling in
+                sibling !== contentBranch
+                    && sibling.subviews.isEmpty
+                    && abs(sibling.frame.minX - container.bounds.minX)
+                        < epsilon
+                    && abs(sibling.frame.minY - container.bounds.minY)
+                        < epsilon
+                    && abs(sibling.frame.width - container.bounds.width)
+                        < epsilon
+                    && abs(sibling.frame.height - container.bounds.height)
+                        < epsilon
+            }
+            if !separators.isEmpty {
+                return (container, separators)
+            }
+            contentBranch = container
+        }
+        return nil
     }
 }
 #endif
