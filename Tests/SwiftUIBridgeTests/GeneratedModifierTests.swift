@@ -140,6 +140,66 @@ import SwiftInterpreter
         })
     }
 
+    /// Primary SwiftUI interfaces describe style parameters with protocol
+    /// constraints and expose their leading-dot values through same-type
+    /// extensions. Those relationships should drive both generated dispatch
+    /// and contextual coercion just as they already do for support modules.
+    @MainActor
+    @Test func primaryInterfaceProtocolsGenerateStyleCoverage() throws {
+        let composition = "SwiftUI.ProgressViewStyle"
+        let overloads = GeneratedModifiers.table["progressViewStyle"]?
+            .byArity[1] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [.sdkProtocolValue(composition)]
+        })
+
+        let linear = try GeneratedSDKProtocolValueCoercions.coerce(
+            composition, .implicitMember("linear"))
+        #expect(linear is LinearProgressViewStyle)
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("generated primary protocol")
+            .progressViewStyle(.linear)
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
+    @MainActor
+    @Test func generatedProtocolValueCarriesTargetSemanticAdapter() throws {
+        let composition = "SwiftUI.MenuStyle"
+        let overloads = GeneratedModifiers.table["menuStyle"]?
+            .byArity[1] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [.sdkProtocolValue(composition)]
+                && $0.semanticAdapter != nil
+        })
+
+        let button = try GeneratedSDKProtocolValueCoercions.coerce(
+            composition, .implicitMember("button"))
+        #expect(button is ButtonMenuStyle)
+    }
+
+    @MainActor
+    @Test func generatedTintPreservesGenericShapeStyleAndTargetSemantics() throws {
+        let overloads = GeneratedModifiers.table["tint"]?.byArity[1] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [.shapeStyle]
+                && $0.semanticAdapter != nil
+        })
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [.color]
+                && $0.semanticAdapter != nil
+        })
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("generated generic tint")
+            .tint(.quaternary.opacity(0.5))
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func suffixDefaultVariantsMatchBothCallShapes() throws {
         // autocorrectionDisabled() and autocorrectionDisabled(false) are the
         // zero-arg and full variants of one defaulted-parameter overload.

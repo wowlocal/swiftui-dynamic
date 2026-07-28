@@ -1,6 +1,45 @@
 import SwiftUI
 import SwiftInterpreter
 
+/// Runtime half of BridgeGen's small SwiftUI-magic allowlist. Generated
+/// overload metadata selects an adapter from an interface-derived concrete
+/// protocol value; execution then checks that property rather than a modifier
+/// name or source spelling.
+enum GeneratedModifierSemanticAdapter {
+    case targetButtonMenuStyle(parameter: Int)
+    case targetExplicitTint(parameter: Int)
+
+    @MainActor
+    func apply(
+        to native: AnyView,
+        receiver: AnyView,
+        values: [Any],
+        context: EvalContext
+    ) -> AnyView {
+        switch self {
+        case .targetButtonMenuStyle(let parameter):
+            guard values.indices.contains(parameter),
+                  values[parameter] is ButtonMenuStyle else {
+                return native
+            }
+            return TargetPlatformControlBridge.adaptButtonMenuStyle(
+                native, context: context)
+        case .targetExplicitTint(let parameter):
+            guard values.indices.contains(parameter) else { return native }
+            let style: AnyShapeStyle
+            if let erased = values[parameter] as? AnyShapeStyle {
+                style = erased
+            } else if let color = values[parameter] as? Color {
+                style = AnyShapeStyle(color)
+            } else {
+                return native
+            }
+            return TargetPlatformControlBridge.adaptExplicitTint(
+                style, to: native, context: context)
+        }
+    }
+}
+
 /// SwiftUI's interface identifies control/menu styles and `ControlSize`, but
 /// does not encode the target framework's chrome padding, corner treatment,
 /// tint rendering, or default menu-indicator visibility. A macOS host otherwise
@@ -11,20 +50,18 @@ import SwiftInterpreter
 /// never on a source view, app, label, fixture, or call site.
 enum TargetPlatformControlBridge {
     @MainActor
-    static func applyTint(
-        _ color: Color,
-        to view: AnyView,
+    static func adaptExplicitTint(
+        _ style: AnyShapeStyle,
+        to native: AnyView,
         context: EvalContext
     ) -> AnyView {
 #if os(macOS)
         if context.buildConfiguration.targetEnvironment == "macCatalyst" {
             return AnyView(
-                view
-                    .tint(color)
-                    .environment(\.targetPlatformExplicitTint, color))
+                native.environment(\.targetPlatformExplicitTint, style))
         }
 #endif
-        return AnyView(view.tint(color))
+        return native
     }
 
     @MainActor
@@ -41,11 +78,10 @@ enum TargetPlatformControlBridge {
     }
 
     @MainActor
-    static func applyButtonMenuStyle(
-        to view: AnyView,
+    static func adaptButtonMenuStyle(
+        _ styled: AnyView,
         context: EvalContext
     ) -> AnyView {
-        let styled = AnyView(view.menuStyle(.button))
 #if os(macOS)
         // Compiled Catalyst's button-style menu presents only the supplied
         // label; macOS adds a disclosure indicator by default. This is the
@@ -65,11 +101,11 @@ enum TargetPlatformControlBridge {
 /// supplied tint. Preserve that missing semantic property in the environment
 /// so any target-owned style adapter can make the same distinction.
 private struct TargetPlatformExplicitTintKey: EnvironmentKey {
-    static let defaultValue: Color? = nil
+    static let defaultValue: AnyShapeStyle? = nil
 }
 
 private extension EnvironmentValues {
-    var targetPlatformExplicitTint: Color? {
+    var targetPlatformExplicitTint: AnyShapeStyle? {
         get { self[TargetPlatformExplicitTintKey.self] }
         set { self[TargetPlatformExplicitTintKey.self] = newValue }
     }
@@ -96,17 +132,19 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
         return (horizontal: 10, vertical: 5, cornerRadius: 7)
     }
 
-    private func surfaceColor(isPressed: Bool) -> Color {
+    private func surfaceStyle(isPressed: Bool) -> AnyShapeStyle {
         if let explicitTint {
-            return explicitTint.opacity(isPressed ? 0.26 : 0.18)
+            return AnyShapeStyle(
+                explicitTint.opacity(isPressed ? 0.26 : 0.18))
         }
         // Compiled Catalyst's untinted bordered control uses its neutral
         // system-fill surface; the ambient accent remains label-only.
-        return Color(
-            red: 233.0 / 255.0,
-            green: 233.0 / 255.0,
-            blue: 235.0 / 255.0)
-            .opacity(isPressed ? 0.82 : 1)
+        return AnyShapeStyle(
+            Color(
+                red: 233.0 / 255.0,
+                green: 233.0 / 255.0,
+                blue: 235.0 / 255.0)
+                .opacity(isPressed ? 0.82 : 1))
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -119,7 +157,7 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
                     cornerRadius: chrome.cornerRadius,
                     style: .continuous
                 )
-                .fill(surfaceColor(isPressed: configuration.isPressed))
+                .fill(surfaceStyle(isPressed: configuration.isPressed))
             }
     }
 }

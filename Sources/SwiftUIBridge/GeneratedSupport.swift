@@ -122,6 +122,10 @@ struct GeneratedOverload {
     /// off-host receiver-preserving fallback accepts the source call shape
     /// without inventing deferred-content execution.
     let executesBuilderArguments: Bool
+    /// Optional SwiftUI runtime behavior absent from the interface. BridgeGen
+    /// selects this from a protocol value's concrete semantic property, never
+    /// from an app, fixture, literal, or interpreted call site.
+    let semanticAdapter: GeneratedModifierSemanticAdapter?
     let invoke: @MainActor (AnyView, [Any]) throws -> AnyView
 }
 
@@ -615,7 +619,12 @@ enum GeneratedDispatch {
         for overload in overloads.byArity[args.arguments.count] ?? [] {
             guard isAvailable(overload, in: ctx) else { continue }
             guard let values = matches(overload.params, args, ctx) else { continue }
-            return try overload.invoke(view, values)
+            let native = try overload.invoke(view, values)
+            guard let adapter = overload.semanticAdapter else {
+                return native
+            }
+            return adapter.apply(
+                to: native, receiver: view, values: values, context: ctx)
         }
         let shape = args.arguments.map { $0.label ?? "_" }.joined(separator: ":")
         throw RuntimeError(message: "no matching overload for .\(name)(\(shape):) — argument types or labels don't fit")
@@ -1223,12 +1232,14 @@ enum GeneratedModifiers {
         _ params: [ParamSpec],
         requiredImports: Set<String> = [],
         executesBuilderArguments: Bool = true,
+        semanticAdapter: GeneratedModifierSemanticAdapter? = nil,
         _ invoke: @escaping @MainActor (AnyView, [Any]) throws -> AnyView
     ) {
         table[name, default: []].append(GeneratedOverload(
             params: params,
             requiredImports: requiredImports,
             executesBuilderArguments: executesBuilderArguments,
+            semanticAdapter: semanticAdapter,
             invoke: invoke))
     }
 }

@@ -485,11 +485,10 @@ import Testing
         #expect(mismatched == 0)
     }
 
-    // FoodTruck orders class: the per-row Details Menu vanished because
-    // .menuStyle was an unknown modifier (protocol-typed param, closed
-    // set per the buttonStyle doctrine) — the whole Menu subtree
-    // absorbed. The pin compares the exact OrdersTable spelling against
-    // a compiled native control.
+    // FoodTruck orders class: the per-row Details Menu vanished when
+    // protocol-typed style parameters were outside generated coverage and the
+    // whole Menu subtree was absorbed. The pin compares the interface-derived
+    // OrdersTable spelling against a compiled native control.
     @MainActor
     @Test func borderlessMenuRendersIconOnlyLabel() throws {
         let source = """

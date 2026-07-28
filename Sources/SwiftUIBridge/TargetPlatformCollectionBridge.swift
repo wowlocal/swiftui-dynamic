@@ -122,8 +122,8 @@ private final class TargetPlatformListRowSeparatorView: NSView {
             // The compiled Catalyst hierarchy positions its one-point
             // separator on a one-eighth-point raster phase. Preserve the
             // host-resolved line color and visibility, but place that leaf at
-            // the target phase so bitmap capture distributes its coverage
-            // across the same adjacent pixels.
+            // the target phase so bitmap capture uses the compiled center
+            // coverage without reconstructing or recoloring the line.
             let targetVerticalRasterPhase: CGFloat = 0.125
             separator.setFrameOrigin(NSPoint(
                 x: separator.frame.minX,
