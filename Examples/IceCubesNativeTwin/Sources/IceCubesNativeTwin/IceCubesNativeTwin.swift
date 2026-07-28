@@ -76,6 +76,8 @@ private enum TwinConfiguration {
         "--navigation-chrome-probe")
     static let capturesListRowGeometry = CommandLine.arguments.contains(
         "--list-row-geometry-probe")
+    static let capturesListSeparatorGeometry = CommandLine.arguments.contains(
+        "--list-separator-geometry-probe")
     static let capturesRepeatedRowGeometry = CommandLine.arguments.contains(
         "--repeated-row-geometry-probe")
     static let capturesSmallBorderedControl = CommandLine.arguments.contains(
@@ -159,6 +161,8 @@ private struct TwinDriverView: View {
                 NavigationChromeProbe()
             } else if TwinConfiguration.capturesListRowGeometry {
                 ListRowGeometryProbe()
+            } else if TwinConfiguration.capturesListSeparatorGeometry {
+                ListSeparatorGeometryProbe()
             } else if TwinConfiguration.capturesRepeatedRowGeometry {
                 RepeatedRowGeometryProbe()
             } else if TwinConfiguration.capturesSmallBorderedControl {
@@ -193,6 +197,11 @@ private struct TwinDriverView: View {
             if TwinConfiguration.capturesListRowGeometry {
                 try await Task.sleep(for: .seconds(1))
                 try capturePNG(named: "list-row-geometry")
+                exit(0)
+            }
+            if TwinConfiguration.capturesListSeparatorGeometry {
+                try await Task.sleep(for: .seconds(1))
+                try capturePNG(named: "list-separator-geometry")
                 exit(0)
             }
             if TwinConfiguration.capturesRepeatedRowGeometry {
