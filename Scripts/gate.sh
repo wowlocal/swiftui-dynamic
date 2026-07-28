@@ -715,7 +715,7 @@ write_receipt() {
     receipt_integer diagnostics.exitStatuses.iceCubesR2 "$r2_status"
 
     mkdir -p "${receipt_path:h}"
-    if /usr/bin/plutil -convert json -r -o "$receipt_tmp" "$plist" 2>/dev/null \
+    if Scripts/plutil-json-with-retry.sh "$plist" "$receipt_tmp" \
         && /usr/bin/ruby -rjson -e '
             receipt = JSON.parse(File.read(ARGV.fetch(0)))
             paths = %w[

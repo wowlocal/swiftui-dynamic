@@ -3281,6 +3281,94 @@ struct ConcurrencyMethodologyTests {
             == (configuration["gateLockDirectory"] as? String))
     }
 
+    @Test func gateReceiptConversionRetriesTransientPlutilFailure() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "dynamic-swift-gate-plutil-\(UUID().uuidString)",
+                isDirectory: true,
+            )
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true,
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let plistURL = directory.appendingPathComponent("receipt.plist")
+        let outputURL = directory.appendingPathComponent("receipt.json")
+        let stateURL = directory.appendingPathComponent("attempts")
+        let fakePlutilURL = directory.appendingPathComponent("plutil")
+        try """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+        "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict><key>result</key><string>GREEN</string></dict>
+        </plist>
+        """.write(to: plistURL, atomically: true, encoding: .utf8)
+        try """
+        #!/bin/zsh
+        set -u
+        if [[ "$1" == "-lint" ]]; then
+            exec /usr/bin/plutil "$@"
+        fi
+        count=0
+        if [[ -f "$GATE_FAKE_PLUTIL_STATE" ]]; then
+            count=$(<"$GATE_FAKE_PLUTIL_STATE")
+        fi
+        (( count += 1 ))
+        print -r -- "$count" > "$GATE_FAKE_PLUTIL_STATE"
+        if (( count < 3 )); then
+            exit 1
+        fi
+        exec /usr/bin/plutil "$@"
+        """.write(to: fakePlutilURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: fakePlutilURL.path,
+        )
+
+        func run(attempts: Int) throws -> Process {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            process.arguments = [
+                Self.packageRoot.appendingPathComponent(
+                    "Scripts/plutil-json-with-retry.sh"
+                ).path,
+                plistURL.path,
+                outputURL.path,
+            ]
+            var environment = ProcessInfo.processInfo.environment
+            environment["GATE_PLUTIL_BIN"] = fakePlutilURL.path
+            environment["GATE_FAKE_PLUTIL_STATE"] = stateURL.path
+            environment["GATE_PLUTIL_CONVERSION_ATTEMPTS"] =
+                String(attempts)
+            environment["GATE_PLUTIL_CONVERSION_RETRY_DELAY_SECONDS"] = "0"
+            process.environment = environment
+            process.standardInput = FileHandle.nullDevice
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try process.run()
+            process.waitUntilExit()
+            return process
+        }
+
+        let recovered = try run(attempts: 3)
+        #expect(recovered.terminationStatus == 0)
+        #expect(try String(contentsOf: stateURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines) == "3")
+        let receipt = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: outputURL))
+                as? [String: String])
+        #expect(receipt["result"] == "GREEN")
+
+        try FileManager.default.removeItem(at: stateURL)
+        try FileManager.default.removeItem(at: outputURL)
+        let exhausted = try run(attempts: 2)
+        #expect(exhausted.terminationStatus != 0)
+        #expect(try String(contentsOf: stateURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines) == "2")
+        #expect(!FileManager.default.fileExists(atPath: outputURL.path))
+    }
+
     @Test func gateFailsFastBeforeExpensiveStagesAfterTestFailure() throws {
         let script = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(
