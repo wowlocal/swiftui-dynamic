@@ -3053,6 +3053,28 @@ struct ConcurrencyMethodologyTests {
             "@@icecubes-close-policy-self-test passed"))
     }
 
+    @Test func iceCubesR2UsesAnIsolatedProductBuild() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/icecubes-r2.sh"),
+            encoding: .utf8)
+
+        for required in [
+            "ICECUBES_R2_SCRATCH_PATH",
+            "--scratch-path \"$INTERP_SCRATCH_PATH\"",
+            "\"$INTERP_EXECUTABLE\" --capture",
+        ] {
+            #expect(script.contains(required),
+                Comment(rawValue:
+                    "R2 must not reuse the closing gate's --build-tests "
+                        + "artifact: " + required))
+        }
+        #expect(!script.contains(
+            "\n.build/arm64-apple-macosx/debug/IceCubesCheck --capture"),
+            Comment(rawValue:
+                "R2 regressed to the test-contaminated root build product"))
+    }
+
     @Test func closingGatePinsTheCurrentProjectCorpusCensus() throws {
         let script = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(

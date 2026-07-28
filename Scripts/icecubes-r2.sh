@@ -11,6 +11,8 @@ INTERP_DIR=/tmp/icecubes-interpreted
 # 2026-07-16T12:00:00Z, immediately after the recorded fixture was captured.
 FROZEN_NOW=1784203200
 CLOCK_DIR="$ROOT/Examples/IceCubesNativeTwin/.build/frozen-clock"
+INTERP_SCRATCH_PATH="${ICECUBES_R2_SCRATCH_PATH:-$ROOT/.build/icecubes-r2-product}"
+INTERP_EXECUTABLE="$INTERP_SCRATCH_PATH/arm64-apple-macosx/debug/IceCubesCheck"
 mkdir -p "$TWIN_DIR" "$INTERP_DIR"
 
 echo "── native IceCubes twin ──"
@@ -30,10 +32,12 @@ if [[ "$OBSERVED_CLOCK" != "$FROZEN_NOW" ]]; then
 fi
 
 echo "── interpreted IceCubes ──"
-xcrun swift build --product IceCubesCheck || exit 2
+xcrun swift build \
+  --scratch-path "$INTERP_SCRATCH_PATH" \
+  --product IceCubesCheck || exit 2
 ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
 DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macos.dylib" \
-.build/arm64-apple-macosx/debug/IceCubesCheck --capture "$INTERP_DIR" || exit 2
+"$INTERP_EXECUTABLE" --capture "$INTERP_DIR" || exit 2
 
 INTERP_OBSERVED_CLOCK="$(jq -r '.interpretedClockEpoch' "$INTERP_DIR/timeline.json")"
 if [[ "$INTERP_OBSERVED_CLOCK" != "$FROZEN_NOW" ]]; then
