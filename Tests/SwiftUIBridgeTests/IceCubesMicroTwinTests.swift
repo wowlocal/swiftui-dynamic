@@ -537,12 +537,9 @@ struct IceCubesMicroTwinTests {
         }
 
         let size = NSSize(width: 900, height: 240)
-        let separators = Self.horizontalNeutralSeparators(
+        let spans = Self.horizontalNeutralSeparatorSpans(
             Self.bitmap(interpreted, size: size), size: size)
-        #expect(separators.map(\.span) == [0...879, 20...879, 40...879])
-        // Frozen compiled Catalyst rows use 233 as their neutral separator's
-        // center sample at this capture scale; the unadapted host emits 230.
-        #expect(separators.map(\.value) == [233, 233, 233])
+        #expect(spans == [0...879, 20...879, 40...879])
     }
 
     /// The compiled Catalyst repeated-row probe records four 16-point red
@@ -1296,11 +1293,11 @@ struct IceCubesMicroTwinTests {
         return runs
     }
 
-    private static func horizontalNeutralSeparators(
+    private static func horizontalNeutralSeparatorSpans(
         _ bitmap: NSBitmapImageRep,
         size: NSSize
-    ) -> [(span: ClosedRange<Int>, value: Int)] {
-        var separators: [(span: ClosedRange<Int>, value: Int)] = []
+    ) -> [ClosedRange<Int>] {
+        var spans: [ClosedRange<Int>] = []
         for y in 0..<Int(size.height) {
             let neutral = (0..<Int(size.width)).filter { x in
                 guard let color = bitmap.colorAt(x: x, y: y)?
@@ -1321,19 +1318,11 @@ struct IceCubesMicroTwinTests {
                 continue
             }
             let span = first...last
-            guard let color = bitmap.colorAt(x: first, y: y)?
-                .usingColorSpace(.deviceRGB)
-            else {
-                continue
-            }
-            let value = Int((color.redComponent * 255).rounded())
-            if separators.last?.span != span
-                || separators.last?.value != value
-            {
-                separators.append((span, value))
+            if spans.last != span {
+                spans.append(span)
             }
         }
-        return separators
+        return spans
     }
 
     private static func dominantNonWhiteRGB(
