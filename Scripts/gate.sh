@@ -544,18 +544,31 @@ write_receipt() {
         echo "could not create gate receipt" >&2
         return 1
     fi
+    integer receipt_mutation_failed=0
+    receipt_set() {
+        if ! Scripts/plutil-with-retry.sh set "$plist" "$@"; then
+            receipt_mutation_failed=1
+        fi
+        return 0
+    }
     receipt_string() {
-        /usr/bin/plutil -insert "$1" -string "$2" "$plist" >/dev/null
+        receipt_set "$1" -string "$2"
     }
     receipt_integer() {
-        /usr/bin/plutil -insert "$1" -integer "$2" "$plist" >/dev/null
+        receipt_set "$1" -integer "$2"
     }
     receipt_bool() {
-        /usr/bin/plutil -insert "$1" -bool "$2" "$plist" >/dev/null
+        receipt_set "$1" -bool "$2"
+    }
+    receipt_dictionary() {
+        receipt_set "$1" -dictionary
+    }
+    receipt_json() {
+        receipt_set "$1" -json "$2"
     }
     receipt_stage() {
         local stage="$1"
-        /usr/bin/plutil -insert "stages.$stage" -dictionary "$plist" >/dev/null
+        receipt_dictionary "stages.$stage"
         receipt_string "stages.$stage.status" "$2"
         receipt_integer "stages.$stage.durationSeconds" "$3"
     }
@@ -567,7 +580,7 @@ write_receipt() {
     receipt_string finishedAt "$finished_at"
     receipt_integer durationSeconds "$(( SECONDS - gate_started ))"
 
-    /usr/bin/plutil -insert source -dictionary "$plist" >/dev/null
+    receipt_dictionary source
     receipt_string source.commit "$git_commit"
     receipt_bool source.dirtyAtStart "$git_dirty_at_start"
     receipt_string source.worktreeFingerprint "$worktree_fingerprint"
@@ -577,17 +590,16 @@ write_receipt() {
     receipt_string source.acceptanceManifestSHA256 "$acceptance_sha256"
     receipt_integer source.acceptanceManifestSchemaVersion \
         "$acceptance_schema_version"
-    /usr/bin/plutil -insert source.concurrencyCapabilityAccounting -json \
-        "$capability_accounting_json" "$plist" >/dev/null
-    /usr/bin/plutil -insert source.iceCubesClosePolicy -json \
-        "$close_policy_json" "$plist" >/dev/null
+    receipt_json source.concurrencyCapabilityAccounting \
+        "$capability_accounting_json"
+    receipt_json source.iceCubesClosePolicy "$close_policy_json"
     receipt_string source.commitAtStart "$git_commit"
     receipt_string source.commitAtEnd "$git_commit_at_end"
     receipt_bool source.dirtyAtEnd "$git_dirty_at_end"
     receipt_string source.worktreeFingerprintAtEnd "$worktree_fingerprint_at_end"
     receipt_bool source.driftDetected "$source_drift_detected"
 
-    /usr/bin/plutil -insert toolchain -dictionary "$plist" >/dev/null
+    receipt_dictionary toolchain
     receipt_string toolchain.swiftVersion "$swift_version"
     receipt_string toolchain.swiftcPath "$swiftc_path"
     receipt_string toolchain.swiftDriverPath "$swift_driver_path"
@@ -595,24 +607,21 @@ write_receipt() {
     receipt_string toolchain.swiftDriverTargetTriple "$swift_driver_target_triple"
     receipt_string toolchain.swiftDriverRuntimeResourcePath \
         "$swift_driver_runtime_resource"
-    /usr/bin/plutil -insert toolchain.swiftDriverTargetInfo -json \
-        "$swift_driver_target_info" "$plist" >/dev/null
+    receipt_json toolchain.swiftDriverTargetInfo "$swift_driver_target_info"
     receipt_string toolchain.macOSSDKPath "$sdk_path"
     receipt_string toolchain.macOSSDKVersion "$sdk_version"
     receipt_string toolchain.targetTriple "$target_triple"
-    /usr/bin/plutil -insert toolchain.targetInfo -json "$target_info" "$plist" >/dev/null
+    receipt_json toolchain.targetInfo "$target_info"
     receipt_string toolchain.fingerprint "$toolchain_fingerprint"
     receipt_string toolchain.policy "$toolchain_policy"
     receipt_string toolchain.expectedFingerprint "$expected_toolchain_fingerprint"
 
-    /usr/bin/plutil -insert parity -dictionary "$plist" >/dev/null
-    /usr/bin/plutil -insert parity.nativeCompileFlags -json \
-        '["-swift-version","6","-strict-concurrency=complete","-parse-as-library"]' \
-        "$plist" >/dev/null
-    /usr/bin/plutil -insert parity.shardCoverage -json \
-        "$parity_shard_receipt_json" "$plist" >/dev/null
+    receipt_dictionary parity
+    receipt_json parity.nativeCompileFlags \
+        '["-swift-version","6","-strict-concurrency=complete","-parse-as-library"]'
+    receipt_json parity.shardCoverage "$parity_shard_receipt_json"
 
-    /usr/bin/plutil -insert configuration -dictionary "$plist" >/dev/null
+    receipt_dictionary configuration
     receipt_integer configuration.jobs "$gate_jobs"
     receipt_integer configuration.testWorkers "$test_workers"
     receipt_integer configuration.parityTestWorkers "$parity_test_workers"
@@ -627,8 +636,7 @@ write_receipt() {
     receipt_integer configuration.r2TimeoutSeconds "$r2_timeout"
     receipt_integer configuration.childTimeoutSeconds "$child_timeout"
     receipt_integer configuration.terminationGraceSeconds "$termination_grace"
-    /usr/bin/plutil -insert configuration.effectiveEnvironment -dictionary \
-        "$plist" >/dev/null
+    receipt_dictionary configuration.effectiveEnvironment
     receipt_string \
         configuration.effectiveEnvironment.DYNAMIC_SWIFT_CHECK_TIMEOUT_SECONDS \
         "$child_timeout"
@@ -647,14 +655,14 @@ write_receipt() {
         configuration.effectiveEnvironment.GATE_LOCK_DIRECTORY \
         "$gate_lock_directory"
 
-    /usr/bin/plutil -insert stages -dictionary "$plist" >/dev/null
+    receipt_dictionary stages
     receipt_stage build "$build_stage_status" "$build_stage_seconds"
     receipt_stage tests "$test_stage_status" "$test_stage_seconds"
     receipt_stage evaluation "$eval_stage_status" "$eval_stage_seconds"
     receipt_stage live "$live_stage_status" "$live_stage_seconds"
     receipt_stage iceCubesR2 "$r2_stage_status" "$r2_stage_seconds"
 
-    /usr/bin/plutil -insert boards -dictionary "$plist" >/dev/null
+    receipt_dictionary boards
     receipt_integer boards.discoveredTestCount "$test_count"
     receipt_string boards.suite "$suite_summary"
     receipt_string boards.corpus "$corpus_summary"
@@ -678,7 +686,7 @@ write_receipt() {
         close_policy_log_tail=$(bounded_log_tail "$out/close-policy.log" 80)
         r2_log_tail=$(bounded_log_tail "$out/icecubes-r2.log" 80)
     fi
-    /usr/bin/plutil -insert diagnostics -dictionary "$plist" >/dev/null
+    receipt_dictionary diagnostics
     receipt_integer diagnostics.exitStatus "$exit_status"
     receipt_string diagnostics.currentStage "$current_stage"
     receipt_string diagnostics.messages "$gate_diagnostics"
@@ -691,7 +699,7 @@ write_receipt() {
     receipt_string diagnostics.liveLogTail "$live_log_tail"
     receipt_string diagnostics.closePolicyLogTail "$close_policy_log_tail"
     receipt_string diagnostics.iceCubesR2LogTail "$r2_log_tail"
-    /usr/bin/plutil -insert diagnostics.timeouts -dictionary "$plist" >/dev/null
+    receipt_dictionary diagnostics.timeouts
     receipt_string diagnostics.timeouts.build \
         "$(timeout_message "$out/build.timeout")"
     receipt_string diagnostics.timeouts.tests \
@@ -702,8 +710,7 @@ write_receipt() {
         "$(timeout_message "$out/live.timeout")"
     receipt_string diagnostics.timeouts.iceCubesR2 \
         "$(timeout_message "$out/icecubes-r2.timeout")"
-    /usr/bin/plutil -insert diagnostics.exitStatuses -dictionary \
-        "$plist" >/dev/null
+    receipt_dictionary diagnostics.exitStatuses
     receipt_integer diagnostics.exitStatuses.build "$build_status"
     receipt_integer diagnostics.exitStatuses.testDiscovery \
         "$test_discovery_status"
@@ -714,8 +721,13 @@ write_receipt() {
         "$close_policy_status"
     receipt_integer diagnostics.exitStatuses.iceCubesR2 "$r2_status"
 
+    if (( receipt_mutation_failed != 0 )); then
+        echo "could not populate gate receipt plist" >&2
+        return 1
+    fi
+
     mkdir -p "${receipt_path:h}"
-    if Scripts/plutil-json-with-retry.sh "$plist" "$receipt_tmp" \
+    if Scripts/plutil-with-retry.sh convert-json "$plist" "$receipt_tmp" \
         && /usr/bin/ruby -rjson -e '
             receipt = JSON.parse(File.read(ARGV.fetch(0)))
             paths = %w[

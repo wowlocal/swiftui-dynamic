@@ -3281,7 +3281,9 @@ struct ConcurrencyMethodologyTests {
             == (configuration["gateLockDirectory"] as? String))
     }
 
-    @Test func gateReceiptConversionRetriesTransientPlutilFailure() throws {
+    @Test func gateReceiptPlutilRetriesTransientMutationAndConversionFailures()
+        throws
+    {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(
                 "dynamic-swift-gate-plutil-\(UUID().uuidString)",
@@ -3301,22 +3303,19 @@ struct ConcurrencyMethodologyTests {
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
         "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
-        <dict><key>result</key><string>GREEN</string></dict>
+        <dict/>
         </plist>
         """.write(to: plistURL, atomically: true, encoding: .utf8)
         try """
         #!/bin/zsh
         set -u
-        if [[ "$1" == "-lint" ]]; then
-            exec /usr/bin/plutil "$@"
-        fi
         count=0
         if [[ -f "$GATE_FAKE_PLUTIL_STATE" ]]; then
             count=$(<"$GATE_FAKE_PLUTIL_STATE")
         fi
         (( count += 1 ))
         print -r -- "$count" > "$GATE_FAKE_PLUTIL_STATE"
-        if (( count < 3 )); then
+        if (( count < GATE_FAKE_PLUTIL_SUCCEED_AT )); then
             exit 1
         fi
         exec /usr/bin/plutil "$@"
@@ -3326,22 +3325,24 @@ struct ConcurrencyMethodologyTests {
             ofItemAtPath: fakePlutilURL.path,
         )
 
-        func run(attempts: Int) throws -> Process {
+        func run(
+            _ arguments: [String],
+            attempts: Int,
+            succeedAt: Int
+        ) throws -> Process {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/zsh")
             process.arguments = [
                 Self.packageRoot.appendingPathComponent(
-                    "Scripts/plutil-json-with-retry.sh"
-                ).path,
-                plistURL.path,
-                outputURL.path,
-            ]
+                    "Scripts/plutil-with-retry.sh"
+                ).path
+            ] + arguments
             var environment = ProcessInfo.processInfo.environment
             environment["GATE_PLUTIL_BIN"] = fakePlutilURL.path
             environment["GATE_FAKE_PLUTIL_STATE"] = stateURL.path
-            environment["GATE_PLUTIL_CONVERSION_ATTEMPTS"] =
-                String(attempts)
-            environment["GATE_PLUTIL_CONVERSION_RETRY_DELAY_SECONDS"] = "0"
+            environment["GATE_FAKE_PLUTIL_SUCCEED_AT"] = String(succeedAt)
+            environment["GATE_PLUTIL_ATTEMPTS"] = String(attempts)
+            environment["GATE_PLUTIL_RETRY_DELAY_SECONDS"] = "0"
             process.environment = environment
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = FileHandle.nullDevice
@@ -3351,8 +3352,52 @@ struct ConcurrencyMethodologyTests {
             return process
         }
 
-        let recovered = try run(attempts: 3)
-        #expect(recovered.terminationStatus == 0)
+        func resetAttempts() throws {
+            if FileManager.default.fileExists(atPath: stateURL.path) {
+                try FileManager.default.removeItem(at: stateURL)
+            }
+        }
+
+        let recoveredMutation = try run(
+            ["set", plistURL.path, "result", "-string", "GREEN"],
+            attempts: 3,
+            succeedAt: 3,
+        )
+        #expect(recoveredMutation.terminationStatus == 0)
+        #expect(try String(contentsOf: stateURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines) == "3")
+        let plist = try #require(
+            PropertyListSerialization.propertyList(
+                from: Data(contentsOf: plistURL),
+                options: [],
+                format: nil,
+            ) as? [String: String])
+        #expect(plist["result"] == "GREEN")
+
+        try resetAttempts()
+        let exhaustedMutation = try run(
+            ["set", plistURL.path, "unwritten", "-string", "value"],
+            attempts: 2,
+            succeedAt: 99,
+        )
+        #expect(exhaustedMutation.terminationStatus != 0)
+        #expect(try String(contentsOf: stateURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines) == "3")
+        let unchangedPlist = try #require(
+            PropertyListSerialization.propertyList(
+                from: Data(contentsOf: plistURL),
+                options: [],
+                format: nil,
+            ) as? [String: String])
+        #expect(unchangedPlist["unwritten"] == nil)
+
+        try resetAttempts()
+        let recoveredConversion = try run(
+            ["convert-json", plistURL.path, outputURL.path],
+            attempts: 3,
+            succeedAt: 3,
+        )
+        #expect(recoveredConversion.terminationStatus == 0)
         #expect(try String(contentsOf: stateURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines) == "3")
         let receipt = try #require(
@@ -3360,10 +3405,14 @@ struct ConcurrencyMethodologyTests {
                 as? [String: String])
         #expect(receipt["result"] == "GREEN")
 
-        try FileManager.default.removeItem(at: stateURL)
+        try resetAttempts()
         try FileManager.default.removeItem(at: outputURL)
-        let exhausted = try run(attempts: 2)
-        #expect(exhausted.terminationStatus != 0)
+        let exhaustedConversion = try run(
+            ["convert-json", plistURL.path, outputURL.path],
+            attempts: 2,
+            succeedAt: 99,
+        )
+        #expect(exhaustedConversion.terminationStatus != 0)
         #expect(try String(contentsOf: stateURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines) == "2")
         #expect(!FileManager.default.fileExists(atPath: outputURL.path))
