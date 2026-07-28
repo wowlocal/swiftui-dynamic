@@ -7,6 +7,7 @@ import SwiftInterpreter
 /// name or source spelling.
 enum GeneratedModifierSemanticAdapter {
     case targetButtonMenuStyle(parameter: Int)
+    case targetExplicitTint(parameter: Int)
 
     @MainActor
     func apply(
@@ -23,6 +24,18 @@ enum GeneratedModifierSemanticAdapter {
             }
             return TargetPlatformControlBridge.adaptButtonMenuStyle(
                 native, context: context)
+        case .targetExplicitTint(let parameter):
+            guard values.indices.contains(parameter) else { return native }
+            let style: AnyShapeStyle
+            if let erased = values[parameter] as? AnyShapeStyle {
+                style = erased
+            } else if let color = values[parameter] as? Color {
+                style = AnyShapeStyle(color)
+            } else {
+                return native
+            }
+            return TargetPlatformControlBridge.adaptExplicitTint(
+                style, to: native, context: context)
         }
     }
 }
@@ -37,20 +50,18 @@ enum GeneratedModifierSemanticAdapter {
 /// never on a source view, app, label, fixture, or call site.
 enum TargetPlatformControlBridge {
     @MainActor
-    static func applyTint(
-        _ color: Color,
-        to view: AnyView,
+    static func adaptExplicitTint(
+        _ style: AnyShapeStyle,
+        to native: AnyView,
         context: EvalContext
     ) -> AnyView {
 #if os(macOS)
         if context.buildConfiguration.targetEnvironment == "macCatalyst" {
             return AnyView(
-                view
-                    .tint(color)
-                    .environment(\.targetPlatformExplicitTint, color))
+                native.environment(\.targetPlatformExplicitTint, style))
         }
 #endif
-        return AnyView(view.tint(color))
+        return native
     }
 
     @MainActor
@@ -90,11 +101,11 @@ enum TargetPlatformControlBridge {
 /// supplied tint. Preserve that missing semantic property in the environment
 /// so any target-owned style adapter can make the same distinction.
 private struct TargetPlatformExplicitTintKey: EnvironmentKey {
-    static let defaultValue: Color? = nil
+    static let defaultValue: AnyShapeStyle? = nil
 }
 
 private extension EnvironmentValues {
-    var targetPlatformExplicitTint: Color? {
+    var targetPlatformExplicitTint: AnyShapeStyle? {
         get { self[TargetPlatformExplicitTintKey.self] }
         set { self[TargetPlatformExplicitTintKey.self] = newValue }
     }
@@ -121,17 +132,19 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
         return (horizontal: 10, vertical: 5, cornerRadius: 7)
     }
 
-    private func surfaceColor(isPressed: Bool) -> Color {
+    private func surfaceStyle(isPressed: Bool) -> AnyShapeStyle {
         if let explicitTint {
-            return explicitTint.opacity(isPressed ? 0.26 : 0.18)
+            return AnyShapeStyle(
+                explicitTint.opacity(isPressed ? 0.26 : 0.18))
         }
         // Compiled Catalyst's untinted bordered control uses its neutral
         // system-fill surface; the ambient accent remains label-only.
-        return Color(
-            red: 233.0 / 255.0,
-            green: 233.0 / 255.0,
-            blue: 235.0 / 255.0)
-            .opacity(isPressed ? 0.82 : 1)
+        return AnyShapeStyle(
+            Color(
+                red: 233.0 / 255.0,
+                green: 233.0 / 255.0,
+                blue: 235.0 / 255.0)
+                .opacity(isPressed ? 0.82 : 1))
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -144,7 +157,7 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
                     cornerRadius: chrome.cornerRadius,
                     style: .continuous
                 )
-                .fill(surfaceColor(isPressed: configuration.isPressed))
+                .fill(surfaceStyle(isPressed: configuration.isPressed))
             }
     }
 }

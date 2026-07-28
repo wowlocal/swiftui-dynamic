@@ -167,6 +167,26 @@ import SwiftInterpreter
         #expect(button is ButtonMenuStyle)
     }
 
+    @MainActor
+    @Test func generatedTintPreservesGenericShapeStyleAndTargetSemantics() throws {
+        let overloads = GeneratedModifiers.table["tint"]?.byArity[1] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [.shapeStyle]
+                && $0.semanticAdapter != nil
+        })
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [.color]
+                && $0.semanticAdapter != nil
+        })
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("generated generic tint")
+            .tint(.quaternary.opacity(0.5))
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func suffixDefaultVariantsMatchBothCallShapes() throws {
         // autocorrectionDisabled() and autocorrectionDisabled(false) are the
         // zero-arg and full variants of one defaulted-parameter overload.

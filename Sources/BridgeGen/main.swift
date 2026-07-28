@@ -3442,6 +3442,10 @@ enum SwiftUIMagicProtocolValueAdapter {
     case targetButtonMenuStyle
 }
 
+enum SwiftUIMagicModifierAdapter {
+    case targetExplicitTint
+}
+
 /// Protocol-value behavior that a swiftinterface cannot describe. This
 /// allowlist is intentionally keyed by the concrete semantic value discovered
 /// from protocol extensions and conformances—not by the modifier consuming
@@ -3456,6 +3460,21 @@ let swiftUIMagicProtocolValueAdapters: [
         adapter: .targetButtonMenuStyle,
         missingInterfaceSemantic:
             "target framework default menu-indicator visibility"),
+]
+
+/// Modifier-level behavior with no structural carrier in the public
+/// interface. Unlike ordinary API coverage, these entries are allowed only
+/// for the missing SwiftUI runtime semantics stated alongside them.
+let swiftUIMagicModifierAdapters: [
+    String: (
+        adapter: SwiftUIMagicModifierAdapter,
+        missingInterfaceSemantic: String
+    )
+] = [
+    "tint": (
+        adapter: .targetExplicitTint,
+        missingInterfaceSemantic:
+            "whether a downstream target style received an explicit tint"),
 ]
 
 func generatedModifierSemanticAdapter(_ variant: Variant) -> String? {
@@ -3481,15 +3500,32 @@ func generatedModifierSemanticAdapter(_ variant: Variant) -> String? {
             matches.append((index, concreteType, specification))
         }
     }
-    guard let match = matches.first else { return nil }
-    guard matches.count == 1 else {
+    guard matches.count <= 1 else {
         fatalError(
             "\(variant.key) has ambiguous SwiftUI magic protocol values: "
                 + matches.map(\.concreteType).joined(separator: ", "))
     }
-    switch match.specification.adapter {
-    case .targetButtonMenuStyle:
-        return ".targetButtonMenuStyle(parameter: \(match.parameter))"
+    if let match = matches.first {
+        switch match.specification.adapter {
+        case .targetButtonMenuStyle:
+            return ".targetButtonMenuStyle(parameter: \(match.parameter))"
+        }
+    }
+
+    guard let specification = swiftUIMagicModifierAdapters[variant.name]
+    else { return nil }
+    switch specification.adapter {
+    case .targetExplicitTint:
+        let styleParameters = variant.params.enumerated().filter {
+            $0.element.tag == "shapeStyle" || $0.element.tag == "color"
+        }
+        guard styleParameters.count == 1,
+              let parameter = styleParameters.first?.offset else {
+            fatalError(
+                "\(variant.key) lacks one tint-style parameter: "
+                    + specification.missingInterfaceSemantic)
+        }
+        return ".targetExplicitTint(parameter: \(parameter))"
     }
 }
 

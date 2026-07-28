@@ -2759,10 +2759,10 @@ register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")],
     }
 
     private static func build19(_ t: inout [String: [GeneratedOverload]]) {
-    register(&t, "tint", [ParamSpec(nil, .shapeStyle)]) { view, v in
+    register(&t, "tint", [ParamSpec(nil, .shapeStyle)], semanticAdapter: .targetExplicitTint(parameter: 0)) { view, v in
         return AnyView(view.tint(v[0] as! AnyShapeStyle))
     }
-    register(&t, "tint", [ParamSpec(nil, .color, contextualType: "Color")]) { view, v in
+    register(&t, "tint", [ParamSpec(nil, .color, contextualType: "Color")], semanticAdapter: .targetExplicitTint(parameter: 0)) { view, v in
         return AnyView(view.tint(v[0] as! Color))
     }
     register(&t, "toggleStyle", [ParamSpec(nil, .sdkProtocolValue("SwiftUI.ToggleStyle"))]) { view, v in
