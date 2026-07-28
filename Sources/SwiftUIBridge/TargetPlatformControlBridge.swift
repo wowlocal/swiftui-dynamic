@@ -25,26 +25,14 @@ enum GeneratedModifierSemanticAdapter {
             return TargetPlatformControlBridge.adaptButtonMenuStyle(
                 native, context: context)
         case .targetExplicitTint(let parameter):
-            guard values.indices.contains(parameter) else { return native }
-            let style: AnyShapeStyle
-            if let erased = values[parameter] as? AnyShapeStyle {
-                style = erased
-            } else if let color = values[parameter] as? Color {
-                style = AnyShapeStyle(color)
-            } else if let concrete = values[parameter] as? any ShapeStyle {
-                style = Self.eraseShapeStyle(concrete)
-            } else {
+            guard values.indices.contains(parameter),
+                  let style = GeneratedShapeStyleCarrier(values[parameter])
+            else {
                 return native
             }
             return TargetPlatformControlBridge.adaptExplicitTint(
                 style, to: native, context: context)
         }
-    }
-
-    private static func eraseShapeStyle<S: ShapeStyle>(
-        _ style: S
-    ) -> AnyShapeStyle {
-        AnyShapeStyle(style)
     }
 }
 
@@ -59,7 +47,7 @@ enum GeneratedModifierSemanticAdapter {
 enum TargetPlatformControlBridge {
     @MainActor
     static func adaptExplicitTint(
-        _ style: AnyShapeStyle,
+        _ style: GeneratedShapeStyleCarrier,
         to native: AnyView,
         context: EvalContext
     ) -> AnyView {
@@ -109,11 +97,11 @@ enum TargetPlatformControlBridge {
 /// supplied tint. Preserve that missing semantic property in the environment
 /// so any target-owned style adapter can make the same distinction.
 private struct TargetPlatformExplicitTintKey: EnvironmentKey {
-    static let defaultValue: AnyShapeStyle? = nil
+    static let defaultValue: GeneratedShapeStyleCarrier? = nil
 }
 
 private extension EnvironmentValues {
-    var targetPlatformExplicitTint: AnyShapeStyle? {
+    var targetPlatformExplicitTint: GeneratedShapeStyleCarrier? {
         get { self[TargetPlatformExplicitTintKey.self] }
         set { self[TargetPlatformExplicitTintKey.self] = newValue }
     }
@@ -140,19 +128,24 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
         return (horizontal: 10, vertical: 5, cornerRadius: 7)
     }
 
-    private func surfaceStyle(isPressed: Bool) -> AnyShapeStyle {
+    @ViewBuilder
+    private func surface(isPressed: Bool) -> some View {
+        let shape = RoundedRectangle(
+            cornerRadius: chrome.cornerRadius,
+            style: .continuous)
         if let explicitTint {
-            return AnyShapeStyle(
-                explicitTint.opacity(isPressed ? 0.26 : 0.18))
+            explicitTint.fill(
+                shape, opacity: isPressed ? 0.26 : 0.18)
+        } else {
+            // Compiled Catalyst's untinted bordered control uses its neutral
+            // system-fill surface; the ambient accent remains label-only.
+            shape.fill(
+                Color(
+                    red: 233.0 / 255.0,
+                    green: 233.0 / 255.0,
+                    blue: 235.0 / 255.0)
+                    .opacity(isPressed ? 0.82 : 1))
         }
-        // Compiled Catalyst's untinted bordered control uses its neutral
-        // system-fill surface; the ambient accent remains label-only.
-        return AnyShapeStyle(
-            Color(
-                red: 233.0 / 255.0,
-                green: 233.0 / 255.0,
-                blue: 235.0 / 255.0)
-                .opacity(isPressed ? 0.82 : 1))
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -161,11 +154,7 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
             .padding(.vertical, chrome.vertical)
             .foregroundStyle(.tint)
             .background {
-                RoundedRectangle(
-                    cornerRadius: chrome.cornerRadius,
-                    style: .continuous
-                )
-                .fill(surfaceStyle(isPressed: configuration.isPressed))
+                surface(isPressed: configuration.isPressed)
             }
     }
 }

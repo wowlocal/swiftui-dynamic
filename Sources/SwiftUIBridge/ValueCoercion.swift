@@ -1,6 +1,37 @@
 import SwiftUI
 import SwiftInterpreter
 
+/// Keeps a runtime `ShapeStyle` existential reopenable at later generic
+/// SwiftUI boundaries. BridgeGen can derive `Style: ShapeStyle` from an
+/// interface, but evaluation necessarily stores the value behind `Any`.
+/// Opening the existential only when the native generic call is made preserves
+/// its concrete rendering semantics without knowing the style's identity.
+struct GeneratedShapeStyleCarrier {
+    private let style: any ShapeStyle
+
+    init?(_ value: Any) {
+        guard let style = value as? any ShapeStyle else { return nil }
+        self.style = style
+    }
+
+    @MainActor
+    func fill<S: Shape>(
+        _ shape: S,
+        opacity: Double
+    ) -> AnyView {
+        Self.fill(shape, with: style, opacity: opacity)
+    }
+
+    @MainActor
+    private static func fill<S: Shape, Style: ShapeStyle>(
+        _ shape: S,
+        with style: Style,
+        opacity: Double
+    ) -> AnyView {
+        AnyView(shape.fill(style.opacity(opacity)))
+    }
+}
+
 /// Resolves `.implicitMember` values (`.red`, `.title`, `.leading`) against
 /// the SwiftUI type a gateway parameter expects — the "expected type context"
 /// trick reduced to lookup tables, dodging real type inference.

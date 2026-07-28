@@ -931,6 +931,25 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    /// A generated protocol value may cross an environment boundary before a
+    /// target adapter consumes it. Reopening that existential at the native
+    /// generic call must render exactly like passing the concrete style
+    /// directly; early `AnyShapeStyle` erasure changes edge rasterization.
+    @MainActor
+    @Test
+    func generatedShapeStyleCarrierMatchesConcreteNativeFill() throws {
+        let size = NSSize(width: 80, height: 80)
+        let shape = RoundedRectangle(
+            cornerRadius: 17, style: .continuous)
+        let carrier = try #require(GeneratedShapeStyleCarrier(Color.red))
+        let actual = Self.bitmap(
+            carrier.fill(shape, opacity: 0.5), size: size)
+        let expected = Self.bitmap(
+            AnyView(shape.fill(Color.red.opacity(0.5))), size: size)
+
+        #expect(Self.pixelAE(actual, expected, size: size) == 0)
+    }
+
     /// Compiled Catalyst's button-style menu presents only its supplied label;
     /// the macOS host adds a disclosure indicator that widens the control and
     /// alters its intrinsic geometry. The target default is interface-
