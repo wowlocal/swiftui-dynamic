@@ -127,17 +127,106 @@ private struct TargetControlRows: View {
     }
 }
 
+private struct TargetTrailingControl: View {
+    let rootFrame: CGRect
+    let rowIndex: Int
+    let controlIndex: Int
+
+    var body: some View {
+        Button {} label: {
+            Text("#control-\(controlIndex)")
+                .font(.footnote)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .background {
+                    TargetControlRowFrameReader(
+                        name: "trailing-label-\(rowIndex)-\(controlIndex)",
+                        rootFrame: rootFrame)
+                }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .background {
+            TargetControlRowFrameReader(
+                name: "trailing-control-\(rowIndex)-\(controlIndex)",
+                rootFrame: rootFrame)
+        }
+    }
+}
+
+private struct TargetTrailingControlStrip: View {
+    let rootFrame: CGRect
+    let rowIndex: Int
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(0..<3) { controlIndex in
+                    TargetTrailingControl(
+                        rootFrame: rootFrame,
+                        rowIndex: rowIndex,
+                        controlIndex: controlIndex)
+                }
+            }
+            .background {
+                TargetControlRowFrameReader(
+                    name: "trailing-stack-\(rowIndex)",
+                    rootFrame: rootFrame)
+            }
+        }
+        .scrollClipDisabled()
+        .background {
+            TargetControlRowFrameReader(
+                name: "trailing-scroll-\(rowIndex)",
+                rootFrame: rootFrame)
+        }
+    }
+}
+
+private struct TargetTrailingControlRows: View {
+    let rootFrame: CGRect
+
+    var body: some View {
+        ForEach(0..<2) { index in
+            VStack(alignment: .leading, spacing: 6) {
+                Color.green.frame(width: 40, height: 40)
+                TargetTrailingControlStrip(
+                    rootFrame: rootFrame,
+                    rowIndex: index)
+                    .padding(.top, 8)
+                    .background {
+                        TargetControlRowFrameReader(
+                            name: "trailing-section-\(index)",
+                            rootFrame: rootFrame)
+                    }
+            }
+            .padding(.init(
+                top: 12, leading: 0, bottom: 6, trailing: 0))
+            .background {
+                TargetControlRowFrameReader(
+                    name: "trailing-row-\(index)",
+                    rootFrame: rootFrame)
+            }
+            .listRowInsets(.init(
+                top: 0, leading: 20, bottom: 0, trailing: 20))
+        }
+    }
+}
+
 /// Compiled-target oracle for the intrinsic geometry of a mixed control strip
 /// propagated through repeated plain-list rows. The structure is intentionally
 /// app-independent: explicit font and padding properties, source-defined
-/// label-only button style, button-style Menu, fixed vertical extent, and
-/// repeated collection composition.
+/// label-only button style, button-style Menu, small bordered controls inside
+/// a horizontal scroll container, fixed vertical extent, and repeated
+/// collection composition.
 @MainActor
 struct TargetControlRowGeometryProbe: View {
     var body: some View {
         GeometryReader { rootProxy in
             List {
                 TargetControlRows(
+                    rootFrame: rootProxy.frame(in: .global))
+                TargetTrailingControlRows(
                     rootFrame: rootProxy.frame(in: .global))
             }
             .listStyle(.plain)
