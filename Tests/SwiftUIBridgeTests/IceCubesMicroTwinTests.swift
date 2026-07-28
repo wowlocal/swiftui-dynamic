@@ -596,6 +596,96 @@ struct IceCubesMicroTwinTests {
         } == [24, 34, 24])
     }
 
+    /// The compiled Catalyst control-row probe resolves its mixed explicit-
+    /// font Button/Menu strip at 32.5 points and each padded repeated row at
+    /// 96.5 points. At one-pixel capture scale, the two 40-point red blocks
+    /// occupy these exact runs, preserving the half-point row cadence.
+    @MainActor
+    @Test
+    func catalystTargetPreservesMixedControlRowExtent() throws {
+        let source = """
+        struct GeometryOnlyButtonStyle: ButtonStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                configuration.label
+            }
+        }
+
+        struct TargetActionButton: View {
+            var body: some View {
+                Button {} label: {
+                    Image(systemName: "arrowshape.turn.up.left")
+                        .font(.system(size: 19))
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(GeometryOnlyButtonStyle())
+            }
+        }
+
+        struct TargetActionMenu: View {
+            var body: some View {
+                Menu {
+                    Button("Action") {}
+                } label: {
+                    Label("", systemImage: "ellipsis")
+                        .font(.system(size: 19))
+                        .padding(.vertical, 6)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .tint(.primary)
+                .contentShape(Rectangle())
+            }
+        }
+
+        struct TargetControlRows: View {
+            var body: some View {
+                ForEach(0..<2) { _ in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Color.red.frame(width: 40, height: 40)
+                        HStack {
+                            TargetActionButton()
+                            TargetActionButton()
+                            Spacer()
+                            TargetActionMenu()
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.init(
+                        top: 12, leading: 0, bottom: 6, trailing: 0))
+                    .listRowInsets(.init(
+                        top: 0, leading: 20, bottom: 0, trailing: 20))
+                }
+            }
+        }
+
+        List {
+            TargetControlRows()
+        }
+        .listStyle(.plain)
+        .environment(\\.colorScheme, .light)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("target control-row microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 900, height: 220)
+        let bitmap = Self.bitmap(interpreted, size: size)
+        #expect(Self.redPixelYRuns(bitmap, size: size) == [
+            12..<52,
+            109..<148,
+        ])
+    }
+
     /// The compiled Catalyst typography oracle records the semantic footnote
     /// label at 48×16 independently of button chrome. A macOS host otherwise
     /// selects its own smaller 36×12 footnote metrics.
