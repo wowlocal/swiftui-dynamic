@@ -300,7 +300,8 @@ extension ViewRegistry {
         }
 
         constructors["List"] = HostFunction(name: "List") { args, ctx in
-            let content = try Self.dataOrPlainContent(args, ctx)
+            let content = TargetPlatformCollectionBridge.apply(
+                to: try Self.dataOrPlainContent(args, ctx), context: ctx)
             // Dynamic selection values cannot satisfy the static Hashable
             // generic, so rows tag with their stable stringified identity
             // and the binding hands the app back the ORIGINAL runtime value

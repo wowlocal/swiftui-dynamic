@@ -467,6 +467,64 @@ struct IceCubesMicroTwinTests {
         #expect(bounds?.minX == 20)
     }
 
+    /// The compiled Catalyst separator oracle resolves the row's semantic
+    /// leading guide relative to its 20-point content inset, clamps it at the
+    /// visible collection edge, and keeps a platform-owned 20-point trailing
+    /// baseline. The macOS host owns separator drawing, so target adaptation
+    /// must preserve those properties independently of row content.
+    @MainActor
+    @Test
+    func catalystTargetUsesCompiledListSeparatorSpans() throws {
+        let source = """
+        struct SeparatorRow: View {
+            let guide: CGFloat
+            let trailing: CGFloat
+
+            var body: some View {
+                HStack {
+                    Color.red.frame(width: 16, height: 16)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .listRowInsets(.init(
+                    top: 0, leading: 20, bottom: 0, trailing: trailing))
+                .alignmentGuide(.listRowSeparatorLeading) { _ in
+                    guide
+                }
+            }
+        }
+
+        struct SeparatorRows: View {
+            var body: some View {
+                SeparatorRow(guide: -100, trailing: 0)
+                SeparatorRow(guide: 0, trailing: 40)
+                SeparatorRow(guide: 20, trailing: 8)
+                SeparatorRow(guide: 0, trailing: 20)
+            }
+        }
+
+        List {
+            SeparatorRows()
+        }
+        .listStyle(.plain)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("target list-separator microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 900, height: 240)
+        let spans = Self.horizontalNeutralSeparatorSpans(
+            Self.bitmap(interpreted, size: size), size: size)
+        #expect(spans == [0...879, 20...879, 40...879])
+    }
+
     /// The compiled Catalyst repeated-row probe records four 16-point red
     /// bands whose leading edges are separated by 24, 34, and 24 points.
     /// That pins the complete 58-point child extent through a custom
@@ -975,6 +1033,38 @@ struct IceCubesMicroTwinTests {
         }
         runs.append(lowerBound..<(previous + 1))
         return runs
+    }
+
+    private static func horizontalNeutralSeparatorSpans(
+        _ bitmap: NSBitmapImageRep,
+        size: NSSize
+    ) -> [ClosedRange<Int>] {
+        var spans: [ClosedRange<Int>] = []
+        for y in 0..<Int(size.height) {
+            let neutral = (0..<Int(size.width)).filter { x in
+                guard let color = bitmap.colorAt(x: x, y: y)?
+                    .usingColorSpace(.deviceRGB)
+                else {
+                    return false
+                }
+                return color.redComponent > 0.80
+                    && color.redComponent < 0.98
+                    && abs(color.redComponent - color.greenComponent) < 0.01
+                    && abs(color.redComponent - color.blueComponent) < 0.01
+            }
+            guard neutral.count > 700,
+                  let first = neutral.first,
+                  let last = neutral.last,
+                  last - first + 1 == neutral.count
+            else {
+                continue
+            }
+            let span = first...last
+            if spans.last != span {
+                spans.append(span)
+            }
+        }
+        return spans
     }
 
     private static func dominantNonWhiteRGB(
