@@ -260,6 +260,71 @@ import SwiftInterpreter
         #expect(registry.isViewValue(rendered))
     }
 
+    /// Configuration properties belong to the same generated protocol
+    /// adapter as its conformer. ToggleStyle is a neutral proof: it has no
+    /// handwritten modifier gateway or configuration host-member switch.
+    @MainActor
+    @Test func sourceProtocolConfigurationMembersComeFromInterfaces() throws {
+        let descriptor = try #require(
+            GeneratedSDKProtocolValueCoercions
+                .frameworkConfigurationProtocols["SwiftUI.ToggleStyle"])
+        #expect(descriptor.configurationType
+            == "SwiftUI.ToggleStyleConfiguration")
+        #expect(descriptor.members
+            == ["$isOn", "isMixed", "isOn", "label"])
+
+        let source = """
+        struct ProjectToggleStyle: ToggleStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                HStack(spacing: 0) {
+                    configuration.label
+                    Rectangle()
+                        .fill(configuration.isOn ? Color.black : Color.white)
+                        .frame(width: 44, height: 26)
+                }
+            }
+        }
+
+        @main
+        struct ProbeApp: App {
+            @State private var enabled = true
+
+            var body: some Scene {
+                WindowGroup {
+                    Toggle("Interface members", isOn: $enabled)
+                        .toggleStyle(ProjectToggleStyle())
+                }
+            }
+        }
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("generated ToggleStyle failed to render: \(rendered)")
+            return
+        }
+        let bitmap = Self.bitmap(
+            view, size: NSSize(width: 240, height: 100))
+        var blackPixels = 0
+        for x in 0..<240 {
+            for y in 0..<100 {
+                guard let color = bitmap.colorAt(x: x, y: y) else {
+                    continue
+                }
+                if color.redComponent < 0.15,
+                   color.greenComponent < 0.15,
+                   color.blueComponent < 0.15 {
+                    blackPixels += 1
+                }
+            }
+        }
+        #expect(blackPixels > 500)
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
     @MainActor
     @Test func generatedProtocolValueCarriesTargetSemanticAdapter() throws {
         let composition = "SwiftUI.MenuStyle"

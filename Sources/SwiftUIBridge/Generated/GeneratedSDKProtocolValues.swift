@@ -11,6 +11,7 @@ struct GeneratedSDKFrameworkConfigurationProtocol {
     let configurationType: String
     let bodyMethod: String
     let configurationLabel: String?
+    let members: [String]
 }
 
 struct GeneratedInterpreted_SwiftUI_ButtonStyle: SwiftUI.ButtonStyle {
@@ -349,64 +350,256 @@ enum GeneratedSDKProtocolValueCoercions {
         "SwiftUI.ButtonStyle": .init(
             configurationType: "SwiftUI.ButtonStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["isPressed", "label", "role"]),
         "SwiftUI.ControlGroupStyle": .init(
             configurationType: "SwiftUI.ControlGroupStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["content", "label"]),
         "SwiftUI.DatePickerStyle": .init(
             configurationType: "SwiftUI.DatePickerStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["$selection", "displayedComponents", "label", "maximumDate", "minimumDate", "selection"]),
         "SwiftUI.DisclosureGroupStyle": .init(
             configurationType: "SwiftUI.DisclosureGroupStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["$isExpanded", "content", "isExpanded", "label"]),
         "SwiftUI.FormStyle": .init(
             configurationType: "SwiftUI.FormStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["content"]),
         "SwiftUI.GaugeStyle": .init(
             configurationType: "SwiftUI.GaugeStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["currentValueLabel", "label", "maximumValueLabel", "minimumValueLabel", "value"]),
         "SwiftUI.GroupBoxStyle": .init(
             configurationType: "SwiftUI.GroupBoxStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["content", "label"]),
         "SwiftUI.LabelStyle": .init(
             configurationType: "SwiftUI.LabelStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["icon", "title"]),
         "SwiftUI.LabeledContentStyle": .init(
             configurationType: "SwiftUI.LabeledContentStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["content", "label"]),
         "SwiftUI.MenuStyle": .init(
             configurationType: "SwiftUI.MenuStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: []),
         "SwiftUI.NavigationSplitViewStyle": .init(
             configurationType: "SwiftUI.NavigationSplitViewStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: []),
         "SwiftUI.PrimitiveButtonStyle": .init(
             configurationType: "SwiftUI.PrimitiveButtonStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["label", "role"]),
         "SwiftUI.ProgressViewStyle": .init(
             configurationType: "SwiftUI.ProgressViewStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["currentValueLabel", "fractionCompleted", "label"]),
         "SwiftUI.TableStyle": .init(
             configurationType: "SwiftUI.TableStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: []),
         "SwiftUI.ToggleStyle": .init(
             configurationType: "SwiftUI.ToggleStyleConfiguration",
             bodyMethod: "makeBody",
-            configurationLabel: "configuration"),
+            configurationLabel: "configuration",
+            members: ["$isOn", "isMixed", "isOn", "label"]),
     ]
+
+    static func frameworkConfigurationMember(
+        _ name: String, on value: Any
+    ) -> RuntimeValue? {
+        switch value {
+        case let configuration as SwiftUI.ButtonStyleConfiguration:
+            switch name {
+            case "isPressed":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`isPressed`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            case "role":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`role`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.ControlGroupStyleConfiguration:
+            switch name {
+            case "content":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`content`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.DatePickerStyleConfiguration:
+            switch name {
+            case "$selection":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.$selection)
+            case "displayedComponents":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`displayedComponents`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            case "maximumDate":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`maximumDate`)
+            case "minimumDate":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`minimumDate`)
+            case "selection":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`selection`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.DisclosureGroupStyleConfiguration:
+            switch name {
+            case "$isExpanded":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.$isExpanded)
+            case "content":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`content`)
+            case "isExpanded":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`isExpanded`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.FormStyleConfiguration:
+            switch name {
+            case "content":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`content`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.GaugeStyleConfiguration:
+            switch name {
+            case "currentValueLabel":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`currentValueLabel`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            case "maximumValueLabel":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`maximumValueLabel`)
+            case "minimumValueLabel":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`minimumValueLabel`)
+            case "value":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`value`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.GroupBoxStyleConfiguration:
+            switch name {
+            case "content":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`content`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.LabelStyleConfiguration:
+            switch name {
+            case "icon":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`icon`)
+            case "title":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`title`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.LabeledContentStyleConfiguration:
+            switch name {
+            case "content":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`content`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.PrimitiveButtonStyleConfiguration:
+            switch name {
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            case "role":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`role`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.ProgressViewStyleConfiguration:
+            switch name {
+            case "currentValueLabel":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`currentValueLabel`)
+            case "fractionCompleted":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`fractionCompleted`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            default:
+                return nil
+            }
+        case let configuration as SwiftUI.ToggleStyleConfiguration:
+            switch name {
+            case "$isOn":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.$isOn)
+            case "isMixed":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`isMixed`)
+            case "isOn":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`isOn`)
+            case "label":
+                return generatedFrameworkConfigurationRuntimeValue(
+                    configuration.`label`)
+            default:
+                return nil
+            }
+        default:
+            return nil
+        }
+    }
 
     static func coerce(
         _ composition: String, _ value: RuntimeValue,

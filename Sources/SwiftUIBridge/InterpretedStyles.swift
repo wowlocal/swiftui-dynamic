@@ -105,6 +105,27 @@ func interpretedFrameworkConfigurationBody(
     }
 }
 
+/// Preserve opaque View values while projecting interface-discovered
+/// Configuration properties into the interpreter. Non-View values retain
+/// their native type and optional shape through the shared runtime boundary.
+func generatedFrameworkConfigurationRuntimeValue<V: View>(
+    _ value: V
+) -> RuntimeValue {
+    .native(AnyView(value))
+}
+
+func generatedFrameworkConfigurationRuntimeValue<V: View>(
+    _ value: V?
+) -> RuntimeValue {
+    .native(value.map { AnyView($0) })
+}
+
+func generatedFrameworkConfigurationRuntimeValue<T>(
+    _ value: T
+) -> RuntimeValue {
+    .nativePreservingOptional(value as Any)
+}
+
 struct InterpretedLabelStyle: LabelStyle {
     private let carrier: StyleCarrier
 
@@ -172,24 +193,4 @@ struct InterpretedButtonStyle: ButtonStyle {
         }
         return result
     }
-}
-
-/// Host members for style configurations the interpreted makeBody reads.
-@MainActor
-func styleHostMember(_ name: String, on value: Any) -> RuntimeValue? {
-    if let configuration = value as? LabelStyleConfiguration {
-        switch name {
-        case "icon": return .native(AnyView(configuration.icon))
-        case "title": return .native(AnyView(configuration.title))
-        default: return nil
-        }
-    }
-    if let configuration = value as? ButtonStyleConfiguration {
-        switch name {
-        case "label": return .native(AnyView(configuration.label))
-        case "isPressed": return .native(configuration.isPressed)
-        default: return nil
-        }
-    }
-    return nil
 }
