@@ -902,19 +902,35 @@ extension GeneratedConstructors {
     }
     register(&t, "ScrollView", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
-        return AnyView(ScrollView(content: { b0 }))
+        return TargetPlatformScrollBridge.applyGenerated(
+            to: AnyView(ScrollView(content: { b0 })),
+            axes: Axis.Set.vertical,
+            showsIndicators: true,
+            builderValue: v[0])
     }
     register(&t, "ScrollView", [ParamSpec("showsIndicators", .bool, contextualType: "Bool"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return AnyView(ScrollView(showsIndicators: v[0] as! Bool, content: { b1 }))
+        return TargetPlatformScrollBridge.applyGenerated(
+            to: AnyView(ScrollView(showsIndicators: v[0] as! Bool, content: { b1 })),
+            axes: Axis.Set.vertical,
+            showsIndicators: v[0] as! Bool,
+            builderValue: v[1])
     }
     register(&t, "ScrollView", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return AnyView(ScrollView(v[0] as! Axis.Set, content: { b1 }))
+        return TargetPlatformScrollBridge.applyGenerated(
+            to: AnyView(ScrollView(v[0] as! Axis.Set, content: { b1 })),
+            axes: v[0] as! Axis.Set,
+            showsIndicators: true,
+            builderValue: v[1])
     }
     register(&t, "ScrollView", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("showsIndicators", .bool, contextualType: "Bool"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return AnyView(ScrollView(v[0] as! Axis.Set, showsIndicators: v[1] as! Bool, content: { b2 }))
+        return TargetPlatformScrollBridge.applyGenerated(
+            to: AnyView(ScrollView(v[0] as! Axis.Set, showsIndicators: v[1] as! Bool, content: { b2 })),
+            axes: v[0] as! Axis.Set,
+            showsIndicators: v[1] as! Bool,
+            builderValue: v[2])
     }
     register(&t, "Section", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])

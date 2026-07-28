@@ -290,15 +290,6 @@ extension ViewRegistry {
                 rows: rowValues, specs: specs, sortOrder: sortBox, interpreter: interpreter))
         }
 
-        constructors["ScrollView"] = HostFunction(name: "ScrollView") { args, ctx in
-            var axes: Axis.Set = .vertical
-            if case .implicitMember(let name)? = args.positional(0) {
-                axes = name == "horizontal" ? .horizontal : .vertical
-            }
-            let content = try Self.builderContent(args, ctx)
-            return .native(AnyView(ScrollView(axes) { Self.indexed(content) }))
-        }
-
         constructors["List"] = HostFunction(name: "List") { args, ctx in
             let content = TargetPlatformCollectionBridge.apply(
                 to: try Self.dataOrPlainContent(args, ctx), context: ctx)

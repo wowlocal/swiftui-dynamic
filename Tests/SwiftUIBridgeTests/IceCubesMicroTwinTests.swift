@@ -686,6 +686,85 @@ struct IceCubesMicroTwinTests {
         ])
     }
 
+    /// The compiled Catalyst trailing-control oracle resolves semantic
+    /// footnote labels at 16 points, small bordered controls and their
+    /// horizontal ScrollView at 26 points, and each padded repeated row at 98
+    /// points. The two fixed green blocks therefore start exactly 98 points
+    /// apart without accumulating host scroll-container height.
+    @MainActor
+    @Test
+    func catalystTargetPreservesTrailingControlRowExtent() throws {
+        let source = """
+        struct TargetTrailingControl: View {
+            let index: Int
+
+            var body: some View {
+                Button {} label: {
+                    Text("#control-\\(index)")
+                        .font(.footnote)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+
+        struct TargetTrailingControlStrip: View {
+            var body: some View {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(0..<3) { index in
+                            TargetTrailingControl(index: index)
+                        }
+                    }
+                }
+                .scrollClipDisabled()
+            }
+        }
+
+        struct TargetTrailingControlRows: View {
+            var body: some View {
+                ForEach(0..<2) { _ in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Color.green.frame(width: 40, height: 40)
+                        TargetTrailingControlStrip()
+                            .padding(.top, 8)
+                    }
+                    .padding(.init(
+                        top: 12, leading: 0, bottom: 6, trailing: 0))
+                    .listRowInsets(.init(
+                        top: 0, leading: 20, bottom: 0, trailing: 20))
+                }
+            }
+        }
+
+        List {
+            TargetTrailingControlRows()
+        }
+        .listStyle(.plain)
+        .environment(\\.colorScheme, .light)
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record(
+                "target trailing-control row microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 900, height: 220)
+        let bitmap = Self.bitmap(interpreted, size: size)
+        #expect(Self.greenPixelYRuns(bitmap, size: size) == [
+            12..<52,
+            110..<150,
+        ])
+    }
+
     /// The compiled Catalyst typography oracle records the semantic footnote
     /// label at 48×16 independently of button chrome. A macOS host otherwise
     /// selects its own smaller 36×12 footnote metrics.
@@ -1164,6 +1243,39 @@ struct IceCubesMicroTwinTests {
         let populatedRows = (0..<Int(size.height)).filter { y in
             (0..<Int(size.width)).contains { x in
                 Self.isFooterPixel(bitmap.colorAt(x: x, y: y))
+            }
+        }
+        guard let first = populatedRows.first else { return [] }
+        var runs: [Range<Int>] = []
+        var lowerBound = first
+        var previous = first
+        for row in populatedRows.dropFirst() {
+            if row != previous + 1 {
+                runs.append(lowerBound..<(previous + 1))
+                lowerBound = row
+            }
+            previous = row
+        }
+        runs.append(lowerBound..<(previous + 1))
+        return runs
+    }
+
+    private static func greenPixelYRuns(
+        _ bitmap: NSBitmapImageRep,
+        size: NSSize
+    ) -> [Range<Int>] {
+        let populatedRows = (0..<Int(size.height)).filter { y in
+            (0..<Int(size.width)).contains { x in
+                guard let color = bitmap.colorAt(x: x, y: y)?
+                    .usingColorSpace(.deviceRGB)
+                else {
+                    return false
+                }
+                return color.greenComponent > 0.70
+                    && color.greenComponent
+                        > color.redComponent + 0.20
+                    && color.greenComponent
+                        > color.blueComponent + 0.20
             }
         }
         guard let first = populatedRows.first else { return [] }
