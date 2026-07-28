@@ -314,7 +314,7 @@ extension GeneratedModifiers {
     }
 
     private static func build2(_ t: inout [String: [GeneratedOverload]]) {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "alternatingRowBackgrounds", []) { view, v in
         return AnyView(view.alternatingRowBackgrounds())
     }
@@ -972,7 +972,7 @@ extension GeneratedModifiers {
     register(&t, "deleteDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.deleteDisabled(v[0] as! Bool))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "dialogSeverity", [ParamSpec(nil, .sdkEnum("DialogSeverity"), contextualType: "DialogSeverity")]) { view, v in
         return AnyView(view.dialogSeverity(v[0] as! DialogSeverity))
     }
@@ -1002,26 +1002,26 @@ extension GeneratedModifiers {
         }
         return generatedInvoke(p0)
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("shouldPresent", .bool, contextualType: "Bool"), ParamSpec("actions", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.dismissalConfirmationDialog(LocalizedStringKey(v[0] as! String), shouldPresent: v[1] as! Bool, actions: { b2 }))
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("shouldPresent", .bool, contextualType: "Bool"), ParamSpec("actions", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         return AnyView(view.dismissalConfirmationDialog(v[0] as! Text, shouldPresent: v[1] as! Bool, actions: { b2 }))
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("shouldPresent", .bool, contextualType: "Bool"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return AnyView(view.dismissalConfirmationDialog(LocalizedStringKey(v[0] as! String), shouldPresent: v[1] as! Bool, actions: { b2 }, message: { b3 }))
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "dismissalConfirmationDialog", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("shouldPresent", .bool, contextualType: "Bool"), ParamSpec("actions", .builder), ParamSpec("message", .builder)]) { view, v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
@@ -1116,7 +1116,7 @@ extension GeneratedModifiers {
     register(&t, "focusEffectDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.focusEffectDisabled(v[0] as! Bool))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "focusSection", []) { view, v in
         return AnyView(view.focusSection())
     }
@@ -1656,7 +1656,7 @@ register(&t, "fullScreenCover", [ParamSpec("isPresented", .bindingBool, contextu
     register(&t, "hidden", []) { view, v in
         return AnyView(view.hidden())
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "horizontalRadioGroupLayout", []) { view, v in
         return AnyView(view.horizontalRadioGroupLayout())
     }
@@ -1891,7 +1891,7 @@ register(&t, "mapControls", [ParamSpec(nil, .builder)], requiredImports: ["MapKi
     register(&t, "minimumScaleFactor", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")]) { view, v in
         return AnyView(view.minimumScaleFactor(v[0] as! CGFloat))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "modifierKeyAlternate", [ParamSpec(nil, .sdkEnum("EventModifiers"), contextualType: "EventModifiers"), ParamSpec(nil, .builder)]) { view, v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(view.modifierKeyAlternate(v[0] as! EventModifiers, { b1 }))
@@ -2251,7 +2251,7 @@ register(&t, "photosPickerAccessoryVisibility", [ParamSpec(nil, .visibility, con
         }
         return generatedInvoke(p0)
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "pointerVisibility", [ParamSpec(nil, .visibility, contextualType: "Visibility")]) { view, v in
         return AnyView(view.pointerVisibility(v[0] as! Visibility))
     }
@@ -2920,12 +2920,12 @@ register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")],
         }
         return generatedInvoke(p0)
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "textInputCompletion", [ParamSpec(nil, .string, contextualType: "String")]) { view, v in
         return AnyView(view.textInputCompletion(v[0] as! String))
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "textInputSuggestions", [ParamSpec(nil, .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.textInputSuggestions({ b0 }))
@@ -2971,12 +2971,12 @@ register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")],
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.toolbar(content: { b0 }))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "toolbarItemHidden", []) { view, v in
         return AnyView(view.toolbarItemHidden())
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "toolbarItemHidden", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.toolbarItemHidden(v[0] as! Bool))
     }
@@ -2991,23 +2991,23 @@ register(&t, "statusBarHidden", [ParamSpec(nil, .bool, contextualType: "Bool")],
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.toolbarTitleMenu(content: { b0 }))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "touchBar", [ParamSpec("content", .builder)]) { view, v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(view.touchBar(content: { b0 }))
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "touchBarCustomizationLabel", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.touchBarCustomizationLabel(v[0] as! Text))
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "touchBarItemPrincipal", []) { view, v in
         return AnyView(view.touchBarItemPrincipal())
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "touchBarItemPrincipal", [ParamSpec(nil, .bool, contextualType: "Bool")]) { view, v in
         return AnyView(view.touchBarItemPrincipal(v[0] as! Bool))
     }

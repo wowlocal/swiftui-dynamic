@@ -2432,9 +2432,21 @@ private func emitPlatformKnownMember(_ value: PlatformKnownMember) -> String {
     """
 }
 
-private func platformNativeImportCondition(for framework: String) -> String {
-    platformFrameworkSpecs.first(where: { $0.name == framework })?
-        .nativeImportCondition ?? "canImport(\(framework))"
+func platformNativeImportCondition(for framework: String) -> String {
+    guard let specification = platformFrameworkSpecs.first(where: {
+        $0.name == framework
+    }) else {
+        return "canImport(\(framework))"
+    }
+    if let condition = specification.nativeImportCondition {
+        return condition
+    }
+    var conditions = ["canImport(\(framework))"]
+    if specification.isPlatformSurface,
+       specification.target.contains("-apple-macosx") {
+        conditions.append("!targetEnvironment(macCatalyst)")
+    }
+    return conditions.joined(separator: " && ")
 }
 
 private func platformCallArguments(_ params: [PlatformParameter]) -> String {

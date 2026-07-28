@@ -127,12 +127,12 @@ extension GeneratedConstructors {
     register(&t, "Color", [ParamSpec(nil, .string, contextualType: "String")]) { v in
         return Color(v[0] as! String)
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "Color", [ParamSpec(nil, .platformValue("AppKit", "NSColor"), contextualType: "NSColor")], isDisfavored: true) { v in
         return Color(v[0] as! NSColor)
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "Color", [ParamSpec("nsColor", .platformValue("AppKit", "NSColor"), contextualType: "NSColor")]) { v in
         return Color(nsColor: v[0] as! NSColor)
     }
@@ -454,7 +454,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(GroupBox(label: v[0] as! AnyView, content: { b1 }))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "HSplitView", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(HSplitView(content: { b0 }))
@@ -476,12 +476,12 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(HStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, content: { b2 }))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "HelpLink", [ParamSpec("action", .action)]) { v in
         return AnyView(HelpLink(action: generatedAction(v[0])))
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "HelpLink", [ParamSpec("destination", .url, contextualType: "URL")]) { v in
         return AnyView(HelpLink(destination: v[0] as! URL))
     }
@@ -501,7 +501,7 @@ extension GeneratedConstructors {
     register(&t, "Image", [ParamSpec("_internalSystemName", .string, contextualType: "String")]) { v in
         return AnyView(Image(_internalSystemName: v[0] as! String))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "Image", [ParamSpec("nsImage", .platformValue("AppKit", "NSImage"), contextualType: "NSImage")]) { v in
         return AnyView(Image(nsImage: v[0] as! NSImage))
     }
@@ -772,13 +772,13 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return AnyView(Menu(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 }, primaryAction: generatedAction(v[3])))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "MenuButton", [ParamSpec("label", .anyView), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(MenuButton(label: v[0] as! AnyView, content: { b1 }))
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "MenuButton", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return AnyView(MenuButton(LocalizedStringKey(v[0] as! String), content: { b1 }))
@@ -1004,12 +1004,12 @@ extension GeneratedConstructors {
     register(&t, "SecureField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
         return AnyView(SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2])))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "SettingsLink", []) { v in
         return AnyView(SettingsLink())
     }
 #endif
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "SettingsLink", [ParamSpec("label", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(SettingsLink(label: { b0 }))
@@ -1320,7 +1320,7 @@ extension GeneratedConstructors {
     register(&t, "UnitPoint", [ParamSpec("x", .cgFloat, contextualType: "CGFloat"), ParamSpec("y", .cgFloat, contextualType: "CGFloat")]) { v in
         return UnitPoint(x: v[0] as! CGFloat, y: v[1] as! CGFloat)
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "VSplitView", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         return AnyView(VSplitView(content: { b0 }))
@@ -1350,7 +1350,7 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return AnyView(ViewThatFits(in: v[0] as! Axis.Set, content: { b1 }))
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "WindowVisibilityToggle", [ParamSpec("windowID", .string, contextualType: "String")]) { v in
         return AnyView(WindowVisibilityToggle(windowID: v[0] as! String))
     }

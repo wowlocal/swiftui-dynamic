@@ -4007,7 +4007,7 @@ func entryCode(_ variant: Variant) -> String {
 
 func compileCondition(for variant: Variant) -> String? {
     let conditions = variant.requiredFrameworks
-        .map { "canImport(\($0))" }
+        .map(platformNativeImportCondition)
         + variant.unavailableTargetEnvironments.sorted()
             .map { "!targetEnvironment(\($0))" }
     return conditions.isEmpty ? nil : conditions.joined(separator: " && ")
