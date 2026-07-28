@@ -25,17 +25,32 @@ enum GeneratedModifierSemanticAdapter {
             return TargetPlatformControlBridge.adaptButtonMenuStyle(
                 native, context: context)
         case .targetExplicitTint(let parameter):
-            guard values.indices.contains(parameter) else { return native }
-            let style: AnyShapeStyle
-            if let erased = values[parameter] as? AnyShapeStyle {
-                style = erased
-            } else if let color = values[parameter] as? Color {
-                style = AnyShapeStyle(color)
-            } else {
+            guard values.indices.contains(parameter),
+                  let tint = TargetPlatformExplicitTint(values[parameter])
+            else {
                 return native
             }
             return TargetPlatformControlBridge.adaptExplicitTint(
-                style, to: native, context: context)
+                tint, to: native, context: context)
+        }
+    }
+}
+
+/// Preserve the concrete carrier selected by generated overload resolution.
+/// Erasing a `Color` into `AnyShapeStyle` changes SwiftUI's edge raster even
+/// when both values describe the same color. Generic styles still need the
+/// erased case, while concrete colors retain their native rendering path.
+enum TargetPlatformExplicitTint {
+    case color(Color)
+    case shapeStyle(AnyShapeStyle)
+
+    init?(_ value: Any) {
+        if let color = value as? Color {
+            self = .color(color)
+        } else if let erased = value as? AnyShapeStyle {
+            self = .shapeStyle(erased)
+        } else {
+            return nil
         }
     }
 }
@@ -51,14 +66,14 @@ enum GeneratedModifierSemanticAdapter {
 enum TargetPlatformControlBridge {
     @MainActor
     static func adaptExplicitTint(
-        _ style: AnyShapeStyle,
+        _ tint: TargetPlatformExplicitTint,
         to native: AnyView,
         context: EvalContext
     ) -> AnyView {
 #if os(macOS)
         if context.buildConfiguration.targetEnvironment == "macCatalyst" {
             return AnyView(
-                native.environment(\.targetPlatformExplicitTint, style))
+                native.environment(\.targetPlatformExplicitTint, tint))
         }
 #endif
         return native
@@ -101,11 +116,11 @@ enum TargetPlatformControlBridge {
 /// supplied tint. Preserve that missing semantic property in the environment
 /// so any target-owned style adapter can make the same distinction.
 private struct TargetPlatformExplicitTintKey: EnvironmentKey {
-    static let defaultValue: AnyShapeStyle? = nil
+    static let defaultValue: TargetPlatformExplicitTint? = nil
 }
 
 private extension EnvironmentValues {
-    var targetPlatformExplicitTint: AnyShapeStyle? {
+    var targetPlatformExplicitTint: TargetPlatformExplicitTint? {
         get { self[TargetPlatformExplicitTintKey.self] }
         set { self[TargetPlatformExplicitTintKey.self] = newValue }
     }
@@ -132,19 +147,28 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
         return (horizontal: 10, vertical: 5, cornerRadius: 7)
     }
 
-    private func surfaceStyle(isPressed: Bool) -> AnyShapeStyle {
+    @ViewBuilder
+    private func surface(isPressed: Bool) -> some View {
+        let shape = RoundedRectangle(
+            cornerRadius: chrome.cornerRadius,
+            style: .continuous)
         if let explicitTint {
-            return AnyShapeStyle(
-                explicitTint.opacity(isPressed ? 0.26 : 0.18))
+            switch explicitTint {
+            case .color(let color):
+                shape.fill(color.opacity(isPressed ? 0.26 : 0.18))
+            case .shapeStyle(let style):
+                shape.fill(style.opacity(isPressed ? 0.26 : 0.18))
+            }
+        } else {
+            // Compiled Catalyst's untinted bordered control uses its neutral
+            // system-fill surface; the ambient accent remains label-only.
+            shape.fill(
+                Color(
+                    red: 233.0 / 255.0,
+                    green: 233.0 / 255.0,
+                    blue: 235.0 / 255.0)
+                    .opacity(isPressed ? 0.82 : 1))
         }
-        // Compiled Catalyst's untinted bordered control uses its neutral
-        // system-fill surface; the ambient accent remains label-only.
-        return AnyShapeStyle(
-            Color(
-                red: 233.0 / 255.0,
-                green: 233.0 / 255.0,
-                blue: 235.0 / 255.0)
-                .opacity(isPressed ? 0.82 : 1))
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -153,11 +177,7 @@ private struct CatalystBorderedButtonStyle: ButtonStyle {
             .padding(.vertical, chrome.vertical)
             .foregroundStyle(.tint)
             .background {
-                RoundedRectangle(
-                    cornerRadius: chrome.cornerRadius,
-                    style: .continuous
-                )
-                .fill(surfaceStyle(isPressed: configuration.isPressed))
+                surface(isPressed: configuration.isPressed)
             }
     }
 }

@@ -373,6 +373,21 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    @Test func targetTintCarrierPreservesGeneratedConcreteType() throws {
+        let color = try #require(TargetPlatformExplicitTint(Color.red))
+        guard case .color = color else {
+            Issue.record("generated Color tint was erased to AnyShapeStyle")
+            return
+        }
+
+        let style = try #require(TargetPlatformExplicitTint(
+            AnyShapeStyle(.quaternary.opacity(0.5))))
+        guard case .shapeStyle = style else {
+            Issue.record("generic ShapeStyle tint lost its erased carrier")
+            return
+        }
+    }
+
     @Test func suffixDefaultVariantsMatchBothCallShapes() throws {
         // autocorrectionDisabled() and autocorrectionDisabled(false) are the
         // zero-arg and full variants of one defaulted-parameter overload.
