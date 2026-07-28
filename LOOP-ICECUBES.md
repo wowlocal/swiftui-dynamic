@@ -34,6 +34,16 @@ they must never regress, but they no longer set direction.
   serialize into main — with the self-merge fallback in the cadence section
   below so gated work never queues unlanded. Never build or edit in the main
   checkout.
+  **A NEW worktree needs `External/` linked before anything builds.** It is
+  gitignored, so `git worktree add` does not bring it, while
+  `Examples/*NativeTwin/Package.swift` reaches the app sources by relative path
+  (`../../External/oss/...`). Without the link every twin build, R2 board and
+  corpus shard dies with `the package at …/External/oss/IceCubesApp/Packages/Account
+  cannot be accessed` — i.e. `Scripts/gate.sh` cannot run at all. Once, from the
+  worktree root:
+  `ln -s "$(git rev-parse --path-format=absolute --git-common-dir)/../External" External`
+  (the link is itself gitignored and never commits). `lane-foodtruck-run` and
+  `lane-concurrency` already carry it; `lane-live` does not.
 - **Native-baseline rule**: an interpreted failure is an interpreter bug ONLY if
   the same expectation holds under the real compiler / real recorded bytes.
   Expectations are captured from the twin and the fixtures, never hand-written.

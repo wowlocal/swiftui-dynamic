@@ -31,6 +31,15 @@ worktree; the main checkout is the steward's integration tree only):**
   queue blocked ~8h on main-tree dirty files on 2026-07-17 is the incident
   this fixes. The steward uses main for serialized merges, steering commits,
   and gate verification only.
+- NEW WORKTREE SETUP: `External/` is gitignored, so `git worktree add` does
+  NOT bring it, while `Examples/*NativeTwin/Package.swift` reaches the app
+  sources by relative path (`../../External/oss/...`). Symlink it once, or
+  every twin build, R2 board and corpus shard dies with `the package at
+  …/External/oss/IceCubesApp/Packages/Account cannot be accessed`:
+  `ln -s "$(git rev-parse --path-format=absolute --git-common-dir)/../External" External`
+  from the worktree root (the link is itself gitignored, so it never commits).
+  `lane-foodtruck-run` and `lane-concurrency` already carry exactly this link;
+  `lane-live` does not, and cannot run `Scripts/gate.sh` until it does.
 - Iteration START: `git merge main` inside your worktree.
 - All work, builds, captures, and `Scripts/gate.sh` run INSIDE the worktree.
 - Iteration CLOSE: commit on the lane branch (never `.claude/*.local.md`).
