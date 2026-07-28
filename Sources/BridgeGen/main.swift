@@ -206,6 +206,20 @@ var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
 var sdkProtocolCompositionValues:
     [String: [SDKProtocolContextualValue]] = [:]
 
+/// Protocol-constrained SDK overloads whose values are supplied by interpreted
+/// source rather than by an SDK `Self == Concrete` factory. Their native
+/// wrappers execute framework-supplied configuration inputs, which a
+/// swiftinterface cannot encode. Keeping this semantic allowlist at the
+/// protocol boundary lets BridgeGen retain the interface overload shape
+/// without naming a consuming modifier, app, concrete source style, or
+/// leading-dot member.
+let swiftUISourceProtocolValueAdapters: [
+    String: String
+] = [
+    "SwiftUI.ButtonStyle":
+        "SwiftUI supplies ButtonStyle.Configuration to source makeBody",
+]
+
 func protocolClosure(of name: String) -> Set<String> {
     var result: Set<String> = []
     var pending = [name]
@@ -268,14 +282,17 @@ func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
                 < ($1.concreteType, $1.declaringProtocol)
         }.first
     }.sorted { ($0.member, $0.concreteType) < ($1.member, $1.concreteType) }
-    guard !unambiguous.isEmpty else { return nil }
-
     let ordered = requiredProtocols.sorted()
     let key = ordered.joined(separator: "&")
+    guard !unambiguous.isEmpty
+            || swiftUISourceProtocolValueAdapters[key] != nil else {
+        return nil
+    }
     sdkProtocolCompositionValues[key] = unambiguous
     return .init(
         tag: "sdkProtocolValue(\"\(key)\")",
-        cast: "%@ as! any \(ordered.joined(separator: " & "))")
+        cast: "%@ as! any \(ordered.joined(separator: " & "))",
+        contextualType: ordered.joined(separator: " & "))
 }
 
 /// Supporting SDK interfaces are collected under their module-qualified

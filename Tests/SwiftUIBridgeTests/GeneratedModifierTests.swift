@@ -152,6 +152,59 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    /// A protocol-constrained SDK overload remains part of the imported
+    /// surface even when the SDK has no concrete `Self == Concrete` factory.
+    /// Custom ButtonStyle values are source-defined and receive a
+    /// framework-supplied Configuration at runtime, so BridgeGen must retain
+    /// that interface shape for overload resolution without learning a
+    /// project style or member name.
+    @MainActor
+    @Test func sourceProtocolStyleOverloadSurvivesCompetingSourceOverload()
+        throws
+    {
+        let overloads = GeneratedModifiers.table["buttonStyle"]?
+            .byArity[1] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag)
+                == [.sdkProtocolValue("SwiftUI.ButtonStyle")]
+                && $0.params.map(\.contextualType)
+                    == ["SwiftUI.ButtonStyle"]
+        })
+        #expect(overloads.contains {
+            $0.params.map(\.tag)
+                == [.sdkProtocolValue("SwiftUI.PrimitiveButtonStyle")]
+        })
+
+        let source = """
+        struct ProjectButtonStyle: ButtonStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                configuration.label
+            }
+        }
+
+        extension ButtonStyle where Self == ProjectButtonStyle {
+            static var projectPrimary: Self { .init() }
+        }
+
+        extension View {
+            func buttonStyle(
+                _ style: (some PrimitiveButtonStyle)?
+            ) -> some View {
+                self
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Button("Action") {}
+                    .buttonStyle(.projectPrimary)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount > 0)
+    }
+
     @MainActor
     @Test func generatedProtocolValueCarriesTargetSemanticAdapter() throws {
         let composition = "SwiftUI.MenuStyle"

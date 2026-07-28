@@ -76,7 +76,7 @@ extension GeneratedConstructors {
     register(&t, "AngularGradient", [ParamSpec("colors", .colorArray, contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
         return AngularGradient(colors: v[0] as! [Color], center: v[1] as! UnitPoint, startAngle: v[2] as! Angle, endAngle: v[3] as! Angle)
     }
-    register(&t, "AnyTransition", [ParamSpec(nil, .sdkProtocolValue("SwiftUICore.Transition"))]) { v in
+    register(&t, "AnyTransition", [ParamSpec(nil, .sdkProtocolValue("SwiftUICore.Transition"), contextualType: "SwiftUICore.Transition")]) { v in
         let p0 = v[0] as! any SwiftUICore.Transition
         func generatedInvoke<P0: SwiftUICore.Transition>(_ p0: P0) -> Any {
             return AnyTransition(p0)
