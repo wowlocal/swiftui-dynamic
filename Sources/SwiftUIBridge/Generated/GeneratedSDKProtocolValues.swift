@@ -13,6 +13,336 @@ struct GeneratedSDKFrameworkConfigurationProtocol {
     let configurationLabel: String?
 }
 
+struct GeneratedInterpreted_SwiftUI_ButtonStyle: SwiftUI.ButtonStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_ControlGroupStyle: SwiftUI.ControlGroupStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_DatePickerStyle: SwiftUI.DatePickerStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_DisclosureGroupStyle: SwiftUI.DisclosureGroupStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_FormStyle: SwiftUI.FormStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_GaugeStyle: SwiftUI.GaugeStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_GroupBoxStyle: SwiftUI.GroupBoxStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_LabelStyle: SwiftUI.LabelStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_LabeledContentStyle: SwiftUI.LabeledContentStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_MenuStyle: SwiftUI.MenuStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_NavigationSplitViewStyle: SwiftUI.NavigationSplitViewStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_PrimitiveButtonStyle: SwiftUI.PrimitiveButtonStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_ProgressViewStyle: SwiftUI.ProgressViewStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_TableStyle: SwiftUI.TableStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+struct GeneratedInterpreted_SwiftUI_ToggleStyle: SwiftUI.ToggleStyle {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func makeBody(
+        configuration generatedConfiguration: Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
 enum GeneratedSDKProtocolValueCoercions {
     static let frameworkConfigurationProtocols:
         [String: GeneratedSDKFrameworkConfigurationProtocol] = [
@@ -79,8 +409,52 @@ enum GeneratedSDKProtocolValueCoercions {
     ]
 
     static func coerce(
-        _ composition: String, _ value: RuntimeValue
+        _ composition: String, _ value: RuntimeValue,
+        context: EvalContext? = nil
     ) throws -> Any {
+        if let context,
+           let descriptor = frameworkConfigurationProtocols[composition],
+           let carrier = interpretedFrameworkConfigurationConformer(
+            value,
+            protocolType: composition,
+            descriptor: descriptor,
+            context: context
+           ) {
+            switch composition {
+            case "SwiftUI.ButtonStyle":
+                return GeneratedInterpreted_SwiftUI_ButtonStyle(carrier: carrier)
+            case "SwiftUI.ControlGroupStyle":
+                return GeneratedInterpreted_SwiftUI_ControlGroupStyle(carrier: carrier)
+            case "SwiftUI.DatePickerStyle":
+                return GeneratedInterpreted_SwiftUI_DatePickerStyle(carrier: carrier)
+            case "SwiftUI.DisclosureGroupStyle":
+                return GeneratedInterpreted_SwiftUI_DisclosureGroupStyle(carrier: carrier)
+            case "SwiftUI.FormStyle":
+                return GeneratedInterpreted_SwiftUI_FormStyle(carrier: carrier)
+            case "SwiftUI.GaugeStyle":
+                return GeneratedInterpreted_SwiftUI_GaugeStyle(carrier: carrier)
+            case "SwiftUI.GroupBoxStyle":
+                return GeneratedInterpreted_SwiftUI_GroupBoxStyle(carrier: carrier)
+            case "SwiftUI.LabelStyle":
+                return GeneratedInterpreted_SwiftUI_LabelStyle(carrier: carrier)
+            case "SwiftUI.LabeledContentStyle":
+                return GeneratedInterpreted_SwiftUI_LabeledContentStyle(carrier: carrier)
+            case "SwiftUI.MenuStyle":
+                return GeneratedInterpreted_SwiftUI_MenuStyle(carrier: carrier)
+            case "SwiftUI.NavigationSplitViewStyle":
+                return GeneratedInterpreted_SwiftUI_NavigationSplitViewStyle(carrier: carrier)
+            case "SwiftUI.PrimitiveButtonStyle":
+                return GeneratedInterpreted_SwiftUI_PrimitiveButtonStyle(carrier: carrier)
+            case "SwiftUI.ProgressViewStyle":
+                return GeneratedInterpreted_SwiftUI_ProgressViewStyle(carrier: carrier)
+            case "SwiftUI.TableStyle":
+                return GeneratedInterpreted_SwiftUI_TableStyle(carrier: carrier)
+            case "SwiftUI.ToggleStyle":
+                return GeneratedInterpreted_SwiftUI_ToggleStyle(carrier: carrier)
+            default:
+                break
+            }
+        }
         switch composition {
         case "Charts.PositionScaleRange":
             if case .host(let any) = value {

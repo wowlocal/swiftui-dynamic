@@ -35,6 +35,76 @@ func interpretedStyleConformer(
     return (instance, interpreter)
 }
 
+/// Shared runtime state for every interface-discovered protocol whose body is
+/// invoked with a framework-supplied Configuration. BridgeGen emits the native
+/// protocol conformers; this carrier owns only the interface-inexpressible
+/// handoff from SwiftUI back into the interpreted requirement.
+final class InterpretedFrameworkConfigurationCarrier: @unchecked Sendable {
+    let instance: Instance
+    let interpreter: Interpreter
+    let bodyMethod: String
+    let configurationLabel: String?
+
+    nonisolated init(
+        instance: Instance,
+        interpreter: Interpreter,
+        bodyMethod: String,
+        configurationLabel: String?
+    ) {
+        self.instance = instance
+        self.interpreter = interpreter
+        self.bodyMethod = bodyMethod
+        self.configurationLabel = configurationLabel
+    }
+}
+
+@MainActor
+func interpretedFrameworkConfigurationConformer(
+    _ value: RuntimeValue,
+    protocolType: String,
+    descriptor: GeneratedSDKFrameworkConfigurationProtocol,
+    context: EvalContext
+) -> InterpretedFrameworkConfigurationCarrier? {
+    guard let interpreter = context as? Interpreter else { return nil }
+    let sourceProtocol = protocolType.split(separator: ".").last
+        .map(String.init) ?? protocolType
+    let resolved = interpreter.resolveForBridge(
+        value, typeName: sourceProtocol)
+    guard case .instance(let instance) = resolved,
+          interpreter.hostValue(resolved, conformsTo: sourceProtocol),
+          instance.symbol.methods[descriptor.bodyMethod] != nil else {
+        return nil
+    }
+    return .init(
+        instance: instance,
+        interpreter: interpreter,
+        bodyMethod: descriptor.bodyMethod,
+        configurationLabel: descriptor.configurationLabel)
+}
+
+@MainActor
+func interpretedFrameworkConfigurationBody(
+    carrier: InterpretedFrameworkConfigurationCarrier,
+    configuration: Any,
+    fallback: AnyView
+) -> AnyView {
+    do {
+        let value = try carrier.interpreter.callMethodLabeled(
+            named: carrier.bodyMethod,
+            on: carrier.instance,
+            arguments: [(
+                label: carrier.configurationLabel,
+                value: .native(configuration)
+            )])
+        return (try? ViewRegistry.anyView(value)) ?? fallback
+    } catch let error as RuntimeError {
+        RenderDiagnostics.record(error, in: carrier.instance.symbol.name)
+        return fallback
+    } catch {
+        return fallback
+    }
+}
+
 struct InterpretedLabelStyle: LabelStyle {
     private let carrier: StyleCarrier
 

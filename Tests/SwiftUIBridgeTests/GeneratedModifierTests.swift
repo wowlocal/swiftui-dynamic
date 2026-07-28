@@ -214,6 +214,40 @@ import SwiftInterpreter
         let report = try HeadlessVerifier.verify(source: source)
         #expect(report.nodeCount > 0)
 
+        let sourceInterpreter = Interpreter(registry: ViewRegistry())
+        let sourceStyle = try sourceInterpreter.run(
+            source: source + """
+
+            ProjectButtonStyle()
+            """)
+        let generatedStyle =
+            try GeneratedSDKProtocolValueCoercions.coerce(
+                "SwiftUI.ButtonStyle",
+                sourceStyle,
+                context: sourceInterpreter)
+        let nativeStyle = try #require(
+            generatedStyle as? any ButtonStyle)
+        func applying<S: ButtonStyle>(_ style: S) -> AnyView {
+            AnyView(Button("Generated source style") {}
+                .buttonStyle(style))
+        }
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let generatedBitmap = Self.bitmap(
+            applying(nativeStyle),
+            size: NSSize(width: 240, height: 100))
+        let hasInk = (0..<240).contains { x in
+            (0..<100).contains { y in
+                guard let color = generatedBitmap.colorAt(x: x, y: y)
+                else { return false }
+                return color.redComponent < 0.8
+                    || color.greenComponent < 0.8
+                    || color.blueComponent < 0.8
+            }
+        }
+        #expect(hasInk)
+        #expect(RenderDiagnostics.errors.isEmpty)
+
         let registry = ViewRegistry()
         let modifier = try #require(registry.modifier(named: "buttonStyle"))
         #expect(modifier.exposesInterfaceParameterTypes)

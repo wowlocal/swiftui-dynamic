@@ -467,7 +467,7 @@ enum GeneratedDispatch {
             return try GeneratedSDKEnumCoercions.coerce(typeName, value)
         case .sdkProtocolValue(let composition):
             return try GeneratedSDKProtocolValueCoercions.coerce(
-                composition, value)
+                composition, value, context: ctx)
         case .platformValue(let framework, let typeName):
             let resolved: RuntimeValue
             if case .implicitMember(let member) = value,

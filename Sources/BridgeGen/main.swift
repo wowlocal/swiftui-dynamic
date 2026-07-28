@@ -3337,6 +3337,9 @@ let emittedSDKProtocolCompositions = Set(
     (variants + initVariants)
         .flatMap(\.params)
         .compactMap { sdkProtocolComposition(from: $0.tag) })
+let emittedSDKFrameworkConfigurationProtocols =
+    sdkFrameworkConfigurationProtocols
+        .filter { emittedSDKProtocolCompositions.contains($0.key) }
 let supportingModules = Set(supportingInterfaceFiles.map(\.module))
 let emittedSupportingModules = Set(
     emittedSDKEnumTypes.compactMap {
@@ -3957,15 +3960,73 @@ struct GeneratedSDKFrameworkConfigurationProtocol {
     let configurationLabel: String?
 }
 
+
+"""
+
+func generatedFrameworkConfigurationWrapperName(
+    _ protocolType: String
+) -> String {
+    let identifier = protocolType.unicodeScalars.map {
+        CharacterSet.alphanumerics.contains($0) ? String($0) : "_"
+    }.joined()
+    return "GeneratedInterpreted_\(identifier)"
+}
+
+let generatedFrameworkConfigurationWrapperNames =
+    emittedSDKFrameworkConfigurationProtocols.keys.map(
+        generatedFrameworkConfigurationWrapperName)
+precondition(
+    Set(generatedFrameworkConfigurationWrapperNames).count
+        == generatedFrameworkConfigurationWrapperNames.count,
+    "framework configuration protocol wrapper identifiers collided")
+
+for (protocolType, descriptor) in
+    emittedSDKFrameworkConfigurationProtocols.sorted(
+        by: { $0.key < $1.key }
+    )
+{
+    let wrapper = generatedFrameworkConfigurationWrapperName(protocolType)
+    let parameter = descriptor.configurationLabel.map {
+        "\($0) generatedConfiguration"
+    } ?? "_ generatedConfiguration"
+    protocolValuesOutput += """
+struct \(wrapper): \(protocolType) {
+    private let carrier: InterpretedFrameworkConfigurationCarrier
+
+    init(carrier: InterpretedFrameworkConfigurationCarrier) {
+        self.carrier = carrier
+    }
+
+    nonisolated func \(descriptor.bodyMethod)(
+        \(parameter): Configuration
+    ) -> some View {
+        nonisolated(unsafe) let carried = generatedConfiguration
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        MainActor.assumeIsolated {
+            result = interpretedFrameworkConfigurationBody(
+                carrier: carrier,
+                configuration: carried,
+                fallback: result)
+        }
+        return result
+    }
+}
+
+
+"""
+}
+
+protocolValuesOutput += """
 enum GeneratedSDKProtocolValueCoercions {
     static let frameworkConfigurationProtocols:
         [String: GeneratedSDKFrameworkConfigurationProtocol] = [
 
 """
 
-for (protocolType, descriptor) in sdkFrameworkConfigurationProtocols
-    .filter({ emittedSDKProtocolCompositions.contains($0.key) })
-    .sorted(by: { $0.key < $1.key })
+for (protocolType, descriptor) in
+    emittedSDKFrameworkConfigurationProtocols.sorted(
+        by: { $0.key < $1.key }
+    )
 {
     let label = descriptor.configurationLabel.map { "\"\($0)\"" } ?? "nil"
     protocolValuesOutput += """
@@ -3981,8 +4042,37 @@ protocolValuesOutput += """
     ]
 
     static func coerce(
-        _ composition: String, _ value: RuntimeValue
+        _ composition: String, _ value: RuntimeValue,
+        context: EvalContext? = nil
     ) throws -> Any {
+        if let context,
+           let descriptor = frameworkConfigurationProtocols[composition],
+           let carrier = interpretedFrameworkConfigurationConformer(
+            value,
+            protocolType: composition,
+            descriptor: descriptor,
+            context: context
+           ) {
+            switch composition {
+
+"""
+
+for (protocolType, _) in emittedSDKFrameworkConfigurationProtocols.sorted(
+    by: { $0.key < $1.key }
+) {
+    let wrapper = generatedFrameworkConfigurationWrapperName(protocolType)
+    protocolValuesOutput += """
+            case "\(protocolType)":
+                return \(wrapper)(carrier: carrier)
+
+"""
+}
+
+protocolValuesOutput += """
+            default:
+                break
+            }
+        }
         switch composition {
 
 """
