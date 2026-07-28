@@ -203,6 +203,17 @@ import SwiftInterpreter
         """
         let report = try HeadlessVerifier.verify(source: source)
         #expect(report.nodeCount > 0)
+
+        let registry = ViewRegistry()
+        let modifier = try #require(registry.modifier(named: "buttonStyle"))
+        #expect(modifier.exposesInterfaceParameterTypes)
+        let rendered = try Interpreter(registry: registry).run(
+            source: source + """
+
+            Button("Direct action") {}
+                .buttonStyle(.projectPrimary)
+            """)
+        #expect(registry.isViewValue(rendered))
     }
 
     @MainActor

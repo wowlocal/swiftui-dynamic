@@ -173,6 +173,29 @@ private extension RuntimeValue {
 }
 
 enum GeneratedDispatch {
+    /// Retain narrowly handwritten SwiftUI-magic execution while exposing
+    /// the overload shapes BridgeGen read from the swiftinterface. Both real
+    /// and trace registries use this composition, so a semantic gateway
+    /// cannot discard interface-derived overload metadata.
+    static func exposingInterfaceMetadata(
+        for modifier: HostModifier, named name: String
+    ) -> HostModifier {
+        guard let overloads = GeneratedModifiers.table[name] else {
+            return modifier
+        }
+        return HostModifier(
+            name: name,
+            parameterTypeCandidates: { args, ctx in
+                contextualParameterTypeCandidates(
+                    overloads: overloads, args: args, ctx: ctx)
+            },
+            argumentMatch: { args, ctx in
+                contextualArgumentsMatch(
+                    overloads: overloads, args: args, ctx: ctx)
+            },
+            apply: modifier.apply)
+    }
+
     /// A leading-dot initializer is contextual syntax: `.init(...)` names
     /// the constructor of the parameter type supplied by the interface.
     /// Keep the original arguments and evaluation context so nested source
