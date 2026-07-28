@@ -261,7 +261,7 @@ public final class ViewRegistry: HostRegistry {
 
     public func makeRenderable(instance: Instance, interpreter: Interpreter) -> RuntimeValue {
         if instance.symbol.isRepresentable {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
             // macOS controller representables EXECUTE — the interpreted
             // make/update/loadView drive a real NSViewController host and
             // the generated platform tier supplies what they construct.

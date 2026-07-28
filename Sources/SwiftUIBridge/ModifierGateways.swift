@@ -363,7 +363,7 @@ extension ViewRegistry {
             switch args.positional(0) {
             case .implicitMember("inset"): return AnyView(view.tableStyle(.inset))
             case .implicitMember("bordered"):
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
                 return AnyView(view.tableStyle(.bordered))
 #else
                 return AnyView(view.tableStyle(.automatic))
@@ -469,7 +469,7 @@ extension ViewRegistry {
                         return AnyView(view.tabViewStyle(.sidebarAdaptable))
                     }
                 case "grouped":
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
                     if #available(macOS 15.0, *) {
                         return AnyView(view.tabViewStyle(.grouped))
                     }
@@ -587,7 +587,7 @@ extension ViewRegistry {
             case "inset": return AnyView(view.listStyle(.inset))
             case "sidebar": return AnyView(view.listStyle(.sidebar))
             case "bordered":
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
                 return AnyView(view.listStyle(.bordered))
 #else
                 return AnyView(view.listStyle(.automatic))
@@ -640,7 +640,7 @@ extension ViewRegistry {
                 case "plain": return AnyView(view.buttonStyle(.plain))
                 case "borderless": return AnyView(view.buttonStyle(.borderless))
                 case "link":
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
                     return AnyView(view.buttonStyle(.link))
 #else
                     return AnyView(view.buttonStyle(.plain))
@@ -675,7 +675,7 @@ extension ViewRegistry {
             case "menu": return AnyView(view.pickerStyle(.menu))
             case "inline": return AnyView(view.pickerStyle(.inline))
             case "radioGroup":
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
                 return AnyView(view.pickerStyle(.radioGroup))
 #else
                 return AnyView(view.pickerStyle(.automatic))
@@ -689,7 +689,7 @@ extension ViewRegistry {
             case "roundedBorder": return AnyView(view.textFieldStyle(.roundedBorder))
             case "plain": return AnyView(view.textFieldStyle(.plain))
             case "squareBorder":
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
                 return AnyView(view.textFieldStyle(.squareBorder))
 #else
                 return AnyView(view.textFieldStyle(.roundedBorder))

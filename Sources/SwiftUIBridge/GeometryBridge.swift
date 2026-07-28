@@ -1,4 +1,4 @@
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
 #elseif canImport(UIKit)
 import UIKit
@@ -168,7 +168,7 @@ struct InterpretedShape: Shape {
 /// headless hosts.
 struct ScreenStub {
     var bounds: CGRect {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         CGRect(origin: .zero, size: NSScreen.main?.frame.size ?? CGSize(width: 390, height: 844))
 #else
         UIScreen.main.bounds
@@ -178,7 +178,7 @@ struct ScreenStub {
     /// `NSScreen.main?.visibleFrame` — the real screen when there is one,
     /// a laptop-shaped rect headlessly.
     var visibleFrame: CGRect {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 875)
 #else
         UIScreen.main.bounds
@@ -186,7 +186,7 @@ struct ScreenStub {
     }
 
     var frame: CGRect {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
 #else
         UIScreen.main.bounds

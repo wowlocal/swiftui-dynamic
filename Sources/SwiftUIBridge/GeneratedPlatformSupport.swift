@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import SwiftInterpreter
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
 #endif
 #if canImport(UIKit)
@@ -521,7 +521,7 @@ private enum GeneratedPlatformEnvironmentValueProvider {
     @MainActor
     static var renderingScale: CGFloat {
         let candidate: CGFloat?
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         candidate = NSScreen.main?.backingScaleFactor
 #elseif canImport(UIKit)
         candidate = UITraitCollection.current.displayScale

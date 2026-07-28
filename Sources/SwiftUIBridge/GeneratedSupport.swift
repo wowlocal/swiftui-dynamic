@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import SwiftInterpreter
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
 #endif
 #if canImport(UIKit)
@@ -1342,7 +1342,7 @@ func generatedPlatformShapeStyleValue(_ value: Any) -> Any {
     guard let carrier = value as? GeneratedPlatformSemanticCarrier else {
         return Color.secondary
     }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     if let color = carrier.generatedPlatformNativePayload as? NSColor {
         return Color(nsColor: color)
     }

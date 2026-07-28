@@ -1,4 +1,4 @@
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
 #elseif canImport(UIKit)
 import UIKit
@@ -91,7 +91,7 @@ public final class UIImageBox {
         let rasterSize = CGSize(
             width: rasterDimension(size.width),
             height: rasterDimension(size.height))
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         let width = max(1, Int(rasterSize.width))
         let height = max(1, Int(rasterSize.height))
         guard let rep = NSBitmapImageRep(
@@ -121,7 +121,7 @@ public final class UIImageBox {
     }
 
     static func decoding(_ data: Data) -> UIImageBox? {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         guard let image = NSImage(data: data) else { return nil }
         // Pixel size, not point size — UIImage(data:) semantics (scale 1).
         let pixelSize = NSBitmapImageRep(data: data).map {
@@ -155,7 +155,7 @@ extension UIImageBox: GeneratedPlatformSemanticCarrier {
     }
 
     var generatedPlatformViewValue: Any? {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         let native = pngData.flatMap(NSImage.init(data:))
             ?? NSImage(size: size)
         return ImageBox(Image(nsImage: native))
@@ -176,7 +176,7 @@ extension UIImageBox: GeneratedPlatformTypedPropertyCarrier {
         [GeneratedPlatformTypedPropertyValue]
     {
         let image: CGImage?
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         image = pngData.flatMap {
             NSBitmapImageRep(data: $0)?.cgImage
         }
@@ -1115,7 +1115,7 @@ struct DateIntervalBox {
 /// implicit-member-call markers; map them onto real platform fonts so text
 /// measurement uses actual metrics. Unresolvable markers fall back to the
 /// system font.
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 private typealias PlatformFont = NSFont
 #else
 private typealias PlatformFont = UIFont
@@ -1146,7 +1146,7 @@ private func platformFont(from value: RuntimeValue) -> PlatformFont? {
     case "boldSystemFont":
         return PlatformFont.boldSystemFont(ofSize: size)
     case "italicSystemFont":
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         return PlatformFont.systemFont(ofSize: size)
 #else
         return PlatformFont.italicSystemFont(ofSize: size)
@@ -1155,7 +1155,7 @@ private func platformFont(from value: RuntimeValue) -> PlatformFont? {
         return PlatformFont.monospacedSystemFont(ofSize: size, weight: .regular)
     case "preferredFont":
         guard case .implicitMember(let styleName)? = call.arguments.labeled("forTextStyle") else {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
             return PlatformFont.preferredFont(forTextStyle: .body, options: [:])
 #else
             return PlatformFont.preferredFont(forTextStyle: .body)
@@ -1175,7 +1175,7 @@ private func platformFont(from value: RuntimeValue) -> PlatformFont? {
         case "caption2": style = .caption2
         default: style = .body
         }
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         return PlatformFont.preferredFont(forTextStyle: style, options: [:])
 #else
         return PlatformFont.preferredFont(forTextStyle: style)
