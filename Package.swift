@@ -58,8 +58,13 @@ let package = Package(
             name: "ObjCExceptionShim"
         ),
         .target(
+            name: "BoundaryABI"
+        ),
+        .target(
             name: "SwiftUIBridge",
-            dependencies: ["SwiftInterpreter", "ObjCExceptionShim"],
+            dependencies: [
+                "SwiftInterpreter", "ObjCExceptionShim", "BoundaryABI",
+            ],
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
