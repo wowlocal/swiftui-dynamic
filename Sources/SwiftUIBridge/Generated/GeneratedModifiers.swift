@@ -1799,7 +1799,7 @@ register(&t, "listRowSpacing", [ParamSpec(nil, .cgFloat, contextualType: "CGFloa
     register(&t, "menuOrder", [ParamSpec(nil, .sdkEnum("MenuOrder"), contextualType: "MenuOrder")]) { view, v in
         return AnyView(view.menuOrder(v[0] as! MenuOrder))
     }
-    register(&t, "menuStyle", [ParamSpec(nil, .sdkProtocolValue("SwiftUI.MenuStyle"))]) { view, v in
+    register(&t, "menuStyle", [ParamSpec(nil, .sdkProtocolValue("SwiftUI.MenuStyle"))], semanticAdapter: .targetButtonMenuStyle(parameter: 0)) { view, v in
         let p0 = v[0] as! any SwiftUI.MenuStyle
         func generatedInvoke<P0: SwiftUI.MenuStyle>(_ p0: P0) -> AnyView {
             return AnyView(view.menuStyle(p0))

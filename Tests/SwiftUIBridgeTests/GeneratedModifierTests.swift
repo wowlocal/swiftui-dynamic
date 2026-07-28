@@ -152,6 +152,21 @@ import SwiftInterpreter
         #expect(registry.isViewValue(result))
     }
 
+    @MainActor
+    @Test func generatedProtocolValueCarriesTargetSemanticAdapter() throws {
+        let composition = "SwiftUI.MenuStyle"
+        let overloads = GeneratedModifiers.table["menuStyle"]?
+            .byArity[1] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [.sdkProtocolValue(composition)]
+                && $0.semanticAdapter != nil
+        })
+
+        let button = try GeneratedSDKProtocolValueCoercions.coerce(
+            composition, .implicitMember("button"))
+        #expect(button is ButtonMenuStyle)
+    }
+
     @Test func suffixDefaultVariantsMatchBothCallShapes() throws {
         // autocorrectionDisabled() and autocorrectionDisabled(false) are the
         // zero-arg and full variants of one defaulted-parameter overload.

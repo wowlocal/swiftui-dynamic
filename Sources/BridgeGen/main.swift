@@ -3438,6 +3438,61 @@ func generatedProtocolOpeningCall(
     ]
 }
 
+enum SwiftUIMagicProtocolValueAdapter {
+    case targetButtonMenuStyle
+}
+
+/// Protocol-value behavior that a swiftinterface cannot describe. This
+/// allowlist is intentionally keyed by the concrete semantic value discovered
+/// from protocol extensions and conformances—not by the modifier consuming
+/// it. Every entry states the absent framework behavior explicitly.
+let swiftUIMagicProtocolValueAdapters: [
+    String: (
+        adapter: SwiftUIMagicProtocolValueAdapter,
+        missingInterfaceSemantic: String
+    )
+] = [
+    "SwiftUI.ButtonMenuStyle": (
+        adapter: .targetButtonMenuStyle,
+        missingInterfaceSemantic:
+            "target framework default menu-indicator visibility"),
+]
+
+func generatedModifierSemanticAdapter(_ variant: Variant) -> String? {
+    var matches: [
+        (
+            parameter: Int,
+            concreteType: String,
+            specification: (
+                adapter: SwiftUIMagicProtocolValueAdapter,
+                missingInterfaceSemantic: String
+            )
+        )
+    ] = []
+    for (index, parameter) in variant.params.enumerated() {
+        guard let composition = sdkProtocolComposition(from: parameter.tag)
+        else { continue }
+        for concreteType in Set(
+            sdkProtocolCompositionValues[composition]?.map(\.concreteType) ?? []
+        ).sorted() {
+            guard let specification =
+                    swiftUIMagicProtocolValueAdapters[concreteType]
+            else { continue }
+            matches.append((index, concreteType, specification))
+        }
+    }
+    guard let match = matches.first else { return nil }
+    guard matches.count == 1 else {
+        fatalError(
+            "\(variant.key) has ambiguous SwiftUI magic protocol values: "
+                + matches.map(\.concreteType).joined(separator: ", "))
+    }
+    switch match.specification.adapter {
+    case .targetButtonMenuStyle:
+        return ".targetButtonMenuStyle(parameter: \(match.parameter))"
+    }
+}
+
 func entryCode(_ variant: Variant) -> String {
     let specs = variant.params
         .map(paramSpecCode)
@@ -3447,7 +3502,11 @@ func entryCode(_ variant: Variant) -> String {
         .joined(separator: ", ")
     let importArgument = variant.targetImportRequirements.isEmpty
         ? "" : ", requiredImports: [\(imports)]"
-    var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]\(importArgument)) { view, v in"]
+    let semanticAdapterArgument = generatedModifierSemanticAdapter(variant)
+        .map { ", semanticAdapter: \($0)" } ?? ""
+    var lines = [
+        "    register(&t, \"\(variant.name)\", [\(specs)]\(importArgument)\(semanticAdapterArgument)) { view, v in"
+    ]
     lines.append(contentsOf: generatedCallPreamble(variant))
     let returnedExpression =
         "AnyView(\(generatedCall("view.\(variant.name)", variant)))"

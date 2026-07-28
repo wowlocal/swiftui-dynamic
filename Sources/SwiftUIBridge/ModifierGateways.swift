@@ -666,19 +666,6 @@ extension ViewRegistry {
             }
             return AnyView(view.buttonStyle(.automatic))
         }
-        register("menuStyle") { view, args, context in
-            guard case .implicitMember(let name)? = args.positional(0) else { return view }
-            switch name {
-            case "borderlessButton":
-                // Deprecated but still the OrdersTable spelling; the modern
-                // .button draws a bordered chrome the row must not have.
-                return AnyView(view.menuStyle(.borderlessButton))
-            case "button":
-                return TargetPlatformControlBridge
-                    .applyButtonMenuStyle(to: view, context: context)
-            default: return AnyView(view.menuStyle(.automatic))
-            }
-        }
         register("formStyle") { view, args, _ in
             // Closed-set style params are interface-inexpressible (generic
             // style protocols) — the sanctioned handwritten switch tier.

@@ -1,6 +1,32 @@
 import SwiftUI
 import SwiftInterpreter
 
+/// Runtime half of BridgeGen's small SwiftUI-magic allowlist. Generated
+/// overload metadata selects an adapter from an interface-derived concrete
+/// protocol value; execution then checks that property rather than a modifier
+/// name or source spelling.
+enum GeneratedModifierSemanticAdapter {
+    case targetButtonMenuStyle(parameter: Int)
+
+    @MainActor
+    func apply(
+        to native: AnyView,
+        receiver: AnyView,
+        values: [Any],
+        context: EvalContext
+    ) -> AnyView {
+        switch self {
+        case .targetButtonMenuStyle(let parameter):
+            guard values.indices.contains(parameter),
+                  values[parameter] is ButtonMenuStyle else {
+                return native
+            }
+            return TargetPlatformControlBridge.adaptButtonMenuStyle(
+                native, context: context)
+        }
+    }
+}
+
 /// SwiftUI's interface identifies control/menu styles and `ControlSize`, but
 /// does not encode the target framework's chrome padding, corner treatment,
 /// tint rendering, or default menu-indicator visibility. A macOS host otherwise
@@ -41,11 +67,10 @@ enum TargetPlatformControlBridge {
     }
 
     @MainActor
-    static func applyButtonMenuStyle(
-        to view: AnyView,
+    static func adaptButtonMenuStyle(
+        _ styled: AnyView,
         context: EvalContext
     ) -> AnyView {
-        let styled = AnyView(view.menuStyle(.button))
 #if os(macOS)
         // Compiled Catalyst's button-style menu presents only the supplied
         // label; macOS adds a disclosure indicator by default. This is the
