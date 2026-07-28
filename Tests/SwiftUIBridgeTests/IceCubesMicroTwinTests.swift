@@ -44,6 +44,23 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeTargetButtonMenuTwin: View {
+        var body: some View {
+            Menu {
+                Button("Action") {}
+            } label: {
+                Label("", systemImage: "ellipsis")
+                    .padding(.vertical, 6)
+            }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .tint(.primary)
+            .fixedSize()
+        }
+    }
+
     @MainActor
     @Observable
     final class NativeRouteStore {
@@ -743,6 +760,45 @@ struct IceCubesMicroTwinTests {
                 Self.dominantNonWhiteRGB(bitmap, size: size)
                     == variant.expectedRGB)
         }
+    }
+
+    /// Compiled Catalyst's button-style menu presents only its supplied label;
+    /// the macOS host adds a disclosure indicator that widens the control and
+    /// alters its intrinsic geometry. The target default is interface-
+    /// inexpressible, so the selected target style must supply it without
+    /// requiring source code to spell `.menuIndicator(.hidden)`.
+    @MainActor
+    @Test
+    func catalystTargetButtonMenuUsesLabelOnlyChrome() throws {
+        let source = """
+        Menu {
+            Button("Action") {}
+        } label: {
+            Label("", systemImage: "ellipsis")
+                .padding(.vertical, 6)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .tint(.primary)
+        .fixedSize()
+        """
+
+        let rendered = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("target button-menu microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 160, height: 80)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeTargetButtonMenuTwin()), size: size)
+        #expect(Self.pixelAE(actual, expected, size: size) == 0)
     }
 
     /// Interface-derived stack initializers must contextualize shorthand
