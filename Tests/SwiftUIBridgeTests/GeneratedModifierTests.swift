@@ -127,6 +127,19 @@ import SwiftInterpreter
         )
     }
 
+    /// Public `.swiftcrossimport/SwiftUI.swiftoverlay` metadata is part of the
+    /// SDK API surface. The generated overload retains both the interface
+    /// parameter shape and the triggering source import.
+    @Test func swiftUICrossImportMetadataGeneratesModifierCoverage() {
+        let variants = GeneratedModifiers.table[
+            "translationPresentation"]?.byArity[2] ?? []
+        #expect(variants.contains {
+            $0.params.map(\.label) == ["isPresented", "text"]
+                && $0.params.map(\.tag) == [.bindingBool, .string]
+                && $0.requiredImports == ["Translation"]
+        })
+    }
+
     /// Primary SwiftUI interfaces describe style parameters with protocol
     /// constraints and expose their leading-dot values through same-type
     /// extensions. Those relationships should drive both generated dispatch

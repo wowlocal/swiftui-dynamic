@@ -213,6 +213,50 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    /// IceCubes' status rows terminate at the Translation/SwiftUI cross-import
+    /// modifier on the interpreted iOS path. The inactive presentation must
+    /// preserve every native receiver pixel, independently of the footer.
+    @MainActor
+    @Test
+    func translatedRowPreservesNativePixels() throws {
+        let source = """
+        import Translation
+
+        struct TranslatedRow: View {
+            let title: String
+            var body: some View {
+                Text(title)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 72)
+                    .translationPresentation(
+                        isPresented: .constant(false),
+                        text: title)
+            }
+        }
+
+        TranslatedRow(title: "VISIBLE STATUS ROW")
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("row microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 280, height: 100)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeTranslatedRow(title: "VISIBLE STATUS ROW")),
+            size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-row-microtwin ae=\(ae)")
+        #expect(ae == 0)
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
     /// `StatusesListView.makeNextPageRow` follows every translated status row.
     /// Compare only the red footer mask: row rendering is a separate metric,
     /// while every footer pixel must occupy the native position exactly.
