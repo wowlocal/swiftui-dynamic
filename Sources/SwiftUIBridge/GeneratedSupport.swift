@@ -1024,6 +1024,22 @@ extension GeneratedDispatch {
                         param, argument in
                         try coerce(param.tag, argument.value, ctx)
                     }
+                    // EXPERIMENT (opt-in via BOUNDARY_JIT=1): service the call
+                    // from a shim compiled off `overload.signature` instead of
+                    // the hand-emitted `invoke` closure. Same receiver, same
+                    // coerced `[Any]`, same RuntimeValue out.
+                    if CompiledBoundary.isEnabled {
+                        do {
+                            return try CompiledBoundary.shared.invoke(
+                                signature: overload.signature,
+                                receiver: base,
+                                arguments: values)
+                        } catch {
+                            CompiledBoundary.note(
+                                declaration: overload.signature.declaration,
+                                error: error)
+                        }
+                    }
                     return try overload.invoke(base, values)
                 }
             }
