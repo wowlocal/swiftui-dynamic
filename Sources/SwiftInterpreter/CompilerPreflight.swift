@@ -2019,4 +2019,12 @@ private func compilerPreflightSignal(
     guard compilerPreflightProcessIsRunning(identity) else { return }
     _ = Darwin.kill(identity.identifier, signal)
 }
+#else
+private func executeProcess(
+    executable: String,
+    arguments: [String],
+    timeoutSeconds: TimeInterval
+) throws -> CompilerPreflightProcessOutput {
+    throw CompilerPreflightError.unsupportedPlatform
+}
 #endif
