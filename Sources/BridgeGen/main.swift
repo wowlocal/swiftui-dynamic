@@ -201,24 +201,26 @@ var sdkProtocolRefinements: [String: Set<String>] = [:]
 var sdkNominalConformances: [String: Set<String>] = [:]
 var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
 
+/// A framework protocol whose interface describes the reusable SwiftUI style
+/// shape: an associated View body, a concrete Configuration alias, and one
+/// ViewBuilder requirement mapping that configuration to the body. The
+/// framework supplies the configuration at runtime; BridgeGen carries every
+/// other fact, including the requirement spelling, directly from the
+/// interface.
+struct SDKFrameworkConfigurationProtocol: Hashable {
+    let protocolType: String
+    let configurationType: String
+    let bodyMethod: String
+    let configurationLabel: String?
+}
+
+var sdkFrameworkConfigurationProtocols:
+    [String: SDKFrameworkConfigurationProtocol] = [:]
+
 /// Only compositions selected by emitted gateways are carried into generated
 /// coercion code. The key is a stable, sorted `P&Q` spelling.
 var sdkProtocolCompositionValues:
     [String: [SDKProtocolContextualValue]] = [:]
-
-/// Protocol-constrained SDK overloads whose values are supplied by interpreted
-/// source rather than by an SDK `Self == Concrete` factory. Their native
-/// wrappers execute framework-supplied configuration inputs, which a
-/// swiftinterface cannot encode. Keeping this semantic allowlist at the
-/// protocol boundary lets BridgeGen retain the interface overload shape
-/// without naming a consuming modifier, app, concrete source style, or
-/// leading-dot member.
-let swiftUISourceProtocolValueAdapters: [
-    String: String
-] = [
-    "SwiftUI.ButtonStyle":
-        "SwiftUI supplies ButtonStyle.Configuration to source makeBody",
-]
 
 func protocolClosure(of name: String) -> Set<String> {
     var result: Set<String> = []
@@ -284,8 +286,13 @@ func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
     }.sorted { ($0.member, $0.concreteType) < ($1.member, $1.concreteType) }
     let ordered = requiredProtocols.sorted()
     let key = ordered.joined(separator: "&")
+    let hasFrameworkConfigurationAdapter =
+        requiredProtocols.count == 1
+        && requiredProtocols.allSatisfy {
+            sdkFrameworkConfigurationProtocols[$0] != nil
+        }
     guard !unambiguous.isEmpty
-            || swiftUISourceProtocolValueAdapters[key] != nil else {
+            || hasFrameworkConfigurationAdapter else {
         return nil
     }
     sdkProtocolCompositionValues[key] = unambiguous
@@ -1018,6 +1025,82 @@ func collectSDKProtocolDeclarations(
     }
 }
 
+/// Discover the framework-supplied configuration pattern without depending on
+/// a protocol, modifier, configuration, or requirement name. Requiring a
+/// unique matching requirement keeps ambiguous protocols fail-closed.
+func frameworkConfigurationProtocol(
+    _ declaration: ProtocolDeclSyntax,
+    protocolType: String,
+    module: String,
+    localTopLevelNames: Set<String>
+) -> SDKFrameworkConfigurationProtocol? {
+    let members = declaration.memberBlock.members
+    let hasViewBody = members.contains { member in
+        guard let associated = member.decl.as(
+            AssociatedTypeDeclSyntax.self
+        ), associated.name.text == "Body" else {
+            return false
+        }
+        return associated.inheritanceClause?.inheritedTypes.contains {
+            normalize($0.type.trimmedDescription) == "View"
+        } == true
+    }
+    guard hasViewBody else { return nil }
+
+    let configurations = members.compactMap {
+        member -> String? in
+        guard let alias = member.decl.as(TypeAliasDeclSyntax.self),
+              alias.name.text == "Configuration" else {
+            return nil
+        }
+        return canonicalSDKType(
+            alias.initializer.value.trimmedDescription,
+            module: module,
+            localTopLevelNames: localTopLevelNames)
+    }
+    guard Set(configurations).count == 1,
+          let configurationType = configurations.first else {
+        return nil
+    }
+
+    let requirements = members.compactMap {
+        member -> (method: String, label: String?)? in
+        guard let function = member.decl.as(FunctionDeclSyntax.self),
+              function.attributes.contains(where: { element in
+                  guard let attribute = element.as(AttributeSyntax.self)
+                  else { return false }
+                  return normalize(
+                    attribute.attributeName.trimmedDescription)
+                    == "ViewBuilder"
+              }),
+              function.signature.returnClause.map({
+                  normalize($0.type.trimmedDescription)
+              }) == "Self.Body" else {
+            return nil
+        }
+        let parameters = Array(
+            function.signature.parameterClause.parameters)
+        guard parameters.count == 1,
+              normalize(parameters[0].type.trimmedDescription)
+                == "Self.Configuration" else {
+            return nil
+        }
+        let rawLabel = parameters[0].firstName.text
+        return (
+            function.name.text,
+            rawLabel == "_" ? nil : rawLabel)
+    }
+    guard requirements.count == 1, let requirement = requirements.first
+    else {
+        return nil
+    }
+    return .init(
+        protocolType: protocolType,
+        configurationType: configurationType,
+        bodyMethod: requirement.method,
+        configurationLabel: requirement.label)
+}
+
 /// First pass: establish every locally declared protocol before interpreting
 /// nominal/extension conformance clauses, whose order is not semantically
 /// significant in a swiftinterface.
@@ -1043,6 +1126,14 @@ func collectSDKProtocolDeclarations(
                 localTopLevelNames: localTopLevelNames)
         } ?? []
         sdkProtocolRefinements[type, default: []].formUnion(refinements)
+        if let configurationProtocol = frameworkConfigurationProtocol(
+            protocolDecl,
+            protocolType: type,
+            module: module,
+            localTopLevelNames: localTopLevelNames
+        ) {
+            sdkFrameworkConfigurationProtocols[type] = configurationProtocol
+        }
         collectSDKProtocolDeclarations(
             in: protocolDecl.memberBlock.members,
             module: module, path: childPath,
@@ -3854,13 +3945,41 @@ try enumsOutput.write(toFile: enumsPath, atomically: true, encoding: .utf8)
 print("wrote \(enumsPath) (\(emittedSDKEnumTypes.count) enum types)")
 
 var protocolValuesOutput = """
-// GENERATED by BridgeGen from public protocol-extension `Self == Concrete`
-// contextual values and interface-declared conformances.
+// GENERATED by BridgeGen from interface-declared protocol shapes,
+// conformances, and public protocol-extension `Self == Concrete` values.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(emittedSDKProtocolCompositions.count) protocol compositions.
 \(emittedSDKProtocolImportBlock)import SwiftInterpreter
 
+struct GeneratedSDKFrameworkConfigurationProtocol {
+    let configurationType: String
+    let bodyMethod: String
+    let configurationLabel: String?
+}
+
 enum GeneratedSDKProtocolValueCoercions {
+    static let frameworkConfigurationProtocols:
+        [String: GeneratedSDKFrameworkConfigurationProtocol] = [
+
+"""
+
+for (protocolType, descriptor) in sdkFrameworkConfigurationProtocols
+    .filter({ emittedSDKProtocolCompositions.contains($0.key) })
+    .sorted(by: { $0.key < $1.key })
+{
+    let label = descriptor.configurationLabel.map { "\"\($0)\"" } ?? "nil"
+    protocolValuesOutput += """
+        "\(protocolType)": .init(
+            configurationType: "\(descriptor.configurationType)",
+            bodyMethod: "\(descriptor.bodyMethod)",
+            configurationLabel: \(label)),
+
+"""
+}
+
+protocolValuesOutput += """
+    ]
+
     static func coerce(
         _ composition: String, _ value: RuntimeValue
     ) throws -> Any {

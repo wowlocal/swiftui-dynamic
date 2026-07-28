@@ -162,6 +162,16 @@ import SwiftInterpreter
     @Test func sourceProtocolStyleOverloadSurvivesCompetingSourceOverload()
         throws
     {
+        let descriptor = try #require(
+            GeneratedSDKProtocolValueCoercions
+                .frameworkConfigurationProtocols["SwiftUI.ButtonStyle"])
+        #expect(descriptor.configurationType
+            == "SwiftUI.ButtonStyleConfiguration")
+        #expect(descriptor.bodyMethod == "makeBody")
+        #expect(descriptor.configurationLabel == "configuration")
+        #expect(GeneratedSDKProtocolValueCoercions
+            .frameworkConfigurationProtocols["SwiftUI.LabelStyle"] != nil)
+
         let overloads = GeneratedModifiers.table["buttonStyle"]?
             .byArity[1] ?? []
         #expect(overloads.contains {
