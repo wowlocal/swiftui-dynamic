@@ -280,6 +280,48 @@ import SwiftInterpreter
                 "async protocol witness mutation was lost: \(strings)")
     }
 
+    /// Once a lifecycle mutation has produced a larger tree, a render with no
+    /// new lifecycle and no outstanding runtime work is already the
+    /// quiescent presentation. Re-rendering only to confirm the string count
+    /// wastes a complete deep traversal of large applications.
+    @Test func quiescentStringGrowthDoesNotRequireConfirmationRender()
+        async throws
+    {
+        let source = """
+        final class Model {
+            var rows = [0]
+            var renders = 0
+        }
+        let model = Model()
+
+        struct ContentView: View {
+            var body: some View {
+                let _ = model.renders += 1
+                VStack {
+                    ForEach(model.rows, id: \\.self) { row in
+                        Text("row \\(row)")
+                    }
+                    Text("renders \\(model.renders)")
+                }
+                .onAppear {
+                    model.rows.append(1)
+                }
+            }
+        }
+
+        @main struct DemoApp: App {
+            var body: some Scene {
+                WindowGroup { ContentView() }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(
+            source: source)
+        #expect(strings.contains("row 1"))
+        #expect(strings.contains("renders 2"),
+                "quiescent growth caused a redundant render: \(strings)")
+    }
+
     @Test func taskIdentityRestartsWhenItsIDChanges() async throws {
         let source = """
         final class Model {

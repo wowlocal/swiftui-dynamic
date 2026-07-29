@@ -252,6 +252,10 @@ public enum MainQueueDrain {
     /// 90s board into 5+ minutes).
     static var delayedFireBudget = 64
 
+    static var isQuiescent: Bool {
+        pending.isEmpty && delayedPending.isEmpty
+    }
+
     static func deliveryMode(for context: EvalContext) -> MainQueueDeliveryMode {
         guard let interpreter = context as? Interpreter,
               let policy = interpreter.registry as? MainQueueDeliveryPolicy else {
