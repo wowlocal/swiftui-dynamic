@@ -137,6 +137,30 @@ private struct IceCubesCatalystCaptureRoot: View {
                     message:
                         "Catalyst capture did not reach presentation readiness")
             }
+            if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+                let activity = session.interpreter.runtimeActivity
+                print(
+                    "@@icecubes-capture-activity"
+                        + " observedActive="
+                        + "\(readiness.firstActiveRenderRevision != nil)"
+                        + " initialRevision=\(initialRenderRevision)"
+                        + " firstActiveRevision="
+                        + "\(readiness.firstActiveRenderRevision.map(String.init) ?? "none")"
+                        + " lastActiveRevision="
+                        + "\(readiness.lastActiveRenderRevision.map(String.init) ?? "none")"
+                        + " finalRevision="
+                        + "\(session.renderActivity.bodyEvaluationCount)"
+                        + " finalQuiescent=\(activity.isQuiescent)"
+                        + " activeTasks=\(activity.activeTaskCount)"
+                        + " scheduledTasks=\(activity.scheduledTaskCount)"
+                        + " hostOperations="
+                        + "\(activity.activeHostOperationCount)"
+                        + " continuations="
+                        + "\(activity.activeContinuationCount)")
+                for request in NetworkBridge.requestLog {
+                    print("@@icecubes-network \(request)")
+                }
+            }
             for entry in RenderDiagnostics.errors.prefix(20) {
                 print("diagnostic\t\(entry.view)\t\(entry.error.message)")
             }
@@ -1354,6 +1378,7 @@ struct IceCubesCheckMain {
         }
         NetworkBridge.policy = .replay(
             fixturesDirectory: fixtureDirectory)
+        NetworkBridge.requestLog = []
         return try InterpreterHost().renderSession(
             source: source,
             buildConfiguration: .init(
