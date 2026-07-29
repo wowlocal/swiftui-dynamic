@@ -393,6 +393,50 @@ import SwiftInterpreter
         _ = try interpreter.run(source: #"Text("b").autocorrectionDisabled(false)"#)
     }
 
+    /// An omitted default and an explicitly supplied nil are distinct source
+    /// shapes. BridgeGen must retain the Optional marker from the interface so
+    /// concrete SDK calls such as `frame(maxWidth: CGFloat?)` receive native
+    /// nil instead of asking the wrapped-number coercer to consume it.
+    @Test func concreteOptionalParameterAcceptsExplicitNil() throws {
+        let maxWidth = GeneratedModifiers.table["frame"]?
+            .byArity[1]?.first {
+                $0.params.map(\.label) == ["maxWidth"]
+            }
+        #expect(maxWidth?.params.first?.tag == .cgFloat)
+        #expect(maxWidth?.params.first?.isOptional == true)
+        let installedFrame = try #require(
+            ViewRegistry().modifier(named: "frame"))
+        #expect(installedFrame.exposesInterfaceParameterTypes)
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: """
+            struct ContentView: View {
+                let maxWidth: CGFloat? = nil
+
+                var body: some View {
+                    Text("explicit optional frame")
+                        .frame(maxWidth: maxWidth)
+                }
+            }
+            """,
+            lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("explicit Optional modifier failed: \(rendered)")
+            return
+        }
+        let hosting = NSHostingView(
+            rootView: view.frame(width: 260, height: 100))
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 260, height: 100),
+            styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
     @Test func defaultBeforeTrailingClosureProducesShorthandVariant() throws {
         // Native Swift can omit an unlabeled default immediately before a
         // trailing closure. BridgeGen must preserve that interface-derived

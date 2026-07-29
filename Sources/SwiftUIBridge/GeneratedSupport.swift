@@ -51,6 +51,10 @@ struct ParamSpec {
     let label: String?
     let tag: ParamTag
     let hasDefault: Bool
+    /// The swiftinterface declared `Wrapped?`. The tag describes `Wrapped`;
+    /// matching preserves an explicit nil and generated static code restores
+    /// the concrete Optional type at the native call boundary.
+    let isOptional: Bool
     /// Concrete parameter type read from the SDK interface. Source-declared
     /// extensions can add leading-dot static members to imported types, so
     /// coercion must resolve those members before applying the host adapter.
@@ -58,13 +62,29 @@ struct ParamSpec {
 
     init(
         _ label: String?, _ tag: ParamTag, hasDefault: Bool = false,
-        contextualType: String? = nil
+        isOptional: Bool = false, contextualType: String? = nil
     ) {
         self.label = label
         self.tag = tag
         self.hasDefault = hasDefault
+        self.isOptional = isOptional
         self.contextualType = contextualType
     }
+}
+
+/// Type-neutral absence carried through `[Any]` between generated overload
+/// matching and a statically typed SDK invocation.
+private struct GeneratedNilOptionalArgument {}
+
+/// Restore the concrete Optional type inferred by the generated native call.
+/// The transform is emitted from the wrapped swiftinterface type mapping, so
+/// one adapter serves every concrete optional parameter without a type/API
+/// allowlist.
+nonisolated func generatedOptionalArgument<T>(
+    _ value: Any, transform: (Any) -> T
+) -> T? {
+    guard !(value is GeneratedNilOptionalArgument) else { return nil }
+    return transform(value)
 }
 
 /// Wraps an interpreted action closure so it can round-trip through `[Any]`
@@ -569,8 +589,19 @@ enum GeneratedDispatch {
         guard labelsMatch(params, args) else { return nil }
         var values: [Any] = []
         for (param, argument) in zip(params, args.arguments) {
+            let sourceValue: RuntimeValue
+            if param.isOptional {
+                guard let wrapped =
+                        argument.value.unwrappedOptionalOrSelf else {
+                    values.append(GeneratedNilOptionalArgument())
+                    continue
+                }
+                sourceValue = wrapped
+            } else {
+                sourceValue = argument.value
+            }
             guard let coerced = try? coerce(
-                    param.tag, argument.value, ctx,
+                    param.tag, sourceValue, ctx,
                     contextualType: param.contextualType) else { return nil }
             values.append(coerced)
         }

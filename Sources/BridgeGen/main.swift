@@ -214,21 +214,33 @@ struct TypeMapping {
     /// members. This is carried into generated dispatch rather than inferred
     /// from a handwritten tag-to-type table.
     let contextualType: String?
+    /// Whether the interface wraps this concrete parameter type in Optional.
+    /// The coercion tag continues to describe the wrapped value; generated
+    /// dispatch and invocation preserve absence without inventing a
+    /// type-specific nil case.
+    let isOptional: Bool
 
     init(
         tag: String, cast: String, requiredFramework: String? = nil,
-        contextualType: String? = nil
+        contextualType: String? = nil, isOptional: Bool = false
     ) {
         self.tag = tag
         self.cast = cast
         self.requiredFramework = requiredFramework
         self.contextualType = contextualType
+        self.isOptional = isOptional
     }
 
     func contextualized(as type: String) -> TypeMapping {
         .init(
             tag: tag, cast: cast, requiredFramework: requiredFramework,
-            contextualType: type)
+            contextualType: type, isOptional: isOptional)
+    }
+
+    func optionalized() -> TypeMapping {
+        .init(
+            tag: tag, cast: cast, requiredFramework: requiredFramework,
+            contextualType: contextualType, isOptional: true)
     }
 }
 
@@ -659,7 +671,23 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         type = attributed.baseType
     }
     var normalized = normalize(type.trimmedDescription)
-    if normalized.hasSuffix("?") { normalized = String(normalized.dropLast()) }
+    var isOptional = false
+    if normalized.hasSuffix("?") {
+        normalized = String(normalized.dropLast())
+        isOptional = true
+    }
+
+    func preservingOptional(_ mapping: TypeMapping) -> TypeMapping {
+        // Optional protocol-constrained generics need their concrete dynamic
+        // type reopened before wrapping. Keep their existing non-Optional
+        // adapter until that distinct existential-opening shape is modeled;
+        // concrete mapped values can preserve Optional mechanically.
+        guard mapping.tag != "genericShapeStyle",
+              !mapping.tag.hasPrefix("sdkProtocolValue(") else {
+            return mapping
+        }
+        return isOptional ? mapping.optionalized() : mapping
+    }
 
     if isAutoclosure {
         // Swift's call-site expression has the autoclosure's RESULT type.
@@ -676,6 +704,7 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         normalized = normalize(type.trimmedDescription)
         if normalized.hasSuffix("?") {
             normalized = String(normalized.dropLast())
+            isOptional = true
         }
     }
     if isBuilder {
@@ -753,16 +782,16 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         case .concrete(let concrete):
             if let mapping = directMapping(for: concrete)?
                 .contextualized(as: concrete) {
-                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: concrete)
+                return .init(label: label, mapping: preservingOptional(mapping), hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: concrete)
             }
             return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "== \(concrete)", usesGeneric: normalized)
         case .constraints(let set):
             if set.count == 1, let mapping = constraintMapping(for: set.first!) {
-                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: constraintConcreteType(for: set.first!))
+                return .init(label: label, mapping: preservingOptional(mapping), hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: constraintConcreteType(for: set.first!))
             }
             if let mapping = sdkProtocolMapping(for: set) {
                 return .init(
-                    label: label, mapping: mapping,
+                    label: label, mapping: preservingOptional(mapping),
                     hasDefault: hasDefault, blocker: nil,
                     usesGeneric: normalized)
             }
@@ -772,7 +801,7 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
     }
     if let mapping = directMapping(for: normalized)?
         .contextualized(as: normalized) {
-        return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
+        return .init(label: label, mapping: preservingOptional(mapping), hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
     }
     // Compound types over constrained generics (`ClosedRange<V>` with
     // V: BinaryFloatingPoint) specialize to their canonical concrete form
@@ -791,7 +820,7 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         if let specialized,
            let mapping = directMapping(for: specialized)?
             .contextualized(as: specialized) {
-            return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: name, genericConcrete: concrete)
+            return .init(label: label, mapping: preservingOptional(mapping), hasDefault: hasDefault, blocker: nil, usesGeneric: name, genericConcrete: concrete)
         }
     }
     return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: normalized, usesGeneric: nil)
@@ -2051,6 +2080,7 @@ struct EmittableParam {
     let label: String?
     let tag: String
     let cast: String
+    let isOptional: Bool
     /// The concrete type accepted by a generated Foundation gateway. View
     /// modifiers and constructors still use their ParamTag-only boundary.
     let contractType: String?
@@ -2060,11 +2090,12 @@ struct EmittableParam {
     init(
         label: String?, tag: String, cast: String,
         contractType: String? = nil, requiredFramework: String? = nil,
-        contextualType: String? = nil
+        contextualType: String? = nil, isOptional: Bool = false
     ) {
         self.label = label
         self.tag = tag
         self.cast = cast
+        self.isOptional = isOptional
         self.contractType = contractType
         self.requiredFramework = requiredFramework
         self.contextualType = contextualType
@@ -2097,7 +2128,9 @@ struct Variant {
     let preservesSemanticValue: Bool
 
     var key: String {
-        name + "|" + params.map { "\($0.label ?? "_"):\($0.tag)" }.joined(separator: ",")
+        name + "|" + params.map {
+            "\($0.label ?? "_"):\($0.tag)\($0.isOptional ? "?" : "")"
+        }.joined(separator: ",")
     }
 
     var requiredFrameworks: [String] {
@@ -2178,7 +2211,8 @@ func processModifier(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
                     requiredFramework: $0.mapping!.requiredFramework,
-                    contextualType: $0.mapping!.contextualType)
+                    contextualType: $0.mapping!.contextualType,
+                    isOptional: $0.mapping!.isOptional)
             },
             trailingClosureIndex: selection.trailingClosureIndex,
             isDisfavoredOverload: function.attributes.contains {
@@ -2276,7 +2310,8 @@ func processInit(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
                     requiredFramework: $0.mapping!.requiredFramework,
-                    contextualType: $0.mapping!.contextualType)
+                    contextualType: $0.mapping!.contextualType,
+                    isOptional: $0.mapping!.isOptional)
             },
             trailingClosureIndex: selection.trailingClosureIndex,
             isDisfavoredOverload: initDecl.attributes.contains {
@@ -2656,7 +2691,8 @@ let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
             tag: parameter.tag.replacingOccurrences(
                 of: "platformValue(", with: "platformSemanticValue("),
             cast: "%@", requiredFramework: nil,
-            contextualType: parameter.contextualType)
+            contextualType: parameter.contextualType,
+            isOptional: parameter.isOptional)
         let adapter = Variant(
             name: variant.name, params: [semanticParameter],
             trailingClosureIndex: nil,
@@ -3982,10 +4018,21 @@ let cMemoryGeneration = try generateCMemoryBridge(sdkPath: sdk)
 
 func paramSpecCode(_ parameter: EmittableParam) -> String {
     let label = parameter.label.map { "\"\($0)\"" } ?? "nil"
+    let optional = parameter.isOptional ? ", isOptional: true" : ""
     let context = parameter.contextualType.map {
         ", contextualType: \"\($0)\""
     } ?? ""
-    return "ParamSpec(\(label), .\(parameter.tag)\(context))"
+    return "ParamSpec(\(label), .\(parameter.tag)\(optional)\(context))"
+}
+
+func generatedMappedValue(
+    cast: String, isOptional: Bool, storage: String
+) -> String {
+    guard isOptional else {
+        return cast.replacingOccurrences(of: "%@", with: storage)
+    }
+    let wrapped = cast.replacingOccurrences(of: "%@", with: "value")
+    return "generatedOptionalArgument(\(storage)) { value in \(wrapped) }"
 }
 
 func generatedCallPreamble(_ variant: Variant) -> [String] {
@@ -4026,8 +4073,9 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
                 // argument to the existential type itself.
                 value = "p\(index)"
             } else {
-                value = param.cast.replacingOccurrences(
-                    of: "%@", with: "v[\(index)]")
+                value = generatedMappedValue(
+                    cast: param.cast, isOptional: param.isOptional,
+                    storage: "v[\(index)]")
             }
             return (param.label.map { "\($0): " } ?? "") + value
         }

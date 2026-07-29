@@ -93,11 +93,11 @@ extension GeneratedConstructors {
     register(&t, "AnyView", [ParamSpec("erasing", .anyView)]) { v in
         return AnyView(erasing: v[0] as! AnyView)
     }
-    register(&t, "AsyncImage", [ParamSpec("url", .url, contextualType: "URL")]) { v in
-        return AsyncImage(url: v[0] as! URL)
+    register(&t, "AsyncImage", [ParamSpec("url", .url, isOptional: true, contextualType: "URL")]) { v in
+        return AsyncImage(url: generatedOptionalArgument(v[0]) { value in value as! URL })
     }
-    register(&t, "AsyncImage", [ParamSpec("url", .url, contextualType: "URL"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat")]) { v in
-        return AsyncImage(url: v[0] as! URL, scale: v[1] as! CGFloat)
+    register(&t, "AsyncImage", [ParamSpec("url", .url, isOptional: true, contextualType: "URL"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat")]) { v in
+        return AsyncImage(url: generatedOptionalArgument(v[0]) { value in value as! URL }, scale: v[1] as! CGFloat)
     }
     register(&t, "Button", [ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -112,18 +112,18 @@ extension GeneratedConstructors {
     register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("action", .action)]) { v in
         return Button(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), action: generatedAction(v[2]))
     }
-    register(&t, "Button", [ParamSpec("role", .buttonRole, contextualType: "ButtonRole"), ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
+    register(&t, "Button", [ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return Button(role: v[0] as! ButtonRole, action: generatedAction(v[1]), label: { b2 })
+        return Button(role: generatedOptionalArgument(v[0]) { value in value as! ButtonRole }, action: generatedAction(v[1]), label: { b2 })
     }
-    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("role", .buttonRole, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
-        return Button(LocalizedStringKey(v[0] as! String), role: v[1] as! ButtonRole, action: generatedAction(v[2]))
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
+        return Button(LocalizedStringKey(v[0] as! String), role: generatedOptionalArgument(v[1]) { value in value as! ButtonRole }, action: generatedAction(v[2]))
     }
-    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("role", .buttonRole, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
-        return Button(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, role: v[2] as! ButtonRole, action: generatedAction(v[3]))
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
+        return Button(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, role: generatedOptionalArgument(v[2]) { value in value as! ButtonRole }, action: generatedAction(v[3]))
     }
-    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("role", .buttonRole, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
-        return Button(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), role: v[2] as! ButtonRole, action: generatedAction(v[3]))
+    register(&t, "Button", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
+        return Button(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), role: generatedOptionalArgument(v[2]) { value in value as! ButtonRole }, action: generatedAction(v[3]))
     }
     register(&t, "Capsule", []) { v in
         return Capsule()
@@ -222,11 +222,11 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return ContentUnavailableView(label: { b0 }, description: { b1 }, actions: { b2 })
     }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String"), ParamSpec("description", .text, contextualType: "Text")]) { v in
-        return ContentUnavailableView(LocalizedStringKey(v[0] as! String), image: v[1] as! String, description: v[2] as! Text)
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String"), ParamSpec("description", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ContentUnavailableView(LocalizedStringKey(v[0] as! String), image: v[1] as! String, description: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("description", .text, contextualType: "Text")]) { v in
-        return ContentUnavailableView(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, description: v[2] as! Text)
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("description", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ContentUnavailableView(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, description: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
     register(&t, "ControlGroup", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
@@ -416,41 +416,41 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return Grid(content: { b0 })
     }
-    register(&t, "Grid", [ParamSpec("verticalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return Grid(verticalSpacing: v[0] as! CGFloat, content: { b1 })
+        return Grid(verticalSpacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
-    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return Grid(horizontalSpacing: v[0] as! CGFloat, content: { b1 })
+        return Grid(horizontalSpacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
     register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Grid(alignment: v[0] as! Alignment, content: { b1 })
     }
-    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return Grid(horizontalSpacing: v[0] as! CGFloat, verticalSpacing: v[1] as! CGFloat, content: { b2 })
+        return Grid(horizontalSpacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, verticalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("verticalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return Grid(alignment: v[0] as! Alignment, verticalSpacing: v[1] as! CGFloat, content: { b2 })
+        return Grid(alignment: v[0] as! Alignment, verticalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return Grid(alignment: v[0] as! Alignment, horizontalSpacing: v[1] as! CGFloat, content: { b2 })
+        return Grid(alignment: v[0] as! Alignment, horizontalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return Grid(alignment: v[0] as! Alignment, horizontalSpacing: v[1] as! CGFloat, verticalSpacing: v[2] as! CGFloat, content: { b3 })
+        return Grid(alignment: v[0] as! Alignment, horizontalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, verticalSpacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, content: { b3 })
     }
     register(&t, "GridRow", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         return GridRow(content: { b0 })
     }
-    register(&t, "GridRow", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "GridRow", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), isOptional: true, contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return GridRow(alignment: v[0] as! VerticalAlignment, content: { b1 })
+        return GridRow(alignment: generatedOptionalArgument(v[0]) { value in value as! VerticalAlignment }, content: { b1 })
     }
     register(&t, "Group", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
@@ -486,17 +486,17 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return HStack(content: { b0 })
     }
-    register(&t, "HStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "HStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return HStack(spacing: v[0] as! CGFloat, content: { b1 })
+        return HStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
     register(&t, "HStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return HStack(alignment: v[0] as! VerticalAlignment, content: { b1 })
     }
-    register(&t, "HStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "HStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return HStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, content: { b2 })
+        return HStack(alignment: v[0] as! VerticalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "HelpLink", [ParamSpec("action", .action)]) { v in
@@ -538,17 +538,17 @@ extension GeneratedConstructors {
     register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("label", .text, contextualType: "Text")]) { v in
         return Image(v[0] as! String, label: v[1] as! Text)
     }
-    register(&t, "Image", [ParamSpec("systemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double")]) { v in
-        return Image(systemName: v[0] as! String, variableValue: v[1] as! Double)
+    register(&t, "Image", [ParamSpec("systemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
+        return Image(systemName: v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
     }
-    register(&t, "Image", [ParamSpec("_internalSystemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double")]) { v in
-        return Image(_internalSystemName: v[0] as! String, variableValue: v[1] as! Double)
+    register(&t, "Image", [ParamSpec("_internalSystemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
+        return Image(_internalSystemName: v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
     }
-    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double")]) { v in
-        return Image(v[0] as! String, variableValue: v[1] as! Double)
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
+        return Image(v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
     }
-    register(&t, "Image", [ParamSpec("decorative", .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double")]) { v in
-        return Image(decorative: v[0] as! String, variableValue: v[1] as! Double)
+    register(&t, "Image", [ParamSpec("decorative", .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
+        return Image(decorative: v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
     }
 #if canImport(CoreGraphics)
     register(&t, "Image", [ParamSpec(nil, .platformValue("CoreGraphics", "CGImage"), contextualType: "CGImage"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat"), ParamSpec("label", .text, contextualType: "Text")]) { v in
@@ -560,8 +560,8 @@ extension GeneratedConstructors {
         return Image(decorative: v[0] as! CGImage, scale: v[1] as! CGFloat, orientation: v[2] as! Image.Orientation)
     }
 #endif
-    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, contextualType: "Double"), ParamSpec("label", .text, contextualType: "Text")]) { v in
-        return Image(v[0] as! String, variableValue: v[1] as! Double, label: v[2] as! Text)
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double"), ParamSpec("label", .text, contextualType: "Text")]) { v in
+        return Image(v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double }, label: v[2] as! Text)
     }
 #if canImport(CoreGraphics)
     register(&t, "Image", [ParamSpec(nil, .platformValue("CoreGraphics", "CGImage"), contextualType: "CGImage"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat"), ParamSpec("orientation", .sdkEnum("Image.Orientation"), contextualType: "Image.Orientation"), ParamSpec("label", .text, contextualType: "Text")]) { v in
@@ -611,29 +611,29 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return LazyHGrid(rows: v[0] as! [GridItem], pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return LazyHGrid(rows: v[0] as! [GridItem], spacing: v[1] as! CGFloat, content: { b2 })
+        return LazyHGrid(rows: v[0] as! [GridItem], spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
     register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, content: { b2 })
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return LazyHGrid(rows: v[0] as! [GridItem], spacing: v[1] as! CGFloat, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
+        return LazyHGrid(rows: v[0] as! [GridItem], spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
     register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, spacing: v[2] as! CGFloat, content: { b3 })
+        return LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, content: { b3 })
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHGrid", [ParamSpec("rows", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b4 = try generatedBuilder(v[4])
-        return LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, spacing: v[2] as! CGFloat, pinnedViews: v[3] as! PinnedScrollableViews, content: { b4 })
+        return LazyHGrid(rows: v[0] as! [GridItem], alignment: v[1] as! VerticalAlignment, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, pinnedViews: v[3] as! PinnedScrollableViews, content: { b4 })
     }
     }
 
@@ -646,29 +646,29 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return LazyHStack(pinnedViews: v[0] as! PinnedScrollableViews, content: { b1 })
     }
-    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return LazyHStack(spacing: v[0] as! CGFloat, content: { b1 })
+        return LazyHStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
     register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return LazyHStack(alignment: v[0] as! VerticalAlignment, content: { b1 })
     }
-    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return LazyHStack(spacing: v[0] as! CGFloat, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
+        return LazyHStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
     }
     register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return LazyHStack(alignment: v[0] as! VerticalAlignment, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
     }
-    register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, content: { b2 })
+        return LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
-    register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: v[1] as! CGFloat, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
+        return LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
     register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -678,29 +678,29 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return LazyVGrid(columns: v[0] as! [GridItem], pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return LazyVGrid(columns: v[0] as! [GridItem], spacing: v[1] as! CGFloat, content: { b2 })
+        return LazyVGrid(columns: v[0] as! [GridItem], spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
     register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, content: { b2 })
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return LazyVGrid(columns: v[0] as! [GridItem], spacing: v[1] as! CGFloat, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
+        return LazyVGrid(columns: v[0] as! [GridItem], spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
     register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, spacing: v[2] as! CGFloat, content: { b3 })
+        return LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, content: { b3 })
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVGrid", [ParamSpec("columns", .gridItems, contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b4 = try generatedBuilder(v[4])
-        return LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, spacing: v[2] as! CGFloat, pinnedViews: v[3] as! PinnedScrollableViews, content: { b4 })
+        return LazyVGrid(columns: v[0] as! [GridItem], alignment: v[1] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, pinnedViews: v[3] as! PinnedScrollableViews, content: { b4 })
     }
     register(&t, "LazyVStack", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
@@ -710,29 +710,29 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return LazyVStack(pinnedViews: v[0] as! PinnedScrollableViews, content: { b1 })
     }
-    register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return LazyVStack(spacing: v[0] as! CGFloat, content: { b1 })
+        return LazyVStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
     register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return LazyVStack(alignment: v[0] as! HorizontalAlignment, content: { b1 })
     }
-    register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return LazyVStack(spacing: v[0] as! CGFloat, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
+        return LazyVStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
     }
     register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return LazyVStack(alignment: v[0] as! HorizontalAlignment, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
     }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: v[1] as! CGFloat, content: { b2 })
+        return LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: v[1] as! CGFloat, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
+        return LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
     register(&t, "LinearGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startPoint", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endPoint", .unitPoint, contextualType: "UnitPoint")]) { v in
         return LinearGradient(gradient: v[0] as! Gradient, startPoint: v[1] as! UnitPoint, endPoint: v[2] as! UnitPoint)
@@ -868,8 +868,8 @@ extension GeneratedConstructors {
     register(&t, "NewDocumentButton", []) { v in
         return NewDocumentButton()
     }
-    register(&t, "NewDocumentButton", [ParamSpec(nil, .text, contextualType: "Text")]) { v in
-        return NewDocumentButton(v[0] as! Text)
+    register(&t, "NewDocumentButton", [ParamSpec(nil, .text, isOptional: true, contextualType: "Text")]) { v in
+        return NewDocumentButton(generatedOptionalArgument(v[0]) { value in value as! Text })
     }
     register(&t, "NewDocumentButton", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { v in
         return NewDocumentButton(LocalizedStringKey(v[0] as! String))
@@ -887,35 +887,35 @@ extension GeneratedConstructors {
     register(&t, "ProgressView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { v in
         return ProgressView(LocalizedStringKey(v[0] as! String))
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double)]) { v in
-        return ProgressView(value: v[0] as! Double)
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true)]) { v in
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double })
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double), ParamSpec("total", .double)]) { v in
-        return ProgressView(value: v[0] as! Double, total: v[1] as! Double)
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double)]) { v in
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, total: v[1] as! Double)
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double), ParamSpec("label", .builder)]) { v in
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return ProgressView(value: v[0] as! Double, label: { b1 })
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, label: { b1 })
     }
-    register(&t, "ProgressView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("value", .double)]) { v in
-        return ProgressView(LocalizedStringKey(v[0] as! String), value: v[1] as! Double)
+    register(&t, "ProgressView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("value", .double, isOptional: true)]) { v in
+        return ProgressView(LocalizedStringKey(v[0] as! String), value: generatedOptionalArgument(v[1]) { value in value as! Double })
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double), ParamSpec("total", .double), ParamSpec("label", .builder)]) { v in
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return ProgressView(value: v[0] as! Double, total: v[1] as! Double, label: { b2 })
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, total: v[1] as! Double, label: { b2 })
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
-        return ProgressView(value: v[0] as! Double, label: { b1 }, currentValueLabel: { b2 })
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, label: { b1 }, currentValueLabel: { b2 })
     }
-    register(&t, "ProgressView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("value", .double), ParamSpec("total", .double)]) { v in
-        return ProgressView(LocalizedStringKey(v[0] as! String), value: v[1] as! Double, total: v[2] as! Double)
+    register(&t, "ProgressView", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double)]) { v in
+        return ProgressView(LocalizedStringKey(v[0] as! String), value: generatedOptionalArgument(v[1]) { value in value as! Double }, total: v[2] as! Double)
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double), ParamSpec("total", .double), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
-        return ProgressView(value: v[0] as! Double, total: v[1] as! Double, label: { b2 }, currentValueLabel: { b3 })
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, total: v[1] as! Double, label: { b2 }, currentValueLabel: { b3 })
     }
     register(&t, "RadialGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return RadialGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadius: v[2] as! CGFloat, endRadius: v[3] as! CGFloat)
@@ -1039,12 +1039,12 @@ extension GeneratedConstructors {
     register(&t, "SecureField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
         return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>)
     }
-    register(&t, "SecureField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text")]) { v in
-        return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: v[2] as! Text)
+    register(&t, "SecureField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
+        return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return SecureField(text: v[0] as! Binding<String>, prompt: v[1] as! Text, label: { b2 })
+        return SecureField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
     register(&t, "SecureField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
         return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
@@ -1074,17 +1074,17 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return ShareLink(item: v[0] as! String, label: { b1 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! URL, message: v[1] as! Text)
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! URL, message: generatedOptionalArgument(v[1]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! URL, subject: v[1] as! Text)
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! String, message: v[1] as! Text)
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! String, message: generatedOptionalArgument(v[1]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! String, subject: v[1] as! Text)
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text })
     }
     register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL")]) { v in
         return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL)
@@ -1098,74 +1098,74 @@ extension GeneratedConstructors {
     register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String")]) { v in
         return ShareLink(v[0] as! Text, item: v[1] as! String)
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! URL, message: v[1] as! Text, label: { b2 })
+        return ShareLink(item: v[0] as! URL, message: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! URL, subject: v[1] as! Text, label: { b2 })
+        return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! String, message: v[1] as! Text, label: { b2 })
+        return ShareLink(item: v[0] as! String, message: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! String, subject: v[1] as! Text, label: { b2 })
+        return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! URL, subject: v[1] as! Text, message: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! String, subject: v[1] as! Text, message: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, message: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, message: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, message: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, message: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
     }
 
     private static func build7(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! URL, message: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! URL, message: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! URL, subject: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! String, message: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! String, message: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! String, subject: v[2] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return ShareLink(item: v[0] as! URL, subject: v[1] as! Text, message: v[2] as! Text, label: { b3 })
+        return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, label: { b3 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return ShareLink(item: v[0] as! String, subject: v[1] as! Text, message: v[2] as! Text, label: { b3 })
+        return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, label: { b3 })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: v[2] as! Text, message: v[3] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: v[2] as! Text, message: v[3] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! URL, subject: v[2] as! Text, message: v[3] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, contextualType: "Text"), ParamSpec("message", .text, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! String, subject: v[2] as! Text, message: v[3] as! Text)
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
     }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>")]) { v in
         return Slider(value: v[0] as! Binding<Double>)
@@ -1284,8 +1284,8 @@ extension GeneratedConstructors {
     register(&t, "Spacer", []) { v in
         return Spacer()
     }
-    register(&t, "Spacer", [ParamSpec("minLength", .cgFloat, contextualType: "CGFloat")]) { v in
-        return Spacer(minLength: v[0] as! CGFloat)
+    register(&t, "Spacer", [ParamSpec("minLength", .cgFloat, isOptional: true, contextualType: "CGFloat")]) { v in
+        return Spacer(minLength: generatedOptionalArgument(v[0]) { value in value as! CGFloat })
     }
     register(&t, "TabView", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
@@ -1300,8 +1300,8 @@ extension GeneratedConstructors {
     register(&t, "Text", [ParamSpec(nil, .string)], isDisfavored: true) { v in
         return Text(v[0] as! String)
     }
-    register(&t, "Text", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("tableName", .string, contextualType: "String")]) { v in
-        return Text(LocalizedStringKey(v[0] as! String), tableName: v[1] as! String)
+    register(&t, "Text", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("tableName", .string, isOptional: true, contextualType: "String")]) { v in
+        return Text(LocalizedStringKey(v[0] as! String), tableName: generatedOptionalArgument(v[1]) { value in value as! String })
     }
     register(&t, "Text", [ParamSpec(nil, .date, contextualType: "Date"), ParamSpec("style", .sdkEnum("Text.DateStyle"), contextualType: "Text.DateStyle")]) { v in
         return Text(v[0] as! Date, style: v[1] as! Text.DateStyle)
@@ -1323,12 +1323,12 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return TextField(text: v[0] as! Binding<String>, axis: v[1] as! Axis, label: { b2 })
     }
-    register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text")]) { v in
-        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: v[2] as! Text)
+    register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
+        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return TextField(text: v[0] as! Binding<String>, prompt: v[1] as! Text, label: { b2 })
+        return TextField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
     register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]))
@@ -1336,12 +1336,12 @@ extension GeneratedConstructors {
     register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
     }
-    register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
-        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: v[2] as! Text, axis: v[3] as! Axis)
+    register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
+        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text }, axis: v[3] as! Axis)
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return TextField(text: v[0] as! Binding<String>, prompt: v[1] as! Text, axis: v[2] as! Axis, label: { b3 })
+        return TextField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, axis: v[2] as! Axis, label: { b3 })
     }
     register(&t, "TextField", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]), onCommit: generatedAction(v[3]))
@@ -1474,17 +1474,17 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return VStack(content: { b0 })
     }
-    register(&t, "VStack", [ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "VStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return VStack(spacing: v[0] as! CGFloat, content: { b1 })
+        return VStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
     register(&t, "VStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return VStack(alignment: v[0] as! HorizontalAlignment, content: { b1 })
     }
-    register(&t, "VStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "VStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return VStack(alignment: v[0] as! HorizontalAlignment, spacing: v[1] as! CGFloat, content: { b2 })
+        return VStack(alignment: v[0] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
     register(&t, "ViewThatFits", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
