@@ -34,6 +34,14 @@ private struct PaginationMetadata: Codable {
     let finalStatusCount: Int
     let appendedStatusID: String
     let appendedStatusBecameVisible: Bool
+    let normalizedFixtureNames: [String]
+    let interactionFixtureNames: [String]
+}
+
+private enum FixtureName {
+    static let publicTimeline = "api_v1_timelines_public.json"
+    static let trendingStatuses = "api_v1_trends_statuses.json"
+    static let boostStatus = "api_v1_statuses_116954929935729788.json"
 }
 
 @MainActor
@@ -298,7 +306,7 @@ private struct TwinDriverView: View {
             }
             let boostData = try Data(contentsOf: URL(
                 fileURLWithPath: TwinConfiguration.fixtureDirectory)
-                .appendingPathComponent("api_v1_statuses_116954929935729788.json"))
+                .appendingPathComponent(FixtureName.boostStatus))
             let boostStatus = try detailDecoder.decode(Status.self, from: boostData)
             guard let imageAttachment = boostStatus.reblog?.mediaAttachments.first,
                   imageAttachment.supportedType == .image,
@@ -336,11 +344,15 @@ private struct TwinDriverView: View {
         let publicStatuses = try decoder.decode(
             [Status].self,
             from: Data(contentsOf: fixtureRoot.appendingPathComponent(
-                "api_v1_timelines_public.json")))
+                FixtureName.publicTimeline)))
         let trendingStatuses = try decoder.decode(
             [Status].self,
             from: Data(contentsOf: fixtureRoot.appendingPathComponent(
-                "api_v1_trends_statuses.json")))
+                FixtureName.trendingStatuses)))
+        let boostStatus = try decoder.decode(
+            Status.self,
+            from: Data(contentsOf: fixtureRoot.appendingPathComponent(
+                FixtureName.boostStatus)))
         guard let appendedStatus = trendingStatuses.first else {
             throw NSError(
                 domain: "IceCubesNativeTwin", code: 6,
@@ -392,6 +404,17 @@ private struct TwinDriverView: View {
         } else {
             finalCount = 0
         }
+        let interactionEndpoints: [any Endpoint] = [
+            Statuses.status(id: appendedStatus.id),
+            Statuses.context(id: appendedStatus.id),
+        ]
+        let interactionFixtureNames = interactionEndpoints.map(
+            replayFixtureName)
+        let normalizedFixtureNames = [
+            FixtureName.publicTimeline,
+            FixtureName.trendingStatuses,
+            FixtureName.boostStatus,
+        ]
         let metadata = PaginationMetadata(
             initialVisibleStatusIDs: initiallyVisible,
             initialPageLoads: 0,
@@ -399,7 +422,9 @@ private struct TwinDriverView: View {
             finalStatusCount: finalCount,
             appendedStatusID: appendedStatus.id,
             appendedStatusBecameVisible:
-                fetcher.appearedStatusIDs.contains(appendedStatus.id))
+                fetcher.appearedStatusIDs.contains(appendedStatus.id),
+            normalizedFixtureNames: normalizedFixtureNames,
+            interactionFixtureNames: interactionFixtureNames)
         guard metadata.finalPageLoads == 1,
               metadata.finalStatusCount == publicStatuses.count + 1,
               metadata.appendedStatusBecameVisible
@@ -418,11 +443,23 @@ private struct TwinDriverView: View {
         let encoder = JSONEncoder()
         try encoder.encode(publicStatuses).write(
             to: outputDirectory.appendingPathComponent(
-                "api_v1_timelines_public.json"),
+                FixtureName.publicTimeline),
             options: .atomic)
         try encoder.encode(trendingStatuses).write(
             to: outputDirectory.appendingPathComponent(
-                "api_v1_trends_statuses.json"),
+                FixtureName.trendingStatuses),
+            options: .atomic)
+        try encoder.encode(boostStatus).write(
+            to: outputDirectory.appendingPathComponent(
+                FixtureName.boostStatus),
+            options: .atomic)
+        try encoder.encode(appendedStatus).write(
+            to: outputDirectory.appendingPathComponent(
+                interactionFixtureNames[0]),
+            options: .atomic)
+        try encodeEmptyCollectionRecord(StatusContext.empty()).write(
+            to: outputDirectory.appendingPathComponent(
+                interactionFixtureNames[1]),
             options: .atomic)
         let output = outputDirectory.appendingPathComponent(
             "pagination.json")
@@ -433,6 +470,39 @@ private struct TwinDriverView: View {
                 + "\tvisible=\(metadata.initialVisibleStatusIDs.count)"
                 + " loads=\(metadata.finalPageLoads)"
                 + " statuses=\(metadata.finalStatusCount)")
+    }
+
+    private func replayFixtureName(_ endpoint: any Endpoint) -> String {
+        ["api", MastodonClient.Version.v1.rawValue, endpoint.path()]
+            .joined(separator: "/")
+            .split(separator: "/")
+            .joined(separator: "_")
+            + ".json"
+    }
+
+    /// Some target interactions need a native value whose interface exposes
+    /// Decodable but not Encodable. Derive an empty-collection record from
+    /// compiled storage labels instead of transcribing its response fields.
+    private func encodeEmptyCollectionRecord(_ value: Any) throws -> Data {
+        var object: [String: Any] = [:]
+        for child in Mirror(reflecting: value).children {
+            guard let label = child.label else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 10,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "native record storage has an unlabeled field"])
+            }
+            let field = Mirror(reflecting: child.value)
+            guard field.displayStyle == .collection,
+                  field.children.isEmpty else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 11,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "native record field \(label) is not empty collection storage"])
+            }
+            object[label] = []
+        }
+        return try JSONSerialization.data(withJSONObject: object)
     }
 
     private func deepestScrollableView() -> UIScrollView? {
