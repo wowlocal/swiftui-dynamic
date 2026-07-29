@@ -877,7 +877,9 @@ extension Interpreter {
     // MARK: - Calls and invocation
 
     func collectArgumentsSuspending(
-        of call: FunctionCallExprSyntax, in env: Environment
+        of call: FunctionCallExprSyntax,
+        in env: Environment,
+        forceInvocation: Bool = false
     ) async throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
         for argument in callSiteMetadata(for: call).arguments {
@@ -885,7 +887,10 @@ extension Interpreter {
             if let trailingClosure = argument.trailingClosure {
                 value = .closure(try makeClosure(trailingClosure, in: env))
             } else {
-                value = try await evaluateSuspending(argument.expression, in: env)
+                value = try await evaluateSuspending(
+                    argument.expression,
+                    in: env,
+                    forceInvocation: forceInvocation)
             }
             arguments.append(.init(
                 label: argument.label,
@@ -1034,6 +1039,13 @@ extension Interpreter {
         in env: Environment,
         forceInvocation: Bool
     ) async throws -> RuntimeValue {
+        func collectArguments() async throws -> CallArguments {
+            try await collectArgumentsSuspending(
+                of: call,
+                in: env,
+                forceInvocation: forceInvocation)
+        }
+
         let calleeMetadata = callSiteMetadata(for: call).callee
         if calleeMetadata.shape == .explicitMember,
            let member = calleeMetadata.member,
@@ -1110,8 +1122,7 @@ extension Interpreter {
                                     + "nonthrowing computed property on a "
                                     + "source value")
                         }
-                        let args = try await collectArgumentsSuspending(
-                            of: call, in: env)
+                        let args = try await collectArguments()
                         if let invocation = try await
                             invokeMutatingInstanceMethodSuspending(
                                 named: name,
@@ -1147,8 +1158,7 @@ extension Interpreter {
                     for: baseExpression, in: env,
                     evaluatedValue: baseValue)
             ) {
-                let args = try await collectArgumentsSuspending(
-                    of: call, in: env)
+                let args = try await collectArguments()
                 let target = try resolveHostExtensionMethodTarget(
                     overloads,
                     arguments: args,
@@ -1182,8 +1192,7 @@ extension Interpreter {
                             + "only the demand-backed MainActor.run(body:) "
                             + "spelling is supported")
                 }
-                let arguments = try await collectArgumentsSuspending(
-                    of: call, in: env)
+                let arguments = try await collectArguments()
                 guard arguments.arguments.count == 1,
                       let body = arguments.lastUnlabeledClosure else {
                     throw error(
@@ -1202,7 +1211,7 @@ extension Interpreter {
                !receiver.symbol.isClass {
                 let mutating = mutatingInstanceMethods(named: name, on: receiver)
                 if !mutating.isEmpty {
-                    let args = try await collectArgumentsSuspending(of: call, in: env)
+                    let args = try await collectArguments()
                     if let invocation = try await
                         invokeMutatingInstanceMethodSuspending(
                             named: name,
@@ -1220,8 +1229,7 @@ extension Interpreter {
             if case .instance(let instance) = baseValue,
                let overloads = instanceCallOverloadsIncludingProtocolDefaults(
                    named: name, on: instance, call: call) {
-                let args = try await collectArgumentsSuspending(
-                    of: call, in: env)
+                let args = try await collectArguments()
                 let available = functionsAvailableForCall(
                     from: overloads, args: args)
                 if let method = chooseFunction(
@@ -1260,7 +1268,7 @@ extension Interpreter {
                    named: name, on: instance),
                shouldDirectlyDispatchInstanceCall(
                    named: name, on: instance, overloads: overloads) {
-                let args = try await collectArgumentsSuspending(of: call, in: env)
+                let args = try await collectArguments()
                 let fitting = functionsFittingCall(
                     from: overloads, args: args)
                 if !fitting.isEmpty {
@@ -1284,7 +1292,7 @@ extension Interpreter {
             if case .type(let symbol) = baseValue,
                let overloads = staticMethodOverloads(
                    named: name, on: symbol), overloads.count > 1 {
-                let args = try await collectArgumentsSuspending(of: call, in: env)
+                let args = try await collectArguments()
                 let available = functionsAvailableForCall(
                     from: overloads, args: args)
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
@@ -1299,7 +1307,7 @@ extension Interpreter {
                let overloads = symbol.staticMethods[name], !overloads.isEmpty,
                !call.arguments.isEmpty || call.trailingClosure != nil
                    || symbol.staticComputedProperties[name] == nil {
-                let args = try await collectArgumentsSuspending(of: call, in: env)
+                let args = try await collectArguments()
                 let available = functionsAvailableForCall(
                     from: overloads, args: args)
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
@@ -1320,7 +1328,7 @@ extension Interpreter {
                 callee = try accessMember(
                     name, on: baseValue, node: member, env: env)
             }
-            let args = try await collectArgumentsSuspending(of: call, in: env)
+            let args = try await collectArguments()
             do {
                 return try await invokeSuspending(
                     callee,
@@ -1380,7 +1388,7 @@ extension Interpreter {
            let name = calleeMetadata.name,
            env.box(for: name, before: globals) == nil {
             if let overloads = globalFunctionOverloads[name], overloads.count > 1 {
-                let args = try await collectArgumentsSuspending(of: call, in: env)
+                let args = try await collectArguments()
                 let available = functionsAvailableForCall(
                     from: overloads, args: args)
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
@@ -1393,8 +1401,7 @@ extension Interpreter {
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instanceCallOverloadsIncludingProtocolDefaults(
                    named: name, on: instance, call: call) {
-                let args = try await collectArgumentsSuspending(
-                    of: call, in: env)
+                let args = try await collectArguments()
                 let available = functionsAvailableForCall(
                     from: overloads, args: args)
                 if let method = chooseFunction(
@@ -1413,7 +1420,7 @@ extension Interpreter {
                    named: name, on: instance),
                shouldDirectlyDispatchImplicitSelfCall(
                    named: name, on: instance, overloads: overloads) {
-                let args = try await collectArgumentsSuspending(of: call, in: env)
+                let args = try await collectArguments()
                 let available = functionsAvailableForCall(
                     from: overloads, args: args)
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
@@ -1441,8 +1448,7 @@ extension Interpreter {
             case .none:
                 return .none()
             case .some(let wrapped, _):
-                let args = try await collectArgumentsSuspending(
-                    of: call, in: env)
+                let args = try await collectArguments()
                 return try await invokeSuspending(
                     wrapped,
                     with: args,
@@ -1454,7 +1460,7 @@ extension Interpreter {
             }
         }
 
-        let args = try await collectArgumentsSuspending(of: call, in: env)
+        let args = try await collectArguments()
         return try await invokeSuspending(
             callee,
             with: args,

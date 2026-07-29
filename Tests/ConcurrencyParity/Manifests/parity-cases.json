@@ -890,6 +890,18 @@
     "notes": "Both children yield once before returning. Exact output is left:right in 20 Swift 6.3.3 runs; no child execution order is asserted."
   },
   {
+    "id": "async-let-awaited-call-arguments",
+    "fixture": "Fixtures/async-let-awaited-call-arguments.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await asyncLetAwaitedCallProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Await on a complete call expression covers async-let reads in every argument before invoking the synchronous callee.",
+    "notes": "The call is an implicit initializer with two labeled async-let arguments. Both children yield once before returning; exact output is left:right in 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "async-let-multiple-bindings",
     "fixture": "Fixtures/async-let-multiple-bindings.swift",
     "mode": "runtime",

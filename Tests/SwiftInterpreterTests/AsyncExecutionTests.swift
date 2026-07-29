@@ -2955,6 +2955,32 @@ final class CoroutineReadableBox {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func awaitedCallConsumesAsyncLetArguments() async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        struct AsyncLetCallValues {
+            let left: String
+            let right: String
+        }
+        func asyncLetCallValue(_ value: String) async throws -> String {
+            await Task.yield()
+            return value
+        }
+        func awaitAsyncLetCall() async throws -> AsyncLetCallValues {
+            async let left = asyncLetCallValue("left")
+            async let right = asyncLetCallValue("right")
+            return try await .init(left: left, right: right)
+        }
+        let values = try await awaitAsyncLetCall()
+        values.left + ":" + values.right
+        """)
+
+        #expect(result.stringValue == "left:right")
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func asyncLetReadWithoutAwaitIsDiagnosedAndCleanedUp() async {
         let interpreter = Interpreter()
         do {
