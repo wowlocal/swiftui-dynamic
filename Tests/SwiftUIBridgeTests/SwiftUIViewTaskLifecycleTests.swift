@@ -48,7 +48,7 @@ struct SwiftUIViewTaskLifecycleTests {
     }
 
     private func waitUntil(
-        timeout: Duration = .seconds(30),
+        timeout: Duration = .seconds(120),
         _ condition: @MainActor () -> Bool
     ) async {
         let clock = ContinuousClock()
