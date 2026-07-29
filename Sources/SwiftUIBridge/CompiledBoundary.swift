@@ -19,7 +19,11 @@ final class CompiledBoundary {
 
     /// Opt-in so the default dispatch path is untouched.
     static var isEnabled: Bool {
+#if os(macOS)
         ProcessInfo.processInfo.environment["BOUNDARY_JIT"] == "1"
+#else
+        false
+#endif
     }
 
     struct Failure: Error, CustomStringConvertible {
@@ -266,6 +270,7 @@ final class CompiledBoundary {
     private static func run(
         _ tool: String, _ arguments: [String]
     ) throws -> String {
+#if os(macOS)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: tool)
         process.arguments = arguments
@@ -277,5 +282,9 @@ final class CompiledBoundary {
         process.waitUntilExit()
         return String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+#else
+        throw Failure(
+            description: "compiled boundary requires a host process runner")
+#endif
     }
 }
