@@ -588,6 +588,10 @@ extension Interpreter {
                        let seed = call.arguments.labeled("initialValue")
                            ?? call.arguments.labeled("wrappedValue")
                            ?? call.arguments.labeled("projectedValue") {
+                        if instance.retainedStateProperties.contains(name),
+                           [.state, .stateObject].contains(property.wrapper) {
+                            return
+                        }
                         incoming = seed
                     }
                     let resolved = resolvingAnnotation

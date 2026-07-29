@@ -169,6 +169,7 @@ extension Interpreter {
                     }
                     if let existing = viewStateCells[key] {
                         instance.stateBoxes[property.name] = existing
+                        instance.retainedStateProperties.insert(property.name)
                     } else {
                         viewStateCells[key] = box
                         instance.stateBoxes[property.name] = box

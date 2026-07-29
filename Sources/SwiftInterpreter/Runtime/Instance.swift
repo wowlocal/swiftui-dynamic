@@ -42,6 +42,11 @@ public final class Instance: @preconcurrency CustomStringConvertible {
     /// `@State`-marked properties, kept separate so the SwiftUI bridge can swap
     /// in persisted boxes across instance recreations.
     public var stateBoxes: [String: Box] = [:]
+    /// State locations adopted from an earlier construction of the same
+    /// SwiftUI identity. A custom initializer must still evaluate a new
+    /// `State(initialValue:)` seed, but native SwiftUI discards that seed
+    /// instead of overwriting the retained location.
+    var retainedStateProperties: Set<String> = []
     /// Stored after the established public fields so incremental clients keep
     /// their existing offsets. Struct COW envelopes created while assigning
     /// `self` carry this observer-suppression state to the final value.

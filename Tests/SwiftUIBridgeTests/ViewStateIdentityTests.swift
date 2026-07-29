@@ -209,6 +209,77 @@ import SwiftInterpreter
                 "scroll traversal did not materialize each row once: \(strings)")
     }
 
+    /// IceCubes' paging footer reaches its fetcher through a generic protocol
+    /// witness captured by an async-throwing closure, then invoked from the
+    /// footer's private async helper. The concrete reference must survive
+    /// every one of those type-erased source boundaries.
+    @Test func scrollingLazyListRunsCapturedAsyncProtocolWitness() async throws {
+        let source = """
+        @MainActor protocol PageFetching: Sendable {
+            var items: [Int] { get }
+            var pageLoads: Int { get }
+            func fetchNextPage() async throws
+        }
+
+        @MainActor final class FeedModel: PageFetching {
+            var items = Array(0..<20)
+            var pageLoads = 0
+
+            func fetchNextPage() async throws {
+                items.append(20)
+                pageLoads += 1
+            }
+        }
+
+        @MainActor struct PagingFooter: View {
+            @State private var isLoading = false
+            let loadNextPage: () async throws -> Void
+
+            var body: some View {
+                Text("next page")
+                    .task { await executeTask() }
+            }
+
+            private func executeTask() async {
+                guard !isLoading else { return }
+                isLoading = true
+                defer { isLoading = false }
+                try? await loadNextPage()
+            }
+        }
+
+        @MainActor struct Feed<Fetcher: PageFetching>: View {
+            @State private var fetcher: Fetcher
+
+            init(fetcher: Fetcher) {
+                _fetcher = .init(initialValue: fetcher)
+            }
+
+            var body: some View {
+                List {
+                    ForEach(fetcher.items, id: \\.self) { item in
+                        Text("row \\(item)")
+                    }
+                    PagingFooter {
+                        try await fetcher.fetchNextPage()
+                    }
+                }
+                Text("summary \\(fetcher.items.count)|\\(fetcher.pageLoads)")
+            }
+        }
+
+        @main struct DemoApp: App {
+            var body: some Scene {
+                WindowGroup { Feed(fetcher: FeedModel()) }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(
+            source: source, viewportTraversal: .throughEnd)
+        #expect(strings.contains("summary 21|1"),
+                "async protocol witness mutation was lost: \(strings)")
+    }
+
     @Test func taskIdentityRestartsWhenItsIDChanges() async throws {
         let source = """
         final class Model {

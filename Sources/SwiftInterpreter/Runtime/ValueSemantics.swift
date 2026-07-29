@@ -201,6 +201,7 @@ extension Instance {
         copy.isInitializing = isInitializing
         copy.synthesizedRootOwners = synthesizedRootOwners
         copy.constructionViewIdentityPath = constructionViewIdentityPath
+        copy.retainedStateProperties = retainedStateProperties
         for (name, box) in properties {
             if symbol.storedProperty(named: name)?.wrapper == .binding {
                 copy.properties[name] = box
