@@ -613,6 +613,8 @@
             "async-let-value",
             "async-let-top-level",
             "async-let-tuple-pattern",
+            "async-let-tuple-value",
+            "async-let-awaited-call-arguments",
             "async-let-multiple-bindings",
             "async-let-separate-declaration-cleanup-order",
             "async-let-parent-cancellation-scope-exit",
@@ -636,7 +638,9 @@
             "success": [
               "case:async-let-value",
               "case:async-let-top-level",
-              "case:async-let-tuple-pattern"
+              "case:async-let-tuple-pattern",
+              "case:async-let-tuple-value",
+              "case:async-let-awaited-call-arguments"
             ],
             "failure": [
               "case:async-let-value-failure",
@@ -655,7 +659,7 @@
               "case:async-let-missing-await-diagnostic"
             ]
           },
-          "notes": "Value projection and normal, return, throw, cancellation, and lexical-defer cleanup paths are covered. A same-source native top-level executable additionally proves that async top level owns an implicit structured scope: two top-level async-let bindings may be awaited in one expression, produce 42 exactly, and leave no task/scope ownership behind. The captured interpreter RED first lacked a root lexical frame and then treated global async-let carriers as ordinary values; async top level now uses the shared structured-scope close path and direct top-level suspending lookup recognizes those carriers."
+          "notes": "Value projection and normal, return, throw, cancellation, and lexical-defer cleanup paths are covered. Same-source native parity also proves that one await consumes every async-let read in a tuple value or in the labeled arguments of a synchronous initializer. A same-source native top-level executable additionally proves that async top level owns an implicit structured scope: two top-level async-let bindings may be awaited in one expression, produce 42 exactly, and leave no task/scope ownership behind. The captured interpreter RED first lacked a root lexical frame and then treated global async-let carriers as ordinary values; async top level now uses the shared structured-scope close path and direct top-level suspending lookup recognizes those carriers."
         },
         {
           "id": "task-group-values-and-cancellation",
