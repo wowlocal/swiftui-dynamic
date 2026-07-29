@@ -12,7 +12,10 @@ INTERP_DIR=/tmp/icecubes-interpreted
 FROZEN_NOW=1784203200
 CLOCK_DIR="$ROOT/Examples/IceCubesNativeTwin/.build/frozen-clock"
 INTERP_SCRATCH_PATH="${ICECUBES_R2_SCRATCH_PATH:-$ROOT/.build/icecubes-r2-product}"
-INTERP_EXECUTABLE="$INTERP_SCRATCH_PATH/arm64-apple-macosx/debug/IceCubesCheck"
+INTERP_BUILD_DIR="$INTERP_SCRATCH_PATH/arm64-apple-ios-macabi/debug"
+INTERP_BINARY="$INTERP_BUILD_DIR/IceCubesCheck"
+INTERP_APP="$INTERP_BUILD_DIR/IceCubesCheck.app"
+INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 mkdir -p "$TWIN_DIR" "$INTERP_DIR"
 
 echo "── native IceCubes twin ──"
@@ -32,11 +35,27 @@ if [[ "$OBSERVED_CLOCK" != "$FROZEN_NOW" ]]; then
 fi
 
 echo "── interpreted IceCubes ──"
+SDK="$(xcrun --sdk macosx --show-sdk-path)"
+IOS_FRAMEWORKS="$SDK/System/iOSSupport/System/Library/Frameworks"
+IOS_LIBS="$SDK/System/iOSSupport/usr/lib"
 xcrun swift build \
   --scratch-path "$INTERP_SCRATCH_PATH" \
-  --product IceCubesCheck || exit 2
+  --product IceCubesCheck \
+  --triple arm64-apple-ios18.0-macabi \
+  -Xcc -target -Xcc arm64-apple-ios18.0-macabi \
+  -Xswiftc -target -Xswiftc arm64-apple-ios18.0-macabi \
+  -Xswiftc -F -Xswiftc "$IOS_FRAMEWORKS" \
+  -Xswiftc -I -Xswiftc "$IOS_LIBS/swift" \
+  -Xlinker -F -Xlinker "$IOS_FRAMEWORKS" \
+  -Xlinker -L -Xlinker "$IOS_LIBS" || exit 2
+mkdir -p "$INTERP_APP/Contents/MacOS"
+cp "$INTERP_BINARY" "$INTERP_EXECUTABLE"
+cp "$ROOT/Scripts/IceCubesCheck-Info.plist" \
+  "$INTERP_APP/Contents/Info.plist"
+codesign --force --sign - "$INTERP_APP" >/dev/null || exit 2
 ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
-DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macos.dylib" \
+SWIFT_DETERMINISTIC_HASHING=1 \
+DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib" \
 "$INTERP_EXECUTABLE" --capture "$INTERP_DIR" || exit 2
 
 INTERP_OBSERVED_CLOCK="$(jq -r '.interpretedClockEpoch' "$INTERP_DIR/timeline.json")"
@@ -53,7 +72,7 @@ echo "── R2 AE board ──"
 # The board now FAILS on a regression above the floor and passes at/below it; the
 # floor ratchets DOWN only — when a run measures below it, tighten this number in
 # the same commit.
-ICECUBES_R2_FLOOR=59598
+ICECUBES_R2_FLOOR=7308
 
 ae_line="$(xcrun swift Scripts/pixel-ae.swift \
   "$TWIN_DIR/timeline.png" "$INTERP_DIR/timeline.png")"
