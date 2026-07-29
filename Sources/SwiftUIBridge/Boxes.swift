@@ -62,8 +62,9 @@ final class AttributedRangeProxy: CustomStringConvertible,
 /// `Text` remains type-preserving until a consumer requires view erasure.
 /// This lets generated SDK bridges pass interpreted `Text(...)` values to
 /// concrete `Text` parameters such as ContentUnavailableView's description.
-final class TextBox: GeneratedBinaryOperatorCarrier {
+final class TextBox: GeneratedBinaryOperatorCarrier, GeneratedMemberCarrier {
     let text: Text
+    var generatedMemberValue: Any { text }
 
     init(_ text: Text) {
         self.text = text
@@ -91,10 +92,13 @@ protocol SwiftUITextInterpolationAttachment:
     var swiftUITextInterpolation: Text { get }
 }
 
-final class ImageBox: SwiftUITextInterpolationAttachment {
+final class ImageBox:
+    SwiftUITextInterpolationAttachment, GeneratedMemberCarrier
+{
     let image: Image
 
     var swiftUITextInterpolation: Text { Text(image) }
+    var generatedMemberValue: Any { image }
 
     init(_ image: Image) {
         self.image = image

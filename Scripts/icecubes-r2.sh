@@ -72,7 +72,7 @@ echo "── R2 AE board ──"
 # The board now FAILS on a regression above the floor and passes at/below it; the
 # floor ratchets DOWN only — when a run measures below it, tighten this number in
 # the same commit.
-ICECUBES_R2_FLOOR=7308
+ICECUBES_R2_FLOOR=19
 
 ae_line="$(xcrun swift Scripts/pixel-ae.swift \
   "$TWIN_DIR/timeline.png" "$INTERP_DIR/timeline.png")"

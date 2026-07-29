@@ -2561,13 +2561,14 @@ let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
     }
 }()
 
-// MARK: - Foundation member sweep
+// MARK: - SDK member sweep
 
-/// Value types whose instance surface the generated-members tier serves.
+/// Foundation value types whose instance surface the generated-members tier
+/// serves.
 /// Receiver downcasts run against the host's dynamic type, so only types a
 /// `.host` value actually carries belong here (boxes like URLComponentsBox
 /// keep their own dynamic type and never reach this table).
-let memberTypes: Set<String> = [
+let foundationMemberTypes: Set<String> = [
     "URL", "Data", "Date", "UUID", "Calendar", "TimeZone", "Locale",
     "DateComponents", "DateInterval", "URLComponents", "URLQueryItem",
     "URLRequest", "CharacterSet", "IndexSet",
@@ -2585,6 +2586,15 @@ let memberTypes: Set<String> = [
     "DateBins",
 ]
 
+/// A non-generic SDK View can cross the runtime as its real native value.
+/// Sweep only members whose result preserves that receiver type; this is the
+/// interface-derived concrete-semantics tier for APIs such as an Image
+/// transform, without enumerating a View type or member name.
+let concreteViewMemberTypes = Set(viewStructInfo.compactMap {
+    name, info in info.generics.isEmpty ? name : nil
+})
+let memberTypes = foundationMemberTypes.union(concreteViewMemberTypes)
+
 /// Protocol extensions serve their CONCRETE runtime carriers: the
 /// interpreter's numeric payloads are Int and Double, so members Foundation
 /// publishes on the numeric protocols (`formatted()` and the FormatStyle
@@ -2592,6 +2602,7 @@ let memberTypes: Set<String> = [
 /// While sweeping a protocol extension for a concrete carrier, `Self`
 /// params/returns mean the carrier (`isMultiple(of other: Self)`).
 var currentSelfCarrier: String?
+var currentConcreteViewMemberReceiver = false
 
 let protocolReceivers: [String: [String]] = [
     "BinaryInteger": ["Int"],
@@ -2664,7 +2675,12 @@ func memberMapping(for normalized: String) -> TypeMapping? {
         return .init(tag: "calendarComponent", cast: "%@ as! Calendar.Component")
     case "Set<Calendar.Component>":
         return .init(tag: "calendarComponentSet", cast: "%@ as! Set<Calendar.Component>")
-    default: return nil
+    default:
+        // Concrete View members reuse the complete SwiftUI coercion model.
+        // Foundation stays on its deliberately narrower value-plane mapping,
+        // so growing this tier cannot silently widen unrelated SDK methods.
+        return currentConcreteViewMemberReceiver
+            ? directMapping(for: normalized) : nil
     }
 }
 
@@ -2860,6 +2876,12 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
     guard hasModifier(function.modifiers, "public"),
           !hasModifier(function.modifiers, "static"), !hasModifier(function.modifiers, "class"),
           !hasModifier(function.modifiers, "mutating") else { return }
+    // A concrete same-type overload must not shadow the View-wide imported
+    // overload family. That family owns contextual static resolution and
+    // diagnostics; this tier fills only interface-proven concrete gaps.
+    if currentConcreteViewMemberReceiver, modifierNames.contains(name) {
+        return
+    }
     memberMethodTotal += 1
     guard function.signature.effectSpecifiers == nil else {
         memberBlockers["throws/async", default: 0] += 1
@@ -2873,14 +2895,32 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
         memberBlockers["<generic>", default: 0] += 1
         return
     }
-    guard let returnType = function.signature.returnClause?.type.trimmedDescription,
-          !returnType.contains("some "), normalize(returnType) != "Self" else {
-        memberBlockers[function.signature.returnClause == nil ? "void return" : "opaque/Self return",
-                       default: 0] += 1
-        if ProcessInfo.processInfo.environment["BRIDGEGEN_DUMP_BLOCKED"] != nil {
-            print("   blocked[void/opaque] \(typeName).\(name)\(function.signature.parameterClause.trimmedDescription)")
-        }
+    guard let declaredReturnType =
+            function.signature.returnClause?.type.trimmedDescription else {
+        memberBlockers["void return", default: 0] += 1
         return
+    }
+    let normalizedReturnType: String
+    if currentConcreteViewMemberReceiver {
+        let candidate = normalize(declaredReturnType)
+        normalizedReturnType = candidate == "Self" ? typeName : candidate
+        // Concrete preservation is a semantic property of the result, not a
+        // license to sweep every API on the nominal.
+        guard normalizedReturnType == typeName else { return }
+    } else {
+        guard !declaredReturnType.contains("some "),
+              normalize(declaredReturnType) != "Self" else {
+            memberBlockers["opaque/Self return", default: 0] += 1
+            if ProcessInfo.processInfo.environment[
+                "BRIDGEGEN_DUMP_BLOCKED"
+            ] != nil {
+                print(
+                    "   blocked[void/opaque] \(typeName).\(name)"
+                        + "\(function.signature.parameterClause.trimmedDescription)")
+            }
+            return
+        }
+        normalizedReturnType = normalize(declaredReturnType)
     }
     let parameters = function.signature.parameterClause.parameters
     if parameters.contains(where: { $0.ellipsis != nil }) {
@@ -2898,7 +2938,7 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
     for selection in parameterSelections(analyzed) {
         let variant = MemberVariant(
             type: typeName, name: name,
-            returnType: memberContractType(for: normalize(returnType)),
+            returnType: memberContractType(for: normalizedReturnType),
             params: selection.params.map {
                 .init(
                     label: $0.label, tag: $0.mapping!.tag,
@@ -3011,7 +3051,7 @@ let foundationAttributedStringKeySurface = attributedStringKeySurface(
     in: foundationFile)
 let foundationRuntimeAliasMap = foundationRuntimeTypeAliases(
     in: foundationFile,
-    canonicalTypes: memberTypes.union(
+    canonicalTypes: foundationMemberTypes.union(
         foundationMaterializableSequenceTypes))
 
 func sweepMemberFile(_ file: SourceFileSyntax) {
@@ -3062,15 +3102,21 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
         guard !typeNames.isEmpty, let members else { continue }
         for typeName in typeNames {
             currentSelfCarrier = isProtocolExpansion ? typeName : nil
+            currentConcreteViewMemberReceiver =
+                concreteViewMemberTypes.contains(typeName)
             if let entry = genericStructCarriers[typeName] {
                 currentGenericSubstitution = (entry.generic, entry.substitute)
             }
             for member in members {
                 if let function = member.decl.as(FunctionDeclSyntax.self), memberIsUsable(function.attributes) {
                     processMemberFunction(typeName, function, guarded: guarded)
-                } else if let variable = member.decl.as(VariableDeclSyntax.self), memberIsUsable(variable.attributes) {
+                } else if !currentConcreteViewMemberReceiver,
+                          let variable = member.decl.as(
+                            VariableDeclSyntax.self),
+                          memberIsUsable(variable.attributes) {
                     processMemberProperty(typeName, variable, guarded: guarded)
-                } else if let initDecl = member.decl.as(
+                } else if !currentConcreteViewMemberReceiver,
+                          let initDecl = member.decl.as(
                     InitializerDeclSyntax.self
                 ), memberIsUsable(initDecl.attributes) {
                     processThrowingConstructorContract(
@@ -3083,12 +3129,16 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
             }
             currentSelfCarrier = nil
             currentGenericSubstitution = nil
+            currentConcreteViewMemberReceiver = false
         }
     }
 }
 
 if let foundationFile {
     sweepMemberFile(foundationFile)
+}
+for file in interfaceFiles {
+    sweepMemberFile(file)
 }
 
 func processNativeValueInitializer(
@@ -4240,8 +4290,10 @@ func initEntryCode(_ variant: Variant) -> String {
             "        return " + adapted.replacingOccurrences(
                 of: "\n", with: "\n        "))
     } else {
-        let returnedExpression = variant.preservesSemanticValue
-            ? constructed : "AnyView(\(constructed))"
+        // Generated View initializers retain their concrete native result.
+        // ViewRegistry erases only when rendering; interface-generated
+        // same-type members can therefore execute before that boundary.
+        let returnedExpression = constructed
         if let opened = generatedProtocolOpeningCall(
             variant, resultType: "Any",
             returnedExpression: returnedExpression
@@ -4723,11 +4775,12 @@ let methodChunks = stride(from: 0, to: sortedMembers.count, by: chunkSize).map {
 }
 
 var membersOutput = """
-// GENERATED by BridgeGen from the SDK's Foundation swiftinterface.
+// GENERATED by BridgeGen from SDK swiftinterfaces.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(sortedProperties.count) properties + \(sortedMembers.count) method variants across \(memberTypes.sorted().joined(separator: ", ")).
 import Charts
 import Foundation
+import SwiftUI
 import SwiftInterpreter
 
 extension GeneratedMembers {

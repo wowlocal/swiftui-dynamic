@@ -5,6 +5,37 @@ import SwiftInterpreter
 @testable import SwiftUIBridge
 
 @Suite struct PlatformViewConstructorTests {
+    /// A same-platform generated initializer must not erase its concrete View
+    /// before interface-declared, same-type members run. Both constructor and
+    /// member are selected from generated metadata; no handwritten modifier
+    /// participates.
+    @Test func generatedViewRetainsConcreteMemberSurface() throws {
+        let candidates = GeneratedConstructors.table["Image"]?
+            .byArity[1] ?? []
+        guard let constructor = candidates.first(where: {
+            $0.params.map(\.label) == ["nsImage"]
+        }) else {
+            Issue.record("generated Image(nsImage:) is missing")
+            return
+        }
+
+        let constructed = try constructor.invoke([
+            NSImage(size: NSSize(width: 4, height: 4)),
+        ])
+        #expect(constructed is Image)
+
+        guard let members = GeneratedMembers.methods["Image.resizable"],
+              let resizable = members.overloads.first(where: {
+                  $0.params.isEmpty
+              }) else {
+            Issue.record("generated Image.resizable() is missing")
+            return
+        }
+        let resized = try resizable.invoke(constructed, [])
+        #expect(resized.hostPayload is Image)
+        #expect(ViewRegistry().modifiers["resizable"] == nil)
+    }
+
     /// Native baseline: a UIKit bitmap can initialize a SwiftUI Image and the
     /// concrete Image value remains available to Image-typed transforms.
     /// The interpreter renders iOS source on a macOS host, so BridgeGen must
@@ -28,7 +59,7 @@ import SwiftInterpreter
         Image(uiImage: bitmap).resizable()
         """)
 
-        #expect(result.hostPayload is ImageBox)
+        #expect(result.hostPayload is Image)
         #expect(registry.isViewValue(result))
     }
 

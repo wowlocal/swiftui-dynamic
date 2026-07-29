@@ -767,12 +767,6 @@ extension ViewRegistry {
             let to = try Coerce.cgFloat(args.labeled("to") ?? .native(1.0))
             return .native(ShapeBox(box.shape.trim(from: from, to: to)))
         }
-        modifiers["resizable"] = HostModifier(name: "resizable") { value, _, _ in
-            guard case .host(let any) = value, let box = any as? ImageBox else {
-                throw RuntimeError(message: ".resizable applies to Image")
-            }
-            return .native(ImageBox(box.image.resizable()))
-        }
     }
 
     private func register(_ name: String, _ transform: @escaping @MainActor (AnyView, CallArguments, EvalContext) throws -> AnyView) {
