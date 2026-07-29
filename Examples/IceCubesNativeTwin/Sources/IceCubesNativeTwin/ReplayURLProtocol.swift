@@ -7,13 +7,20 @@ import UIKit
 /// closed. This is harness infrastructure, not an IceCubes source change.
 final class ReplayURLProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
-    nonisolated(unsafe) private static var fixtureDirectory = ""
+    nonisolated(unsafe) private static var fixtureDirectories: [String] = []
     nonisolated(unsafe) private static var recordedRequests: [String] = []
 
     static func configure(fixtures: String) {
         lock.withLock {
-            fixtureDirectory = fixtures
+            fixtureDirectories = [fixtures]
             recordedRequests = []
+        }
+    }
+
+    static func prependFixtures(_ fixtures: String) {
+        lock.withLock {
+            fixtureDirectories.removeAll { $0 == fixtures }
+            fixtureDirectories.insert(fixtures, at: 0)
         }
     }
 
@@ -38,20 +45,13 @@ final class ReplayURLProtocol: URLProtocol, @unchecked Sendable {
         Self.lock.withLock { Self.recordedRequests.append(url.path) }
 
         let response: (Data, String, Int)
-        switch url.path {
-        case "/api/v1/timelines/public":
-            response = fixture("api_v1_timelines_public.json")
-        case "/api/v1/trends/statuses":
-            response = fixture("api_v1_trends_statuses.json")
-        case "/api/v2/instance":
-            response = fixture("api_v2_instance.json")
-        default:
-            if isImageRequest(url) {
-                response = (Self.placeholderPNG, "image/png", 200)
-            } else {
-                response = (Data(#"{"error":"unrecorded replay request"}"#.utf8),
-                            "application/json", 404)
-            }
+        if let recorded = fixture(for: url) {
+            response = recorded
+        } else if isImageRequest(url) {
+            response = (Self.placeholderPNG, "image/png", 200)
+        } else {
+            response = (Data(#"{"error":"unrecorded replay request"}"#.utf8),
+                        "application/json", 404)
         }
 
         guard let http = HTTPURLResponse(
@@ -71,13 +71,20 @@ final class ReplayURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func stopLoading() {}
 
-    private func fixture(_ name: String) -> (Data, String, Int) {
-        let directory = Self.lock.withLock { Self.fixtureDirectory }
-        let url = URL(fileURLWithPath: directory).appendingPathComponent(name)
-        guard let data = try? Data(contentsOf: url) else {
-            return (Data(#"{"error":"fixture missing"}"#.utf8), "application/json", 500)
+    private func fixture(for url: URL) -> (Data, String, Int)? {
+        let name = url.path
+            .split(separator: "/")
+            .joined(separator: "_")
+            + ".json"
+        let directories = Self.lock.withLock { Self.fixtureDirectories }
+        for directory in directories {
+            let fixtureURL = URL(fileURLWithPath: directory)
+                .appendingPathComponent(name)
+            if let data = try? Data(contentsOf: fixtureURL) {
+                return (data, "application/json", 200)
+            }
         }
-        return (data, "application/json", 200)
+        return nil
     }
 
     private func isImageRequest(_ url: URL) -> Bool {
@@ -108,4 +115,3 @@ final class ReplayURLProtocol: URLProtocol, @unchecked Sendable {
         return image.pngData() ?? Data()
     }()
 }
-
