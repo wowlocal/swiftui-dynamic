@@ -2208,6 +2208,24 @@ struct ViewConformanceInfo {
     let frameworkRequirements: Set<String>
 }
 
+// View-producing protocols form an interface-declared refinement graph:
+// Shape → View, InsettableShape → Shape, and so on. A constructor belongs in
+// the View tier whenever its declared conformance reaches View transitively;
+// requiring the literal `: View` spelling misses those ordinary SDK values.
+let viewProtocolNames: Set<String> = {
+    var names: Set<String> = ["View"]
+    names.formUnion(sdkProtocols.compactMap { protocolName in
+        protocolClosure(of: protocolName).contains(where: {
+            normalize($0) == "View"
+        }) ? normalize(protocolName) : nil
+    })
+    return names
+}()
+
+func includesViewConformance(_ conformances: Set<String>) -> Bool {
+    !conformances.isDisjoint(with: viewProtocolNames)
+}
+
 // A public type's protocol conformances are frequently emitted separately
 // from its declaration in a swiftinterface (`struct Image { ... }` followed
 // by `extension Image: View`). Discover those conformances before looking at
@@ -2228,7 +2246,7 @@ for file in interfaceFiles {
         if conformances.contains("ShapeStyle") {
             extensionShapeStyleConformances.insert(extendedType)
         }
-        guard conformances.contains("View") else { continue }
+        guard includesViewConformance(conformances) else { continue }
         var generics: Generics = [:]
         collectWhereClause(ext.genericWhereClause, into: &generics)
         extensionViewConformances[extendedType] = ViewConformanceInfo(
@@ -2279,7 +2297,8 @@ for file in interfaceFiles {
                 structDecl.inheritanceClause?.inheritedTypes.map {
                     normalize($0.type.trimmedDescription)
                 } ?? [])
-            let directlyConforms = directConformances.contains("View")
+            let directlyConforms = includesViewConformance(
+                directConformances)
             let extensionConformance = extensionViewConformances[name]
             guard directlyConforms || extensionConformance != nil else {
                 continue

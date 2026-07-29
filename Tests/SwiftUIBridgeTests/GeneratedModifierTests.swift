@@ -455,6 +455,16 @@ import SwiftInterpreter
         let link = GeneratedConstructors.table["Link"]?.byArity[2] ?? []
         #expect(link.contains { $0.params.map(\.tag) == [.url, .builder] })
 
+        // RoundedRectangle declares Shape, not View directly. BridgeGen must
+        // follow the interface's protocol-refinement graph and preserve the
+        // defaulted style by emitting the one-argument constructor shape.
+        let roundedRectangle =
+            GeneratedConstructors.table["RoundedRectangle"]?.byArity[1] ?? []
+        #expect(roundedRectangle.contains {
+            $0.params.map(\.label) == ["cornerRadius"]
+                && $0.params.map(\.tag) == [.cgFloat]
+        })
+
         let alert = GeneratedModifiers.table["alert"]?.byArity[3] ?? []
         #expect(alert.contains {
             $0.params.map(\.tag) == [.string, .bindingBool, .builder]
