@@ -1708,6 +1708,40 @@ func isPublicSDKDecl(_ modifiers: DeclModifierListSyntax) -> Bool {
     modifiers.contains { $0.name.text == "public" }
 }
 
+/// Contextual values follow the same interface provenance as the declaration
+/// that consumes them. Package-universal values must compile on both package
+/// platforms; iOS-overlay values may be absent from the macOS host as long as
+/// their generated native coercion remains behind the overlay framework guard.
+enum SDKContextualSweep {
+    case packageUniversal
+    case iOSOverlay
+
+    func isUsable(_ attributes: AttributeListSyntax) -> Bool {
+        switch self {
+        case .packageUniversal:
+            return isUniversallyUsable(attributes)
+        case .iOSOverlay:
+            return isUsableIOSOverlay(attributes)
+        }
+    }
+
+    func needsGuard(_ attributes: AttributeListSyntax) -> Bool {
+        switch self {
+        case .packageUniversal:
+            return needsAvailabilityGuard(attributes)
+        case .iOSOverlay:
+            // isUsableIOSOverlay already rejects declarations introduced
+            // after the interpreted deployment floor. A macOS availability
+            // guard would erase the target-only declaration we are modeling.
+            return false
+        }
+    }
+
+    func isTargetOnly(_ attributes: AttributeListSyntax) -> Bool {
+        self == .iOSOverlay && !isUniversallyUsable(attributes)
+    }
+}
+
 func recordSDKContextualValues(
     type: String, members: [String],
     frameworkRequirements: Set<String>
@@ -1737,16 +1771,18 @@ func recordSDKSetAlgebraConformance(
 /// enclosing nominal, including declarations supplied by extensions.
 func collectSameTypeSDKStatics(
     in members: MemberBlockItemListSyntax, type: String, guarded: Bool,
-    frameworkRequirements: Set<String>
+    frameworkRequirements: Set<String>,
+    sweep: SDKContextualSweep,
+    recordsValues: Bool
 ) {
-    guard !guarded else { return }
+    guard !guarded, recordsValues else { return }
     var names: [String] = []
     for member in members {
         guard let variable = member.decl.as(VariableDeclSyntax.self),
               isPublicSDKDecl(variable.modifiers),
               variable.modifiers.contains(where: { $0.name.text == "static" }),
-              isUniversallyUsable(variable.attributes),
-              !needsAvailabilityGuard(variable.attributes) else { continue }
+              sweep.isUsable(variable.attributes),
+              !sweep.needsGuard(variable.attributes) else { continue }
         for binding in variable.bindings {
             guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
                   let annotation = binding.typeAnnotation,
@@ -1764,40 +1800,49 @@ func collectSameTypeSDKStatics(
 
 func collectSDKEnums(
     in members: MemberBlockItemListSyntax, path: [String], guarded: Bool,
-    frameworkRequirements: Set<String>
+    frameworkRequirements: Set<String>,
+    sweep: SDKContextualSweep = .packageUniversal,
+    targetOnly inheritedTargetOnly: Bool = false
 ) {
     for member in members {
         collectSDKEnums(
             in: member.decl, path: path, guarded: guarded,
-            frameworkRequirements: frameworkRequirements)
+            frameworkRequirements: frameworkRequirements,
+            sweep: sweep, targetOnly: inheritedTargetOnly)
     }
 }
 
 func collectSDKEnums(
     in decl: DeclSyntax, path: [String], guarded inheritedGuarded: Bool,
-    frameworkRequirements inheritedRequirements: Set<String>
+    frameworkRequirements inheritedRequirements: Set<String>,
+    sweep: SDKContextualSweep = .packageUniversal,
+    targetOnly inheritedTargetOnly: Bool = false
 ) {
     if let enumDecl = decl.as(EnumDeclSyntax.self) {
         guard isPublicSDKDecl(enumDecl.modifiers),
-              isUniversallyUsable(enumDecl.attributes),
+              sweep.isUsable(enumDecl.attributes),
               !enumDecl.name.text.hasPrefix("_") else { return }
         let path = path + [enumDecl.name.text]
-        let guarded = inheritedGuarded || needsAvailabilityGuard(enumDecl.attributes)
+        let guarded = inheritedGuarded || sweep.needsGuard(enumDecl.attributes)
+        let targetOnly = inheritedTargetOnly
+            || sweep.isTargetOnly(enumDecl.attributes)
+        let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(enumDecl.attributes))
         let type = path.joined(separator: ".")
         recordSDKSetAlgebraConformance(
             type: type, inheritanceClause: enumDecl.inheritanceClause,
-            guarded: guarded)
+            guarded: guarded || !recordsValues)
         collectSameTypeSDKStatics(
             in: enumDecl.memberBlock.members, type: type, guarded: guarded,
-            frameworkRequirements: requirements)
-        if !guarded {
+            frameworkRequirements: requirements,
+            sweep: sweep, recordsValues: recordsValues)
+        if !guarded, recordsValues {
             var cases: [String] = []
             for member in enumDecl.memberBlock.members {
                 guard let caseDecl = member.decl.as(EnumCaseDeclSyntax.self),
-                      isUniversallyUsable(caseDecl.attributes),
-                      !needsAvailabilityGuard(caseDecl.attributes) else { continue }
+                      sweep.isUsable(caseDecl.attributes),
+                      !sweep.needsGuard(caseDecl.attributes) else { continue }
                 for element in caseDecl.elements where element.parameterClause == nil {
                     cases.append(element.name.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")))
                 }
@@ -1808,119 +1853,154 @@ func collectSDKEnums(
         }
         collectSDKEnums(
             in: enumDecl.memberBlock.members, path: path, guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, targetOnly: targetOnly)
         return
     }
 
     if let structDecl = decl.as(StructDeclSyntax.self) {
         guard isPublicSDKDecl(structDecl.modifiers),
-              isUniversallyUsable(structDecl.attributes),
+              sweep.isUsable(structDecl.attributes),
               !structDecl.name.text.hasPrefix("_") else { return }
         let childPath = path + [structDecl.name.text]
         let guarded = inheritedGuarded
-            || needsAvailabilityGuard(structDecl.attributes)
+            || sweep.needsGuard(structDecl.attributes)
+        let targetOnly = inheritedTargetOnly
+            || sweep.isTargetOnly(structDecl.attributes)
+        let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(structDecl.attributes))
         recordSDKSetAlgebraConformance(
             type: childPath.joined(separator: "."),
-            inheritanceClause: structDecl.inheritanceClause, guarded: guarded)
+            inheritanceClause: structDecl.inheritanceClause,
+            guarded: guarded || !recordsValues)
         collectSameTypeSDKStatics(
             in: structDecl.memberBlock.members,
             type: childPath.joined(separator: "."), guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, recordsValues: recordsValues)
         collectSDKEnums(
             in: structDecl.memberBlock.members,
             path: childPath, guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, targetOnly: targetOnly)
         return
     }
 
     if let classDecl = decl.as(ClassDeclSyntax.self) {
         guard isPublicSDKDecl(classDecl.modifiers),
-              isUniversallyUsable(classDecl.attributes),
+              sweep.isUsable(classDecl.attributes),
               !classDecl.name.text.hasPrefix("_") else { return }
         let childPath = path + [classDecl.name.text]
         let guarded = inheritedGuarded
-            || needsAvailabilityGuard(classDecl.attributes)
+            || sweep.needsGuard(classDecl.attributes)
+        let targetOnly = inheritedTargetOnly
+            || sweep.isTargetOnly(classDecl.attributes)
+        let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(classDecl.attributes))
         recordSDKSetAlgebraConformance(
             type: childPath.joined(separator: "."),
-            inheritanceClause: classDecl.inheritanceClause, guarded: guarded)
+            inheritanceClause: classDecl.inheritanceClause,
+            guarded: guarded || !recordsValues)
         collectSameTypeSDKStatics(
             in: classDecl.memberBlock.members,
             type: childPath.joined(separator: "."), guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, recordsValues: recordsValues)
         collectSDKEnums(
             in: classDecl.memberBlock.members,
             path: childPath, guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, targetOnly: targetOnly)
         return
     }
 
     if let actorDecl = decl.as(ActorDeclSyntax.self) {
         guard isPublicSDKDecl(actorDecl.modifiers),
-              isUniversallyUsable(actorDecl.attributes),
+              sweep.isUsable(actorDecl.attributes),
               !actorDecl.name.text.hasPrefix("_") else { return }
         let childPath = path + [actorDecl.name.text]
         let guarded = inheritedGuarded
-            || needsAvailabilityGuard(actorDecl.attributes)
+            || sweep.needsGuard(actorDecl.attributes)
+        let targetOnly = inheritedTargetOnly
+            || sweep.isTargetOnly(actorDecl.attributes)
+        let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(actorDecl.attributes))
         recordSDKSetAlgebraConformance(
             type: childPath.joined(separator: "."),
-            inheritanceClause: actorDecl.inheritanceClause, guarded: guarded)
+            inheritanceClause: actorDecl.inheritanceClause,
+            guarded: guarded || !recordsValues)
         collectSameTypeSDKStatics(
             in: actorDecl.memberBlock.members,
             type: childPath.joined(separator: "."), guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, recordsValues: recordsValues)
         collectSDKEnums(
             in: actorDecl.memberBlock.members,
             path: childPath, guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, targetOnly: targetOnly)
         return
     }
 
     if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
         guard isPublicSDKDecl(protocolDecl.modifiers),
-              isUniversallyUsable(protocolDecl.attributes),
+              sweep.isUsable(protocolDecl.attributes),
               !protocolDecl.name.text.hasPrefix("_") else { return }
         let childPath = path + [protocolDecl.name.text]
         let guarded = inheritedGuarded
-            || needsAvailabilityGuard(protocolDecl.attributes)
+            || sweep.needsGuard(protocolDecl.attributes)
+        let targetOnly = inheritedTargetOnly
+            || sweep.isTargetOnly(protocolDecl.attributes)
+        let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(protocolDecl.attributes))
         collectSameTypeSDKStatics(
             in: protocolDecl.memberBlock.members,
             type: childPath.joined(separator: "."), guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, recordsValues: recordsValues)
         collectSDKEnums(
             in: protocolDecl.memberBlock.members,
             path: childPath, guarded: guarded,
-            frameworkRequirements: requirements)
+            frameworkRequirements: requirements,
+            sweep: sweep, targetOnly: targetOnly)
         return
     }
 
     if let extensionDecl = decl.as(ExtensionDeclSyntax.self),
-       isUniversallyUsable(extensionDecl.attributes) {
+       sweep.isUsable(extensionDecl.attributes) {
         let extendedPath = normalize(extensionDecl.extendedType.trimmedDescription)
             .split(separator: ".").map(String.init)
         let guarded = inheritedGuarded
-            || needsAvailabilityGuard(extensionDecl.attributes)
+            || sweep.needsGuard(extensionDecl.attributes)
+        let targetOnly = inheritedTargetOnly
+            || sweep.isTargetOnly(extensionDecl.attributes)
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(extensionDecl.attributes))
-        recordSDKSetAlgebraConformance(
-            type: extendedPath.joined(separator: "."),
-            inheritanceClause: extensionDecl.inheritanceClause,
-            guarded: guarded)
-        collectSameTypeSDKStatics(
-            in: extensionDecl.memberBlock.members,
-            type: extendedPath.joined(separator: "."), guarded: guarded,
-            frameworkRequirements: requirements)
+        // A target-only extension can add a member to a package-universal
+        // nominal. That needs per-member availability metadata, which this
+        // type-level coercion table intentionally does not invent. Nested
+        // target-only declarations still inherit the extension provenance.
+        let recordsOwnValues = sweep == .packageUniversal
+        if recordsOwnValues {
+            recordSDKSetAlgebraConformance(
+                type: extendedPath.joined(separator: "."),
+                inheritanceClause: extensionDecl.inheritanceClause,
+                guarded: guarded)
+            collectSameTypeSDKStatics(
+                in: extensionDecl.memberBlock.members,
+                type: extendedPath.joined(separator: "."), guarded: guarded,
+                frameworkRequirements: requirements,
+                sweep: sweep, recordsValues: true)
+        }
         collectSDKEnums(
             in: extensionDecl.memberBlock.members,
             path: extendedPath,
-            guarded: guarded, frameworkRequirements: requirements)
+            guarded: guarded, frameworkRequirements: requirements,
+            sweep: sweep, targetOnly: targetOnly)
     }
 }
 
@@ -1938,6 +2018,21 @@ for support in supportingInterfaceFiles {
         collectSDKEnums(
             in: decl, path: [support.module], guarded: false,
             frameworkRequirements: [])
+    }
+}
+// The target-overlay modifier sweep below must see the contextual values its
+// own signatures consume. Traverse the same Catalyst interface with iOS
+// availability, but record only declarations that are target-only (directly
+// or through an enclosing nominal). Package-universal values were already
+// collected above and must not acquire a spurious UIKit requirement merely
+// because the Catalyst interface repeats them.
+for file in targetOverlayFiles {
+    for statement in file.statements {
+        guard case .decl(let decl) = statement.item else { continue }
+        collectSDKEnums(
+            in: decl, path: [], guarded: false,
+            frameworkRequirements: ["UIKit"],
+            sweep: .iOSOverlay)
     }
 }
 
@@ -4418,6 +4513,12 @@ enum GeneratedSDKEnumCoercions {
 for type in emittedSDKEnumTypes.sorted() {
     guard let cases = sdkEnumCases[type], !cases.isEmpty else { continue }
     enumsOutput += "        case \"\(type)\":\n"
+    let frameworkCondition = (
+        sdkEnumFrameworkRequirements[type] ?? []
+    ).sorted().map(platformNativeImportCondition).joined(separator: " && ")
+    if !frameworkCondition.isEmpty {
+        enumsOutput += "            #if \(frameworkCondition)\n"
+    }
     enumsOutput += "            if case .host(let any) = value, let typed = any as? \(type) { return typed }\n"
     if sdkSetAlgebraTypes.contains(type) {
         enumsOutput += "            if case .array(let elements) = value {\n"
@@ -4440,6 +4541,28 @@ for type in emittedSDKEnumTypes.sorted() {
     enumsOutput += "            default:\n"
     enumsOutput += "                throw RuntimeError(message: \"unknown \(type) member '.\\(member)'\")\n"
     enumsOutput += "            }\n"
+    if !frameworkCondition.isEmpty {
+        // The target-only declaration cannot be named in this host
+        // compilation. Its off-host generated adapter ignores native values,
+        // but overload matching must still validate contextual spellings from
+        // the same interface-derived case inventory.
+        enumsOutput += "            #else\n"
+        if sdkSetAlgebraTypes.contains(type) {
+            enumsOutput += "            if case .array(let elements) = value {\n"
+            enumsOutput += "                for element in elements { _ = try coerce(typeName, element) }\n"
+            enumsOutput += "                return elements\n"
+            enumsOutput += "            }\n"
+        }
+        enumsOutput += "            guard case .implicitMember(let member) = value else {\n"
+        enumsOutput += "                throw RuntimeError(message: \"expected a \(type) implicit member\")\n"
+        enumsOutput += "            }\n"
+        enumsOutput += "            switch member {\n"
+        enumsOutput += "            case \(cases.map { "\"\($0)\"" }.joined(separator: ", ")): return member\n"
+        enumsOutput += "            default:\n"
+        enumsOutput += "                throw RuntimeError(message: \"unknown \(type) member '.\\(member)'\")\n"
+        enumsOutput += "            }\n"
+        enumsOutput += "            #endif\n"
+    }
 }
 enumsOutput += """
         default:

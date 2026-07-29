@@ -546,12 +546,55 @@ import SwiftInterpreter
         """)
         #expect(registry.isViewValue(result))
 
+        #expect(throws: RuntimeError.self) {
+            _ = try Interpreter(registry: ViewRegistry()).run(source: """
+            Text("invalid target title")
+                .navigationBarTitleDisplayMode(.notAnInterfaceCase)
+            """)
+        }
+
         let macOSInterpreter = Interpreter(
             registry: ViewRegistry(),
             buildConfiguration: .init(platformName: "macOS"))
         #expect(throws: RuntimeError.self) {
             _ = try macOSInterpreter.run(source: """
             Text("macOS target").hoverEffect()
+            """)
+        }
+    }
+
+    /// Target-overlay collection must include the contextual values consumed
+    /// by its declarations, not only zero-argument modifiers. The nested enum
+    /// is unavailable to the macOS host but public on the interpreted iOS
+    /// target, so the generated off-host adapter validates `.inline` from
+    /// interface metadata and preserves the receiver without naming the
+    /// consuming modifier in handwritten dispatch.
+    @Test func targetOverlayContextualEnumModifierPreservesReceiver() throws {
+        let titleDisplayMode =
+            GeneratedModifiers.table["navigationBarTitleDisplayMode"]?
+                .byArity[1] ?? []
+        #expect(titleDisplayMode.contains {
+            $0.params.map(\.label) == [nil]
+                && $0.params.map(\.tag) == [
+                    .sdkEnum("NavigationBarItem.TitleDisplayMode"),
+                ]
+                && $0.requiredImports == ["UIKit"]
+        })
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("target title")
+            .navigationBarTitleDisplayMode(.inline)
+            .onTapGesture {}
+        """)
+        #expect(registry.isViewValue(result))
+
+        let macOSInterpreter = Interpreter(
+            registry: ViewRegistry(),
+            buildConfiguration: .init(platformName: "macOS"))
+        #expect(throws: RuntimeError.self) {
+            _ = try macOSInterpreter.run(source: """
+            Text("macOS title").navigationBarTitleDisplayMode(.inline)
             """)
         }
     }
