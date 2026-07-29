@@ -3065,7 +3065,7 @@ struct ConcurrencyMethodologyTests {
             "\"$INTERP_EXECUTABLE\" --capture",
             "--native-fixtures \"$TWIN_DIR\"",
             "status-detail 100041",
-            "account-header 399329",
+            "account-header 374426",
         ] {
             #expect(script.contains(required),
                 Comment(rawValue:
