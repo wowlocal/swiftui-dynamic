@@ -413,10 +413,20 @@ private struct TwinDriverView: View {
         try FileManager.default.createDirectory(
             atPath: TwinConfiguration.outputDirectory,
             withIntermediateDirectories: true)
-        let output = URL(
+        let outputDirectory = URL(
             fileURLWithPath: TwinConfiguration.outputDirectory)
-            .appendingPathComponent("pagination.json")
-        try JSONEncoder().encode(metadata).write(
+        let encoder = JSONEncoder()
+        try encoder.encode(publicStatuses).write(
+            to: outputDirectory.appendingPathComponent(
+                "api_v1_timelines_public.json"),
+            options: .atomic)
+        try encoder.encode(trendingStatuses).write(
+            to: outputDirectory.appendingPathComponent(
+                "api_v1_trends_statuses.json"),
+            options: .atomic)
+        let output = outputDirectory.appendingPathComponent(
+            "pagination.json")
+        try encoder.encode(metadata).write(
             to: output, options: .atomic)
         print(
             "pagination\t\(output.path)"
