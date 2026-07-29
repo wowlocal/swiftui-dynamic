@@ -1,4 +1,8 @@
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import Darwin
 import Foundation
 import SwiftInterpreter
@@ -15,6 +19,183 @@ private struct RungRecord: Codable {
     let passed: Bool
     let message: String
 }
+
+#if targetEnvironment(macCatalyst)
+@MainActor
+private final class IceCubesCheckAppDelegate:
+    UIResponder, UIApplicationDelegate
+{
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        UISceneConfiguration(
+            name: nil, sessionRole: connectingSceneSession.role)
+    }
+}
+
+@MainActor
+private struct IceCubesCatalystCaptureRoot: View {
+    let directory: String
+
+    @State private var session: InterpreterRenderSession?
+    @State private var started = false
+
+    var body: some View {
+        Group {
+            if let session {
+                session.view
+            } else {
+                Color.white
+            }
+        }
+        .frame(
+            width: IceCubesCheckMain.screenSize.width,
+            height: IceCubesCheckMain.screenSize.height)
+        .background(Color.white)
+        .environment(\.colorScheme, .light)
+        .task {
+            guard !started else { return }
+            started = true
+            await capture()
+        }
+    }
+
+    private func capture() async {
+        defer { NetworkBridge.policy = .absorbed }
+        do {
+            try FileManager.default.createDirectory(
+                atPath: directory, withIntermediateDirectories: true)
+            let session = try IceCubesCheckMain.timelineRenderSession()
+            self.session = session
+
+            let initialRenderRevision =
+                session.renderActivity.bodyEvaluationCount
+            var readiness = InterpreterCaptureReadiness(
+                initialRenderRevision: initialRenderRevision)
+            let settleDeadline =
+                ContinuousClock.now.advanced(by: .seconds(1))
+            repeat {
+                try await Task.sleep(for: .milliseconds(50))
+                readiness.observe(
+                    runtimeActivity: session.interpreter.runtimeActivity,
+                    renderActivity: session.renderActivity)
+            } while ContinuousClock.now < settleDeadline
+
+            let readinessDeadline =
+                ContinuousClock.now.advanced(by: .seconds(30))
+            while !readiness.isReadyForCapture
+                && ContinuousClock.now < readinessDeadline
+            {
+                try await Task.sleep(for: .milliseconds(50))
+                readiness.observe(
+                    runtimeActivity: session.interpreter.runtimeActivity,
+                    renderActivity: session.renderActivity)
+            }
+            guard readiness.isReadyForCapture else {
+                throw RuntimeError(
+                    message:
+                        "Catalyst capture did not reach presentation readiness")
+            }
+            for entry in RenderDiagnostics.errors.prefix(20) {
+                print("diagnostic\t\(entry.view)\t\(entry.error.message)")
+            }
+
+            let windows = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+            guard let window =
+                    windows.first(where: \.isKeyWindow) ?? windows.first,
+                  let rootView = window.rootViewController?.view else {
+                throw RuntimeError(
+                    message: "Catalyst interpreter has no live window")
+            }
+            rootView.setNeedsLayout()
+            rootView.layoutIfNeeded()
+            let captureView =
+                fixedSizeDescendant(in: rootView) ?? rootView
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            format.opaque = false
+            let renderer = UIGraphicsImageRenderer(
+                size: IceCubesCheckMain.screenSize, format: format)
+            let image = renderer.image { _ in
+                captureView.drawHierarchy(
+                    in: CGRect(
+                        origin: .zero,
+                        size: IceCubesCheckMain.screenSize),
+                    afterScreenUpdates: true)
+            }
+            guard let png = image.pngData() else {
+                throw RuntimeError(
+                    message: "Catalyst hierarchy produced no PNG")
+            }
+            let output = URL(fileURLWithPath: directory)
+                .appendingPathComponent("timeline.png")
+            try png.write(to: output, options: .atomic)
+            print(
+                "timeline\t\(output.path)\t"
+                    + "\(Int(IceCubesCheckMain.screenSize.width))x"
+                    + "\(Int(IceCubesCheckMain.screenSize.height))")
+
+            guard let interpretedClockEpoch = session.interpreter.globals
+                .lookup("__iceInterpretedClockEpoch")?.doubleValue
+            else {
+                throw RuntimeError(
+                    message:
+                        "interpreted capture clock did not materialize")
+            }
+            let metadata = CaptureMetadata(
+                hostClockEpoch: Date().timeIntervalSince1970,
+                interpretedClockEpoch: interpretedClockEpoch)
+            let metadataOutput = URL(fileURLWithPath: directory)
+                .appendingPathComponent("timeline.json")
+            try JSONEncoder().encode(metadata).write(
+                to: metadataOutput, options: .atomic)
+            print("metadata\t\(metadataOutput.path)")
+            exit(0)
+        } catch {
+            FileHandle.standardError.write(
+                Data("IceCubesCheck Catalyst: \(error)\n".utf8))
+            exit(2)
+        }
+    }
+
+    private func fixedSizeDescendant(in view: UIView) -> UIView? {
+        let delta = CGSize(
+            width: abs(
+                view.bounds.width - IceCubesCheckMain.screenSize.width),
+            height: abs(
+                view.bounds.height - IceCubesCheckMain.screenSize.height))
+        if delta.width < 0.5, delta.height < 0.5 {
+            return view
+        }
+        for child in view.subviews {
+            if let match = fixedSizeDescendant(in: child) {
+                return match
+            }
+        }
+        return nil
+    }
+}
+
+@main
+private struct IceCubesCheckCatalystApp: App {
+    @UIApplicationDelegateAdaptor(IceCubesCheckAppDelegate.self)
+    private var appDelegate
+
+    var body: some Scene {
+        WindowGroup {
+            IceCubesCatalystCaptureRoot(
+                directory: IceCubesCheckMain.option(
+                    "--capture",
+                    in: Array(CommandLine.arguments.dropFirst()))
+                    ?? "/tmp/icecubes-interpreted")
+        }
+    }
+}
+#endif
 
 private struct CaptureMetadata: Codable {
     let hostClockEpoch: TimeInterval
@@ -112,13 +293,16 @@ private struct FixtureOracle {
     }
 }
 
+#if !targetEnvironment(macCatalyst)
 @main
+#endif
 struct IceCubesCheckMain {
     // Keep the hard stop below the three-minute instrument contract while
     // leaving realistic headroom for the full-app shell under board load.
     private static let workerTimeout: TimeInterval = 175
-    private static let screenSize = NSSize(width: 900, height: 700)
+    fileprivate static let screenSize = CGSize(width: 900, height: 700)
 
+#if !targetEnvironment(macCatalyst)
     static func main() async throws {
         if ProcessInfo.processInfo.environment["SWIFT_DETERMINISTIC_HASHING"] == nil {
             var environment = ProcessInfo.processInfo.environment
@@ -183,8 +367,11 @@ struct IceCubesCheckMain {
             }
         }
     }
+#endif
 
-    private static func option(_ name: String, in arguments: [String]) -> String? {
+    fileprivate static func option(
+        _ name: String, in arguments: [String]
+    ) -> String? {
         guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else {
             return nil
         }
@@ -207,6 +394,7 @@ struct IceCubesCheckMain {
         }
     }
 
+#if !targetEnvironment(macCatalyst)
     private struct TimedWorker {
         let name: String
         let process: Process
@@ -289,6 +477,7 @@ struct IceCubesCheckMain {
         }
         return workers.flatMap { recordsByWorker[$0] ?? [] }
     }
+#endif
 
     private static func runWorker(_ worker: String) async throws -> [RungRecord] {
         let paths = try paths()
@@ -771,11 +960,11 @@ struct IceCubesCheckMain {
         """
     }
 
-    private static func captureTimeline(to directory: String) throws {
+    fileprivate static func timelineRenderSession()
+        throws -> InterpreterRenderSession
+    {
         let paths = try paths()
         Interpreter.interpretsAsPlatform = "iOS"
-        NetworkBridge.policy = .replay(fixturesDirectory: paths.fixtures)
-        defer { NetworkBridge.policy = .absorbed }
         let source = ProjectMaterial.mergedSource(
             at: paths.app, files: paths.packageFiles,
             sourceModules: paths.sourceModules)
@@ -790,12 +979,8 @@ struct IceCubesCheckMain {
         ] {
             try source.write(toFile: dumpPath, atomically: true, encoding: .utf8)
         }
-
-        try FileManager.default.createDirectory(
-            atPath: directory, withIntermediateDirectories: true)
-        let app = NSApplication.shared
-        app.setActivationPolicy(.prohibited)
-        let session = try InterpreterHost().renderSession(
+        NetworkBridge.policy = .replay(fixturesDirectory: paths.fixtures)
+        return try InterpreterHost().renderSession(
             source: source,
             buildConfiguration: .init(
                 platformName: "iOS",
@@ -803,6 +988,16 @@ struct IceCubesCheckMain {
             projectResourceRoot: paths.app,
             lazyTopLevelGlobals: true
         ).get()
+    }
+
+#if !targetEnvironment(macCatalyst)
+    private static func captureTimeline(to directory: String) throws {
+        defer { NetworkBridge.policy = .absorbed }
+        try FileManager.default.createDirectory(
+            atPath: directory, withIntermediateDirectories: true)
+        let app = NSApplication.shared
+        app.setActivationPolicy(.prohibited)
+        let session = try timelineRenderSession()
         let hosting = NSHostingView(rootView: session.view.frame(
             width: screenSize.width, height: screenSize.height))
         hosting.frame = NSRect(origin: .zero, size: screenSize)
@@ -954,4 +1149,5 @@ struct IceCubesCheckMain {
             to: metadataOutput, options: .atomic)
         print("metadata\t\(metadataOutput.path)")
     }
+#endif
 }
