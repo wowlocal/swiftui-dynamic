@@ -2025,11 +2025,23 @@ register(&t, "navigationBarTitle", [ParamSpec(nil, .string, contextualType: "Loc
         }
         return generatedInvoke(p0)
     }
-    register(&t, "navigationSubtitle", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
-        return AnyView(view.navigationSubtitle(v[0] as! Text))
+    if #available(iOS 26.0, *) {
+        register(&t, "navigationSubtitle", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
+            return AnyView(view.navigationSubtitle(v[0] as! Text))
+        }
+    } else {
+    register(&t, "navigationSubtitle", [ParamSpec(nil, .text, contextualType: "Text")], executesBuilderArguments: false) { view, _ in
+        return AnyView(view)
     }
-    register(&t, "navigationSubtitle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
-        return AnyView(view.navigationSubtitle(LocalizedStringKey(v[0] as! String)))
+    }
+    if #available(iOS 26.0, *) {
+        register(&t, "navigationSubtitle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")]) { view, v in
+            return AnyView(view.navigationSubtitle(LocalizedStringKey(v[0] as! String)))
+        }
+    } else {
+    register(&t, "navigationSubtitle", [ParamSpec(nil, .string, contextualType: "LocalizedStringKey")], executesBuilderArguments: false) { view, _ in
+        return AnyView(view)
+    }
     }
     register(&t, "navigationTitle", [ParamSpec(nil, .text, contextualType: "Text")]) { view, v in
         return AnyView(view.navigationTitle(v[0] as! Text))
@@ -3044,8 +3056,14 @@ register(&t, "translationPresentation", [ParamSpec("isPresented", .bindingBool, 
 }
 #endif
 #if canImport(Translation)
-    register(&t, "translationTask", [ParamSpec("action", .syncVoidClosure)], requiredImports: ["Translation"]) { view, v in
-        return AnyView(view.translationTask(action: generatedSyncVoidClosure(v[0])))
+    if #available(macCatalyst 26.0, *) {
+        register(&t, "translationTask", [ParamSpec("action", .syncVoidClosure)], requiredImports: ["Translation"]) { view, v in
+            return AnyView(view.translationTask(action: generatedSyncVoidClosure(v[0])))
+        }
+    } else {
+    register(&t, "translationTask", [ParamSpec("action", .syncVoidClosure)], requiredImports: ["Translation"], executesBuilderArguments: false) { view, _ in
+        return AnyView(view)
+    }
     }
 #else
 register(&t, "translationTask", [ParamSpec("action", .syncVoidClosure)], requiredImports: ["Translation"], executesBuilderArguments: false) { view, _ in

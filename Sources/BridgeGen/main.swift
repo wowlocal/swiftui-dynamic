@@ -1059,6 +1059,53 @@ func unavailableTargetEnvironments(
     return result
 }
 
+struct GeneratedTargetAvailability: Hashable {
+    let platform: String
+    let major: Int
+    let minor: Int
+
+    var clause: String {
+        "\(platform) \(major).\(minor)"
+    }
+}
+
+/// Deployment floors of the checked-in generated bridge. Availability newer
+/// than these floors stays as an interface-derived runtime guard so the same
+/// source compiles on every package target without dropping the contract.
+let generatedTargetDeployments: [
+    String: (major: Int, minor: Int)
+] = [
+    "iOS": (18, 0),
+    "macCatalyst": (18, 0),
+]
+
+func minimumTargetAvailabilities(
+    _ attributes: AttributeListSyntax
+) -> Set<GeneratedTargetAvailability> {
+    var result: Set<GeneratedTargetAvailability> = []
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self),
+              attr.attributeName.trimmedDescription == "available" else {
+            continue
+        }
+        let text = attr.trimmedDescription
+        for (platform, deployment) in generatedTargetDeployments {
+            guard let range = text.range(of: "\(platform) ") else { continue }
+            let version = text[range.upperBound...]
+                .prefix { $0.isNumber || $0 == "." }
+            let parts = version.split(separator: ".").compactMap { Int($0) }
+            guard let major = parts.first else { continue }
+            let minor = parts.count > 1 ? parts[1] : 0
+            guard (major, minor) > (deployment.major, deployment.minor) else {
+                continue
+            }
+            result.insert(GeneratedTargetAvailability(
+                platform: platform, major: major, minor: minor))
+        }
+    }
+    return result
+}
+
 // MARK: - Protocol-constrained contextual SDK values
 
 func topLevelSDKNames(in file: SourceFileSyntax) -> Set<String> {
@@ -1946,6 +1993,10 @@ struct Variant {
     /// Target environments explicitly excluded by interface availability.
     /// These complement framework import guards at generated compile time.
     let unavailableTargetEnvironments: Set<String>
+    /// Target-specific minimum versions inherited from the declaration or
+    /// its enclosing extension. Generated runtime guards preserve the
+    /// contract below those versions without compiling an unavailable call.
+    let minimumTargetAvailabilities: Set<GeneratedTargetAvailability>
     /// Values that are structurally both View and ShapeStyle must remain their
     /// concrete semantic value; erasing them to AnyView loses later style use.
     let preservesSemanticValue: Bool
@@ -1982,7 +2033,8 @@ func processModifier(
     _ function: FunctionDeclSyntax, guarded: Bool,
     frameworkRequirements: Set<String>,
     targetImportRequirements: Set<String> = [],
-    inheritedTargetEnvironmentExclusions: Set<String> = []
+    inheritedTargetEnvironmentExclusions: Set<String> = [],
+    inheritedTargetAvailabilities: Set<GeneratedTargetAvailability> = []
 ) {
     guard isPublicSDKDecl(function.modifiers) else { return }
     let name = function.name.text
@@ -2045,6 +2097,9 @@ func processModifier(
             unavailableTargetEnvironments:
                 inheritedTargetEnvironmentExclusions.union(
                     unavailableTargetEnvironments(function.attributes)),
+            minimumTargetAvailabilities:
+                inheritedTargetAvailabilities.union(
+                    minimumTargetAvailabilities(function.attributes)),
             preservesSemanticValue: false
         )
         if seenKeys.insert(variant.key).inserted {
@@ -2138,6 +2193,7 @@ func processInit(
                 platformFrameworkRequirements(initDecl.attributes)),
             targetImportRequirements: [],
             unavailableTargetEnvironments: [],
+            minimumTargetAvailabilities: [],
             preservesSemanticValue: preservesSemanticValue
         )
         if initSeenKeys.insert(variant.key).inserted {
@@ -2208,7 +2264,9 @@ for file in interfaceFiles {
                 processModifier(
                     function, guarded: extGuarded,
                     frameworkRequirements: platformFrameworkRequirements(
-                        ext.attributes))
+                        ext.attributes),
+                    inheritedTargetAvailabilities:
+                        minimumTargetAvailabilities(ext.attributes))
             }
         }
 
@@ -2304,7 +2362,9 @@ for overlay in swiftUICrossImportFiles {
                         [overlay.triggeringModule]),
                 targetImportRequirements: [overlay.triggeringModule],
                 inheritedTargetEnvironmentExclusions:
-                    unavailableTargetEnvironments(ext.attributes))
+                    unavailableTargetEnvironments(ext.attributes),
+                inheritedTargetAvailabilities:
+                    minimumTargetAvailabilities(ext.attributes))
         }
     }
 }
@@ -2331,7 +2391,9 @@ for file in targetOverlayFiles {
                 function,
                 guarded: false,
                 frameworkRequirements: ["UIKit"],
-                targetImportRequirements: ["UIKit"])
+                targetImportRequirements: ["UIKit"],
+                inheritedTargetAvailabilities:
+                    minimumTargetAvailabilities(ext.attributes))
         }
     }
 }
@@ -2488,6 +2550,7 @@ let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
             inheritedFrameworkRequirements: [],
             targetImportRequirements: [],
             unavailableTargetEnvironments: [],
+            minimumTargetAvailabilities: [],
             preservesSemanticValue: true)
         let key = "\(framework)|\(adapter.key)"
         guard seen.insert(key).inserted else { return nil }
@@ -3962,6 +4025,31 @@ func generatedModifierSemanticAdapter(_ variant: Variant) -> String? {
     }
 }
 
+func indentGeneratedSource(_ source: String) -> String {
+    source.split(separator: "\n", omittingEmptySubsequences: false)
+        .map { "    " + $0 }
+        .joined(separator: "\n")
+}
+
+func runtimeAvailabilityGuarded(
+    _ exact: String, fallback: String, for variant: Variant
+) -> String {
+    let clauses = variant.minimumTargetAvailabilities
+        .sorted {
+            ($0.platform, $0.major, $0.minor)
+                < ($1.platform, $1.major, $1.minor)
+        }
+        .map(\.clause)
+    guard !clauses.isEmpty else { return exact }
+    return """
+        if #available(\(clauses.joined(separator: ", ")), *) {
+    \(indentGeneratedSource(exact))
+        } else {
+    \(indentGeneratedSource(fallback))
+        }
+    """
+}
+
 func entryCode(_ variant: Variant) -> String {
     let specs = variant.params
         .map(paramSpecCode)
@@ -3991,18 +4079,20 @@ func entryCode(_ variant: Variant) -> String {
     }
     lines.append("    }")
     let exact = lines.joined(separator: "\n")
-    guard !variant.targetImportRequirements.isEmpty else {
-        return compileGuarded(exact, for: variant)
-    }
-    guard let condition = compileCondition(for: variant) else {
-        return exact
-    }
     let fallback = """
     register(&t, "\(variant.name)", [\(specs)]\(importArgument)\(preferenceArgument), executesBuilderArguments: false) { view, _ in
         return AnyView(view)
     }
     """
-    return "#if \(condition)\n\(exact)\n#else\n\(fallback)\n#endif"
+    let available = runtimeAvailabilityGuarded(
+        exact, fallback: fallback, for: variant)
+    guard !variant.targetImportRequirements.isEmpty else {
+        return compileGuarded(available, for: variant)
+    }
+    guard let condition = compileCondition(for: variant) else {
+        return available
+    }
+    return "#if \(condition)\n\(available)\n#else\n\(fallback)\n#endif"
 }
 
 func compileCondition(for variant: Variant) -> String? {
