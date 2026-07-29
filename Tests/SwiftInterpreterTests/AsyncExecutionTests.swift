@@ -2933,6 +2933,28 @@ final class CoroutineReadableBox {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func awaitTupleConsumesEveryAsyncLetBinding() async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        func asyncLetTupleValue(_ value: String) async throws -> String {
+            await Task.yield()
+            return value
+        }
+        func awaitAsyncLetTuple() async throws -> String {
+            async let left = asyncLetTupleValue("left")
+            async let right = asyncLetTupleValue("right")
+            let values = try await (left, right)
+            return values.0 + ":" + values.1
+        }
+        try await awaitAsyncLetTuple()
+        """)
+
+        #expect(result.stringValue == "left:right")
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func asyncLetReadWithoutAwaitIsDiagnosedAndCleanedUp() async {
         let interpreter = Interpreter()
         do {

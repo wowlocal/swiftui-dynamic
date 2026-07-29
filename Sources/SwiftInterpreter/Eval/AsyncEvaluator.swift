@@ -553,6 +553,16 @@ extension Interpreter {
                     return try await evaluateSuspending(
                         only.expression, in: env, forceInvocation: true)
                 }
+                try tick(expression)
+                let labels = tuple.elements.map { $0.label?.text }
+                var values: [RuntimeValue] = []
+                values.reserveCapacity(tuple.elements.count)
+                for element in tuple.elements {
+                    values.append(try await evaluateSuspending(
+                        element.expression, in: env,
+                        forceInvocation: true))
+                }
+                return .native(TupleValue(labels: labels, values: values))
             }
 
         default:

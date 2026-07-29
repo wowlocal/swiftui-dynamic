@@ -878,6 +878,18 @@
     "notes": "The single initializer waits behind an explicit gate and returns (left, right). Exact output is child-start,parent-open,child-end,left,right in 20 Swift 6.3.3 runs; no unconstrained ready-task order is asserted."
   },
   {
+    "id": "async-let-tuple-value",
+    "fixture": "Fixtures/async-let-tuple-value.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await asyncLetTupleValueProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Awaiting a tuple of async-let bindings suspends for each structured child and produces a tuple containing both child results.",
+    "notes": "Both children yield once before returning. Exact output is left:right in 20 Swift 6.3.3 runs; no child execution order is asserted."
+  },
+  {
     "id": "async-let-multiple-bindings",
     "fixture": "Fixtures/async-let-multiple-bindings.swift",
     "mode": "runtime",
