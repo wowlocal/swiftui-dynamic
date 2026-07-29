@@ -2698,6 +2698,66 @@ enum Corpus {
         #expect(report.nodeCount >= 2)
     }
 
+    /// `Picker(selection: .init(get:set:))` gets the generic Binding type from
+    /// the consuming parameter. The interpreter must materialize that
+    /// contextual computed binding before the native selection coercion.
+    @Test func contextualComputedBindingFeedsGenericSelection() throws {
+        let source = """
+        final class TabManager {
+            var selectedTabId = "posts"
+        }
+
+        struct ContentView: View {
+            private let tabManager = TabManager()
+
+            var body: some View {
+                ScrollViewReader { _ in
+                    VStack {
+                        Text("Account header")
+                        makePicker(tabManager: tabManager)
+                    }
+                }
+            }
+
+            @ViewBuilder
+            private func makePicker(tabManager: TabManager) -> some View {
+                Picker(
+                    "",
+                    selection: .init(
+                        get: { tabManager.selectedTabId },
+                        set: { tabManager.selectedTabId = $0 })
+                ) {
+                    Text("Posts").tag("posts")
+                    Text("Media").tag("media")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        guard case .success(let view) = InterpreterHost().render(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true
+        ) else {
+            Issue.record("contextual computed Binding failed to render")
+            return
+        }
+        let hosting = NSHostingView(
+            rootView: view.frame(width: 320, height: 160))
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 160),
+            styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
     /// A CaseIterable enum nested in the very view that iterates it:
     /// `ForEach(ChartType.allCases, id: \.rawValue)`.
     @Test func nestedEnumAllCasesDrivesForEach() throws {

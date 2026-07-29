@@ -374,11 +374,11 @@ enum GeneratedDispatch {
             guard let array = value.arrayValue else { throw RuntimeError(message: "expected [Color]") }
             return try array.map(Coerce.color)
         case .bindingBool:
-            return try Coerce.boolBinding(value)
+            return try Coerce.boolBinding(value, context: ctx)
         case .bindingString:
-            return try Coerce.stringBinding(value)
+            return try Coerce.stringBinding(value, context: ctx)
         case .bindingDouble:
-            return try Coerce.doubleBinding(value)
+            return try Coerce.doubleBinding(value, context: ctx)
         case .shapeStyle:
             return try Coerce.shapeStyle(value)
         case .genericShapeStyle:

@@ -859,31 +859,8 @@ func bridgeHostObjectConstructor(
         // now (bindings are reconstructed every render pass, so the snapshot
         // refreshes per pass); writes call set(newValue).
         return HostFunction(name: name) { args, ctx in
-            // Both spellings: Binding(get:set:) and the trailing form
-            // `Binding<Order> { self.orders[i] } set: { ... }` (FoodTruck's
-            // orderBinding).
-            let get = args.closure(labeled: "get") ?? args.firstUnlabeledClosure
-            let set = args.closure(labeled: "set")
-            // `Binding<Loadable<String>>(get:set:)` — the generic argument
-            // is the Value type: get() results and written values resolve
-            // against it, so `.notRequested` markers become real cases.
-            let valueType = args.labeled("__genericArguments")?.stringValue
-            let resolved: (RuntimeValue) -> RuntimeValue = { value in
-                guard let valueType, let interpreter = ctx as? Interpreter else { return value }
-                return interpreter.resolveForBridge(value, typeName: valueType)
-            }
-            let initial = try get.map { resolved(try ctx.callClosure($0, arguments: [])) } ?? RuntimeValue.void
-            let box = Box(initial)
-            if let set {
-                let callback = InterpretedHostCallback(
-                    closure: set,
-                    context: ctx,
-                    diagnosticContext: "Binding.set")
-                box.onChange = {
-                    callback.call(arguments: [resolved(box.value)])
-                }
-            }
-            return .native(BindingStub(box: box))
+            .native(try BindingSemanticBridge.makeStub(
+                arguments: args, context: ctx))
         }
     default:
         return nil

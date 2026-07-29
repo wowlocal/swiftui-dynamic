@@ -276,7 +276,9 @@ extension ViewRegistry {
                 TableRowCollector.active = nil
             }
             guard !specs.isEmpty else { return .native(AnyView(EmptyView())) }
-            let sortBox = args.labeled("sortOrder").flatMap { try? Coerce.bindingBox($0) }
+            let sortBox = args.labeled("sortOrder").flatMap {
+                try? Coerce.bindingBox($0, context: ctx)
+            }
             if RenderDiagnostics.traceEnabled {
                 FileHandle.standardError.write(Data(
                     "TABLE specs=\(specs.map { ($0.title, $0.keyPath?.components) }) rows=\(rowValues.count) sort=\(String(describing: sortBox?.value))\n".utf8))
@@ -294,7 +296,8 @@ extension ViewRegistry {
             // (NavigationSelectionValues) — a click then re-renders the
             // detail exactly like a programmatic state write.
             if let selectionArg = args.labeled("selection"),
-               let box = try? Coerce.bindingBox(selectionArg) {
+               let box = try? Coerce.bindingBox(
+                    selectionArg, context: ctx) {
                 let binding = Binding<String?>(
                     get: {
                         if box.value.isNil { return nil }
@@ -593,7 +596,7 @@ extension ViewRegistry {
             guard let isOn = args.labeled("isOn") else {
                 throw RuntimeError(message: "Toggle needs an isOn: binding")
             }
-            let binding = try Coerce.boolBinding(isOn)
+            let binding = try Coerce.boolBinding(isOn, context: ctx)
             if let labelClosure = args.firstUnlabeledClosure ?? args.closure(labeled: "label") {
                 let views = try ctx.callBuilderClosure(labelClosure, arguments: []).map(Self.anyView)
                 let label = views.count == 1 ? views[0] : AnyView(HStack { Self.indexed(views) })
@@ -603,27 +606,29 @@ extension ViewRegistry {
             return .native(AnyView(Toggle(title, isOn: binding)))
         }
 
-        constructors["TextField"] = HostFunction(name: "TextField") { args, _ in
+        constructors["TextField"] = HostFunction(name: "TextField") { args, ctx in
             guard let text = args.labeled("text") else {
                 throw RuntimeError(message: "TextField needs a text: binding")
             }
             let title = args.positional(0)?.stringValue ?? ""
-            return .native(AnyView(TextField(title, text: try Coerce.stringBinding(text))))
+            return .native(AnyView(TextField(
+                title, text: try Coerce.stringBinding(text, context: ctx))))
         }
 
-        constructors["SecureField"] = HostFunction(name: "SecureField") { args, _ in
+        constructors["SecureField"] = HostFunction(name: "SecureField") { args, ctx in
             guard let text = args.labeled("text") else {
                 throw RuntimeError(message: "SecureField needs a text: binding")
             }
             let title = args.positional(0)?.stringValue ?? ""
-            return .native(AnyView(SecureField(title, text: try Coerce.stringBinding(text))))
+            return .native(AnyView(SecureField(
+                title, text: try Coerce.stringBinding(text, context: ctx))))
         }
 
-        constructors["Slider"] = HostFunction(name: "Slider") { args, _ in
+        constructors["Slider"] = HostFunction(name: "Slider") { args, ctx in
             guard let value = args.labeled("value") else {
                 throw RuntimeError(message: "Slider needs a value: binding")
             }
-            let binding = try Coerce.doubleBinding(value)
+            let binding = try Coerce.doubleBinding(value, context: ctx)
             guard let rangeValue = args.labeled("in") else {
                 return .native(AnyView(Slider(value: binding)))
             }
@@ -642,7 +647,8 @@ extension ViewRegistry {
             guard let selection = args.labeled("selection") else {
                 throw RuntimeError(message: "Picker needs a selection: binding")
             }
-            let binding = try Coerce.selectionBinding(selection)
+            let binding = try Coerce.selectionBinding(
+                selection, context: ctx)
             let content = try Self.builderContent(args, ctx)
             let title = args.positional(0)?.stringValue ?? ""
             return .native(AnyView(Picker(title, selection: binding) { Self.indexed(content) }))

@@ -32,6 +32,62 @@ struct GeneratedShapeStyleCarrier {
     }
 }
 
+/// Runtime half of computed `Binding` construction. Swift supplies the generic
+/// `Value` from the consuming parameter for contextual `.init(get:set:)`;
+/// that inference is not encoded in the runtime value. Binding identity and
+/// closure-backed reads/writes are SwiftUI magic, so explicit and contextual
+/// spellings share this one semantic primitive instead of teaching each
+/// control how to recognize initializer syntax.
+enum BindingSemanticBridge {
+    static func makeStub(
+        arguments: CallArguments,
+        context: EvalContext,
+        valueType: String? = nil
+    ) throws -> BindingStub {
+        let get = arguments.closure(labeled: "get")
+            ?? arguments.firstUnlabeledClosure
+        let set = arguments.closure(labeled: "set")
+        let valueType = valueType
+            ?? arguments.labeled("__genericArguments")?.stringValue
+        let resolved: (RuntimeValue) -> RuntimeValue = { value in
+            guard let valueType,
+                  let interpreter = context as? Interpreter else {
+                return value
+            }
+            return interpreter.resolveForBridge(value, typeName: valueType)
+        }
+        let initial = try get.map {
+            resolved(try context.callClosure($0, arguments: []))
+        } ?? .void
+        let box = Box(initial)
+        if let set {
+            let callback = InterpretedHostCallback(
+                closure: set,
+                context: context,
+                diagnosticContext: "Binding.set")
+            box.onChange = {
+                callback.call(arguments: [resolved(box.value)])
+            }
+        }
+        return BindingStub(box: box)
+    }
+
+    static func contextualStub(
+        from value: RuntimeValue,
+        context: EvalContext
+    ) throws -> BindingStub? {
+        guard case .host(let payload) = value,
+              let call = payload as? ImplicitMemberCall,
+              call.name == "init",
+              (call.arguments.closure(labeled: "get")
+                ?? call.arguments.firstUnlabeledClosure) != nil,
+              call.arguments.closure(labeled: "set") != nil else {
+            return nil
+        }
+        return try makeStub(arguments: call.arguments, context: context)
+    }
+}
+
 /// Resolves `.implicitMember` values (`.red`, `.title`, `.leading`) against
 /// the SwiftUI type a gateway parameter expects — the "expected type context"
 /// trick reduced to lookup tables, dodging real type inference.
@@ -65,8 +121,16 @@ enum Coerce {
 
     // MARK: - Bindings
 
-    static func bindingBox(_ value: RuntimeValue) throws -> Box {
+    static func bindingBox(
+        _ value: RuntimeValue,
+        context: EvalContext? = nil
+    ) throws -> Box {
         if case .host(let any) = value, let stub = any as? BindingStub { return stub.box }
+        if let context,
+           let stub = try BindingSemanticBridge.contextualStub(
+                from: value, context: context) {
+            return stub.box
+        }
         // `.constant(x)` — a binding to a fixed value (writes go nowhere).
         if case .host(let any) = value, let call = any as? ImplicitMemberCall,
            call.name == "constant" {
@@ -75,8 +139,11 @@ enum Coerce {
         throw RuntimeError(message: "expected a binding like $someState, got \(value.stringified)")
     }
 
-    static func boolBinding(_ value: RuntimeValue) throws -> Binding<Bool> {
-        let box = try bindingBox(value)
+    static func boolBinding(
+        _ value: RuntimeValue,
+        context: EvalContext? = nil
+    ) throws -> Binding<Bool> {
+        let box = try bindingBox(value, context: context)
         return Binding(
             get: { box.value.boolValue ?? false },
             set: { box.value = .native($0) }
@@ -87,8 +154,11 @@ enum Coerce {
     /// and writes back the ORIGINAL runtime value a `.tag(...)` registered
     /// for it — enum-case selections keep switch-matching after a control
     /// drives the binding.
-    static func selectionBinding(_ value: RuntimeValue) throws -> Binding<String> {
-        let box = try bindingBox(value)
+    static func selectionBinding(
+        _ value: RuntimeValue,
+        context: EvalContext? = nil
+    ) throws -> Binding<String> {
+        let box = try bindingBox(value, context: context)
         return Binding(
             get: { NavigationSelectionValues.identity(box.value) },
             set: { newTag in
@@ -97,8 +167,11 @@ enum Coerce {
         )
     }
 
-    static func stringBinding(_ value: RuntimeValue) throws -> Binding<String> {
-        let box = try bindingBox(value)
+    static func stringBinding(
+        _ value: RuntimeValue,
+        context: EvalContext? = nil
+    ) throws -> Binding<String> {
+        let box = try bindingBox(value, context: context)
         return Binding(
             get: { box.value.stringValue ?? "" },
             set: { box.value = .native($0) }
@@ -107,8 +180,11 @@ enum Coerce {
 
     /// If the underlying state is an Int, writes round back to Int so the
     /// interpreted program keeps seeing the type it declared.
-    static func doubleBinding(_ value: RuntimeValue) throws -> Binding<Double> {
-        let box = try bindingBox(value)
+    static func doubleBinding(
+        _ value: RuntimeValue,
+        context: EvalContext? = nil
+    ) throws -> Binding<Double> {
+        let box = try bindingBox(value, context: context)
         return Binding(
             get: { box.value.doubleValue ?? 0 },
             set: { newValue in

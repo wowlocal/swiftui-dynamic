@@ -492,7 +492,8 @@ extension ViewRegistry {
             guard let isPresented = args.labeled("isPresented") else {
                 throw RuntimeError(message: ".sheet needs isPresented:")
             }
-            let binding = try Coerce.boolBinding(isPresented)
+            let binding = try Coerce.boolBinding(
+                isPresented, context: ctx)
             guard let closure = args.closure(labeled: "content") ?? args.firstUnlabeledClosure else {
                 throw RuntimeError(message: ".sheet needs a content closure")
             }
@@ -506,7 +507,8 @@ extension ViewRegistry {
             guard let isPresented = args.labeled("isPresented") else {
                 throw RuntimeError(message: ".alert needs isPresented:")
             }
-            let binding = try Coerce.boolBinding(isPresented)
+            let binding = try Coerce.boolBinding(
+                isPresented, context: ctx)
             let actionViews = try (args.closure(labeled: "actions") ?? args.firstUnlabeledClosure)
                 .map { try ctx.callBuilderClosure($0, arguments: []).map(Self.anyView) } ?? []
             let messageViews = try args.closure(labeled: "message")
@@ -524,7 +526,8 @@ extension ViewRegistry {
             guard let isPresented = args.labeled("isPresented") else {
                 throw RuntimeError(message: ".confirmationDialog needs isPresented:")
             }
-            let binding = try Coerce.boolBinding(isPresented)
+            let binding = try Coerce.boolBinding(
+                isPresented, context: ctx)
             let actionViews = try (args.closure(labeled: "actions") ?? args.firstUnlabeledClosure)
                 .map { try ctx.callBuilderClosure($0, arguments: []).map(Self.anyView) } ?? []
             return AnyView(view.confirmationDialog(title, isPresented: binding) { Self.indexed(actionViews) })
