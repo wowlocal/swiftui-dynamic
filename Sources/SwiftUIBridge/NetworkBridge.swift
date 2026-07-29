@@ -1730,7 +1730,8 @@ enum JSONDecodeBridge {
                 context: "\(symbol.name).\(property.name)", owner: symbol)
             arguments.append(.init(label: property.name, value: decoded))
         }
-        return try interpreter.instantiateForBridge(symbol, arguments: CallArguments(arguments: arguments))
+        return try interpreter.instantiateStructurallyDecodedForBridge(
+            symbol, fields: CallArguments(arguments: arguments))
     }
 
     private static func decodeField(

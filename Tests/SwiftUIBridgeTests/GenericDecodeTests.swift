@@ -124,6 +124,34 @@ import SwiftInterpreter
         }
     }
 
+    @Test func synthesizedDecodeDoesNotInvokeSameShapedInitializer() throws {
+        try Self.withFixture(#"{"value": 7}"#) { directory in
+            NetworkBridge.policy = .replay(fixturesDirectory: directory)
+            defer { NetworkBridge.policy = .absorbed }
+            let source = """
+            var explicitInitCalls = 0
+
+            struct Payload: Decodable {
+                let value: Int
+
+                init(value: Int) {
+                    explicitInitCalls += 1
+                    self.value = value + 100
+                }
+            }
+
+            let decoded = try JSONDecoder().decode(
+                Payload.self, from: __fixtureData("payload"))
+            (decoded.value, explicitInitCalls)
+            """
+            let result = try Interpreter(registry: ViewRegistry()).run(
+                source: source)
+            let tuple = try #require(result.tupleValue)
+            #expect(tuple.values[0].intValue == 7)
+            #expect(tuple.values[1].intValue == 0)
+        }
+    }
+
     /// A field's unqualified nominal is bound in the declaring compiler
     /// module. Flattening another imported module with a later same-spelled
     /// Codable type must not make structural decode depend on merge order.

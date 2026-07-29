@@ -511,6 +511,38 @@ extension Interpreter {
         return .instance(instance)
     }
 
+    /// Materialize storage produced by a synthesized `Decodable.init(from:)`.
+    ///
+    /// Structural decoding has already resolved every supplied field against
+    /// its declaration. Routing those fields back through ordinary
+    /// initializer overload resolution is both incorrect and expensive: a
+    /// same-shaped convenience initializer is not what Swift's synthesized
+    /// decoder calls. Seed omitted defaults once, then initialize the decoded
+    /// storage directly without observers or a second coercion pass.
+    public func instantiateStructurallyDecodedForBridge(
+        _ symbol: StructSymbol, fields: CallArguments
+    ) throws -> RuntimeValue {
+        let instance = try makeInstanceSeed(for: symbol, node: nil)
+        let properties = Dictionary(
+            uniqueKeysWithValues:
+                inheritedStoredProperties(of: symbol).map { ($0.name, $0) })
+        var assigned: Set<String> = []
+        for field in fields.arguments {
+            guard let name = field.label,
+                  assigned.insert(name).inserted,
+                  properties[name] != nil,
+                  let box = instance.box(for: name)
+            else {
+                throw RuntimeError(
+                    message:
+                        "decoded field '\(field.label ?? "_")' doesn't match "
+                        + "unique storage of '\(symbol.name)'")
+            }
+            box.value = field.value.copiedForValueSemantics()
+        }
+        return .instance(instance)
+    }
+
     /// Effect-aware constructor entry used by the async evaluator. Ordinary
     /// memberwise and synchronous constructors stay on the established
     /// synchronous dispatch path; only a selected async initializer allocates
