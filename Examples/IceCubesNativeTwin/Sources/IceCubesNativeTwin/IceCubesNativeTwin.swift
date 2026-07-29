@@ -7,6 +7,7 @@ import Foundation
 import Models
 import NetworkClient
 import Nuke
+import Observation
 import StatusKit
 import SwiftUI
 import Timeline
@@ -24,6 +25,15 @@ private struct TwinMetadata: Codable {
     let clockEpoch: Double
     let width: Int
     let height: Int
+}
+
+private struct PaginationMetadata: Codable {
+    let initialVisibleStatusIDs: [String]
+    let initialPageLoads: Int
+    let finalPageLoads: Int
+    let finalStatusCount: Int
+    let appendedStatusID: String
+    let appendedStatusBecameVisible: Bool
 }
 
 @MainActor
@@ -84,6 +94,8 @@ private enum TwinConfiguration {
         "--target-control-row-geometry-probe")
     static let capturesSmallBorderedControl = CommandLine.arguments.contains(
         "--small-bordered-control-probe")
+    static let capturesPagination = CommandLine.arguments.contains(
+        "--pagination-probe")
 }
 
 @MainActor
@@ -116,9 +128,43 @@ private final class FixtureFetcher: StatusesFetcher {
     func statusDidDisappear(status: Status) {}
 }
 
+@Observable
 @MainActor
-private struct PublicTimelineScreen: View {
-    let fetcher: FixtureFetcher
+private final class PaginationFixtureFetcher: StatusesFetcher {
+    var statusesState: StatusesState
+    private var nextPage: [Status]
+    private(set) var pageLoads = 0
+    private(set) var appearedStatusIDs: Set<String> = []
+
+    init(statuses: [Status], nextPage: [Status]) {
+        statusesState = .display(
+            statuses: statuses, nextPageState: .hasNextPage)
+        self.nextPage = nextPage
+    }
+
+    func fetchNewestStatuses(pullToRefresh: Bool) async {}
+
+    func fetchNextPage() async throws {
+        guard !nextPage.isEmpty,
+              case .display(let statuses, _) = statusesState
+        else { return }
+        let appended = nextPage
+        nextPage = []
+        pageLoads += 1
+        statusesState = .display(
+            statuses: statuses + appended, nextPageState: .none)
+    }
+
+    func statusDidAppear(status: Status) {
+        appearedStatusIDs.insert(status.id)
+    }
+
+    func statusDidDisappear(status: Status) {}
+}
+
+@MainActor
+private struct PublicTimelineScreen<Fetcher: StatusesFetcher>: View {
+    let fetcher: Fetcher
     let client: MastodonClient
     let routerPath: RouterPath
 
@@ -152,6 +198,7 @@ private struct PublicTimelineScreen: View {
 @MainActor
 private struct TwinDriverView: View {
     @State private var statuses: [Status] = []
+    @State private var paginationFetcher: PaginationFixtureFetcher?
     @State private var focusedMedia: [MediaAttachment]?
     @State private var started = false
     private let client = MastodonClient(server: "mstdn.social")
@@ -171,6 +218,11 @@ private struct TwinDriverView: View {
                 TargetControlRowGeometryProbe()
             } else if TwinConfiguration.capturesSmallBorderedControl {
                 SmallBorderedControlProbe()
+            } else if let paginationFetcher {
+                PublicTimelineScreen(
+                    fetcher: paginationFetcher,
+                    client: client,
+                    routerPath: routerPath)
             } else if let focusedMedia {
                 FocusedMediaScreen(attachments: focusedMedia)
             } else if statuses.isEmpty {
@@ -223,6 +275,10 @@ private struct TwinDriverView: View {
                 try capturePNG(named: "small-bordered-control")
                 exit(0)
             }
+            if TwinConfiguration.capturesPagination {
+                try await drivePagination()
+                exit(0)
+            }
             let decoded: [Status] = try await client.get(
                 endpoint: Timelines.pub(
                     sinceId: nil, maxId: nil, minId: nil,
@@ -270,6 +326,143 @@ private struct TwinDriverView: View {
             FileHandle.standardError.write(Data("IceCubesNativeTwin: \(error)\n".utf8))
             exit(2)
         }
+    }
+
+    private func drivePagination() async throws {
+        let fixtureRoot = URL(
+            fileURLWithPath: TwinConfiguration.fixtureDirectory)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let publicStatuses = try decoder.decode(
+            [Status].self,
+            from: Data(contentsOf: fixtureRoot.appendingPathComponent(
+                "api_v1_timelines_public.json")))
+        let trendingStatuses = try decoder.decode(
+            [Status].self,
+            from: Data(contentsOf: fixtureRoot.appendingPathComponent(
+                "api_v1_trends_statuses.json")))
+        guard let appendedStatus = trendingStatuses.first else {
+            throw NSError(
+                domain: "IceCubesNativeTwin", code: 6,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "recorded trending fixture has no pagination status"])
+        }
+
+        let fetcher = PaginationFixtureFetcher(
+            statuses: publicStatuses, nextPage: [appendedStatus])
+        paginationFetcher = fetcher
+
+        let viewportDeadline = ContinuousClock.now.advanced(by: .seconds(10))
+        var scrollView: UIScrollView?
+        repeat {
+            await Task.yield()
+            scrollView = deepestScrollableView()
+            if !fetcher.appearedStatusIDs.isEmpty, scrollView != nil {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        } while ContinuousClock.now < viewportDeadline
+
+        guard let scrollView else {
+            throw NSError(
+                domain: "IceCubesNativeTwin", code: 7,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "native timeline never produced a scrollable viewport"])
+        }
+        let initiallyVisible = fetcher.appearedStatusIDs.sorted()
+        guard !initiallyVisible.isEmpty, fetcher.pageLoads == 0 else {
+            throw NSError(
+                domain: "IceCubesNativeTwin", code: 8,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "pagination footer loaded before the native scroll"])
+        }
+
+        let paginationDeadline =
+            ContinuousClock.now.advanced(by: .seconds(10))
+        repeat {
+            scrollToEnd(scrollView)
+            try await Task.sleep(for: .milliseconds(25))
+        } while (fetcher.pageLoads != 1
+                    || !fetcher.appearedStatusIDs.contains(appendedStatus.id))
+            && ContinuousClock.now < paginationDeadline
+
+        let finalCount: Int
+        if case .display(let finalStatuses, _) = fetcher.statusesState {
+            finalCount = finalStatuses.count
+        } else {
+            finalCount = 0
+        }
+        let metadata = PaginationMetadata(
+            initialVisibleStatusIDs: initiallyVisible,
+            initialPageLoads: 0,
+            finalPageLoads: fetcher.pageLoads,
+            finalStatusCount: finalCount,
+            appendedStatusID: appendedStatus.id,
+            appendedStatusBecameVisible:
+                fetcher.appearedStatusIDs.contains(appendedStatus.id))
+        guard metadata.finalPageLoads == 1,
+              metadata.finalStatusCount == publicStatuses.count + 1,
+              metadata.appendedStatusBecameVisible
+        else {
+            throw NSError(
+                domain: "IceCubesNativeTwin", code: 9,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "native pagination interaction did not reach its final state"])
+        }
+
+        try FileManager.default.createDirectory(
+            atPath: TwinConfiguration.outputDirectory,
+            withIntermediateDirectories: true)
+        let output = URL(
+            fileURLWithPath: TwinConfiguration.outputDirectory)
+            .appendingPathComponent("pagination.json")
+        try JSONEncoder().encode(metadata).write(
+            to: output, options: .atomic)
+        print(
+            "pagination\t\(output.path)"
+                + "\tvisible=\(metadata.initialVisibleStatusIDs.count)"
+                + " loads=\(metadata.finalPageLoads)"
+                + " statuses=\(metadata.finalStatusCount)")
+    }
+
+    private func deepestScrollableView() -> UIScrollView? {
+        let windows = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+        guard let root = (
+            windows.first(where: \.isKeyWindow) ?? windows.first
+        )?.rootViewController?.view else {
+            return nil
+        }
+        root.setNeedsLayout()
+        root.layoutIfNeeded()
+        return scrollViews(in: root)
+            .filter {
+                $0.contentSize.height > $0.bounds.height
+                    && !$0.isHidden && $0.alpha > 0
+            }
+            .max {
+                ($0.contentSize.height - $0.bounds.height)
+                    < ($1.contentSize.height - $1.bounds.height)
+            }
+    }
+
+    private func scrollViews(in view: UIView) -> [UIScrollView] {
+        let own = (view as? UIScrollView).map { [$0] } ?? []
+        return own + view.subviews.flatMap(scrollViews(in:))
+    }
+
+    private func scrollToEnd(_ scrollView: UIScrollView) {
+        scrollView.setNeedsLayout()
+        scrollView.layoutIfNeeded()
+        let bottom = max(
+            -scrollView.adjustedContentInset.top,
+            scrollView.contentSize.height - scrollView.bounds.height
+                + scrollView.adjustedContentInset.bottom)
+        scrollView.setContentOffset(
+            CGPoint(x: scrollView.contentOffset.x, y: bottom),
+            animated: false)
+        scrollView.layoutIfNeeded()
     }
 
     private func capturePNG(named name: String) throws {
