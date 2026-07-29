@@ -126,11 +126,13 @@ extension Interpreter {
                         at: initializer.positionAfterSkippingLeadingTrivia,
                         programState: instance.programState
                     ) {
-                        try resolveAnnotated(
-                            try evaluate(
-                                initializer,
-                                in: selfEnvironment(.type(symbol))),
-                            typeName: property.typeName)
+                        try withExpectedAnnotation(property.typeName) {
+                            try resolveAnnotated(
+                                try evaluate(
+                                    initializer,
+                                    in: selfEnvironment(.type(symbol))),
+                                typeName: property.typeName)
+                        }
                     }
                 } catch is InterpretedThrow {
                     // Headless resource construction can legitimately throw;

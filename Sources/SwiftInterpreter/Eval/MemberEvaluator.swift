@@ -505,9 +505,13 @@ extension Interpreter {
         if let box = instance.box(for: name),
            case .host(let any) = box.value, let seed = any as? LazyMemberSeed {
             // Force the lazy member now, with self bound.
-            let value = try resolveAnnotated(
-                try evaluate(seed.initializer, in: selfEnvironment(.instance(instance))),
-                typeName: seed.typeName).copiedForValueSemantics()
+            let value = try withExpectedAnnotation(seed.typeName) {
+                try resolveAnnotated(
+                    try evaluate(
+                        seed.initializer,
+                        in: selfEnvironment(.instance(instance))),
+                    typeName: seed.typeName)
+            }.copiedForValueSemantics()
             box.value = value
             return value
         }

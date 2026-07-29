@@ -45,10 +45,12 @@ extension Interpreter {
 
         let raw: RuntimeValue
         if let initializer = declaration.initializer {
-            raw = try evaluateStaticInitializationExpression(
-                initializer,
-                declarationID: declaration.declarationID,
-                environment: environment)
+            raw = try withExpectedAnnotation(declaration.typeName) {
+                try evaluateStaticInitializationExpression(
+                    initializer,
+                    declarationID: declaration.declarationID,
+                    environment: environment)
+            }
         } else {
             raw = .none(forTypeAnnotation:
                 declaration.typeName ?? "")
@@ -115,10 +117,12 @@ extension Interpreter {
         if let box = symbol.staticReferenceBoxes[name] { return try box.load() }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
-            var raw = try evaluateStaticInitializationExpression(
-                property.initializer,
-                declarationID: property.declarationID,
-                environment: staticInitEnvironment(for: symbol))
+            var raw = try withExpectedAnnotation(property.typeName) {
+                try evaluateStaticInitializationExpression(
+                    property.initializer,
+                    declarationID: property.declarationID,
+                    environment: staticInitEnvironment(for: symbol))
+            }
             var value = try resolveAnnotated(raw, typeName: property.typeName)
                 .copiedForValueSemantics()
             if property.referenceOwnership != .strong {
@@ -251,10 +255,12 @@ extension Interpreter {
         if let box = symbol.staticReferenceBoxes[name] { return try box.load() }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
-            var raw = try evaluateStaticInitializationExpression(
-                property.initializer,
-                declarationID: property.declarationID,
-                environment: staticInitEnvironment(for: symbol))
+            var raw = try withExpectedAnnotation(property.typeName) {
+                try evaluateStaticInitializationExpression(
+                    property.initializer,
+                    declarationID: property.declarationID,
+                    environment: staticInitEnvironment(for: symbol))
+            }
             var value = try resolveAnnotated(raw, typeName: property.typeName)
                 .copiedForValueSemantics()
             if property.referenceOwnership != .strong {

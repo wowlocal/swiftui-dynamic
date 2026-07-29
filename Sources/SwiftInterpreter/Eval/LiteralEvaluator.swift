@@ -39,7 +39,14 @@ extension Interpreter {
         _ lit: StringLiteralExprSyntax,
         in env: Environment
     ) throws -> RuntimeValue {
-        if let simple = lit.representedLiteralValue { return .native(simple) }
+        if let simple = lit.representedLiteralValue {
+            if let contextual = try contextualStringLiteral(
+                simple, environment: env
+            ) {
+                return contextual
+            }
+            return .native(simple)
+        }
         var out = ""
         var segments: [RuntimeInterpolatedString.Segment] = []
         var hasAttachment = false
@@ -103,6 +110,56 @@ extension Interpreter {
                 plainText: out))
         }
         return .native(out)
+    }
+
+    /// A literal is converted only when its contextual nominal type declares
+    /// the standard library protocol requirement. This keeps conversion
+    /// driven by source type structure: ordinary String-valued expressions
+    /// never acquire an implicit nominal conversion, and no conforming SDK or
+    /// application type needs an identity-keyed gateway.
+    private func contextualStringLiteral(
+        _ value: String, environment: Environment
+    ) throws -> RuntimeValue? {
+        guard var typeName = expectedAnnotationStack.last?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !typeName.isEmpty else {
+            return nil
+        }
+        while let wrapped = RuntimeOptionalValue.wrappedType(in: typeName) {
+            typeName = wrapped.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !typeName.contains("<") else { return nil }
+
+        let environmentOwner: AnyObject? = {
+            switch environment.lookup("self") {
+            case .type(let symbol)?: return symbol
+            case .enumType(let symbol)?: return symbol
+            default: return nil
+            }
+        }()
+        guard case .type(let symbol)? = lexicallyVisibleType(
+            named: typeName,
+            from: environmentOwner ?? lexicalOwnerFrames.last
+        ), transitiveConformances(of: symbol).contains(where: {
+            $0.split(separator: ".").last == "ExpressibleByStringLiteral"
+        }) else {
+            return nil
+        }
+
+        let declaresRequirement = symbol.initializers.contains { initializer in
+            let metadata = initializerMetadata(for: initializer)
+            return metadata.parameters.count == 1
+                && metadata.parameters[0].label == "stringLiteral"
+                && metadata.parameters[0].defaultValue == nil
+                && !metadata.isAsync
+                && !metadata.isThrowing
+        }
+        guard declaresRequirement else { return nil }
+        return try instantiate(
+            symbol,
+            with: CallArguments(arguments: [
+                .init(label: "stringLiteral", value: .native(value)),
+            ]))
     }
 
     private func interpolationText(_ value: RuntimeValue) -> String? {

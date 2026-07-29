@@ -5,6 +5,39 @@ private func eval(_ source: String) throws -> RuntimeValue {
     try Interpreter().run(source: source)
 }
 
+@Suite struct LiteralConversionTests {
+    /// A contextual string literal executes the source type's protocol
+    /// requirement. Keeping the raw String would make every synthesized
+    /// equality compare uninitialized storage instead.
+    @Test func stringLiteralConformerRunsItsDeclaredInitializer() throws {
+        let source = """
+        struct MediaKind: ExpressibleByStringLiteral, Equatable {
+            let rawValue: String
+
+            init(stringLiteral value: String) {
+                rawValue = value
+            }
+
+            static let photo: MediaKind = "image/photo"
+            static let animation: MediaKind = "image/animation"
+        }
+
+        struct Asset {
+            let kind: MediaKind = "image/stored"
+        }
+
+        let local: MediaKind = "image/local"
+
+        MediaKind.photo.rawValue == "image/photo"
+            && MediaKind.photo != .animation
+            && Asset().kind.rawValue == "image/stored"
+            && local.rawValue == "image/local"
+        """
+
+        #expect(try eval(source).boolValue == true)
+    }
+}
+
 @Suite struct OptionalTests {
     @Test func wildcardAndTupleOptionalBindings() throws {
         let source = """
