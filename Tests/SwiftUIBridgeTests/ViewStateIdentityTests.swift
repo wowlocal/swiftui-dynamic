@@ -188,7 +188,8 @@ import SwiftInterpreter
     /// not turn deep coverage into lifecycle visibility.
     @Test func lazyListDoesNotFireOffscreenPaginationTaskAtLaunch() async throws {
         let strings = try await LiveCheckSupport.renderedStrings(
-            source: Self.lazyListPaginationSource)
+            source: Self.lazyListPaginationSource,
+            initialViewportRowCapacity: 19)
         let summary = try #require(strings.first { $0.hasPrefix("lifecycle ") })
         #expect(summary.hasSuffix("|0"),
                 "off-screen paging task fired at launch: \(strings)")
@@ -203,7 +204,8 @@ import SwiftInterpreter
     @Test func scrollingLazyListMaterializesPaginationTask() async throws {
         let strings = try await LiveCheckSupport.renderedStrings(
             source: Self.lazyListPaginationSource,
-            viewportTraversal: .throughEnd)
+            viewportTraversal: .throughEnd,
+            initialViewportRowCapacity: 19)
         let summary = try #require(strings.first { $0.hasPrefix("lifecycle ") })
         #expect(summary == "lifecycle 24|1",
                 "scroll traversal did not materialize each row once: \(strings)")
@@ -275,7 +277,8 @@ import SwiftInterpreter
         }
         """
         let strings = try await LiveCheckSupport.renderedStrings(
-            source: source, viewportTraversal: .throughEnd)
+            source: source, viewportTraversal: .throughEnd,
+            initialViewportRowCapacity: 19)
         #expect(strings.contains("summary 21|1"),
                 "async protocol witness mutation was lost: \(strings)")
     }
@@ -368,8 +371,9 @@ import SwiftInterpreter
         }
         """
         let strings = try await LiveCheckSupport.renderedStrings(
-            source: source, viewportTraversal: .throughEnd)
-        #expect(strings.contains("bodies 21"),
+            source: source, viewportTraversal: .throughEnd,
+            initialViewportRowCapacity: 19)
+        #expect(strings.contains("bodies 20"),
                 "launch-visible row bodies were rebuilt on scroll: \(strings)")
         #expect(strings.contains("loads 1"))
     }

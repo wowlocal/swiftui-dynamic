@@ -13,8 +13,10 @@ public struct LiveCheckRenderResult: Sendable {
 /// Which native viewport transitions a headless live probe should model.
 /// `.throughEnd` first reaches launch quiescence with the initial viewport,
 /// then materializes the remaining rows as a user scroll would. Container
-/// eligibility still comes from `TraceNode.initialLifecycleRowCapacity`; the
-/// traversal never dispatches on a view, app, callback, or fixture identity.
+/// eligibility comes from `TraceNode.viewportMaterializesLifecycleRows`; its
+/// capacity must come from an executing native target because swiftinterfaces
+/// do not encode row layout. Traversal never dispatches on an app, callback,
+/// or fixture identity.
 public enum LiveCheckViewportTraversal: Sendable {
     case initial
     case throughEnd
@@ -115,12 +117,14 @@ public enum LiveCheckSupport {
         source: String,
         afterActions actionCount: Int = 0,
         viewportTraversal: LiveCheckViewportTraversal = .initial,
+        initialViewportRowCapacity: Int? = nil,
         environment: LiveCheckEnvironment = .current
     ) async throws -> [String] {
         try await render(
             source: source,
             afterActions: actionCount,
             viewportTraversal: viewportTraversal,
+            initialViewportRowCapacity: initialViewportRowCapacity,
             environment: environment).strings
     }
 
@@ -130,6 +134,7 @@ public enum LiveCheckSupport {
         source: String,
         afterActions actionCount: Int = 0,
         viewportTraversal: LiveCheckViewportTraversal = .initial,
+        initialViewportRowCapacity: Int? = nil,
         environment: LiveCheckEnvironment = .current
     ) async throws -> LiveCheckRenderResult {
         await acquireProbe()
@@ -144,6 +149,7 @@ public enum LiveCheckSupport {
                     source: source,
                     afterActions: actionCount,
                     viewportTraversal: viewportTraversal,
+                    initialViewportRowCapacity: initialViewportRowCapacity,
                     buildConfiguration: environment.buildConfiguration,
                     projectResourceRoot: environment.projectResourceRoot)
             }
@@ -175,6 +181,7 @@ public enum LiveCheckSupport {
         source: String,
         afterActions actionCount: Int,
         viewportTraversal: LiveCheckViewportTraversal,
+        initialViewportRowCapacity: Int?,
         buildConfiguration: InterpreterBuildConfiguration,
         projectResourceRoot: String?
     ) async throws -> LiveCheckRenderResult {
@@ -352,7 +359,8 @@ public enum LiveCheckSupport {
                 interpreter, root, into: &passStrings,
                 lifecycle: &lifecycle,
                 offscreenLifecycle: &passDeferredLifecycle,
-                actions: &passActions)
+                actions: &passActions,
+                viewportRowCapacity: initialViewportRowCapacity)
             deferredLifecycle = passDeferredLifecycle
             let grew = passStrings.count > strings.count
             strings = passStrings
@@ -408,27 +416,45 @@ public enum LiveCheckSupport {
             await fire(newlyVisible)
             await advanceAsyncLifecycleWork()
 
-            // One user scroll is one viewport transition. Render the state
-            // produced by the newly visible rows (including a paging footer)
-            // and fire lifecycle attached to content created by that state.
-            // A subsequent scroll request owns any further transition.
-            let root = try renderRoot!()
-            var scrolledStrings: [String] = []
-            var scrolledLifecycle: [TraceLifecycle] = []
-            var scrolledDeferredLifecycle: [TraceLifecycle] = []
-            var scrolledActions: [ClosureValue] = []
-            try collect(
-                interpreter, root, into: &scrolledStrings,
-                lifecycle: &scrolledLifecycle,
-                offscreenLifecycle: &scrolledDeferredLifecycle,
-                actions: &scrolledActions,
-                viewportSlice: .afterInitial)
-            strings = scrolledStrings
-            let createdAfterScroll = scrolledLifecycle.filter {
-                firedLifecycle.insert($0.identity).inserted
+            // One user scroll is one viewport transition. Reach quiescence
+            // within that viewport just as launch does: newly materialized
+            // row lifecycle may update a sibling summary, while a paging
+            // footer may append more content to the same visible tail.
+            for scrollPass in 0..<8 {
+                if scrollPass > 0 {
+                    await advanceAsyncLifecycleWork()
+                }
+                let root = try renderRoot!()
+                var scrolledStrings: [String] = []
+                var scrolledLifecycle: [TraceLifecycle] = []
+                var scrolledDeferredLifecycle: [TraceLifecycle] = []
+                var scrolledActions: [ClosureValue] = []
+                try collect(
+                    interpreter, root, into: &scrolledStrings,
+                    lifecycle: &scrolledLifecycle,
+                    offscreenLifecycle: &scrolledDeferredLifecycle,
+                    actions: &scrolledActions,
+                    viewportRowCapacity: initialViewportRowCapacity,
+                    viewportSlice: .afterInitial)
+                strings = scrolledStrings
+                let createdAfterScroll = scrolledLifecycle.filter {
+                    firedLifecycle.insert($0.identity).inserted
+                }
+                if traceLifecycle {
+                    print(
+                        "@@live-viewport-scroll-pass"
+                            + " index=\(scrollPass)"
+                            + " visible=\(scrolledLifecycle.count)"
+                            + " pending=\(createdAfterScroll.count)")
+                }
+                if createdAfterScroll.isEmpty,
+                   interpreter.runtimeActivity.isQuiescent,
+                   MainQueueDrain.isQuiescent {
+                    break
+                }
+                await fire(createdAfterScroll)
+                await advanceAsyncLifecycleWork()
             }
-            await fire(createdAfterScroll)
-            await advanceAsyncLifecycleWork()
         }
 
         if traceLifecycle {
@@ -494,6 +520,7 @@ public enum LiveCheckSupport {
         environment: [String: Instance] = [:], depth: Int = 0,
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil,
+        viewportRowCapacity: Int? = nil,
         viewportSlice: LifecycleViewportSlice = .initial
     ) throws {
         // Keep a finite guard for malformed recursive Views while allowing
@@ -506,9 +533,12 @@ public enum LiveCheckSupport {
             offscreenLifecycle.append(contentsOf: node.lifecycle)
         }
         actions.append(contentsOf: node.actions.values)
-        let initialViewport = node.initialLifecycleRowCapacity.map {
-            InitialLifecycleViewport(capacity: $0)
-        } ?? initialViewport
+        let initialViewport =
+            node.viewportMaterializesLifecycleRows
+                ? viewportRowCapacity.map {
+                    InitialLifecycleViewport(capacity: $0)
+                }
+                : initialViewport
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         if node.optionalCoverage {
@@ -524,8 +554,8 @@ public enum LiveCheckSupport {
                 probe.children = node.children
                 probe.instance = node.instance
                 probe.environmentModels = node.environmentModels
-                probe.initialLifecycleRowCapacity =
-                    node.initialLifecycleRowCapacity
+                probe.viewportMaterializesLifecycleRows =
+                    node.viewportMaterializesLifecycleRows
                 try collectRequired(interpreter, probe, into: &optionalStrings,
                                     lifecycle: &optionalLifecycle,
                                     offscreenLifecycle:
@@ -534,6 +564,8 @@ public enum LiveCheckSupport {
                                     environment: environment, depth: depth,
                                     lifecycleEnabled: lifecycleEnabled,
                                     initialViewport: initialViewport,
+                                    viewportRowCapacity:
+                                        viewportRowCapacity,
                                     viewportSlice: viewportSlice)
                 strings += optionalStrings
                 lifecycle += optionalLifecycle
@@ -550,6 +582,7 @@ public enum LiveCheckSupport {
                             depth: depth,
                             lifecycleEnabled: lifecycleEnabled,
                             initialViewport: initialViewport,
+                            viewportRowCapacity: viewportRowCapacity,
                             viewportSlice: viewportSlice)
     }
 
@@ -561,6 +594,7 @@ public enum LiveCheckSupport {
         environment: [String: Instance] = [:], depth: Int = 0,
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil,
+        viewportRowCapacity: Int? = nil,
         viewportSlice: LifecycleViewportSlice = .initial
     ) throws {
         if let instance = node.instance {
@@ -582,14 +616,18 @@ public enum LiveCheckSupport {
                         depth: depth + 1,
                         lifecycleEnabled: lifecycleEnabled,
                         initialViewport: initialViewport,
+                        viewportRowCapacity: viewportRowCapacity,
                         viewportSlice: viewportSlice)
         }
         if node.kind == "ForEach", let initialViewport {
             initialViewport.encounteredRows = true
             for child in node.children {
                 let rowWasInitiallyVisible = initialViewport.consumeRow()
-                if viewportSlice == .afterInitial,
-                   rowWasInitiallyVisible {
+                if viewportSlice == .initial,
+                   !rowWasInitiallyVisible {
+                    continue
+                }
+                if viewportSlice == .afterInitial, rowWasInitiallyVisible {
                     continue
                 }
                 try collect(
@@ -603,6 +641,7 @@ public enum LiveCheckSupport {
                             && (viewportSlice == .afterInitial
                                 || rowWasInitiallyVisible),
                     initialViewport: nil,
+                    viewportRowCapacity: viewportRowCapacity,
                     viewportSlice: viewportSlice)
             }
             return
@@ -625,6 +664,7 @@ public enum LiveCheckSupport {
                                 && (viewportSlice == .afterInitial
                                     || childWasInitiallyVisible),
                         initialViewport: childConsumesRow ? nil : initialViewport,
+                        viewportRowCapacity: viewportRowCapacity,
                         viewportSlice: viewportSlice)
         }
     }
