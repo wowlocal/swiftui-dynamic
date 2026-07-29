@@ -212,10 +212,14 @@ public struct InterpreterHost {
                 compilerPreflightSources: compilerSources
             )
 
-            // A trailing view expression (e.g. `ContentView()`) is an explicit root.
-            if case let .host(any) = last, let view = any as? AnyView {
+            // A trailing view expression is an explicit root. Generated
+            // constructors deliberately retain concrete SDK View values until
+            // this rendering boundary, so recognize the registry's semantic
+            // property instead of requiring prior AnyView erasure.
+            if registry.isViewValue(last) {
                 return .success(InterpreterRenderSession(
-                    view: view, interpreter: interpreter))
+                    view: try ViewRegistry.anyView(last),
+                    interpreter: interpreter))
             }
             if case let .instance(instance) = last, instance.symbol.conformsToView {
                 return try .success(InterpreterRenderSession(
