@@ -30,6 +30,23 @@ public nonisolated struct SourceModuleUsage: Sendable, Equatable {
     }
 }
 
+/// The source facts needed to derive a SwiftPM module slice. Keeping both
+/// projections on one parsed syntax tree prevents build-material consumers
+/// from reparsing every dependency file independently for references and
+/// declarations.
+public nonisolated struct SourceModuleAnalysis: Sendable, Equatable {
+    public let usage: SourceModuleUsage
+    public let topLevelDeclarationNames: Set<String>
+
+    public init(
+        usage: SourceModuleUsage,
+        topLevelDeclarationNames: Set<String>
+    ) {
+        self.usage = usage
+        self.topLevelDeclarationNames = topLevelDeclarationNames
+    }
+}
+
 private final class SourceModuleUsageCollector: SyntaxVisitor {
     var importedModuleNames: Set<String> = []
     var candidateReferences: Set<SourceModuleReference> = []
@@ -96,9 +113,11 @@ private final class SourceModuleUsageCollector: SyntaxVisitor {
 }
 
 public extension Interpreter {
-    /// Extract imports plus qualified and unqualified symbol references from
-    /// a real Swift file. Comments and string literals cannot create usage.
-    nonisolated static func sourceModuleUsage(in source: String) -> SourceModuleUsage {
+    /// Extract module references and top-level declarations from one syntax
+    /// tree. Comments and string literals cannot create usage.
+    nonisolated static func sourceModuleAnalysis(
+        in source: String
+    ) -> SourceModuleAnalysis {
         let file = Parser.parse(source: source)
         let collector = SourceModuleUsageCollector(viewMode: .sourceAccurate)
         collector.walk(file)
@@ -106,7 +125,7 @@ public extension Interpreter {
             collector.possibleModuleQualifierNames.compactMap { id, name in
                 collector.importedModuleNames.contains(name) ? id : nil
             })
-        return SourceModuleUsage(
+        let usage = SourceModuleUsage(
             importedModuleNames: collector.importedModuleNames,
             qualifiedReferences: collector.candidateReferences.filter {
                 collector.importedModuleNames.contains($0.moduleName)
@@ -115,16 +134,7 @@ public extension Interpreter {
                 collector.unqualifiedReferenceNames.compactMap { id, name in
                     moduleQualifierIDs.contains(id) ? nil : name
                 }))
-    }
 
-    /// Names introduced at module scope, including declarations inside
-    /// conditional-compilation branches. A `Module.member` reference requests
-    /// source material only when that module actually exports `member` at the
-    /// top level; same-named namespace types therefore remain type accesses.
-    nonisolated static func topLevelDeclarationNames(
-        in source: String
-    ) -> Set<String> {
-        let file = Parser.parse(source: source)
         var names: Set<String> = []
 
         func collect(_ statements: CodeBlockItemListSyntax) {
@@ -165,6 +175,25 @@ public extension Interpreter {
         }
 
         collect(file.statements)
-        return names
+        return SourceModuleAnalysis(
+            usage: usage, topLevelDeclarationNames: names)
+    }
+
+    /// Extract imports plus qualified and unqualified symbol references from
+    /// a real Swift file. Comments and string literals cannot create usage.
+    nonisolated static func sourceModuleUsage(
+        in source: String
+    ) -> SourceModuleUsage {
+        sourceModuleAnalysis(in: source).usage
+    }
+
+    /// Names introduced at module scope, including declarations inside
+    /// conditional-compilation branches. A `Module.member` reference requests
+    /// source material only when that module actually exports `member` at the
+    /// top level; same-named namespace types therefore remain type accesses.
+    nonisolated static func topLevelDeclarationNames(
+        in source: String
+    ) -> Set<String> {
+        sourceModuleAnalysis(in: source).topLevelDeclarationNames
     }
 }

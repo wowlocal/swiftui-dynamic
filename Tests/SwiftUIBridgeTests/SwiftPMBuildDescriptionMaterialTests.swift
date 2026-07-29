@@ -11,6 +11,31 @@ import Testing
 @Suite("SwiftPM build-description material", .serialized)
 struct SwiftPMBuildDescriptionMaterialTests {
     @Test
+    func combinedSourceAnalysisPreservesBothProjections() {
+        let source = """
+            import SurfaceKit
+            struct LocalValue {}
+            #if os(iOS)
+            func conditionalValue() -> SurfaceKit.Value {
+                SurfaceKit.makeValue(LocalValue())
+            }
+            #endif
+            """
+        let analysis = Interpreter.sourceModuleAnalysis(in: source)
+
+        #expect(analysis.usage == Interpreter.sourceModuleUsage(in: source))
+        #expect(
+            analysis.topLevelDeclarationNames
+                == Interpreter.topLevelDeclarationNames(in: source))
+        #expect(analysis.usage.importedModuleNames == ["SurfaceKit"])
+        #expect(analysis.usage.qualifiedReferences.contains(
+            SourceModuleReference(
+                moduleName: "SurfaceKit", memberName: "makeValue")))
+        #expect(analysis.topLevelDeclarationNames.contains("LocalValue"))
+        #expect(analysis.topLevelDeclarationNames.contains("conditionalValue"))
+    }
+
+    @Test
     func importedUnqualifiedNominalSelectsCompleteModule() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftpm-imported-surface-\(UUID().uuidString)")

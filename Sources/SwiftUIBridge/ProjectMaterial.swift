@@ -230,15 +230,29 @@ public enum ProjectMaterial {
         var selectedFiles: Set<String> = []
         var declarationsByModule: [String: Set<String>] = [:]
         var directlyClangBackedByModule: [String: Bool] = [:]
+        var sourceByPath: [String: String] = [:]
+        var analysisByPath: [String: SourceModuleAnalysis] = [:]
 
         func source(at sourcePath: String) throws -> String {
+            if let cached = sourceByPath[sourcePath] { return cached }
             guard let source = try? String(
                 contentsOfFile: sourcePath, encoding: .utf8
             ) else {
                 throw SwiftPMBuildDescriptionMaterialError
                     .unreadableCompilerInput(sourcePath)
             }
+            sourceByPath[sourcePath] = source
             return source
+        }
+
+        func analysis(
+            at sourcePath: String
+        ) throws -> SourceModuleAnalysis {
+            if let cached = analysisByPath[sourcePath] { return cached }
+            let discovered = Interpreter.sourceModuleAnalysis(
+                in: try source(at: sourcePath))
+            analysisByPath[sourcePath] = discovered
+            return discovered
         }
 
         func declarations(
@@ -250,9 +264,8 @@ public enum ProjectMaterial {
             }
             var discovered: Set<String> = []
             for moduleSource in moduleSources.sorted() {
-                discovered.formUnion(
-                    Interpreter.topLevelDeclarationNames(
-                        in: try source(at: moduleSource)))
+                discovered.formUnion(try analysis(
+                    at: moduleSource).topLevelDeclarationNames)
             }
             declarationsByModule[moduleName] = discovered
             return discovered
@@ -266,9 +279,9 @@ public enum ProjectMaterial {
                 return cached
             }
             let backed = try moduleSources.contains { moduleSource in
-                !Interpreter.sourceModuleUsage(
-                    in: try source(at: moduleSource))
-                    .importedModuleNames.isDisjoint(with: clangModuleNames)
+                let imports = try analysis(at: moduleSource).usage
+                    .importedModuleNames
+                return !imports.isDisjoint(with: clangModuleNames)
             }
             directlyClangBackedByModule[moduleName] = backed
             return backed
@@ -286,8 +299,7 @@ public enum ProjectMaterial {
         while let sourcePath = pending.first {
             pending.removeFirst()
             guard scanned.insert(sourcePath).inserted else { continue }
-            let usage = Interpreter.sourceModuleUsage(
-                in: try source(at: sourcePath))
+            let usage = try analysis(at: sourcePath).usage
             for reference in usage.qualifiedReferences.sorted(by: {
                 ($0.moduleName, $0.memberName)
                     < ($1.moduleName, $1.memberName)
