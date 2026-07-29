@@ -10,6 +10,16 @@ public struct LiveCheckRenderResult: Sendable {
     public var networkRequests: [String]
 }
 
+/// Which native viewport transitions a headless live probe should model.
+/// `.throughEnd` first reaches launch quiescence with the initial viewport,
+/// then materializes the remaining rows as a user scroll would. Container
+/// eligibility still comes from `TraceNode.initialLifecycleRowCapacity`; the
+/// traversal never dispatches on a view, app, callback, or fixture identity.
+public enum LiveCheckViewportTraversal: Sendable {
+    case initial
+    case throughEnd
+}
+
 /// Process-wide bridge defaults captured at the synchronous call site before
 /// an async probe can yield to another test. The immutable snapshot then
 /// follows the render and every source Task it creates.
@@ -96,11 +106,13 @@ public enum LiveCheckSupport {
     public static func renderedStrings(
         source: String,
         afterActions actionCount: Int = 0,
+        viewportTraversal: LiveCheckViewportTraversal = .initial,
         environment: LiveCheckEnvironment = .current
     ) async throws -> [String] {
         try await render(
             source: source,
             afterActions: actionCount,
+            viewportTraversal: viewportTraversal,
             environment: environment).strings
     }
 
@@ -109,6 +121,7 @@ public enum LiveCheckSupport {
     public static func render(
         source: String,
         afterActions actionCount: Int = 0,
+        viewportTraversal: LiveCheckViewportTraversal = .initial,
         environment: LiveCheckEnvironment = .current
     ) async throws -> LiveCheckRenderResult {
         await acquireProbe()
@@ -122,6 +135,7 @@ public enum LiveCheckSupport {
                 try await renderInCurrentReplayScope(
                     source: source,
                     afterActions: actionCount,
+                    viewportTraversal: viewportTraversal,
                     buildConfiguration: environment.buildConfiguration,
                     projectResourceRoot: environment.projectResourceRoot)
             }
@@ -152,6 +166,7 @@ public enum LiveCheckSupport {
     private static func renderInCurrentReplayScope(
         source: String,
         afterActions actionCount: Int,
+        viewportTraversal: LiveCheckViewportTraversal,
         buildConfiguration: InterpreterBuildConfiguration,
         projectResourceRoot: String?
     ) async throws -> LiveCheckRenderResult {
@@ -286,56 +301,65 @@ public enum LiveCheckSupport {
         // the break below exits as soon as a pass adds nothing.
         var strings: [String] = []
         var firedLifecycle: Set<TraceLifecycleIdentity> = []
-        for renderPass in 0..<8 {
-            // Deliver main-queue hops queued at the END of the previous
-            // pass (a dispatch fired INSIDE another dispatch's delivery —
-            // the AsyncAction execute → response-dispatch chain) BEFORE
-            // rendering, so the quiescence check sees their state writes.
-            if renderPass > 0 {
+        let materializationPhases =
+            viewportTraversal == .throughEnd ? [false, true] : [false]
+        var hasRendered = false
+        for materializesAllRows in materializationPhases {
+            for _ in 0..<8 {
+                // Deliver main-queue hops queued at the END of the previous
+                // pass (a dispatch fired INSIDE another dispatch's delivery —
+                // the AsyncAction execute → response-dispatch chain) BEFORE
+                // rendering, so the quiescence check sees their state writes.
+                if hasRendered {
+                    await advanceAsyncLifecycleWork()
+                }
+                let root = try renderRoot!()
+                var passStrings: [String] = []
+                var lifecycle: [TraceLifecycle] = []
+                var passActions: [ClosureValue] = []
+                try collect(
+                    interpreter, root, into: &passStrings,
+                    lifecycle: &lifecycle, actions: &passActions,
+                    materializesAllLifecycleRows: materializesAllRows)
+                hasRendered = true
+                let grew = passStrings.count > strings.count
+                strings = passStrings
+                let pending = lifecycle.filter {
+                    firedLifecycle.insert($0.identity).inserted
+                }
+                if pending.isEmpty && !grew {
+                    break
+                }
+                for entry in pending {
+                    let closure = entry.closure
+                    if traceLifecycle {
+                        let head = closure.body.description
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .replacingOccurrences(of: "\n", with: " ⏎ ")
+                        print("▶ lifecycle[\(lastLifecycleFired)]: \(head.prefix(110))")
+                    }
+                    do {
+                        if entry.isAsyncAction {
+                            _ = try await interpreter.callSwiftUITask(
+                                closure, arguments: [])
+                        } else {
+                            _ = try interpreter.callHostCallback(
+                                closure, arguments: [])
+                        }
+                        if traceLifecycle { print("   ✓ completed") }
+                    } catch {
+                        lastLifecycleErrors.append("\(error)")
+                        if traceLifecycle { print("   ✗ \(error)") }
+                    }
+                    lastLifecycleFired += 1
+                }
+                // Drain main-queue hops before the next render pass:
+                // Source Tasks and deterministic main-queue callbacks alternate:
+                // yield the actor so newly-created Tasks reach their first
+                // suspension, drain retained callbacks, then yield once more so
+                // resumed Tasks can publish state before the next render pass.
                 await advanceAsyncLifecycleWork()
             }
-            let root = try renderRoot!()
-            var passStrings: [String] = []
-            var lifecycle: [TraceLifecycle] = []
-            var passActions: [ClosureValue] = []
-            try collect(interpreter, root, into: &passStrings, lifecycle: &lifecycle, actions: &passActions)
-            let grew = passStrings.count > strings.count
-            strings = passStrings
-            let pending = lifecycle.filter {
-                firedLifecycle.insert($0.identity).inserted
-            }
-            if pending.isEmpty && !grew {
-                break
-            }
-            for entry in pending {
-                let closure = entry.closure
-                if traceLifecycle {
-                    let head = closure.body.description
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .replacingOccurrences(of: "\n", with: " ⏎ ")
-                    print("▶ lifecycle[\(lastLifecycleFired)]: \(head.prefix(110))")
-                }
-                do {
-                    if entry.isAsyncAction {
-                        _ = try await interpreter.callSwiftUITask(
-                            closure, arguments: [])
-                    } else {
-                        _ = try interpreter.callHostCallback(
-                            closure, arguments: [])
-                    }
-                    if traceLifecycle { print("   ✓ completed") }
-                } catch {
-                    lastLifecycleErrors.append("\(error)")
-                    if traceLifecycle { print("   ✗ \(error)") }
-                }
-                lastLifecycleFired += 1
-            }
-            // Drain main-queue hops before the next render pass:
-            // Source Tasks and deterministic main-queue callbacks alternate:
-            // yield the actor so newly-created Tasks reach their first
-            // suspension, drain retained callbacks, then yield once more so
-            // resumed Tasks can publish state before the next render pass.
-            await advanceAsyncLifecycleWork()
         }
 
         if traceLifecycle {
@@ -393,7 +417,8 @@ public enum LiveCheckSupport {
         actions: inout [ClosureValue],
         environment: [String: Instance] = [:], depth: Int = 0,
         lifecycleEnabled: Bool = true,
-        initialViewport: InitialLifecycleViewport? = nil
+        initialViewport: InitialLifecycleViewport? = nil,
+        materializesAllLifecycleRows: Bool = false
     ) throws {
         // Keep a finite guard for malformed recursive Views while allowing
         // valid type-erased branches to nest beyond ordinary app-shell depth.
@@ -403,9 +428,11 @@ public enum LiveCheckSupport {
             lifecycle.append(contentsOf: node.lifecycle)
         }
         actions.append(contentsOf: node.actions.values)
-        let initialViewport = node.initialLifecycleRowCapacity.map {
-            InitialLifecycleViewport(capacity: $0)
-        } ?? initialViewport
+        let initialViewport = materializesAllLifecycleRows
+            ? nil
+            : node.initialLifecycleRowCapacity.map {
+                InitialLifecycleViewport(capacity: $0)
+            } ?? initialViewport
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         if node.optionalCoverage {
@@ -426,7 +453,9 @@ public enum LiveCheckSupport {
                                     lifecycle: &optionalLifecycle, actions: &optionalActions,
                                     environment: environment, depth: depth,
                                     lifecycleEnabled: lifecycleEnabled,
-                                    initialViewport: initialViewport)
+                                    initialViewport: initialViewport,
+                                    materializesAllLifecycleRows:
+                                        materializesAllLifecycleRows)
                 strings += optionalStrings
                 lifecycle += optionalLifecycle
                 actions += optionalActions
@@ -438,7 +467,9 @@ public enum LiveCheckSupport {
         try collectRequired(interpreter, node, into: &strings, lifecycle: &lifecycle,
                             actions: &actions, environment: environment, depth: depth,
                             lifecycleEnabled: lifecycleEnabled,
-                            initialViewport: initialViewport)
+                            initialViewport: initialViewport,
+                            materializesAllLifecycleRows:
+                                materializesAllLifecycleRows)
     }
 
     private static func collectRequired(
@@ -447,7 +478,8 @@ public enum LiveCheckSupport {
         actions: inout [ClosureValue],
         environment: [String: Instance] = [:], depth: Int = 0,
         lifecycleEnabled: Bool = true,
-        initialViewport: InitialLifecycleViewport? = nil
+        initialViewport: InitialLifecycleViewport? = nil,
+        materializesAllLifecycleRows: Bool = false
     ) throws {
         if let instance = node.instance {
             if traceLifecycle, let tracedViewTypes,
@@ -465,7 +497,9 @@ public enum LiveCheckSupport {
             try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,
                         actions: &actions, environment: environment, depth: depth + 1,
                         lifecycleEnabled: lifecycleEnabled,
-                        initialViewport: initialViewport)
+                        initialViewport: initialViewport,
+                        materializesAllLifecycleRows:
+                            materializesAllLifecycleRows)
         }
         if node.kind == "ForEach", let initialViewport {
             initialViewport.encounteredRows = true
@@ -476,7 +510,9 @@ public enum LiveCheckSupport {
                     lifecycle: &lifecycle, actions: &actions,
                     environment: environment, depth: depth + 1,
                     lifecycleEnabled: lifecycleEnabled && rowIsVisible,
-                    initialViewport: nil)
+                    initialViewport: nil,
+                    materializesAllLifecycleRows:
+                        materializesAllLifecycleRows)
             }
             return
         }
@@ -487,7 +523,9 @@ public enum LiveCheckSupport {
             try collect(interpreter, child, into: &strings, lifecycle: &lifecycle,
                         actions: &actions, environment: environment, depth: depth + 1,
                         lifecycleEnabled: lifecycleEnabled && childIsVisible,
-                        initialViewport: childConsumesRow ? nil : initialViewport)
+                        initialViewport: childConsumesRow ? nil : initialViewport,
+                        materializesAllLifecycleRows:
+                            materializesAllLifecycleRows)
         }
     }
 }
