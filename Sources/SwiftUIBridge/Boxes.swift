@@ -109,6 +109,14 @@ final class ImageBox:
 /// `.stroke` can apply; used directly in view position they render as views.
 final class ShapeBox {
     let shape: AnyShape
+    /// SwiftUI-magic allowlist entry (concrete Shape operations): the
+    /// interface exposes generic fill/stroke/clip operations, but AnyShape
+    /// erasure can change their rasterization. Capture those operations while
+    /// the concrete Shape type is still open.
+    let fillPainter: (@MainActor (AnyShapeStyle) -> AnyView)
+    let strokePainter: (@MainActor (AnyShapeStyle, CGFloat) -> AnyView)
+    let strokePlainPainter: (@MainActor (CGFloat) -> AnyView)
+    let clipApplier: (@MainActor (AnyView) -> AnyView)
     /// Real inside-stroke, retained at construction when the concrete
     /// shape is Insettable (erasure loses the conformance; FoodTruck's
     /// tile outlines need the true inset, not a centered approximation).
@@ -125,6 +133,18 @@ final class ShapeBox {
 
     init(_ shape: some Shape) {
         self.shape = AnyShape(shape)
+        self.fillPainter = { style in
+            AnyView(shape.fill(style))
+        }
+        self.strokePainter = { style, lineWidth in
+            AnyView(shape.stroke(style, lineWidth: lineWidth))
+        }
+        self.strokePlainPainter = { lineWidth in
+            AnyView(shape.stroke(lineWidth: lineWidth))
+        }
+        self.clipApplier = { view in
+            AnyView(view.clipShape(shape))
+        }
         self.strokeBorderPainter = nil
         self.containerShapeApplier = nil
         self.strokeBorderPlainPainter = nil
@@ -132,6 +152,18 @@ final class ShapeBox {
 
     init(insettable shape: some InsettableShape) {
         self.shape = AnyShape(shape)
+        self.fillPainter = { style in
+            AnyView(shape.fill(style))
+        }
+        self.strokePainter = { style, lineWidth in
+            AnyView(shape.stroke(style, lineWidth: lineWidth))
+        }
+        self.strokePlainPainter = { lineWidth in
+            AnyView(shape.stroke(lineWidth: lineWidth))
+        }
+        self.clipApplier = { view in
+            AnyView(view.clipShape(shape))
+        }
         self.strokeBorderPainter = { style, lineWidth in
             AnyView(shape.strokeBorder(style, lineWidth: lineWidth))
         }
@@ -141,6 +173,23 @@ final class ShapeBox {
         self.strokeBorderPlainPainter = { lineWidth in
             AnyView(shape.strokeBorder(lineWidth: lineWidth))
         }
+    }
+
+    /// Opens any interface-generated Shape existential into the same generic
+    /// operation carrier used by handwritten/custom shapes. The conformance,
+    /// rather than an SDK type name, selects the adapter; checking the
+    /// stronger InsettableShape property first preserves its extra semantics.
+    static func opening(_ value: Any) -> ShapeBox? {
+        if let box = value as? ShapeBox {
+            return box
+        }
+        if let shape = value as? any InsettableShape {
+            return ShapeBox(insettable: shape)
+        }
+        if let shape = value as? any Shape {
+            return ShapeBox(shape)
+        }
+        return nil
     }
 }
 

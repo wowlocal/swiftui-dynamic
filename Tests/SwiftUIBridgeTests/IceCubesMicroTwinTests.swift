@@ -44,6 +44,19 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeAvatarShapeTwin: View {
+        var body: some View {
+            Color.blue
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 24))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            Color.primary.opacity(0.25),
+                            lineWidth: 1))
+        }
+    }
+
     private struct NativeTargetButtonMenuTwin: View {
         var body: some View {
             Menu {
@@ -1027,6 +1040,45 @@ struct IceCubesMicroTwinTests {
             Self.bitmap(AnyView(NativeGeneratedStackSpacingTwin()), size: size),
             size: size)
         #expect(actual == expected)
+    }
+
+    /// IceCubes' AvatarImage applies an interface-generated RoundedRectangle
+    /// at both a generic clipShape boundary and a generic stroke boundary.
+    /// The generated constructor must keep the interface's `.continuous`
+    /// default and generic operations must reopen the concrete Shape.
+    @MainActor
+    @Test
+    func concreteRoundedShapeOperationsMatchAvatarChain() throws {
+        let shapeValue = try Interpreter(registry: ViewRegistry()).run(
+            source: "RoundedRectangle(cornerRadius: 24)")
+        let generatedShape = try #require(
+            shapeValue.hostPayload as? RoundedRectangle)
+        #expect(generatedShape.style == .continuous)
+
+        let rendered = InterpreterHost().render(
+            source: """
+            Color.blue
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 24))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            Color.primary.opacity(0.25),
+                            lineWidth: 1))
+            """,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("avatar-shape microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 80, height: 80)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeAvatarShapeTwin()), size: size)
+        #expect(Self.pixelAE(actual, expected, size: size) == 0)
     }
 
     /// A protocol-constrained style value must survive the same

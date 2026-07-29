@@ -660,7 +660,10 @@ enum Coerce {
     // MARK: - Shapes & grids
 
     static func shape(_ value: RuntimeValue) throws -> AnyShape {
-        if case .host(let any) = value, let box = any as? ShapeBox { return box.shape }
+        if case .host(let any) = value,
+           let box = ShapeBox.opening(any) {
+            return box.shape
+        }
         if case .implicitMember(let name) = value {
             switch name {
             case "circle": return AnyShape(Circle())

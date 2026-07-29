@@ -168,6 +168,10 @@ extension ViewRegistry {
         }
         register("clipShape") { view, args, _ in
             guard let value = args.positional(0) else { throw RuntimeError(message: ".clipShape needs a shape") }
+            if case .host(let any) = value,
+               let box = ShapeBox.opening(any) {
+                return box.clipApplier(view)
+            }
             return AnyView(view.clipShape(try Coerce.shape(value)))
         }
         register("containerShape") { view, args, _ in
@@ -178,7 +182,8 @@ extension ViewRegistry {
             // concrete shape — ContainerRelativeShape fills/clips inside
             // then resolve the continuous card corners). Erased shapes
             // stay inert: the erasure lost InsettableShape.
-            if case .host(let any) = raw, let box = any as? ShapeBox,
+            if case .host(let any) = raw,
+               let box = ShapeBox.opening(any),
                let apply = box.containerShapeApplier {
                 return apply(view)
             }
@@ -711,36 +716,36 @@ extension ViewRegistry {
 
     /// Shape-typed modifiers that must see the raw box, not AnyView.
     private func registerTypedModifiers() {
+        func shapeOperations(_ value: RuntimeValue) -> ShapeBox? {
+            guard case .host(let any) = value else { return nil }
+            return ShapeBox.opening(any)
+                ?? (any as? PathDrawStub).map { ShapeBox($0.path) }
+        }
+
         modifiers["fill"] = HostModifier(name: "fill") { value, args, _ in
-            var shapeBox: ShapeBox?
-            if case .host(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
-            guard let box = shapeBox else {
+            guard let box = shapeOperations(value) else {
                 throw RuntimeError(message: ".fill applies to shapes like Circle()")
             }
             let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
-            return .native(AnyView(box.shape.fill(style)))
+            return .native(box.fillPainter(style))
         }
         modifiers["stroke"] = HostModifier(name: "stroke") { value, args, _ in
-            var shapeBox: ShapeBox?
-            if case .host(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
-            guard let box = shapeBox else {
+            guard let box = shapeOperations(value) else {
                 throw RuntimeError(message: ".stroke applies to shapes like Circle()")
             }
             let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
             if args.positional(0) == nil {
                 // Same environment-styled default as strokeBorder.
-                return .native(AnyView(box.shape.stroke(lineWidth: lineWidth)))
+                return .native(box.strokePlainPainter(lineWidth))
             }
             let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
-            return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
+            return .native(box.strokePainter(style, lineWidth))
         }
         modifiers["strokeBorder"] = HostModifier(name: "strokeBorder") { value, args, _ in
-            // InsettableShape's inside-stroke, drawn as a centered stroke on
-            // the erased shape — a documented ≤lineWidth/2 divergence
-            // (FoodTruck's tile outlines use lineWidth 0.5: sub-antialiasing).
-            var shapeBox: ShapeBox?
-            if case .host(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
-            guard let box = shapeBox else {
+            // Native and boxed InsettableShape values retain the real
+            // inside-stroke. Only already-erased custom shapes fall back to
+            // the centered stroke below.
+            guard let box = shapeOperations(value) else {
                 throw RuntimeError(message: ".strokeBorder applies to insettable shapes")
             }
             let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
@@ -760,7 +765,7 @@ extension ViewRegistry {
             return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
         }
         modifiers["trim"] = HostModifier(name: "trim") { value, args, _ in
-            guard case .host(let any) = value, let box = any as? ShapeBox else {
+            guard let box = shapeOperations(value) else {
                 throw RuntimeError(message: ".trim applies to shapes")
             }
             let from = try Coerce.cgFloat(args.labeled("from") ?? .native(0.0))
