@@ -76,6 +76,14 @@ public enum LiveCheckSupport {
         }
     }
 
+    /// The structural slice a traversal materializes. The post-scroll slice
+    /// omits rows that were already visible at launch, matching a lazy
+    /// container that reuses its existing children while revealing its tail.
+    private enum LifecycleViewportSlice {
+        case initial
+        case afterInitial
+    }
+
     /// Diagnostics from the last probe run — scenario failure messages
     /// surface them so the histogram names the next class precisely.
     public private(set) static var lastRootSymbol = ""
@@ -414,7 +422,7 @@ public enum LiveCheckSupport {
                 lifecycle: &scrolledLifecycle,
                 offscreenLifecycle: &scrolledDeferredLifecycle,
                 actions: &scrolledActions,
-                materializesAllLifecycleRows: true)
+                viewportSlice: .afterInitial)
             strings = scrolledStrings
             let createdAfterScroll = scrolledLifecycle.filter {
                 firedLifecycle.insert($0.identity).inserted
@@ -486,7 +494,7 @@ public enum LiveCheckSupport {
         environment: [String: Instance] = [:], depth: Int = 0,
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil,
-        materializesAllLifecycleRows: Bool = false
+        viewportSlice: LifecycleViewportSlice = .initial
     ) throws {
         // Keep a finite guard for malformed recursive Views while allowing
         // valid type-erased branches to nest beyond ordinary app-shell depth.
@@ -498,11 +506,9 @@ public enum LiveCheckSupport {
             offscreenLifecycle.append(contentsOf: node.lifecycle)
         }
         actions.append(contentsOf: node.actions.values)
-        let initialViewport = materializesAllLifecycleRows
-            ? nil
-            : node.initialLifecycleRowCapacity.map {
-                InitialLifecycleViewport(capacity: $0)
-            } ?? initialViewport
+        let initialViewport = node.initialLifecycleRowCapacity.map {
+            InitialLifecycleViewport(capacity: $0)
+        } ?? initialViewport
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         if node.optionalCoverage {
@@ -528,8 +534,7 @@ public enum LiveCheckSupport {
                                     environment: environment, depth: depth,
                                     lifecycleEnabled: lifecycleEnabled,
                                     initialViewport: initialViewport,
-                                    materializesAllLifecycleRows:
-                                        materializesAllLifecycleRows)
+                                    viewportSlice: viewportSlice)
                 strings += optionalStrings
                 lifecycle += optionalLifecycle
                 offscreenLifecycle += optionalOffscreenLifecycle
@@ -545,8 +550,7 @@ public enum LiveCheckSupport {
                             depth: depth,
                             lifecycleEnabled: lifecycleEnabled,
                             initialViewport: initialViewport,
-                            materializesAllLifecycleRows:
-                                materializesAllLifecycleRows)
+                            viewportSlice: viewportSlice)
     }
 
     private static func collectRequired(
@@ -557,7 +561,7 @@ public enum LiveCheckSupport {
         environment: [String: Instance] = [:], depth: Int = 0,
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil,
-        materializesAllLifecycleRows: Bool = false
+        viewportSlice: LifecycleViewportSlice = .initial
     ) throws {
         if let instance = node.instance {
             if traceLifecycle, let tracedViewTypes,
@@ -578,38 +582,50 @@ public enum LiveCheckSupport {
                         depth: depth + 1,
                         lifecycleEnabled: lifecycleEnabled,
                         initialViewport: initialViewport,
-                        materializesAllLifecycleRows:
-                            materializesAllLifecycleRows)
+                        viewportSlice: viewportSlice)
         }
         if node.kind == "ForEach", let initialViewport {
             initialViewport.encounteredRows = true
             for child in node.children {
-                let rowIsVisible = initialViewport.consumeRow()
+                let rowWasInitiallyVisible = initialViewport.consumeRow()
+                if viewportSlice == .afterInitial,
+                   rowWasInitiallyVisible {
+                    continue
+                }
                 try collect(
                     interpreter, child, into: &strings,
                     lifecycle: &lifecycle,
                     offscreenLifecycle: &offscreenLifecycle,
                     actions: &actions,
                     environment: environment, depth: depth + 1,
-                    lifecycleEnabled: lifecycleEnabled && rowIsVisible,
+                    lifecycleEnabled:
+                        lifecycleEnabled
+                            && (viewportSlice == .afterInitial
+                                || rowWasInitiallyVisible),
                     initialViewport: nil,
-                    materializesAllLifecycleRows:
-                        materializesAllLifecycleRows)
+                    viewportSlice: viewportSlice)
             }
             return
         }
         for child in node.children {
             let childConsumesRow = initialViewport?.encounteredRows == true
-            let childIsVisible = childConsumesRow
+            let childWasInitiallyVisible = childConsumesRow
                 ? initialViewport!.consumeRow() : true
+            if childConsumesRow,
+               viewportSlice == .afterInitial,
+               childWasInitiallyVisible {
+                continue
+            }
             try collect(interpreter, child, into: &strings, lifecycle: &lifecycle,
                         offscreenLifecycle: &offscreenLifecycle,
                         actions: &actions, environment: environment,
                         depth: depth + 1,
-                        lifecycleEnabled: lifecycleEnabled && childIsVisible,
+                        lifecycleEnabled:
+                            lifecycleEnabled
+                                && (viewportSlice == .afterInitial
+                                    || childWasInitiallyVisible),
                         initialViewport: childConsumesRow ? nil : initialViewport,
-                        materializesAllLifecycleRows:
-                            materializesAllLifecycleRows)
+                        viewportSlice: viewportSlice)
         }
     }
 }

@@ -322,6 +322,58 @@ import SwiftInterpreter
                 "quiescent growth caused a redundant render: \(strings)")
     }
 
+    /// A lazy scroll reuses launch-visible rows. The post-scroll coverage pass
+    /// should therefore evaluate only the previously off-screen tail, while
+    /// ordinary siblings outside the lazy container still observe the final
+    /// state.
+    @Test func scrollingLazyListReusesInitiallyVisibleRowBodies() async throws {
+        let source = """
+        final class Model {
+            var rowBodies = 0
+            var pageLoads = 0
+        }
+        let model = Model()
+
+        struct CountedRow: View {
+            let value: Int
+
+            var body: some View {
+                let _ = model.rowBodies += 1
+                Text("row \\(value)")
+            }
+        }
+
+        struct BodyCountProbe: View {
+            var body: some View {
+                Text("bodies \\(model.rowBodies)")
+                Text("loads \\(model.pageLoads)")
+            }
+        }
+
+        @main struct DemoApp: App {
+            var body: some Scene {
+                WindowGroup {
+                    VStack {
+                        List {
+                            ForEach(0..<20, id: \\.self) { value in
+                                CountedRow(value: value)
+                            }
+                            Text("next")
+                                .task { model.pageLoads += 1 }
+                        }
+                        BodyCountProbe()
+                    }
+                }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(
+            source: source, viewportTraversal: .throughEnd)
+        #expect(strings.contains("bodies 21"),
+                "launch-visible row bodies were rebuilt on scroll: \(strings)")
+        #expect(strings.contains("loads 1"))
+    }
+
     @Test func taskIdentityRestartsWhenItsIDChanges() async throws {
         let source = """
         final class Model {
