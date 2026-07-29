@@ -181,6 +181,30 @@ import Testing
         )
     }
 
+    /// Generated constructors and static members can now carry a concrete SDK
+    /// View to this fallback. It must use the same semantic View predicate as
+    /// ordinary rendering rather than an erasure-era list of wrapper types.
+    @MainActor
+    @Test func concreteViewReceiverUsesInvisibleFallback() throws {
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: """
+            VStack {
+                Color.red.fixtureUnbridgedModifier()
+            }
+            """,
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("concrete unbridged receiver failed: \(rendered)")
+            return
+        }
+
+        _ = Self.bitmap(
+            interpreted, size: NSSize(width: 40, height: 40))
+        #expect(RenderDiagnostics.errors.count == 1)
+    }
+
     private static func mismatchedPixels(
         _ lhs: NSBitmapImageRep,
         _ rhs: NSBitmapImageRep,

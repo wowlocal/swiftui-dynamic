@@ -250,11 +250,7 @@ public final class ViewRegistry: HostRegistry {
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .host(let any) = value {
-            if any is AnyView || any is TextBox || any is ImageBox || any is ShapeBox || any is LinearGradient
-                || any is PathDrawStub || any is ForEachFan || any is SectionSpec {
-                return true
-            }
-            if any is any View { return true }
+            if Self.isHostViewValue(any) { return true }
         }
         return Coerce.colorLike(value) != nil // Color IS a View
     }
@@ -347,8 +343,7 @@ public final class ViewRegistry: HostRegistry {
                     }
                     var wrapsView = false
                     if case .host(let base) = root {
-                        wrapsView = base is AnyView || base is TextBox
-                            || base is ImageBox || base is ShapeBox
+                        wrapsView = Self.isHostViewValue(base)
                     }
                     if case .instance = root { wrapsView = true }
                     if wrapsView {
@@ -391,6 +386,19 @@ public final class ViewRegistry: HostRegistry {
         }
         if let color = Coerce.colorLike(value) { return AnyView(color) }
         throw RuntimeError(message: "expected a View, got \(value.stringified)")
+    }
+
+    /// One semantic predicate serves every host-value rendering boundary.
+    /// Native SDK Views are recognized by conformance; only the small
+    /// interface-inexpressible composition carriers require explicit cases.
+    private static func isHostViewValue(_ value: Any) -> Bool {
+        value is any View
+            || value is TextBox
+            || value is ImageBox
+            || value is ShapeBox
+            || value is PathDrawStub
+            || value is ForEachFan
+            || value is SectionSpec
     }
 
     /// Positional identity is fine here: interpreted bodies are re-evaluated
