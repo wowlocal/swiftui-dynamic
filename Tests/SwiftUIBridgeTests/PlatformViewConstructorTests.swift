@@ -36,6 +36,20 @@ import SwiftInterpreter
         #expect(ViewRegistry().modifiers["resizable"] == nil)
     }
 
+    /// Once BridgeGen owns a concrete View member, a handwritten modifier
+    /// with the same callable name would shadow the interface-derived table.
+    /// Keep that identity-keyed drift mechanically impossible.
+    @Test func generatedConcreteViewMembersHaveNoHandwrittenDuplicates() {
+        let generatedNames = Set(
+            GeneratedMembers.concreteViewMethodKeys.compactMap {
+                $0.split(separator: ".").last.map(String.init)
+            })
+        let handwrittenNames = Set(ViewRegistry().modifiers.keys)
+
+        #expect(!GeneratedMembers.concreteViewMethodKeys.isEmpty)
+        #expect(generatedNames.isDisjoint(with: handwrittenNames))
+    }
+
     /// Native baseline: a UIKit bitmap can initialize a SwiftUI Image and the
     /// concrete Image value remains available to Image-typed transforms.
     /// The interpreter renders iOS source on a macOS host, so BridgeGen must

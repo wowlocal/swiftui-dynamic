@@ -2,8 +2,8 @@ import SwiftUI
 import SwiftInterpreter
 
 /// Modifier gateways applied to view values. Most convert the receiver to
-/// `AnyView` first; shape/image-typed modifiers (`.fill`, `.resizable`) check
-/// the receiver's box type instead.
+/// `AnyView` first; shape-typed SwiftUI magic checks its semantic carrier.
+/// Concrete SDK View members stay typed and dispatch through GeneratedMembers.
 extension ViewRegistry {
     func registerModifiers() {
         registerTypedModifiers()
@@ -709,7 +709,7 @@ extension ViewRegistry {
         }
     }
 
-    /// Shape- and image-typed modifiers that must see the raw box, not AnyView.
+    /// Shape-typed modifiers that must see the raw box, not AnyView.
     private func registerTypedModifiers() {
         modifiers["fill"] = HostModifier(name: "fill") { value, args, _ in
             var shapeBox: ShapeBox?

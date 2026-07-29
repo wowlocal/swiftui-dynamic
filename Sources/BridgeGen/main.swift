@@ -4723,6 +4723,13 @@ func memberMethodCode(_ variant: MemberVariant) -> String {
 
 let sortedProperties = memberProperties.sorted { ($0.type, $0.name) < ($1.type, $1.name) }
 let sortedMembers = memberMethodVariants.sorted { ($0.type, $0.name, $0.params.count) < ($1.type, $1.name, $1.params.count) }
+let concreteViewMethodKeysLiteral = Set(
+    sortedMembers.lazy
+        .filter { concreteViewMemberTypes.contains($0.type) }
+        .map { $0.type + "." + $0.name }
+).sorted()
+    .map(String.init(reflecting:))
+    .joined(separator: ", ")
 var knownImportedNestedTypePaths: Set<String> = []
 let importedNestedTypeSeeds = memberTypes
     .union(foundationMaterializableSequenceTypes)
@@ -4784,6 +4791,9 @@ import SwiftUI
 import SwiftInterpreter
 
 extension GeneratedMembers {
+    static let concreteViewMethodKeys: Set<String> = [
+        \(concreteViewMethodKeysLiteral)
+    ]
     static let knownImportedNestedTypePaths: Set<String> = [
         \(knownImportedNestedTypePathsLiteral)
     ]
