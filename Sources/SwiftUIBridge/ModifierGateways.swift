@@ -97,20 +97,6 @@ extension ViewRegistry {
             return AnyView(view.background(try self.anyViewResolving(first, ctx)))
         }
 
-        register("overlay") { [unowned self] view, args, ctx in
-            let alignment = try args.labeled("alignment").map(Coerce.alignment) ?? .center
-            if let closure = args.firstUnlabeledClosure {
-                let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
-                let content = views.count == 1 ? views[0] : AnyView(ZStack { Self.indexed(views) })
-                return AnyView(view.overlay(alignment: alignment) { content })
-            }
-            guard let first = args.positional(0) else {
-                throw RuntimeError(message: ".overlay needs a view")
-            }
-            let content = try self.anyViewResolving(first, ctx)
-            return AnyView(view.overlay(alignment: alignment) { content })
-        }
-
         modifiers["shadow"] = HostModifier(name: "shadow") { value, args, _ in
             // `.indigo.shadow(.drop(…))` is ShapeStyle.shadow, NOT the view
             // modifier — a ShadowStyle marker argument only compiles against

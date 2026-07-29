@@ -127,7 +127,10 @@ import SwiftInterpreter
                     if let image = state.image {
                         image
                             .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .overlay(.black.opacity(0.50))
                             .frame(width: 40, height: 40)
+                            .clipped()
                     }
                 }
             }
@@ -145,9 +148,9 @@ import SwiftInterpreter
         for x in 0..<bitmap.pixelsWide {
             for y in 0..<bitmap.pixelsHigh {
                 guard let color = bitmap.colorAt(x: x, y: y) else { continue }
-                if color.redComponent > 0.8,
-                   color.greenComponent < 0.3,
-                   color.blueComponent < 0.3 {
+                if color.redComponent > 0.3,
+                   color.greenComponent < 0.2,
+                   color.blueComponent < 0.2 {
                     redPixels += 1
                 }
             }
