@@ -27,6 +27,8 @@ private struct NativePaginationRecord: Codable {
     let finalStatusCount: Int
     let appendedStatusID: String
     let appendedStatusBecameVisible: Bool
+    let normalizedFixtureNames: [String]
+    let interactionFixtureNames: [String]
 }
 
 private struct NativePaginationObservation {
@@ -340,7 +342,10 @@ struct IceCubesCheckMain {
         {
             let records: [RungRecord]
             do {
-                records = try await runWorker(worker)
+                records = try await runWorker(
+                    worker,
+                    nativeFixtureDirectory:
+                        option("--native-fixtures", in: arguments))
             } catch {
                 records = expectedRungs(for: worker).map {
                     RungRecord(name: $0, passed: false, message: "worker threw: \(error)")
@@ -360,8 +365,20 @@ struct IceCubesCheckMain {
                 $0.localizedCaseInsensitiveContains(filter)
             }
         }
+        let nativePaths = try paths()
+        let nativeOracle = try FixtureOracle(
+            directory: nativePaths.fixtures)
+        let native = try nativePaginationObservation(
+            paths: nativePaths, oracle: nativeOracle)
+        defer {
+            try? FileManager.default.removeItem(
+                at: native.normalizedFixtureDirectory)
+        }
         var records: [RungRecord] = []
-        records += runTimedWorkers(jobs)
+        records += runTimedWorkers(
+            jobs,
+            nativeFixtureDirectory:
+                native.normalizedFixtureDirectory.path)
         if let filter {
             records = records.filter { $0.name.localizedCaseInsensitiveContains(filter) }
         }
@@ -423,7 +440,10 @@ struct IceCubesCheckMain {
     /// Each screen remains process-isolated, but independent screens run
     /// concurrently so deeper real lifecycle coverage does not make the
     /// complete deterministic board exceed its three-minute contract.
-    private static func runTimedWorkers(_ workers: [String]) -> [RungRecord] {
+    private static func runTimedWorkers(
+        _ workers: [String],
+        nativeFixtureDirectory: String
+    ) -> [RungRecord] {
         var launched: [TimedWorker] = []
         var recordsByWorker: [String: [RungRecord]] = [:]
         for worker in workers {
@@ -435,6 +455,7 @@ struct IceCubesCheckMain {
                 fileURLWithPath: CommandLine.arguments[0])
             process.arguments = [
                 "--worker", worker, "--result", resultURL.path,
+                "--native-fixtures", nativeFixtureDirectory,
             ]
             process.environment = ProcessInfo.processInfo.environment
             do {
@@ -497,13 +518,38 @@ struct IceCubesCheckMain {
     }
 #endif
 
-    private static func runWorker(_ worker: String) async throws -> [RungRecord] {
+    private static func runWorker(
+        _ worker: String,
+        nativeFixtureDirectory: String?
+    ) async throws -> [RungRecord] {
         let paths = try paths()
         let oracle = try FixtureOracle(directory: paths.fixtures)
+        let native: NativePaginationObservation
+        let ownsNativeFixtures: Bool
+        if let nativeFixtureDirectory {
+            native = try loadNativePaginationObservation(
+                at: URL(
+                    fileURLWithPath: nativeFixtureDirectory,
+                    isDirectory: true),
+                oracle: oracle)
+            ownsNativeFixtures = false
+        } else {
+            native = try nativePaginationObservation(
+                paths: paths, oracle: oracle)
+            ownsNativeFixtures = true
+        }
+        defer {
+            if ownsNativeFixtures {
+                try? FileManager.default.removeItem(
+                    at: native.normalizedFixtureDirectory)
+            }
+        }
         Interpreter.interpretsAsPlatform = "iOS"
         LiveCheckSupport.traceLifecycle =
             ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1"
-        NetworkBridge.policy = .replay(fixturesDirectory: paths.fixtures)
+        NetworkBridge.policy = .replay(
+            fixturesDirectory:
+                native.normalizedFixtureDirectory.path)
         NetworkBridge.requestLog = []
         defer { NetworkBridge.policy = .absorbed }
 
@@ -518,7 +564,8 @@ struct IceCubesCheckMain {
                 paths: paths, oracle: oracle, scope: .detailAndAccount)
         case "pagination":
             return [
-                try await paginationRung(paths: paths, oracle: oracle),
+                try await paginationRung(
+                    paths: paths, oracle: oracle, native: native),
             ]
         default:
             return [RungRecord(
@@ -632,14 +679,9 @@ struct IceCubesCheckMain {
     }
 
     private static func paginationRung(
-        paths: Paths, oracle: FixtureOracle
+        paths: Paths, oracle: FixtureOracle,
+        native: NativePaginationObservation
     ) async throws -> RungRecord {
-        let native = try nativePaginationObservation(
-            paths: paths, oracle: oracle)
-        defer {
-            try? FileManager.default.removeItem(
-                at: native.normalizedFixtureDirectory)
-        }
         let source = ProjectMaterial.mergedSource(
             at: paths.app, files: paths.packageFiles,
             sourceModules: paths.sourceModules)
@@ -659,15 +701,7 @@ struct IceCubesCheckMain {
         let render = try await LiveCheckSupport.render(
             source: source, viewportTraversal: .throughEnd,
             initialViewportRowCapacity:
-                native.record.initialVisibleStatusIDs.count,
-            environment: LiveCheckEnvironment(
-                networkPolicy: .replay(
-                    fixturesDirectory:
-                        native.normalizedFixtureDirectory.path),
-                projectResourceRoot:
-                    LiveCheckEnvironment.current.projectResourceRoot,
-                buildConfiguration:
-                    LiveCheckEnvironment.current.buildConfiguration))
+                native.record.initialVisibleStatusIDs.count)
         let expectedCount = native.record.finalStatusCount
         let normalized = render.strings.map(FixtureOracle.normalize)
         var problems: [String] = []
@@ -710,8 +744,11 @@ struct IceCubesCheckMain {
             .appendingPathComponent(
                 "icecubes-pagination-\(UUID().uuidString)",
                 isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: output, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(
+            at: URL(
+                fileURLWithPath: paths.fixtures,
+                isDirectory: true),
+            to: output)
         do {
             let process = Process()
             process.executableURL = URL(
@@ -746,44 +783,54 @@ struct IceCubesCheckMain {
                         "native pagination twin exited "
                         + "\(process.terminationStatus): \(log)")
             }
-            let record = try JSONDecoder().decode(
-                NativePaginationRecord.self,
-                from: Data(contentsOf: output.appendingPathComponent(
-                    "pagination.json")))
-            guard record.initialPageLoads == 0,
-                  record.finalPageLoads == 1,
-                  !record.initialVisibleStatusIDs.isEmpty,
-                  record.initialVisibleStatusIDs.count
-                    < oracle.publicStatuses.count,
-                  record.finalStatusCount
-                    == oracle.publicStatuses.count + 1,
-                  record.appendedStatusID
-                    == oracle.trendingStatuses.first?.id,
-                  record.appendedStatusBecameVisible
-            else {
-                throw RuntimeError(
-                    message:
-                        "native pagination receipt failed validation: \(log)")
-            }
-            let normalizedFixtures = [
-                "api_v1_timelines_public.json",
-                "api_v1_trends_statuses.json",
-            ]
-            guard normalizedFixtures.allSatisfy({
-                FileManager.default.fileExists(
-                    atPath: output.appendingPathComponent($0).path)
-            }) else {
-                throw RuntimeError(
-                    message:
-                        "native pagination twin omitted normalized fixtures")
-            }
-            return NativePaginationObservation(
-                record: record,
-                normalizedFixtureDirectory: output)
+            return try loadNativePaginationObservation(
+                at: output, oracle: oracle, diagnostics: log)
         } catch {
             try? FileManager.default.removeItem(at: output)
             throw error
         }
+    }
+
+    private static func loadNativePaginationObservation(
+        at output: URL,
+        oracle: FixtureOracle,
+        diagnostics: String = ""
+    ) throws -> NativePaginationObservation {
+        let record = try JSONDecoder().decode(
+            NativePaginationRecord.self,
+            from: Data(contentsOf: output.appendingPathComponent(
+                "pagination.json")))
+        guard record.initialPageLoads == 0,
+              record.finalPageLoads == 1,
+              !record.initialVisibleStatusIDs.isEmpty,
+              record.initialVisibleStatusIDs.count
+                < oracle.publicStatuses.count,
+              record.finalStatusCount
+                == oracle.publicStatuses.count + 1,
+              record.appendedStatusID
+                == oracle.trendingStatuses.first?.id,
+              record.appendedStatusBecameVisible,
+              !record.normalizedFixtureNames.isEmpty,
+              !record.interactionFixtureNames.isEmpty
+        else {
+            throw RuntimeError(
+                message:
+                    "native pagination receipt failed validation: "
+                    + diagnostics)
+        }
+        guard (record.normalizedFixtureNames
+            + record.interactionFixtureNames)
+            .allSatisfy({
+            FileManager.default.fileExists(
+                atPath: output.appendingPathComponent($0).path)
+        }) else {
+            throw RuntimeError(
+                message:
+                    "native pagination twin omitted normalized fixtures")
+        }
+        return NativePaginationObservation(
+            record: record,
+            normalizedFixtureDirectory: output)
     }
 
     private static func renderRungs(
