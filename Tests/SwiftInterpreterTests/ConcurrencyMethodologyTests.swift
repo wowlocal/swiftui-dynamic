@@ -3075,6 +3075,21 @@ struct ConcurrencyMethodologyTests {
                 "R2 regressed to the test-contaminated root build product"))
     }
 
+    @Test func iceCubesShellPreservesNativeTargetBoundaries() throws {
+        let source = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Sources/IceCubesCheck/IceCubesCheck.swift"),
+            encoding: .utf8)
+
+        #expect(source.contains(
+            #"ProjectMaterial.swiftFiles(under: app + "/IceCubesApp")"#))
+        #expect(!source.contains(
+            #"ProjectMaterial.swiftFiles(under: app + "/IceCubesAppIntents")"#),
+            Comment(rawValue:
+                "the shell board must not merge the quarantined AppIntents "
+                    + "extension into the main app product"))
+    }
+
     @Test func closingGatePinsTheCurrentProjectCorpusCensus() throws {
         let script = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(

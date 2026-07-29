@@ -550,8 +550,10 @@ struct IceCubesCheckMain {
         }
         let packageFiles = Array(Set(
             localPackageFiles + externalPackageFiles)).sorted()
+        // A native build compiles the app and AppIntents extension as separate
+        // targets. Keep the interpreter's app product on the same target
+        // boundary; extension products are explicitly outside this board.
         let appFiles = ProjectMaterial.swiftFiles(under: app + "/IceCubesApp")
-            + ProjectMaterial.swiftFiles(under: app + "/IceCubesAppIntents")
         guard !packageFiles.isEmpty, !appFiles.isEmpty else {
             throw RuntimeError(message: "IceCubes target source selection is empty")
         }
