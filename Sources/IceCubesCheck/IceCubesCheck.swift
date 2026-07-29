@@ -20,6 +20,20 @@ private struct RungRecord: Codable {
     let message: String
 }
 
+private struct NativePaginationRecord: Codable {
+    let initialVisibleStatusIDs: [String]
+    let initialPageLoads: Int
+    let finalPageLoads: Int
+    let finalStatusCount: Int
+    let appendedStatusID: String
+    let appendedStatusBecameVisible: Bool
+}
+
+private struct NativePaginationObservation {
+    let record: NativePaginationRecord
+    let normalizedFixtureDirectory: URL
+}
+
 #if targetEnvironment(macCatalyst)
 @MainActor
 private final class IceCubesCheckAppDelegate:
@@ -338,7 +352,9 @@ struct IceCubesCheckMain {
         }
 
         let filter = option("--screen", in: arguments)
-        let jobs = ["shell", "timeline", "detail-account"].filter { job in
+        let jobs = [
+            "shell", "timeline", "detail-account", "pagination",
+        ].filter { job in
             guard let filter else { return true }
             return expectedRungs(for: job).contains {
                 $0.localizedCaseInsensitiveContains(filter)
@@ -389,6 +405,8 @@ struct IceCubesCheckMain {
             ]
         case "detail-account":
             return ["R1-status-detail", "R1-account-header"]
+        case "pagination":
+            return ["R3-pagination"]
         default:
             return ["unknown-worker"]
         }
@@ -498,6 +516,10 @@ struct IceCubesCheckMain {
         case "detail-account":
             return try await renderRungs(
                 paths: paths, oracle: oracle, scope: .detailAndAccount)
+        case "pagination":
+            return [
+                try await paginationRung(paths: paths, oracle: oracle),
+            ]
         default:
             return [RungRecord(
                 name: "unknown-worker", passed: false,
@@ -512,6 +534,7 @@ struct IceCubesCheckMain {
         let appFiles: [String]
         let packageFiles: [String]
         let sourceModules: [String: String]
+        let nativeTwinExecutable: String
     }
 
     private static func paths() throws -> Paths {
@@ -560,7 +583,11 @@ struct IceCubesCheckMain {
         return Paths(
             root: root, app: app, fixtures: fixtures,
             appFiles: appFiles.sorted(), packageFiles: packageFiles.sorted(),
-            sourceModules: sourceModules)
+            sourceModules: sourceModules,
+            nativeTwinExecutable: twinBuild
+                + "/arm64-apple-ios-macabi/debug"
+                + "/IceCubesNativeTwin.app/Contents/MacOS"
+                + "/IceCubesNativeTwin")
     }
 
     private static func shellRung(
@@ -602,6 +629,161 @@ struct IceCubesCheckMain {
     private enum RenderProbePresentation {
         case diagnostics
         case nativeTimeline
+    }
+
+    private static func paginationRung(
+        paths: Paths, oracle: FixtureOracle
+    ) async throws -> RungRecord {
+        let native = try nativePaginationObservation(
+            paths: paths, oracle: oracle)
+        defer {
+            try? FileManager.default.removeItem(
+                at: native.normalizedFixtureDirectory)
+        }
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles,
+            sourceModules: paths.sourceModules)
+            + ProjectMaterial.mergedSource(
+                source: renderProbeSource(
+                    includeTimeline: true,
+                    includeDetailAndAccount: false,
+                    includePagination: true,
+                    presentation: .diagnostics),
+                moduleName: "IceCubesCheckProbe")
+        if let dumpPath = ProcessInfo.processInfo.environment[
+            "ICECUBES_DUMP_MERGE"
+        ] {
+            try source.write(
+                toFile: dumpPath, atomically: true, encoding: .utf8)
+        }
+        let render = try await LiveCheckSupport.render(
+            source: source, viewportTraversal: .throughEnd,
+            initialViewportRowCapacity:
+                native.record.initialVisibleStatusIDs.count,
+            environment: LiveCheckEnvironment(
+                networkPolicy: .replay(
+                    fixturesDirectory:
+                        native.normalizedFixtureDirectory.path),
+                projectResourceRoot:
+                    LiveCheckEnvironment.current.projectResourceRoot,
+                buildConfiguration:
+                    LiveCheckEnvironment.current.buildConfiguration))
+        let expectedCount = native.record.finalStatusCount
+        let normalized = render.strings.map(FixtureOracle.normalize)
+        var problems: [String] = []
+        if !normalized.contains("__ice-page-loads-1") {
+            problems.append("scroll did not invoke the real footer task exactly once")
+        }
+        if !normalized.contains("__ice-page-count-\(expectedCount)") {
+            problems.append(
+                "scroll did not append the recorded next page to \(expectedCount) statuses")
+        }
+        if let appended = oracle.trendingStatuses.first,
+           !normalized.contains(where: {
+               $0.contains(appended.visibleAccount.visibleName)
+           })
+        {
+            problems.append(
+                "appended fixture status '\(appended.id)' never reached the rendered rows")
+        }
+        if !render.lifecycleErrors.isEmpty {
+            problems.append(
+                "lifecycle errors: \(render.lifecycleErrors.prefix(3).joined(separator: " | "))")
+        }
+        return RungRecord(
+            name: "R3-pagination", passed: problems.isEmpty,
+            message: problems.joined(separator: "; "))
+    }
+
+    private static func nativePaginationObservation(
+        paths: Paths, oracle: FixtureOracle
+    ) throws -> NativePaginationObservation {
+        guard FileManager.default.isExecutableFile(
+            atPath: paths.nativeTwinExecutable)
+        else {
+            throw RuntimeError(
+                message:
+                    "native pagination twin is missing; run "
+                    + "Examples/IceCubesNativeTwin/build.sh")
+        }
+        let output = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "icecubes-pagination-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: output, withIntermediateDirectories: true)
+        do {
+            let process = Process()
+            process.executableURL = URL(
+                fileURLWithPath: paths.nativeTwinExecutable)
+            process.arguments = [
+                "--pagination-probe",
+                "--out", output.path,
+                "--fixtures", paths.fixtures,
+            ]
+            let diagnostics = Pipe()
+            process.standardOutput = diagnostics
+            process.standardError = diagnostics
+            try process.run()
+            let deadline = Date().addingTimeInterval(20)
+            while process.isRunning, Date() < deadline {
+                RunLoop.main.run(
+                    until: Date().addingTimeInterval(0.025))
+            }
+            if process.isRunning {
+                process.terminate()
+                kill(process.processIdentifier, SIGKILL)
+                throw RuntimeError(
+                    message: "native pagination twin exceeded 20s")
+            }
+            let log = String(
+                decoding:
+                    diagnostics.fileHandleForReading.readDataToEndOfFile(),
+                as: UTF8.self)
+            guard process.terminationStatus == 0 else {
+                throw RuntimeError(
+                    message:
+                        "native pagination twin exited "
+                        + "\(process.terminationStatus): \(log)")
+            }
+            let record = try JSONDecoder().decode(
+                NativePaginationRecord.self,
+                from: Data(contentsOf: output.appendingPathComponent(
+                    "pagination.json")))
+            guard record.initialPageLoads == 0,
+                  record.finalPageLoads == 1,
+                  !record.initialVisibleStatusIDs.isEmpty,
+                  record.initialVisibleStatusIDs.count
+                    < oracle.publicStatuses.count,
+                  record.finalStatusCount
+                    == oracle.publicStatuses.count + 1,
+                  record.appendedStatusID
+                    == oracle.trendingStatuses.first?.id,
+                  record.appendedStatusBecameVisible
+            else {
+                throw RuntimeError(
+                    message:
+                        "native pagination receipt failed validation: \(log)")
+            }
+            let normalizedFixtures = [
+                "api_v1_timelines_public.json",
+                "api_v1_trends_statuses.json",
+            ]
+            guard normalizedFixtures.allSatisfy({
+                FileManager.default.fileExists(
+                    atPath: output.appendingPathComponent($0).path)
+            }) else {
+                throw RuntimeError(
+                    message:
+                        "native pagination twin omitted normalized fixtures")
+            }
+            return NativePaginationObservation(
+                record: record,
+                normalizedFixtureDirectory: output)
+        } catch {
+            try? FileManager.default.removeItem(at: output)
+            throw error
+        }
     }
 
     private static func renderRungs(
@@ -724,28 +906,40 @@ struct IceCubesCheckMain {
     private static func renderProbeSource(
         includeTimeline: Bool,
         includeDetailAndAccount: Bool,
+        includePagination: Bool = false,
         presentation: RenderProbePresentation
     ) -> String {
-        let fixtureDecodes = (includeTimeline ? """
+        let fixtureDecodes = [
+            includeTimeline ? """
         let __icePublicStatuses = try! __iceDecoder.decode(
             [Status].self, from: __fixtureData("api_v1_timelines_public"))
+        """ : "",
+            includeTimeline && !includePagination ? """
         let __iceBoostStatus = try! __iceDecoder.decode(
             Status.self,
             from: __fixtureData("api_v1_statuses_116954929935729788"))
-        """ : "") + (includeDetailAndAccount ? """
+        """ : "",
+            includeDetailAndAccount || includePagination ? """
         let __iceTrendingStatuses = try! __iceDecoder.decode(
             [Status].self, from: __fixtureData("api_v1_trends_statuses"))
-        """ : "")
+        """ : "",
+        ].filter { !$0.isEmpty }.joined(separator: "\n")
+        let initialStatuses = includePagination
+            ? "__icePublicStatuses"
+            : "__icePublicStatuses + [__iceBoostStatus]"
         let timelineGlobals = includeTimeline ? """
         let __iceFetcher = __IceFixtureFetcher(
-            statuses: __icePublicStatuses + [__iceBoostStatus])
+            statuses: \(initialStatuses),
+            nextPage: \(includePagination ? "[__iceTrendingStatuses[0]]" : "[]"))
         let __iceFirstRowModel = StatusRowViewModel(
             status: __icePublicStatuses[0],
             client: __iceClient,
             routerPath: __iceRouter,
             filterContext: .pub)
         """ : ""
-        let timelineViews = includeTimeline ? """
+        let timelineDiagnostics = includePagination ? """
+                        __IcePaginationProbe(fetcher: __iceFetcher)
+        """ : """
                         switch __iceFetcher.statusesState {
                         case .loading:
                             Text("__ice-direct-state-loading")
@@ -758,12 +952,16 @@ struct IceCubesCheckMain {
                         }
                         __IceFetcherStateProbe(fetcher: __iceFetcher)
                         __IceFetcherRowsProbe(fetcher: __iceFetcher)
+                        __IcePaginationProbe(fetcher: __iceFetcher)
                         __IceRowModelProbe(viewModel: __iceFirstRowModel)
                         __IceMediaProbe(
                             attachments: __iceBoostStatus.reblog?.mediaAttachments
                                 ?? __iceBoostStatus.mediaAttachments)
                         StatusRowHeaderView(viewModel: __iceFirstRowModel)
                         StatusRowContentView(viewModel: __iceFirstRowModel)
+        """
+        let timelineViews = includeTimeline ? """
+                        \(timelineDiagnostics)
                         SwiftUI.List {
                             StatusesListView(
                                 fetcher: __iceFetcher,
@@ -825,11 +1023,24 @@ struct IceCubesCheckMain {
         @MainActor
         final class __IceFixtureFetcher: StatusesFetcher {
             var statusesState: StatusesState
-            init(statuses: [Status]) {
+            var nextPage: [Status]
+            var pageLoads = 0
+
+            init(statuses: [Status], nextPage: [Status]) {
                 statusesState = .display(statuses: statuses, nextPageState: .hasNextPage)
+                self.nextPage = nextPage
             }
             func fetchNewestStatuses(pullToRefresh: Bool) async {}
-            func fetchNextPage() async throws {}
+            func fetchNextPage() async throws {
+                guard !nextPage.isEmpty else { return }
+                guard case .display(let statuses, _) = statusesState else {
+                    return
+                }
+                statusesState = .display(
+                    statuses: statuses + nextPage, nextPageState: .none)
+                nextPage = []
+                pageLoads += 1
+            }
             func statusDidAppear(status: Status) {}
             func statusDidDisappear(status: Status) {}
         }
@@ -918,6 +1129,25 @@ struct IceCubesCheckMain {
                     Text("__ice-rows-gaps")
                 case .error:
                     Text("__ice-rows-error")
+                }
+            }
+        }
+
+        @MainActor
+        struct __IcePaginationProbe: View {
+            @State private var fetcher: __IceFixtureFetcher
+
+            init(fetcher: __IceFixtureFetcher) {
+                _fetcher = .init(initialValue: fetcher)
+            }
+
+            var body: some View {
+                Text("__ice-page-loads-" + String(fetcher.pageLoads))
+                switch fetcher.statusesState {
+                case .display(let statuses, _):
+                    Text("__ice-page-count-" + String(statuses.count))
+                default:
+                    Text("__ice-page-count-unavailable")
                 }
             }
         }
