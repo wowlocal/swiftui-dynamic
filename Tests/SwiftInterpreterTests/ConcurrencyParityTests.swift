@@ -1647,6 +1647,7 @@ private enum ConcurrencyParityHarness {
         }
 
         let process = Process()
+        let completion = DispatchSemaphore(value: 0)
         process.executableURL = executable
         process.standardInput = FileHandle.nullDevice
         process.arguments = arguments
@@ -1654,6 +1655,7 @@ private enum ConcurrencyParityHarness {
         if let environment { process.environment = environment }
         process.standardOutput = stdout
         process.standardError = stderr
+        process.terminationHandler = { _ in completion.signal() }
 
         do {
             try process.run()
@@ -1663,12 +1665,8 @@ private enum ConcurrencyParityHarness {
                 standardError: String(describing: error), timedOut: false)
         }
 
-        let deadline = ProcessInfo.processInfo.systemUptime + timeout
-        while process.isRunning,
-              ProcessInfo.processInfo.systemUptime < deadline {
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        let timedOut = process.isRunning
+        let timedOut = completion.wait(
+            timeout: .now() + timeout) == .timedOut
         if timedOut {
             // Capture PID plus process start time before TERM. A parent can
             // exit during the grace period and orphan an uncooperative child;
@@ -1871,6 +1869,17 @@ struct ConcurrencyParityTests {
             for: parityCase,
             repetitions: 2)
         #expect(outputs == ["ready", "ready"])
+    }
+
+    @Test func parityProcessRunnerObservesRepeatedPromptExits() {
+        for _ in 0..<20 {
+            let result = ConcurrencyParityHarness.run(
+                URL(fileURLWithPath: "/usr/bin/true"),
+                [],
+                timeout: 1)
+            #expect(!result.timedOut)
+            #expect(result.status == 0)
+        }
     }
 
     @Test func parityProcessRunnerEnforcesHardDeadlineForChildTree() throws {
