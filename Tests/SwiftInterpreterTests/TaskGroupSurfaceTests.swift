@@ -778,7 +778,10 @@ struct TaskGroupSurfaceTests {
                 ) { group in
                     group.addTask {
                         markDiscardingBodyFailureChild()
-                        try await Task.sleep(for: .seconds(30))
+                        while !Task.isCancelled {
+                            await Task.yield()
+                        }
+                        try Task.checkCancellation()
                     }
                     await waitForDiscardingBodyFailureChild()
                     throw DiscardingBodyBoom.body
