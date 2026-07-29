@@ -516,8 +516,6 @@ struct IceCubesCheckMain {
         }
         return workers.flatMap { recordsByWorker[$0] ?? [] }
     }
-#endif
-
     private static func runWorker(
         _ worker: String,
         nativeFixtureDirectory: String?
@@ -573,6 +571,7 @@ struct IceCubesCheckMain {
                 message: "unknown worker '\(worker)'")]
         }
     }
+#endif
 
     private struct Paths {
         let root: String
@@ -678,6 +677,7 @@ struct IceCubesCheckMain {
         case nativeTimeline
     }
 
+#if !targetEnvironment(macCatalyst)
     private static func paginationRung(
         paths: Paths, oracle: FixtureOracle,
         native: NativePaginationObservation
@@ -832,6 +832,7 @@ struct IceCubesCheckMain {
             record: record,
             normalizedFixtureDirectory: output)
     }
+#endif
 
     private static func renderRungs(
         paths: Paths, oracle: FixtureOracle, scope: RenderScope
