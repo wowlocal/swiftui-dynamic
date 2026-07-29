@@ -21,6 +21,7 @@ private struct TwinMetadata: Codable {
     let detailMarkdown: String
     let mediaCount: Int
     let focusedMediaURL: String
+    let screenFixtureNames: [String]
     let requests: [String]
     let clockEpoch: Double
     let width: Int
@@ -189,6 +190,41 @@ private struct PublicTimelineScreen<Fetcher: StatusesFetcher>: View {
             .listStyle(.plain)
             .navigationTitle(TimelineFilter.federated.title)
         }
+        .twinAppEnvironment(client: client, routerPath: routerPath)
+    }
+}
+
+@MainActor
+private struct TwinNavigationScreen<Content: View>: View {
+    let client: MastodonClient
+    let routerPath: RouterPath
+    let content: Content
+
+    init(
+        client: MastodonClient,
+        routerPath: RouterPath,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.client = client
+        self.routerPath = routerPath
+        self.content = content()
+    }
+
+    var body: some View {
+        NavigationStack {
+            content
+        }
+        .twinAppEnvironment(client: client, routerPath: routerPath)
+    }
+}
+
+private extension View {
+    @MainActor
+    func twinAppEnvironment(
+        client: MastodonClient,
+        routerPath: RouterPath
+    ) -> some View {
+        self
         .environment(Theme.shared)
         .environment(CurrentAccount.shared)
         .environment(CurrentInstance.shared)
@@ -205,9 +241,15 @@ private struct PublicTimelineScreen<Fetcher: StatusesFetcher>: View {
 
 @MainActor
 private struct TwinDriverView: View {
+    private enum CapturedScreen {
+        case statusDetail(Status)
+        case accountHeader(Account)
+    }
+
     @State private var statuses: [Status] = []
     @State private var paginationFetcher: PaginationFixtureFetcher?
     @State private var focusedMedia: [MediaAttachment]?
+    @State private var capturedScreen: CapturedScreen?
     @State private var started = false
     private let client = MastodonClient(server: "mstdn.social")
     private let routerPath = RouterPath()
@@ -231,6 +273,21 @@ private struct TwinDriverView: View {
                     fetcher: paginationFetcher,
                     client: client,
                     routerPath: routerPath)
+            } else if let capturedScreen {
+                switch capturedScreen {
+                case .statusDetail(let status):
+                    TwinNavigationScreen(
+                        client: client, routerPath: routerPath
+                    ) {
+                        StatusDetailView(status: status)
+                    }
+                case .accountHeader(let account):
+                    TwinNavigationScreen(
+                        client: client, routerPath: routerPath
+                    ) {
+                        AccountDetailView(account: account)
+                    }
+                }
             } else if let focusedMedia {
                 FocusedMediaScreen(attachments: focusedMedia)
             } else if statuses.isEmpty {
@@ -317,18 +374,33 @@ private struct TwinDriverView: View {
                         "recorded boost fixture has no supported image attachment"])
             }
             let replayStatuses = decoded + [boostStatus]
+            let screenFixtures = try prepareScreenFixtures(
+                detailStatus: detailStatus)
+            ReplayURLProtocol.prependFixtures(
+                TwinConfiguration.outputDirectory)
             statuses = replayStatuses
             // Let SwiftUI install the List hierarchy and let deterministic
             // replay image requests settle before rasterizing the live view.
             try await Task.sleep(for: .seconds(1))
             try capturePNG(named: "timeline")
 
+            statuses = []
+            capturedScreen = .statusDetail(detailStatus)
+            try await waitForRequests(screenFixtures.detailEndpoints)
+            try capturePNG(named: "status-detail")
+
+            capturedScreen = .accountHeader(detailStatus.account)
+            try await waitForRequests(screenFixtures.accountEndpoints)
+            try capturePNG(named: "account-header")
+
+            capturedScreen = nil
             focusedMedia = [imageAttachment]
             try await Task.sleep(for: .seconds(1))
             try capturePNG(named: "media")
             try captureMetadata(
                 statuses: replayStatuses, detailStatus: detailStatus,
-                focusedMediaURL: imageURL)
+                focusedMediaURL: imageURL,
+                screenFixtureNames: screenFixtures.fixtureNames)
             exit(0)
         } catch {
             FileHandle.standardError.write(Data("IceCubesNativeTwin: \(error)\n".utf8))
@@ -480,6 +552,82 @@ private struct TwinDriverView: View {
             + ".json"
     }
 
+    private struct ScreenFixtures {
+        let fixtureNames: [String]
+        let detailEndpoints: [any Endpoint]
+        let accountEndpoints: [any Endpoint]
+    }
+
+    private func prepareScreenFixtures(
+        detailStatus: Status
+    ) throws -> ScreenFixtures {
+        let account = detailStatus.account
+        let detailEndpoints: [any Endpoint] = [
+            Statuses.status(id: detailStatus.id),
+            Statuses.context(id: detailStatus.id),
+        ]
+        let accountEndpoints: [any Endpoint] = [
+            Accounts.accounts(id: account.id),
+            Accounts.featuredTags(id: account.id),
+            Accounts.statuses(
+                id: account.id, sinceId: nil, tag: nil,
+                onlyMedia: false, excludeReplies: false,
+                excludeReblogs: false, pinned: nil),
+            Accounts.familiarFollowers(withAccount: account.id),
+        ]
+        let outputDirectory = URL(
+            fileURLWithPath: TwinConfiguration.outputDirectory)
+        try FileManager.default.createDirectory(
+            at: outputDirectory, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        let payloads: [(any Endpoint, Data)] = [
+            (detailEndpoints[0], try encoder.encode(detailStatus)),
+            (
+                detailEndpoints[1],
+                try encodeEmptyCollectionRecord(StatusContext.empty())
+            ),
+            (accountEndpoints[0], try encoder.encode(account)),
+            (accountEndpoints[1], try encoder.encode([FeaturedTag]())),
+            (accountEndpoints[2], try encoder.encode([detailStatus])),
+            (
+                accountEndpoints[3],
+                try JSONSerialization.data(withJSONObject: [])
+            ),
+        ]
+        for (endpoint, data) in payloads {
+            try data.write(
+                to: outputDirectory.appendingPathComponent(
+                    replayFixtureName(endpoint)),
+                options: .atomic)
+        }
+        return ScreenFixtures(
+            fixtureNames: payloads.map { replayFixtureName($0.0) },
+            detailEndpoints: detailEndpoints,
+            accountEndpoints: accountEndpoints)
+    }
+
+    private func waitForRequests(
+        _ endpoints: [any Endpoint]
+    ) async throws {
+        let expected = Set(endpoints.map {
+            "/api/\(MastodonClient.Version.v1.rawValue)/\($0.path())"
+        })
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while !expected.isSubset(of: Set(ReplayURLProtocol.requests)),
+              ContinuousClock.now < deadline
+        {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        let missing = expected.subtracting(ReplayURLProtocol.requests)
+        guard missing.isEmpty else {
+            throw NSError(
+                domain: "IceCubesNativeTwin", code: 12,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "native screen omitted requests \(missing.sorted())"])
+        }
+        try await Task.sleep(for: .milliseconds(100))
+    }
+
     /// Some target interactions need a native value whose interface exposes
     /// Decodable but not Encodable. Derive an empty-collection record from
     /// compiled storage labels instead of transcribing its response fields.
@@ -584,7 +732,10 @@ private struct TwinDriverView: View {
     }
 
     private func captureMetadata(
-        statuses: [Status], detailStatus: Status, focusedMediaURL: URL
+        statuses: [Status],
+        detailStatus: Status,
+        focusedMediaURL: URL,
+        screenFixtureNames: [String]
     ) throws {
         let metadata = TwinMetadata(
             fixture: "api_v1_timelines_public.json",
@@ -602,6 +753,7 @@ private struct TwinDriverView: View {
                 count += (status.reblog?.mediaAttachments ?? status.mediaAttachments).count
             },
             focusedMediaURL: focusedMediaURL.absoluteString,
+            screenFixtureNames: screenFixtureNames,
             requests: ReplayURLProtocol.requests,
             clockEpoch: Date().timeIntervalSince1970,
             width: Int(TwinConfiguration.size.width),
