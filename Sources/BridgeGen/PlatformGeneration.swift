@@ -35,6 +35,17 @@ private enum PlatformGlobalFunctionSelection: Equatable {
     case interpretedResultScopes
 }
 
+/// One SDK/target view against which generated native expressions must
+/// compile. Shared frameworks can expose different declarations through the
+/// macOS and Catalyst importers even when the Objective-C identity is the
+/// same, so callable coverage is the structural intersection of these views.
+private struct PlatformSymbolGraphView {
+    let sdkName: String
+    let target: String
+    let deployments: [String: (major: Int, minor: Int)]
+    var frameworkSearchPathSuffixes: [String] = []
+}
+
 private struct PlatformFrameworkSpec {
     let name: String
     let sdkName: String
@@ -44,6 +55,10 @@ private struct PlatformFrameworkSpec {
     /// availability domains from one metadata sweep.
     let deployments: [String: (major: Int, minor: Int)]
     let roots: Set<String>
+    /// Additional compiler views that every emitted native declaration must
+    /// survive. Nominal identities need only exist in each view; callable
+    /// declarations must retain the same interface shape.
+    var validationViews: [PlatformSymbolGraphView] = []
     /// The module the symbol graph is extracted from, when the public
     /// framework re-exports an underlying module (CoreLocation's CLLocation
     /// lives in _LocationEssentials). Emitted code still imports `name`.
@@ -61,6 +76,14 @@ private struct PlatformFrameworkSpec {
         .mechanicallyBridgeable
 }
 
+private let macCatalyst18SymbolGraphView = PlatformSymbolGraphView(
+    sdkName: "macosx",
+    target: "arm64-apple-ios18.0-macabi",
+    deployments: ["macCatalyst": (18, 0)],
+    frameworkSearchPathSuffixes: [
+        "System/iOSSupport/System/Library/Frameworks",
+    ])
+
 /// Type-level policy, not a member allowlist: once a type is selected, every
 /// mechanically bridgeable public constructor/member is emitted from SDK
 /// metadata. These are the platform primitives that interpreted SwiftUI apps
@@ -76,7 +99,8 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         deployments: ["macOS": (15, 0)],
         roots: [
             "CharacterSet", "Operation", "OperationQueue", "ProcessInfo",
-        ]),
+        ],
+        validationViews: [macCatalyst18SymbolGraphView]),
     .init(
         // Foundation re-exports ObjectiveC's Swift overlay. Its generic
         // result scopes can execute interpreter closures without sweeping
@@ -136,6 +160,7 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
             "UIButton", "UIImageView", "UILabel", "UIScrollView",
             "UITableView", "UICollectionView", "UITextField", "UITextView",
         ],
+        validationViews: [macCatalyst18SymbolGraphView],
         isPlatformSurface: true),
     .init(
         // WebKit source subclasses cross both representable families. Sweep
@@ -157,7 +182,8 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         roots: [
             "MKMapView", "MKMapCamera", "MKMapConfiguration",
             "MKStandardMapConfiguration", "MKPointOfInterestFilter",
-        ]),
+        ],
+        validationViews: [macCatalyst18SymbolGraphView]),
     .init(
         name: "CoreLocation", sdkName: "macosx",
         target: "arm64-apple-macosx15.0",
@@ -179,12 +205,6 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
             "MTLResource", "MTLBuffer", "MTLCommandBuffer",
             "MTLCommandEncoder", "MTLComputeCommandEncoder",
         ]),
-]
-
-/// Classes whose synthesized no-argument constructor does not compile
-/// (unavailable/abstract plain initializers) — grown from build failures.
-private let platformNoArgInitDeny: Set<String> = [
-    "MKMapConfiguration", // abstract base: init() unavailable
 ]
 
 private struct SymbolGraph: Decodable {
@@ -474,9 +494,7 @@ private var platformCrossFrameworkSelectedTypes: Set<String> = []
 func generatePlatformBridge() throws -> PlatformGenerationResult {
     platformCrossFrameworkSelectedTypes = Set(
         try platformFrameworkSpecs.flatMap { spec -> [String] in
-            let graph = try JSONDecoder().decode(
-                SymbolGraph.self,
-                from: Data(contentsOf: platformSymbolGraphURL(for: spec)))
+            let graph = try platformValidatedSymbolGraph(for: spec)
             return graph.symbols.compactMap { symbol in
                 guard symbol.kind.identifier.hasPrefix("swift."),
                       ["swift.class", "swift.struct", "swift.enum"]
@@ -545,10 +563,13 @@ func generateFoundationReferenceProperties()
     let spec = PlatformFrameworkSpec(
         name: "Foundation", sdkName: "macosx",
         target: "arm64-apple-macosx15.0",
-        deployments: ["macOS": (15, 0)], roots: [])
-    let graph = try JSONDecoder().decode(
-        SymbolGraph.self,
-        from: Data(contentsOf: platformSymbolGraphURL(for: spec)))
+        deployments: ["macOS": (15, 0)], roots: [],
+        validationViews: [macCatalyst18SymbolGraphView])
+    let graph = try platformPrimarySymbolGraph(for: spec)
+    let validatedEnumCases = Set(
+        try platformValidatedSymbolGraph(for: spec).symbols.lazy
+            .filter { $0.kind.identifier == "swift.enum.case" }
+            .map(\.identifier.precise))
     let classesByPrecise = Dictionary(uniqueKeysWithValues:
         graph.symbols.compactMap { symbol -> (String, String)? in
             guard symbol.kind.identifier == "swift.class",
@@ -627,6 +648,7 @@ func generateFoundationReferenceProperties()
     for symbol in graph.symbols
     where symbol.kind.identifier == "swift.enum.case"
         && platformSymbolIsAvailable(symbol, for: spec)
+        && validatedEnumCases.contains(symbol.identifier.precise)
     {
         guard let parent = parentByMember[symbol.identifier.precise],
               let enumType = importedEnumsByPrecise[parent],
@@ -678,9 +700,7 @@ func generateFoundationReferenceProperties()
 private func parsePlatformFramework(
     _ spec: PlatformFrameworkSpec
 ) throws -> ParsedPlatformFramework {
-    let graphURL = try platformSymbolGraphURL(for: spec)
-    let graph = try JSONDecoder().decode(
-        SymbolGraph.self, from: Data(contentsOf: graphURL))
+    let graph = try platformValidatedSymbolGraph(for: spec)
 
     let nominalKindBySymbolKind: [String: PlatformNominalKind] = [
         "swift.class": .class,
@@ -1234,18 +1254,20 @@ private func parsePlatformFramework(
         }
     }
 
-    // ObjC classes inherit NSObject's plain initializer, which symbol
-    // graphs omit (-skip-synthesized-members). A selected ObjC class
-    // that swept NO initializer still constructs natively via `Type()` —
-    // synthesize that variant so inherited-init-only subclasses (MKMapView)
-    // are constructible. The symbol identity distinguishes these from CF
-    // typedef classes, which must never receive this synthetic shape.
+    // ObjC classes can inherit a plain initializer that symbol graphs omit.
+    // Ask the compiler whether `Type()` is valid in every declared SDK view
+    // instead of accumulating an API-name deny list for abstract or
+    // unavailable initializers.
     let constructedTypes = Set(constructors.map(\.receiverType))
+    let noArgCandidates = selected.values.filter {
+        $0.kind == .class
+            && $0.precise.hasPrefix("c:objc(cs)")
+            && !constructedTypes.contains($0.type)
+    }
+    let noArgConstructibleTypes = try platformNoArgConstructibleTypes(
+        Set(noArgCandidates.map(\.type)), for: spec)
     for nominal in selected.values.sorted(by: { $0.type < $1.type })
-    where nominal.kind == .class
-        && nominal.precise.hasPrefix("c:objc(cs)")
-        && !constructedTypes.contains(nominal.type)
-        && !platformNoArgInitDeny.contains(nominal.type)
+    where noArgConstructibleTypes.contains(nominal.type)
     {
         constructors.append(PlatformCallable(
             framework: spec.name, kind: .constructor,
@@ -1476,33 +1498,55 @@ private func analyzePlatformInterpretedResultScopeParameters(
 private func platformSymbolGraphURL(
     for spec: PlatformFrameworkSpec
 ) throws -> URL {
+    try platformSymbolGraphURL(
+        framework: spec.name,
+        extractionModule: spec.extractionModule,
+        view: PlatformSymbolGraphView(
+            sdkName: spec.sdkName,
+            target: spec.target,
+            deployments: spec.deployments))
+}
+
+private func platformSymbolGraphURL(
+    framework: String,
+    extractionModule: String?,
+    view: PlatformSymbolGraphView
+) throws -> URL {
     let sdkPath = try runPlatformTool(
-        "/usr/bin/xcrun", ["--show-sdk-path", "--sdk", spec.sdkName])
+        "/usr/bin/xcrun", ["--show-sdk-path", "--sdk", view.sdkName])
         .trimmingCharacters(in: .whitespacesAndNewlines)
     guard !sdkPath.isEmpty else {
         throw NSError(
             domain: "BridgeGen", code: 1,
-            userInfo: [NSLocalizedDescriptionKey: "could not locate \(spec.sdkName) SDK"])
+            userInfo: [NSLocalizedDescriptionKey:
+                "could not locate \(view.sdkName) SDK"])
     }
     let sdkKey = URL(fileURLWithPath: sdkPath).lastPathComponent
         .replacingOccurrences(of: ".", with: "-")
+    let targetKey = view.target.replacingOccurrences(of: "/", with: "-")
     let output = URL(fileURLWithPath: ".build/bridgegen-symbolgraphs")
         .appendingPathComponent(sdkKey)
-        .appendingPathComponent(spec.name)
+        .appendingPathComponent(targetKey)
+        .appendingPathComponent(framework)
     try FileManager.default.createDirectory(
         at: output, withIntermediateDirectories: true)
-    let module = spec.extractionModule ?? spec.name
+    let module = extractionModule ?? framework
     let graph = output.appendingPathComponent("\(module).symbols.json")
     if FileManager.default.fileExists(atPath: graph.path) { return graph }
-    _ = try runPlatformTool("/usr/bin/xcrun", [
+    var arguments = [
         "swift-symbolgraph-extract",
         "-module-name", module,
         "-minimum-access-level", "public",
         "-sdk", sdkPath,
-        "-target", spec.target,
+        "-target", view.target,
         "-output-dir", output.path,
         "-skip-synthesized-members",
-    ])
+    ]
+    for suffix in view.frameworkSearchPathSuffixes {
+        arguments += ["-F", URL(fileURLWithPath: sdkPath)
+            .appendingPathComponent(suffix).path]
+    }
+    _ = try runPlatformTool("/usr/bin/xcrun", arguments)
     guard FileManager.default.fileExists(atPath: graph.path) else {
         throw NSError(
             domain: "BridgeGen", code: 2,
@@ -1512,9 +1556,15 @@ private func platformSymbolGraphURL(
     return graph
 }
 
-private func runPlatformTool(
+private struct PlatformToolResult {
+    let terminationStatus: Int32
+    let stdout: String
+    let stderr: String
+}
+
+private func runPlatformToolResult(
     _ executable: String, _ arguments: [String]
-) throws -> String {
+) throws -> PlatformToolResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = arguments
@@ -1530,17 +1580,174 @@ private func runPlatformTool(
     let stderr = String(
         data: errors.fileHandleForReading.readDataToEndOfFile(),
         encoding: .utf8) ?? ""
-    guard process.terminationStatus == 0 else {
+    return PlatformToolResult(
+        terminationStatus: process.terminationStatus,
+        stdout: stdout,
+        stderr: stderr)
+}
+
+private func runPlatformTool(
+    _ executable: String, _ arguments: [String]
+) throws -> String {
+    let result = try runPlatformToolResult(executable, arguments)
+    guard result.terminationStatus == 0 else {
         throw NSError(
-            domain: "BridgeGen", code: Int(process.terminationStatus),
+            domain: "BridgeGen", code: Int(result.terminationStatus),
             userInfo: [NSLocalizedDescriptionKey:
-                "\(([executable] + arguments).joined(separator: " ")) failed:\n\(stderr)"])
+                "\(([executable] + arguments).joined(separator: " ")) failed:\n\(result.stderr)"])
     }
-    return stdout
+    return result.stdout
+}
+
+private func platformNoArgConstructibleTypes(
+    _ candidates: Set<String>, for spec: PlatformFrameworkSpec
+) throws -> Set<String> {
+    var constructible = candidates
+    let primaryView = PlatformSymbolGraphView(
+        sdkName: spec.sdkName,
+        target: spec.target,
+        deployments: spec.deployments)
+    for view in [primaryView] + spec.validationViews {
+        constructible = try platformNoArgConstructibleTypes(
+            constructible, framework: spec.name, view: view)
+    }
+    return constructible
+}
+
+private func platformNoArgConstructibleTypes(
+    _ candidates: Set<String>,
+    framework: String,
+    view: PlatformSymbolGraphView
+) throws -> Set<String> {
+    guard !candidates.isEmpty else { return [] }
+    let sdkPath = try runPlatformTool(
+        "/usr/bin/xcrun", ["--show-sdk-path", "--sdk", view.sdkName])
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let sdkKey = URL(fileURLWithPath: sdkPath).lastPathComponent
+        .replacingOccurrences(of: ".", with: "-")
+    let targetKey = view.target.replacingOccurrences(of: "/", with: "-")
+    let cache = URL(fileURLWithPath: ".build/bridgegen-probes")
+        .appendingPathComponent(sdkKey)
+        .appendingPathComponent(targetKey)
+        .appendingPathComponent(framework)
+    try FileManager.default.createDirectory(
+        at: cache, withIntermediateDirectories: true)
+    let manifest = candidates.sorted().joined(separator: "\n") + "\n"
+    let manifestURL = cache.appendingPathComponent("no-arg-candidates.txt")
+    let acceptedURL = cache.appendingPathComponent("no-arg-accepted.txt")
+    if let cachedManifest =
+            try? String(contentsOf: manifestURL, encoding: .utf8),
+       cachedManifest == manifest,
+       let accepted = try? String(contentsOf: acceptedURL, encoding: .utf8) {
+        return Set(accepted.split(separator: "\n").map(String.init))
+    }
+
+    let sourceURL = cache.appendingPathComponent("NoArgConstructibility.swift")
+    var accepted = candidates
+    while !accepted.isEmpty {
+        var lines = ["import \(framework)", ""]
+        var typeByLine: [Int: String] = [:]
+        for (index, type) in accepted.sorted().enumerated() {
+            lines.append(
+                "func __bridgeGenNoArgProbe\(index)() { _ = \(type)() }")
+            typeByLine[lines.count] = type
+        }
+        let source = lines.joined(separator: "\n") + "\n"
+        try source.write(to: sourceURL, atomically: true, encoding: .utf8)
+        var arguments = [
+            "swiftc", "-typecheck",
+            "-sdk", sdkPath,
+            "-target", view.target,
+        ]
+        for suffix in view.frameworkSearchPathSuffixes {
+            arguments += ["-F", URL(fileURLWithPath: sdkPath)
+                .appendingPathComponent(suffix).path]
+        }
+        arguments.append(sourceURL.path)
+        let result = try runPlatformToolResult("/usr/bin/xcrun", arguments)
+        if result.terminationStatus == 0 { break }
+
+        let diagnosticPrefix = sourceURL.path + ":"
+        let rejected = Set(result.stderr.split(separator: "\n")
+            .compactMap { line -> String? in
+                guard line.hasPrefix(diagnosticPrefix) else { return nil }
+                let suffix = line.dropFirst(diagnosticPrefix.count)
+                guard let separator = suffix.firstIndex(of: ":"),
+                      let lineNumber = Int(suffix[..<separator])
+                else { return nil }
+                return typeByLine[lineNumber]
+            })
+        guard !rejected.isEmpty else {
+            throw NSError(
+                domain: "BridgeGen", code: Int(result.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey:
+                    "could not classify \(framework) no-argument constructor "
+                        + "probe failures for \(view.target):\n\(result.stderr)"])
+        }
+        accepted.subtract(rejected)
+    }
+    try manifest.write(
+        to: manifestURL, atomically: true, encoding: .utf8)
+    let acceptedText = accepted.sorted().joined(separator: "\n")
+        + (accepted.isEmpty ? "" : "\n")
+    try acceptedText.write(
+        to: acceptedURL, atomically: true, encoding: .utf8)
+    return accepted
+}
+
+private func platformPrimarySymbolGraph(
+    for spec: PlatformFrameworkSpec
+) throws -> SymbolGraph {
+    try JSONDecoder().decode(
+        SymbolGraph.self,
+        from: Data(contentsOf: platformSymbolGraphURL(for: spec)))
+}
+
+private func platformValidatedSymbolGraph(
+    for spec: PlatformFrameworkSpec
+) throws -> SymbolGraph {
+    var graph = try platformPrimarySymbolGraph(for: spec)
+    let nominalKinds: Set<String> = [
+        "swift.class", "swift.struct", "swift.enum", "swift.protocol",
+    ]
+    for view in spec.validationViews {
+        let validation = try JSONDecoder().decode(
+            SymbolGraph.self,
+            from: Data(contentsOf: platformSymbolGraphURL(
+                framework: spec.name,
+                extractionModule: spec.extractionModule,
+                view: view)))
+        let candidatesByPrecise = Dictionary(
+            grouping: validation.symbols,
+            by: \.identifier.precise)
+        graph = SymbolGraph(
+            symbols: graph.symbols.filter { symbol in
+                guard let candidates =
+                        candidatesByPrecise[symbol.identifier.precise]
+                else { return false }
+                return candidates.contains { candidate in
+                    guard candidate.kind.identifier == symbol.kind.identifier,
+                          platformSymbolIsAvailable(
+                            candidate, deployments: view.deployments)
+                    else { return false }
+                    return nominalKinds.contains(symbol.kind.identifier)
+                        || candidate.declaration == symbol.declaration
+                }
+            },
+            relationships: graph.relationships)
+    }
+    return graph
 }
 
 private func platformSymbolIsAvailable(
     _ symbol: SymbolGraph.Symbol, for spec: PlatformFrameworkSpec
+) -> Bool {
+    platformSymbolIsAvailable(symbol, deployments: spec.deployments)
+}
+
+private func platformSymbolIsAvailable(
+    _ symbol: SymbolGraph.Symbol,
+    deployments: [String: (major: Int, minor: Int)]
 ) -> Bool {
     for availability in symbol.availability ?? [] {
         // Symbol graphs retain pre-Swift-3 spellings solely to describe their
@@ -1549,10 +1756,10 @@ private func platformSymbolIsAvailable(
             return false
         }
         if availability.isUnconditionallyUnavailable == true,
-           spec.deployments[availability.domain] != nil || availability.domain == "*" {
+           deployments[availability.domain] != nil || availability.domain == "*" {
             return false
         }
-        guard let deployment = spec.deployments[availability.domain] else { continue }
+        guard let deployment = deployments[availability.domain] else { continue }
         if let introduced = availability.introduced {
             let version = (introduced.major, introduced.minor ?? 0)
             if version > (deployment.major, deployment.minor) {
@@ -2608,10 +2815,9 @@ func sweptFoundationDimensionStatics() -> [(container: String, name: String)] {
         name: "Foundation", sdkName: "macosx",
         target: "arm64-apple-macosx15.0",
         deployments: ["macOS": (15, 0)],
-        roots: [])
-    guard let graphURL = try? platformSymbolGraphURL(for: spec),
-          let graph = try? JSONDecoder().decode(
-              SymbolGraph.self, from: Data(contentsOf: graphURL)) else {
+        roots: [],
+        validationViews: [macCatalyst18SymbolGraphView])
+    guard let graph = try? platformValidatedSymbolGraph(for: spec) else {
         print("warning: no Foundation symbol graph for the unit sweep")
         return []
     }

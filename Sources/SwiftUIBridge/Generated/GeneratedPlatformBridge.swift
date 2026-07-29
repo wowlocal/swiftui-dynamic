@@ -2799,16 +2799,6 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
-            declaration: "init UIViewController.Transition()",
-            resultType: "UIViewController.Transition") { v, ctx in
-#if canImport(UIKit)
-            return generatedPlatformResult(UIViewController.Transition(), framework: "UIKit", declaredType: "UIViewController.Transition")
-#else
-            preconditionFailure("UIKit gateway invoked off-platform")
-#endif
-        }
-        registerConstructor(
-            &t, framework: "UIKit",
             declaration: "init UIViewController.Transition.ZoomOptions()",
             resultType: "UIViewController.Transition.ZoomOptions") { v, ctx in
 #if canImport(UIKit)
@@ -2833,16 +2823,6 @@ extension GeneratedPlatformBridge {
             resultType: "UIViewController.Transition.ZoomOptions.InteractionContext") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIViewController.Transition.ZoomOptions.InteractionContext(), framework: "UIKit", declaredType: "UIViewController.Transition.ZoomOptions.InteractionContext")
-#else
-            preconditionFailure("UIKit gateway invoked off-platform")
-#endif
-        }
-        registerConstructor(
-            &t, framework: "UIKit",
-            declaration: "init UIViewController.Transition.ZoomSourceViewProviderContext()",
-            resultType: "UIViewController.Transition.ZoomSourceViewProviderContext") { v, ctx in
-#if canImport(UIKit)
-            return generatedPlatformResult(UIViewController.Transition.ZoomSourceViewProviderContext(), framework: "UIKit", declaredType: "UIViewController.Transition.ZoomSourceViewProviderContext")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -2899,70 +2879,10 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
-            declaration: "init UIWindowScene()",
-            resultType: "UIWindowScene") { v, ctx in
-#if canImport(UIKit)
-            return generatedPlatformResult(UIWindowScene(), framework: "UIKit", declaredType: "UIWindowScene")
-#else
-            preconditionFailure("UIKit gateway invoked off-platform")
-#endif
-        }
-        registerConstructor(
-            &t, framework: "UIKit",
-            declaration: "init UIWindowScene.ActivationAction()",
-            resultType: "UIWindowScene.ActivationAction") { v, ctx in
-#if canImport(UIKit)
-            return generatedPlatformResult(UIWindowScene.ActivationAction(), framework: "UIKit", declaredType: "UIWindowScene.ActivationAction")
-#else
-            preconditionFailure("UIKit gateway invoked off-platform")
-#endif
-        }
-        registerConstructor(
-            &t, framework: "UIKit",
-            declaration: "init UIWindowScene.ActivationConfiguration()",
-            resultType: "UIWindowScene.ActivationConfiguration") { v, ctx in
-#if canImport(UIKit)
-            return generatedPlatformResult(UIWindowScene.ActivationConfiguration(), framework: "UIKit", declaredType: "UIWindowScene.ActivationConfiguration")
-#else
-            preconditionFailure("UIKit gateway invoked off-platform")
-#endif
-        }
-        registerConstructor(
-            &t, framework: "UIKit",
-            declaration: "init UIWindowScene.ActivationInteraction()",
-            resultType: "UIWindowScene.ActivationInteraction") { v, ctx in
-#if canImport(UIKit)
-            return generatedPlatformResult(UIWindowScene.ActivationInteraction(), framework: "UIKit", declaredType: "UIWindowScene.ActivationInteraction")
-#else
-            preconditionFailure("UIKit gateway invoked off-platform")
-#endif
-        }
-        registerConstructor(
-            &t, framework: "UIKit",
             declaration: "init UIWindowScene.ActivationRequestOptions()",
             resultType: "UIWindowScene.ActivationRequestOptions") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIWindowScene.ActivationRequestOptions(), framework: "UIKit", declaredType: "UIWindowScene.ActivationRequestOptions")
-#else
-            preconditionFailure("UIKit gateway invoked off-platform")
-#endif
-        }
-        registerConstructor(
-            &t, framework: "UIKit",
-            declaration: "init UIWindowScene.Geometry()",
-            resultType: "UIWindowScene.Geometry") { v, ctx in
-#if canImport(UIKit)
-            return generatedPlatformResult(UIWindowScene.Geometry(), framework: "UIKit", declaredType: "UIWindowScene.Geometry")
-#else
-            preconditionFailure("UIKit gateway invoked off-platform")
-#endif
-        }
-        registerConstructor(
-            &t, framework: "UIKit",
-            declaration: "init UIWindowScene.GeometryPreferences()",
-            resultType: "UIWindowScene.GeometryPreferences") { v, ctx in
-#if canImport(UIKit)
-            return generatedPlatformResult(UIWindowScene.GeometryPreferences(), framework: "UIKit", declaredType: "UIWindowScene.GeometryPreferences")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -3107,9 +3027,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIControl.ContentVerticalAlignment(rawValue p0: Int)",
@@ -3190,6 +3107,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIImage(named p0: String, in p1: Bundle?, variableValue p2: Double, configuration p3: UIImage.Configuration?)",
@@ -3460,9 +3380,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UITextField.DidEndEditingReason(rawValue p0: Int)",
@@ -3543,6 +3460,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIWindowScene.DismissalAnimation(rawValue p0: Int)",
@@ -4211,62 +4131,6 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
             }
             receiver.`waitUntilAllOperationsAreFinished`()
-            return .void
-#else
-            preconditionFailure("Foundation gateway invoked off-platform")
-#endif
-        }
-        registerMethod(
-            &t, framework: "Foundation",
-            declaration: "func ProcessInfo.disableAutomaticTermination(_ p0: String) -> Void",
-            resultType: "Void") { base, v, ctx in
-#if canImport(Foundation)
-            guard let receiver = base.payload as? ProcessInfo else {
-                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
-            }
-            receiver.`disableAutomaticTermination`(try generatedPlatformArgument(v[0], as: String.self, framework: "Foundation", typeName: "String", context: ctx))
-            return .void
-#else
-            preconditionFailure("Foundation gateway invoked off-platform")
-#endif
-        }
-        registerMethod(
-            &t, framework: "Foundation",
-            declaration: "func ProcessInfo.disableSuddenTermination() -> Void",
-            resultType: "Void") { base, v, ctx in
-#if canImport(Foundation)
-            guard let receiver = base.payload as? ProcessInfo else {
-                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
-            }
-            receiver.`disableSuddenTermination`()
-            return .void
-#else
-            preconditionFailure("Foundation gateway invoked off-platform")
-#endif
-        }
-        registerMethod(
-            &t, framework: "Foundation",
-            declaration: "func ProcessInfo.enableAutomaticTermination(_ p0: String) -> Void",
-            resultType: "Void") { base, v, ctx in
-#if canImport(Foundation)
-            guard let receiver = base.payload as? ProcessInfo else {
-                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
-            }
-            receiver.`enableAutomaticTermination`(try generatedPlatformArgument(v[0], as: String.self, framework: "Foundation", typeName: "String", context: ctx))
-            return .void
-#else
-            preconditionFailure("Foundation gateway invoked off-platform")
-#endif
-        }
-        registerMethod(
-            &t, framework: "Foundation",
-            declaration: "func ProcessInfo.enableSuddenTermination() -> Void",
-            resultType: "Void") { base, v, ctx in
-#if canImport(Foundation)
-            guard let receiver = base.payload as? ProcessInfo else {
-                throw RuntimeError(message: "generated Foundation receiver mismatch", fatal: true)
-            }
-            receiver.`enableSuddenTermination`()
             return .void
 #else
             preconditionFailure("Foundation gateway invoked off-platform")
@@ -15713,32 +15577,6 @@ extension GeneratedPlatformBridge {
     private static func buildMethodsMapKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "MapKit",
-            declaration: "func MKMapView.convert(_ p0: CGPoint, toCoordinateFrom p1: NSView?) -> CLLocationCoordinate2D",
-            resultType: "CLLocationCoordinate2D") { base, v, ctx in
-#if canImport(MapKit)
-            guard let receiver = base.payload as? MKMapView else {
-                throw RuntimeError(message: "generated MapKit receiver mismatch", fatal: true)
-            }
-            return generatedPlatformResult(receiver.`convert`(try generatedPlatformArgument(v[0], as: CGPoint.self, framework: "MapKit", typeName: "CGPoint", context: ctx), toCoordinateFrom: try generatedPlatformArgument(v[1], as: NSView?.self, framework: "MapKit", typeName: "NSView?", context: ctx)), framework: "MapKit", declaredType: "CLLocationCoordinate2D")
-#else
-            preconditionFailure("MapKit gateway invoked off-platform")
-#endif
-        }
-        registerMethod(
-            &t, framework: "MapKit",
-            declaration: "func MKMapView.convert(_ p0: CLLocationCoordinate2D, toPointTo p1: NSView?) -> CGPoint",
-            resultType: "CGPoint") { base, v, ctx in
-#if canImport(MapKit)
-            guard let receiver = base.payload as? MKMapView else {
-                throw RuntimeError(message: "generated MapKit receiver mismatch", fatal: true)
-            }
-            return generatedPlatformResult(receiver.`convert`(try generatedPlatformArgument(v[0], as: CLLocationCoordinate2D.self, framework: "MapKit", typeName: "CLLocationCoordinate2D", context: ctx), toPointTo: try generatedPlatformArgument(v[1], as: NSView?.self, framework: "MapKit", typeName: "NSView?", context: ctx)), framework: "MapKit", declaredType: "CGPoint")
-#else
-            preconditionFailure("MapKit gateway invoked off-platform")
-#endif
-        }
-        registerMethod(
-            &t, framework: "MapKit",
             declaration: "func MKMapView.exchangeOverlay(at p0: Int, withOverlayAt p1: Int) -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(MapKit)
@@ -19498,33 +19336,6 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "Foundation",
-            declaration: "var ProcessInfo.automaticTerminationSupportEnabled: Bool { get set }",
-            resultType: "Bool",
-            get: { base in
-#if canImport(Foundation)
-                guard let receiver = base as? ProcessInfo else {
-                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
-                }
-                return generatedPlatformResult(receiver.`automaticTerminationSupportEnabled`, framework: "Foundation", declaredType: "Bool")
-#else
-                preconditionFailure("Foundation getter invoked off-platform")
-#endif
-            }, set: { base, newValue, ctx in
-#if canImport(Foundation)
-                guard let receiver = base as? ProcessInfo else {
-                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
-                }
-                receiver.`automaticTerminationSupportEnabled` = try generatedPlatformArgument(
-                    newValue, as: Bool.self,
-                    framework: "Foundation",
-                    typeName: "Bool", context: ctx)
-                base = receiver
-#else
-                preconditionFailure("Foundation setter invoked off-platform")
-#endif
-            })
-        registerProperty(
-            &t, framework: "Foundation",
             declaration: "var ProcessInfo.environment: [String: String] { get }",
             resultType: "[String: String]",
             get: { base in
@@ -19533,21 +19344,6 @@ extension GeneratedPlatformBridge {
                     throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
                 }
                 return generatedPlatformResult(receiver.`environment`, framework: "Foundation", declaredType: "[String: String]")
-#else
-                preconditionFailure("Foundation getter invoked off-platform")
-#endif
-
-                }, set: nil)
-        registerProperty(
-            &t, framework: "Foundation",
-            declaration: "var ProcessInfo.fullUserName: String { get }",
-            resultType: "String",
-            get: { base in
-#if canImport(Foundation)
-                guard let receiver = base as? ProcessInfo else {
-                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
-                }
-                return generatedPlatformResult(receiver.`fullUserName`, framework: "Foundation", declaredType: "String")
 #else
                 preconditionFailure("Foundation getter invoked off-platform")
 #endif
@@ -19583,9 +19379,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesFoundation1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "Foundation",
             declaration: "var ProcessInfo.isLowPowerModeEnabled: Bool { get }",
@@ -19616,6 +19409,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesFoundation1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "Foundation",
             declaration: "var ProcessInfo.isiOSAppOnMac: Bool { get }",
@@ -19743,21 +19539,6 @@ extension GeneratedPlatformBridge {
                     throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
                 }
                 return generatedPlatformResult(receiver.`thermalState`, framework: "Foundation", declaredType: "ProcessInfo.ThermalState")
-#else
-                preconditionFailure("Foundation getter invoked off-platform")
-#endif
-
-                }, set: nil)
-        registerProperty(
-            &t, framework: "Foundation",
-            declaration: "var ProcessInfo.userName: String { get }",
-            resultType: "String",
-            get: { base in
-#if canImport(Foundation)
-                guard let receiver = base as? ProcessInfo else {
-                    throw RuntimeError(message: "generated Foundation property receiver mismatch", fatal: true)
-                }
-                return generatedPlatformResult(receiver.`userName`, framework: "Foundation", declaredType: "String")
 #else
                 preconditionFailure("Foundation getter invoked off-platform")
 #endif
@@ -68507,42 +68288,18 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
-            member: "automaticTerminationSupportEnabled")] = false
+            member: "beginActivity")] = true
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
-            member: "beginActivity")] = true
+            member: "endActivity")] = true
     }
 
     private static func buildKnownMembersFoundation2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
-            member: "disableAutomaticTermination")] = true
-        t[GeneratedPlatformMemberKey(
-            framework: "Foundation",
-            type: "ProcessInfo",
-            member: "disableSuddenTermination")] = true
-        t[GeneratedPlatformMemberKey(
-            framework: "Foundation",
-            type: "ProcessInfo",
-            member: "enableAutomaticTermination")] = true
-        t[GeneratedPlatformMemberKey(
-            framework: "Foundation",
-            type: "ProcessInfo",
-            member: "enableSuddenTermination")] = true
-        t[GeneratedPlatformMemberKey(
-            framework: "Foundation",
-            type: "ProcessInfo",
-            member: "endActivity")] = true
-        t[GeneratedPlatformMemberKey(
-            framework: "Foundation",
-            type: "ProcessInfo",
             member: "environment")] = false
-        t[GeneratedPlatformMemberKey(
-            framework: "Foundation",
-            type: "ProcessInfo",
-            member: "fullUserName")] = false
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
@@ -68603,10 +68360,6 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "ProcessInfo",
             member: "thermalState")] = false
-        t[GeneratedPlatformMemberKey(
-            framework: "Foundation",
-            type: "ProcessInfo",
-            member: "userName")] = false
     }
 
     private static func buildKnownMembersCoreGraphics0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
@@ -77793,18 +77546,14 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextView",
-            member: "textFormattingConfiguration")] = false
-        t[GeneratedPlatformMemberKey(
-            framework: "UIKit",
-            type: "UITextView",
             member: "textHighlightAttributes")] = false
-    }
-
-    private static func buildKnownMembersUIKit19(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextView",
             member: "textLayoutManager")] = false
+    }
+
+    private static func buildKnownMembersUIKit19(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextView",
@@ -77941,13 +77690,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "addInteraction")] = true
-    }
-
-    private static func buildKnownMembersUIKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
             member: "addLayoutGuide")] = true
+    }
+
+    private static func buildKnownMembersUIKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -78084,13 +77833,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "effectiveUserInterfaceLayoutDirection")] = false
-    }
-
-    private static func buildKnownMembersUIKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
             member: "encodeRestorableState")] = true
+    }
+
+    private static func buildKnownMembersUIKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -78227,13 +77976,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "layer")] = false
-    }
-
-    private static func buildKnownMembersUIKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
             member: "layoutGuides")] = false
+    }
+
+    private static func buildKnownMembersUIKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -78370,13 +78119,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "setContentCompressionResistancePriority")] = true
-    }
-
-    private static func buildKnownMembersUIKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
             member: "setContentHuggingPriority")] = true
+    }
+
+    private static func buildKnownMembersUIKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -78513,13 +78262,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView.Invalidations.IntrinsicContentSize",
             member: "invalidate")] = true
-    }
-
-    private static func buildKnownMembersUIKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView.Invalidations.Layout",
             member: "invalidate")] = true
+    }
+
+    private static func buildKnownMembersUIKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -78656,13 +78405,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "interactionActivityTrackingBaseName")] = false
-    }
-
-    private static func buildKnownMembersUIKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
             member: "isBeingDismissed")] = false
+    }
+
+    private static func buildKnownMembersUIKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -78799,13 +78548,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "presentingViewController")] = false
-    }
-
-    private static func buildKnownMembersUIKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
             member: "providesPresentationContextTransitionStyle")] = false
+    }
+
+    private static func buildKnownMembersUIKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -78942,13 +78691,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "transitionCoordinator")] = false
-    }
-
-    private static func buildKnownMembersUIKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
             member: "transitioningDelegate")] = false
+    }
+
+    private static func buildKnownMembersUIKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -79085,13 +78834,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindow",
             member: "convert")] = true
-    }
-
-    private static func buildKnownMembersUIKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindow",
             member: "isKeyWindow")] = false
+    }
+
+    private static func buildKnownMembersUIKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindow",
@@ -79228,13 +78977,13 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindowScene.ActivationRequestOptions",
             member: "placement")] = false
-    }
-
-    private static func buildKnownMembersUIKit29(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindowScene.Geometry",
             member: "interfaceOrientation")] = false
+    }
+
+    private static func buildKnownMembersUIKit29(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindowScene.GeometryPreferences.Mac",
@@ -79547,10 +79296,6 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
             type: "MKMapView",
-            member: "convert")] = true
-        t[GeneratedPlatformMemberKey(
-            framework: "MapKit",
-            type: "MKMapView",
             member: "delegate")] = false
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
@@ -79620,13 +79365,13 @@ extension GeneratedPlatformBridge {
             framework: "MapKit",
             type: "MKMapView",
             member: "regionThatFits")] = true
-    }
-
-    private static func buildKnownMembersMapKit1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
             type: "MKMapView",
             member: "register")] = true
+    }
+
+    private static func buildKnownMembersMapKit1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
             type: "MKMapView",
@@ -79763,13 +79508,13 @@ extension GeneratedPlatformBridge {
             framework: "MapKit",
             type: "MKStandardMapConfiguration",
             member: "emphasisStyle")] = false
-    }
-
-    private static func buildKnownMembersMapKit2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
             type: "MKStandardMapConfiguration",
             member: "pointOfInterestFilter")] = false
+    }
+
+    private static func buildKnownMembersMapKit2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
             type: "MKStandardMapConfiguration",

@@ -1117,7 +1117,6 @@ enum GeneratedFoundationReferenceProperties {
             "spellOut": NSNumber(value: DateComponentsFormatter.UnitsStyle.`spellOut`.rawValue)
         ],
         "DateFormatter.Behavior": [
-            "behavior10_0": NSNumber(value: DateFormatter.Behavior.`behavior10_0`.rawValue),
             "behavior10_4": NSNumber(value: DateFormatter.Behavior.`behavior10_4`.rawValue),
             "default": NSNumber(value: DateFormatter.Behavior.`default`.rawValue)
         ],
@@ -1248,7 +1247,6 @@ enum GeneratedFoundationReferenceProperties {
             "randomSubelement": NSNumber(value: NSWhoseSpecifier.SubelementIdentifier.`randomSubelement`.rawValue)
         ],
         "NumberFormatter.Behavior": [
-            "behavior10_0": NSNumber(value: NumberFormatter.Behavior.`behavior10_0`.rawValue),
             "behavior10_4": NSNumber(value: NumberFormatter.Behavior.`behavior10_4`.rawValue),
             "default": NSNumber(value: NumberFormatter.Behavior.`default`.rawValue)
         ],
@@ -1292,10 +1290,6 @@ enum GeneratedFoundationReferenceProperties {
             "long": NSNumber(value: PersonNameComponentsFormatter.Style.`long`.rawValue),
             "medium": NSNumber(value: PersonNameComponentsFormatter.Style.`medium`.rawValue),
             "short": NSNumber(value: PersonNameComponentsFormatter.Style.`short`.rawValue)
-        ],
-        "Process.TerminationReason": [
-            "exit": NSNumber(value: Process.TerminationReason.`exit`.rawValue),
-            "uncaughtSignal": NSNumber(value: Process.TerminationReason.`uncaughtSignal`.rawValue)
         ],
         "ProcessInfo.ThermalState": [
             "critical": NSNumber(value: ProcessInfo.ThermalState.`critical`.rawValue),
