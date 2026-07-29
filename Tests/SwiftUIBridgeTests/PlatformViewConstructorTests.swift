@@ -108,12 +108,18 @@ import SwiftInterpreter
                 }
             }
 
-            struct State {
-                let imageContainer: ImageContainer?
+            protocol ImageState {
+                var imageContainer: ImageContainer? { get }
+            }
 
+            extension ImageState {
                 var image: Image? {
                     imageContainer.map { Image(uiImage: $0.image) }
                 }
+            }
+
+            struct State: ImageState {
+                let imageContainer: ImageContainer?
             }
 
             struct BitmapView: View {
