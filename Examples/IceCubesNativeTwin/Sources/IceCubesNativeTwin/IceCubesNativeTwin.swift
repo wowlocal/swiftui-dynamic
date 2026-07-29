@@ -21,11 +21,27 @@ private struct TwinMetadata: Codable {
     let detailMarkdown: String
     let mediaCount: Int
     let focusedMediaURL: String
-    let screenFixtureNames: [String]
+    let screenFixtures: ScreenFixtureNames
     let requests: [String]
     let clockEpoch: Double
     let width: Int
     let height: Int
+}
+
+private struct ScreenFixtureNames: Codable {
+    let status: String
+    let statusContext: String
+    let account: String
+    let featuredTags: String
+    let accountStatuses: String
+    let familiarFollowers: String
+
+    var all: [String] {
+        [
+            status, statusContext, account, featuredTags,
+            accountStatuses, familiarFollowers,
+        ]
+    }
 }
 
 private struct PaginationMetadata: Codable {
@@ -250,6 +266,7 @@ private struct TwinDriverView: View {
     @State private var paginationFetcher: PaginationFixtureFetcher?
     @State private var focusedMedia: [MediaAttachment]?
     @State private var capturedScreen: CapturedScreen?
+    @State private var capturedScreenIdentity = UUID()
     @State private var started = false
     private let client = MastodonClient(server: "mstdn.social")
     private let routerPath = RouterPath()
@@ -281,12 +298,14 @@ private struct TwinDriverView: View {
                     ) {
                         StatusDetailView(status: status)
                     }
+                    .id(capturedScreenIdentity)
                 case .accountHeader(let account):
                     TwinNavigationScreen(
                         client: client, routerPath: routerPath
                     ) {
                         AccountDetailView(account: account)
                     }
+                    .id(capturedScreenIdentity)
                 }
             } else if let focusedMedia {
                 FocusedMediaScreen(attachments: focusedMedia)
@@ -386,11 +405,15 @@ private struct TwinDriverView: View {
 
             statuses = []
             capturedScreen = .statusDetail(detailStatus)
+            capturedScreenIdentity = UUID()
             try await waitForRequests(screenFixtures.detailEndpoints)
+            try await waitForScreenTransition()
             try capturePNG(named: "status-detail")
 
             capturedScreen = .accountHeader(detailStatus.account)
+            capturedScreenIdentity = UUID()
             try await waitForRequests(screenFixtures.accountEndpoints)
+            try await waitForScreenTransition()
             try capturePNG(named: "account-header")
 
             capturedScreen = nil
@@ -400,7 +423,7 @@ private struct TwinDriverView: View {
             try captureMetadata(
                 statuses: replayStatuses, detailStatus: detailStatus,
                 focusedMediaURL: imageURL,
-                screenFixtureNames: screenFixtures.fixtureNames)
+                screenFixtures: screenFixtures.names)
             exit(0)
         } catch {
             FileHandle.standardError.write(Data("IceCubesNativeTwin: \(error)\n".utf8))
@@ -553,7 +576,7 @@ private struct TwinDriverView: View {
     }
 
     private struct ScreenFixtures {
-        let fixtureNames: [String]
+        let names: ScreenFixtureNames
         let detailEndpoints: [any Endpoint]
         let accountEndpoints: [any Endpoint]
     }
@@ -600,8 +623,15 @@ private struct TwinDriverView: View {
                     replayFixtureName(endpoint)),
                 options: .atomic)
         }
+        let fixtureNames = payloads.map { replayFixtureName($0.0) }
         return ScreenFixtures(
-            fixtureNames: payloads.map { replayFixtureName($0.0) },
+            names: ScreenFixtureNames(
+                status: fixtureNames[0],
+                statusContext: fixtureNames[1],
+                account: fixtureNames[2],
+                featuredTags: fixtureNames[3],
+                accountStatuses: fixtureNames[4],
+                familiarFollowers: fixtureNames[5]),
             detailEndpoints: detailEndpoints,
             accountEndpoints: accountEndpoints)
     }
@@ -626,6 +656,13 @@ private struct TwinDriverView: View {
                     "native screen omitted requests \(missing.sorted())"])
         }
         try await Task.sleep(for: .milliseconds(100))
+    }
+
+    /// Screen roots are replaced in-place by the capture driver. Give native
+    /// navigation/layout transactions time to complete after replay reaches
+    /// its final request state so the oracle never samples a transition frame.
+    private func waitForScreenTransition() async throws {
+        try await Task.sleep(for: .seconds(1))
     }
 
     /// Some target interactions need a native value whose interface exposes
@@ -706,6 +743,7 @@ private struct TwinDriverView: View {
         rootView.setNeedsLayout()
         rootView.layoutIfNeeded()
         let captureView = fixedSizeDescendant(in: rootView) ?? rootView
+        removeAnimations(from: captureView.layer)
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -731,11 +769,19 @@ private struct TwinDriverView: View {
         print("\(name)\t\(imageURL.path)\t\(Int(TwinConfiguration.size.width))x\(Int(TwinConfiguration.size.height))")
     }
 
+    /// Native progress indicators and transition layers use wall-clock Core
+    /// Animation even when model time is frozen. Snapshot the model-layer
+    /// presentation so repeated captures of the same semantic state are exact.
+    private func removeAnimations(from layer: CALayer) {
+        layer.removeAllAnimations()
+        layer.sublayers?.forEach(removeAnimations(from:))
+    }
+
     private func captureMetadata(
         statuses: [Status],
         detailStatus: Status,
         focusedMediaURL: URL,
-        screenFixtureNames: [String]
+        screenFixtures: ScreenFixtureNames
     ) throws {
         let metadata = TwinMetadata(
             fixture: "api_v1_timelines_public.json",
@@ -753,7 +799,7 @@ private struct TwinDriverView: View {
                 count += (status.reblog?.mediaAttachments ?? status.mediaAttachments).count
             },
             focusedMediaURL: focusedMediaURL.absoluteString,
-            screenFixtureNames: screenFixtureNames,
+            screenFixtures: screenFixtures,
             requests: ReplayURLProtocol.requests,
             clockEpoch: Date().timeIntervalSince1970,
             width: Int(TwinConfiguration.size.width),

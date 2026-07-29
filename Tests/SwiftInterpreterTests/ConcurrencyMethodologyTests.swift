@@ -3063,6 +3063,9 @@ struct ConcurrencyMethodologyTests {
             "ICECUBES_R2_SCRATCH_PATH",
             "--scratch-path \"$INTERP_SCRATCH_PATH\"",
             "\"$INTERP_EXECUTABLE\" --capture",
+            "--native-fixtures \"$TWIN_DIR\"",
+            "status-detail 433814",
+            "account-header 399329",
         ] {
             #expect(script.contains(required),
                 Comment(rawValue:

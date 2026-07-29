@@ -36,6 +36,25 @@ private struct NativePaginationObservation {
     let normalizedFixtureDirectory: URL
 }
 
+private enum IceCubesCaptureScreen: String {
+    case timeline
+    case statusDetail = "status-detail"
+    case accountHeader = "account-header"
+}
+
+private struct NativeScreenFixtureNames: Codable {
+    let status: String
+    let statusContext: String
+    let account: String
+    let featuredTags: String
+    let accountStatuses: String
+    let familiarFollowers: String
+}
+
+private struct NativeTwinScreenMetadata: Codable {
+    let screenFixtures: NativeScreenFixtureNames
+}
+
 #if targetEnvironment(macCatalyst)
 @MainActor
 private final class IceCubesCheckAppDelegate:
@@ -54,6 +73,8 @@ private final class IceCubesCheckAppDelegate:
 @MainActor
 private struct IceCubesCatalystCaptureRoot: View {
     let directory: String
+    let screen: IceCubesCaptureScreen
+    let nativeFixtureDirectory: String?
 
     @State private var session: InterpreterRenderSession?
     @State private var started = false
@@ -83,7 +104,9 @@ private struct IceCubesCatalystCaptureRoot: View {
         do {
             try FileManager.default.createDirectory(
                 atPath: directory, withIntermediateDirectories: true)
-            let session = try IceCubesCheckMain.timelineRenderSession()
+            let session = try IceCubesCheckMain.renderSession(
+                for: screen,
+                nativeFixtureDirectory: nativeFixtureDirectory)
             self.session = session
 
             let initialRenderRevision =
@@ -148,13 +171,16 @@ private struct IceCubesCatalystCaptureRoot: View {
                     message: "Catalyst hierarchy produced no PNG")
             }
             let output = URL(fileURLWithPath: directory)
-                .appendingPathComponent("timeline.png")
+                .appendingPathComponent("\(screen.rawValue).png")
             try png.write(to: output, options: .atomic)
             print(
-                "timeline\t\(output.path)\t"
+                "\(screen.rawValue)\t\(output.path)\t"
                     + "\(Int(IceCubesCheckMain.screenSize.width))x"
                     + "\(Int(IceCubesCheckMain.screenSize.height))")
 
+            guard screen == .timeline else {
+                exit(0)
+            }
             guard let interpretedClockEpoch = session.interpreter.globals
                 .lookup("__iceInterpretedClockEpoch")?.doubleValue
             else {
@@ -203,11 +229,14 @@ private struct IceCubesCheckCatalystApp: App {
 
     var body: some Scene {
         WindowGroup {
+            let arguments = Array(CommandLine.arguments.dropFirst())
             IceCubesCatalystCaptureRoot(
                 directory: IceCubesCheckMain.option(
-                    "--capture",
-                    in: Array(CommandLine.arguments.dropFirst()))
-                    ?? "/tmp/icecubes-interpreted")
+                    "--capture", in: arguments)
+                    ?? "/tmp/icecubes-interpreted",
+                screen: IceCubesCheckMain.captureScreen(in: arguments),
+                nativeFixtureDirectory: IceCubesCheckMain.option(
+                    "--native-fixtures", in: arguments))
         }
     }
 }
@@ -333,8 +362,12 @@ struct IceCubesCheckMain {
         }
 
         let arguments = Array(CommandLine.arguments.dropFirst())
-        if let capture = option("--capture", in: arguments) {
-            try captureTimeline(to: capture)
+        if let captureDirectory = option("--capture", in: arguments) {
+            try capture(
+                captureScreen(in: arguments),
+                to: captureDirectory,
+                nativeFixtureDirectory:
+                    option("--native-fixtures", in: arguments))
             return
         }
         if let worker = option("--worker", in: arguments),
@@ -409,6 +442,14 @@ struct IceCubesCheckMain {
             return nil
         }
         return arguments[index + 1]
+    }
+
+    fileprivate static func captureScreen(
+        in arguments: [String]
+    ) -> IceCubesCaptureScreen {
+        option("--screen", in: arguments)
+            .flatMap(IceCubesCaptureScreen.init(rawValue:))
+            ?? .timeline
     }
 
     private static func expectedRungs(for worker: String) -> [String] {
@@ -675,6 +716,8 @@ struct IceCubesCheckMain {
     private enum RenderProbePresentation {
         case diagnostics
         case nativeTimeline
+        case nativeStatusDetail
+        case nativeAccountHeader
     }
 
 #if !targetEnvironment(macCatalyst)
@@ -955,7 +998,8 @@ struct IceCubesCheckMain {
         includeTimeline: Bool,
         includeDetailAndAccount: Bool,
         includePagination: Bool = false,
-        presentation: RenderProbePresentation
+        presentation: RenderProbePresentation,
+        screenStatusFixture: String? = nil
     ) -> String {
         let fixtureDecodes = [
             includeTimeline ? """
@@ -971,6 +1015,10 @@ struct IceCubesCheckMain {
         let __iceTrendingStatuses = try! __iceDecoder.decode(
             [Status].self, from: __fixtureData("api_v1_trends_statuses"))
         """ : "",
+            screenStatusFixture.map { fixture in """
+        let __iceScreenStatus = try! __iceDecoder.decode(
+            Status.self, from: __fixtureData("\(fixture)"))
+        """ } ?? "",
         ].filter { !$0.isEmpty }.joined(separator: "\n")
         let initialStatuses = includePagination
             ? "__icePublicStatuses"
@@ -1042,6 +1090,22 @@ struct IceCubesCheckMain {
                         }
                         .listStyle(.plain)
                         .navigationTitle(TimelineFilter.federated.title)
+                    }
+                    .frame(width: \(screenSize.width), height: \(screenSize.height))
+                    .background(Color.white)
+            """
+        case .nativeStatusDetail:
+            """
+                    NavigationStack {
+                        StatusDetailView(status: __iceScreenStatus)
+                    }
+                    .frame(width: \(screenSize.width), height: \(screenSize.height))
+                    .background(Color.white)
+            """
+        case .nativeAccountHeader:
+            """
+                    NavigationStack {
+                        AccountDetailView(account: __iceScreenStatus.account)
                     }
                     .frame(width: \(screenSize.width), height: \(screenSize.height))
                     .background(Color.white)
@@ -1240,26 +1304,56 @@ struct IceCubesCheckMain {
         """
     }
 
-    fileprivate static func timelineRenderSession()
-        throws -> InterpreterRenderSession
-    {
+    fileprivate static func renderSession(
+        for screen: IceCubesCaptureScreen,
+        nativeFixtureDirectory: String?
+    ) throws -> InterpreterRenderSession {
         let paths = try paths()
         Interpreter.interpretsAsPlatform = "iOS"
+        let presentation: RenderProbePresentation
+        let fixtureDirectory: String
+        let screenStatusFixture: String?
+        switch screen {
+        case .timeline:
+            presentation = .nativeTimeline
+            fixtureDirectory = paths.fixtures
+            screenStatusFixture = nil
+        case .statusDetail, .accountHeader:
+            guard let nativeFixtureDirectory else {
+                throw RuntimeError(
+                    message:
+                        "\(screen.rawValue) capture requires native fixtures")
+            }
+            let metadata = try JSONDecoder().decode(
+                NativeTwinScreenMetadata.self,
+                from: Data(contentsOf: URL(
+                    fileURLWithPath: nativeFixtureDirectory)
+                    .appendingPathComponent("timeline.json")))
+            presentation = screen == .statusDetail
+                ? .nativeStatusDetail
+                : .nativeAccountHeader
+            fixtureDirectory = nativeFixtureDirectory
+            screenStatusFixture = URL(
+                fileURLWithPath: metadata.screenFixtures.status)
+                .deletingPathExtension().lastPathComponent
+        }
         let source = ProjectMaterial.mergedSource(
             at: paths.app, files: paths.packageFiles,
             sourceModules: paths.sourceModules)
             + ProjectMaterial.mergedSource(
                 source: renderProbeSource(
-                    includeTimeline: true,
+                    includeTimeline: screen == .timeline,
                     includeDetailAndAccount: false,
-                    presentation: .nativeTimeline),
+                    presentation: presentation,
+                    screenStatusFixture: screenStatusFixture),
                 moduleName: "IceCubesCheckProbe")
         if let dumpPath = ProcessInfo.processInfo.environment[
             "ICECUBES_DUMP_MERGE"
         ] {
             try source.write(toFile: dumpPath, atomically: true, encoding: .utf8)
         }
-        NetworkBridge.policy = .replay(fixturesDirectory: paths.fixtures)
+        NetworkBridge.policy = .replay(
+            fixturesDirectory: fixtureDirectory)
         return try InterpreterHost().renderSession(
             source: source,
             buildConfiguration: .init(
@@ -1271,13 +1365,19 @@ struct IceCubesCheckMain {
     }
 
 #if !targetEnvironment(macCatalyst)
-    private static func captureTimeline(to directory: String) throws {
+    private static func capture(
+        _ screen: IceCubesCaptureScreen,
+        to directory: String,
+        nativeFixtureDirectory: String?
+    ) throws {
         defer { NetworkBridge.policy = .absorbed }
         try FileManager.default.createDirectory(
             atPath: directory, withIntermediateDirectories: true)
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
-        let session = try timelineRenderSession()
+        let session = try renderSession(
+            for: screen,
+            nativeFixtureDirectory: nativeFixtureDirectory)
         let hosting = NSHostingView(rootView: session.view.frame(
             width: screenSize.width, height: screenSize.height))
         hosting.frame = NSRect(origin: .zero, size: screenSize)
@@ -1404,16 +1504,26 @@ struct IceCubesCheckMain {
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
             isPlanar: false, colorSpaceName: .deviceRGB,
             bytesPerRow: 0, bitsPerPixel: 0)
-        else { throw RuntimeError(message: "could not allocate timeline bitmap") }
+        else {
+            throw RuntimeError(
+                message:
+                    "could not allocate \(screen.rawValue) bitmap")
+        }
         rep.size = screenSize
         hosting.cacheDisplay(in: hosting.bounds, to: rep)
         guard let png = rep.representation(using: .png, properties: [:]) else {
-            throw RuntimeError(message: "could not encode timeline PNG")
+            throw RuntimeError(
+                message:
+                    "could not encode \(screen.rawValue) PNG")
         }
-        let output = URL(fileURLWithPath: directory).appendingPathComponent("timeline.png")
+        let output = URL(fileURLWithPath: directory)
+            .appendingPathComponent("\(screen.rawValue).png")
         try png.write(to: output, options: .atomic)
-        print("timeline\t\(output.path)\t\(Int(screenSize.width))x\(Int(screenSize.height))")
+        print(
+            "\(screen.rawValue)\t\(output.path)\t"
+                + "\(Int(screenSize.width))x\(Int(screenSize.height))")
 
+        guard screen == .timeline else { return }
         guard let interpretedClockEpoch = session.interpreter.globals
             .lookup("__iceInterpretedClockEpoch")?.doubleValue
         else {
