@@ -427,6 +427,9 @@ func arrayElementType(_ normalized: String) -> String? {
     return String(inner)
 }
 
+/// Public, non-generic native values declared by SwiftUI's interfaces.
+var concreteNativeSwiftUIValueTypes: Set<String> = []
+
 func directMapping(for normalized: String) -> TypeMapping? {
     if let elementType = arrayElementType(normalized),
        let element = directMapping(for: elementType),
@@ -487,17 +490,21 @@ func directMapping(for normalized: String) -> TypeMapping? {
                 cast: "%@ as! \(normalized)",
                 requiredFramework: framework)
         }
-        guard let contextualType =
-                contextualSDKTypeName(matching: normalized) else {
-            return nil
+        if let contextualType =
+                contextualSDKTypeName(matching: normalized) {
+            let requirements =
+                sdkEnumFrameworkRequirements[contextualType] ?? []
+            return .init(
+                tag: "sdkEnum(\"\(contextualType)\")",
+                cast: "%@ as! \(contextualType)",
+                requiredFramework: requirements.count == 1
+                    ? requirements.first : nil)
         }
-        let requirements =
-            sdkEnumFrameworkRequirements[contextualType] ?? []
+        guard concreteNativeSwiftUIValueTypes.contains(normalized)
+        else { return nil }
         return .init(
-            tag: "sdkEnum(\"\(contextualType)\")",
-            cast: "%@ as! \(contextualType)",
-            requiredFramework: requirements.count == 1
-                ? requirements.first : nil)
+            tag: "nativeSwiftUIValue(\"\(normalized)\")",
+            cast: "%@ as! \(normalized)")
     }
 }
 
@@ -2598,6 +2605,22 @@ for file in interfaceFiles {
                 ext.attributes))
     }
 }
+
+// A native nominal can flow through any consuming interface declaration
+// without a type- or consumer-specific adapter.
+concreteNativeSwiftUIValueTypes = Set(interfaceFiles.flatMap { file in
+    file.statements.compactMap { statement -> String? in
+        guard case .decl(let declaration) = statement.item,
+              let structure = declaration.as(StructDeclSyntax.self),
+              isPublicSDKDecl(structure.modifiers),
+              isUsable(structure.attributes),
+              structure.genericParameterClause == nil,
+              !structure.name.text.hasPrefix("_") else {
+            return nil
+        }
+        return structure.name.text
+    }
+})
 
 // Pass A: View-extension modifiers + View structs (recording their generics
 // so pass B can process extension-declared inits, where most of them live).

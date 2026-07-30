@@ -24,6 +24,8 @@ enum ParamTag: Hashable {
     case symbolRenderingMode
     case bindingBool, bindingString, bindingDouble
     case shapeStyle, genericShapeStyle, anyView, shape
+    /// A public, non-generic native value declared by SwiftUI's interfaces.
+    case nativeSwiftUIValue(String)
     case visibility, axisSet, edgeInsets, gradient, gridItems
     case axis, annotationPosition
     case dimension, measurement
@@ -428,6 +430,18 @@ enum GeneratedDispatch {
             return try Coerce.genericShapeStyle(value)
         case .anyView:
             return try ViewRegistry.anyView(value)
+        case .nativeSwiftUIValue(let typeName):
+            guard let payload = value.hostPayload else {
+                throw RuntimeError(message:
+                    "expected a native \(typeName) View value")
+            }
+            let native = (payload as? GeneratedMemberCarrier)?
+                .generatedMemberValue ?? payload
+            guard GeneratedMembers.keyTypeName(of: native) == typeName else {
+                throw RuntimeError(message:
+                    "expected a native \(typeName) View value")
+            }
+            return native
         case .shape:
             return try Coerce.shape(value)
         case .visibility:
