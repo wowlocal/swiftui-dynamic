@@ -145,8 +145,8 @@ echo "── R2 AE board ──"
 typeset -A R2_FLOORS
 R2_FLOORS=(
   timeline 0
-  status-detail 40804
-  account-header 41754
+  status-detail 71137
+  account-header 127274
 )
 typeset -A R2_AE_LINES
 board_red=0
