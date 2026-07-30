@@ -19,6 +19,17 @@ private func removeAnimations(from layer: CALayer) {
     layer.sublayers?.forEach(removeAnimations(from:))
 }
 
+private extension View {
+    @ViewBuilder
+    func hidingCaptureScrollEdgeEffects() -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            scrollEdgeEffectHidden()
+        } else {
+            self
+        }
+    }
+}
+
 // IceCubesCheck is the IceCubes mission instrument (LOOP-ICECUBES.md).
 // Expectations below come from the recorded Mastodon response bytes. The
 // native twin emits the same values after decoding them with IceCubes' real
@@ -97,6 +108,7 @@ private struct IceCubesCatalystCaptureRoot: View {
                 Color.white
             }
         }
+        .hidingCaptureScrollEdgeEffects()
         .frame(
             width: IceCubesCheckMain.screenSize.width,
             height: IceCubesCheckMain.screenSize.height)

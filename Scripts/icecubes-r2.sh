@@ -52,14 +52,15 @@ echo "── native IceCubes twin ──"
   ./build.sh
 ) || exit 2
 
-run_twin() {
-  local twin_out="$1"
+run_twin_screen() {
+  local screen="$1"
+  local twin_out="$2"
   (
     cd Examples/IceCubesNativeTwin || exit 2
     ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
     DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib" \
     .build/arm64-apple-ios-macabi/debug/IceCubesNativeTwin.app/Contents/MacOS/IceCubesNativeTwin \
-      --out "$twin_out" --fixtures "$FIXTURES" \
+      --out "$twin_out" --fixtures "$FIXTURES" --screen "$screen" \
       -ApplePersistenceIgnoreState YES
   )
 }
@@ -73,10 +74,10 @@ run_twin() {
 # red goes green, and never answer this red by moving a floor.
 twin_reproducible=0
 for attempt in 1 2 3; do
-  run_twin "$TWIN_DIR" || exit 2
-  run_twin "$TWIN_REPEAT_DIR" || exit 2
   twin_diverged=0
   for screen in timeline status-detail account-header; do
+    run_twin_screen "$screen" "$TWIN_DIR" || exit 2
+    run_twin_screen "$screen" "$TWIN_REPEAT_DIR" || exit 2
     determinism_line="$(xcrun swift Scripts/pixel-ae.swift \
       "$TWIN_DIR/$screen.png" "$TWIN_REPEAT_DIR/$screen.png")"
     if (( $? != 0 )); then
@@ -221,7 +222,7 @@ typeset -A R2_FLOORS
 R2_FLOORS=(
   timeline 0
   status-detail 50184
-  account-header 37735
+  account-header 35241
 )
 typeset -A R2_AE_LINES
 board_red=0

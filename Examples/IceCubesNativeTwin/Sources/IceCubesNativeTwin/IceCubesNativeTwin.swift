@@ -61,6 +61,12 @@ private enum FixtureName {
     static let boostStatus = "api_v1_statuses_116954929935729788.json"
 }
 
+private enum TwinCaptureScreen: String {
+    case timeline
+    case statusDetail = "status-detail"
+    case accountHeader = "account-header"
+}
+
 @MainActor
 private struct FocusedMediaScreen: View {
     let attachments: [MediaAttachment]
@@ -107,6 +113,7 @@ private enum TwinConfiguration {
     static let outputDirectory = option("--out") ?? "/tmp/icecubes-native-twin"
     static let fixtureDirectory = option("--fixtures")
         ?? "../../Fixtures/mastodon-public-timeline"
+    static let captureScreen = option("--screen").flatMap(TwinCaptureScreen.init)
     static let capturesNavigationChrome = CommandLine.arguments.contains(
         "--navigation-chrome-probe")
     static let capturesListRowGeometry = CommandLine.arguments.contains(
@@ -235,6 +242,15 @@ private struct TwinNavigationScreen<Content: View>: View {
 }
 
 private extension View {
+    @ViewBuilder
+    func hidingCaptureScrollEdgeEffects() -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            scrollEdgeEffectHidden()
+        } else {
+            self
+        }
+    }
+
     @MainActor
     func twinAppEnvironment(
         client: MastodonClient,
@@ -318,6 +334,7 @@ private struct TwinDriverView: View {
                     routerPath: routerPath)
             }
         }
+        .hidingCaptureScrollEdgeEffects()
         .frame(width: TwinConfiguration.size.width, height: TwinConfiguration.size.height)
         .background(Color.white)
         .task {
@@ -397,38 +414,77 @@ private struct TwinDriverView: View {
                 detailStatus: detailStatus)
             ReplayURLProtocol.prependFixtures(
                 TwinConfiguration.outputDirectory)
-            statuses = replayStatuses
-            // Let SwiftUI install the List hierarchy and let deterministic
-            // replay image requests settle before rasterizing the live view.
-            try await Task.sleep(for: .seconds(1))
-            try await capturePNG(named: "timeline")
-
-            statuses = []
-            capturedScreen = .statusDetail(detailStatus)
-            capturedScreenIdentity = UUID()
-            try await waitForRequests(screenFixtures.detailEndpoints)
-            try await waitForScreenTransition()
-            try await capturePNG(named: "status-detail")
-
-            capturedScreen = .accountHeader(detailStatus.account)
-            capturedScreenIdentity = UUID()
-            try await waitForRequests(screenFixtures.accountEndpoints)
-            try await waitForScreenTransition()
-            try await capturePNG(named: "account-header")
-
-            capturedScreen = nil
-            focusedMedia = [imageAttachment]
-            try await Task.sleep(for: .seconds(1))
-            try await capturePNG(named: "media")
-            try captureMetadata(
-                statuses: replayStatuses, detailStatus: detailStatus,
-                focusedMediaURL: imageURL,
-                screenFixtures: screenFixtures.names)
+            switch TwinConfiguration.captureScreen {
+            case .timeline:
+                try await captureTimeline(statuses: replayStatuses)
+                try captureMetadata(
+                    statuses: replayStatuses,
+                    detailStatus: detailStatus,
+                    focusedMediaURL: imageURL,
+                    screenFixtures: screenFixtures.names)
+            case .statusDetail:
+                try await captureStatusDetail(
+                    detailStatus, endpoints: screenFixtures.detailEndpoints)
+            case .accountHeader:
+                try await captureAccountHeader(
+                    detailStatus.account,
+                    endpoints: screenFixtures.accountEndpoints)
+            case nil:
+                try await captureTimeline(statuses: replayStatuses)
+                try await captureStatusDetail(
+                    detailStatus, endpoints: screenFixtures.detailEndpoints)
+                try await captureAccountHeader(
+                    detailStatus.account,
+                    endpoints: screenFixtures.accountEndpoints)
+                capturedScreen = nil
+                focusedMedia = [imageAttachment]
+                try await Task.sleep(for: .seconds(1))
+                try await capturePNG(named: "media")
+                try captureMetadata(
+                    statuses: replayStatuses,
+                    detailStatus: detailStatus,
+                    focusedMediaURL: imageURL,
+                    screenFixtures: screenFixtures.names)
+            }
             exit(0)
         } catch {
             FileHandle.standardError.write(Data("IceCubesNativeTwin: \(error)\n".utf8))
             exit(2)
         }
+    }
+
+    private func captureTimeline(
+        statuses replayStatuses: [Status]
+    ) async throws {
+        statuses = replayStatuses
+        // Let SwiftUI install the List hierarchy and let deterministic replay
+        // image requests settle before rasterizing the live view.
+        try await Task.sleep(for: .seconds(1))
+        try await capturePNG(named: TwinCaptureScreen.timeline.rawValue)
+    }
+
+    private func captureStatusDetail(
+        _ status: Status,
+        endpoints: [any Endpoint]
+    ) async throws {
+        statuses = []
+        capturedScreen = .statusDetail(status)
+        capturedScreenIdentity = UUID()
+        try await waitForRequests(endpoints)
+        try await waitForScreenTransition()
+        try await capturePNG(named: TwinCaptureScreen.statusDetail.rawValue)
+    }
+
+    private func captureAccountHeader(
+        _ account: Account,
+        endpoints: [any Endpoint]
+    ) async throws {
+        statuses = []
+        capturedScreen = .accountHeader(account)
+        capturedScreenIdentity = UUID()
+        try await waitForRequests(endpoints)
+        try await waitForScreenTransition()
+        try await capturePNG(named: TwinCaptureScreen.accountHeader.rawValue)
     }
 
     private func drivePagination() async throws {

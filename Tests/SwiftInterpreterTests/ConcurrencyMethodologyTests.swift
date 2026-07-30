@@ -3065,7 +3065,7 @@ struct ConcurrencyMethodologyTests {
             "\"$INTERP_EXECUTABLE\" --capture",
             "--native-fixtures \"$TWIN_DIR\"",
             "status-detail 50184",
-            "account-header 37735",
+            "account-header 35241",
         ] {
             #expect(script.contains(required),
                 Comment(rawValue:
@@ -3124,7 +3124,16 @@ struct ConcurrencyMethodologyTests {
                 Comment(rawValue:
                     source + " no longer strips wall-clock Core Animation "
                         + "state before rasterizing"))
+            #expect(capture.contains(
+                ".hidingCaptureScrollEdgeEffects()"),
+                Comment(rawValue:
+                    source + " no longer suppresses compositor-dependent "
+                        + "scroll-edge material during capture"))
         }
+        #expect(script.contains(
+            "run_twin_screen \"$screen\""),
+            Comment(rawValue:
+                "native screens no longer launch in isolated processes"))
     }
 
     @Test func iceCubesShellPreservesNativeTargetBoundaries() throws {
