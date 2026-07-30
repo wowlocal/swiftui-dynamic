@@ -132,6 +132,21 @@ working. The following six amendments are binding.
    closes the gap that let `0b47a4db` land at AE 158,178 on main (2.6×) before a post-hoc
    capture caught it — R2 was measured out-of-band and committed nowhere.
 
+   **A floor is only meaningful over a deterministic capture** (added 2026-07-30:
+   a clean tree measured 17-33k AE of run-to-run drift — larger than several
+   committed ratchet ticks — from wall-clock spinner phase and settle timing).
+   `icecubes-r2.sh` therefore only ever scores a PROVEN-REPRODUCIBLE capture:
+   each side captures every screen twice, strictly serially (parallel capture
+   windows measurably perturb each other through the window server), and a
+   pair must match at AE 0 before scoring. The script itself retries a
+   diverged pair up to 3 fresh attempts — absorbing transient window-server
+   blips from unrelated lane activity — then exits 2 with
+   `CAPTURE-NONDETERMINISM`. Never respond to that red by looping the script
+   until it passes or by adjusting a floor — fix the capture path. Capture
+   dirs default under `$ROOT/.build/icecubes-r2-captures/` (worktree-local,
+   so lanes cannot clobber each other) and honor
+   `ICECUBES_R2_TWIN_DIR`/`ICECUBES_R2_INTERP_DIR`.
+
 3. **One concern per commit; protect regression tests.** The `7ca94306` incident — a
    landed opaque-root fix AND its regression test silently reverted inside an unrelated
    "nested source types" commit, then re-done and re-reverted (net absent at HEAD) —

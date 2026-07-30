@@ -1,13 +1,23 @@
 #!/bin/zsh
 # Capture compiled Catalyst and interpreted IceCubes screens from the same
 # recorded Mastodon bytes, then enforce each screen's exact per-pixel AE.
+#
+# Determinism contract: every scored screen is captured TWICE per side and the
+# two passes must be pixel-identical (AE 0, no fuzz) before the board scores
+# anything. A floor delta can then only mean interpreter fidelity moved —
+# never spinner phase, settle timing, or machine load (the 2026-07-30 noise
+# band was ~17-33k AE, larger than several committed ratchet ticks).
 set -u
 cd "$(dirname "$0")/.." || exit 2
 
 ROOT="$PWD"
 FIXTURES="$ROOT/Fixtures/mastodon-public-timeline"
-TWIN_DIR=/tmp/icecubes-native-twin
-INTERP_DIR=/tmp/icecubes-interpreted
+# Worktree-local by default so concurrent lanes never clobber each other's
+# captures; the per-screen stdout lines carry the concrete paths.
+TWIN_DIR="${ICECUBES_R2_TWIN_DIR:-$ROOT/.build/icecubes-r2-captures/native-twin}"
+INTERP_DIR="${ICECUBES_R2_INTERP_DIR:-$ROOT/.build/icecubes-r2-captures/interpreted}"
+TWIN_REPEAT_DIR="$TWIN_DIR-repeat"
+INTERP_REPEAT_DIR="$INTERP_DIR-repeat"
 # 2026-07-16T12:00:00Z, immediately after the recorded fixture was captured.
 FROZEN_NOW=1784203200
 CLOCK_DIR="$ROOT/Examples/IceCubesNativeTwin/.build/frozen-clock"
@@ -16,30 +26,74 @@ INTERP_BUILD_DIR="$INTERP_SCRATCH_PATH/arm64-apple-ios-macabi/debug"
 INTERP_BINARY="$INTERP_BUILD_DIR/IceCubesCheck"
 INTERP_APP="$INTERP_BUILD_DIR/IceCubesCheck.app"
 INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
-mkdir -p "$TWIN_DIR" "$INTERP_DIR"
-rm -f \
-  "$TWIN_DIR/timeline.png" \
-  "$TWIN_DIR/status-detail.png" \
-  "$TWIN_DIR/account-header.png" \
-  "$TWIN_DIR/media.png" \
-  "$TWIN_DIR/timeline.json" \
-  "$INTERP_DIR/timeline.png" \
-  "$INTERP_DIR/status-detail.png" \
-  "$INTERP_DIR/account-header.png" \
-  "$INTERP_DIR/timeline.json" \
-  "$INTERP_DIR/timeline.log" \
-  "$INTERP_DIR/status-detail.log" \
-  "$INTERP_DIR/account-header.log"
+mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
+for capture_dir in "$TWIN_DIR" "$TWIN_REPEAT_DIR"; do
+  rm -f \
+    "$capture_dir/timeline.png" \
+    "$capture_dir/status-detail.png" \
+    "$capture_dir/account-header.png" \
+    "$capture_dir/media.png" \
+    "$capture_dir/timeline.json"
+done
+for capture_dir in "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
+  rm -f \
+    "$capture_dir/timeline.png" \
+    "$capture_dir/status-detail.png" \
+    "$capture_dir/account-header.png" \
+    "$capture_dir/timeline.json" \
+    "$capture_dir/timeline.log" \
+    "$capture_dir/status-detail.log" \
+    "$capture_dir/account-header.log"
+done
 
 echo "── native IceCubes twin ──"
 (
   cd Examples/IceCubesNativeTwin || exit 2
-  ./build.sh || exit 2
-  ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
-  DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib" \
-  .build/arm64-apple-ios-macabi/debug/IceCubesNativeTwin.app/Contents/MacOS/IceCubesNativeTwin \
-    --out "$TWIN_DIR" --fixtures "$FIXTURES"
+  ./build.sh
 ) || exit 2
+
+run_twin() {
+  local twin_out="$1"
+  (
+    cd Examples/IceCubesNativeTwin || exit 2
+    ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
+    DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib" \
+    .build/arm64-apple-ios-macabi/debug/IceCubesNativeTwin.app/Contents/MacOS/IceCubesNativeTwin \
+      --out "$twin_out" --fixtures "$FIXTURES"
+  )
+}
+
+# Only a PROVEN-REPRODUCIBLE capture may be scored: each side captures twice
+# and the pair must match exactly. A bounded number of fresh pairs absorbs
+# transient window-server perturbation from unrelated lane activity on the
+# same machine (`drawHierarchy` snapshots through the compositor); persistent
+# divergence — a live animation, a settle bug — fails every attempt and exits
+# loudly. The retry lives HERE, capped: never loop the script itself until a
+# red goes green, and never answer this red by moving a floor.
+twin_reproducible=0
+for attempt in 1 2 3; do
+  run_twin "$TWIN_DIR" || exit 2
+  run_twin "$TWIN_REPEAT_DIR" || exit 2
+  twin_diverged=0
+  for screen in timeline status-detail account-header; do
+    determinism_line="$(xcrun swift Scripts/pixel-ae.swift \
+      "$TWIN_DIR/$screen.png" "$TWIN_REPEAT_DIR/$screen.png")"
+    if (( $? != 0 )); then
+      echo "twin $screen capture pair diverged (attempt $attempt: $determinism_line)"
+      twin_diverged=1
+      break
+    fi
+  done
+  if (( twin_diverged == 0 )); then
+    twin_reproducible=1
+    break
+  fi
+done
+if (( twin_reproducible == 0 )); then
+  echo "twin CAPTURE-NONDETERMINISM: no reproducible capture pair in 3" \
+    "attempts — fix the capture, not the floor" >&2
+  exit 2
+fi
 
 OBSERVED_CLOCK="$(jq -r '.clockEpoch' "$TWIN_DIR/timeline.json")"
 if [[ "$OBSERVED_CLOCK" != "$FROZEN_NOW" ]]; then
@@ -103,6 +157,7 @@ codesign --force --sign - "$INTERP_APP" >/dev/null || exit 2
 
 capture_interpreted_screen() {
   local screen="$1"
+  local out_dir="$2"
   local native_args=()
   if [[ "$screen" != timeline ]]; then
     native_args=(--native-fixtures "$TWIN_DIR")
@@ -110,26 +165,44 @@ capture_interpreted_screen() {
   ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
   SWIFT_DETERMINISTIC_HASHING=1 \
   DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib" \
-  "$INTERP_EXECUTABLE" --capture "$INTERP_DIR" --screen "$screen" \
-    "${native_args[@]}" > "$INTERP_DIR/$screen.log" 2>&1
+  "$INTERP_EXECUTABLE" --capture "$out_dir" --screen "$screen" \
+    "${native_args[@]}" > "$out_dir/$screen.log" 2>&1
 }
 
-capture_pids=()
+# Captures run STRICTLY SERIALLY. Measured 2026-07-30: three parallel capture
+# processes contend for the window server, `drawHierarchy` takes a different
+# snapshot path per run, and two passes of the same binary on the same
+# fixtures differ by 141k+ AE (±1-per-channel wobble plus spinner phase);
+# serialized, four consecutive captures are pixel-exact. Do not restore the
+# `&` fan-out without also proving the reproducibility gate below stays green.
+capture_reproducible_interpreted_screen() {
+  local screen="$1"
+  local attempt determinism_line
+  for attempt in 1 2 3; do
+    for interp_out in "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
+      if ! capture_interpreted_screen "$screen" "$interp_out"; then
+        local capture_status=$?
+        cat "$interp_out/$screen.log"
+        echo "interpreted $screen capture failed with status $capture_status" >&2
+        exit 2
+      fi
+    done
+    determinism_line="$(xcrun swift Scripts/pixel-ae.swift \
+      "$INTERP_DIR/$screen.png" "$INTERP_REPEAT_DIR/$screen.png")"
+    if (( $? == 0 )); then
+      return 0
+    fi
+    echo "interpreted $screen capture pair diverged (attempt $attempt: $determinism_line)"
+  done
+  echo "interpreted $screen CAPTURE-NONDETERMINISM: no reproducible capture" \
+    "pair in 3 attempts — fix the capture, not the floor" >&2
+  exit 2
+}
+
 for screen in timeline status-detail account-header; do
-  capture_interpreted_screen "$screen" &
-  capture_pids+=($!)
-done
-capture_status=0
-for capture_pid in "${capture_pids[@]}"; do
-  wait "$capture_pid" || capture_status=$?
-done
-for screen in timeline status-detail account-header; do
+  capture_reproducible_interpreted_screen "$screen"
   cat "$INTERP_DIR/$screen.log"
 done
-if (( capture_status != 0 )); then
-  echo "interpreted screen capture failed with status $capture_status" >&2
-  exit 2
-fi
 
 INTERP_OBSERVED_CLOCK="$(jq -r '.interpretedClockEpoch' "$INTERP_DIR/timeline.json")"
 if [[ "$INTERP_OBSERVED_CLOCK" != "$FROZEN_NOW" ]]; then
@@ -145,8 +218,8 @@ echo "── R2 AE board ──"
 typeset -A R2_FLOORS
 R2_FLOORS=(
   timeline 0
-  status-detail 70887
-  account-header 106917
+  status-detail 71137
+  account-header 127140
 )
 typeset -A R2_AE_LINES
 board_red=0

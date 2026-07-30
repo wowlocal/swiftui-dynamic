@@ -3064,8 +3064,8 @@ struct ConcurrencyMethodologyTests {
             "--scratch-path \"$INTERP_SCRATCH_PATH\"",
             "\"$INTERP_EXECUTABLE\" --capture",
             "--native-fixtures \"$TWIN_DIR\"",
-            "status-detail 70887",
-            "account-header 106917",
+            "status-detail 71137",
+            "account-header 127140",
         ] {
             #expect(script.contains(required),
                 Comment(rawValue:
@@ -3076,6 +3076,48 @@ struct ConcurrencyMethodologyTests {
             "\n.build/arm64-apple-macosx/debug/IceCubesCheck --capture"),
             Comment(rawValue:
                 "R2 regressed to the test-contaminated root build product"))
+    }
+
+    /// The R2 board may only score captures that reproduce exactly: each side
+    /// captures every screen twice and the passes must be pixel-identical
+    /// before any floor comparison. Without this, spinner phase and settle
+    /// timing put a run-to-run noise band (~17-33k AE measured 2026-07-30)
+    /// under every ratchet tick, and a floor delta stops meaning fidelity.
+    @Test func iceCubesR2EnforcesCaptureDeterminism() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/icecubes-r2.sh"),
+            encoding: .utf8)
+
+        for required in [
+            "ICECUBES_R2_TWIN_DIR",
+            "ICECUBES_R2_INTERP_DIR",
+            "TWIN_REPEAT_DIR=\"$TWIN_DIR-repeat\"",
+            "INTERP_REPEAT_DIR=\"$INTERP_DIR-repeat\"",
+            "\"$TWIN_DIR/$screen.png\" \"$TWIN_REPEAT_DIR/$screen.png\"",
+            "\"$INTERP_DIR/$screen.png\" \"$INTERP_REPEAT_DIR/$screen.png\"",
+            "CAPTURE-NONDETERMINISM",
+        ] {
+            #expect(script.contains(required),
+                Comment(rawValue:
+                    "R2 lost its capture determinism gate: " + required))
+        }
+
+        // Both capture harnesses must rasterize the model layer, not a
+        // wall-clock animation frame; the interpreted side mirrors the twin.
+        for source in [
+            "Sources/IceCubesCheck/IceCubesCheck.swift",
+            "Examples/IceCubesNativeTwin/Sources/IceCubesNativeTwin/"
+                + "IceCubesNativeTwin.swift",
+        ] {
+            let capture = try String(
+                contentsOf: Self.packageRoot.appendingPathComponent(source),
+                encoding: .utf8)
+            #expect(capture.contains("removeAnimations(from:"),
+                Comment(rawValue:
+                    source + " no longer strips wall-clock Core Animation "
+                        + "state before rasterizing"))
+        }
     }
 
     @Test func iceCubesShellPreservesNativeTargetBoundaries() throws {

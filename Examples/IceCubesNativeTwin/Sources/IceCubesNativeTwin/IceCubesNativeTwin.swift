@@ -331,32 +331,32 @@ private struct TwinDriverView: View {
         do {
             if TwinConfiguration.capturesNavigationChrome {
                 try await Task.sleep(for: .seconds(1))
-                try capturePNG(named: "navigation-chrome")
+                try await capturePNG(named: "navigation-chrome")
                 exit(0)
             }
             if TwinConfiguration.capturesListRowGeometry {
                 try await Task.sleep(for: .seconds(1))
-                try capturePNG(named: "list-row-geometry")
+                try await capturePNG(named: "list-row-geometry")
                 exit(0)
             }
             if TwinConfiguration.capturesListSeparatorGeometry {
                 try await Task.sleep(for: .seconds(1))
-                try capturePNG(named: "list-separator-geometry")
+                try await capturePNG(named: "list-separator-geometry")
                 exit(0)
             }
             if TwinConfiguration.capturesRepeatedRowGeometry {
                 try await Task.sleep(for: .seconds(1))
-                try capturePNG(named: "repeated-row-geometry")
+                try await capturePNG(named: "repeated-row-geometry")
                 exit(0)
             }
             if TwinConfiguration.capturesTargetControlRowGeometry {
                 try await Task.sleep(for: .seconds(1))
-                try capturePNG(named: "target-control-row-geometry")
+                try await capturePNG(named: "target-control-row-geometry")
                 exit(0)
             }
             if TwinConfiguration.capturesSmallBorderedControl {
                 try await Task.sleep(for: .seconds(1))
-                try capturePNG(named: "small-bordered-control")
+                try await capturePNG(named: "small-bordered-control")
                 exit(0)
             }
             if TwinConfiguration.capturesPagination {
@@ -401,25 +401,25 @@ private struct TwinDriverView: View {
             // Let SwiftUI install the List hierarchy and let deterministic
             // replay image requests settle before rasterizing the live view.
             try await Task.sleep(for: .seconds(1))
-            try capturePNG(named: "timeline")
+            try await capturePNG(named: "timeline")
 
             statuses = []
             capturedScreen = .statusDetail(detailStatus)
             capturedScreenIdentity = UUID()
             try await waitForRequests(screenFixtures.detailEndpoints)
             try await waitForScreenTransition()
-            try capturePNG(named: "status-detail")
+            try await capturePNG(named: "status-detail")
 
             capturedScreen = .accountHeader(detailStatus.account)
             capturedScreenIdentity = UUID()
             try await waitForRequests(screenFixtures.accountEndpoints)
             try await waitForScreenTransition()
-            try capturePNG(named: "account-header")
+            try await capturePNG(named: "account-header")
 
             capturedScreen = nil
             focusedMedia = [imageAttachment]
             try await Task.sleep(for: .seconds(1))
-            try capturePNG(named: "media")
+            try await capturePNG(named: "media")
             try captureMetadata(
                 statuses: replayStatuses, detailStatus: detailStatus,
                 focusedMediaURL: imageURL,
@@ -730,7 +730,7 @@ private struct TwinDriverView: View {
         scrollView.layoutIfNeeded()
     }
 
-    private func capturePNG(named name: String) throws {
+    private func rasterizeHierarchyPNG() throws -> Data {
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
@@ -749,6 +749,11 @@ private struct TwinDriverView: View {
         format.scale = 1
         format.opaque = false
         let renderer = UIGraphicsImageRenderer(size: TwinConfiguration.size, format: format)
+        // `drawHierarchy` is the only capture that materializes Catalyst
+        // hosting-layer contents (an in-process `layer.render(in:)` draws
+        // hosted SwiftUI content blank). Its window-server round trip is why
+        // captures must stay serialized and animation-free — see the R2
+        // determinism gate in Scripts/icecubes-r2.sh.
         let image = renderer.image { _ in
             captureView.drawHierarchy(
                 in: CGRect(origin: .zero, size: TwinConfiguration.size),
@@ -758,6 +763,33 @@ private struct TwinDriverView: View {
             throw NSError(
                 domain: "IceCubesNativeTwin", code: 3,
                 userInfo: [NSLocalizedDescriptionKey: "live hierarchy produced no PNG"])
+        }
+        return png
+    }
+
+    /// A capture is written only once two consecutive rasterizations of the
+    /// hierarchy are byte-identical, so the oracle can never sample a
+    /// transition or mid-decode frame — the R2 twin divergence of 2026-07-30
+    /// (71k AE between two same-state runs) was exactly such a frame slipping
+    /// past a wall-clock settle sleep.
+    private func capturePNG(named name: String) async throws {
+        var previous: Data?
+        var png: Data?
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(200))
+            let current = try rasterizeHierarchyPNG()
+            if previous == current {
+                png = current
+                break
+            }
+            previous = current
+        }
+        guard let png else {
+            throw NSError(
+                domain: "IceCubesNativeTwin", code: 13,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "\(name) hierarchy never produced two identical rasterizations"])
         }
 
         try FileManager.default.createDirectory(
