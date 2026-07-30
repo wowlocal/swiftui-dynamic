@@ -2354,14 +2354,6 @@ extension GeneratedMembers {
                 AttributedString.MarkdownParsingOptions(languageCode: (values[0] as! String), appliesSourcePositionAttributes: (values[1] as! Bool))
             },
         ]),
-        "Decimal.FormatStyle": GeneratedConstructorSet([
-            GeneratedConstructor(params: []) { values in
-                Decimal.FormatStyle()
-            },
-            GeneratedConstructor(params: [ParamSpec("locale", .sdkEnum("Locale"))]) { values in
-                Decimal.FormatStyle(locale: (values[0] as! Locale))
-            },
-        ]),
         "Decimal.FormatStyle.Currency": GeneratedConstructorSet([
             GeneratedConstructor(params: [ParamSpec("code", .string)]) { values in
                 Decimal.FormatStyle.Currency(code: (values[0] as! String))

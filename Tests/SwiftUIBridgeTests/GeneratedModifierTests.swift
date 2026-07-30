@@ -643,6 +643,32 @@ import SwiftInterpreter
         }
     }
 
+    /// Target declarations are split across SwiftUI's public implementation
+    /// modules, and declarations newer than the package deployment floor
+    /// remain source-valid inside availability checks. The interface sweep
+    /// must retain both properties instead of limiting generated target
+    /// coverage to one umbrella module or dropping newer declarations.
+    @Test func newerTargetOverlayModifierPreservesReceiver() throws {
+        let variants = GeneratedModifiers.table["glassEffect"]?
+            .byArity[0] ?? []
+        #expect(variants.contains {
+            $0.requiredImports == ["UIKit"]
+        })
+
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(
+            registry: registry,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"))
+        let result = try interpreter.run(source: """
+        Text("target field")
+            .glassEffect()
+            .glassEffect(.regular.interactive())
+            .onTapGesture {}
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     /// A generated off-host adapter only promises to preserve its receiver;
     /// parameter metadata must not make trace mode execute a deferred builder
     /// that the selected adapter itself ignores.

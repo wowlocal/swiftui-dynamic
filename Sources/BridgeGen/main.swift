@@ -115,17 +115,25 @@ let swiftUICrossImportFiles: [CrossImportInterface] = {
 /// as platform-value conversions that a macOS-hosted interpreter must still
 /// recognize without compiling UIKit into the host binary.
 func catalystOverlayInterfacePath(framework: String) -> String? {
-    let moduleDir = "\(sdk)/System/iOSSupport/System/Library/Frameworks/\(framework).framework/Modules/\(framework).swiftmodule"
-    let candidates = ((try? FileManager.default.contentsOfDirectory(
-        atPath: moduleDir)) ?? [])
-        .filter { $0.hasSuffix("-apple-ios-macabi.swiftinterface") }
-        .sorted()
+    let moduleDirectories = [
+        "\(sdk)/System/iOSSupport/System/Library/Frameworks/"
+            + "\(framework).framework/Modules/\(framework).swiftmodule",
+        "\(sdk)/System/Library/Frameworks/"
+            + "\(framework).framework/Modules/\(framework).swiftmodule",
+    ]
     let architecturePrefix = hostArchitecture == "arm64"
         ? "arm64" : hostArchitecture
-    guard let name = candidates.first(where: {
-        $0.hasPrefix(architecturePrefix)
-    }) ?? candidates.first else { return nil }
-    return "\(moduleDir)/\(name)"
+    for moduleDir in moduleDirectories {
+        let candidates = ((try? FileManager.default.contentsOfDirectory(
+            atPath: moduleDir)) ?? [])
+            .filter { $0.hasSuffix("-apple-ios-macabi.swiftinterface") }
+            .sorted()
+        guard let name = candidates.first(where: {
+            $0.hasPrefix(architecturePrefix)
+        }) ?? candidates.first else { continue }
+        return "\(moduleDir)/\(name)"
+    }
+    return nil
 }
 
 /// Some SDK interfaces are implementation-detail modules whose public import
@@ -164,9 +172,10 @@ let primaryInterfaceFiles = ["SwiftUICore", "SwiftUI", "Charts"].compactMap {
 }
 let interfaceFiles = primaryInterfaceFiles.map(\.file)
 
-let targetOverlayInterfaceFiles = ["SwiftUI"].compactMap {
-    framework
+let targetOverlayInterfaceFiles = primaryInterfaceFiles.compactMap {
+    primary
         -> (module: String, importModule: String, file: SourceFileSyntax)? in
+    let framework = primary.module
     guard let path = catalystOverlayInterfacePath(framework: framework),
           let source = try? String(contentsOfFile: path, encoding: .utf8)
     else {
@@ -254,6 +263,8 @@ var platformTypeFrameworks: [String: Set<String>] = [:]
 /// one interface-derived table drives both without nominal allowlists.
 var sdkEnumCases: [String: [String]] = [:]
 var sdkEnumFrameworkRequirements: [String: Set<String>] = [:]
+var sdkEnumMinimumTargetAvailabilities:
+    [String: Set<GeneratedTargetAvailability>] = [:]
 /// Contextual SDK value types whose interface conformance makes Swift array
 /// literals a composition of same-typed members (`[.isButton, .isImage]`).
 /// This remains separate from member discovery so composition is enabled by
@@ -397,6 +408,7 @@ func contextualSDKTypeName(matching normalized: String) -> String? {
     if sdkEnumCases[normalized] != nil { return normalized }
     let matches = sdkEnumCases.keys.filter {
         $0.hasSuffix("." + normalized)
+            || normalized.hasSuffix("." + $0)
     }
     return matches.count == 1 ? matches[0] : nil
 }
@@ -799,6 +811,32 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
                          blocker: "<\(set.sorted().joined(separator: "&"))>", usesGeneric: normalized)
         }
     }
+    // Opaque parameter syntax is an anonymous generic whose conformance is
+    // written in place (`shape: some Shape`). Reuse the same protocol-driven
+    // mapping as named generic parameters; the emitted adapter supplies its
+    // canonical concrete carrier without depending on the consuming API.
+    if normalized.hasPrefix("some ") {
+        let constraint = String(normalized.dropFirst("some ".count))
+        let constraints = Set(
+            constraint.split(separator: "&").map {
+                normalize(String($0))
+                    .trimmingCharacters(in: CharacterSet(
+                        charactersIn: "()"))
+            })
+        if constraints.count == 1,
+           let protocolName = constraints.first,
+           let mapping = constraintMapping(for: protocolName)?
+            .contextualized(as: protocolName) {
+            return .init(
+                label: label, mapping: preservingOptional(mapping),
+                hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
+        }
+        if let mapping = sdkProtocolMapping(for: constraints) {
+            return .init(
+                label: label, mapping: preservingOptional(mapping),
+                hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
+        }
+    }
     if let mapping = directMapping(for: normalized)?
         .contextualized(as: normalized) {
         return .init(label: label, mapping: preservingOptional(mapping), hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
@@ -1006,9 +1044,10 @@ func introducedVersion(
 }
 
 /// Availability for target overlays is evaluated against the interpreted iOS
-/// deployment, independently of the macOS host. Future-version deprecations
-/// remain legal API; only actual unavailability/obsoletion or newer
-/// introduction prevents emission.
+/// deployment, independently of the macOS host. Newer declarations remain
+/// source-valid inside availability checks; BridgeGen carries their minimum
+/// versions into generated runtime guards instead of deleting their call
+/// shapes at generation time.
 func isUsableIOSOverlay(_ attributes: AttributeListSyntax) -> Bool {
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
@@ -1022,10 +1061,6 @@ func isUsableIOSOverlay(_ attributes: AttributeListSyntax) -> Bool {
         if text.contains("iOS, unavailable")
             || text.contains("iOS unavailable")
             || text.contains("iOS, obsoleted") {
-            return false
-        }
-        if let introduced = introducedVersion(in: text, platform: "iOS"),
-           introduced > (deploymentTarget, 0) {
             return false
         }
     }
@@ -1759,15 +1794,17 @@ enum SDKContextualSweep {
         case .packageUniversal:
             return needsAvailabilityGuard(attributes)
         case .iOSOverlay:
-            // isUsableIOSOverlay already rejects declarations introduced
-            // after the interpreted deployment floor. A macOS availability
-            // guard would erase the target-only declaration we are modeling.
+            // Target-overlay declarations retain their target availability
+            // separately. A macOS availability guard would erase the
+            // target-only declaration we are modeling.
             return false
         }
     }
 
     func isTargetOnly(_ attributes: AttributeListSyntax) -> Bool {
-        self == .iOSOverlay && !isUniversallyUsable(attributes)
+        self == .iOSOverlay
+            && (!isUniversallyUsable(attributes)
+                || !minimumTargetAvailabilities(attributes).isEmpty)
     }
 }
 
@@ -1781,6 +1818,27 @@ func recordSDKContextualValues(
     )).sorted()
     sdkEnumFrameworkRequirements[type, default: []]
         .formUnion(frameworkRequirements)
+}
+
+func recordSDKContextualAvailability(
+    type: String, attributes: AttributeListSyntax
+) {
+    sdkEnumMinimumTargetAvailabilities[type, default: []]
+        .formUnion(minimumTargetAvailabilities(attributes))
+}
+
+/// A nested declaration cannot exist before any of its enclosing nominals.
+/// Swift interfaces commonly put availability on the outer nominal only, so
+/// derive the effective floor from every lexical type prefix rather than
+/// requiring each nested declaration to repeat the attribute.
+func minimumSDKContextualAvailabilities(
+    for type: String
+) -> Set<GeneratedTargetAvailability> {
+    let components = type.split(separator: ".").map(String.init)
+    return components.indices.reduce(into: []) { result, index in
+        let prefix = components[...index].joined(separator: ".")
+        result.formUnion(sdkEnumMinimumTargetAvailabilities[prefix] ?? [])
+    }
 }
 
 func recordSDKSetAlgebraConformance(
@@ -1814,8 +1872,13 @@ func collectSameTypeSDKStatics(
               !sweep.needsGuard(variable.attributes) else { continue }
         for binding in variable.bindings {
             guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
-                  let annotation = binding.typeAnnotation,
-                  normalize(annotation.type.trimmedDescription) == type else {
+                  let annotation = binding.typeAnnotation else {
+                continue
+            }
+            let annotatedType = normalize(
+                annotation.type.trimmedDescription)
+            guard annotatedType == type
+                    || annotatedType.hasSuffix("." + type) else {
                 continue
             }
             names.append(identifier.identifier.text.trimmingCharacters(
@@ -1859,6 +1922,8 @@ func collectSDKEnums(
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(enumDecl.attributes))
         let type = path.joined(separator: ".")
+        recordSDKContextualAvailability(
+            type: type, attributes: enumDecl.attributes)
         recordSDKSetAlgebraConformance(
             type: type, inheritanceClause: enumDecl.inheritanceClause,
             guarded: guarded || !recordsValues)
@@ -1899,6 +1964,9 @@ func collectSDKEnums(
         let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(structDecl.attributes))
+        recordSDKContextualAvailability(
+            type: childPath.joined(separator: "."),
+            attributes: structDecl.attributes)
         recordSDKSetAlgebraConformance(
             type: childPath.joined(separator: "."),
             inheritanceClause: structDecl.inheritanceClause,
@@ -1928,6 +1996,9 @@ func collectSDKEnums(
         let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(classDecl.attributes))
+        recordSDKContextualAvailability(
+            type: childPath.joined(separator: "."),
+            attributes: classDecl.attributes)
         recordSDKSetAlgebraConformance(
             type: childPath.joined(separator: "."),
             inheritanceClause: classDecl.inheritanceClause,
@@ -1957,6 +2028,9 @@ func collectSDKEnums(
         let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(actorDecl.attributes))
+        recordSDKContextualAvailability(
+            type: childPath.joined(separator: "."),
+            attributes: actorDecl.attributes)
         recordSDKSetAlgebraConformance(
             type: childPath.joined(separator: "."),
             inheritanceClause: actorDecl.inheritanceClause,
@@ -1986,6 +2060,9 @@ func collectSDKEnums(
         let recordsValues = sweep == .packageUniversal || targetOnly
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(protocolDecl.attributes))
+        recordSDKContextualAvailability(
+            type: childPath.joined(separator: "."),
+            attributes: protocolDecl.attributes)
         collectSameTypeSDKStatics(
             in: protocolDecl.memberBlock.members,
             type: childPath.joined(separator: "."), guarded: guarded,
@@ -2010,9 +2087,10 @@ func collectSDKEnums(
         let requirements = inheritedRequirements.union(
             platformFrameworkRequirements(extensionDecl.attributes))
         // A target-only extension can add a member to a package-universal
-        // nominal. That needs per-member availability metadata, which this
-        // type-level coercion table intentionally does not invent. Nested
-        // target-only declarations still inherit the extension provenance.
+        // nominal, but it cannot change the nominal's own availability.
+        // Recording the extension floor against the type would incorrectly
+        // make every older case unavailable. Nested target-only declarations
+        // still inherit the extension provenance through `targetOnly`.
         let recordsOwnValues = sweep == .packageUniversal
         if recordsOwnValues {
             recordSDKSetAlgebraConformance(
@@ -2162,7 +2240,8 @@ func processModifier(
     frameworkRequirements: Set<String>,
     targetImportRequirements: Set<String> = [],
     inheritedTargetEnvironmentExclusions: Set<String> = [],
-    inheritedTargetAvailabilities: Set<GeneratedTargetAvailability> = []
+    inheritedTargetAvailabilities: Set<GeneratedTargetAvailability> = [],
+    retainsNewerTargetAvailability: Bool = false
 ) {
     guard isPublicSDKDecl(function.modifiers) else { return }
     let name = function.name.text
@@ -2193,10 +2272,26 @@ func processModifier(
 
     if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
         modifierBlockers[firstBlocked.blocker ?? "?", default: 0] += 1
+        if ProcessInfo.processInfo.environment[
+            "BRIDGEGEN_DUMP_BLOCKED"
+        ] != nil {
+            print(
+                "   blocked[\(firstBlocked.blocker ?? "?")] modifier "
+                    + "\(name)\(parameters.trimmedDescription)")
+        }
         return
     }
-    if guarded || needsAvailabilityGuard(function.attributes) {
+    if guarded
+        || (needsAvailabilityGuard(function.attributes)
+            && !retainsNewerTargetAvailability) {
         modifierGuarded += 1
+        if ProcessInfo.processInfo.environment[
+            "BRIDGEGEN_DUMP_BLOCKED"
+        ] != nil {
+            print(
+                "   blocked[availability] modifier "
+                    + "\(name)\(parameters.trimmedDescription)")
+        }
         return
     }
     modifierGeneratable += 1
@@ -2263,7 +2358,8 @@ func processInit(
     _ structName: String, _ initDecl: InitializerDeclSyntax,
     generics baseGenerics: Generics, guarded: Bool,
     frameworkRequirements: Set<String>,
-    preservesSemanticValue: Bool
+    preservesSemanticValue: Bool,
+    requiresPlatformParameter: Bool = false
 ) {
     guard isPublicSDKDecl(initDecl.modifiers) else { return }
     initTotal += 1
@@ -2282,6 +2378,12 @@ func processInit(
         return
     }
     let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
+    if requiresPlatformParameter,
+       !analyzed.contains(where: {
+           $0.mapping?.requiredFramework != nil
+       }) {
+        return
+    }
     let byGenericInit = Dictionary(grouping: analyzed.filter { $0.usesGeneric != nil }, by: { $0.usesGeneric! })
     for (_, uses) in byGenericInit where uses.count > 1 {
         let concretes = Set(uses.map(\.genericConcrete))
@@ -2542,7 +2644,8 @@ for file in targetOverlayFiles {
                 frameworkRequirements: ["UIKit"],
                 targetImportRequirements: ["UIKit"],
                 inheritedTargetAvailabilities:
-                    minimumTargetAvailabilities(ext.attributes))
+                    minimumTargetAvailabilities(ext.attributes),
+                retainsNewerTargetAvailability: true)
         }
     }
 }
@@ -2555,19 +2658,27 @@ for file in targetOverlayFiles {
     for statement in file.statements {
         guard case .decl(let decl) = statement.item,
               let ext = decl.as(ExtensionDeclSyntax.self),
-              isUsableIOSOverlay(ext.attributes) else { continue }
+              isUsableIOSOverlay(ext.attributes),
+              minimumTargetAvailabilities(ext.attributes).isEmpty else {
+            continue
+        }
         let extendedName = normalize(ext.extendedType.trimmedDescription)
         guard let info = viewStructInfo[extendedName] else { continue }
         var generics = info.generics
         collectWhereClause(ext.genericWhereClause, into: &generics)
         for member in ext.memberBlock.members {
             guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
-                  isUsableIOSOverlay(initDecl.attributes) else { continue }
+                  isUsableIOSOverlay(initDecl.attributes),
+                  minimumTargetAvailabilities(
+                    initDecl.attributes).isEmpty else {
+                continue
+            }
             processInit(
                 extendedName, initDecl, generics: generics, guarded: false,
                 frameworkRequirements: info.frameworkRequirements.union(
                     ["UIKit"]),
-                preservesSemanticValue: info.preservesSemanticValue)
+                preservesSemanticValue: info.preservesSemanticValue,
+                requiresPlatformParameter: true)
         }
     }
 }
@@ -3902,6 +4013,199 @@ let emittedSDKEnumTypes = Set(
                     sdkEnumType(from: $0.tag)
                 }
             })
+
+/// A public instance method that returns its receiver's contextual SDK type
+/// is a fluent value transform (`.regular.interactive()`,
+/// `.member.transform(...)`). Keep these in the contextual-value generator:
+/// the root static, method shape, defaults, argument coercions, and target
+/// availability all come from the same swiftinterface.
+struct SDKContextualMethodVariant {
+    let type: String
+    let name: String
+    let params: [EmittableParam]
+    let minimumTargetAvailabilities: Set<GeneratedTargetAvailability>
+
+    var key: String {
+        type + "." + name + "|" + params.map {
+            "\($0.label ?? "_"):\($0.tag)"
+        }.joined(separator: ",")
+    }
+}
+
+let targetSDKContextualMethodVariants: [SDKContextualMethodVariant] = {
+    var variants: [SDKContextualMethodVariant] = []
+    var seen: Set<String> = []
+
+    @MainActor
+    func recordMethods(
+        _ members: MemberBlockItemListSyntax,
+        type: String,
+        inheritedTargetOnly: Bool,
+        inheritedAvailabilities: Set<GeneratedTargetAvailability>
+    ) {
+        guard emittedSDKEnumTypes.contains(type) else { return }
+        for member in members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  isPublicSDKDecl(function.modifiers),
+                  !hasModifier(function.modifiers, "static"),
+                  !hasModifier(function.modifiers, "class"),
+                  !hasModifier(function.modifiers, "mutating"),
+                  isUsableIOSOverlay(function.attributes),
+                  function.genericParameterClause == nil,
+                  function.genericWhereClause == nil,
+                  function.signature.effectSpecifiers == nil,
+                  let first = function.name.text.first,
+                  first.isLetter,
+                  !function.name.text.hasPrefix("_"),
+                  let declaredReturn = function.signature.returnClause?.type
+                    .trimmedDescription else {
+                continue
+            }
+            let normalizedReturn = normalize(declaredReturn)
+            guard normalizedReturn == "Self"
+                    || normalizedReturn == type
+                    || normalizedReturn.hasSuffix("." + type) else {
+                continue
+            }
+            let targetOnly = inheritedTargetOnly
+                || SDKContextualSweep.iOSOverlay.isTargetOnly(
+                    function.attributes)
+            guard targetOnly else { continue }
+
+            let analyzed = function.signature.parameterClause.parameters.map {
+                analyzeParameter($0, generics: [:])
+            }
+            let availabilities = inheritedAvailabilities.union(
+                minimumTargetAvailabilities(function.attributes))
+            for selection in parameterSelections(analyzed)
+            where selection.trailingClosureIndex == nil {
+                let variant = SDKContextualMethodVariant(
+                    type: type,
+                    name: function.name.text,
+                    params: selection.params.map {
+                        EmittableParam(
+                            label: $0.label,
+                            tag: $0.mapping!.tag,
+                            cast: $0.mapping!.cast,
+                            requiredFramework:
+                                $0.mapping!.requiredFramework,
+                            contextualType:
+                                $0.mapping!.contextualType,
+                            isOptional:
+                                $0.mapping!.isOptional)
+                    },
+                    minimumTargetAvailabilities: availabilities)
+                if seen.insert(variant.key).inserted {
+                    variants.append(variant)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func visit(
+        _ declaration: DeclSyntax,
+        path inheritedPath: [String],
+        inheritedTargetOnly: Bool,
+        inheritedAvailabilities: Set<GeneratedTargetAvailability>
+    ) {
+        @MainActor
+        func visitNominal(
+            name: String,
+            modifiers: DeclModifierListSyntax,
+            attributes: AttributeListSyntax,
+            members: MemberBlockItemListSyntax
+        ) {
+            guard isPublicSDKDecl(modifiers),
+                  isUsableIOSOverlay(attributes),
+                  !name.hasPrefix("_") else {
+                return
+            }
+            let path = inheritedPath + [name]
+            let type = path.joined(separator: ".")
+            let targetOnly = inheritedTargetOnly
+                || SDKContextualSweep.iOSOverlay.isTargetOnly(attributes)
+            let availabilities = inheritedAvailabilities.union(
+                minimumTargetAvailabilities(attributes))
+            recordMethods(
+                members, type: type,
+                inheritedTargetOnly: targetOnly,
+                inheritedAvailabilities: availabilities)
+            for member in members {
+                visit(
+                    member.decl, path: path,
+                    inheritedTargetOnly: targetOnly,
+                    inheritedAvailabilities: availabilities)
+            }
+        }
+
+        if let nominal = declaration.as(EnumDeclSyntax.self) {
+            visitNominal(
+                name: nominal.name.text, modifiers: nominal.modifiers,
+                attributes: nominal.attributes,
+                members: nominal.memberBlock.members)
+        } else if let nominal = declaration.as(StructDeclSyntax.self) {
+            visitNominal(
+                name: nominal.name.text, modifiers: nominal.modifiers,
+                attributes: nominal.attributes,
+                members: nominal.memberBlock.members)
+        } else if let nominal = declaration.as(ClassDeclSyntax.self) {
+            visitNominal(
+                name: nominal.name.text, modifiers: nominal.modifiers,
+                attributes: nominal.attributes,
+                members: nominal.memberBlock.members)
+        } else if let nominal = declaration.as(ActorDeclSyntax.self) {
+            visitNominal(
+                name: nominal.name.text, modifiers: nominal.modifiers,
+                attributes: nominal.attributes,
+                members: nominal.memberBlock.members)
+        } else if let extensionDeclaration = declaration.as(
+            ExtensionDeclSyntax.self
+        ), isUsableIOSOverlay(extensionDeclaration.attributes) {
+            let path = normalize(
+                extensionDeclaration.extendedType.trimmedDescription)
+                .split(separator: ".").map(String.init)
+            let type = path.joined(separator: ".")
+            let targetOnly = inheritedTargetOnly
+                || SDKContextualSweep.iOSOverlay.isTargetOnly(
+                    extensionDeclaration.attributes)
+            let availabilities = inheritedAvailabilities
+                .union(minimumSDKContextualAvailabilities(for: type))
+                .union(minimumTargetAvailabilities(
+                    extensionDeclaration.attributes))
+            recordMethods(
+                extensionDeclaration.memberBlock.members,
+                type: type,
+                inheritedTargetOnly: targetOnly,
+                inheritedAvailabilities: availabilities)
+            for member in extensionDeclaration.memberBlock.members {
+                visit(
+                    member.decl, path: path,
+                    inheritedTargetOnly: targetOnly,
+                    inheritedAvailabilities: availabilities)
+            }
+        }
+    }
+
+    for file in targetOverlayFiles {
+        for statement in file.statements {
+            guard case .decl(let declaration) = statement.item else {
+                continue
+            }
+            visit(
+                declaration, path: [],
+                inheritedTargetOnly: false,
+                inheritedAvailabilities: [])
+        }
+    }
+    return variants.sorted {
+        ($0.type, $0.name, $0.params.count, $0.key)
+            < ($1.type, $1.name, $1.params.count, $1.key)
+    }
+}()
+let targetSDKContextualMethodsByType = Dictionary(
+    grouping: targetSDKContextualMethodVariants, by: \.type)
+
 let emittedSDKProtocolCompositions = Set(
     (variants + initVariants)
         .flatMap(\.params)
@@ -4553,10 +4857,65 @@ import SwiftUI
 \(emittedSupportingImportBlock)import SwiftInterpreter
 
 enum GeneratedSDKEnumCoercions {
-    static func coerce(_ typeName: String, _ value: RuntimeValue) throws -> Any {
+    static func coerce(
+        _ typeName: String, _ value: RuntimeValue,
+        context: EvalContext? = nil
+    ) throws -> Any {
         switch typeName {
 
 """
+
+func contextualMethodDispatchCode(
+    type: String, validationOnly: Bool
+) -> String {
+    guard let methods = targetSDKContextualMethodsByType[type],
+          !methods.isEmpty else {
+        return ""
+    }
+    var output = ""
+    output += "            if case .host(let any) = value,\n"
+    output += "               let chain = any as? ChainedImplicitCall,\n"
+    output += "               let context {\n"
+    if validationOnly {
+        output += "                _ = try coerce(typeName, chain.base, context: context)\n"
+    } else {
+        output += "                let base = try coerce(typeName, chain.base, context: context) as! \(type)\n"
+    }
+    for method in methods {
+        let specs = method.params.map(paramSpecCode).joined(separator: ", ")
+        let arguments = method.params.enumerated().map {
+            index, parameter -> String in
+            let value = generatedMappedValue(
+                cast: parameter.cast,
+                isOptional: parameter.isOptional,
+                storage: "arguments[\(index)]")
+            return (parameter.label.map { "\($0): " } ?? "") + value
+        }.joined(separator: ", ")
+        let availability = method.minimumTargetAvailabilities.sorted {
+            ($0.platform, $0.major, $0.minor)
+                < ($1.platform, $1.major, $1.minor)
+        }.map(\.clause)
+        if !validationOnly, !availability.isEmpty {
+            output += "                if #available(\(availability.joined(separator: ", ")), *) {\n"
+        }
+        let indent = !validationOnly && !availability.isEmpty
+            ? "                    " : "                "
+        output += "\(indent)if chain.member == \(String(reflecting: method.name)),\n"
+        output += "\(indent)   let arguments = GeneratedDispatch.contextualMethodArguments([\(specs)], chain.arguments, context) {\n"
+        if validationOnly {
+            output += "\(indent)    return chain\n"
+        } else {
+            output += "\(indent)    return base.`\(method.name)`(\(arguments))\n"
+        }
+        output += "\(indent)}\n"
+        if !validationOnly, !availability.isEmpty {
+            output += "                }\n"
+        }
+    }
+    output += "                throw RuntimeError(message: \"unknown \(type) contextual method '.\\(chain.member)'\")\n"
+    output += "            }\n"
+    return output
+}
 
 for type in emittedSDKEnumTypes.sorted() {
     guard let cases = sdkEnumCases[type], !cases.isEmpty else { continue }
@@ -4564,15 +4923,48 @@ for type in emittedSDKEnumTypes.sorted() {
     let frameworkCondition = (
         sdkEnumFrameworkRequirements[type] ?? []
     ).sorted().map(platformNativeImportCondition).joined(separator: " && ")
+    let availabilityClauses = minimumSDKContextualAvailabilities(
+        for: type
+    ).sorted {
+        ($0.platform, $0.major, $0.minor)
+            < ($1.platform, $1.major, $1.minor)
+    }.map(\.clause)
+
+    func validationFallback() -> String {
+        var output = ""
+        if sdkSetAlgebraTypes.contains(type) {
+            output += "            if case .array(let elements) = value {\n"
+            output += "                for element in elements { _ = try coerce(typeName, element, context: context) }\n"
+            output += "                return elements\n"
+            output += "            }\n"
+        }
+        output += contextualMethodDispatchCode(
+            type: type, validationOnly: true)
+        output += "            guard case .implicitMember(let member) = value else {\n"
+        output += "                throw RuntimeError(message: \"expected a \(type) implicit member\")\n"
+        output += "            }\n"
+        output += "            switch member {\n"
+        output += "            case \(cases.map { "\"\($0)\"" }.joined(separator: ", ")): return member\n"
+        output += "            default:\n"
+        output += "                throw RuntimeError(message: \"unknown \(type) member '.\\(member)'\")\n"
+        output += "            }\n"
+        return output
+    }
+
     if !frameworkCondition.isEmpty {
         enumsOutput += "            #if \(frameworkCondition)\n"
     }
+    if !availabilityClauses.isEmpty {
+        enumsOutput += "            if #available(\(availabilityClauses.joined(separator: ", ")), *) {\n"
+    }
     enumsOutput += "            if case .host(let any) = value, let typed = any as? \(type) { return typed }\n"
+    enumsOutput += contextualMethodDispatchCode(
+        type: type, validationOnly: false)
     if sdkSetAlgebraTypes.contains(type) {
         enumsOutput += "            if case .array(let elements) = value {\n"
         enumsOutput += "                var result = \(type)()\n"
         enumsOutput += "                for element in elements {\n"
-        enumsOutput += "                    result.formUnion(try coerce(typeName, element) as! \(type))\n"
+        enumsOutput += "                    result.formUnion(try coerce(typeName, element, context: context) as! \(type))\n"
         enumsOutput += "                }\n"
         enumsOutput += "                return result\n"
         enumsOutput += "            }\n"
@@ -4589,26 +4981,18 @@ for type in emittedSDKEnumTypes.sorted() {
     enumsOutput += "            default:\n"
     enumsOutput += "                throw RuntimeError(message: \"unknown \(type) member '.\\(member)'\")\n"
     enumsOutput += "            }\n"
+    if !availabilityClauses.isEmpty {
+        enumsOutput += "            } else {\n"
+        enumsOutput += validationFallback()
+        enumsOutput += "            }\n"
+    }
     if !frameworkCondition.isEmpty {
         // The target-only declaration cannot be named in this host
         // compilation. Its off-host generated adapter ignores native values,
         // but overload matching must still validate contextual spellings from
         // the same interface-derived case inventory.
         enumsOutput += "            #else\n"
-        if sdkSetAlgebraTypes.contains(type) {
-            enumsOutput += "            if case .array(let elements) = value {\n"
-            enumsOutput += "                for element in elements { _ = try coerce(typeName, element) }\n"
-            enumsOutput += "                return elements\n"
-            enumsOutput += "            }\n"
-        }
-        enumsOutput += "            guard case .implicitMember(let member) = value else {\n"
-        enumsOutput += "                throw RuntimeError(message: \"expected a \(type) implicit member\")\n"
-        enumsOutput += "            }\n"
-        enumsOutput += "            switch member {\n"
-        enumsOutput += "            case \(cases.map { "\"\($0)\"" }.joined(separator: ", ")): return member\n"
-        enumsOutput += "            default:\n"
-        enumsOutput += "                throw RuntimeError(message: \"unknown \(type) member '.\\(member)'\")\n"
-        enumsOutput += "            }\n"
+        enumsOutput += validationFallback()
         enumsOutput += "            #endif\n"
     }
 }

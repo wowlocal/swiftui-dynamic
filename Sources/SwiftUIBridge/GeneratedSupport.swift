@@ -506,7 +506,8 @@ enum GeneratedDispatch {
             }
             return Set(try array.map(Coerce.calendarComponent))
         case .sdkEnum(let typeName):
-            return try GeneratedSDKEnumCoercions.coerce(typeName, value)
+            return try GeneratedSDKEnumCoercions.coerce(
+                typeName, value, context: ctx)
         case .sdkProtocolValue(let composition):
             return try GeneratedSDKProtocolValueCoercions.coerce(
                 composition, value, context: ctx)
@@ -606,6 +607,16 @@ enum GeneratedDispatch {
             values.append(coerced)
         }
         return values
+    }
+
+    /// Same coercion boundary used by generated modifiers, exposed to the
+    /// generated contextual-value tier for fluent same-type SDK methods
+    /// (`.member.transform(...)`). BridgeGen supplies both the method shape
+    /// and each contextual parameter type from the swiftinterface.
+    static func contextualMethodArguments(
+        _ params: [ParamSpec], _ args: CallArguments, _ ctx: EvalContext
+    ) -> [Any]? {
+        matches(params, args, ctx)
     }
 
     /// Return every interface-derived contextual type shape that can accept
