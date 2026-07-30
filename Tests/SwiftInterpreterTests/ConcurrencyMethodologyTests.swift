@@ -3064,8 +3064,8 @@ struct ConcurrencyMethodologyTests {
             "--scratch-path \"$INTERP_SCRATCH_PATH\"",
             "\"$INTERP_EXECUTABLE\" --capture",
             "--native-fixtures \"$TWIN_DIR\"",
-            "status-detail 100041",
-            "account-header 305338",
+            "status-detail 71137",
+            "account-header 127274",
         ] {
             #expect(script.contains(required),
                 Comment(rawValue:

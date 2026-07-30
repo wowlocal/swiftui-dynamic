@@ -643,6 +643,25 @@ import SwiftInterpreter
         }
     }
 
+    /// A package-universal contextual nominal can contain a static value whose
+    /// own availability is target-only. Member-level interface guards must
+    /// expose that value to the target without making older universal members
+    /// unavailable to the host.
+    @Test func targetOverlaySameTypeStaticKeepsMemberAvailability() throws {
+        let universal = try GeneratedSDKEnumCoercions.coerce(
+            "ToolbarItemPlacement", .implicitMember("automatic"))
+        #expect(universal is ToolbarItemPlacement)
+
+        let target = try GeneratedSDKEnumCoercions.coerce(
+            "ToolbarItemPlacement",
+            .implicitMember("navigationBarTrailing"))
+#if canImport(UIKit)
+        #expect(target is ToolbarItemPlacement)
+#else
+        #expect(target as? String == "navigationBarTrailing")
+#endif
+    }
+
     /// Target declarations are split across SwiftUI's public implementation
     /// modules, and declarations newer than the package deployment floor
     /// remain source-valid inside availability checks. The interface sweep
@@ -702,6 +721,54 @@ import SwiftInterpreter
             _ = try GeneratedSDKEnumCoercions.coerce(
                 "BlendMode", .implicitMember("notARealCase"))
         }
+    }
+
+    @Test func generatedArrayParametersCoerceElementsFromInterfaceType() throws {
+        let overloads = GeneratedModifiers.table["accessibilityInputLabels"]?
+            .byArity[1] ?? []
+        #expect(overloads.contains {
+            $0.params.map(\.tag) == [
+                .array(.string, "LocalizedStringKey"),
+            ]
+        })
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        Text("array parameter").accessibilityInputLabels([
+            LocalizedStringKey("first"),
+            LocalizedStringKey("second"),
+        ])
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func writableEnvironmentValuesComeFromInterfaceContracts() throws {
+        let rowHeight = try #require(
+            GeneratedEnvironmentValues.descriptors[
+                "defaultMinListRowHeight"])
+        #expect(
+            rowHeight.declaration
+                == "var EnvironmentValues.defaultMinListRowHeight: CGFloat { get set }")
+        #expect(rowHeight.keyPathType
+            == "WritableKeyPath<EnvironmentValues, CGFloat>")
+        #expect(!rowHeight.isOptional)
+
+        let lineLimit = try #require(
+            GeneratedEnvironmentValues.descriptors["lineLimit"])
+        #expect(lineLimit.valueType == "Int")
+        #expect(lineLimit.isOptional)
+
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        List {
+            EmptyView()
+            Text("interface environment")
+        }
+        .environment(\\.defaultMinListRowHeight, 0)
+        .environment(\\.layoutDirection, .rightToLeft)
+        .environment(\\.lineLimit, nil)
+        """)
+        #expect(registry.isViewValue(result))
     }
 
     /// IceCubes' DesignSystem extends Font with scaledBody/scaledSubheadline.

@@ -400,11 +400,20 @@ extension ViewRegistry {
 
         // Observation's `.environment(model)` — same carrier as
         // .environmentObject, keyed by type name for @Environment(Type.self).
-        register("environment") { view, args, _ in
-            // `.environment(\\.isCompact, true)` — custom-key writes pass
-            // through for now: subtrees read their @Entry defaults (the
-            // fresh-canvas reading). Model injection below stays live.
-            if case .host(let any)? = args.positional(0), any is KeyPathStub {
+        register("environment") { view, args, ctx in
+            // Standard writable keys are generated from EnvironmentValues;
+            // project-defined keys retain their interpreted @Entry defaults.
+            if case .host(let any)? = args.positional(0),
+               let keyPath = any as? KeyPathStub {
+                guard let value = args.positional(1) else {
+                    throw RuntimeError(
+                        message: ".environment key-path writes need a value")
+                }
+                if let written = try GeneratedEnvironmentValues.apply(
+                    to: view, keyPath: keyPath, value: value, context: ctx
+                ) {
+                    return written
+                }
                 return AnyView(view)
             }
             guard case .instance(let model)? = args.positional(0), args.arguments.count == 1 else {

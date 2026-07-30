@@ -15,6 +15,9 @@ import UIKit
 /// gateways are consulted first and always win.
 enum ParamTag: Hashable {
     case string, text, bool, int, double, cgFloat, taskPriority
+    /// A homogeneous collection whose element adapter and contextual type are
+    /// both derived from the parameter's interface type.
+    indirect case array(ParamTag, String)
     case color, font, fontWeight, angle, animation
     case alignment, horizontalAlignment, verticalAlignment, textAlignment
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
@@ -22,7 +25,7 @@ enum ParamTag: Hashable {
     case bindingBool, bindingString, bindingDouble
     case shapeStyle, genericShapeStyle, anyView, shape
     case visibility, axisSet, edgeInsets, gradient, gridItems
-    case axis, colorArray, annotationPosition
+    case axis, annotationPosition
     case dimension, measurement
     case builder
     /// Interface-declared non-View result builder and the protocol its
@@ -74,6 +77,36 @@ struct ParamSpec {
         self.hasDefault = hasDefault
         self.isOptional = isOptional
         self.contextualType = contextualType
+    }
+}
+
+/// Interface-derived native writes for standard EnvironmentValues. Source
+/// key paths are textual until this final boundary; generated closures restore
+/// the concrete WritableKeyPath and value type declared by the SDK.
+enum GeneratedEnvironmentValues {
+    typealias Writer = @MainActor (
+        AnyView, RuntimeValue, EvalContext
+    ) throws -> AnyView
+
+    struct Descriptor {
+        let declaration: String
+        let valueType: String
+        let keyPathType: String
+        let isOptional: Bool
+        let coercionTag: String
+        let writer: Writer
+    }
+
+    static let descriptors = build()
+
+    static func apply(
+        to view: AnyView, keyPath: KeyPathStub, value: RuntimeValue,
+        context: EvalContext
+    ) throws -> AnyView? {
+        guard keyPath.components.count == 1,
+              let component = keyPath.components.first,
+              let descriptor = descriptors[component] else { return nil }
+        return try descriptor.writer(view, value, context)
     }
 }
 
@@ -290,6 +323,14 @@ enum GeneratedDispatch {
         case .string:
             guard let s = value.stringValue else { throw RuntimeError(message: "expected a String") }
             return s
+        case .array(let elementTag, let elementType):
+            guard let elements = value.arrayValue else {
+                throw RuntimeError(message: "expected an array")
+            }
+            return try elements.map {
+                try coerce(
+                    elementTag, $0, ctx, contextualType: elementType)
+            }
         case .text:
             if case .host(let any) = value, let box = any as? TextBox { return box.text }
             if let string = value.stringValue { return Text(string) }
@@ -375,9 +416,6 @@ enum GeneratedDispatch {
             return role
         case .axis:
             return try Coerce.axis(value)
-        case .colorArray:
-            guard let array = value.arrayValue else { throw RuntimeError(message: "expected [Color]") }
-            return try array.map(Coerce.color)
         case .bindingBool:
             return try Coerce.boolBinding(value, context: ctx)
         case .bindingString:
