@@ -35,7 +35,10 @@ enum ParamTag: Hashable {
     /// descriptor after overload selection.
     case resultBuilder(String, String)
     case action, asyncAction
-    case syncVoidClosure, syncCGFloatClosure, equatable
+    case syncVoidClosure, syncCGFloatClosure
+    /// A callback whose framework-supplied inputs are the same interface
+    /// generic as an Equatable argument in the enclosing declaration.
+    case equatableAction1, equatableAction2, equatable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
     case decimal, characterSet, indexSet, dateComponents, dateInterval
@@ -139,6 +142,41 @@ struct ActionValue: @unchecked Sendable {
 /// native SwiftUI remains the owner of appearance and cancellation.
 struct AsyncActionValue: @unchecked Sendable {
     let run: @MainActor @Sendable () async -> Void
+}
+
+/// One concrete specialization for an interface generic constrained only to
+/// Equatable. Unlike the former textual surrogate, this carrier retains the
+/// exact runtime payload so a correlated callback can hand framework-supplied
+/// old/new values back to interpreted source without changing their type.
+struct InterpretedEquatableValue: @unchecked Sendable, Equatable {
+    let runtimeValue: RuntimeValue
+
+    nonisolated static func == (
+        lhs: InterpretedEquatableValue,
+        rhs: InterpretedEquatableValue
+    ) -> Bool {
+        MainActor.assumeIsolated {
+            (try? Builtins.equalValues(
+                lhs.runtimeValue, rhs.runtimeValue)) ?? false
+        }
+    }
+}
+
+/// Generated correlated-generic callbacks use the same closure/context
+/// carrier regardless of callback arity. The swiftinterface determines both
+/// the arity and where the shared Equatable generic appears.
+struct EquatableActionValue: @unchecked Sendable {
+    let closure: ClosureValue
+    let context: EvalContext
+
+    @MainActor
+    func call(_ arguments: [InterpretedEquatableValue]) {
+        InterpretedHostCallback(
+            closure: closure,
+            context: context,
+            diagnosticContext: "generated Equatable action"
+        ).call(arguments: arguments.map(\.runtimeValue))
+    }
 }
 
 /// A synchronous source closure whose argument is manufactured by SwiftUI.
@@ -483,8 +521,14 @@ enum GeneratedDispatch {
                 throw RuntimeError(message: "expected a synchronous closure")
             }
             return SyncClosureValue(closure: closure, context: ctx)
+        case .equatableAction1, .equatableAction2:
+            guard let closure = value.closureValue else {
+                throw RuntimeError(message:
+                    "expected an Equatable-correlated closure")
+            }
+            return EquatableActionValue(closure: closure, context: ctx)
         case .equatable:
-            return value.stringified
+            return InterpretedEquatableValue(runtimeValue: value)
         case .date:
             guard let date = value.hostPayload as? Date else { throw RuntimeError(message: "expected a Date") }
             return date
@@ -645,6 +689,8 @@ enum GeneratedDispatch {
                 || param.tag == .asyncAction
                 || param.tag == .syncVoidClosure
                 || param.tag == .syncCGFloatClosure
+                || param.tag == .equatableAction1
+                || param.tag == .equatableAction2
             guard argument.label == param.label
                 || (argument.isTrailing && argument.label == nil
                     && isClosureParam)
@@ -1548,6 +1594,31 @@ func generatedAsyncAction(
 ) -> @MainActor @Sendable () async -> Void {
     let action = value as! AsyncActionValue
     return { await action.run() }
+}
+
+/// Reconstitute callback shapes whose inputs share the declaration's
+/// Equatable generic. The generated native call supplies carrier values; the
+/// wrapper returns their exact interpreted payloads to source.
+nonisolated func generatedEquatableAction1(
+    _ value: Any
+) -> (InterpretedEquatableValue) -> Void {
+    let action = value as! EquatableActionValue
+    return { newValue in
+        MainActor.assumeIsolated {
+            action.call([newValue])
+        }
+    }
+}
+
+nonisolated func generatedEquatableAction2(
+    _ value: Any
+) -> (InterpretedEquatableValue, InterpretedEquatableValue) -> Void {
+    let action = value as! EquatableActionValue
+    return { oldValue, newValue in
+        MainActor.assumeIsolated {
+            action.call([oldValue, newValue])
+        }
+    }
 }
 
 /// Adapts any framework-supplied callback input to the interpreter's

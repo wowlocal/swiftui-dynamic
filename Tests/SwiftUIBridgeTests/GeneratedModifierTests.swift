@@ -19,6 +19,96 @@ import SwiftInterpreter
         }
     }
 
+    /// The interface relates `onChange`'s observed Equatable generic to the
+    /// old/new values supplied by its callback. BridgeGen must preserve that
+    /// relationship so the callback receives source values, not display
+    /// strings manufactured at the host boundary.
+    @Test func correlatedEquatableCallbacksComeFromInterfaceGeneration() {
+        let twoArgument = GeneratedModifiers.table["onChange"]?
+            .byArity[2] ?? []
+        #expect(twoArgument.contains {
+            $0.params.map(\.label) == ["of", nil]
+                && $0.params.map(\.tag)
+                    == [.equatable, .equatableAction2]
+        })
+        #expect(twoArgument.contains {
+            $0.params.map(\.label) == ["of", "perform"]
+                && $0.params.map(\.tag)
+                    == [.equatable, .equatableAction1]
+        })
+        let threeArgument = GeneratedModifiers.table["onChange"]?
+            .byArity[3] ?? []
+        #expect(threeArgument.contains {
+            $0.params.map(\.label) == ["of", "initial", nil]
+                && $0.params.map(\.tag)
+                    == [.equatable, .bool, .equatableAction2]
+        })
+        #expect(ViewRegistry().modifiers["onChange"] == nil)
+    }
+
+    @MainActor
+    @Test func generatedOnChangeReturnsExactOptionalOldAndNewPayloads()
+        throws
+    {
+        let source = """
+        final class ChangeRecorder {
+            var oldWasNil = false
+            var received = "pending"
+        }
+
+        let changeRecorder = ChangeRecorder()
+
+        struct ChangeProbe: View {
+            @State private var watched: String? = nil
+
+            var body: some View {
+                Text(changeRecorder.received)
+                    .onChange(of: watched) { oldValue, newValue in
+                        changeRecorder.oldWasNil = oldValue == nil
+                        changeRecorder.received = newValue ?? "missing"
+                    }
+                    .onAppear {
+                        watched = "target-row"
+                    }
+            }
+        }
+
+        ChangeProbe()
+        """
+        let session = try InterpreterHost().renderSession(
+            source: source
+        ).get()
+        guard case .instance(let recorder)? =
+                session.interpreter.globals.lookup("changeRecorder") else {
+            Issue.record("change recorder missing")
+            return
+        }
+
+        let size = NSSize(width: 180, height: 80)
+        let hosting = NSHostingView(rootView: session.view)
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false)
+        window.contentView = hosting
+        window.orderFrontRegardless()
+        for _ in 0..<30 {
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            RunLoop.main.run(
+                until: Date().addingTimeInterval(0.02))
+        }
+        window.orderOut(nil)
+
+        #expect(
+            recorder.box(for: "oldWasNil")?.value.boolValue == true)
+        #expect(
+            recorder.box(for: "received")?.value.stringValue
+                == "target-row")
+    }
+
     @Test func generatedModifiersDispatchThroughRealRendering() throws {
         let source = """
         struct ContentView: View {

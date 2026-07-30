@@ -252,27 +252,6 @@ extension ViewRegistry {
                 closure: closure, context: ctx, diagnosticContext: "onSubmit")
             return AnyView(view.onSubmit { callback.call() })
         }
-        register("onChange") { view, args, ctx in
-            guard let value = args.labeled("of") else {
-                throw RuntimeError(message: ".onChange needs of:")
-            }
-            guard let closure = args.firstUnlabeledClosure else { return view }
-            let identity = value.stringified
-            let initial = args.labeled("initial")?.boolValue ?? false
-            return AnyView(view.onChange(of: identity, initial: initial) { oldValue, newValue in
-                let arguments: [RuntimeValue]
-                switch closure.parameters.count {
-                case 0: arguments = []
-                case 1: arguments = [value]
-                default: arguments = [.native(oldValue), .native(newValue)]
-                }
-                InterpretedHostCallback(
-                    closure: closure,
-                    context: ctx,
-                    diagnosticContext: "onChange"
-                ).call(arguments: arguments)
-            })
-        }
         register("onPreferenceChange") { view, _, _ in
             // PreferenceKey.Value's associated type is erased in source.
             // Keep the subtree alive; geometry-specific preferences are

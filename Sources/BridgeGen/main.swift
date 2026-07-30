@@ -517,6 +517,7 @@ func constraintConcreteType(for constraint: String) -> String? {
     case "StringProtocol": return "String"
     case "BinaryInteger": return "Int"
     case "Transferable": return "URL"
+    case "Equatable": return "InterpretedEquatableValue"
     default: return nil
     }
 }
@@ -530,7 +531,7 @@ func constraintMapping(for constraint: String) -> TypeMapping? {
     case "View": return .init(tag: "anyView", cast: "%@ as! AnyView")
     case "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
     case "BinaryFloatingPoint": return .init(tag: "double", cast: "%@ as! Double")
-    case "Equatable": return .init(tag: "equatable", cast: "%@ as! String")
+    case "Equatable": return .init(tag: "equatable", cast: "%@ as! InterpretedEquatableValue")
     case "Shape": return .init(tag: "shape", cast: "%@ as! AnyShape")
     case "Transferable": return .init(tag: "url", cast: "%@ as! URL")
     default: return nil
@@ -668,6 +669,7 @@ func parameterSelections(_ analyzed: [AnalyzedParam]) -> [ParameterSelection] {
             && ([
                     "builder", "action", "asyncAction",
                     "syncVoidClosure", "syncCGFloatClosure",
+                    "equatableAction1", "equatableAction2",
                 ].contains(closureTag)
                 || closureTag.hasPrefix("resultBuilder("))
         let requiresTrailingClosure = omittedUnlabeledDefault
@@ -814,6 +816,21 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
                 tag: "asyncAction", cast: "generatedAsyncAction(%@)"),
             hasDefault: hasDefault, blocker: nil, usesGeneric: nil
         )
+    }
+    if let closure = type.as(FunctionTypeSyntax.self),
+       (1...2).contains(closure.parameters.count),
+       normalize(closure.returnClause.type.trimmedDescription) == "Void",
+       let generic = closure.parameters.first.map({ normalize($0.type.trimmedDescription) }),
+       closure.parameters.allSatisfy({ normalize($0.type.trimmedDescription) == generic }),
+       case .constraints(let constraints)? = generics[generic],
+       constraints == ["Equatable"] {
+        let arity = closure.parameters.count
+        return .init(
+            label: label,
+            mapping: .init(tag: "equatableAction\(arity)",
+                           cast: "generatedEquatableAction\(arity)(%@)"),
+            hasDefault: hasDefault, blocker: nil, usesGeneric: generic,
+            genericConcrete: "InterpretedEquatableValue", contractType: normalized)
     }
     // Framework-owned synchronous callbacks with one concrete input share one
     // argument adapter. The SDK supplies the input value; the declared result
@@ -2373,15 +2390,18 @@ func processModifier(
         return
     }
     let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
-
     // A generic used by more than one parameter can't be instantiated
     // independently per-argument — skip those signatures.
     // A generic used by more than one parameter is legal only when every
     // use instantiates it to the SAME concrete type.
     let byGeneric = Dictionary(grouping: analyzed.filter { $0.usesGeneric != nil }, by: { $0.usesGeneric! })
-    for (_, uses) in byGeneric where uses.count > 1 {
+    for (_, uses) in byGeneric {
         let concretes = Set(uses.map(\.genericConcrete))
-        if concretes.count != 1 || concretes.first == nil {
+        let actionAnchored = !uses.contains {
+            $0.mapping?.tag.hasPrefix("equatableAction") == true
+        } || uses.contains { $0.mapping?.tag == "equatable" }
+        if !actionAnchored || (uses.count > 1
+            && (concretes.count != 1 || concretes.first == nil)) {
             modifierBlockers["<shared generic>", default: 0] += 1
             return
         }
@@ -2502,9 +2522,13 @@ func processInit(
         return
     }
     let byGenericInit = Dictionary(grouping: analyzed.filter { $0.usesGeneric != nil }, by: { $0.usesGeneric! })
-    for (_, uses) in byGenericInit where uses.count > 1 {
+    for (_, uses) in byGenericInit {
         let concretes = Set(uses.map(\.genericConcrete))
-        if concretes.count != 1 || concretes.first == nil {
+        let actionAnchored = !uses.contains {
+            $0.mapping?.tag.hasPrefix("equatableAction") == true
+        } || uses.contains { $0.mapping?.tag == "equatable" }
+        if !actionAnchored || (uses.count > 1
+            && (concretes.count != 1 || concretes.first == nil)) {
             initBlockers["<shared generic>", default: 0] += 1
             return
         }
@@ -4892,6 +4916,12 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
         "{ value in generatedSyncVoidClosure(v[\(trailingIndex)])(value) }"
     case "syncCGFloatClosure":
         "{ value in generatedSyncCGFloatClosure(v[\(trailingIndex)])(value) }"
+    case "equatableAction1":
+        "{ value in generatedEquatableAction1(v[\(trailingIndex)])(value) }"
+    case "equatableAction2":
+        "{ oldValue, newValue in "
+            + "generatedEquatableAction2(v[\(trailingIndex)])"
+            + "(oldValue, newValue) }"
     default: fatalError("trailing call argument is not a generated closure")
     }
     return "\(head) \(closure)"
