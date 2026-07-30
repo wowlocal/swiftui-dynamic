@@ -44,6 +44,17 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    private struct NativeCompactAccountCountsTwin: View {
+        var body: some View {
+            HStack(spacing: 12) {
+                Text(15_283, format: .number.notation(.compactName))
+                Text(1_464, format: .number.notation(.compactName))
+                Text(17_989, format: .number.notation(.compactName))
+            }
+            .font(.footnote)
+        }
+    }
+
     private struct NativeAvatarShapeTwin: View {
         var body: some View {
             Color.blue
@@ -1040,6 +1051,35 @@ struct IceCubesMicroTwinTests {
             Self.bitmap(AnyView(NativeGeneratedStackSpacingTwin()), size: size),
             size: size)
         #expect(actual == expected)
+    }
+
+    /// AccountStatsView passes integer counts through the associated
+    /// `FormatStyle` initializer and then refines its contextual factory with
+    /// `.notation(.compactName)`. Both links come from SDK interface metadata;
+    /// falling back to verbatim integers widens every account-stat label.
+    @MainActor
+    @Test
+    func compactAccountCountsUseGeneratedAssociatedFormatStyle() throws {
+        let rendered = InterpreterHost().render(
+            source: """
+            HStack(spacing: 12) {
+                Text(15_283, format: .number.notation(.compactName))
+                Text(1_464, format: .number.notation(.compactName))
+                Text(17_989, format: .number.notation(.compactName))
+            }
+            .font(.footnote)
+            """,
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("compact-count microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 240, height: 60)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeCompactAccountCountsTwin()), size: size)
+        #expect(Self.pixelAE(actual, expected, size: size) == 0)
     }
 
     /// IceCubes' AvatarImage applies an interface-generated RoundedRectangle

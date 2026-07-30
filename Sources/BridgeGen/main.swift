@@ -290,6 +290,81 @@ var sdkProtocolRefinements: [String: Set<String>] = [:]
 var sdkNominalConformances: [String: Set<String>] = [:]
 var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
 
+/// Interface metadata for specializing public associated-type relationships.
+struct SDKAssociatedConformance {
+    let nominalBase: String, protocolType: String
+    let genericParameters: [String]
+    let associatedTypes: [String: String]
+}
+
+var sdkNominalGenericParameters: [String: [String]] = [:],
+    sdkNominalTypealiases: [String: [String: String]] = [:]
+var sdkAssociatedConformances: [SDKAssociatedConformance] = []
+
+func genericTypeParts(_ raw: String) -> (base: String, arguments: [String])? {
+    guard let open = raw.firstIndex(of: "<"), raw.last == ">" else { return nil }
+    let base = String(raw[..<open]).trimmingCharacters(in: .whitespaces)
+    let end = raw.index(before: raw.endIndex)
+    var arguments: [String] = [], depth = 0
+    var start = raw.index(after: open), cursor = start
+    while cursor < end {
+        switch raw[cursor] {
+        case "<", "(", "[": depth += 1
+        case ">", ")", "]": depth -= 1
+        case "," where depth == 0:
+            arguments.append(String(raw[start..<cursor]).trimmingCharacters(in: .whitespaces))
+            start = raw.index(after: cursor)
+        default: break
+        }
+        cursor = raw.index(after: cursor)
+    }
+    arguments.append(String(raw[start..<end]).trimmingCharacters(in: .whitespaces))
+    return base.isEmpty || arguments.contains(where: \.isEmpty) ? nil : (base, arguments)
+}
+
+func substitutingTypeIdentifiers(_ raw: String, _ substitutions: [String: String]) -> String {
+    guard !substitutions.isEmpty else { return raw }
+    var result = raw
+    for (token, replacement) in substitutions {
+        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: token))\\b"
+        let expression = try! NSRegularExpression(pattern: pattern)
+        result = expression.stringByReplacingMatches(
+            in: result, range: NSRange(result.startIndex..., in: result),
+            withTemplate: replacement)
+    }
+    return result
+}
+
+/// Resolve a nested type through an interface-declared nominal typealias.
+/// `IntegerFormatStyle<Int>.Configuration.Notation`, for example, becomes
+/// `NumberFormatStyleConfiguration.Notation` without naming either family.
+func resolvingSDKTypealiases(_ raw: String) -> String {
+    var value = normalize(raw)
+    for _ in 0..<4 {
+        let components = value.split(separator: ".").map(String.init)
+        var replacement: String?
+        for aliasIndex in components.indices.dropFirst().reversed() {
+            let owner = components[..<aliasIndex].joined(separator: ".")
+            let after = components.index(after: aliasIndex)
+            let suffix = after < components.endIndex
+                ? "." + components[after...].joined(separator: ".") : ""
+            let parts = genericTypeParts(owner)
+            let base = parts?.base ?? owner
+            guard let target = sdkNominalTypealiases[base]?[components[aliasIndex]]
+            else { continue }
+            let names = sdkNominalGenericParameters[base] ?? []
+            let arguments = parts?.arguments ?? []
+            let substitutions = names.count == arguments.count ?
+                Dictionary(uniqueKeysWithValues: zip(names, arguments)) : [:]
+            replacement = substitutingTypeIdentifiers(target, substitutions) + suffix
+            break
+        }
+        guard let replacement, replacement != value else { break }
+        value = normalize(replacement)
+    }
+    return value
+}
+
 /// A framework protocol whose interface describes the reusable SwiftUI style
 /// shape: an associated View body, a concrete Configuration alias, and one
 /// ViewBuilder requirement mapping that configuration to the body. The
@@ -334,7 +409,11 @@ func protocolClosure(of name: String) -> Set<String> {
 }
 
 func nominal(_ type: String, satisfies required: Set<String>) -> Bool {
-    let conformances = sdkNominalConformances[type] ?? []
+    let normalized = normalize(type)
+    let base = genericTypeParts(normalized)?.base ?? normalized
+    let conformances = (sdkNominalConformances[type] ?? [])
+        .union(sdkNominalConformances[normalized] ?? [])
+        .union(sdkNominalConformances[base] ?? [])
     let closure = conformances.reduce(into: Set<String>()) {
         $0.formUnion(protocolClosure(of: $1))
     }
@@ -595,6 +674,80 @@ func referencesGenericIdentifier(_ type: String, generics: Generics) -> Bool {
         !($0.isLetter || $0.isNumber || $0 == "_")
     }.map(String.init))
     return !identifiers.isDisjoint(with: generics.keys)
+}
+
+func sdkAssociatedType(_ name: String, of concreteType: String,
+                       conformingTo protocolType: String) -> String? {
+    let concrete = normalize(concreteType)
+    let parts = genericTypeParts(concrete)
+    let resolved = sdkAssociatedConformances.compactMap { conformance -> String? in
+        guard conformance.nominalBase == (parts?.base ?? concrete),
+              conformance.protocolType == normalize(protocolType),
+              let associated = conformance.associatedTypes[name],
+              conformance.genericParameters.count == (parts?.arguments.count ?? 0)
+        else { return nil }
+        let values = Dictionary(uniqueKeysWithValues: zip(
+            conformance.genericParameters, parts?.arguments ?? []))
+        return resolvingSDKTypealiases(substitutingTypeIdentifiers(associated, values))
+    }
+    let unique = Set(resolved)
+    return unique.count == 1 ? unique.first : nil
+}
+
+/// Concrete contextual values reached by associated-generic consumers.
+var associatedGenericConcreteTypes: Set<String> = []
+
+func associatedGenericSpecializations(_ generics: Generics,
+                                      parameters: FunctionParameterListSyntax) -> [Generics] {
+    let parameterTypes = parameters.map { normalize($0.type.trimmedDescription) }
+    let relational = generics.compactMap { name, facts
+        -> (name: String, protocols: Set<String>)? in
+        guard !name.contains("."),
+              case .constraints(let constraints) = facts,
+              parameterTypes.contains(where: { $0 == name }),
+              parameterTypes.contains(where: { $0.hasPrefix(name + ".") })
+        else { return nil }
+        let protocols = Set(constraints.map(normalize))
+        return protocols.isEmpty ? nil : (name, protocols)
+    }
+    // Multiple independent families require a Cartesian product; fail closed.
+    guard relational.count == 1, let relation = relational.first else { return [generics] }
+
+    let associatedFacts = generics.filter { $0.key.hasPrefix(relation.name + ".") }
+    let candidates = sdkProtocolContextualValues.filter {
+        relation.protocols.contains(normalize($0.declaringProtocol)) }
+    var results: [Generics] = []
+    for concreteType in Set(candidates.map(\.concreteType)).sorted() {
+        let concrete = normalize(concreteType)
+        var associated: [String: String] = [:]
+        var matches = true
+        for (path, facts) in associatedFacts {
+            let associatedName = String(path.dropFirst(relation.name.count + 1))
+            let values = relation.protocols.compactMap {
+                sdkAssociatedType(associatedName, of: concrete, conformingTo: $0)
+            }
+            guard Set(values).count == 1, let value = values.first
+            else { matches = false; break }
+            if case .concrete(let required) = facts,
+               normalize(value) != normalize(required) {
+                matches = false; break
+            }
+            associated[path] = normalize(value)
+        }
+        guard matches, !associated.isEmpty, associated.values.allSatisfy({
+            directMapping(for: $0) != nil
+        }) else { continue }
+        let members = candidates.filter { normalize($0.concreteType) == concrete }.map(\.member)
+        sdkEnumCases[concrete] = Array(Set(
+            (sdkEnumCases[concrete] ?? []) + members)).sorted()
+        associatedGenericConcreteTypes.insert(concrete)
+
+        var specialized = generics
+        specialized[relation.name] = .concrete(concrete)
+        associated.forEach { specialized[$0.key] = .concrete($0.value) }
+        results.append(specialized)
+    }
+    return results
 }
 
 // MARK: - Parameter analysis
@@ -1039,6 +1192,21 @@ let supportingInterfaceFiles:
                 Parser.parse(source: source))
         }
 
+let foundationInterfaceFile:
+    (module: String, importModule: String, file: SourceFileSyntax)? = {
+        let module = "Foundation"
+        guard let path = interfacePath(framework: module),
+              let source = try? String(contentsOfFile: path, encoding: .utf8) else {
+            print("warning: no swiftinterface for \(module)")
+            return nil
+        }
+        print("parsing \(module) (\(source.count) chars)…")
+        return (module, publicImportModule(
+                declaredModule: module, interfaceSource: source),
+            Parser.parse(source: source))
+    }()
+let foundationFile = foundationInterfaceFile?.file
+
 // MARK: - Availability
 
 let deploymentTarget = 15
@@ -1307,6 +1475,70 @@ func nestedSDKPath(
     return local.split(separator: ".").map(String.init)
 }
 
+func publicSDKTypealiases(in members: MemberBlockItemListSyntax, module: String,
+                          localTopLevelNames: Set<String>) -> [String: String] {
+    Dictionary(uniqueKeysWithValues: members.compactMap {
+        guard let alias = $0.decl.as(TypeAliasDeclSyntax.self),
+              isPublicSDKDecl(alias.modifiers),
+              isUniversallyUsable(alias.attributes) else { return nil }
+        return (alias.name.text, canonicalSDKType(
+            alias.initializer.value.trimmedDescription, module: module,
+            localTopLevelNames: localTopLevelNames))
+    })
+}
+
+func recordSDKNominalShape(type canonicalType: String,
+                           genericClause: GenericParameterClauseSyntax?,
+                           members: MemberBlockItemListSyntax, module: String,
+                           localTopLevelNames: Set<String>) {
+    let type = normalize(canonicalType)
+    if let genericClause {
+        sdkNominalGenericParameters[type] = genericClause.parameters.map(\.name.text)
+    }
+    sdkNominalTypealiases[type, default: [:]].merge(
+        publicSDKTypealiases(in: members, module: module,
+            localTopLevelNames: localTopLevelNames)) { _, latest in latest }
+}
+
+struct SDKNominalParts {
+    let name: String
+    let modifiers: DeclModifierListSyntax
+    let attributes: AttributeListSyntax
+    let members: MemberBlockItemListSyntax
+    let inheritance: InheritanceClauseSyntax?
+    let generics: GenericParameterClauseSyntax?
+    let isProtocol: Bool
+}
+
+func sdkNominalParts(_ decl: DeclSyntax) -> SDKNominalParts? {
+    if let value = decl.as(ProtocolDeclSyntax.self) {
+        return .init(name: value.name.text, modifiers: value.modifiers, attributes: value.attributes,
+            members: value.memberBlock.members,
+            inheritance: value.inheritanceClause, generics: nil, isProtocol: true)
+    }
+    if let value = decl.as(StructDeclSyntax.self) {
+        return .init(name: value.name.text, modifiers: value.modifiers, attributes: value.attributes,
+            members: value.memberBlock.members, inheritance: value.inheritanceClause,
+            generics: value.genericParameterClause, isProtocol: false)
+    }
+    if let value = decl.as(EnumDeclSyntax.self) {
+        return .init(name: value.name.text, modifiers: value.modifiers, attributes: value.attributes,
+            members: value.memberBlock.members, inheritance: value.inheritanceClause,
+            generics: value.genericParameterClause, isProtocol: false)
+    }
+    if let value = decl.as(ClassDeclSyntax.self) {
+        return .init(name: value.name.text, modifiers: value.modifiers, attributes: value.attributes,
+            members: value.memberBlock.members, inheritance: value.inheritanceClause,
+            generics: value.genericParameterClause, isProtocol: false)
+    }
+    if let value = decl.as(ActorDeclSyntax.self) {
+        return .init(name: value.name.text, modifiers: value.modifiers, attributes: value.attributes,
+            members: value.memberBlock.members, inheritance: value.inheritanceClause,
+            generics: value.genericParameterClause, isProtocol: false)
+    }
+    return nil
+}
+
 func collectSDKProtocolDeclarations(
     in members: MemberBlockItemListSyntax,
     module: String,
@@ -1407,79 +1639,35 @@ func collectSDKProtocolDeclarations(
     localTopLevelNames: Set<String>,
     guarded inheritedGuarded: Bool
 ) {
-    if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
-        guard isPublicSDKDecl(protocolDecl.modifiers),
-              isUniversallyUsable(protocolDecl.attributes) else { return }
+    if let nominal = sdkNominalParts(decl) {
+        guard isPublicSDKDecl(nominal.modifiers),
+              isUniversallyUsable(nominal.attributes) else { return }
         let guarded = inheritedGuarded
-            || needsAvailabilityGuard(protocolDecl.attributes)
-        guard !guarded else { return }
-        let childPath = path + [protocolDecl.name.text]
+            || needsAvailabilityGuard(nominal.attributes)
+        let childPath = path + [nominal.name]
         let type = "\(module).\(childPath.joined(separator: "."))"
-        sdkProtocols.insert(type)
-        let refinements = protocolDecl.inheritanceClause?.inheritedTypes.map {
-            canonicalSDKType(
-                $0.type.trimmedDescription, module: module,
+        if nominal.isProtocol {
+            guard !guarded, let protocolDecl = decl.as(ProtocolDeclSyntax.self)
+            else { return }
+            sdkProtocols.insert(type)
+            let refinements = nominal.inheritance?.inheritedTypes.map {
+                canonicalSDKType($0.type.trimmedDescription, module: module,
+                    localTopLevelNames: localTopLevelNames)
+            } ?? []
+            sdkProtocolRefinements[type, default: []].formUnion(refinements)
+            if let configuration = frameworkConfigurationProtocol(
+                protocolDecl, protocolType: type, module: module,
+                localTopLevelNames: localTopLevelNames) {
+                sdkFrameworkConfigurationProtocols[type] = configuration
+                sdkFrameworkConfigurationTypes.insert(configuration.configurationType)
+            }
+        } else {
+            recordSDKNominalShape(type: type, genericClause: nominal.generics,
+                members: nominal.members, module: module,
                 localTopLevelNames: localTopLevelNames)
-        } ?? []
-        sdkProtocolRefinements[type, default: []].formUnion(refinements)
-        if let configurationProtocol = frameworkConfigurationProtocol(
-            protocolDecl,
-            protocolType: type,
-            module: module,
-            localTopLevelNames: localTopLevelNames
-        ) {
-            sdkFrameworkConfigurationProtocols[type] = configurationProtocol
-            sdkFrameworkConfigurationTypes.insert(
-                configurationProtocol.configurationType)
         }
         collectSDKProtocolDeclarations(
-            in: protocolDecl.memberBlock.members,
-            module: module, path: childPath,
-            localTopLevelNames: localTopLevelNames, guarded: guarded)
-        return
-    }
-
-    if let structDecl = decl.as(StructDeclSyntax.self) {
-        guard isPublicSDKDecl(structDecl.modifiers),
-              isUniversallyUsable(structDecl.attributes) else { return }
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(structDecl.attributes)
-        collectSDKProtocolDeclarations(
-            in: structDecl.memberBlock.members,
-            module: module, path: path + [structDecl.name.text],
-            localTopLevelNames: localTopLevelNames, guarded: guarded)
-        return
-    }
-    if let enumDecl = decl.as(EnumDeclSyntax.self) {
-        guard isPublicSDKDecl(enumDecl.modifiers),
-              isUniversallyUsable(enumDecl.attributes) else { return }
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(enumDecl.attributes)
-        collectSDKProtocolDeclarations(
-            in: enumDecl.memberBlock.members,
-            module: module, path: path + [enumDecl.name.text],
-            localTopLevelNames: localTopLevelNames, guarded: guarded)
-        return
-    }
-    if let classDecl = decl.as(ClassDeclSyntax.self) {
-        guard isPublicSDKDecl(classDecl.modifiers),
-              isUniversallyUsable(classDecl.attributes) else { return }
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(classDecl.attributes)
-        collectSDKProtocolDeclarations(
-            in: classDecl.memberBlock.members,
-            module: module, path: path + [classDecl.name.text],
-            localTopLevelNames: localTopLevelNames, guarded: guarded)
-        return
-    }
-    if let actorDecl = decl.as(ActorDeclSyntax.self) {
-        guard isPublicSDKDecl(actorDecl.modifiers),
-              isUniversallyUsable(actorDecl.attributes) else { return }
-        let guarded = inheritedGuarded
-            || needsAvailabilityGuard(actorDecl.attributes)
-        collectSDKProtocolDeclarations(
-            in: actorDecl.memberBlock.members,
-            module: module, path: path + [actorDecl.name.text],
+            in: nominal.members, module: module, path: childPath,
             localTopLevelNames: localTopLevelNames, guarded: guarded)
         return
     }
@@ -1490,6 +1678,11 @@ func collectSDKProtocolDeclarations(
         let extended = canonicalSDKType(
             extensionDecl.extendedType.trimmedDescription,
             module: module, localTopLevelNames: localTopLevelNames)
+        recordSDKNominalShape(
+            type: extended, genericClause: nil,
+            members: extensionDecl.memberBlock.members,
+            module: module,
+            localTopLevelNames: localTopLevelNames)
         collectSDKProtocolDeclarations(
             in: extensionDecl.memberBlock.members,
             module: module, path: nestedSDKPath(
@@ -1570,68 +1763,17 @@ func collectSDKProtocolMetadata(
             && !needsAvailabilityGuard(attributes)
     }
 
-    if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
-        guard usable(protocolDecl.modifiers, protocolDecl.attributes) else {
-            return
+    if let nominal = sdkNominalParts(decl) {
+        guard usable(nominal.modifiers, nominal.attributes) else { return }
+        let childPath = path + [nominal.name]
+        if !nominal.isProtocol {
+            recordSDKNominalConformances(
+                type: "\(module).\(childPath.joined(separator: "."))",
+                inheritanceClause: nominal.inheritance, module: module,
+                localTopLevelNames: localTopLevelNames)
         }
         collectSDKProtocolMetadata(
-            in: protocolDecl.memberBlock.members,
-            module: module, path: path + [protocolDecl.name.text],
-            localTopLevelNames: localTopLevelNames, guarded: false)
-        return
-    }
-
-    if let structDecl = decl.as(StructDeclSyntax.self) {
-        guard usable(structDecl.modifiers, structDecl.attributes) else {
-            return
-        }
-        let childPath = path + [structDecl.name.text]
-        recordSDKNominalConformances(
-            type: "\(module).\(childPath.joined(separator: "."))",
-            inheritanceClause: structDecl.inheritanceClause,
-            module: module, localTopLevelNames: localTopLevelNames)
-        collectSDKProtocolMetadata(
-            in: structDecl.memberBlock.members,
-            module: module, path: childPath,
-            localTopLevelNames: localTopLevelNames, guarded: false)
-        return
-    }
-    if let enumDecl = decl.as(EnumDeclSyntax.self) {
-        guard usable(enumDecl.modifiers, enumDecl.attributes) else { return }
-        let childPath = path + [enumDecl.name.text]
-        recordSDKNominalConformances(
-            type: "\(module).\(childPath.joined(separator: "."))",
-            inheritanceClause: enumDecl.inheritanceClause,
-            module: module, localTopLevelNames: localTopLevelNames)
-        collectSDKProtocolMetadata(
-            in: enumDecl.memberBlock.members,
-            module: module, path: childPath,
-            localTopLevelNames: localTopLevelNames, guarded: false)
-        return
-    }
-    if let classDecl = decl.as(ClassDeclSyntax.self) {
-        guard usable(classDecl.modifiers, classDecl.attributes) else { return }
-        let childPath = path + [classDecl.name.text]
-        recordSDKNominalConformances(
-            type: "\(module).\(childPath.joined(separator: "."))",
-            inheritanceClause: classDecl.inheritanceClause,
-            module: module, localTopLevelNames: localTopLevelNames)
-        collectSDKProtocolMetadata(
-            in: classDecl.memberBlock.members,
-            module: module, path: childPath,
-            localTopLevelNames: localTopLevelNames, guarded: false)
-        return
-    }
-    if let actorDecl = decl.as(ActorDeclSyntax.self) {
-        guard usable(actorDecl.modifiers, actorDecl.attributes) else { return }
-        let childPath = path + [actorDecl.name.text]
-        recordSDKNominalConformances(
-            type: "\(module).\(childPath.joined(separator: "."))",
-            inheritanceClause: actorDecl.inheritanceClause,
-            module: module, localTopLevelNames: localTopLevelNames)
-        collectSDKProtocolMetadata(
-            in: actorDecl.memberBlock.members,
-            module: module, path: childPath,
+            in: nominal.members, module: module, path: childPath,
             localTopLevelNames: localTopLevelNames, guarded: false)
         return
     }
@@ -1646,6 +1788,25 @@ func collectSDKProtocolMetadata(
     recordSDKNominalConformances(
         type: extended, inheritanceClause: extensionDecl.inheritanceClause,
         module: module, localTopLevelNames: localTopLevelNames)
+
+    let associatedTypes = publicSDKTypealiases(
+        in: extensionDecl.memberBlock.members, module: module,
+        localTopLevelNames: localTopLevelNames)
+    if !associatedTypes.isEmpty {
+        let base = normalize(extended)
+        let conformances = extensionDecl.inheritanceClause?.inheritedTypes
+            .map { inherited in
+                canonicalSDKType(inherited.type.trimmedDescription,
+                    module: module, localTopLevelNames: localTopLevelNames)
+            }.filter { sdkProtocols.contains($0) } ?? []
+        for conformance in conformances {
+            sdkAssociatedConformances.append(.init(
+                nominalBase: base,
+                protocolType: normalize(conformance),
+                genericParameters: sdkNominalGenericParameters[base] ?? [],
+                associatedTypes: associatedTypes))
+        }
+    }
 
     if sdkProtocols.contains(extended),
        let concrete = sameTypeConcrete(
@@ -1764,44 +1925,12 @@ func collectSDKFrameworkConfigurationMembers(
         }
     }
 
-    if let nominal = decl.as(StructDeclSyntax.self) {
+    if let nominal = sdkNominalParts(decl) {
         collect(
-            name: nominal.name.text,
+            name: nominal.name,
             modifiers: nominal.modifiers,
             attributes: nominal.attributes,
-            members: nominal.memberBlock.members)
-        return
-    }
-    if let nominal = decl.as(EnumDeclSyntax.self) {
-        collect(
-            name: nominal.name.text,
-            modifiers: nominal.modifiers,
-            attributes: nominal.attributes,
-            members: nominal.memberBlock.members)
-        return
-    }
-    if let nominal = decl.as(ClassDeclSyntax.self) {
-        collect(
-            name: nominal.name.text,
-            modifiers: nominal.modifiers,
-            attributes: nominal.attributes,
-            members: nominal.memberBlock.members)
-        return
-    }
-    if let nominal = decl.as(ActorDeclSyntax.self) {
-        collect(
-            name: nominal.name.text,
-            modifiers: nominal.modifiers,
-            attributes: nominal.attributes,
-            members: nominal.memberBlock.members)
-        return
-    }
-    if let nominal = decl.as(ProtocolDeclSyntax.self) {
-        collect(
-            name: nominal.name.text,
-            modifiers: nominal.modifiers,
-            attributes: nominal.attributes,
-            members: nominal.memberBlock.members)
+            members: nominal.members)
         return
     }
     guard let extensionDecl = decl.as(ExtensionDeclSyntax.self),
@@ -1830,7 +1959,10 @@ func collectSDKFrameworkConfigurationMembers(
     }
 }
 
-for support in primaryInterfaceFiles + supportingInterfaceFiles {
+let protocolMetadataInterfaceFiles =
+    primaryInterfaceFiles + supportingInterfaceFiles
+    + [foundationInterfaceFile].compactMap { $0 }
+for support in protocolMetadataInterfaceFiles {
     let localNames = topLevelSDKNames(in: support.file)
     for statement in support.file.statements {
         guard case .decl(let decl) = statement.item else { continue }
@@ -2104,43 +2236,13 @@ func collectSDKEnums(
         return
     }
 
-    if let structDecl = decl.as(StructDeclSyntax.self) {
+    if let nominal = sdkNominalParts(decl) {
         collectNominal(
-            name: structDecl.name.text, modifiers: structDecl.modifiers,
-            attributes: structDecl.attributes,
-            inheritanceClause: structDecl.inheritanceClause,
-            members: structDecl.memberBlock.members,
-            recordsSetAlgebra: true)
-        return
-    }
-
-    if let classDecl = decl.as(ClassDeclSyntax.self) {
-        collectNominal(
-            name: classDecl.name.text, modifiers: classDecl.modifiers,
-            attributes: classDecl.attributes,
-            inheritanceClause: classDecl.inheritanceClause,
-            members: classDecl.memberBlock.members,
-            recordsSetAlgebra: true)
-        return
-    }
-
-    if let actorDecl = decl.as(ActorDeclSyntax.self) {
-        collectNominal(
-            name: actorDecl.name.text, modifiers: actorDecl.modifiers,
-            attributes: actorDecl.attributes,
-            inheritanceClause: actorDecl.inheritanceClause,
-            members: actorDecl.memberBlock.members,
-            recordsSetAlgebra: true)
-        return
-    }
-
-    if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
-        collectNominal(
-            name: protocolDecl.name.text, modifiers: protocolDecl.modifiers,
-            attributes: protocolDecl.attributes,
-            inheritanceClause: protocolDecl.inheritanceClause,
-            members: protocolDecl.memberBlock.members,
-            recordsSetAlgebra: false)
+            name: nominal.name, modifiers: nominal.modifiers,
+            attributes: nominal.attributes,
+            inheritanceClause: nominal.inheritance,
+            members: nominal.members,
+            recordsSetAlgebra: !nominal.isProtocol)
         return
     }
 
@@ -2311,6 +2413,13 @@ struct EmittableParam {
         self.contractType = contractType
         self.requiredFramework = requiredFramework
         self.contextualType = contextualType
+    }
+
+    init(analyzed value: AnalyzedParam) {
+        let mapping = value.mapping!
+        self.init(label: value.label, tag: mapping.tag, cast: mapping.cast,
+            requiredFramework: mapping.requiredFramework,
+            contextualType: mapping.contextualType, isOptional: mapping.isOptional)
     }
 }
 
@@ -2514,65 +2623,58 @@ func processInit(
         initBlockers["variadic", default: 0] += 1
         return
     }
-    let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
-    if requiresPlatformParameter,
-       !analyzed.contains(where: {
-           $0.mapping?.requiredFramework != nil
-       }) {
-        return
-    }
-    let byGenericInit = Dictionary(grouping: analyzed.filter { $0.usesGeneric != nil }, by: { $0.usesGeneric! })
-    for (_, uses) in byGenericInit {
-        let concretes = Set(uses.map(\.genericConcrete))
-        let actionAnchored = !uses.contains {
-            $0.mapping?.tag.hasPrefix("equatableAction") == true
-        } || uses.contains { $0.mapping?.tag == "equatable" }
-        if !actionAnchored || (uses.count > 1
-            && (concretes.count != 1 || concretes.first == nil)) {
-            initBlockers["<shared generic>", default: 0] += 1
-            return
+    var generated = false
+    var firstBlocker: String?
+    for specialization in associatedGenericSpecializations(
+        generics, parameters: parameters) {
+        let analyzed = parameters.map { analyzeParameter(
+            $0, generics: specialization) }
+        if requiresPlatformParameter,
+           !analyzed.contains(where: { $0.mapping?.requiredFramework != nil }) {
+            continue
+        }
+        let sharedGenericBlocked = Dictionary(
+            grouping: analyzed.filter { $0.usesGeneric != nil },
+            by: { $0.usesGeneric! }).values.contains { uses in
+            let concretes = Set(uses.map(\.genericConcrete))
+            let actionAnchored = !uses.contains {
+                $0.mapping?.tag.hasPrefix("equatableAction") == true
+            } || uses.contains { $0.mapping?.tag == "equatable" }
+            return !actionAnchored || (uses.count > 1
+                && (concretes.count != 1 || concretes.first == nil))
+        }
+        if sharedGenericBlocked {
+            firstBlocker = firstBlocker ?? "<shared generic>"; continue
+        }
+        if let blocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
+            firstBlocker = firstBlocker ?? blocked.blocker ?? "?"; continue
+        }
+        if guarded || needsAvailabilityGuard(initDecl.attributes) {
+            initGuarded += 1; return
+        }
+        generated = true
+        guard !denyStructs.contains(structName) else { continue }
+        for selection in parameterSelections(analyzed) {
+            let variant = Variant(
+                name: structName,
+                params: selection.params.map { .init(analyzed: $0) },
+                trailingClosureIndex: selection.trailingClosureIndex,
+                isDisfavoredOverload: initDecl.attributes.contains {
+                    $0.as(AttributeSyntax.self)?
+                        .attributeName.trimmedDescription
+                        == "_disfavoredOverload"
+                },
+                inheritedFrameworkRequirements: frameworkRequirements.union(
+                    platformFrameworkRequirements(initDecl.attributes)),
+                targetImportRequirements: [],
+                unavailableTargetEnvironments: [],
+                minimumTargetAvailabilities: [],
+                preservesSemanticValue: preservesSemanticValue)
+            if initSeenKeys.insert(variant.key).inserted { initVariants.append(variant) }
         }
     }
-    if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
-        initBlockers[firstBlocked.blocker ?? "?", default: 0] += 1
-        return
-    }
-    if guarded || needsAvailabilityGuard(initDecl.attributes) {
-        initGuarded += 1
-        return
-    }
-    initGeneratable += 1
-    generatableStructs.insert(structName)
-    guard !denyStructs.contains(structName) else { return }
-
-    for selection in parameterSelections(analyzed) {
-        let variant = Variant(
-            name: structName,
-            params: selection.params.map {
-                .init(
-                    label: $0.label, tag: $0.mapping!.tag,
-                    cast: $0.mapping!.cast,
-                    requiredFramework: $0.mapping!.requiredFramework,
-                    contextualType: $0.mapping!.contextualType,
-                    isOptional: $0.mapping!.isOptional)
-            },
-            trailingClosureIndex: selection.trailingClosureIndex,
-            isDisfavoredOverload: initDecl.attributes.contains {
-                $0.as(AttributeSyntax.self)?
-                    .attributeName.trimmedDescription
-                    == "_disfavoredOverload"
-            },
-            inheritedFrameworkRequirements: frameworkRequirements.union(
-                platformFrameworkRequirements(initDecl.attributes)),
-            targetImportRequirements: [],
-            unavailableTargetEnvironments: [],
-            minimumTargetAvailabilities: [],
-            preservesSemanticValue: preservesSemanticValue
-        )
-        if initSeenKeys.insert(variant.key).inserted {
-            initVariants.append(variant)
-        }
-    }
+    if generated { initGeneratable += 1; generatableStructs.insert(structName) }
+    else if let firstBlocker { initBlockers[firstBlocker, default: 0] += 1 }
 }
 
 struct ViewConformanceInfo {
@@ -3098,7 +3200,6 @@ let foundationMemberTypes: Set<String> = [
 let concreteViewMemberTypes = Set(viewStructInfo.compactMap {
     name, info in info.generics.isEmpty ? name : nil
 })
-let memberTypes = foundationMemberTypes.union(concreteViewMemberTypes)
 
 /// Protocol extensions serve their CONCRETE runtime carriers: the
 /// interpreter's numeric payloads are Int and Double, so members Foundation
@@ -3127,13 +3228,38 @@ struct GenericStructCarrier {
     let carrier: String        // "Measurement<Dimension>"
 }
 
-let genericStructCarriers: [String: GenericStructCarrier] = [
+var genericStructCarriers: [String: GenericStructCarrier] = [
     "Measurement": .init(
         generic: "UnitType", substitute: "Dimension",
         carrier: "Measurement<Dimension>"),
 ]
+let foundationalGenericStructCarrierKeys = Set(genericStructCarriers.keys)
+
+/// Admit only an interface-proven, unambiguous single-parameter carrier.
+let associatedPlainMemberTypes = Set(
+    associatedGenericConcreteTypes.filter { !$0.contains("<") })
+let associatedGenericCarrierCandidates = Dictionary(grouping:
+    associatedGenericConcreteTypes.compactMap {
+        concrete -> (base: String, carrier: String, generic: String, argument: String)? in
+    guard let parts = genericTypeParts(concrete),
+          let generics = sdkNominalGenericParameters[parts.base],
+          generics.count == 1, parts.arguments.count == 1 else { return nil }
+    return (parts.base, concrete, generics[0], parts.arguments[0])
+}, by: \.base)
+for (base, candidates) in associatedGenericCarrierCandidates
+where candidates.count == 1 {
+    let candidate = candidates[0]
+    genericStructCarriers[base] = .init(generic: candidate.generic,
+        substitute: candidate.argument, carrier: candidate.carrier)
+}
+let associatedMemberTypeKeys = associatedPlainMemberTypes.union(
+    Set(genericStructCarriers.keys).subtracting(
+        foundationalGenericStructCarrierKeys))
+let memberTypes = foundationMemberTypes
+    .union(concreteViewMemberTypes).union(associatedMemberTypeKeys)
 
 var currentGenericSubstitution: (from: String, to: String)?
+var currentAssociatedMemberReceiver = false
 
 /// The Swift spelling emitted receiver casts use for a member-table type.
 func memberReceiverCast(for type: String) -> String {
@@ -3148,6 +3274,7 @@ func memberMapping(for normalized: String) -> TypeMapping? {
     if let sub = currentGenericSubstitution, normalized.contains(sub.from) {
         normalized = normalized.replacingOccurrences(of: sub.from, with: sub.to)
     }
+    normalized = resolvingSDKTypealiases(normalized)
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
     case "Bool": return .init(tag: "bool", cast: "%@ as! Bool")
@@ -3185,6 +3312,7 @@ func memberMapping(for normalized: String) -> TypeMapping? {
         // Foundation stays on its deliberately narrower value-plane mapping,
         // so growing this tier cannot silently widen unrelated SDK methods.
         return currentConcreteViewMemberReceiver
+                || currentAssociatedMemberReceiver
             ? directMapping(for: normalized) : nil
     }
 }
@@ -3507,16 +3635,6 @@ func processMemberProperty(_ typeName: String, _ variable: VariableDeclSyntax, g
     }
 }
 
-let foundationFile: SourceFileSyntax? = {
-    guard let path = interfacePath(framework: "Foundation"),
-          let source = try? String(contentsOfFile: path, encoding: .utf8) else {
-        print("warning: no swiftinterface for Foundation")
-        return nil
-    }
-    print("parsing Foundation (\(source.count) chars)…")
-    return Parser.parse(source: source)
-}()
-
 // Foundation is also the member/value source below, not merely a supporting
 // constraint module. Collect its contextual enums under their native
 // unqualified paths before analyzing transitive value constructors.
@@ -3609,6 +3727,8 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
             currentSelfCarrier = isProtocolExpansion ? typeName : nil
             currentConcreteViewMemberReceiver =
                 concreteViewMemberTypes.contains(typeName)
+            currentAssociatedMemberReceiver =
+                associatedMemberTypeKeys.contains(typeName)
             if let entry = genericStructCarriers[typeName] {
                 currentGenericSubstitution = (entry.generic, entry.substitute)
             }
@@ -3616,17 +3736,19 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
                 if let function = member.decl.as(FunctionDeclSyntax.self), memberIsUsable(function.attributes) {
                     processMemberFunction(typeName, function, guarded: guarded)
                 } else if !currentConcreteViewMemberReceiver,
+                          !currentAssociatedMemberReceiver,
                           let variable = member.decl.as(
                             VariableDeclSyntax.self),
                           memberIsUsable(variable.attributes) {
                     processMemberProperty(typeName, variable, guarded: guarded)
                 } else if !currentConcreteViewMemberReceiver,
+                          !currentAssociatedMemberReceiver,
                           let initDecl = member.decl.as(
                     InitializerDeclSyntax.self
                 ), memberIsUsable(initDecl.attributes) {
                     processThrowingConstructorContract(
                         typeName, initDecl, guarded: guarded)
-                    if genericStructCarriers[typeName] != nil {
+                    if foundationalGenericStructCarrierKeys.contains(typeName) {
                         processCarrierInitializer(
                             typeName, initDecl, guarded: guarded)
                     }
@@ -3635,6 +3757,7 @@ func sweepMemberFile(_ file: SourceFileSyntax) {
             currentSelfCarrier = nil
             currentGenericSubstitution = nil
             currentConcreteViewMemberReceiver = false
+            currentAssociatedMemberReceiver = false
         }
     }
 }
@@ -4502,20 +4625,6 @@ func sdkProtocolComposition(from tag: String) -> String? {
     return String(tag.dropFirst(prefix.count).dropLast(suffix.count))
 }
 
-let emittedSDKEnumTypes = Set(
-    (emittedModifierVariants + emittedInitVariants)
-        .flatMap(\.params)
-        .compactMap { sdkEnumType(from: $0.tag) }
-        + nativeValueInits.flatMap(\.params)
-            .compactMap { parameter in
-                parameter.mapping.flatMap {
-                    sdkEnumType(from: $0.tag)
-                }
-            }
-        + environmentValueVariants.values.compactMap {
-            sdkEnumType(from: $0.mapping.tag)
-        })
-
 /// A public instance method that returns its receiver's contextual SDK type
 /// is a fluent value transform (`.regular.interactive()`,
 /// `.member.transform(...)`). Keep these in the contextual-value generator:
@@ -4533,6 +4642,45 @@ struct SDKContextualMethodVariant {
         }.joined(separator: ",")
     }
 }
+
+/// Same-type fluent transforms from the ordinary generated member sweep.
+let associatedSDKContextualMethodVariants:
+    [SDKContextualMethodVariant] = {
+        associatedGenericConcreteTypes.sorted().flatMap { concrete in
+            let normalized = normalize(concrete)
+            let memberType: String?
+            if let parts = genericTypeParts(normalized),
+               genericStructCarriers[parts.base]?.carrier == normalized {
+                memberType = parts.base
+            } else if associatedPlainMemberTypes.contains(normalized) {
+                memberType = normalized
+            } else {
+                memberType = nil
+            }
+            return memberMethodVariants.compactMap { member -> SDKContextualMethodVariant? in
+                guard member.type == memberType,
+                      normalize(member.returnType) == normalized else { return nil }
+                return SDKContextualMethodVariant(type: normalized, name: member.name,
+                    params: member.params, minimumTargetAvailabilities: [])
+            }
+        }
+    }()
+
+let emittedSDKEnumTypes = Set(
+    (emittedModifierVariants + emittedInitVariants)
+        .flatMap(\.params)
+        .compactMap { sdkEnumType(from: $0.tag) }
+        + associatedSDKContextualMethodVariants.flatMap(\.params)
+            .compactMap { sdkEnumType(from: $0.tag) }
+        + nativeValueInits.flatMap(\.params)
+            .compactMap { parameter in
+                parameter.mapping.flatMap {
+                    sdkEnumType(from: $0.tag)
+                }
+            }
+        + environmentValueVariants.values.compactMap {
+            sdkEnumType(from: $0.mapping.tag)
+        })
 
 let targetSDKContextualMethodVariants: [SDKContextualMethodVariant] = {
     var variants: [SDKContextualMethodVariant] = []
@@ -4584,18 +4732,7 @@ let targetSDKContextualMethodVariants: [SDKContextualMethodVariant] = {
                 let variant = SDKContextualMethodVariant(
                     type: type,
                     name: function.name.text,
-                    params: selection.params.map {
-                        EmittableParam(
-                            label: $0.label,
-                            tag: $0.mapping!.tag,
-                            cast: $0.mapping!.cast,
-                            requiredFramework:
-                                $0.mapping!.requiredFramework,
-                            contextualType:
-                                $0.mapping!.contextualType,
-                            isOptional:
-                                $0.mapping!.isOptional)
-                    },
+                    params: selection.params.map { .init(analyzed: $0) },
                     minimumTargetAvailabilities: availabilities)
                 if seen.insert(variant.key).inserted {
                     variants.append(variant)
@@ -4641,26 +4778,10 @@ let targetSDKContextualMethodVariants: [SDKContextualMethodVariant] = {
             }
         }
 
-        if let nominal = declaration.as(EnumDeclSyntax.self) {
+        if let nominal = sdkNominalParts(declaration), !nominal.isProtocol {
             visitNominal(
-                name: nominal.name.text, modifiers: nominal.modifiers,
-                attributes: nominal.attributes,
-                members: nominal.memberBlock.members)
-        } else if let nominal = declaration.as(StructDeclSyntax.self) {
-            visitNominal(
-                name: nominal.name.text, modifiers: nominal.modifiers,
-                attributes: nominal.attributes,
-                members: nominal.memberBlock.members)
-        } else if let nominal = declaration.as(ClassDeclSyntax.self) {
-            visitNominal(
-                name: nominal.name.text, modifiers: nominal.modifiers,
-                attributes: nominal.attributes,
-                members: nominal.memberBlock.members)
-        } else if let nominal = declaration.as(ActorDeclSyntax.self) {
-            visitNominal(
-                name: nominal.name.text, modifiers: nominal.modifiers,
-                attributes: nominal.attributes,
-                members: nominal.memberBlock.members)
+                name: nominal.name, modifiers: nominal.modifiers,
+                attributes: nominal.attributes, members: nominal.members)
         } else if let extensionDeclaration = declaration.as(
             ExtensionDeclSyntax.self
         ), isUsableIOSOverlay(extensionDeclaration.attributes) {
@@ -4705,8 +4826,15 @@ let targetSDKContextualMethodVariants: [SDKContextualMethodVariant] = {
             < ($1.type, $1.name, $1.params.count, $1.key)
     }
 }()
-let targetSDKContextualMethodsByType = Dictionary(
-    grouping: targetSDKContextualMethodVariants, by: \.type)
+let sdkContextualMethodVariants: [SDKContextualMethodVariant] = {
+    var seen: Set<String> = []
+    return (associatedSDKContextualMethodVariants
+        + targetSDKContextualMethodVariants).filter {
+            seen.insert($0.key).inserted
+        }
+}()
+let sdkContextualMethodsByType = Dictionary(
+    grouping: sdkContextualMethodVariants, by: \.type)
 
 let emittedSDKProtocolCompositions = Set(
     (emittedModifierVariants + emittedInitVariants)
@@ -5587,7 +5715,7 @@ enum GeneratedSDKEnumCoercions {
 func contextualMethodDispatchCode(
     type: String, validationOnly: Bool
 ) -> String {
-    guard let methods = targetSDKContextualMethodsByType[type],
+    guard let methods = sdkContextualMethodsByType[type],
           !methods.isEmpty else {
         return ""
     }
