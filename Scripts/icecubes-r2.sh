@@ -59,7 +59,8 @@ run_twin() {
     ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
     DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib" \
     .build/arm64-apple-ios-macabi/debug/IceCubesNativeTwin.app/Contents/MacOS/IceCubesNativeTwin \
-      --out "$twin_out" --fixtures "$FIXTURES"
+      --out "$twin_out" --fixtures "$FIXTURES" \
+      -ApplePersistenceIgnoreState YES
   )
 }
 
@@ -166,7 +167,8 @@ capture_interpreted_screen() {
   SWIFT_DETERMINISTIC_HASHING=1 \
   DYLD_INSERT_LIBRARIES="$CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib" \
   "$INTERP_EXECUTABLE" --capture "$out_dir" --screen "$screen" \
-    "${native_args[@]}" > "$out_dir/$screen.log" 2>&1
+    "${native_args[@]}" -ApplePersistenceIgnoreState YES \
+    > "$out_dir/$screen.log" 2>&1
 }
 
 # Captures run STRICTLY SERIALLY. Measured 2026-07-30: three parallel capture

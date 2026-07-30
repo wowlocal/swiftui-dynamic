@@ -3102,6 +3102,13 @@ struct ConcurrencyMethodologyTests {
                 Comment(rawValue:
                     "R2 lost its capture determinism gate: " + required))
         }
+        // The fixed harness bundle IDs must not restore a scene from an older
+        // process. One opt-out belongs to each native/interpreted launch path.
+        let persistenceOptOut = "-ApplePersistenceIgnoreState YES"
+        #expect(script.components(
+            separatedBy: persistenceOptOut).count == 3,
+            Comment(rawValue:
+                "R2 launches no longer isolate framework scene persistence"))
 
         // Both capture harnesses must rasterize the model layer, not a
         // wall-clock animation frame; the interpreted side mirrors the twin.
