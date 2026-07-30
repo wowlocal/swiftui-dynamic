@@ -270,6 +270,23 @@ public protocol EvalContext: AnyObject {
     /// on slice exhaustion, and never charges the caller's step budget.
     func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     func callBuilderClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> [RuntimeValue]
+    /// Evaluate a non-View result-builder closure while preserving values
+    /// that conform to the interface-declared result protocol. Source
+    /// conformers are recursively projected through their `body`; native
+    /// leaves remain opaque for the compiled bridge to consume.
+    func callResultBuilderClosure(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        resultProtocol: String
+    ) throws -> [RuntimeValue]
+    /// Static overload-resolution evidence for a result-builder closure.
+    /// `true` means every source branch resolves to a nominal whose declared
+    /// conformance reaches the requested protocol; `nil` means the closure
+    /// cannot be proven without executing it.
+    func resultBuilderClosure(
+        _ closure: ClosureValue,
+        matchesResultProtocol resultProtocol: String
+    ) -> Bool?
     /// Bracket one element of a host-materialized, therefore known-finite,
     /// iteration. Interpreter contexts give the element an independent
     /// bounded budget; other embedders simply execute it. The element body
@@ -306,6 +323,21 @@ extension EvalContext {
             platformName: Interpreter.interpretsAsPlatform,
             activeCompilationConditions:
                 Interpreter.interpretsWithCompilationConditions)
+    }
+
+    public func callResultBuilderClosure(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        resultProtocol: String
+    ) throws -> [RuntimeValue] {
+        try callBuilderClosure(closure, arguments: arguments)
+    }
+
+    public func resultBuilderClosure(
+        _ closure: ClosureValue,
+        matchesResultProtocol resultProtocol: String
+    ) -> Bool? {
+        nil
     }
 
     /// Compatibility fallback for non-interpreter embedders. The interpreter
@@ -578,6 +610,11 @@ public protocol HostRegistry: AnyObject {
     func importedType(
         named typeName: String, matchesImportedType expectedTypeName: String
     ) -> Bool
+    /// Interface-derived protocol conformance for an imported nominal.
+    /// Nil means the registry has no declaration evidence for that nominal.
+    func importedType(
+        named typeName: String, conformsToImportedProtocol protocolName: String
+    ) -> Bool?
     /// Native ABI metadata for imported C/SDK value types. The interpreter
     /// derives source-struct layouts itself, but only the compiled host bridge
     /// can answer this without guessing for types it imports.
@@ -628,6 +665,10 @@ extension HostRegistry {
     public func importedType(
         named typeName: String, matchesImportedType expectedTypeName: String
     ) -> Bool { false }
+    public func importedType(
+        named typeName: String,
+        conformsToImportedProtocol protocolName: String
+    ) -> Bool? { nil }
     public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }
     public func hostProtocolCandidates(of value: Any) -> [String] { [] }
     public func hostMutatedCopy(

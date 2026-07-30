@@ -122,6 +122,14 @@ public final class ViewRegistry: HostRegistry {
             named: typeName, matchesType: expectedTypeName)
     }
 
+    public func importedType(
+        named typeName: String,
+        conformsToImportedProtocol protocolName: String
+    ) -> Bool? {
+        GeneratedResultBuilderCarriers.importedType(
+            named: typeName, conformsTo: protocolName)
+    }
+
     public func hostMemberHasWorkerOperation(
         _ name: String,
         onStaticMember staticMember: String,

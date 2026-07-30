@@ -518,6 +518,11 @@ enum GenericFacts {
 }
 typealias Generics = [String: GenericFacts]
 
+/// Non-View result-builder requirements demanded by generated SDK call
+/// signatures. The key and value both come from the swiftinterface:
+/// result protocol -> builder attribute.
+var interfaceResultBuilders: [String: String] = [:]
+
 func addConstraint(_ generics: inout Generics, _ name: String, _ constraint: String) {
     switch generics[name] {
     case .concrete:
@@ -629,12 +634,13 @@ func parameterSelections(_ analyzed: [AnalyzedParam]) -> [ParameterSelection] {
         // Swift cannot skip an unlabeled default and then bind a later
         // unlabeled argument positionally. A final closure is the structural
         // exception: trailing-closure syntax binds it after the omitted slot.
+        let closureTag = parameter.mapping?.tag ?? ""
         let isFinalClosure = index == analyzed.count - 1
-            && [
-                "builder", "action", "asyncAction",
-                "syncVoidClosure", "syncCGFloatClosure",
-            ].contains(
-                parameter.mapping?.tag ?? "")
+            && ([
+                    "builder", "action", "asyncAction",
+                    "syncVoidClosure", "syncCGFloatClosure",
+                ].contains(closureTag)
+                || closureTag.hasPrefix("resultBuilder("))
         let requiresTrailingClosure = omittedUnlabeledDefault
             && parameter.label == nil
             && isFinalClosure
@@ -662,7 +668,7 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
     let hasDefault = param.defaultValue != nil
 
     var type = param.type
-    var isBuilder = false
+    var builderAttribute: String?
     var isAutoclosure = false
 
     // Result-builder and closure attributes are represented on the parameter
@@ -673,7 +679,9 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         for attribute in attributes {
             let name = attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription ?? ""
             let normalizedName = normalize(name)
-            if normalizedName.hasSuffix("ViewBuilder") { isBuilder = true }
+            if normalizedName.hasSuffix("Builder") {
+                builderAttribute = normalizedName
+            }
             if normalizedName == "autoclosure" { isAutoclosure = true }
         }
     }
@@ -719,22 +727,48 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             isOptional = true
         }
     }
-    if isBuilder {
+    if let builderAttribute {
         // Builders with framework-supplied inputs (GeometryProxy,
         // AsyncImagePhase, collection elements, accessibility content, …)
         // need a semantic adapter that can manufacture the input value.
         // A generated zero-argument closure would compile incorrectly or
         // silently discard data, so only the ordinary `() -> View` shape is
         // mechanical.
-        guard normalized.hasPrefix("() ->") else {
+        guard let closure = type.as(FunctionTypeSyntax.self),
+              closure.parameters.isEmpty else {
             return .init(
                 label: label, mapping: nil, hasDefault: hasDefault,
-                blocker: "@ViewBuilder input closure", usesGeneric: nil)
+                blocker: "@\(builderAttribute) input closure",
+                usesGeneric: nil)
         }
+        let resultType = normalize(
+            closure.returnClause.type.trimmedDescription)
+        if builderAttribute.hasSuffix("ViewBuilder") {
+            return .init(
+                label: label,
+                mapping: .init(tag: "builder", cast: "{ %@ as! AnyView }"),
+                hasDefault: hasDefault, blocker: nil,
+                usesGeneric: generics[normalized] != nil
+                    ? normalized : nil
+            )
+        }
+        guard case .constraints(let constraints)? = generics[resultType],
+              constraints.count == 1,
+              let resultProtocol = constraints.first else {
+            return .init(
+                label: label, mapping: nil, hasDefault: hasDefault,
+                blocker: "@\(builderAttribute) result protocol",
+                usesGeneric: nil)
+        }
+        interfaceResultBuilders[resultProtocol] = builderAttribute
         return .init(
             label: label,
-            mapping: .init(tag: "builder", cast: "{ %@ as! AnyView }"),
-            hasDefault: hasDefault, blocker: nil, usesGeneric: generics[normalized] != nil ? normalized : nil
+            mapping: .init(
+                tag: "resultBuilder(\"\(builderAttribute)\", "
+                    + "\"\(resultProtocol)\")",
+                cast: "%@"),
+            hasDefault: hasDefault, blocker: nil,
+            usesGeneric: generics[normalized] != nil ? normalized : nil
         )
     }
     if normalized == "() -> Void" {
@@ -2588,6 +2622,93 @@ for file in interfaceFiles {
     }
 }
 
+// Pass RB: concrete leaves of interface-declared non-View result builders.
+// Their native values must retain protocol conformance until the generated
+// typed carrier composes them. Eligibility comes from the demanded builder
+// result protocols and the SDK conformance graph; no leaf type is named.
+var extensionResultBuilderConformances: [
+    String: (
+        protocols: Set<String>,
+        generics: Generics,
+        guarded: Bool,
+        frameworkRequirements: Set<String>
+    )
+] = [:]
+let demandedResultBuilderProtocols = Set(interfaceResultBuilders.keys)
+
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item,
+              let ext = declaration.as(ExtensionDeclSyntax.self),
+              isUsable(ext.attributes) else {
+            continue
+        }
+        let protocols = Set(
+            ext.inheritanceClause?.inheritedTypes.map {
+                normalize($0.type.trimmedDescription)
+            } ?? []
+        ).intersection(demandedResultBuilderProtocols)
+        guard !protocols.isEmpty else { continue }
+        let type = normalize(ext.extendedType.trimmedDescription)
+        var generics = extensionResultBuilderConformances[type]?.generics
+            ?? [:]
+        collectWhereClause(ext.genericWhereClause, into: &generics)
+        let previous = extensionResultBuilderConformances[type]
+        extensionResultBuilderConformances[type] = (
+            protocols.union(previous?.protocols ?? []),
+            generics,
+            needsAvailabilityGuard(ext.attributes)
+                || (previous?.guarded ?? false),
+            platformFrameworkRequirements(ext.attributes).union(
+                previous?.frameworkRequirements ?? [])
+        )
+    }
+}
+
+var resultBuilderContentInfo: [
+    String: (
+        protocols: Set<String>,
+        generics: Generics,
+        guarded: Bool,
+        frameworkRequirements: Set<String>
+    )
+] = [:]
+
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item,
+              let structure = declaration.as(StructDeclSyntax.self),
+              isPublicSDKDecl(structure.modifiers),
+              isUsable(structure.attributes),
+              !structure.name.text.hasPrefix("_") else {
+            continue
+        }
+        let name = structure.name.text
+        let direct = Set(
+            structure.inheritanceClause?.inheritedTypes.map {
+                normalize($0.type.trimmedDescription)
+            } ?? []
+        ).intersection(demandedResultBuilderProtocols)
+        let extensionInfo = extensionResultBuilderConformances[name]
+        guard !direct.isEmpty || extensionInfo != nil,
+              !viewStructs.contains(name) else {
+            continue
+        }
+        var generics = structGenerics(structure)
+        for (generic, facts) in extensionInfo?.generics ?? [:] {
+            generics[generic] = facts
+        }
+        let guarded = needsAvailabilityGuard(structure.attributes)
+            || (extensionInfo?.guarded ?? false)
+        let frameworks = platformFrameworkRequirements(
+            structure.attributes
+        ).union(extensionInfo?.frameworkRequirements ?? [])
+        resultBuilderContentInfo[name] = (
+            direct.union(extensionInfo?.protocols ?? []),
+            generics, guarded, frameworks)
+    }
+}
+
 // Cross-import overlay modifiers are ordinary interface-derived API whose
 // declarations live outside both public modules. Keep the triggering import
 // as a runtime availability property and the overlay's declared target
@@ -3939,6 +4060,261 @@ if let chartsFile {
     sweepMemberFile(chartsFile)
 }
 
+struct GeneratedResultBuilderCarrierDescriptor {
+    let builder: String
+    let resultProtocol: String
+    let maximumArity: Int
+    let availabilityAttributes: [String]
+    let invocationAvailabilityAttributes: [String]
+
+    var availabilityCondition: String? {
+        let clauses = invocationAvailabilityAttributes.compactMap {
+            attribute -> String? in
+            guard attribute.hasPrefix("@available("),
+                  attribute.hasSuffix(")"),
+                  !attribute.contains("unavailable"),
+                  !attribute.contains("deprecated"),
+                  !attribute.contains("obsoleted") else {
+                return nil
+            }
+            return String(attribute.dropFirst("@available(".count).dropLast())
+        }
+        return clauses.isEmpty ? nil : clauses.joined(separator: ", ")
+    }
+}
+
+let generatedResultBuilderCarriers: [
+    String: GeneratedResultBuilderCarrierDescriptor
+] = Dictionary(uniqueKeysWithValues: interfaceResultBuilders.compactMap {
+    resultProtocol, builder
+        -> (String, GeneratedResultBuilderCarrierDescriptor)? in
+    var eraser: FunctionDeclSyntax?
+    var eraserAcceptsExistentialDirectly = false
+    var maximumArity = 0
+    var hasVariadicBuildBlock = false
+    var builderAvailabilityAttributes: [String] = []
+
+    @MainActor
+    func availabilityAttributes(
+        from attributes: AttributeListSyntax
+    ) -> [String] {
+        attributes.compactMap { attribute -> String? in
+            guard let syntax = attribute.as(AttributeSyntax.self),
+                  syntax.attributeName.trimmedDescription == "available" else {
+                return nil
+            }
+            return syntax.trimmedDescription
+        }
+    }
+
+    @MainActor
+    func inspectBuilderMembers(
+        _ members: MemberBlockItemListSyntax,
+        declarationAttributes: AttributeListSyntax
+    ) {
+        let functions = members.compactMap {
+            $0.decl.as(FunctionDeclSyntax.self)
+        }
+        guard functions.contains(where: {
+            $0.name.text == "buildLimitedAvailability"
+                || $0.name.text == "buildBlock"
+        }) else {
+            return
+        }
+        builderAvailabilityAttributes.append(contentsOf:
+            availabilityAttributes(from: declarationAttributes))
+        for function in functions {
+            if function.name.text == "buildLimitedAvailability",
+               let parameter = function.signature.parameterClause
+                .parameters.first {
+                let parameterType = normalize(
+                    parameter.type.trimmedDescription)
+                    .replacingOccurrences(of: " ", with: "")
+                let returnType = normalize(
+                    function.signature.returnClause?.type
+                        .trimmedDescription ?? "")
+                    .replacingOccurrences(of: " ", with: "")
+                let constraints = genericConstraints(of: function)
+                let genericInput = constraints[parameterType].map {
+                    facts -> Bool in
+                    guard case .constraints(let protocols) = facts else {
+                        return false
+                    }
+                    return protocols.contains(resultProtocol)
+                } ?? false
+                let directExistential =
+                    parameterType == "any\(resultProtocol)"
+                let opaqueInput =
+                    parameterType == "some\(resultProtocol)"
+                if returnType.contains(resultProtocol),
+                   directExistential
+                    || opaqueInput
+                    || (genericInput
+                        && !eraserAcceptsExistentialDirectly) {
+                    eraser = function
+                    eraserAcceptsExistentialDirectly = directExistential
+                }
+            }
+            if function.name.text == "buildBlock" {
+                if function.signature.parameterClause.parameters.contains(
+                    where: {
+                        normalize($0.type.trimmedDescription)
+                            .contains("repeat each")
+                    }) {
+                    hasVariadicBuildBlock = true
+                }
+                let constraints = genericConstraints(of: function)
+                let servesProtocol = constraints.values.contains {
+                    facts in
+                    guard case .constraints(let protocols) = facts else {
+                        return false
+                    }
+                    return protocols.contains(resultProtocol)
+                }
+                if servesProtocol {
+                    maximumArity = max(
+                        maximumArity,
+                        function.signature.parameterClause.parameters
+                            .count)
+                }
+            }
+        }
+    }
+
+    for file in interfaceFiles {
+        for statement in file.statements {
+            guard case .decl(let declaration) = statement.item else {
+                continue
+            }
+            if let ext = declaration.as(ExtensionDeclSyntax.self),
+               normalize(ext.extendedType.trimmedDescription) == builder {
+                inspectBuilderMembers(
+                    ext.memberBlock.members,
+                    declarationAttributes: ext.attributes)
+            } else if let structure = declaration.as(StructDeclSyntax.self),
+                      normalize(structure.name.text) == builder {
+                inspectBuilderMembers(
+                    structure.memberBlock.members,
+                    declarationAttributes: structure.attributes)
+            }
+        }
+    }
+    guard let eraser, maximumArity > 0,
+          !hasVariadicBuildBlock || maximumArity > 1 else {
+        return nil
+    }
+    let eraserAvailability = availabilityAttributes(
+        from: eraser.attributes)
+    let availability = Array(Set(
+        builderAvailabilityAttributes
+            + eraserAvailability
+    )).sorted()
+    return (
+        resultProtocol,
+        GeneratedResultBuilderCarrierDescriptor(
+            builder: builder,
+            resultProtocol: resultProtocol,
+            maximumArity: maximumArity,
+            availabilityAttributes: availability,
+            invocationAvailabilityAttributes: eraserAvailability)
+    )
+})
+
+let supportedResultBuilderProtocols = Set(
+    generatedResultBuilderCarriers.keys)
+
+// Only generate native leaves after proving that the interface also exposes
+// a carrier shape capable of composing every result. Candidate builders with
+// no existential eraser or only an unbounded parameter-pack block remain
+// blocked instead of leaking partial constructors into generated output.
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item,
+              let structure = declaration.as(StructDeclSyntax.self),
+              let info = resultBuilderContentInfo[structure.name.text],
+              !info.protocols.isDisjoint(
+                with: supportedResultBuilderProtocols) else {
+            continue
+        }
+        for member in structure.memberBlock.members {
+            guard let initializer = member.decl.as(
+                InitializerDeclSyntax.self),
+                  isUsable(initializer.attributes) else {
+                continue
+            }
+            processInit(
+                structure.name.text,
+                initializer,
+                generics: info.generics,
+                guarded: info.guarded,
+                frameworkRequirements: info.frameworkRequirements,
+                preservesSemanticValue: true)
+        }
+    }
+}
+
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item,
+              let ext = declaration.as(ExtensionDeclSyntax.self),
+              isUsable(ext.attributes) else {
+            continue
+        }
+        let type = normalize(ext.extendedType.trimmedDescription)
+        guard let info = resultBuilderContentInfo[type],
+              !info.protocols.isDisjoint(
+                with: supportedResultBuilderProtocols) else {
+            continue
+        }
+        var generics = info.generics
+        collectWhereClause(ext.genericWhereClause, into: &generics)
+        let guarded = info.guarded
+            || needsAvailabilityGuard(ext.attributes)
+        let frameworks = info.frameworkRequirements.union(
+            platformFrameworkRequirements(ext.attributes))
+        for member in ext.memberBlock.members {
+            guard let initializer = member.decl.as(
+                InitializerDeclSyntax.self),
+                  isUsable(initializer.attributes) else {
+                continue
+            }
+            processInit(
+                type,
+                initializer,
+                generics: generics,
+                guarded: guarded,
+                frameworkRequirements: frameworks,
+                preservesSemanticValue: true)
+        }
+    }
+}
+
+func resultBuilderDescriptor(
+    from tag: String
+) -> (builder: String, resultProtocol: String)? {
+    let prefix = "resultBuilder(\""
+    let separator = "\", \""
+    guard tag.hasPrefix(prefix), tag.hasSuffix("\")") else { return nil }
+    let payload = String(tag.dropFirst(prefix.count).dropLast(2))
+    let parts = payload.components(separatedBy: separator)
+    guard parts.count == 2 else { return nil }
+    return (parts[0], parts[1])
+}
+
+func supportsResultBuilders(_ variant: Variant) -> Bool {
+    variant.params.allSatisfy {
+        guard let descriptor = resultBuilderDescriptor(from: $0.tag) else {
+            return true
+        }
+        return generatedResultBuilderCarriers[
+            descriptor.resultProtocol
+        ] != nil
+    }
+}
+
+let emittedModifierVariants = variants.filter(supportsResultBuilders)
+let emittedInitVariants = initVariants.filter(supportsResultBuilders)
+
 // MARK: - Report
 
 let parameterBlockers = modifierBlockers.merging(initBlockers, uniquingKeysWith: +)
@@ -3949,7 +4325,7 @@ print("""
 total overloads:        \(modifierTotal)  (\(modifierNames.count) distinct names)
 generatable overloads:  \(modifierGeneratable)  (\(generatableNames.count) distinct names)
 newer-OS (skipped):     \(modifierGuarded)
-emitted variants:       \(variants.count)
+emitted variants:       \(emittedModifierVariants.count)
 
 ═══ SwiftUI constructors ═══
 View structs:           \(viewStructs.count)
@@ -3957,7 +4333,7 @@ parameter value structs: \(valueStructs.count)
 total inits:            \(initTotal)
 generatable inits:      \(initGeneratable)  (across \(generatableStructs.count) structs)
 newer-OS (skipped):     \(initGuarded)
-emitted variants:       \(initVariants.count)
+emitted variants:       \(emittedInitVariants.count)
 
 ═══ Top blocking types ═══
 """)
@@ -4004,7 +4380,7 @@ func sdkProtocolComposition(from tag: String) -> String? {
 }
 
 let emittedSDKEnumTypes = Set(
-    (variants + initVariants)
+    (emittedModifierVariants + emittedInitVariants)
         .flatMap(\.params)
         .compactMap { sdkEnumType(from: $0.tag) }
         + nativeValueInits.flatMap(\.params)
@@ -4207,7 +4583,7 @@ let targetSDKContextualMethodsByType = Dictionary(
     grouping: targetSDKContextualMethodVariants, by: \.type)
 
 let emittedSDKProtocolCompositions = Set(
-    (variants + initVariants)
+    (emittedModifierVariants + emittedInitVariants)
         .flatMap(\.params)
         .compactMap { sdkProtocolComposition(from: $0.tag) })
 let emittedSDKFrameworkConfigurationProtocols =
@@ -4285,14 +4661,14 @@ if let jsonReportPath {
         modifiers: CoverageSection(
             scannedOverloads: modifierTotal,
             generatableOverloads: modifierGeneratable,
-            emittedVariants: variants.count,
-            emittedSignatures: variants.map(\.key).sorted(),
+            emittedVariants: emittedModifierVariants.count,
+            emittedSignatures: emittedModifierVariants.map(\.key).sorted(),
             blockers: modifierBlockers),
         constructors: CoverageSection(
             scannedOverloads: initTotal,
             generatableOverloads: initGeneratable,
-            emittedVariants: initVariants.count,
-            emittedSignatures: initVariants.map(\.key).sorted(),
+            emittedVariants: emittedInitVariants.count,
+            emittedSignatures: emittedInitVariants.map(\.key).sorted(),
             blockers: initBlockers),
         foundationMembers: FoundationCoverageSection(
             scannedProperties: memberPropertyTotal,
@@ -4339,10 +4715,25 @@ func generatedMappedValue(
     return "generatedOptionalArgument(\(storage)) { value in \(wrapped) }"
 }
 
+func generatedResultBuilderFunctionName(_ resultProtocol: String) -> String {
+    let components = resultProtocol.split {
+        !($0.isLetter || $0.isNumber)
+    }
+    let joined = components.map(String.init).joined()
+    guard let first = joined.first else { return "result" }
+    return first.lowercased() + joined.dropFirst()
+}
+
 func generatedCallPreamble(_ variant: Variant) -> [String] {
     var lines = variant.params.enumerated().compactMap { index, param in
         if param.tag == "builder" {
             return "        let b\(index) = try generatedBuilder(v[\(index)])"
+        }
+        if let descriptor = resultBuilderDescriptor(from: param.tag) {
+            let function = generatedResultBuilderFunctionName(
+                descriptor.resultProtocol)
+            return "        let b\(index) = try "
+                + "GeneratedResultBuilderCarriers.\(function)(v[\(index)])"
         }
         if generatedProtocolConstraint(from: param.tag) != nil {
             let cast = param.cast.replacingOccurrences(
@@ -4369,7 +4760,8 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
     let argList = variant.params.prefix(positionalEnd).enumerated()
         .map { index, param in
             let value: String
-            if param.tag == "builder" {
+            if param.tag == "builder"
+                || resultBuilderDescriptor(from: param.tag) != nil {
                 value = "{ b\(index) }"
             } else if generatedProtocolConstraint(from: param.tag) != nil {
                 // A named existential is opened by Swift when passed to the
@@ -4390,6 +4782,8 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
     let head = argList.isEmpty ? callee : "\(callee)(\(argList))"
     let closure = switch variant.params[trailingIndex].tag {
     case "builder": "{ b\(trailingIndex) }"
+    case let tag where resultBuilderDescriptor(from: tag) != nil:
+        "{ b\(trailingIndex) }"
     case "action": "{ a\(trailingIndex)() }"
     case "asyncAction": "{ await a\(trailingIndex)() }"
     case "syncVoidClosure":
@@ -4582,16 +4976,43 @@ func entryCode(_ variant: Variant) -> String {
     var lines = [
         "    register(&t, \"\(variant.name)\", [\(specs)]\(importArgument)\(preferenceArgument)\(semanticAdapterArgument)) { view, v in"
     ]
-    lines.append(contentsOf: generatedCallPreamble(variant))
+    let preamble = generatedCallPreamble(variant)
     let returnedExpression =
         "AnyView(\(generatedCall("view.\(variant.name)", variant)))"
+    var invocation: [String] = []
     if let opened = generatedProtocolOpeningCall(
         variant, resultType: "AnyView",
         returnedExpression: returnedExpression
     ) {
-        lines.append(contentsOf: opened)
+        invocation.append(contentsOf: opened)
     } else {
-        lines.append("        return \(returnedExpression)")
+        invocation.append("        return \(returnedExpression)")
+    }
+    let carrierConditions = Set(variant.params.compactMap {
+        parameter -> String? in
+        guard let descriptor = resultBuilderDescriptor(
+            from: parameter.tag) else {
+            return nil
+        }
+        return generatedResultBuilderCarriers[
+            descriptor.resultProtocol
+        ]?.availabilityCondition
+    })
+    if let condition = carrierConditions.first {
+        guard carrierConditions.count == 1 else {
+            fatalError(
+                "\(variant.key) combines incompatible result-builder "
+                    + "carrier availability")
+        }
+        lines.append("        if #available(\(condition)) {")
+        lines.append(contentsOf: (preamble + invocation).map {
+            "    " + $0
+        })
+        lines.append("        }")
+        lines.append("        return AnyView(view)")
+    } else {
+        lines.append(contentsOf: preamble)
+        lines.append(contentsOf: invocation)
     }
     lines.append("    }")
     let exact = lines.joined(separator: "\n")
@@ -4624,7 +5045,9 @@ func compileGuarded(_ source: String, for variant: Variant) -> String {
     return "#if \(condition)\n\(source)\n#endif"
 }
 
-let sorted = variants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
+let sorted = emittedModifierVariants.sorted {
+    ($0.name, $0.params.count) < ($1.name, $1.params.count)
+}
 let chunkSize = 40
 let chunks = stride(from: 0, to: sorted.count, by: chunkSize).map {
     Array(sorted[$0..<min($0 + chunkSize, sorted.count)])
@@ -4634,7 +5057,7 @@ let generatedCrossImportTriggers = Set(
     swiftUICrossImportFiles.map(\.triggeringModule)
 )
 let emittedCrossImportTriggers = Set(
-    variants.flatMap(\.targetImportRequirements)
+    emittedModifierVariants.flatMap(\.targetImportRequirements)
 ).intersection(generatedCrossImportTriggers)
 let generatedCrossImportImports = emittedCrossImportTriggers.sorted().map {
     "#if canImport(\($0))\nimport \($0)\n#endif"
@@ -4792,7 +5215,9 @@ func platformSemanticAdapterEntryCode(
     return "#if !canImport(\(adapter.unavailableFramework))\n\(source)\n#endif"
 }
 
-let sortedInits = initVariants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
+let sortedInits = emittedInitVariants.sorted {
+    ($0.name, $0.params.count) < ($1.name, $1.params.count)
+}
 let initChunks = stride(from: 0, to: sortedInits.count, by: chunkSize).map {
     Array(sortedInits[$0..<min($0 + chunkSize, sortedInits.count)])
 }
@@ -4845,6 +5270,120 @@ viewsOutput += "}\n"
 let viewsPath = "Sources/SwiftUIBridge/Generated/GeneratedViews.swift"
 try viewsOutput.write(toFile: viewsPath, atomically: true, encoding: .utf8)
 print("wrote \(viewsPath) (\(sortedInits.count) variants)")
+
+var resultBuildersOutput = """
+// GENERATED by BridgeGen from interface-declared non-View result builders.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+// \(generatedResultBuilderCarriers.count) typed existential carriers.
+import Charts
+import SwiftUI
+import SwiftInterpreter
+
+"""
+
+for descriptor in generatedResultBuilderCarriers.values.sorted(by: {
+    ($0.resultProtocol, $0.builder)
+        < ($1.resultProtocol, $1.builder)
+}) {
+    let resultProtocol = descriptor.resultProtocol
+    let builder = descriptor.builder
+    let carrier = resultProtocol.split {
+        !($0.isLetter || $0.isNumber)
+    }.map(String.init).joined() + "GeneratedCarrier"
+    let function = generatedResultBuilderFunctionName(resultProtocol)
+    let availability = descriptor.availabilityAttributes.map {
+        $0 + "\n"
+    }.joined()
+
+    resultBuildersOutput += availability
+    resultBuildersOutput += """
+struct \(carrier): \(resultProtocol) {
+    let values: [any \(resultProtocol)]
+
+    @\(builder) var body: some \(resultProtocol) {
+
+"""
+    for index in 0..<descriptor.maximumArity {
+        resultBuildersOutput += """
+        if values.indices.contains(\(index)) {
+            \(builder).buildLimitedAvailability(values[\(index)])
+        }
+
+"""
+    }
+    resultBuildersOutput += """
+    }
+}
+
+"""
+    resultBuildersOutput += availability
+    resultBuildersOutput += """
+extension GeneratedResultBuilderCarriers {
+    @MainActor
+    static func \(function)(_ value: Any) throws -> \(carrier) {
+        guard let builder = value as? BuilderValue,
+              let closure = builder.value.closureValue else {
+            throw RuntimeError(message: "expected a result-builder closure")
+        }
+        let values = try builder.context.callResultBuilderClosure(
+            closure, arguments: [], resultProtocol: "\(resultProtocol)"
+        ).map { value -> any \(resultProtocol) in
+            guard case .host(let payload) = value,
+                  let content = payload as? any \(resultProtocol) else {
+                throw RuntimeError(
+                    message: "expected \(resultProtocol) builder content")
+            }
+            return content
+        }
+        return \(carrier)(values: values)
+    }
+}
+
+"""
+}
+
+let generatedResultBuilderNominals = resultBuilderContentInfo.compactMap {
+    name, info -> (String, [String])? in
+    let protocols = info.protocols.intersection(
+        supportedResultBuilderProtocols).sorted()
+    return protocols.isEmpty ? nil : (name, protocols)
+}.sorted { $0.0 < $1.0 }
+
+resultBuildersOutput += """
+extension GeneratedResultBuilderCarriers {
+    private static let importedResultProtocolsByType: [String: Set<String>] = [
+
+"""
+for (name, protocols) in generatedResultBuilderNominals {
+    let values = protocols.map { "\"\($0)\"" }.joined(separator: ", ")
+    resultBuildersOutput += "        \"\(name)\": [\(values)],\n"
+}
+resultBuildersOutput += """
+    ]
+
+    static func importedType(
+        named typeName: String, conformsTo protocolName: String
+    ) -> Bool? {
+        let nominal = typeName.split(separator: ".").last.map(String.init)
+            ?? typeName
+        guard let protocols = importedResultProtocolsByType[nominal] else {
+            return nil
+        }
+        return protocols.contains {
+            HostSignature.equivalentTypeName($0, protocolName)
+        }
+    }
+}
+
+"""
+
+let resultBuildersPath =
+    "Sources/SwiftUIBridge/Generated/GeneratedResultBuilderCarriers.swift"
+try resultBuildersOutput.write(
+    toFile: resultBuildersPath, atomically: true, encoding: .utf8)
+print(
+    "wrote \(resultBuildersPath) "
+        + "(\(generatedResultBuilderCarriers.count) carriers)")
 
 // MARK: - Emit contextual SDK value coercions
 

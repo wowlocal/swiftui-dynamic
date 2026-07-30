@@ -139,6 +139,14 @@ public final class TraceRegistry: HostRegistry {
             named: typeName, matchesType: expectedTypeName)
     }
 
+    public func importedType(
+        named typeName: String,
+        conformsToImportedProtocol protocolName: String
+    ) -> Bool? {
+        GeneratedResultBuilderCarriers.importedType(
+            named: typeName, conformsTo: protocolName)
+    }
+
     public func cFunction(named name: String) -> HostFunction? {
         if let memory = GeneratedCMemoryBridge.function(named: name) {
             return memory

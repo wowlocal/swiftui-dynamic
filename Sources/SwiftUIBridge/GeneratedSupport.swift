@@ -24,7 +24,12 @@ enum ParamTag: Hashable {
     case visibility, axisSet, edgeInsets, gradient, gridItems
     case axis, colorArray, annotationPosition
     case dimension, measurement
-    case builder, action, asyncAction
+    case builder
+    /// Interface-declared non-View result builder and the protocol its
+    /// closure result satisfies. Generated typed carriers consume this
+    /// descriptor after overload selection.
+    case resultBuilder(String, String)
+    case action, asyncAction
     case syncVoidClosure, syncCGFloatClosure, equatable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
@@ -400,6 +405,11 @@ enum GeneratedDispatch {
         case .builder:
             guard value.closureValue != nil else { throw RuntimeError(message: "expected a view closure") }
             return BuilderValue(value: value, context: ctx)
+        case .resultBuilder:
+            guard value.closureValue != nil else {
+                throw RuntimeError(message: "expected a result-builder closure")
+            }
+            return BuilderValue(value: value, context: ctx)
         case .action:
             guard let closure = value.closureValue else { throw RuntimeError(message: "expected a closure") }
             let callback = InterpretedHostCallback(
@@ -571,7 +581,14 @@ enum GeneratedDispatch {
     ) -> Bool {
         guard params.count == args.arguments.count else { return false }
         for (param, argument) in zip(params, args.arguments) {
-            let isClosureParam = param.tag == .builder
+            let isResultBuilder: Bool
+            if case .resultBuilder = param.tag {
+                isResultBuilder = true
+            } else {
+                isResultBuilder = false
+            }
+            let isClosureParam = isResultBuilder
+                || param.tag == .builder
                 || param.tag == .action
                 || param.tag == .asyncAction
                 || param.tag == .syncVoidClosure
@@ -607,6 +624,30 @@ enum GeneratedDispatch {
             values.append(coerced)
         }
         return values
+    }
+
+    /// Prefer an interface result-builder overload only when declaration
+    /// metadata proves the closure's branch result types conform to its
+    /// protocol. This is the runtime analogue of the compiler's generic
+    /// result constraint and avoids resolving same-shaped builders by table
+    /// order or by speculatively executing their bodies.
+    private static func provesResultBuilder(
+        _ params: [ParamSpec],
+        _ args: CallArguments,
+        _ ctx: EvalContext
+    ) -> Bool {
+        guard labelsMatch(params, args) else { return false }
+        return zip(params, args.arguments).contains {
+            parameter, argument in
+            guard case .resultBuilder(_, let resultProtocol) =
+                    parameter.tag,
+                  let closure = argument.value.closureValue else {
+                return false
+            }
+            return ctx.resultBuilderClosure(
+                closure,
+                matchesResultProtocol: resultProtocol) == true
+        }
     }
 
     /// Same coercion boundary used by generated modifiers, exposed to the
@@ -703,9 +744,24 @@ enum GeneratedDispatch {
         args: CallArguments,
         ctx: EvalContext
     ) throws -> AnyView {
-        for overload in overloads.byArity[args.arguments.count] ?? [] {
+        let candidates = overloads.byArity[args.arguments.count] ?? []
+        for overload in candidates where provesResultBuilder(
+            overload.params, args, ctx) {
             guard isAvailable(overload, in: ctx) else { continue }
             guard let values = matches(overload.params, args, ctx) else { continue }
+            let native = try overload.invoke(view, values)
+            guard let adapter = overload.semanticAdapter else {
+                return native
+            }
+            return adapter.apply(
+                to: native, receiver: view, values: values, context: ctx)
+        }
+        for overload in candidates where !provesResultBuilder(
+            overload.params, args, ctx) {
+            guard isAvailable(overload, in: ctx) else { continue }
+            guard let values = matches(overload.params, args, ctx) else {
+                continue
+            }
             let native = try overload.invoke(view, values)
             guard let adapter = overload.semanticAdapter else {
                 return native
@@ -723,7 +779,16 @@ enum GeneratedDispatch {
         args: CallArguments,
         ctx: EvalContext
     ) throws -> Any {
-        for overload in overloads.byArity[args.arguments.count] ?? [] {
+        let candidates = overloads.byArity[args.arguments.count] ?? []
+        for overload in candidates where provesResultBuilder(
+            overload.params, args, ctx) {
+            guard let values = matches(overload.params, args, ctx) else {
+                continue
+            }
+            return try overload.invoke(values)
+        }
+        for overload in candidates where !provesResultBuilder(
+            overload.params, args, ctx) {
             guard let values = matches(overload.params, args, ctx) else { continue }
             return try overload.invoke(values)
         }
@@ -1372,6 +1437,11 @@ enum GeneratedConstructors {
             invoke: invoke))
     }
 }
+
+/// Namespace extended by interface-generated non-View result-builder
+/// carriers. The generated implementations retain native protocol values
+/// without teaching handwritten dispatch about any SDK builder identity.
+enum GeneratedResultBuilderCarriers {}
 
 /// A target-specific platform color has no native payload on the opposite
 /// host. The target overlay nevertheless proves that it initializes a value

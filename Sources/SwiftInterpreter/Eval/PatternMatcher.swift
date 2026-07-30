@@ -43,6 +43,37 @@ extension Interpreter {
         }
     }
 
+    func collectResultBuilderSwitch(
+        _ switchExpression: SwitchExprSyntax,
+        in env: Environment,
+        resultProtocol: String
+    ) throws -> [RuntimeValue] {
+        var selected = try selectCase(switchExpression, in: env)
+        var values: [RuntimeValue] = []
+        while true {
+            let falls = Self.trailingFallthrough(selected.statements)
+            let body = falls
+                ? CodeBlockItemListSyntax(
+                    Array(selected.statements.dropLast()))
+                : selected.statements
+            values += try collectResultBuilderValues(
+                body,
+                in: selected.env,
+                resultProtocol: resultProtocol)
+            if falls,
+               let next = caseStatements(
+                    after: selected.caseIndex,
+                    in: switchExpression) {
+                selected = (
+                    next.index,
+                    next.statements,
+                    Environment(parent: env))
+                continue
+            }
+            return values
+        }
+    }
+
     /// Swift requires `fallthrough` to be the LAST statement of a case.
     static func trailingFallthrough(_ statements: CodeBlockItemListSyntax) -> Bool {
         guard let last = statements.last, case .stmt(let stmt) = last.item else { return false }

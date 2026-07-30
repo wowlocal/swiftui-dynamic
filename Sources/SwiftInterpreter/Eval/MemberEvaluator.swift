@@ -2289,6 +2289,36 @@ extension Interpreter {
         }
     }
 
+    /// Protocol requirements such as `ToolbarContent.body` inherit their
+    /// own result builder. Preserve the declared protocol leaves here; the
+    /// compiled bridge owns their concrete framework composition.
+    func evaluateComputedResultBuilderBody(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String,
+        resultProtocol: String
+    ) throws -> [RuntimeValue] {
+        if let failure = computed.unsupportedCoroutineReadError {
+            throw failure
+        }
+        if computed.isAsync && evaluationTaskContext.isAsyncSession {
+            throw RuntimeError(
+                message: "async computed property '\(name)' requires an "
+                    + "awaited suspending entry",
+                fatal: true)
+        }
+        return try withComputedPropertyContext(
+            computed,
+            selfValue: selfValue,
+            name: name
+        ) { env in
+            try collectResultBuilderValues(
+                computed.accessor,
+                in: env,
+                resultProtocol: resultProtocol)
+        }
+    }
+
     func evaluateComputedBodySuspending(
         _ computed: ComputedProperty,
         selfValue: RuntimeValue,

@@ -316,10 +316,6 @@ extension ViewRegistry {
                 return gesture.attach(to: view, ctx: ctx)
             }
         }
-        // Toolbar chrome doesn't paint inside a borderless captured window
-        // (the twin's captures show none either) — the view passes through;
-        // toolbar ACTIONS become R3 surface, not R2 pixels.
-        register("toolbar") { view, _, _ in view }
         register("tableStyle") { view, args, _ in
             switch args.positional(0) {
             case .implicitMember("inset"): return AnyView(view.tableStyle(.inset))

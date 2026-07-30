@@ -767,6 +767,284 @@ extension Interpreter {
         }
     }
 
+    /// Non-View result builders use the same control-flow transform as
+    /// ViewBuilder, but their leaves must cross the compiler boundary as
+    /// their declared protocol rather than being erased to AnyView.
+    func collectResultBuilderValues(
+        _ items: CodeBlockItemListSyntax,
+        in env: Environment,
+        resultProtocol: String
+    ) throws -> [RuntimeValue] {
+        var values: [RuntimeValue] = []
+        for item in items {
+            try tick(item)
+            switch item.item {
+            case .decl(let decl):
+                if let ifConfig = decl.as(IfConfigDeclSyntax.self) {
+                    if let clause = activeIfConfigClause(ifConfig),
+                       case .statements(let activeItems)? = clause.elements {
+                        values += try collectResultBuilderValues(
+                            activeItems,
+                            in: env,
+                            resultProtocol: resultProtocol)
+                    }
+                    continue
+                }
+                try executeDecl(decl, in: env)
+            case .stmt(let stmt):
+                if let expression = stmt.as(ExpressionStmtSyntax.self)?
+                    .expression {
+                    if let ifExpression = expression.as(IfExprSyntax.self) {
+                        values += try collectResultBuilderIf(
+                            ifExpression,
+                            in: env,
+                            resultProtocol: resultProtocol)
+                        continue
+                    }
+                    if let switchExpression = expression.as(
+                        SwitchExprSyntax.self) {
+                        values += try collectResultBuilderSwitch(
+                            switchExpression,
+                            in: env,
+                            resultProtocol: resultProtocol)
+                        continue
+                    }
+                }
+                if let returnStatement = stmt.as(ReturnStmtSyntax.self) {
+                    if let expression = returnStatement.expression {
+                        try appendResultBuilderValue(
+                            evaluate(expression, in: env),
+                            resultProtocol: resultProtocol,
+                            to: &values)
+                    }
+                    continue
+                }
+                if stmt.is(DoStmtSyntax.self)
+                    || stmt.is(GuardStmtSyntax.self)
+                    || stmt.is(ForStmtSyntax.self)
+                    || stmt.is(WhileStmtSyntax.self)
+                    || stmt.is(BreakStmtSyntax.self)
+                    || stmt.is(ContinueStmtSyntax.self) {
+                    let result = try executeStatement(stmt, in: env)
+                    if case .returnValue(let value) = result {
+                        try appendResultBuilderValue(
+                            value,
+                            resultProtocol: resultProtocol,
+                            to: &values)
+                    }
+                    continue
+                }
+                throw error(
+                    stmt,
+                    "unsupported statement in a result builder "
+                        + "(\(stmt.kind))")
+            case .expr(let expression):
+                if let ifExpression = expression.as(IfExprSyntax.self) {
+                    values += try collectResultBuilderIf(
+                        ifExpression,
+                        in: env,
+                        resultProtocol: resultProtocol)
+                } else if let switchExpression = expression.as(
+                    SwitchExprSyntax.self) {
+                    values += try collectResultBuilderSwitch(
+                        switchExpression,
+                        in: env,
+                        resultProtocol: resultProtocol)
+                } else {
+                    try appendResultBuilderValue(
+                        evaluate(expression, in: env),
+                        resultProtocol: resultProtocol,
+                        to: &values)
+                }
+            }
+        }
+        return values
+    }
+
+    private func collectResultBuilderIf(
+        _ ifExpression: IfExprSyntax,
+        in env: Environment,
+        resultProtocol: String
+    ) throws -> [RuntimeValue] {
+        let child = Environment(parent: env)
+        if try conditionsHold(
+            ifExpression.conditions,
+            in: env,
+            bindingInto: child) {
+            return try collectResultBuilderValues(
+                ifExpression.body.statements,
+                in: child,
+                resultProtocol: resultProtocol)
+        }
+        switch ifExpression.elseBody {
+        case .none:
+            return []
+        case .codeBlock(let block):
+            return try collectResultBuilderValues(
+                block.statements,
+                in: Environment(parent: env),
+                resultProtocol: resultProtocol)
+        case .ifExpr(let nested):
+            return try collectResultBuilderIf(
+                nested,
+                in: env,
+                resultProtocol: resultProtocol)
+        }
+    }
+
+    private func appendResultBuilderValue(
+        _ value: RuntimeValue,
+        resultProtocol: String,
+        to values: inout [RuntimeValue]
+    ) throws {
+        switch value {
+        case .void, .nilValue:
+            return
+        case .optional(let optional):
+            if let wrapped = optional.wrapped {
+                try appendResultBuilderValue(
+                    wrapped,
+                    resultProtocol: resultProtocol,
+                    to: &values)
+            }
+        case .instance(let instance)
+        where instance.symbol.conformances.contains(where: {
+            $0 == resultProtocol
+                || $0.hasSuffix("." + resultProtocol)
+                || resultProtocol.hasSuffix("." + $0)
+        }):
+            guard let body = instance.symbol.computedProperties["body"] else {
+                values.append(value)
+                return
+            }
+            values += try evaluateComputedResultBuilderBody(
+                body,
+                selfValue: value,
+                name: "\(instance.symbol.name).body",
+                resultProtocol: resultProtocol)
+        default:
+            values.append(value)
+        }
+    }
+
+    /// Prove a result-builder overload from declaration metadata without
+    /// evaluating the closure. This mirrors the compiler's result-type
+    /// constraint at the small boundary the runtime needs: every reachable
+    /// builder expression must construct a source or imported nominal whose
+    /// interface conformance reaches the requested protocol.
+    func resultBuilderStatements(
+        _ items: CodeBlockItemListSyntax,
+        conformTo resultProtocol: String,
+        lexicalOwner: StructSymbol?
+    ) -> Bool? {
+        var evidence: [Bool?] = []
+        for item in items {
+            switch item.item {
+            case .decl(let declaration):
+                if let ifConfig = declaration.as(IfConfigDeclSyntax.self),
+                   let clause = activeIfConfigClause(ifConfig),
+                   case .statements(let activeItems)? = clause.elements {
+                    evidence.append(resultBuilderStatements(
+                        activeItems,
+                        conformTo: resultProtocol,
+                        lexicalOwner: lexicalOwner))
+                }
+            case .expr(let expression):
+                evidence.append(resultBuilderExpression(
+                    expression,
+                    conformsTo: resultProtocol,
+                    lexicalOwner: lexicalOwner))
+            case .stmt(let statement):
+                if let expression = statement.as(
+                    ExpressionStmtSyntax.self)?.expression {
+                    evidence.append(resultBuilderExpression(
+                        expression,
+                        conformsTo: resultProtocol,
+                        lexicalOwner: lexicalOwner))
+                } else if let returned = statement.as(
+                    ReturnStmtSyntax.self)?.expression {
+                    evidence.append(resultBuilderExpression(
+                        returned,
+                        conformsTo: resultProtocol,
+                        lexicalOwner: lexicalOwner))
+                }
+            }
+        }
+        let material = evidence.compactMap { $0 }
+        guard !material.isEmpty, evidence.allSatisfy({ $0 != nil }) else {
+            return nil
+        }
+        return material.allSatisfy { $0 }
+    }
+
+    private func resultBuilderExpression(
+        _ expression: ExprSyntax,
+        conformsTo resultProtocol: String,
+        lexicalOwner: StructSymbol?
+    ) -> Bool? {
+        if let call = expression.as(FunctionCallExprSyntax.self),
+           let name = callSiteMetadata(for: call).callee.name {
+            return resultBuilderNominal(
+                name,
+                conformsTo: resultProtocol,
+                lexicalOwner: lexicalOwner)
+        }
+        if let ifExpression = expression.as(IfExprSyntax.self) {
+            var branches: [Bool?] = [
+                resultBuilderStatements(
+                    ifExpression.body.statements,
+                    conformTo: resultProtocol,
+                    lexicalOwner: lexicalOwner)
+            ]
+            switch ifExpression.elseBody {
+            case .none:
+                break
+            case .codeBlock(let block):
+                branches.append(resultBuilderStatements(
+                    block.statements,
+                    conformTo: resultProtocol,
+                    lexicalOwner: lexicalOwner))
+            case .ifExpr(let nested):
+                branches.append(resultBuilderExpression(
+                    ExprSyntax(nested),
+                    conformsTo: resultProtocol,
+                    lexicalOwner: lexicalOwner))
+            }
+            guard branches.allSatisfy({ $0 == true }) else { return nil }
+            return true
+        }
+        if let switchExpression = expression.as(SwitchExprSyntax.self) {
+            let branches = flattenedSwitchCases(switchExpression).map {
+                resultBuilderStatements(
+                    $0.statements,
+                    conformTo: resultProtocol,
+                    lexicalOwner: lexicalOwner)
+            }
+            guard !branches.isEmpty,
+                  branches.allSatisfy({ $0 == true }) else {
+                return nil
+            }
+            return true
+        }
+        return nil
+    }
+
+    private func resultBuilderNominal(
+        _ name: String,
+        conformsTo resultProtocol: String,
+        lexicalOwner: StructSymbol?
+    ) -> Bool? {
+        if case .type(let symbol)? = typeValue(
+            named: name, within: lexicalOwner) {
+            return transitiveConformances(of: symbol).contains {
+                HostSignature.equivalentTypeName($0, resultProtocol)
+            }
+        }
+        return registry?.importedType(
+            named: name,
+            conformsToImportedProtocol: resultProtocol)
+    }
+
     func appendViewValue(_ value: RuntimeValue, to views: inout [RuntimeValue]) {
         switch value {
         case .void:

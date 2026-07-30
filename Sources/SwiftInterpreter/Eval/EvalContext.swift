@@ -291,6 +291,30 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func callResultBuilderClosure(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        resultProtocol: String
+    ) throws -> [RuntimeValue] {
+        try callback {
+            try interpreter.callResultBuilderClosure(
+                closure,
+                arguments: arguments,
+                resultProtocol: resultProtocol)
+        }
+    }
+
+    func resultBuilderClosure(
+        _ closure: ClosureValue,
+        matchesResultProtocol resultProtocol: String
+    ) -> Bool? {
+        bound {
+            interpreter.resultBuilderClosure(
+                closure,
+                matchesResultProtocol: resultProtocol)
+        }
+    }
+
     func withKnownFiniteHostIteration<T>(
         _ operation: () throws -> T
     ) throws -> T {
@@ -1131,6 +1155,30 @@ extension Interpreter: EvalContext {
         let args = CallArguments(arguments: arguments.map { .init(label: nil, value: $0) })
         try bindParameters(of: closure, to: args, into: env, node: nil)
         return try collectBuilderViews(closure.body, in: env)
+    }
+
+    public func callResultBuilderClosure(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        resultProtocol: String
+    ) throws -> [RuntimeValue] {
+        let env = Environment(parent: closure.captured)
+        let args = CallArguments(arguments: arguments.map {
+            .init(label: nil, value: $0)
+        })
+        try bindParameters(of: closure, to: args, into: env, node: nil)
+        return try collectResultBuilderValues(
+            closure.body, in: env, resultProtocol: resultProtocol)
+    }
+
+    public func resultBuilderClosure(
+        _ closure: ClosureValue,
+        matchesResultProtocol resultProtocol: String
+    ) -> Bool? {
+        resultBuilderStatements(
+            closure.body,
+            conformTo: resultProtocol,
+            lexicalOwner: closure.lexicalOwner as? StructSymbol)
     }
 
     public func withKnownFiniteHostIteration<T>(

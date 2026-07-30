@@ -56,6 +56,51 @@ struct NavigationChromeTargetProbeTests {
         #expect(macOSChrome.count == 0)
     }
 
+    /// A non-View result-builder overload must execute the source conformer's
+    /// body and preserve its native leaf. The counter distinguishes this from
+    /// both the former pass-through and the same-shaped ViewBuilder overload.
+    @MainActor
+    @Test func interfaceResultBuilderExecutesConformingBody() throws {
+        let source = """
+        var toolbarExecutions = 0
+
+        func toolbarLabel() -> String {
+            toolbarExecutions += 1
+            return "TOOLS"
+        }
+
+        struct ProbeToolbar: ToolbarContent {
+            var body: some ToolbarContent {
+                ToolbarItem(placement: .primaryAction) {
+                    Text(toolbarLabel())
+                }
+            }
+        }
+
+        @main
+        struct NavigationChromeApp: App {
+            var body: some Scene {
+                WindowGroup {
+                    NavigationStack {
+                        Color.white.toolbar {
+                            ProbeToolbar()
+                        }
+                    }
+                }
+            }
+        }
+        """
+        let session = try InterpreterHost().renderSession(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS", targetEnvironment: "macCatalyst"),
+            lazyTopLevelGlobals: true
+        ).get()
+        #expect(
+            session.interpreter.globals.lookup("toolbarExecutions")?.intValue
+                == 1)
+    }
+
     @MainActor
     private static func titleInk(
         navigationStack: Bool,
