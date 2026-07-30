@@ -146,7 +146,7 @@ typeset -A R2_FLOORS
 R2_FLOORS=(
   timeline 0
   status-detail 100041
-  account-header 326737
+  account-header 305338
 )
 typeset -A R2_AE_LINES
 board_red=0
