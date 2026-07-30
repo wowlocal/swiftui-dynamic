@@ -5,9 +5,19 @@ import UIKit
 #endif
 import Darwin
 import Foundation
+import QuartzCore
 import SwiftInterpreter
 import SwiftUI
 import SwiftUIBridge
+
+/// Native progress indicators and transition layers use wall-clock Core
+/// Animation even when model time is frozen. Snapshot the model-layer
+/// presentation — exactly as the native twin does — so repeated captures of
+/// the same semantic state are exact on both sides of the R2 board.
+private func removeAnimations(from layer: CALayer) {
+    layer.removeAllAnimations()
+    layer.sublayers?.forEach(removeAnimations(from:))
+}
 
 // IceCubesCheck is the IceCubes mission instrument (LOOP-ICECUBES.md).
 // Expectations below come from the recorded Mastodon response bytes. The
@@ -178,11 +188,16 @@ private struct IceCubesCatalystCaptureRoot: View {
             rootView.layoutIfNeeded()
             let captureView =
                 fixedSizeDescendant(in: rootView) ?? rootView
+            removeAnimations(from: captureView.layer)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             format.opaque = false
             let renderer = UIGraphicsImageRenderer(
                 size: IceCubesCheckMain.screenSize, format: format)
+            // `drawHierarchy` is the only capture that materializes Catalyst
+            // hosting-layer contents (an in-process `layer.render(in:)` draws
+            // hosted SwiftUI content blank); serialization and animation
+            // stripping keep its window-server round trip reproducible.
             let image = renderer.image { _ in
                 captureView.drawHierarchy(
                     in: CGRect(
@@ -1535,6 +1550,9 @@ struct IceCubesCheckMain {
                     "could not allocate \(screen.rawValue) bitmap")
         }
         rep.size = screenSize
+        if let hostingLayer = hosting.layer {
+            removeAnimations(from: hostingLayer)
+        }
         hosting.cacheDisplay(in: hosting.bounds, to: rep)
         guard let png = rep.representation(using: .png, properties: [:]) else {
             throw RuntimeError(
