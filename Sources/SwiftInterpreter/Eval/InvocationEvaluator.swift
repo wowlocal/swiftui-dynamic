@@ -1591,18 +1591,10 @@ extension Interpreter {
                 // @…Builder parameter collects its block's items when
                 // called instead of returning the last expression.
                 if parameter.isBuilderAttributed, case .closure(let c) = resolved, !c.isBuilder {
-                    let builderClosure = ClosureValue(
-                        parameters: c.parameters, body: c.body, captured: c.captured,
-                        isBuilder: true,
-                        returnType: parameter.builderReturnType ?? c.returnType,
-                        returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName,
-                        programMetadata: c.programMetadata,
-                        programPlan: c.programPlan
-                    )
-                    builderClosure.programState = c.programState
-                    builderClosure.explicitParameterCount =
-                        c.explicitParameterCount
-                    resolved = .closure(builderClosure)
+                    resolved = .closure(c.transformedAsBuilder(
+                        returnType: parameter.builderReturnType,
+                        returnTypeName:
+                            parameter.builderReturnTypeName))
                 }
                 env.define(
                     parameter.name, resolved,

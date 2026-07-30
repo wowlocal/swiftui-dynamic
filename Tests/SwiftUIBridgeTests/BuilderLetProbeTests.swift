@@ -5,6 +5,71 @@ import Testing
 @testable import SwiftUIBridge
 
 @Suite struct BuilderLetProbeTests {
+    /// An escaping result-builder closure keeps the lexical type scope where
+    /// it was authored. Nested constants must resolve against that owner when
+    /// the generic container invokes the closure later.
+    @Test func escapingBuilderRetainsNestedLexicalConstants() throws {
+        let interpreter = Interpreter(registry: TraceRegistry())
+        _ = try interpreter.run(source: """
+        struct BuilderContainer<Content: View>: View {
+            private let content: (Bool) -> Content
+
+            init(
+                @ViewBuilder content: @escaping (Bool) -> Content
+            ) {
+                self.content = content
+            }
+
+            var body: some View {
+                content(true)
+            }
+        }
+
+        struct Card: View {
+            enum Metrics {
+                static let height: CGFloat = 37
+            }
+
+            var body: some View {
+                BuilderContainer { loaded in
+                    if loaded {
+                        Color.red.frame(
+                            width: 40, height: Metrics.height)
+                    }
+                }
+            }
+        }
+
+        Card()
+        """)
+        guard case .type(let symbol)? =
+                interpreter.globals.lookup("Card")
+        else {
+            Issue.record("Card type was not collected")
+            return
+        }
+        guard case .instance(let card) = try interpreter.instantiateRoot(
+            symbol)
+        else {
+            Issue.record("Card did not instantiate")
+            return
+        }
+
+        let cardBody = try TraceRegistry.node(
+            interpreter.evaluateBody(of: card))
+        let container = try #require(
+            cardBody.instance ?? cardBody.children.first?.instance)
+        let containerBody = try TraceRegistry.node(
+            interpreter.evaluateBody(of: container))
+        let frame = try #require(
+            (containerBody.children.first ?? containerBody)
+                .modifiers.first {
+                $0.hasPrefix("frame(")
+            })
+        #expect(frame.contains("height: 37"))
+        #expect(!frame.contains("height: 0"))
+    }
+
     @MainActor
     @Test func letBindingInBuilderAddsNoPhantomChild() throws {
         let source = """

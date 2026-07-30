@@ -257,6 +257,55 @@ public final class ClosureValue {
             at: sourcePosition)
     }
 
+    /// Apply a contextual result-builder transform without changing where
+    /// the closure was authored. The compiler transforms the closure body; it
+    /// does not discard lexical type lookup, source-file access, isolation,
+    /// or the source-program capability when the closure escapes.
+    func transformedAsBuilder(
+        returnType: TypeSyntax?,
+        returnTypeName: String?
+    ) -> ClosureValue {
+        let transformed = ClosureValue(
+            parameters: parameters,
+            body: body,
+            captured: captured,
+            isBuilder: true,
+            returnType: returnType ?? self.returnType,
+            returnTypeName: returnTypeName ?? self.returnTypeName,
+            programMetadata: programMetadata,
+            programPlan: programPlan)
+        transformed.explicitParameterCount = explicitParameterCount
+        transformed.extensionFrame = extensionFrame
+        transformed.functionDeclID = functionDeclID
+        transformed.lexicalOwner = lexicalOwner
+        transformed.genericParameters = genericParameters
+        transformed.debugName = debugName
+        transformed.sourceFunctionName = sourceFunctionName
+        transformed.executorPreference = executorPreference
+        transformed.globalActorAttributeCandidates =
+            globalActorAttributeCandidates
+        transformed.isExplicitlyNonisolated = isExplicitlyNonisolated
+        transformed.lexicalExecutor = lexicalExecutor
+        transformed.isPhysicalSnapshotKernelCandidate =
+            isPhysicalSnapshotKernelCandidate
+        transformed.physicalExplicitMainActorContinuationSignature =
+            physicalExplicitMainActorContinuationSignature
+        transformed.isPhysicalStrongSelfSourceCallCandidate =
+            isPhysicalStrongSelfSourceCallCandidate
+        transformed.isPhysicalWeakSelfSourceCallCandidate =
+            isPhysicalWeakSelfSourceCallCandidate
+        transformed.physicalSingleValueSourceCallCaptureName =
+            physicalSingleValueSourceCallCaptureName
+        transformed.sourceModuleName = sourceModuleName
+        transformed.sourceImportedModuleNames =
+            sourceImportedModuleNames
+        transformed.sourceFileIdentity = sourceFileIdentity
+        transformed.programState = programState
+        transformed.sourceFunctionTargetDescriptor =
+            sourceFunctionTargetDescriptor
+        return transformed
+    }
+
     private static func isOptionalChainRootedAtFirstArgument(
         body: CodeBlockItemListSyntax,
         parameters: [Parameter]
