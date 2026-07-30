@@ -6137,12 +6137,12 @@ func memberPropertyCode(_ property: MemberProperty) -> String {
 }
 
 func memberMethodCode(_ variant: MemberVariant) -> String {
-    let parameters = variant.params.enumerated()
-        .map { index, param in
+    let parameters = variant.params.enumerated().map { index, param in
             "\(param.label ?? "_") p\(index): \(param.contractType!)"
         }
         .joined(separator: ", ")
-    let declaration = "func \(variant.type).\(variant.name)(\(parameters)) -> \(variant.returnType)"
+    let receiver = foundationalGenericStructCarrierKeys.contains(variant.type) ? variant.type : memberReceiverCast(for: variant.type)
+    let declaration = "func \(receiver).\(variant.name)(\(parameters)) -> \(variant.returnType)"
     let specs = variant.params
         .map { "ParamSpec(\($0.label.map { "\"\($0)\"" } ?? "nil"), .\($0.tag))" }
         .joined(separator: ", ")

@@ -97,4 +97,19 @@ struct CompiledBoundaryCoverageTests {
         }
         #expect(compiled > 0)
     }
+
+    /// Associated-generic receivers must retain their concrete argument in the
+    /// generated contract. An erased spelling can execute through the static
+    /// closure but cannot be recompiled by the signature-driven boundary.
+    @Test func genericReceiverContractsCompileAgainstRealSDK() throws {
+        let signatures = allSignatures.filter {
+            $0.receiverType?.contains("<") == true
+        }
+        #expect(!signatures.isEmpty)
+        for signature in signatures {
+            #expect(throws: Never.self) {
+                _ = try CompiledBoundary.shared.entry(for: signature)
+            }
+        }
+    }
 }

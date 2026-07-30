@@ -1613,31 +1613,31 @@ extension GeneratedMembers {
         registerMethod(&t, "func Double.isTotallyOrdered(belowOrEqualTo p0: Double) -> Bool", [ParamSpec("belowOrEqualTo", .double)]) { base, v in
             generatedMemberResult((base as! Double).isTotallyOrdered(belowOrEqualTo: v[0] as! Double))
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.decimalSeparator(strategy p0: FloatingPointFormatStyle<Double>.Configuration.DecimalSeparatorDisplayStrategy) -> FloatingPointFormatStyle<Double>", [ParamSpec("strategy", .sdkEnum("NumberFormatStyleConfiguration.DecimalSeparatorDisplayStrategy"))]) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.decimalSeparator(strategy p0: FloatingPointFormatStyle<Double>.Configuration.DecimalSeparatorDisplayStrategy) -> FloatingPointFormatStyle<Double>", [ParamSpec("strategy", .sdkEnum("NumberFormatStyleConfiguration.DecimalSeparatorDisplayStrategy"))]) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).decimalSeparator(strategy: v[0] as! NumberFormatStyleConfiguration.DecimalSeparatorDisplayStrategy))
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.format(_ p0: Double) -> String", [ParamSpec(nil, .double)]) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.format(_ p0: Double) -> String", [ParamSpec(nil, .double)]) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).format(v[0] as! Double))
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.grouping(_ p0: FloatingPointFormatStyle<Double>.Configuration.Grouping) -> FloatingPointFormatStyle<Double>", [ParamSpec(nil, .sdkEnum("NumberFormatStyleConfiguration.Grouping"))]) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.grouping(_ p0: FloatingPointFormatStyle<Double>.Configuration.Grouping) -> FloatingPointFormatStyle<Double>", [ParamSpec(nil, .sdkEnum("NumberFormatStyleConfiguration.Grouping"))]) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).grouping(v[0] as! NumberFormatStyleConfiguration.Grouping))
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.locale(_ p0: Locale) -> FloatingPointFormatStyle<Double>", [ParamSpec(nil, .sdkEnum("Locale"))]) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.locale(_ p0: Locale) -> FloatingPointFormatStyle<Double>", [ParamSpec(nil, .sdkEnum("Locale"))]) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).locale(v[0] as! Locale))
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.notation(_ p0: FloatingPointFormatStyle<Double>.Configuration.Notation) -> FloatingPointFormatStyle<Double>", [ParamSpec(nil, .sdkEnum("NumberFormatStyleConfiguration.Notation"))]) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.notation(_ p0: FloatingPointFormatStyle<Double>.Configuration.Notation) -> FloatingPointFormatStyle<Double>", [ParamSpec(nil, .sdkEnum("NumberFormatStyleConfiguration.Notation"))]) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).notation(v[0] as! NumberFormatStyleConfiguration.Notation))
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.rounded() -> FloatingPointFormatStyle<Double>", []) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.rounded() -> FloatingPointFormatStyle<Double>", []) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).rounded())
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.rounded(increment p0: Double) -> FloatingPointFormatStyle<Double>", [ParamSpec("increment", .double)]) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.rounded(increment p0: Double) -> FloatingPointFormatStyle<Double>", [ParamSpec("increment", .double)]) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).rounded(increment: v[0] as! Double))
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.scale(_ p0: Double) -> FloatingPointFormatStyle<Double>", [ParamSpec(nil, .double)]) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.scale(_ p0: Double) -> FloatingPointFormatStyle<Double>", [ParamSpec(nil, .double)]) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).scale(v[0] as! Double))
         }
-        registerMethod(&t, "func FloatingPointFormatStyle.sign(strategy p0: FloatingPointFormatStyle<Double>.Configuration.SignDisplayStrategy) -> FloatingPointFormatStyle<Double>", [ParamSpec("strategy", .sdkEnum("NumberFormatStyleConfiguration.SignDisplayStrategy"))]) { base, v in
+        registerMethod(&t, "func FloatingPointFormatStyle<Double>.sign(strategy p0: FloatingPointFormatStyle<Double>.Configuration.SignDisplayStrategy) -> FloatingPointFormatStyle<Double>", [ParamSpec("strategy", .sdkEnum("NumberFormatStyleConfiguration.SignDisplayStrategy"))]) { base, v in
             generatedMemberResult((base as! FloatingPointFormatStyle<Double>).sign(strategy: v[0] as! NumberFormatStyleConfiguration.SignDisplayStrategy))
         }
         registerMethod(&t, "func Image.antialiased(_ p0: Bool) -> Image", [ParamSpec(nil, .bool)]) { base, v in
@@ -1742,31 +1742,31 @@ extension GeneratedMembers {
         registerMethod(&t, "func Int.quotientAndRemainder(dividingBy p0: Int) -> (quotient: Self, remainder: Self)", [ParamSpec("dividingBy", .int)]) { base, v in
             generatedMemberResult((base as! Int).quotientAndRemainder(dividingBy: v[0] as! Int))
         }
-        registerMethod(&t, "func IntegerFormatStyle.decimalSeparator(strategy p0: IntegerFormatStyle<Int>.Configuration.DecimalSeparatorDisplayStrategy) -> IntegerFormatStyle<Int>", [ParamSpec("strategy", .sdkEnum("NumberFormatStyleConfiguration.DecimalSeparatorDisplayStrategy"))]) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.decimalSeparator(strategy p0: IntegerFormatStyle<Int>.Configuration.DecimalSeparatorDisplayStrategy) -> IntegerFormatStyle<Int>", [ParamSpec("strategy", .sdkEnum("NumberFormatStyleConfiguration.DecimalSeparatorDisplayStrategy"))]) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).decimalSeparator(strategy: v[0] as! NumberFormatStyleConfiguration.DecimalSeparatorDisplayStrategy))
         }
-        registerMethod(&t, "func IntegerFormatStyle.format(_ p0: Int) -> String", [ParamSpec(nil, .int)]) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.format(_ p0: Int) -> String", [ParamSpec(nil, .int)]) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).format(v[0] as! Int))
         }
-        registerMethod(&t, "func IntegerFormatStyle.grouping(_ p0: IntegerFormatStyle<Int>.Configuration.Grouping) -> IntegerFormatStyle<Int>", [ParamSpec(nil, .sdkEnum("NumberFormatStyleConfiguration.Grouping"))]) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.grouping(_ p0: IntegerFormatStyle<Int>.Configuration.Grouping) -> IntegerFormatStyle<Int>", [ParamSpec(nil, .sdkEnum("NumberFormatStyleConfiguration.Grouping"))]) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).grouping(v[0] as! NumberFormatStyleConfiguration.Grouping))
         }
-        registerMethod(&t, "func IntegerFormatStyle.locale(_ p0: Locale) -> IntegerFormatStyle<Int>", [ParamSpec(nil, .sdkEnum("Locale"))]) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.locale(_ p0: Locale) -> IntegerFormatStyle<Int>", [ParamSpec(nil, .sdkEnum("Locale"))]) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).locale(v[0] as! Locale))
         }
-        registerMethod(&t, "func IntegerFormatStyle.notation(_ p0: IntegerFormatStyle<Int>.Configuration.Notation) -> IntegerFormatStyle<Int>", [ParamSpec(nil, .sdkEnum("NumberFormatStyleConfiguration.Notation"))]) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.notation(_ p0: IntegerFormatStyle<Int>.Configuration.Notation) -> IntegerFormatStyle<Int>", [ParamSpec(nil, .sdkEnum("NumberFormatStyleConfiguration.Notation"))]) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).notation(v[0] as! NumberFormatStyleConfiguration.Notation))
         }
-        registerMethod(&t, "func IntegerFormatStyle.rounded() -> IntegerFormatStyle<Int>", []) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.rounded() -> IntegerFormatStyle<Int>", []) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).rounded())
         }
-        registerMethod(&t, "func IntegerFormatStyle.rounded(increment p0: Int) -> IntegerFormatStyle<Int>", [ParamSpec("increment", .int)]) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.rounded(increment p0: Int) -> IntegerFormatStyle<Int>", [ParamSpec("increment", .int)]) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).rounded(increment: v[0] as! Int))
         }
-        registerMethod(&t, "func IntegerFormatStyle.scale(_ p0: Double) -> IntegerFormatStyle<Int>", [ParamSpec(nil, .double)]) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.scale(_ p0: Double) -> IntegerFormatStyle<Int>", [ParamSpec(nil, .double)]) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).scale(v[0] as! Double))
         }
-        registerMethod(&t, "func IntegerFormatStyle.sign(strategy p0: IntegerFormatStyle<Int>.Configuration.SignDisplayStrategy) -> IntegerFormatStyle<Int>", [ParamSpec("strategy", .sdkEnum("NumberFormatStyleConfiguration.SignDisplayStrategy"))]) { base, v in
+        registerMethod(&t, "func IntegerFormatStyle<Int>.sign(strategy p0: IntegerFormatStyle<Int>.Configuration.SignDisplayStrategy) -> IntegerFormatStyle<Int>", [ParamSpec("strategy", .sdkEnum("NumberFormatStyleConfiguration.SignDisplayStrategy"))]) { base, v in
             generatedMemberResult((base as! IntegerFormatStyle<Int>).sign(strategy: v[0] as! NumberFormatStyleConfiguration.SignDisplayStrategy))
         }
         registerMethod(&t, "func Locale.localizedString(forIdentifier p0: String) -> String?", [ParamSpec("forIdentifier", .string)]) { base, v in
