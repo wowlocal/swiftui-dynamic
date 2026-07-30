@@ -433,13 +433,13 @@ enum GeneratedDispatch {
         case .nativeSwiftUIValue(let typeName):
             guard let payload = value.hostPayload else {
                 throw RuntimeError(message:
-                    "expected a native \(typeName) View value")
+                    "expected a native SwiftUI \(typeName) value")
             }
             let native = (payload as? GeneratedMemberCarrier)?
                 .generatedMemberValue ?? payload
             guard GeneratedMembers.keyTypeName(of: native) == typeName else {
                 throw RuntimeError(message:
-                    "expected a native \(typeName) View value")
+                    "expected a native SwiftUI \(typeName) value")
             }
             return native
         case .shape:

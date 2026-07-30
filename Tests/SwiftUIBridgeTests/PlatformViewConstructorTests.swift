@@ -36,6 +36,35 @@ import SwiftInterpreter
         #expect(ViewRegistry().modifiers["resizable"] == nil)
     }
 
+    /// The handwritten Text gateway owns only interpolation behavior that a
+    /// swiftinterface cannot express. Ordinary native-value and labeled
+    /// initializer shapes must fall through to BridgeGen's overloads.
+    @Test func textNativeValuesUseGeneratedInitializers() throws {
+        let interpreter = Interpreter(registry: ViewRegistry())
+
+        let symbol = try interpreter.run(source: """
+        Text(Image(systemName: "lock.fill"))
+        """)
+        guard let symbolText = symbol.hostPayload as? Text else {
+            Issue.record("Text(Image) did not preserve native Text")
+            return
+        }
+        #expect(
+            String(reflecting: symbolText).contains("AttachmentTextStorage"))
+
+        let date = try interpreter.run(source: """
+        Text(
+            Date(timeIntervalSince1970: 1_650_844_800),
+            style: .date
+        )
+        """)
+        guard let dateText = date.hostPayload as? Text else {
+            Issue.record("Text(Date, style:) did not preserve native Text")
+            return
+        }
+        #expect(String(reflecting: dateText).contains("FormatStyleStorage"))
+    }
+
     /// Once BridgeGen owns a concrete View member, a handwritten modifier
     /// with the same callable name would shadow the interface-derived table.
     /// Keep that identity-keyed drift mechanically impossible.

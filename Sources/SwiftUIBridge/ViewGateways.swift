@@ -16,6 +16,20 @@ extension ViewRegistry {
             guard var value = args.positional(0) else {
                 throw RuntimeError(message: "Text needs a string argument")
             }
+            if args.arguments.count != 1 {
+                // Labeled and multi-parameter SDK initializers belong to the
+                // interface-generated table. Retain the compatibility
+                // fallback only when that table cannot express the generic
+                // shape yet.
+                if let overloads = GeneratedConstructors.table["Text"],
+                   let native = try? GeneratedDispatch.construct(
+                    name: "Text", overloads: overloads,
+                    args: args, ctx: ctx) {
+                    return .native(native)
+                }
+                return .native(TextBox(Text(
+                    value.stringValue ?? value.stringified)))
+            }
             if case .host(let any) = value,
                let carrier = any as? GeneratedAttributedTextCarrier {
                 return .native(TextBox(Text(carrier.generatedAttributedText)))
@@ -53,7 +67,18 @@ extension ViewRegistry {
             }
             if case .hostFunction = value { return .native(TextBox(Text(""))) }
             if case .implicitMember = value { return .native(TextBox(Text(""))) }
-            return .native(TextBox(Text(value.stringValue ?? value.stringified)))
+            // Interface-expressible native values (for example a concrete
+            // View value) take the generated path. SwiftUI-magic above and
+            // the compatibility string fallback below remain handwritten.
+            if value.stringValue == nil,
+               let overloads = GeneratedConstructors.table["Text"],
+               let native = try? GeneratedDispatch.construct(
+                name: "Text", overloads: overloads,
+                args: args, ctx: ctx) {
+                return .native(native)
+            }
+            return .native(TextBox(Text(
+                value.stringValue ?? value.stringified)))
         }
 
         constructors["Image"] = HostFunction(name: "Image") { args, _ in
