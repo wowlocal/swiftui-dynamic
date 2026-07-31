@@ -195,6 +195,24 @@ import SwiftInterpreter
         #expect(result.stringValue == "https://example.com/a/dir/")
     }
 
+    @Test func transitiveInterfaceAliasesPreserveIndexPathMotion() throws {
+        let declarations = Set(
+            GeneratedMembers.methods["IndexPath.index"]?
+                .overloads.map(\.signature.declaration) ?? [])
+        #expect(declarations == [
+            "func IndexPath.index(after p0: Int) -> Int",
+            "func IndexPath.index(before p0: Int) -> Int",
+        ])
+
+        let source = """
+        let path = IndexPath(indexes: [1, 3])
+        "\\(path.index(before: 3))|\\(path.index(after: 3))"
+        """
+        let result = try Interpreter(registry: ViewRegistry()).run(
+            source: source)
+        #expect(result.stringValue == "2|4")
+    }
+
     @Test func generatedMethodsExposeParsedContractsAndRankByType() throws {
         let registry = ViewRegistry()
         let base = IndexPath(index: 4)

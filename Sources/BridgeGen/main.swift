@@ -1206,7 +1206,22 @@ let foundationInterfaceFile:
             Parser.parse(source: source))
     }()
 let foundationFile = foundationInterfaceFile?.file
-
+let stdlibInterfaceFile:
+    (module: String, importModule: String, file: SourceFileSyntax)? = {
+        let moduleDir = "\(sdk)/usr/lib/swift/Swift.swiftmodule"
+        let candidates = ((try? FileManager.default.contentsOfDirectory(atPath: moduleDir)) ?? [])
+            .filter { $0.hasSuffix("-apple-macos.swiftinterface") }
+            .sorted()
+        let architecturePrefix = hostArchitecture == "arm64" ? "arm64" : hostArchitecture
+        guard let name = candidates.first(where: { $0.hasPrefix(architecturePrefix) }) ?? candidates.first,
+              let source = try? String(contentsOfFile: "\(moduleDir)/\(name)", encoding: .utf8) else {
+            print("warning: no swiftinterface for the Swift stdlib")
+            return nil
+        }
+        print("parsing Swift stdlib (\(source.count) chars)…")
+        return ("Swift", "Swift", Parser.parse(source: source))
+    }()
+let stdlibFile = stdlibInterfaceFile?.file
 // MARK: - Availability
 
 let deploymentTarget = 15
@@ -1961,7 +1976,7 @@ func collectSDKFrameworkConfigurationMembers(
 
 let protocolMetadataInterfaceFiles =
     primaryInterfaceFiles + supportingInterfaceFiles
-    + [foundationInterfaceFile].compactMap { $0 }
+    + [foundationInterfaceFile, stdlibInterfaceFile].compactMap { $0 }
 for support in protocolMetadataInterfaceFiles {
     let localNames = topLevelSDKNames(in: support.file)
     for statement in support.file.statements {
@@ -3919,21 +3934,6 @@ print("Foundation units: \(Set(unitStatics.map(\.container)).count) Dimension cl
 
 // The STDLIB owns the numeric protocol surface (isMultiple(of:), …);
 // Foundation only ADDS formatted(). Same sweep, same receiver gates.
-let stdlibFile: SourceFileSyntax? = {
-    let moduleDir = "\(sdk)/usr/lib/swift/Swift.swiftmodule"
-    let candidates = ((try? FileManager.default.contentsOfDirectory(atPath: moduleDir)) ?? [])
-        .filter { $0.hasSuffix("-apple-macos.swiftinterface") }
-        .sorted()
-    let architecturePrefix = hostArchitecture == "arm64" ? "arm64" : hostArchitecture
-    guard let name = candidates.first(where: { $0.hasPrefix(architecturePrefix) }) ?? candidates.first,
-          let source = try? String(contentsOfFile: "\(moduleDir)/\(name)", encoding: .utf8) else {
-        print("warning: no swiftinterface for the Swift stdlib")
-        return nil
-    }
-    print("parsing Swift stdlib (\(source.count) chars)…")
-    return Parser.parse(source: source)
-}()
-
 if let stdlibFile {
     sweepMemberFile(stdlibFile)
 }
