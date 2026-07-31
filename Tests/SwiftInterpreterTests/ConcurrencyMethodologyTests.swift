@@ -3011,6 +3011,77 @@ struct ConcurrencyMethodologyTests {
         #expect(!script.contains("\nswift test"))
     }
 
+    /// The prebuilt runner injects a Swift runtime and a SwiftPM test helper
+    /// into a bundle the gate compiled with the xcrun-selected Xcode. Resolving
+    /// that driver from PATH lets an ambient Swiftly/Homebrew toolchain supply
+    /// both, so the continuous fast suite would run the gate's bundle against a
+    /// runtime it was never compiled against.
+    @Test func prebuiltRunnerResolvesItsToolchainThroughXcrun() throws {
+        let runner = Self.packageRoot.appendingPathComponent(
+            "Scripts/run-prebuilt-tests.sh")
+        let script = try String(contentsOf: runner, encoding: .utf8)
+        #expect(script.contains("swift_driver=$(xcrun --find swift"),
+            Comment(rawValue:
+                "the prebuilt runner must take its driver from xcrun, the "
+                    + "same single toolchain Scripts/gate.sh pins"))
+        #expect(!script.contains("whence -p swift"),
+            Comment(rawValue:
+                "an ambient PATH driver reintroduces the runtime mismatch"))
+
+        // Behavioral: a shim `swift` earlier in PATH must not be consulted.
+        let sandbox = URL(
+            fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(
+                "prebuilt-runner-toolchain-\(UInt64.random(in: .min ... .max))",
+                isDirectory: true)
+        let shimDirectory = sandbox.appendingPathComponent(
+            "shim", isDirectory: true)
+        let bundleDirectory = sandbox.appendingPathComponent(
+            "debug/DynamicSwiftUIPackageTests.xctest/Contents/MacOS",
+            isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: shimDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: bundleDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sandbox) }
+
+        let shim = shimDirectory.appendingPathComponent("swift")
+        try """
+        #!/bin/sh
+        echo '{"paths":{"runtimeResourcePath":"/nonexistent/lib/swift"}}'
+        """.write(to: shim, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: shim.path)
+        FileManager.default.createFile(
+            atPath: bundleDirectory
+                .appendingPathComponent("DynamicSwiftUIPackageTests").path,
+            contents: Data())
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = [runner.path, "--help"]
+        process.standardInput = FileHandle.nullDevice
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] =
+            shimDirectory.path + ":" + (environment["PATH"] ?? "/usr/bin:/bin")
+        environment["PREBUILT_TEST_SCRATCH_PATH"] = sandbox.path
+        process.environment = environment
+        let stderr = Pipe()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = stderr
+        try process.run()
+        let error = String(
+            decoding: stderr.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self)
+        process.waitUntilExit()
+
+        #expect(!error.contains(
+            "could not locate the active toolchain's SwiftPM test helper"),
+            Comment(rawValue:
+                "the runner consulted the PATH shim's bogus runtime resource "
+                    + "path instead of the xcrun toolchain"))
+    }
+
     @Test func closingGateExecutesIceCubesPolicyAndR2Boards() throws {
         let gate = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(
