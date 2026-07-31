@@ -280,6 +280,7 @@ private struct IceCubesCatalystCaptureRoot: View {
 /// live instance serves right now, so nothing here ever feeds a metric.
 @MainActor
 private struct IceCubesCatalystLiveRunRoot: View {
+    var mini = false
     @State private var session: InterpreterRenderSession?
     @State private var failure: String?
     @State private var started = false
@@ -313,9 +314,31 @@ private struct IceCubesCatalystLiveRunRoot: View {
                 let arguments = Array(CommandLine.arguments.dropFirst())
                 // mstdn.social (the twin's instance) still serves the public
                 // timeline unauthenticated; mastodon.social answers 422.
-                let session = try IceCubesCheckMain.liveAppRenderSession(
-                    instance: IceCubesCheckMain.option(
-                        "--instance", in: arguments) ?? "mstdn.social")
+                let miniSource = """
+                import SwiftUI
+                let __miniGreeting = "interpreted hello lazy"
+                Text(__miniGreeting)
+                    .font(.largeTitle)
+                    .padding()
+                    .background(Color.orange)
+                """
+                let miniWrapped = ProcessInfo.processInfo
+                    .environment["ICECUBES_MINI_MODULE"] == "1"
+                let session = mini
+                    ? try InterpreterHost().renderSession(
+                        source: miniWrapped
+                            ? ProjectMaterial.mergedSource(
+                                source: miniSource,
+                                moduleName: "IceCubesCheckProbe")
+                            : miniSource,
+                        buildConfiguration: .init(
+                            platformName: "iOS",
+                            targetEnvironment: "macCatalyst"),
+                        lazyTopLevelGlobals: ProcessInfo.processInfo
+                            .environment["ICECUBES_MINI_LAZY"] == "1").get()
+                    : try IceCubesCheckMain.liveAppRenderSession(
+                        instance: IceCubesCheckMain.option(
+                            "--instance", in: arguments) ?? "mstdn.social")
                 self.session = session
                 liveRunTrace("ready")
                 for entry in RenderDiagnostics.errors.prefix(10) {
@@ -338,14 +361,15 @@ private struct IceCubesCatalystLiveRunRoot: View {
     }
 
     /// Headless self-verification for driving the live window from a harness:
-    /// with ICECUBES_RUN_SNAPSHOT=<path-prefix> set, write the hosted
-    /// hierarchy to <prefix>-<n>.png a few times after launch. Demo-only —
-    /// nothing here feeds a metric.
+    /// with ICECUBES_RUN_SNAPSHOT=<path-prefix> set, periodically write the
+    /// hosted hierarchy to <prefix>-<n>[-content].png and trace the UIKit
+    /// tree, so "content exists but does not composite" and "content never
+    /// materialized" are distinguishable. Demo-only — never a metric.
     private func writeDebugSnapshots() async {
         guard let prefix = ProcessInfo.processInfo
             .environment["ICECUBES_RUN_SNAPSHOT"] else { return }
-        for index in 1...3 {
-            try? await Task.sleep(for: .seconds(4))
+        for index in 1...8 {
+            try? await Task.sleep(for: .seconds(10))
             let windows = UIApplication.shared.connectedScenes
                 .compactMap { $0 as? UIWindowScene }
                 .flatMap(\.windows)
@@ -355,23 +379,62 @@ private struct IceCubesCatalystLiveRunRoot: View {
                 liveRunTrace("snapshot \(index): no live window")
                 continue
             }
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = 1
-            let renderer = UIGraphicsImageRenderer(
-                size: rootView.bounds.size, format: format)
-            let image = renderer.image { _ in
-                rootView.drawHierarchy(
-                    in: rootView.bounds, afterScreenUpdates: true)
+            let contentView = fixedSizeLiveDescendant(in: rootView)
+            for (label, view) in [("", rootView), ("-content", contentView)] {
+                guard let view else { continue }
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                let renderer = UIGraphicsImageRenderer(
+                    size: view.bounds.size, format: format)
+                let image = renderer.image { _ in
+                    view.drawHierarchy(
+                        in: view.bounds, afterScreenUpdates: true)
+                }
+                if let png = image.pngData() {
+                    let path = "\(prefix)-\(index)\(label).png"
+                    try? png.write(to: URL(fileURLWithPath: path))
+                    liveRunTrace("snapshot \(index)\(label): \(path)")
+                }
             }
-            if let png = image.pngData() {
-                let path = "\(prefix)-\(index).png"
-                try? png.write(to: URL(fileURLWithPath: path))
-                liveRunTrace("snapshot \(index): \(path)")
+            var lines: [String] = []
+            traceHierarchy(rootView, depth: 0, lines: &lines)
+            for line in lines.prefix(45) {
+                liveRunTrace("tree[\(index)] \(line)")
             }
-            liveRunTrace(
-                "requests[\(index)]: "
-                    + NetworkBridge.requestLog.suffix(12)
-                        .joined(separator: " | "))
+            for entry in RenderDiagnostics.errors.suffix(8) {
+                liveRunTrace(
+                    "renderError[\(index)] \(entry.view): "
+                        + entry.error.message)
+            }
+        }
+    }
+
+    private func fixedSizeLiveDescendant(in view: UIView) -> UIView? {
+        let target = IceCubesCheckMain.screenSize
+        if abs(view.bounds.width - target.width) < 0.5,
+           abs(view.bounds.height - target.height) < 0.5 {
+            return view
+        }
+        for child in view.subviews {
+            if let match = fixedSizeLiveDescendant(in: child) { return match }
+        }
+        return nil
+    }
+
+    private func traceHierarchy(
+        _ view: UIView, depth: Int, lines: inout [String]
+    ) {
+        guard lines.count < 60, depth < 7 else { return }
+        let name = String(describing: type(of: view))
+        let f = view.frame
+        lines.append(
+            String(repeating: "  ", count: depth)
+                + "\(name) frame=(\(Int(f.origin.x)),\(Int(f.origin.y)),"
+                + "\(Int(f.width))x\(Int(f.height)))"
+                + (view.isHidden ? " HIDDEN" : "")
+                + (view.alpha < 0.99 ? " alpha=\(view.alpha)" : ""))
+        for child in view.subviews {
+            traceHierarchy(child, depth: depth + 1, lines: &lines)
         }
     }
 }
@@ -384,7 +447,23 @@ private struct IceCubesCheckCatalystApp: App {
     var body: some Scene {
         WindowGroup {
             let arguments = Array(CommandLine.arguments.dropFirst())
-            if arguments.contains("--run") {
+            if arguments.contains("--run-mini") {
+                // Minimal interpreted-content compositing probe: interprets
+                // in under a second, so the windowed-hosting question is
+                // answerable in one glance instead of a ten-minute cycle.
+                IceCubesCatalystLiveRunRoot(mini: true)
+            } else if arguments.contains("--run-native") {
+                // Native-only compositing probe: if THIS does not paint, the
+                // bundle's on-screen render path is broken and no interpreted
+                // content can ever appear — fix the packaging first.
+                VStack(spacing: 12) {
+                    Text("native compositing OK")
+                        .font(.largeTitle)
+                    ProgressView()
+                }
+                .frame(width: 400, height: 300)
+                .background(Color.yellow)
+            } else if arguments.contains("--run") {
                 IceCubesCatalystLiveRunRoot()
             } else {
                 IceCubesCatalystCaptureRoot(
@@ -1653,20 +1732,102 @@ struct IceCubesCheckMain {
         NetworkBridge.policy = .replay(
             fixturesDirectory: recordingDirectory.path)
         NetworkBridge.requestLog = []
+        // Bisection ladder for the windowed empty-tree gap: level 2 renders a
+        // trivial root over the full merged package source, level 3 decodes
+        // the live bytes and shows one real status row, unset = full List.
+        let miniLevel = ProcessInfo.processInfo
+            .environment["ICECUBES_MINI_LEVEL"]
+        let rootExpression: String
+        switch miniLevel {
+        case "2":
+            rootExpression = """
+            Text("merged hello")
+                .font(.largeTitle)
+                .padding()
+                .background(Color.orange)
+            """
+        case "3":
+            rootExpression = """
+            VStack(alignment: .leading) {
+                StatusRowHeaderView(viewModel: StatusRowViewModel(
+                    status: __iceLiveStatuses[0],
+                    client: __iceClient,
+                    routerPath: __iceRouter,
+                    filterContext: .pub))
+                StatusRowContentView(viewModel: StatusRowViewModel(
+                    status: __iceLiveStatuses[0],
+                    client: __iceClient,
+                    routerPath: __iceRouter,
+                    filterContext: .pub))
+            }
+            """
+        default:
+            rootExpression = """
+            NavigationStack {
+                List {
+                    StatusesListView(
+                        fetcher: __IceLiveFetcher(statuses: __iceLiveStatuses),
+                        client: __iceClient,
+                        routerPath: __iceRouter,
+                        filterContext: .pub)
+                }
+                .listStyle(.plain)
+                .navigationTitle(TimelineFilter.federated.title)
+            }
+            """
+        }
+        // ICECUBES_RUN_PACKAGES bisects the merged corpus: a comma list of
+        // local package names to include ("@none" = only externals,
+        // "@nolocal-noext" = nothing). Level-2 roots need no app imports.
+        let packageFilter = ProcessInfo.processInfo
+            .environment["ICECUBES_RUN_PACKAGES"]
+        let selectedPackageFiles: [String]
+        if let packageFilter {
+            let entries = packageFilter.split(separator: ",").map(String.init)
+            let localNames = entries.filter {
+                !$0.hasPrefix("x:") && !$0.hasPrefix("e:")
+            }
+            let externalNames = entries.filter { $0.hasPrefix("x:") }
+                .map { String($0.dropFirst(2)) }
+            let excludedFragments = entries.filter { $0.hasPrefix("e:") }
+                .map { String($0.dropFirst(2)) }
+            selectedPackageFiles = paths.packageFiles.filter { file in
+                if excludedFragments.contains(where: file.contains) {
+                    return false
+                }
+                if file.contains("/Packages/") {
+                    return localNames.contains {
+                        file.contains("/Packages/\($0)/")
+                    }
+                }
+                if externalNames.contains("*") { return true }
+                return externalNames.contains {
+                    file.contains("/checkouts/\($0)/")
+                }
+            }
+        } else {
+            selectedPackageFiles = paths.packageFiles
+        }
+        let probeImports = miniLevel == "2"
+            ? "import SwiftUI"
+            : """
+            import Account
+            import AppAccount
+            import DesignSystem
+            import Env
+            import Foundation
+            import Models
+            import NetworkClient
+            import StatusKit
+            import SwiftSoup
+            import SwiftUI
+            import Timeline
+            """
         let probe = """
 
-        import Account
-        import AppAccount
-        import DesignSystem
-        import Env
-        import Foundation
-        import Models
-        import NetworkClient
-        import StatusKit
-        import SwiftSoup
-        import SwiftUI
-        import Timeline
+        \(probeImports)
 
+        \(miniLevel == "2" ? "" : """
         let __iceClient = MastodonClient(server: "\(instance)")
         let __iceRouter = RouterPath()
         let __iceDecoder = JSONDecoder()
@@ -1686,21 +1847,13 @@ struct IceCubesCheckMain {
             func statusDidAppear(status: Status) {}
             func statusDidDisappear(status: Status) {}
         }
+        """)
 
-        NavigationStack {
-            List {
-                StatusesListView(
-                    fetcher: __IceLiveFetcher(statuses: __iceLiveStatuses),
-                    client: __iceClient,
-                    routerPath: __iceRouter,
-                    filterContext: .pub)
-            }
-            .listStyle(.plain)
-            .navigationTitle(TimelineFilter.federated.title)
-        }
+        \(rootExpression)
         .frame(
             width: \(screenSize.width), height: \(screenSize.height))
         .background(Color.white)
+        \(miniLevel == "2" ? "" : """
         .environment(Theme.shared)
         .environment(CurrentAccount.shared)
         .environment(CurrentInstance.shared)
@@ -1711,9 +1864,10 @@ struct IceCubesCheckMain {
         .environment(ToastCenter.shared)
         .environment(__iceClient)
         .environment(__iceRouter)
+        """)
         """
         let source = ProjectMaterial.mergedSource(
-            at: paths.app, files: paths.packageFiles,
+            at: paths.app, files: selectedPackageFiles,
             sourceModules: paths.sourceModules)
             + ProjectMaterial.mergedSource(
                 source: probe, moduleName: "IceCubesCheckProbe")

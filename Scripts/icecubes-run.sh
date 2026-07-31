@@ -18,7 +18,10 @@ ROOT="$PWD"
 SCRATCH_PATH="${ICECUBES_RUN_SCRATCH_PATH:-$ROOT/.build/icecubes-r2-product}"
 BUILD_DIR="$SCRATCH_PATH/arm64-apple-ios-macabi/debug"
 BINARY="$BUILD_DIR/IceCubesCheck"
-APP="$BUILD_DIR/IceCubesCheck.app"
+# A separate FOREGROUND bundle: the capture bundle's plist declares
+# LSUIElement, and an agent Catalyst scene never starts its display link, so
+# its window chrome shows but content never composites on screen.
+APP="$BUILD_DIR/IceCubesRun.app"
 EXECUTABLE="$APP/Contents/MacOS/IceCubesCheck"
 
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
@@ -36,7 +39,7 @@ xcrun swift build \
   -Xlinker -L -Xlinker "$IOS_LIBS" || exit 2
 mkdir -p "$APP/Contents/MacOS"
 cp "$BINARY" "$EXECUTABLE"
-cp "$ROOT/Scripts/IceCubesCheck-Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/Scripts/IceCubesRun-Info.plist" "$APP/Contents/Info.plist"
 codesign --force --sign - "$APP" >/dev/null || exit 2
 
 # A Catalyst app only gets an on-screen render-server connection when it is
