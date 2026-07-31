@@ -273,6 +273,109 @@ private struct IceCubesCatalystCaptureRoot: View {
     }
 }
 
+/// Interactive live run (`--run`): the interpreted IceCubesApp hosted in a
+/// real resizable Catalyst window with `NetworkPolicy.live` — the "real HTTP
+/// for interactive demo runs" case the policy documents. No capture, no
+/// frozen clock, no exit; close the window to quit. Content is whatever the
+/// live instance serves right now, so nothing here ever feeds a metric.
+@MainActor
+private struct IceCubesCatalystLiveRunRoot: View {
+    @State private var session: InterpreterRenderSession?
+    @State private var failure: String?
+    @State private var started = false
+
+    var body: some View {
+        Group {
+            if let session {
+                session.view
+            } else if let failure {
+                ScrollView {
+                    Text(failure)
+                        .font(.system(.footnote, design: .monospaced))
+                        .padding()
+                }
+            } else {
+                ProgressView("Interpreting IceCubesApp against live Mastodon…")
+            }
+        }
+        .frame(
+            width: IceCubesCheckMain.screenSize.width,
+            height: IceCubesCheckMain.screenSize.height)
+        .environment(\.colorScheme, .light)
+        .background(Color.white)
+        .task {
+            guard !started else { return }
+            started = true
+            // Let the loading frame commit before the synchronous
+            // interpretation occupies the main actor.
+            try? await Task.sleep(for: .milliseconds(80))
+            do {
+                let arguments = Array(CommandLine.arguments.dropFirst())
+                // mstdn.social (the twin's instance) still serves the public
+                // timeline unauthenticated; mastodon.social answers 422.
+                let session = try IceCubesCheckMain.liveAppRenderSession(
+                    instance: IceCubesCheckMain.option(
+                        "--instance", in: arguments) ?? "mstdn.social")
+                self.session = session
+                liveRunTrace("ready")
+                for entry in RenderDiagnostics.errors.prefix(10) {
+                    liveRunTrace(
+                        "diagnostic \(entry.view): \(entry.error.message)")
+                }
+            } catch {
+                failure = String(describing: error)
+                liveRunTrace("FAILED: \(error)")
+            }
+            await writeDebugSnapshots()
+        }
+    }
+
+    /// The process never exits, so stdout buffering would swallow evidence —
+    /// trace through unbuffered stderr instead.
+    private func liveRunTrace(_ message: String) {
+        FileHandle.standardError.write(
+            Data("@@icecubes-live-run \(message)\n".utf8))
+    }
+
+    /// Headless self-verification for driving the live window from a harness:
+    /// with ICECUBES_RUN_SNAPSHOT=<path-prefix> set, write the hosted
+    /// hierarchy to <prefix>-<n>.png a few times after launch. Demo-only —
+    /// nothing here feeds a metric.
+    private func writeDebugSnapshots() async {
+        guard let prefix = ProcessInfo.processInfo
+            .environment["ICECUBES_RUN_SNAPSHOT"] else { return }
+        for index in 1...3 {
+            try? await Task.sleep(for: .seconds(4))
+            let windows = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+            guard let window =
+                    windows.first(where: \.isKeyWindow) ?? windows.first,
+                  let rootView = window.rootViewController?.view else {
+                liveRunTrace("snapshot \(index): no live window")
+                continue
+            }
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let renderer = UIGraphicsImageRenderer(
+                size: rootView.bounds.size, format: format)
+            let image = renderer.image { _ in
+                rootView.drawHierarchy(
+                    in: rootView.bounds, afterScreenUpdates: true)
+            }
+            if let png = image.pngData() {
+                let path = "\(prefix)-\(index).png"
+                try? png.write(to: URL(fileURLWithPath: path))
+                liveRunTrace("snapshot \(index): \(path)")
+            }
+            liveRunTrace(
+                "requests[\(index)]: "
+                    + NetworkBridge.requestLog.suffix(12)
+                        .joined(separator: " | "))
+        }
+    }
+}
+
 @main
 private struct IceCubesCheckCatalystApp: App {
     @UIApplicationDelegateAdaptor(IceCubesCheckAppDelegate.self)
@@ -281,13 +384,17 @@ private struct IceCubesCheckCatalystApp: App {
     var body: some Scene {
         WindowGroup {
             let arguments = Array(CommandLine.arguments.dropFirst())
-            IceCubesCatalystCaptureRoot(
-                directory: IceCubesCheckMain.option(
-                    "--capture", in: arguments)
-                    ?? "/tmp/icecubes-interpreted",
-                screen: IceCubesCheckMain.captureScreen(in: arguments),
-                nativeFixtureDirectory: IceCubesCheckMain.option(
-                    "--native-fixtures", in: arguments))
+            if arguments.contains("--run") {
+                IceCubesCatalystLiveRunRoot()
+            } else {
+                IceCubesCatalystCaptureRoot(
+                    directory: IceCubesCheckMain.option(
+                        "--capture", in: arguments)
+                        ?? "/tmp/icecubes-interpreted",
+                    screen: IceCubesCheckMain.captureScreen(in: arguments),
+                    nativeFixtureDirectory: IceCubesCheckMain.option(
+                        "--native-fixtures", in: arguments))
+            }
         }
     }
 }
@@ -683,7 +790,12 @@ struct IceCubesCheckMain {
     }
 
     private static func paths() throws -> Paths {
-        let root = FileManager.default.currentDirectoryPath
+        // `--root` frees the interactive run from cwd: a Catalyst app must
+        // launch through LaunchServices (`open`) to get an on-screen render
+        // connection, and `open` does not preserve the caller's directory.
+        let root = option(
+            "--root", in: Array(CommandLine.arguments.dropFirst()))
+            ?? FileManager.default.currentDirectoryPath
         let app = root + "/External/oss/IceCubesApp"
         let fixtures = root + "/Fixtures/mastodon-public-timeline"
         let packages = app + "/Packages"
@@ -1483,6 +1595,136 @@ struct IceCubesCheckMain {
             }
         }
         """
+    }
+
+    /// The interactive `--run` session: the same native timeline screen the
+    /// R2 board renders, but the statuses come from a real
+    /// `MastodonClient.get` executed at interpretation time over
+    /// `NetworkPolicy.live`. The full-app composition root is NOT hosted
+    /// here yet: under the windowed host the app's own data-loading
+    /// lifecycle never fires (measured 2026-07-31 — zero bridge requests,
+    /// empty themed surface), which is LOOP-LIVE lifecycle territory, not a
+    /// demo patch.
+    fileprivate static func liveAppRenderSession(
+        instance: String
+    ) throws -> InterpreterRenderSession {
+        let paths = try paths()
+        Interpreter.interpretsAsPlatform = "iOS"
+        // Record-at-the-boundary: fetch the live public timeline ONCE in the
+        // host, hand the exact bytes to the proven replay render path. A
+        // top-level `await client.get` global evaluates lazily inside render
+        // bodies, where inline-await work is absorbed — measured 2026-07-31
+        // as one fresh HTTP request per body evaluation and no rows.
+        guard let liveURL = URL(
+            string: "https://\(instance)/api/v1/timelines/public"
+                + "?local=false&limit=40") else {
+            throw RuntimeError(message: "invalid live instance '\(instance)'")
+        }
+        nonisolated final class Holder: @unchecked Sendable {
+            var result: Result<Data, Error>?
+        }
+        let holder = Holder()
+        let semaphore = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: liveURL) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            if let data, status == 200 {
+                holder.result = .success(data)
+            } else {
+                holder.result = .failure(error ?? RuntimeError(
+                    message: "\(liveURL.host ?? "?") answered HTTP \(status)"))
+            }
+            semaphore.signal()
+        }.resume()
+        _ = semaphore.wait(timeout: .now() + 20)
+        guard let fetched = holder.result else {
+            throw RuntimeError(
+                message: "live timeline request timed out for \(instance)")
+        }
+        let liveBytes = try fetched.get()
+        let recordingDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(
+                "icecubes-live-run-\(ProcessInfo.processInfo.processIdentifier)")
+        try FileManager.default.createDirectory(
+            at: recordingDirectory, withIntermediateDirectories: true)
+        try liveBytes.write(
+            to: recordingDirectory.appendingPathComponent(
+                "api_v1_timelines_public.json"),
+            options: .atomic)
+        NetworkBridge.policy = .replay(
+            fixturesDirectory: recordingDirectory.path)
+        NetworkBridge.requestLog = []
+        let probe = """
+
+        import Account
+        import AppAccount
+        import DesignSystem
+        import Env
+        import Foundation
+        import Models
+        import NetworkClient
+        import StatusKit
+        import SwiftSoup
+        import SwiftUI
+        import Timeline
+
+        let __iceClient = MastodonClient(server: "\(instance)")
+        let __iceRouter = RouterPath()
+        let __iceDecoder = JSONDecoder()
+        __iceDecoder.keyDecodingStrategy = .convertFromSnakeCase
+        let __iceLiveStatuses = try! __iceDecoder.decode(
+            [Status].self, from: __fixtureData("api_v1_timelines_public"))
+
+        @MainActor
+        final class __IceLiveFetcher: StatusesFetcher {
+            var statusesState: StatusesState
+            init(statuses: [Status]) {
+                statusesState = .display(
+                    statuses: statuses, nextPageState: .hasNextPage)
+            }
+            func fetchNewestStatuses(pullToRefresh: Bool) async {}
+            func fetchNextPage() async throws {}
+            func statusDidAppear(status: Status) {}
+            func statusDidDisappear(status: Status) {}
+        }
+
+        NavigationStack {
+            List {
+                StatusesListView(
+                    fetcher: __IceLiveFetcher(statuses: __iceLiveStatuses),
+                    client: __iceClient,
+                    routerPath: __iceRouter,
+                    filterContext: .pub)
+            }
+            .listStyle(.plain)
+            .navigationTitle(TimelineFilter.federated.title)
+        }
+        .frame(
+            width: \(screenSize.width), height: \(screenSize.height))
+        .background(Color.white)
+        .environment(Theme.shared)
+        .environment(CurrentAccount.shared)
+        .environment(CurrentInstance.shared)
+        .environment(UserPreferences.shared)
+        .environment(StreamWatcher.shared)
+        .environment(AppAccountsManager.shared)
+        .environment(QuickLook.shared)
+        .environment(ToastCenter.shared)
+        .environment(__iceClient)
+        .environment(__iceRouter)
+        """
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles,
+            sourceModules: paths.sourceModules)
+            + ProjectMaterial.mergedSource(
+                source: probe, moduleName: "IceCubesCheckProbe")
+        return try InterpreterHost().renderSession(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS",
+                targetEnvironment: "macCatalyst"),
+            projectResourceRoot: paths.app,
+            lazyTopLevelGlobals: true
+        ).get()
     }
 
     fileprivate static func renderSession(
