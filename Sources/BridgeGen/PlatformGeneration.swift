@@ -154,7 +154,8 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         deployments: ["iOS": (18, 0)],
         roots: [
             "UIApplication", "UIResponder", "UIWindow", "UIWindowScene",
-            "UIScreen", "UITraitCollection", "UIView", "UIControl", "UIViewController",
+            "UIScreen", "UITraitCollection", "UIContentSizeCategory",
+            "UIView", "UIControl", "UIViewController",
             "UIColor", "UIFont", "UIFontMetrics", "UIImage", "UIBezierPath",
             "UIEdgeInsets", "UIOffset", "NSDirectionalEdgeInsets",
             "UIButton", "UIImageView", "UILabel", "UIScrollView",
@@ -191,6 +192,10 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         roots: [
             "CLLocation", "CLLocationCoordinate2D",
         ],
+        // Catalyst view: symbols retired before Catalyst existed (the
+        // "deprecated as of iOS 7 and earlier" class) are Swift-unavailable
+        // there and must not be emitted into the shared bridge.
+        validationViews: [macCatalyst18SymbolGraphView],
         extractionModule: "_LocationEssentials"),
     .init(
         // Generate the common Metal surface from the more restrictive iOS
@@ -229,6 +234,7 @@ private struct SymbolGraph: Decodable {
             let deprecated: Version?
             let obsoleted: Version?
             let isUnconditionallyUnavailable: Bool?
+            let isUnconditionallyDeprecated: Bool?
         }
 
         let identifier: Identifier
@@ -1766,11 +1772,26 @@ private func platformSymbolIsAvailable(
                 return false
             }
         }
-        // Match the existing swiftinterface sweep: retired API remains in SDK
-        // metadata for source compatibility, but should not grow a new bridge.
+        // Deprecated is NOT uncallable: compiled target code still executes
+        // deprecated API with only a warning (EmojiText calls the iOS-17-
+        // deprecated UITraitCollection(preferredContentSizeCategory:), and
+        // the app renders). The one exception is the toolchain's own rule —
+        // "APIs deprecated as of iOS 7 / macOS 10.9 and earlier are
+        // unavailable in Swift" — which the compiler enforces as an error.
+        // Unversioned deprecation is the pre-versioning retirement class the
+        // same toolchain rule erases from Swift.
+        if availability.isUnconditionallyDeprecated == true {
+            return false
+        }
         if let deprecated = availability.deprecated {
             let version = (deprecated.major, deprecated.minor ?? 0)
-            if version <= (deployment.major, deployment.minor) {
+            let swiftUnavailableFloor: (Int, Int)?
+            switch availability.domain {
+            case "iOS", "iPadOS", "tvOS": swiftUnavailableFloor = (7, 0)
+            case "macOS": swiftUnavailableFloor = (10, 9)
+            default: swiftUnavailableFloor = nil
+            }
+            if let floor = swiftUnavailableFloor, version <= floor {
                 return false
             }
         }
