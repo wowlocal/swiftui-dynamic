@@ -273,6 +273,172 @@ private struct IceCubesCatalystCaptureRoot: View {
     }
 }
 
+/// Interactive live run (`--run`): the interpreted IceCubesApp hosted in a
+/// real resizable Catalyst window with `NetworkPolicy.live` — the "real HTTP
+/// for interactive demo runs" case the policy documents. No capture, no
+/// frozen clock, no exit; close the window to quit. Content is whatever the
+/// live instance serves right now, so nothing here ever feeds a metric.
+@MainActor
+private struct IceCubesCatalystLiveRunRoot: View {
+    var mini = false
+    @State private var session: InterpreterRenderSession?
+    @State private var failure: String?
+    @State private var started = false
+
+    var body: some View {
+        Group {
+            if let session {
+                session.view
+            } else if let failure {
+                ScrollView {
+                    Text(failure)
+                        .font(.system(.footnote, design: .monospaced))
+                        .padding()
+                }
+            } else {
+                ProgressView("Interpreting IceCubesApp against live Mastodon…")
+            }
+        }
+        .frame(
+            width: IceCubesCheckMain.screenSize.width,
+            height: IceCubesCheckMain.screenSize.height)
+        .environment(\.colorScheme, .light)
+        .background(Color.white)
+        .task {
+            guard !started else { return }
+            started = true
+            // Let the loading frame commit before the synchronous
+            // interpretation occupies the main actor.
+            try? await Task.sleep(for: .milliseconds(80))
+            do {
+                let arguments = Array(CommandLine.arguments.dropFirst())
+                // mstdn.social (the twin's instance) still serves the public
+                // timeline unauthenticated; mastodon.social answers 422.
+                let miniSource = """
+                import SwiftUI
+                let __miniGreeting = "interpreted hello lazy"
+                Text(__miniGreeting)
+                    .font(.largeTitle)
+                    .padding()
+                    .background(Color.orange)
+                """
+                let miniWrapped = ProcessInfo.processInfo
+                    .environment["ICECUBES_MINI_MODULE"] == "1"
+                let session = mini
+                    ? try InterpreterHost().renderSession(
+                        source: miniWrapped
+                            ? ProjectMaterial.mergedSource(
+                                source: miniSource,
+                                moduleName: "IceCubesCheckProbe")
+                            : miniSource,
+                        buildConfiguration: .init(
+                            platformName: "iOS",
+                            targetEnvironment: "macCatalyst"),
+                        lazyTopLevelGlobals: ProcessInfo.processInfo
+                            .environment["ICECUBES_MINI_LAZY"] == "1").get()
+                    : try IceCubesCheckMain.liveAppRenderSession(
+                        instance: IceCubesCheckMain.option(
+                            "--instance", in: arguments) ?? "mstdn.social")
+                self.session = session
+                liveRunTrace("ready")
+                for entry in RenderDiagnostics.errors.prefix(10) {
+                    liveRunTrace(
+                        "diagnostic \(entry.view): \(entry.error.message)")
+                }
+            } catch {
+                failure = String(describing: error)
+                liveRunTrace("FAILED: \(error)")
+            }
+            await writeDebugSnapshots()
+        }
+    }
+
+    /// The process never exits, so stdout buffering would swallow evidence —
+    /// trace through unbuffered stderr instead.
+    private func liveRunTrace(_ message: String) {
+        FileHandle.standardError.write(
+            Data("@@icecubes-live-run \(message)\n".utf8))
+    }
+
+    /// Headless self-verification for driving the live window from a harness:
+    /// with ICECUBES_RUN_SNAPSHOT=<path-prefix> set, periodically write the
+    /// hosted hierarchy to <prefix>-<n>[-content].png and trace the UIKit
+    /// tree, so "content exists but does not composite" and "content never
+    /// materialized" are distinguishable. Demo-only — never a metric.
+    private func writeDebugSnapshots() async {
+        guard let prefix = ProcessInfo.processInfo
+            .environment["ICECUBES_RUN_SNAPSHOT"] else { return }
+        for index in 1...8 {
+            try? await Task.sleep(for: .seconds(10))
+            let windows = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+            guard let window =
+                    windows.first(where: \.isKeyWindow) ?? windows.first,
+                  let rootView = window.rootViewController?.view else {
+                liveRunTrace("snapshot \(index): no live window")
+                continue
+            }
+            let contentView = fixedSizeLiveDescendant(in: rootView)
+            for (label, view) in [("", rootView), ("-content", contentView)] {
+                guard let view else { continue }
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                let renderer = UIGraphicsImageRenderer(
+                    size: view.bounds.size, format: format)
+                let image = renderer.image { _ in
+                    view.drawHierarchy(
+                        in: view.bounds, afterScreenUpdates: true)
+                }
+                if let png = image.pngData() {
+                    let path = "\(prefix)-\(index)\(label).png"
+                    try? png.write(to: URL(fileURLWithPath: path))
+                    liveRunTrace("snapshot \(index)\(label): \(path)")
+                }
+            }
+            var lines: [String] = []
+            traceHierarchy(rootView, depth: 0, lines: &lines)
+            for line in lines.prefix(45) {
+                liveRunTrace("tree[\(index)] \(line)")
+            }
+            for entry in RenderDiagnostics.errors.suffix(8) {
+                liveRunTrace(
+                    "renderError[\(index)] \(entry.view): "
+                        + entry.error.message)
+            }
+        }
+    }
+
+    private func fixedSizeLiveDescendant(in view: UIView) -> UIView? {
+        let target = IceCubesCheckMain.screenSize
+        if abs(view.bounds.width - target.width) < 0.5,
+           abs(view.bounds.height - target.height) < 0.5 {
+            return view
+        }
+        for child in view.subviews {
+            if let match = fixedSizeLiveDescendant(in: child) { return match }
+        }
+        return nil
+    }
+
+    private func traceHierarchy(
+        _ view: UIView, depth: Int, lines: inout [String]
+    ) {
+        guard lines.count < 60, depth < 7 else { return }
+        let name = String(describing: type(of: view))
+        let f = view.frame
+        lines.append(
+            String(repeating: "  ", count: depth)
+                + "\(name) frame=(\(Int(f.origin.x)),\(Int(f.origin.y)),"
+                + "\(Int(f.width))x\(Int(f.height)))"
+                + (view.isHidden ? " HIDDEN" : "")
+                + (view.alpha < 0.99 ? " alpha=\(view.alpha)" : ""))
+        for child in view.subviews {
+            traceHierarchy(child, depth: depth + 1, lines: &lines)
+        }
+    }
+}
+
 @main
 private struct IceCubesCheckCatalystApp: App {
     @UIApplicationDelegateAdaptor(IceCubesCheckAppDelegate.self)
@@ -281,13 +447,33 @@ private struct IceCubesCheckCatalystApp: App {
     var body: some Scene {
         WindowGroup {
             let arguments = Array(CommandLine.arguments.dropFirst())
-            IceCubesCatalystCaptureRoot(
-                directory: IceCubesCheckMain.option(
-                    "--capture", in: arguments)
-                    ?? "/tmp/icecubes-interpreted",
-                screen: IceCubesCheckMain.captureScreen(in: arguments),
-                nativeFixtureDirectory: IceCubesCheckMain.option(
-                    "--native-fixtures", in: arguments))
+            if arguments.contains("--run-mini") {
+                // Minimal interpreted-content compositing probe: interprets
+                // in under a second, so the windowed-hosting question is
+                // answerable in one glance instead of a ten-minute cycle.
+                IceCubesCatalystLiveRunRoot(mini: true)
+            } else if arguments.contains("--run-native") {
+                // Native-only compositing probe: if THIS does not paint, the
+                // bundle's on-screen render path is broken and no interpreted
+                // content can ever appear — fix the packaging first.
+                VStack(spacing: 12) {
+                    Text("native compositing OK")
+                        .font(.largeTitle)
+                    ProgressView()
+                }
+                .frame(width: 400, height: 300)
+                .background(Color.yellow)
+            } else if arguments.contains("--run") {
+                IceCubesCatalystLiveRunRoot()
+            } else {
+                IceCubesCatalystCaptureRoot(
+                    directory: IceCubesCheckMain.option(
+                        "--capture", in: arguments)
+                        ?? "/tmp/icecubes-interpreted",
+                    screen: IceCubesCheckMain.captureScreen(in: arguments),
+                    nativeFixtureDirectory: IceCubesCheckMain.option(
+                        "--native-fixtures", in: arguments))
+            }
         }
     }
 }
@@ -437,6 +623,13 @@ struct IceCubesCheckMain {
             }
             let data = try JSONEncoder().encode(records)
             try data.write(to: URL(fileURLWithPath: result), options: .atomic)
+            return
+        }
+
+        if arguments.contains("--live") {
+            try await runLiveBoard(
+                instance: option("--instance", in: arguments)
+                    ?? "mastodon.social")
             return
         }
 
@@ -676,7 +869,12 @@ struct IceCubesCheckMain {
     }
 
     private static func paths() throws -> Paths {
-        let root = FileManager.default.currentDirectoryPath
+        // `--root` frees the interactive run from cwd: a Catalyst app must
+        // launch through LaunchServices (`open`) to get an on-screen render
+        // connection, and `open` does not preserve the caller's directory.
+        let root = option(
+            "--root", in: Array(CommandLine.arguments.dropFirst()))
+            ?? FileManager.default.currentDirectoryPath
         let app = root + "/External/oss/IceCubesApp"
         let fixtures = root + "/Fixtures/mastodon-public-timeline"
         let packages = app + "/Packages"
@@ -758,6 +956,129 @@ struct IceCubesCheckMain {
             name: "R0-shell", passed: problems.isEmpty,
             message: problems.joined(separator: "; "))
     }
+
+#if !targetEnvironment(macCatalyst)
+    /// The LIVE board (LOOP-ICECUBES real-endpoint tier 1): the same
+    /// interpreted app shell, real HTTP against the app's own default
+    /// instance, invariant assertions instead of pixels. Expectations come
+    /// from bytes fetched moments earlier from the same endpoint the app
+    /// hits — real responses, never hand-written. Semantics: transport
+    /// failure reaching the instance is UNSTABLE (exit 0 with a marker — the
+    /// internet is not a finding); a decode failure on live bytes (schema
+    /// drift) or a broken render invariant is RED (exit 1). This board is
+    /// never a monotonic metric: content changes run to run by design.
+    private static func runLiveBoard(instance: String) async throws {
+        let paths = try paths()
+        let trendsPath = "/api/v1/trends/statuses"
+        guard let trendsURL = URL(
+            string: "https://\(instance)\(trendsPath)") else {
+            throw RuntimeError(message: "invalid live instance '\(instance)'")
+        }
+        let fetched: Data
+        do {
+            let (data, response) = try await URLSession.shared.data(
+                for: URLRequest(url: trendsURL, timeoutInterval: 20))
+            guard let http = response as? HTTPURLResponse,
+                  http.statusCode == 200 else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                print("⚠️ LIVE board UNSTABLE: \(instance)\(trendsPath) answered HTTP \(code)")
+                return
+            }
+            fetched = data
+        } catch {
+            print("⚠️ LIVE board UNSTABLE: could not reach \(instance): \(error.localizedDescription)")
+            return
+        }
+
+        var records: [RungRecord] = []
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let liveTrending: [FixtureStatus]
+        do {
+            liveTrending = try decoder.decode(
+                [FixtureStatus].self, from: fetched)
+            records.append(RungRecord(
+                name: "LIVE-schema-decode", passed: true,
+                message: "\(liveTrending.count) live trending statuses decoded"))
+        } catch {
+            records.append(RungRecord(
+                name: "LIVE-schema-decode", passed: false,
+                message: "live \(trendsPath) bytes no longer decode: \(error)"))
+            reportLiveBoard(records, instance: instance)
+            return
+        }
+
+        Interpreter.interpretsAsPlatform = "iOS"
+        LiveCheckSupport.traceLifecycle =
+            ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1"
+        NetworkBridge.policy = .live
+        NetworkBridge.requestLog = []
+        defer { NetworkBridge.policy = .absorbed }
+
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles + paths.appFiles,
+            sourceModules: paths.sourceModules)
+        let render = try await LiveCheckSupport.render(source: source)
+        let normalized = render.strings.map(FixtureOracle.normalize)
+
+        records.append(RungRecord(
+            name: "LIVE-shell-root",
+            passed: render.rootSymbol == "scene:IceCubesApp",
+            message: render.rootSymbol == "scene:IceCubesApp"
+                ? "" : "root is \(render.rootSymbol), wanted scene:IceCubesApp"))
+
+        let liveTrendingHits = render.networkRequests.filter {
+            $0.hasPrefix(trendsPath) && $0.hasSuffix("HTTP 200")
+        }
+        records.append(RungRecord(
+            name: "LIVE-shell-network",
+            passed: !liveTrendingHits.isEmpty,
+            message: liveTrendingHits.isEmpty
+                ? "app shell never completed a live \(trendsPath) request; log: "
+                    + render.networkRequests.prefix(6).joined(separator: " | ")
+                : ""))
+
+        let liveAuthors = liveTrending.map(\.visibleAccount.visibleName)
+            .map(FixtureOracle.normalize)
+            .filter { !$0.isEmpty }
+        let renderedAuthors = liveAuthors.filter { author in
+            normalized.contains { $0.contains(author) }
+        }
+        records.append(RungRecord(
+            name: "LIVE-shell-content",
+            passed: !renderedAuthors.isEmpty,
+            message: liveAuthors.isEmpty
+                ? "live trends carried no visible author names"
+                : "\(renderedAuthors.count)/\(liveAuthors.count) live trending authors rendered"))
+
+        records.append(RungRecord(
+            name: "LIVE-shell-lifecycle",
+            passed: render.lifecycleErrors.isEmpty,
+            message: render.lifecycleErrors.prefix(3)
+                .joined(separator: " | ")))
+
+        reportLiveBoard(records, instance: instance)
+    }
+
+    private static func reportLiveBoard(
+        _ records: [RungRecord], instance: String
+    ) {
+        for record in records {
+            if record.passed {
+                let detail = record.message.isEmpty
+                    ? "" : "  \(record.message)"
+                print("✅ \(record.name)\(detail)")
+            } else {
+                print("❌ \(record.name)  \(record.message)")
+            }
+        }
+        let passed = records.filter(\.passed).count
+        print("═══ IceCubesCheck LIVE (\(instance)): \(passed)/\(records.count) rungs ═══")
+        if passed != records.count {
+            exit(1)
+        }
+    }
+#endif
 
     private enum RenderScope: Equatable {
         case timeline
@@ -1353,6 +1674,211 @@ struct IceCubesCheckMain {
             }
         }
         """
+    }
+
+    /// The interactive `--run` session: the same native timeline screen the
+    /// R2 board renders, but the statuses come from a real
+    /// `MastodonClient.get` executed at interpretation time over
+    /// `NetworkPolicy.live`. The full-app composition root is NOT hosted
+    /// here yet: under the windowed host the app's own data-loading
+    /// lifecycle never fires (measured 2026-07-31 — zero bridge requests,
+    /// empty themed surface), which is LOOP-LIVE lifecycle territory, not a
+    /// demo patch.
+    fileprivate static func liveAppRenderSession(
+        instance: String
+    ) throws -> InterpreterRenderSession {
+        let paths = try paths()
+        Interpreter.interpretsAsPlatform = "iOS"
+        // Record-at-the-boundary: fetch the live public timeline ONCE in the
+        // host, hand the exact bytes to the proven replay render path. A
+        // top-level `await client.get` global evaluates lazily inside render
+        // bodies, where inline-await work is absorbed — measured 2026-07-31
+        // as one fresh HTTP request per body evaluation and no rows.
+        guard let liveURL = URL(
+            string: "https://\(instance)/api/v1/timelines/public"
+                + "?local=false&limit=40") else {
+            throw RuntimeError(message: "invalid live instance '\(instance)'")
+        }
+        nonisolated final class Holder: @unchecked Sendable {
+            var result: Result<Data, Error>?
+        }
+        let holder = Holder()
+        let semaphore = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: liveURL) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            if let data, status == 200 {
+                holder.result = .success(data)
+            } else {
+                holder.result = .failure(error ?? RuntimeError(
+                    message: "\(liveURL.host ?? "?") answered HTTP \(status)"))
+            }
+            semaphore.signal()
+        }.resume()
+        _ = semaphore.wait(timeout: .now() + 20)
+        guard let fetched = holder.result else {
+            throw RuntimeError(
+                message: "live timeline request timed out for \(instance)")
+        }
+        let liveBytes = try fetched.get()
+        let recordingDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(
+                "icecubes-live-run-\(ProcessInfo.processInfo.processIdentifier)")
+        try FileManager.default.createDirectory(
+            at: recordingDirectory, withIntermediateDirectories: true)
+        try liveBytes.write(
+            to: recordingDirectory.appendingPathComponent(
+                "api_v1_timelines_public.json"),
+            options: .atomic)
+        NetworkBridge.policy = .replay(
+            fixturesDirectory: recordingDirectory.path)
+        NetworkBridge.requestLog = []
+        // Bisection ladder for the windowed empty-tree gap: level 2 renders a
+        // trivial root over the full merged package source, level 3 decodes
+        // the live bytes and shows one real status row, unset = full List.
+        let miniLevel = ProcessInfo.processInfo
+            .environment["ICECUBES_MINI_LEVEL"]
+        let rootExpression: String
+        switch miniLevel {
+        case "2":
+            rootExpression = """
+            Text("merged hello")
+                .font(.largeTitle)
+                .padding()
+                .background(Color.orange)
+            """
+        case "3":
+            rootExpression = """
+            VStack(alignment: .leading) {
+                StatusRowHeaderView(viewModel: StatusRowViewModel(
+                    status: __iceLiveStatuses[0],
+                    client: __iceClient,
+                    routerPath: __iceRouter,
+                    filterContext: .pub))
+                StatusRowContentView(viewModel: StatusRowViewModel(
+                    status: __iceLiveStatuses[0],
+                    client: __iceClient,
+                    routerPath: __iceRouter,
+                    filterContext: .pub))
+            }
+            """
+        default:
+            rootExpression = """
+            NavigationStack {
+                List {
+                    StatusesListView(
+                        fetcher: __IceLiveFetcher(statuses: __iceLiveStatuses),
+                        client: __iceClient,
+                        routerPath: __iceRouter,
+                        filterContext: .pub)
+                }
+                .listStyle(.plain)
+                .navigationTitle(TimelineFilter.federated.title)
+            }
+            """
+        }
+        // ICECUBES_RUN_PACKAGES bisects the merged corpus: a comma list of
+        // local package names to include ("@none" = only externals,
+        // "@nolocal-noext" = nothing). Level-2 roots need no app imports.
+        let packageFilter = ProcessInfo.processInfo
+            .environment["ICECUBES_RUN_PACKAGES"]
+        let selectedPackageFiles: [String]
+        if let packageFilter {
+            let entries = packageFilter.split(separator: ",").map(String.init)
+            let localNames = entries.filter {
+                !$0.hasPrefix("x:") && !$0.hasPrefix("e:")
+            }
+            let externalNames = entries.filter { $0.hasPrefix("x:") }
+                .map { String($0.dropFirst(2)) }
+            let excludedFragments = entries.filter { $0.hasPrefix("e:") }
+                .map { String($0.dropFirst(2)) }
+            selectedPackageFiles = paths.packageFiles.filter { file in
+                if excludedFragments.contains(where: file.contains) {
+                    return false
+                }
+                if file.contains("/Packages/") {
+                    return localNames.contains {
+                        file.contains("/Packages/\($0)/")
+                    }
+                }
+                if externalNames.contains("*") { return true }
+                return externalNames.contains {
+                    file.contains("/checkouts/\($0)/")
+                }
+            }
+        } else {
+            selectedPackageFiles = paths.packageFiles
+        }
+        let probeImports = miniLevel == "2"
+            ? "import SwiftUI"
+            : """
+            import Account
+            import AppAccount
+            import DesignSystem
+            import Env
+            import Foundation
+            import Models
+            import NetworkClient
+            import StatusKit
+            import SwiftSoup
+            import SwiftUI
+            import Timeline
+            """
+        let probe = """
+
+        \(probeImports)
+
+        \(miniLevel == "2" ? "" : """
+        let __iceClient = MastodonClient(server: "\(instance)")
+        let __iceRouter = RouterPath()
+        let __iceDecoder = JSONDecoder()
+        __iceDecoder.keyDecodingStrategy = .convertFromSnakeCase
+        let __iceLiveStatuses = try! __iceDecoder.decode(
+            [Status].self, from: __fixtureData("api_v1_timelines_public"))
+
+        @MainActor
+        final class __IceLiveFetcher: StatusesFetcher {
+            var statusesState: StatusesState
+            init(statuses: [Status]) {
+                statusesState = .display(
+                    statuses: statuses, nextPageState: .hasNextPage)
+            }
+            func fetchNewestStatuses(pullToRefresh: Bool) async {}
+            func fetchNextPage() async throws {}
+            func statusDidAppear(status: Status) {}
+            func statusDidDisappear(status: Status) {}
+        }
+        """)
+
+        \(rootExpression)
+        .frame(
+            width: \(screenSize.width), height: \(screenSize.height))
+        .background(Color.white)
+        \(miniLevel == "2" ? "" : """
+        .environment(Theme.shared)
+        .environment(CurrentAccount.shared)
+        .environment(CurrentInstance.shared)
+        .environment(UserPreferences.shared)
+        .environment(StreamWatcher.shared)
+        .environment(AppAccountsManager.shared)
+        .environment(QuickLook.shared)
+        .environment(ToastCenter.shared)
+        .environment(__iceClient)
+        .environment(__iceRouter)
+        """)
+        """
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: selectedPackageFiles,
+            sourceModules: paths.sourceModules)
+            + ProjectMaterial.mergedSource(
+                source: probe, moduleName: "IceCubesCheckProbe")
+        return try InterpreterHost().renderSession(
+            source: source,
+            buildConfiguration: .init(
+                platformName: "iOS",
+                targetEnvironment: "macCatalyst"),
+            projectResourceRoot: paths.app,
+            lazyTopLevelGlobals: true
+        ).get()
     }
 
     fileprivate static func renderSession(

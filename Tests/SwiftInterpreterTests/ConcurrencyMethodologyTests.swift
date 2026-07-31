@@ -3136,6 +3136,45 @@ struct ConcurrencyMethodologyTests {
                 "native screens no longer launch in isolated processes"))
     }
 
+    /// The LIVE board tests real endpoints without mocks, but must never
+    /// leak into the deterministic metric: transport failure is UNSTABLE
+    /// (exit 0), only schema drift or a broken invariant is RED, and the R2
+    /// ratchet script must never adopt NetworkPolicy.live.
+    @Test func iceCubesLiveBoardKeepsRealEndpointsOutOfTheMetric() throws {
+        let check = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Sources/IceCubesCheck/IceCubesCheck.swift"),
+            encoding: .utf8)
+        for required in [
+            "LIVE board UNSTABLE",
+            "LIVE-schema-decode",
+            "LIVE-shell-content",
+            "NetworkBridge.policy = .live",
+        ] {
+            #expect(check.contains(required),
+                Comment(rawValue:
+                    "IceCubesCheck lost its live-board contract: " + required))
+        }
+
+        let live = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/icecubes-live.sh"),
+            encoding: .utf8)
+        #expect(live.contains("--live"),
+            Comment(rawValue: "icecubes-live.sh no longer runs the live board"))
+        #expect(live.contains("never a monotonic metric"),
+            Comment(rawValue:
+                "icecubes-live.sh lost its never-a-ratchet warning"))
+
+        let r2 = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/icecubes-r2.sh"),
+            encoding: .utf8)
+        #expect(!r2.contains("--live"),
+            Comment(rawValue:
+                "the R2 ratchet board must stay on recorded replay bytes"))
+    }
+
     @Test func iceCubesShellPreservesNativeTargetBoundaries() throws {
         let source = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(
