@@ -147,6 +147,19 @@ working. The following six amendments are binding.
    so lanes cannot clobber each other) and honor
    `ICECUBES_R2_TWIN_DIR`/`ICECUBES_R2_INTERP_DIR`.
 
+   **The LIVE board complements the frozen metric** (added 2026-07-31,
+   `Scripts/icecubes-live.sh` → `IceCubesCheck --live`): the same interpreted
+   app shell against the app's own default instance over real HTTP
+   (`NetworkPolicy.live`), asserting invariants — live bytes decode, shell
+   root, a completed live trends request, live authors reaching the rendered
+   tree, no lifecycle errors. Expectations come from bytes fetched moments
+   earlier from the same endpoint, never hand-written. It is deliberately NOT
+   monotonic and never feeds a ratchet: transport failure is UNSTABLE (exit
+   0 + marker — the internet is not a finding); schema drift or a broken
+   invariant is RED (exit 1). It exists to catch what replay structurally
+   cannot: fixture rot and real-world data shapes (the `ImageBox` display-name
+   emoji class was exactly such a bug).
+
 3. **One concern per commit; protect regression tests.** The `7ca94306` incident — a
    landed opaque-root fix AND its regression test silently reverted inside an unrelated
    "nested source types" commit, then re-done and re-reverted (net absent at HEAD) —

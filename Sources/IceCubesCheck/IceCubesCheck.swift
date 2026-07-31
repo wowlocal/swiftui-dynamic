@@ -440,6 +440,13 @@ struct IceCubesCheckMain {
             return
         }
 
+        if arguments.contains("--live") {
+            try await runLiveBoard(
+                instance: option("--instance", in: arguments)
+                    ?? "mastodon.social")
+            return
+        }
+
         let filter = option("--screen", in: arguments)
         let jobs = [
             "shell", "timeline", "detail-account", "pagination",
@@ -758,6 +765,129 @@ struct IceCubesCheckMain {
             name: "R0-shell", passed: problems.isEmpty,
             message: problems.joined(separator: "; "))
     }
+
+#if !targetEnvironment(macCatalyst)
+    /// The LIVE board (LOOP-ICECUBES real-endpoint tier 1): the same
+    /// interpreted app shell, real HTTP against the app's own default
+    /// instance, invariant assertions instead of pixels. Expectations come
+    /// from bytes fetched moments earlier from the same endpoint the app
+    /// hits — real responses, never hand-written. Semantics: transport
+    /// failure reaching the instance is UNSTABLE (exit 0 with a marker — the
+    /// internet is not a finding); a decode failure on live bytes (schema
+    /// drift) or a broken render invariant is RED (exit 1). This board is
+    /// never a monotonic metric: content changes run to run by design.
+    private static func runLiveBoard(instance: String) async throws {
+        let paths = try paths()
+        let trendsPath = "/api/v1/trends/statuses"
+        guard let trendsURL = URL(
+            string: "https://\(instance)\(trendsPath)") else {
+            throw RuntimeError(message: "invalid live instance '\(instance)'")
+        }
+        let fetched: Data
+        do {
+            let (data, response) = try await URLSession.shared.data(
+                for: URLRequest(url: trendsURL, timeoutInterval: 20))
+            guard let http = response as? HTTPURLResponse,
+                  http.statusCode == 200 else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                print("⚠️ LIVE board UNSTABLE: \(instance)\(trendsPath) answered HTTP \(code)")
+                return
+            }
+            fetched = data
+        } catch {
+            print("⚠️ LIVE board UNSTABLE: could not reach \(instance): \(error.localizedDescription)")
+            return
+        }
+
+        var records: [RungRecord] = []
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let liveTrending: [FixtureStatus]
+        do {
+            liveTrending = try decoder.decode(
+                [FixtureStatus].self, from: fetched)
+            records.append(RungRecord(
+                name: "LIVE-schema-decode", passed: true,
+                message: "\(liveTrending.count) live trending statuses decoded"))
+        } catch {
+            records.append(RungRecord(
+                name: "LIVE-schema-decode", passed: false,
+                message: "live \(trendsPath) bytes no longer decode: \(error)"))
+            reportLiveBoard(records, instance: instance)
+            return
+        }
+
+        Interpreter.interpretsAsPlatform = "iOS"
+        LiveCheckSupport.traceLifecycle =
+            ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1"
+        NetworkBridge.policy = .live
+        NetworkBridge.requestLog = []
+        defer { NetworkBridge.policy = .absorbed }
+
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles + paths.appFiles,
+            sourceModules: paths.sourceModules)
+        let render = try await LiveCheckSupport.render(source: source)
+        let normalized = render.strings.map(FixtureOracle.normalize)
+
+        records.append(RungRecord(
+            name: "LIVE-shell-root",
+            passed: render.rootSymbol == "scene:IceCubesApp",
+            message: render.rootSymbol == "scene:IceCubesApp"
+                ? "" : "root is \(render.rootSymbol), wanted scene:IceCubesApp"))
+
+        let liveTrendingHits = render.networkRequests.filter {
+            $0.hasPrefix(trendsPath) && $0.hasSuffix("HTTP 200")
+        }
+        records.append(RungRecord(
+            name: "LIVE-shell-network",
+            passed: !liveTrendingHits.isEmpty,
+            message: liveTrendingHits.isEmpty
+                ? "app shell never completed a live \(trendsPath) request; log: "
+                    + render.networkRequests.prefix(6).joined(separator: " | ")
+                : ""))
+
+        let liveAuthors = liveTrending.map(\.visibleAccount.visibleName)
+            .map(FixtureOracle.normalize)
+            .filter { !$0.isEmpty }
+        let renderedAuthors = liveAuthors.filter { author in
+            normalized.contains { $0.contains(author) }
+        }
+        records.append(RungRecord(
+            name: "LIVE-shell-content",
+            passed: !renderedAuthors.isEmpty,
+            message: liveAuthors.isEmpty
+                ? "live trends carried no visible author names"
+                : "\(renderedAuthors.count)/\(liveAuthors.count) live trending authors rendered"))
+
+        records.append(RungRecord(
+            name: "LIVE-shell-lifecycle",
+            passed: render.lifecycleErrors.isEmpty,
+            message: render.lifecycleErrors.prefix(3)
+                .joined(separator: " | ")))
+
+        reportLiveBoard(records, instance: instance)
+    }
+
+    private static func reportLiveBoard(
+        _ records: [RungRecord], instance: String
+    ) {
+        for record in records {
+            if record.passed {
+                let detail = record.message.isEmpty
+                    ? "" : "  \(record.message)"
+                print("✅ \(record.name)\(detail)")
+            } else {
+                print("❌ \(record.name)  \(record.message)")
+            }
+        }
+        let passed = records.filter(\.passed).count
+        print("═══ IceCubesCheck LIVE (\(instance)): \(passed)/\(records.count) rungs ═══")
+        if passed != records.count {
+            exit(1)
+        }
+    }
+#endif
 
     private enum RenderScope: Equatable {
         case timeline
