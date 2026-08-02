@@ -635,7 +635,7 @@ struct IceCubesCheckMain {
 
         let filter = option("--screen", in: arguments)
         let jobs = [
-            "shell", "timeline", "detail-account", "pagination",
+            "shell", "timeline", "detail-account", "pagination", "row-tap",
         ].filter { job in
             guard let filter else { return true }
             return expectedRungs(for: job).contains {
@@ -709,6 +709,8 @@ struct IceCubesCheckMain {
             return ["R1-status-detail", "R1-account-header"]
         case "pagination":
             return ["R3-pagination"]
+        case "row-tap":
+            return ["R3-row-tap-detail"]
         default:
             return ["unknown-worker"]
         }
@@ -850,6 +852,8 @@ struct IceCubesCheckMain {
                 try await paginationRung(
                     paths: paths, oracle: oracle, native: native),
             ]
+        case "row-tap":
+            return [try await rowTapRung(paths: paths, oracle: oracle)]
         default:
             return [RungRecord(
                 name: "unknown-worker", passed: false,
@@ -1090,6 +1094,11 @@ struct IceCubesCheckMain {
         case nativeTimeline
         case nativeStatusDetail
         case nativeAccountHeader
+        /// The real navigation shape every IceCubes tab is built from:
+        /// `NavigationStack(path: $routerPath.path) { content.withAppRouter() }`
+        /// (NavigationTab.swift:25 + AppRegistry.swift:65). Nothing about the
+        /// screen is restated here — the rung taps the app's own rows.
+        case rowTapNavigation
     }
 
 #if !targetEnvironment(macCatalyst)
@@ -1142,6 +1151,187 @@ struct IceCubesCheckMain {
         return RungRecord(
             name: "R3-pagination", passed: problems.isEmpty,
             message: problems.joined(separator: "; "))
+    }
+
+    /// Which recorded row the tap aims at, and what makes "that row's detail"
+    /// falsifiable. Everything here is read off the recorded bytes.
+    private struct RowTapTarget {
+        /// A whole word only this row's text renders, so aiming at the row
+        /// cannot accidentally aim at a different one.
+        let aimWord: String
+        /// The row's visible text and author, both of which its detail screen
+        /// must still show once pushed.
+        let contentMarker: String
+        let authorName: String
+        /// Authors only the OTHER rows render: a pushed detail covers the
+        /// timeline, so none of these may survive the tap.
+        let coveredAuthorNames: [String]
+        let index: Int
+    }
+
+    /// The row is chosen, not written: the first status past the head whose
+    /// text carries a word no other recorded row uses and whose author is
+    /// likewise unique. Aiming by a whole word keeps the target free of the
+    /// whitespace normalization the rendered HTML goes through.
+    private static func rowTapTarget(
+        in oracle: FixtureOracle
+    ) -> RowTapTarget? {
+        let statuses = oracle.publicStatuses
+        let names = statuses.map(\.visibleAccount.visibleName)
+        let texts = statuses.map { FixtureOracle.rawText($0.visibleContent) }
+        func words(_ text: String) -> Set<String> {
+            Set(text.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map { $0.lowercased() }
+                .filter { $0.count >= 7 })
+        }
+        let wordSets = texts.map(words)
+        for index in statuses.indices where index > 0 {
+            let name = names[index]
+            guard names.filter({ $0 == name }).count == 1 else { continue }
+            let elsewhere = wordSets.enumerated()
+                .filter { $0.offset != index }
+                .reduce(into: Set<String>()) { $0.formUnion($1.element) }
+            let marker = FixtureOracle.leadingTextMarker(
+                statuses[index].visibleContent)
+            guard marker.split(separator: " ").count >= 3 else { continue }
+            // Tie the aim word to the marker the assertion uses, so the rung
+            // cannot pass by rendering some other part of the same status.
+            let markerWords = words(marker)
+            guard let aim = markerWords.subtracting(elsewhere).min(),
+                  !name.lowercased().contains(aim)
+            else { continue }
+            let covered = statuses.indices.filter { $0 != index }
+                .map { names[$0] }
+                .filter { other in
+                    other != name
+                        && !marker.localizedCaseInsensitiveContains(other)
+                        && !name.localizedCaseInsensitiveContains(other)
+                        && other.count >= 3
+                }
+            guard !covered.isEmpty else { continue }
+            return RowTapTarget(
+                aimWord: aim, contentMarker: marker, authorName: name,
+                coveredAuthorNames: Array(Set(covered)).sorted(),
+                index: index)
+        }
+        return nil
+    }
+
+    /// R3 interaction two of three: tapping a row pushes THAT row's status
+    /// detail. IceCubes reaches it through StatusRowContentView's
+    /// `.onTapGesture` -> `StatusRowViewModel.navigateToDetail()` ->
+    /// `RouterPath.navigate(to: .statusDetailWithStatus(status:))` ->
+    /// the enclosing `NavigationStack(path:)`, so the rung drives the app's
+    /// own path and never calls the view model itself.
+    private static func rowTapRung(
+        paths: Paths, oracle: FixtureOracle
+    ) async throws -> RungRecord {
+        func record(_ problems: [String]) -> RungRecord {
+            RungRecord(
+                name: "R3-row-tap-detail", passed: problems.isEmpty,
+                message: problems.joined(separator: "; "))
+        }
+        guard let target = rowTapTarget(in: oracle) else {
+            return record([
+                "no recorded row carries text and an author unique enough "
+                    + "to identify its own detail screen",
+            ])
+        }
+        // The destination map is the app's own `withAppRouter()`
+        // (AppRegistry.swift:65), so the app target is merged too — hosted
+        // under the probe's scene rather than its own.
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles + paths.appFiles,
+            sourceModules: paths.sourceModules,
+            entryPoint: .suppliedByCaller)
+            + ProjectMaterial.mergedSource(
+                source: renderProbeSource(
+                    includeTimeline: true,
+                    includeDetailAndAccount: false,
+                    presentation: .rowTapNavigation),
+                moduleName: "IceCubesCheckProbe")
+        let before = try await LiveCheckSupport.render(source: source)
+        let after = try await LiveCheckSupport.render(
+            source: source, afterActions: 1,
+            targeting: .renderingText(target.aimWord))
+        if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+            print("@@icecubes-row-tap aim=\(target.aimWord) "
+                + "row=\(target.index) author=\(target.authorName)")
+            for (name, count) in after.absorbedHostMembers
+                .sorted(by: { $0.value > $1.value }).prefix(25)
+            {
+                print("@@icecubes-row-tap-absorbed \(name) x\(count)")
+            }
+            for candidate in after.actionTargets
+                where candidate.localizedCaseInsensitiveContains(
+                    target.aimWord)
+            {
+                print("@@icecubes-row-tap-target \(candidate.prefix(220))")
+            }
+            for string in after.strings.map(FixtureOracle.normalize).prefix(60)
+            where !string.isEmpty {
+                print("@@icecubes-row-tap-string \(string.prefix(120))")
+            }
+        }
+        func shows(_ render: LiveCheckRenderResult, _ text: String) -> Bool {
+            !text.isEmpty && render.strings
+                .map(FixtureOracle.normalize)
+                .contains { $0.contains(text) }
+        }
+
+        var problems: [String] = []
+        // The transition is only measurable if the timeline was there first.
+        let coveredBefore = target.coveredAuthorNames.filter {
+            shows(before, $0)
+        }
+        if !shows(before, target.contentMarker) {
+            problems.append(
+                "row \(target.index) never rendered its recorded text "
+                    + "'\(target.contentMarker)' before the tap")
+        }
+        if coveredBefore.isEmpty {
+            problems.append(
+                "no other recorded row rendered before the tap, so a push "
+                    + "cannot be told from a no-op")
+        }
+        guard problems.isEmpty else { return record(problems) }
+
+        // Separate the two ways this can fail: the tap not reaching the
+        // app's router at all, and the stack not showing what was pushed.
+        if !shows(after, "__ice-path-count-1") {
+            problems.append(
+                "the tap did not append exactly one destination to the "
+                    + "app's RouterPath")
+        }
+        if !shows(after, target.contentMarker) {
+            problems.append(
+                "the pushed detail does not show the tapped row's text "
+                    + "'\(target.contentMarker)'")
+        }
+        if !shows(after, target.authorName) {
+            problems.append(
+                "the pushed detail does not show the tapped row's author "
+                    + "'\(target.authorName)'")
+        }
+        let stillCovered = coveredBefore.filter { shows(after, $0) }
+        if !stillCovered.isEmpty {
+            problems.append(
+                "the timeline is still on screen after the tap: "
+                    + stillCovered.prefix(3).joined(separator: ", ")
+                    + " remain visible")
+        }
+        if !after.lifecycleErrors.isEmpty {
+            problems.append(
+                "lifecycle errors: "
+                    + after.lifecycleErrors.prefix(3)
+                        .joined(separator: " | "))
+        }
+        if !problems.isEmpty {
+            problems.append(
+                "aimed at '\(target.aimWord)' among "
+                    + "\(after.actionTargets.count) tappable elements")
+        }
+        return record(problems)
     }
 
     private static func nativePaginationObservation(
@@ -1482,7 +1672,38 @@ struct IceCubesCheckMain {
                     .frame(width: \(screenSize.width), height: \(screenSize.height))
                     .background(Color.white)
             """
+        case .rowTapNavigation:
+            """
+                    __IceRowTapProbe()
+            """
         }
+        // Only the navigation rung hosts the router shape: the diagnostics
+        // probes render their views directly, and an unused stack would put a
+        // second RouterPath in a tree that already carries one.
+        let rowTapProbe = presentation == .rowTapNavigation ? """
+
+        @MainActor
+        struct __IceRowTapProbe: View {
+            @State private var router = RouterPath()
+
+            var body: some View {
+                // Separates "the tap never reached the router" from "the
+                // stack did not show what was pushed" when the rung is RED.
+                Text("__ice-path-count-" + String(router.path.count))
+                NavigationStack(path: $router.path) {
+                    SwiftUI.List {
+                        StatusesListView(
+                            fetcher: __iceFetcher,
+                            client: __iceClient,
+                            routerPath: router,
+                            filterContext: .pub)
+                    }
+                    .withAppRouter()
+                }
+                .environment(router)
+            }
+        }
+        """ : ""
         return """
 
         import Account
@@ -1652,6 +1873,7 @@ struct IceCubesCheckMain {
                     attachments: attachments, sensitive: false)
             }
         }
+        \(rowTapProbe)
 
         @\u{6D}ain
         struct __IceCubesR1Probe: App {
