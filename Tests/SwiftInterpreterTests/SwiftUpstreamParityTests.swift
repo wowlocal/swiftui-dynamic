@@ -179,8 +179,14 @@ private enum SwiftUpstreamParityHarness {
                     + compilation.standardError)
         }
 
+        // The manifest's per-case seconds describe how long the upstream
+        // program itself intends to run — several deliberately sleep for
+        // whole seconds — so using that number as the deadline leaves a case
+        // racing its own sleep plus process startup. Native execution is
+        // timed only to catch a HANG, on the same 30s budget as compilation,
+        // and a case that wants longer still gets what it asks for.
         let execution = run(
-            executable, [], timeout: parityCase.timeoutSeconds ?? 5)
+            executable, [], timeout: max(parityCase.timeoutSeconds ?? 0, 30))
         guard !execution.timedOut else {
             throw SwiftUpstreamParityError(
                 description: "native execution timed out")
