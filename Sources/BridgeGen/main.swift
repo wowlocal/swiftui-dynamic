@@ -2692,6 +2692,165 @@ func processInit(
     else if let firstBlocker { initBlockers[firstBlocker, default: 0] += 1 }
 }
 
+// MARK: - Same-type static factories
+
+/// A static whose declared result IS its enclosing nominal is a second
+/// spelling of that type's constructor (`ContentUnavailableView.search(text:)`
+/// beside `ContentUnavailableView(_:systemImage:)`). It needs its own emitted
+/// surface because a leading-dot marker only ever resolves against a
+/// parameter's expected type, and the positions these reach — a View body, a
+/// `some View` result — declare no such type. Both interface spellings are
+/// swept: the `static var` answers a value position, the `static func`
+/// answers a call.
+struct StaticFactoryVariant {
+    let type: String
+    let member: String
+    /// A `static var`: emitted without a call, matched at arity zero.
+    let isProperty: Bool
+    let variant: Variant
+
+    var key: String { type + "." + member + "|" + variant.key }
+}
+
+var staticFactoryVariants: [StaticFactoryVariant] = []
+var staticFactorySeenKeys = Set<String>()
+var staticFactoryTotal = 0
+var staticFactoryBlockers: [String: Int] = [:]
+
+/// The declared result names the enclosing nominal itself, whatever generic
+/// arguments the constrained extension bound (`ContentUnavailableView<Label,
+/// Description, Actions>` and `ContentUnavailableView<SearchUnavailableContent
+/// .Label, …>` are both `ContentUnavailableView`). Swift infers those
+/// arguments at the generated call site exactly as it does in source.
+func staticFactoryReturnsEnclosingType(
+    _ resultType: String, _ typeName: String
+) -> Bool {
+    let normalized = normalize(resultType)
+        .trimmingCharacters(in: .whitespaces)
+    if normalized == typeName { return true }
+    guard let parts = genericTypeParts(normalized) else { return false }
+    return parts.base == typeName
+}
+
+func processStaticFactory(
+    _ typeName: String, _ function: FunctionDeclSyntax,
+    generics baseGenerics: Generics, guarded: Bool,
+    frameworkRequirements: Set<String>,
+    preservesSemanticValue: Bool
+) {
+    // An operator's static declaration (`static func + (lhs:rhs:) -> Text`)
+    // is same-type too, but it is spelled as an operator at every use site
+    // and reaches the interpreter through operator dispatch, never as a
+    // member read.
+    guard isPublicSDKDecl(function.modifiers),
+          hasModifier(function.modifiers, "static"),
+          case .identifier = function.name.tokenKind,
+          !function.name.text.hasPrefix("_"),
+          function.signature.effectSpecifiers == nil,
+          let returnType = function.signature.returnClause?.type.trimmedDescription,
+          staticFactoryReturnsEnclosingType(returnType, typeName) else { return }
+    staticFactoryTotal += 1
+    guard !guarded, !needsAvailabilityGuard(function.attributes),
+          isUsable(function.attributes) else { return }
+
+    var generics = baseGenerics
+    collectGenericClause(function.genericParameterClause, into: &generics)
+    collectWhereClause(function.genericWhereClause, into: &generics)
+
+    let parameters = function.signature.parameterClause.parameters
+    guard !parameters.contains(where: { $0.ellipsis != nil }) else {
+        staticFactoryBlockers["variadic", default: 0] += 1
+        return
+    }
+    let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
+    if let blocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
+        staticFactoryBlockers[blocked.blocker ?? "?", default: 0] += 1
+        return
+    }
+    for selection in parameterSelections(analyzed) {
+        let candidate = StaticFactoryVariant(
+            type: typeName,
+            member: function.name.text,
+            isProperty: false,
+            variant: Variant(
+                name: typeName + "." + function.name.text,
+                params: selection.params.map { .init(analyzed: $0) },
+                trailingClosureIndex: selection.trailingClosureIndex,
+                isDisfavoredOverload: false,
+                inheritedFrameworkRequirements: frameworkRequirements.union(
+                    platformFrameworkRequirements(function.attributes)),
+                targetImportRequirements: [],
+                unavailableTargetEnvironments: [],
+                minimumTargetAvailabilities: [],
+                preservesSemanticValue: preservesSemanticValue))
+        if staticFactorySeenKeys.insert(candidate.key).inserted {
+            staticFactoryVariants.append(candidate)
+        }
+    }
+}
+
+func processStaticFactory(
+    _ typeName: String, _ variable: VariableDeclSyntax,
+    guarded: Bool, frameworkRequirements: Set<String>,
+    preservesSemanticValue: Bool
+) {
+    guard isPublicSDKDecl(variable.modifiers),
+          hasModifier(variable.modifiers, "static") else { return }
+    for binding in variable.bindings {
+        guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+              !identifier.identifier.text.hasPrefix("_"),
+              let annotation = binding.typeAnnotation,
+              staticFactoryReturnsEnclosingType(
+                  annotation.type.trimmedDescription, typeName) else { continue }
+        staticFactoryTotal += 1
+        guard !guarded, !needsAvailabilityGuard(variable.attributes),
+              isUsable(variable.attributes) else { continue }
+        let candidate = StaticFactoryVariant(
+            type: typeName,
+            member: identifier.identifier.text,
+            isProperty: true,
+            variant: Variant(
+                name: typeName + "." + identifier.identifier.text,
+                params: [],
+                trailingClosureIndex: nil,
+                isDisfavoredOverload: false,
+                inheritedFrameworkRequirements: frameworkRequirements.union(
+                    platformFrameworkRequirements(variable.attributes)),
+                targetImportRequirements: [],
+                unavailableTargetEnvironments: [],
+                minimumTargetAvailabilities: [],
+                preservesSemanticValue: preservesSemanticValue))
+        if staticFactorySeenKeys.insert(candidate.key).inserted {
+            staticFactoryVariants.append(candidate)
+        }
+    }
+}
+
+/// Sweep one member block for same-type statics. Struct declarations and
+/// their constrained extensions supply the same shapes, so both passes of the
+/// View sweep call this.
+func collectStaticFactories(
+    in members: MemberBlockItemListSyntax, type typeName: String,
+    generics: Generics, guarded: Bool,
+    frameworkRequirements: Set<String>,
+    preservesSemanticValue: Bool
+) {
+    for member in members {
+        if let function = member.decl.as(FunctionDeclSyntax.self) {
+            processStaticFactory(
+                typeName, function, generics: generics, guarded: guarded,
+                frameworkRequirements: frameworkRequirements,
+                preservesSemanticValue: preservesSemanticValue)
+        }
+        if let variable = member.decl.as(VariableDeclSyntax.self) {
+            processStaticFactory(
+                typeName, variable, guarded: guarded,
+                frameworkRequirements: frameworkRequirements,
+                preservesSemanticValue: preservesSemanticValue)
+        }
+    }
+}
+
 struct ViewConformanceInfo {
     let generics: Generics
     let guarded: Bool
@@ -2825,6 +2984,11 @@ for file in interfaceFiles {
             viewStructInfo[name] = (
                 generics, guarded, frameworkRequirements,
                 preservesSemanticValue)
+            collectStaticFactories(
+                in: structDecl.memberBlock.members, type: name,
+                generics: generics, guarded: guarded,
+                frameworkRequirements: frameworkRequirements,
+                preservesSemanticValue: preservesSemanticValue)
             for member in structDecl.memberBlock.members {
                 guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
                       isUsable(initDecl.attributes) else { continue }
@@ -2851,6 +3015,11 @@ for file in interfaceFiles {
         let guarded = info.guarded || needsAvailabilityGuard(ext.attributes)
         let frameworkRequirements = info.frameworkRequirements.union(
             platformFrameworkRequirements(ext.attributes))
+        collectStaticFactories(
+            in: ext.memberBlock.members, type: extendedName,
+            generics: generics, guarded: guarded,
+            frameworkRequirements: frameworkRequirements,
+            preservesSemanticValue: info.preservesSemanticValue)
         for member in ext.memberBlock.members {
             guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
                   isUsable(initDecl.attributes) else { continue }
@@ -5523,6 +5692,27 @@ func platformSemanticAdapterEntryCode(
     return "#if !canImport(\(adapter.unavailableFramework))\n\(source)\n#endif"
 }
 
+func staticFactoryEntryCode(_ factory: StaticFactoryVariant) -> String {
+    let variant = factory.variant
+    let specs = variant.params.map(paramSpecCode).joined(separator: ", ")
+    var lines = [
+        "    register(&t, \"\(variant.name)\", [\(specs)]) { v in"
+    ]
+    lines.append(contentsOf: generatedCallPreamble(variant))
+    // A `static var` is read, never called; a `static func` takes the same
+    // generated argument list as an initializer of the same nominal.
+    let produced = factory.isProperty
+        ? variant.name
+        : generatedCall(variant.name, variant)
+    lines.append("        return \(produced)")
+    lines.append("    }")
+    return compileGuarded(lines.joined(separator: "\n"), for: variant)
+}
+
+let sortedStaticFactories = staticFactoryVariants
+    .filter { supportsResultBuilders($0.variant) }
+    .sorted { $0.key < $1.key }
+
 let sortedInits = emittedInitVariants.sorted {
     ($0.name, $0.params.count) < ($1.name, $1.params.count)
 }
@@ -5575,9 +5765,22 @@ if !platformSemanticAdapterVariants.isEmpty {
 }
 viewsOutput += "}\n"
 
+viewsOutput += """
+
+extension GeneratedStaticFactories {
+    static func build() -> [String: [GeneratedConstructor]] {
+        var t: [String: [GeneratedConstructor]] = [:]
+
+"""
+for factory in sortedStaticFactories {
+    viewsOutput += staticFactoryEntryCode(factory) + "\n"
+}
+viewsOutput += "        return t\n    }\n}\n"
+
 let viewsPath = "Sources/SwiftUIBridge/Generated/GeneratedViews.swift"
 try viewsOutput.write(toFile: viewsPath, atomically: true, encoding: .utf8)
-print("wrote \(viewsPath) (\(sortedInits.count) variants)")
+print("wrote \(viewsPath) (\(sortedInits.count) variants, "
+    + "\(sortedStaticFactories.count) same-type static factories)")
 
 var resultBuildersOutput = """
 // GENERATED by BridgeGen from interface-declared non-View result builders.

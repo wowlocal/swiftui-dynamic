@@ -489,7 +489,8 @@ extension Interpreter {
             // property `timeZone.nextDaylightSavingTimeTransition` is
             // honestly nil (a zone with no future DST), but the call shape
             // names the METHOD form (after:), which answers for real.
-            if callee.isNil, let any = baseValue.hostPayload,
+            if callee.isNil,
+               let any = hostMethodReceiver(for: baseValue),
                let method = registry?.hostMethod(name, on: any) {
                 return try invoke(method, with: args, node: call)
             }
@@ -544,7 +545,7 @@ extension Interpreter {
                 // but the call shape names the METHOD
                 // (`query(percentEncoded:)`) — re-dispatch through the
                 // methods-only table, as native overload resolution would.
-                if let any = baseValue.hostPayload,
+                if let any = hostMethodReceiver(for: baseValue),
                    let method = registry?.hostMethod(name, on: any) {
                     return try invoke(method, with: args, node: call)
                 }
@@ -830,6 +831,19 @@ extension Interpreter {
             }
         }
         return methods.filter(methodIsMutating)
+    }
+
+    /// The receiver the property/method collision rescue hands the registry.
+    /// A host TYPE name evaluates to its constructor function, and member
+    /// READS on it are already served through a type marker; the rescue must
+    /// reach the same receiver, or a static's value spelling can answer an
+    /// access that its call spelling then cannot rescue.
+    private func hostMethodReceiver(for baseValue: RuntimeValue) -> Any? {
+        if let payload = baseValue.hostPayload { return payload }
+        guard case .hostFunction(let function) = baseValue else { return nil }
+        return HostTypeMarker(
+            name: function.name,
+            genericArguments: function.genericArguments)
     }
 
     /// Mutating collection methods (`items.append(x)`) resolve the base as an

@@ -506,6 +506,15 @@ func bridgeHostMember(
         if marker.name == "Color", let color = Coerce.colorLike(.implicitMember(name)) {
             return .native(color)
         }
+        // An interface-swept static whose result IS this type
+        // (`ContentUnavailableView.search`). A VALUE position reads the
+        // `static var` spelling; the call spelling answers through
+        // `hostMethod`, exactly like the generated property/method
+        // collisions on instance receivers.
+        if let value = try? GeneratedStaticFactories.value(
+            name, onTypeNamed: marker.name) {
+            return .native(value)
+        }
         switch (marker.name, name) {
         case ("ViewBuilder", "buildEither"):
             // TCA's IfLetStore shim calls the compiler-reserved statics as
@@ -889,6 +898,33 @@ func bridgeFallbackHostMember(
     return fresh
 }
 
+/// The nominal a NATIVE SDK view stands for in the trace tree, or nil when
+/// the value is not a view at all. Generic arguments are dropped so the
+/// recorded kind matches the name source spells:
+/// `ContentUnavailableView<Label, Description, Actions>` records as
+/// `ContentUnavailableView`, the same kind its trace constructor records.
+/// Dispatch is on the `View` conformance, never on a type name.
+func bridgeNativeViewNodeKind(of value: Any) -> String? {
+    guard value is any View else { return nil }
+    let described = GeneratedMembers.keyTypeName(of: value)
+    guard let generic = described.firstIndex(of: "<") else { return described }
+    return String(described[described.startIndex..<generic])
+}
+
+/// The CALL spelling of an interface-swept same-type static
+/// (`ContentUnavailableView.search(text:)`). The member read already answered
+/// with the `static var` of the same name, so this rides the registry's
+/// existing property/method collision rescue — shared by both registries so
+/// the trace and real render paths resolve one table.
+func bridgeHostStaticFactoryMethod(
+    _ name: String, on value: Any
+) -> RuntimeValue? {
+    guard let marker = value as? HostTypeMarker,
+          let method = GeneratedStaticFactories.method(
+              name, onTypeNamed: marker.name) else { return nil }
+    return .hostFunction(method)
+}
+
 private enum HandNormalizedGeneratedPropertyCache {
     static let properties: [String: HostProperty] = {
         var result: [String: HostProperty] = [:]
@@ -1047,6 +1083,7 @@ extension ViewRegistry {
             return GeneratedPlatformBridge.method(name, on: platform)
         }
         return GeneratedMembers.method(name, on: value)
+            ?? bridgeHostStaticFactoryMethod(name, on: value)
             ?? objcTrampolineMethod(name, on: value)
     }
 

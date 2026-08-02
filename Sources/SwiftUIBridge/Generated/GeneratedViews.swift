@@ -1797,3 +1797,88 @@ register(&t, "Image", [ParamSpec("uiImage", .platformSemanticValue("UIKit", "UII
 #endif
     }
 }
+
+extension GeneratedStaticFactories {
+    static func build() -> [String: [GeneratedConstructor]] {
+        var t: [String: [GeneratedConstructor]] = [:]
+    register(&t, "ButtonBorderShape.automatic", []) { v in
+        return ButtonBorderShape.automatic
+    }
+    register(&t, "ButtonBorderShape.capsule", []) { v in
+        return ButtonBorderShape.capsule
+    }
+    register(&t, "ButtonBorderShape.circle", []) { v in
+        return ButtonBorderShape.circle
+    }
+    register(&t, "ButtonBorderShape.roundedRectangle", []) { v in
+        return ButtonBorderShape.roundedRectangle
+    }
+    register(&t, "ButtonBorderShape.roundedRectangle", [ParamSpec("radius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return ButtonBorderShape.roundedRectangle(radius: v[0] as! CGFloat)
+    }
+    register(&t, "Color.accentColor", []) { v in
+        return Color.accentColor
+    }
+    register(&t, "Color.black", []) { v in
+        return Color.black
+    }
+    register(&t, "Color.blue", []) { v in
+        return Color.blue
+    }
+    register(&t, "Color.brown", []) { v in
+        return Color.brown
+    }
+    register(&t, "Color.clear", []) { v in
+        return Color.clear
+    }
+    register(&t, "Color.cyan", []) { v in
+        return Color.cyan
+    }
+    register(&t, "Color.gray", []) { v in
+        return Color.gray
+    }
+    register(&t, "Color.green", []) { v in
+        return Color.green
+    }
+    register(&t, "Color.indigo", []) { v in
+        return Color.indigo
+    }
+    register(&t, "Color.mint", []) { v in
+        return Color.mint
+    }
+    register(&t, "Color.orange", []) { v in
+        return Color.orange
+    }
+    register(&t, "Color.pink", []) { v in
+        return Color.pink
+    }
+    register(&t, "Color.primary", []) { v in
+        return Color.primary
+    }
+    register(&t, "Color.purple", []) { v in
+        return Color.purple
+    }
+    register(&t, "Color.red", []) { v in
+        return Color.red
+    }
+    register(&t, "Color.secondary", []) { v in
+        return Color.secondary
+    }
+    register(&t, "Color.teal", []) { v in
+        return Color.teal
+    }
+    register(&t, "Color.white", []) { v in
+        return Color.white
+    }
+    register(&t, "Color.yellow", []) { v in
+        return Color.yellow
+    }
+    register(&t, "ContentUnavailableView.search", []) { v in
+        return ContentUnavailableView.search
+    }
+    register(&t, "ContentUnavailableView.search", [ParamSpec("text", .string, contextualType: "String")]) { v in
+        return ContentUnavailableView.search(text: v[0] as! String)
+    }
+        return t
+    }
+}

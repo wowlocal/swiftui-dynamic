@@ -1536,6 +1536,70 @@ enum GeneratedConstructors {
     }
 }
 
+/// Namespace the generated same-type static factories extend with `build()`.
+///
+/// These are the interface's second spelling of a nominal's own constructor —
+/// a static whose declared result IS the enclosing type. They need generated
+/// dispatch rather than the leading-dot marker path because a marker only
+/// resolves against a parameter's expected type, and the positions these
+/// reach (a View body, a `some View` result) declare none. Keys are
+/// `Type.member`, so one table answers both the value spelling (`static var`,
+/// arity zero) and the call spelling (`static func`).
+enum GeneratedStaticFactories {
+    static let table: [String: GeneratedConstructorSet] = {
+        var grouped: [String: GeneratedConstructorSet] = [:]
+        for (name, overloads) in build() {
+            grouped[name] = GeneratedConstructorSet(overloads)
+        }
+        return grouped
+    }()
+
+    static func register(
+        _ table: inout [String: [GeneratedConstructor]],
+        _ name: String,
+        _ params: [ParamSpec],
+        isDisfavored: Bool = false,
+        _ invoke: @escaping @MainActor ([Any]) throws -> Any
+    ) {
+        table[name, default: []].append(GeneratedConstructor(
+            params: params,
+            isDisfavored: isDisfavored,
+            invoke: invoke))
+    }
+
+    static func key(_ member: String, onTypeNamed typeName: String) -> String {
+        typeName + "." + member
+    }
+
+    /// The VALUE spelling: `ContentUnavailableView.search`. Only the swept
+    /// zero-parameter overload can answer a bare member read.
+    @MainActor
+    static func value(
+        _ member: String, onTypeNamed typeName: String
+    ) throws -> Any? {
+        guard let overload = table[key(member, onTypeNamed: typeName)]?
+            .byArity[0]?.first else { return nil }
+        return try overload.invoke([])
+    }
+
+    /// The CALL spelling: `ContentUnavailableView.search(text:)`. Overload
+    /// selection is the generated constructor path, so labels and argument
+    /// types are validated by the same interface-derived contracts.
+    static func method(
+        _ member: String, onTypeNamed typeName: String
+    ) -> HostFunction? {
+        let name = key(member, onTypeNamed: typeName)
+        guard let overloads = table[name],
+              overloads.byArity.keys.contains(where: { $0 > 0 }) else {
+            return nil
+        }
+        return HostFunction(name: member) { args, ctx in
+            .native(try GeneratedDispatch.construct(
+                name: name, overloads: overloads, args: args, ctx: ctx))
+        }
+    }
+}
+
 /// Namespace extended by interface-generated non-View result-builder
 /// carriers. The generated implementations retain native protocol values
 /// without teaching handwritten dispatch about any SDK builder identity.

@@ -845,6 +845,7 @@ public final class TraceRegistry: HostRegistry {
             return GeneratedPlatformBridge.method(name, on: platform)
         }
         return GeneratedMembers.method(name, on: value)
+            ?? bridgeHostStaticFactoryMethod(name, on: value)
             ?? objcTrampolineMethod(name, on: value)
     }
 
@@ -924,6 +925,16 @@ public final class TraceRegistry: HostRegistry {
                 if case .host(let inner) = c.base { cursor = inner } else { break }
             }
             return TraceNode(kind: rootName)
+        }
+        // A NATIVE SDK view that no trace constructor minted — an
+        // interface-generated same-type static is the first producer
+        // (`ContentUnavailableView.search(text:)`). The trace tree records
+        // nodes rather than materializing SwiftUI values, so degrade it to a
+        // leaf named for its own type, exactly as the trace constructor
+        // would have. Dispatch is on the View conformance, never a name.
+        if case .host(let any) = value,
+           let kind = bridgeNativeViewNodeKind(of: any) {
+            return TraceNode(kind: kind)
         }
         throw RuntimeError(message: "expected a view, got \(value.stringified)")
     }
