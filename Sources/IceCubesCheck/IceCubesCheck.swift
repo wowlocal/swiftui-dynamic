@@ -1178,6 +1178,9 @@ struct IceCubesCheckMain {
             for target in render.actionTargets {
                 print("@@icecubes-action \(target)")
             }
+            for dropped in render.unreachableSubtrees {
+                print("@@icecubes-unreachable \(dropped)")
+            }
             for string in normalized where !string.isEmpty {
                 print("@@icecubes-string \(string)")
             }

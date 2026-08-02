@@ -1053,6 +1053,89 @@ import SwiftInterpreter
                         + "\(after.strings) with targets \(after.actionTargets)"))
     }
 
+    /// One axis closer to IceCubes: the fetched screen sits inside a TabView
+    /// alongside a static tab, and the model it fetches through arrives from
+    /// the environment rather than being owned locally — the shape whose
+    /// collapse spared the app's static tabs and hit only the timeline.
+    private static let fetchedRowTabSource = """
+    @Observable
+    final class Feed {
+        var rows: [String] = []
+
+        func load() async {
+            rows = ["alpha", "beta"]
+        }
+    }
+
+    struct RowsTab: View {
+        @Environment(Feed.self) private var feed
+        @State private var opened = ""
+
+        var body: some View {
+            VStack {
+                Text(opened.isEmpty ? "no-detail" : "detail-" + opened)
+                ForEach(feed.rows, id: \\.self) { row in
+                    Text("row-" + row)
+                        .onTapGesture {
+                            opened = row
+                        }
+                }
+            }
+            .task {
+                await feed.load()
+            }
+        }
+    }
+
+    struct SettingsTab: View {
+        var body: some View {
+            VStack {
+                Text("settings-root")
+                Button("settings-button") {}
+            }
+        }
+    }
+
+    struct ContentView: View {
+        @State private var feed = Feed()
+
+        var body: some View {
+            TabView {
+                RowsTab()
+                    .tabItem { Text("rows") }
+                SettingsTab()
+                    .tabItem { Text("settings") }
+            }
+            .environment(feed)
+        }
+    }
+
+    @main
+    struct FeedApp: App {
+        var body: some Scene {
+            WindowGroup {
+                ContentView()
+            }
+        }
+    }
+    """
+
+    @Test func aFetchedRowInATabStaysTappable() async throws {
+        let launch = try await LiveCheckSupport.renderedStrings(
+            source: Self.fetchedRowTabSource)
+        #expect(launch.contains("row-beta"),
+                Comment(rawValue: "tab launch lost the fetched rows: \(launch)"))
+
+        let after = try await LiveCheckSupport.render(
+            source: Self.fetchedRowTabSource, afterActions: 1,
+            targeting: .renderingText("row-beta"))
+        #expect(after.strings.contains("detail-beta"),
+                Comment(rawValue:
+                    "an environment-fed tab must keep its fetched rows while "
+                        + "the interaction rung collects actions; got "
+                        + "\(after.strings) with targets \(after.actionTargets)"))
+    }
+
     @Test func aFetchedRowStaysTappable() async throws {
         let after = try await LiveCheckSupport.render(
             source: Self.fetchedRowSource, afterActions: 1,

@@ -8,6 +8,9 @@ public struct LiveCheckRenderResult: Sendable {
     public let lifecycleErrors: [String]
     public let absorbedHostMembers: [String: Int]
     public var networkRequests: [String]
+    /// Subtrees the walk dropped because evaluating them threw — a screen
+    /// that silently vanishes from the tree, named.
+    public var unreachableSubtrees: [String] = []
     /// One entry per action the last collection pass could fire, as
     /// `modifier ⟨what its view renders⟩`. A rung that targeted a screen
     /// element and matched nothing needs to report what WAS tappable.
@@ -126,6 +129,10 @@ public enum LiveCheckSupport {
     /// The absorb histogram from the last probe — the demand list for the
     /// generated-members tier (BridgeGen --emit fills the biggest absorber).
     public private(set) static var lastAbsorbedHostMembers: [String: Int] = [:]
+    /// Subtrees the walk dropped because evaluating them threw. Optional
+    /// coverage keeps a failing pushed screen from failing the whole walk,
+    /// but a screen that vanishes silently is a wall no board can name.
+    public private(set) static var lastUnreachableSubtrees: [String] = []
 
     /// `afterActions:` — the interaction rung: after lifecycle passes,
     /// invoke up to N collected actions (each against a FRESH render, like
@@ -330,6 +337,7 @@ public enum LiveCheckSupport {
         }
         lastLifecycleFired = 0
         lastLifecycleErrors = []
+        lastUnreachableSubtrees = []
         lastAbsorbedHostMembers = [:]
 
         // The async-fetch pass (M2): render, FIRE retained `.task`/
@@ -533,6 +541,7 @@ public enum LiveCheckSupport {
             lifecycleErrors: lastLifecycleErrors,
             absorbedHostMembers: lastAbsorbedHostMembers,
             networkRequests: [],
+            unreachableSubtrees: lastUnreachableSubtrees,
             actionTargets: finalActions.map(\.summary))
     }
 
@@ -656,7 +665,12 @@ public enum LiveCheckSupport {
                 offscreenLifecycle += optionalOffscreenLifecycle
                 actions += optionalActions
             } catch {
-                // unreachable screen: contributes nothing
+                // unreachable screen: contributes nothing — but a screen
+                // that silently drops out of the tree is exactly the wall a
+                // board needs named, so the failure is recorded rather than
+                // only swallowed.
+                lastUnreachableSubtrees.append(
+                    "\(node.kind): \(error)")
             }
             return
         }
