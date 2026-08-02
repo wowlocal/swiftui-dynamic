@@ -72,17 +72,40 @@ run_twin_screen() {
 # divergence — a live animation, a settle bug — fails every attempt and exits
 # loudly. The retry lives HERE, capped: never loop the script itself until a
 # red goes green, and never answer this red by moving a floor.
+#
+# A capture process that DIES is retried by the same bounded loop rather than
+# aborting the board on first sight. Measured 2026-08-03: a full gate lost the
+# interpreted account-header capture to a launch-time death that wrote a
+# zero-byte log, while the same screen captured cleanly 8/8 at idle and in a
+# solo board run on the same binary — a transient the window server loses, not
+# a divergence. Retrying cannot weaken the metric: the pair still has to match
+# at AE 0 before anything is scored, so a retried capture can only produce the
+# same pixels or fail again. Persistent death exhausts the attempts and exits
+# loudly with the real status.
 twin_reproducible=0
+twin_failure="diverged"
 for attempt in 1 2 3; do
   twin_diverged=0
   for screen in timeline status-detail account-header; do
-    run_twin_screen "$screen" "$TWIN_DIR" || exit 2
-    run_twin_screen "$screen" "$TWIN_REPEAT_DIR" || exit 2
+    run_twin_screen "$screen" "$TWIN_DIR"
+    twin_status=$?
+    if (( twin_status == 0 )); then
+      run_twin_screen "$screen" "$TWIN_REPEAT_DIR"
+      twin_status=$?
+    fi
+    if (( twin_status != 0 )); then
+      echo "twin $screen capture failed with status $twin_status" \
+        "(attempt $attempt)" >&2
+      twin_diverged=1
+      twin_failure="died"
+      break
+    fi
     determinism_line="$(xcrun swift Scripts/pixel-ae.swift \
       "$TWIN_DIR/$screen.png" "$TWIN_REPEAT_DIR/$screen.png")"
     if (( $? != 0 )); then
       echo "twin $screen capture pair diverged (attempt $attempt: $determinism_line)"
       twin_diverged=1
+      twin_failure="diverged"
       break
     fi
   done
@@ -92,8 +115,13 @@ for attempt in 1 2 3; do
   fi
 done
 if (( twin_reproducible == 0 )); then
-  echo "twin CAPTURE-NONDETERMINISM: no reproducible capture pair in 3" \
-    "attempts — fix the capture, not the floor" >&2
+  if [[ "$twin_failure" == died ]]; then
+    echo "twin CAPTURE-DEATH: no capture survived 3 attempts —" \
+      "fix the capture, not the floor" >&2
+  else
+    echo "twin CAPTURE-NONDETERMINISM: no reproducible capture pair in 3" \
+      "attempts — fix the capture, not the floor" >&2
+  fi
   exit 2
 fi
 
@@ -180,25 +208,40 @@ capture_interpreted_screen() {
 # `&` fan-out without also proving the reproducibility gate below stays green.
 capture_reproducible_interpreted_screen() {
   local screen="$1"
-  local attempt determinism_line
+  local attempt determinism_line capture_status
+  local failure="diverged"
   for attempt in 1 2 3; do
+    local capture_died=0
     for interp_out in "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
-      if ! capture_interpreted_screen "$screen" "$interp_out"; then
-        local capture_status=$?
+      capture_interpreted_screen "$screen" "$interp_out"
+      capture_status=$?
+      if (( capture_status != 0 )); then
         cat "$interp_out/$screen.log"
-        echo "interpreted $screen capture failed with status $capture_status" >&2
-        exit 2
+        echo "interpreted $screen capture failed with status" \
+          "$capture_status (attempt $attempt)" >&2
+        capture_died=1
+        failure="died"
+        break
       fi
     done
+    if (( capture_died )); then
+      continue
+    fi
     determinism_line="$(xcrun swift Scripts/pixel-ae.swift \
       "$INTERP_DIR/$screen.png" "$INTERP_REPEAT_DIR/$screen.png")"
     if (( $? == 0 )); then
       return 0
     fi
+    failure="diverged"
     echo "interpreted $screen capture pair diverged (attempt $attempt: $determinism_line)"
   done
-  echo "interpreted $screen CAPTURE-NONDETERMINISM: no reproducible capture" \
-    "pair in 3 attempts — fix the capture, not the floor" >&2
+  if [[ "$failure" == died ]]; then
+    echo "interpreted $screen CAPTURE-DEATH: no capture survived 3" \
+      "attempts — fix the capture, not the floor" >&2
+  else
+    echo "interpreted $screen CAPTURE-NONDETERMINISM: no reproducible capture" \
+      "pair in 3 attempts — fix the capture, not the floor" >&2
+  fi
   exit 2
 }
 
