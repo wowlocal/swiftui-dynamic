@@ -1071,10 +1071,17 @@ struct CompilerPreflightTests {
         let script = directory.appendingPathComponent("fake-swiftc")
         let descendantPIDFile = directory.appendingPathComponent(
             "descendant-pid")
+        // The descendant must ignore TERM, or it would not prove the timeout
+        // kills the whole TREE rather than just the process it launched. It
+        // must NOT also spin: a TERM-immune busy loop turns every escaped
+        // cleanup into a permanently pegged core, and this fixture is
+        // reparented to init the moment its parent is killed. Sleeping proves
+        // the same thing at zero CPU and expires on its own if a leak ever
+        // outruns the cleanup below.
         try """
         #!/bin/sh
         trap '' TERM
-        /bin/sh -c 'trap "" TERM; while :; do :; done' &
+        /bin/sh -c 'trap "" TERM; sleep 3600' &
         echo $! > "\(descendantPIDFile.path)"
         wait
         """.write(to: script, atomically: true, encoding: .utf8)
@@ -1104,14 +1111,34 @@ struct CompilerPreflightTests {
             #expect(timeout == 0.5)
         }
 
-        let rawPID = try String(
-            contentsOf: descendantPIDFile, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let descendantPID = try #require(pid_t(rawPID))
+        let descendantPID = try #require(Self.recordedPID(in: descendantPIDFile))
+        // Reap it whatever the assertion decides. If the tree-kill under test
+        // REGRESSES, this expectation fails — and without an unconditional
+        // cleanup the surviving descendant ignores TERM and outlives the whole
+        // suite, so the very defect the test detects would also leak it.
+        defer { Darwin.kill(descendantPID, SIGKILL) }
         for _ in 0..<100 where Darwin.kill(descendantPID, 0) == 0 {
             Thread.sleep(forTimeInterval: 0.01)
         }
         #expect(Darwin.kill(descendantPID, 0) == -1 && errno == ESRCH)
+    }
+
+    /// The fake compiler creates the PID file and writes to it as two steps,
+    /// so a reader that only waits for EXISTENCE can parse an empty string.
+    /// Every caller kills what this returns, and a nil is a leaked descendant,
+    /// so wait for a value that actually parses.
+    private static func recordedPID(in file: URL) -> pid_t? {
+        let deadline = Date().addingTimeInterval(10)
+        repeat {
+            if let raw = try? String(contentsOf: file, encoding: .utf8),
+               let pid = pid_t(
+                   raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                return pid
+            }
+            Thread.sleep(forTimeInterval: 0.005)
+        } while Date() < deadline
+        return nil
     }
 
     /// Run the stuck fake compiler once and kill the tree it made, so the
@@ -1125,16 +1152,7 @@ struct CompilerPreflightTests {
         warmup.standardOutput = FileHandle.nullDevice
         warmup.standardError = FileHandle.nullDevice
         try warmup.run()
-        let deadline = Date().addingTimeInterval(10)
-        while !FileManager.default.fileExists(atPath: descendantPIDFile.path),
-              warmup.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.005)
-        }
-        if let raw = try? String(
-            contentsOf: descendantPIDFile, encoding: .utf8),
-            let warmed = pid_t(
-                raw.trimmingCharacters(in: .whitespacesAndNewlines))
-        {
+        if let warmed = Self.recordedPID(in: descendantPIDFile) {
             Darwin.kill(warmed, SIGKILL)
         }
         Darwin.kill(warmup.processIdentifier, SIGKILL)
