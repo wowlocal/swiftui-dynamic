@@ -3,6 +3,10 @@
 # claude invocation, forever. Run inside tmux (`tmux attach -t lane-foodtruck`
 # to watch, Ctrl-B D to detach, `tmux kill-session -t lane-foodtruck` to stop).
 set -u
+# `claude` lives in ~/.local/bin, which .zshrc adds - so an agterm --command
+# session, a login-but-not-interactive `zsh -lc`, launchd or cron all start
+# without it. Put it back here so the runner works whoever launched it.
+export PATH="$HOME/.local/bin:$PATH"
 LANE=/Users/mike/src/tries/2026-07-08-swiftui-dynamic/.claude/worktrees/lane-foodtruck-run
 LOG_DIR=/tmp/lane-foodtruck-loop
 MODEL="${LOOP_MODEL:-claude-opus-5}"
