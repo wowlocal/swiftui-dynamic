@@ -276,10 +276,11 @@ public final class TraceRegistry: HostRegistry {
         }
         switch name {
         case "Text", "Image", "Spacer", "Divider", "Toggle", "TextField", "Slider":
-            return HostFunction(name: name) { args, _ in
+            return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: name)
                 for argument in args.arguments {
-                    if case .host(let any) = argument.value, let stub = any as? BindingStub {
+                    if let stub = try Self.bindingStub(
+                        of: argument.value, context: ctx) {
                         node.bindings[argument.label ?? "_"] = stub
                     } else if argument.value.closureValue == nil {
                         node.args.append(argument.value.stringified)
@@ -527,7 +528,8 @@ public final class TraceRegistry: HostRegistry {
                     Self.viewportMaterializedContainers.contains(name)
                 var data: RuntimeValue?
                 for argument in args.arguments {
-                    if case .host(let any) = argument.value, let stub = any as? BindingStub {
+                    if let stub = try Self.bindingStub(
+                        of: argument.value, context: ctx) {
                         node.bindings[argument.label ?? "_"] = stub
                     } else if let closure = argument.value.closureValue {
                         if argument.label == "action" {
@@ -586,6 +588,27 @@ public final class TraceRegistry: HostRegistry {
                 return .native(node)
             }
         }
+    }
+
+    /// A binding argument in EITHER spelling. `$state` arrives already
+    /// materialized, but the SDK's own `Binding.init(get:set:)` written
+    /// contextually is an unresolved `.init` marker until something supplies
+    /// the type — and a recorder that only recognized the first spelling filed
+    /// the second as configuration, so the container never saw a binding at
+    /// all. Both spellings resolve through the one closure-backed Binding
+    /// primitive rather than each recorder learning initializer syntax.
+    ///
+    /// Dispatch is on the marker's SHAPE (an `init` carrying `get:`/`set:`
+    /// closures), never on a label or a type name, so a `.init(filter:sort:)`
+    /// store marker in the same argument position stays configuration.
+    private static func bindingStub(
+        of value: RuntimeValue, context: EvalContext
+    ) throws -> BindingStub? {
+        if case .host(let any) = value, let stub = any as? BindingStub {
+            return stub
+        }
+        return try BindingSemanticBridge.contextualStub(
+            from: value, context: context)
     }
 
     /// Value-keyed selection: a container holding a `selection:` binding shows

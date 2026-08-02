@@ -147,14 +147,11 @@ struct TabSelectionTests {
     /// instead of a title argument. Distilled here so the shape is pinned by
     /// seconds of unit test rather than only by the whole app.
     ///
-    /// One difference from the app remains DELIBERATE: IceCubes writes the
-    /// binding as `.init(get:set:)`, and an implicit-member `.init` in an
-    /// argument of a container the trace path records generically has no
-    /// contextual type to resolve against, so it does not become a binding at
-    /// all. That is a separate failure class about argument contextual types
-    /// — it is not about selection, and naming it here would make this repro
-    /// measure two things at once. Spelled `Binding(...)`, everything the
-    /// shell does is exercised.
+    /// Spelled `Binding(...)` here on purpose: the app's own `.init(get:set:)`
+    /// spelling is a separate class — whether a contextual initializer in an
+    /// argument becomes a binding at all — and is measured by
+    /// `ContextualBindingArgumentTests`. Keeping both spellings pinned in
+    /// their own suites means a regression in either one names itself.
     private static let appShellSource = """
     struct Screen: Hashable, Identifiable {
         let id: Int
