@@ -3434,7 +3434,13 @@ struct ConcurrencyMethodologyTests {
             status.semanticCapabilities,
             by: { $0.verificationStatus.rawValue }).mapValues(\.count)
         #expect(receipt["result"] as? String == "RED")
-        #expect(receipt["schemaVersion"] as? Int == 3)
+        #expect(receipt["schemaVersion"] as? Int == 4)
+        // Schema 4 carries the north-star rung ladder beside the pixel board,
+        // so a receipt that reports R2 alone is no longer a complete receipt.
+        let stages = try #require(receipt["stages"] as? [String: Any])
+        let boards = try #require(receipt["boards"] as? [String: Any])
+        #expect(stages["iceCubesBoard"] is [String: Any])
+        #expect(boards["iceCubesBoard"] is String)
         #expect(source["commitAtStart"] is String)
         #expect(source["commitAtEnd"] is String)
         #expect(source["worktreeFingerprint"] is String)
