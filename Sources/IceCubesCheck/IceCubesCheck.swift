@@ -675,6 +675,10 @@ struct IceCubesCheckMain {
             for failure in failures {
                 print("   \(failure.name): \(failure.message.prefix(240))")
             }
+            // The north star reports its own health through its exit status,
+            // exactly as the LIVE board already does — a red rung must be
+            // able to fail a gate rather than scroll past in a log.
+            exit(1)
         }
     }
 #endif
