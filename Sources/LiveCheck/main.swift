@@ -273,31 +273,46 @@ if parallelOptions.shouldCoordinate, filteredScenarios.count > 1 {
 
 let scenariosToRun = parallelOptions.selected(from: filteredScenarios)
 
+// A shard is killed by the closing gate when it outlives
+// DYNAMIC_SWIFT_CHECK_TIMEOUT_SECONDS, so the board has to say WHICH
+// scenario spent the budget. Without it a shard timeout reports only
+// that the slowest of the five ran long, and the live stage is the
+// longest stage in the gate.
+func elapsedDescription(_ duration: Duration) -> String {
+    let seconds = Double(duration.components.seconds)
+        + Double(duration.components.attoseconds) / 1e18
+    return String(format: "%.1fs", seconds)
+}
+
 var passed = 0
 var failureClasses: [(scenario: String, message: String)] = []
 var ran = 0
+let shardStarted = ContinuousClock.now
 for scenario in scenariosToRun {
     ran += 1
     NetworkBridge.policy = .replay(fixturesDirectory: scenario.fixturesDirectory)
     NetworkBridge.requestLog = []
     defer { NetworkBridge.policy = .absorbed }
+    let started = ContinuousClock.now
     do {
         let failures = try await scenario.run()
+        let elapsed = elapsedDescription(started.duration(to: ContinuousClock.now))
         if failures.isEmpty {
             passed += 1
-            print("✅ \(scenario.name)")
+            print("✅ \(scenario.name)  \(elapsed)")
         } else {
-            print("🟡 \(scenario.name)")
+            print("🟡 \(scenario.name)  \(elapsed)")
             for failure in failures {
                 print("   ✗ \(failure)")
                 failureClasses.append((scenario.name, failure))
             }
         }
     } catch {
-        print("❌ \(scenario.name)  \(error)")
+        print("❌ \(scenario.name)  \(elapsedDescription(started.duration(to: ContinuousClock.now)))  \(error)")
         failureClasses.append((scenario.name, "\(error)"))
     }
 }
+print("shard \(parallelOptions.shardIndex + 1)/\(parallelOptions.shardCount) ran \(ran) scenarios in \(elapsedDescription(shardStarted.duration(to: ContinuousClock.now)))")
 
 print("\n═══ \(passed)/\(ran) live-data scenarios pass ═══")
 if !failureClasses.isEmpty {
