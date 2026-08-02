@@ -140,6 +140,92 @@ struct TabSelectionTests {
                         + "\(after.strings)"))
     }
 
+    /// IceCubes' shell spells all three of these at once (AppView.swift:77):
+    /// the selection is a COMPUTED binding routing writes through the app's
+    /// own `updateTab(with:)`, the items are nested inside a `TabSection`
+    /// inside a `ForEach`, and each carries a separate `label:` builder
+    /// instead of a title argument. Distilled here so the shape is pinned by
+    /// seconds of unit test rather than only by the whole app.
+    ///
+    /// One difference from the app remains DELIBERATE: IceCubes writes the
+    /// binding as `.init(get:set:)`, and an implicit-member `.init` in an
+    /// argument of a container the trace path records generically has no
+    /// contextual type to resolve against, so it does not become a binding at
+    /// all. That is a separate failure class about argument contextual types
+    /// — it is not about selection, and naming it here would make this repro
+    /// measure two things at once. Spelled `Binding(...)`, everything the
+    /// shell does is exercised.
+    private static let appShellSource = """
+    struct Screen: Hashable, Identifiable {
+        let id: Int
+        let name: String
+    }
+
+    struct ContentView: View {
+        @State private var screen = 1
+        @State private var writes = 0
+
+        private var screens: [Screen] {
+            [Screen(id: 1, name: "one"), Screen(id: 2, name: "two")]
+        }
+
+        var body: some View {
+            TabView(selection: Binding(
+                get: { screen },
+                set: { newScreen in
+                    writes += 1
+                    screen = newScreen
+                })
+            ) {
+                TabSection("section-title") {
+                    ForEach(screens) { entry in
+                        Tab(value: entry.id) {
+                            Text("content-\\(entry.name)")
+                        } label: {
+                            Text("label-\\(entry.name)")
+                        }
+                    }
+                }
+            }
+            Text("writes-\\(writes)")
+        }
+    }
+    """
+
+    @Test func theAppShellSpellingSelectsThroughItsComputedBinding()
+        async throws
+    {
+        let before = try await LiveCheckSupport.renderedStrings(
+            source: Self.appShellSource)
+        #expect(before.contains("content-one"),
+                Comment(rawValue: "got \(before)"))
+        #expect(!before.contains("content-two"),
+                Comment(rawValue:
+                    "only the selected tab's content renders when the items "
+                        + "are nested in a TabSection/ForEach; got \(before)"))
+        // Both labels are on screen either way: a tab bar shows every tab.
+        #expect(before.contains("label-one") && before.contains("label-two"),
+                Comment(rawValue: "got \(before)"))
+
+        let after = try await LiveCheckSupport.render(
+            source: Self.appShellSource, afterActions: 1,
+            targeting: .renderingText("label-two"))
+        #expect(after.strings.contains("content-two"),
+                Comment(rawValue:
+                    "selecting through a computed binding must land on the "
+                        + "second tab; got \(after.strings) among "
+                        + "\(after.actionTargets)"))
+        #expect(!after.strings.contains("content-one"),
+                Comment(rawValue: "got \(after.strings)"))
+        // The app's own setter ran — IceCubes routes the write through
+        // `updateTab(with:)`, so a selection that bypassed it would skip
+        // everything the app does on a tab change.
+        #expect(after.strings.contains("writes-1"),
+                Comment(rawValue:
+                    "the computed binding's set() must run exactly once; got "
+                        + "\(after.strings)"))
+    }
+
     /// A `TabView` with no selection keeps its existing behavior exactly — the
     /// change is additive for every app that never binds one.
     private static let unselectedSource = """
