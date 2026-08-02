@@ -25,6 +25,36 @@ private enum ContextualStaticMemberFit: Equatable {
 }
 
 extension Interpreter {
+    /// An Array, Dictionary or Set spelling — the shapes whose ELEMENTS are
+    /// reached by iteration rather than by a member access that could carry
+    /// the declared type to them later.
+    static func isCollectionTypeName(_ typeName: String) -> Bool {
+        let name = typeName.trimmingCharacters(in: .whitespaces)
+        if name.hasPrefix("["), name.hasSuffix("]") { return true }
+        return name.hasPrefix("Set<") && name.hasSuffix(">")
+    }
+
+    /// Whether a collection still holds a leading-dot member that nothing has
+    /// given a type. Scanned one level: an element that is itself a nested
+    /// collection resolves through the same annotated recursion.
+    static func containsUnresolvedImplicitMember(_ value: RuntimeValue) -> Bool {
+        func isUnresolved(_ element: RuntimeValue) -> Bool {
+            if case .implicitMember = element { return true }
+            if case .host(let any) = element,
+               let call = any as? ImplicitMemberCall {
+                return call.typeHint == nil
+            }
+            return false
+        }
+        if let array = value.arrayValue { return array.contains(where: isUnresolved) }
+        if let set = value.setValue { return set.elements.contains(where: isUnresolved) }
+        if let dictionary = value.dictValue {
+            return dictionary.keys.contains(where: isUnresolved)
+                || dictionary.values.contains(where: isUnresolved)
+        }
+        return false
+    }
+
     // MARK: - Identifiers & members
 
     /// A module qualifier is semantic source metadata, not a small list of
@@ -2240,6 +2270,19 @@ extension Interpreter {
             case .normal(let value), .returnValue(let value):
                 if let typeName = computed.typeName,
                    RuntimeOptionalValue.wrappedType(in: typeName) != nil {
+                    return try resolveAnnotated(value, typeName: typeName)
+                }
+                // A marker INSIDE a collection has no later dispatch boundary
+                // to resolve at: elements are reached by ITERATION, not by a
+                // member access on the property, so nothing downstream ever
+                // sees the annotation again. Resolve them here, exactly as a
+                // function's declared return type already does for the same
+                // body (`var tabs: [AppTab] { [.timeline, .settings] }` —
+                // IceCubes Tabs.swift:349, whose elements must equal the
+                // `AppTab` a selection binding holds).
+                if let typeName = computed.typeName,
+                   Self.isCollectionTypeName(typeName),
+                   Self.containsUnresolvedImplicitMember(value) {
                     return try resolveAnnotated(value, typeName: typeName)
                 }
                 // Keep contextual markers lazy. Receiver operations that
