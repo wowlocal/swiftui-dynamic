@@ -505,7 +505,13 @@ cleanup() {
         exit_status=1
     fi
     write_receipt "$exit_status" || receipt_failed=1
-    if [[ "${GATE_KEEP_LOGS:-0}" == "1" ]] || (( receipt_failed != 0 )); then
+    # A RED gate must keep the evidence that names its own failure. The
+    # receipt's log tails are bounded and a parallel worker's summary JSON can
+    # fill them, so deleting the per-worker logs on a red run leaves the
+    # closing check reporting only THAT something failed — costing a second
+    # full gate to find out what.
+    if [[ "${GATE_KEEP_LOGS:-0}" == "1" ]] || (( receipt_failed != 0 )) \
+       || (( exit_status != 0 )); then
         echo "gate logs kept at $out"
     else
         rm -rf "$out"

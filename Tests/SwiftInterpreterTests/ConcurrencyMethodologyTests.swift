@@ -3082,6 +3082,30 @@ struct ConcurrencyMethodologyTests {
                     + "path instead of the xcrun toolchain"))
     }
 
+    /// A red closing gate must keep the evidence that names its own failure.
+    /// The receipt's log tails are bounded, and a parallel worker's summary
+    /// JSON can fill them entirely, so a run that deletes its per-worker logs
+    /// reports only THAT something failed — the 2026-08-02 red cost a second
+    /// full gate just to learn which test it was.
+    @Test func closingGateKeepsItsLogsWhenTheRunIsRed() throws {
+        let gate = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+        guard let block = gate.range(of: "gate logs kept at") else {
+            Issue.record("closing gate no longer reports a log location")
+            return
+        }
+        let condition = String(gate[..<block.lowerBound].suffix(400))
+        #expect(condition.contains("exit_status != 0"),
+                Comment(rawValue:
+                    "a RED gate deletes the worker logs that name its "
+                        + "failure: \(condition.suffix(200))"))
+        // Still cleans up after a green run — keeping every gate's logs
+        // would fill the scratch volume one 40-minute run at a time.
+        #expect(gate.contains("rm -rf \"$out\""))
+    }
+
     @Test func closingGateExecutesIceCubesPolicyAndR2Boards() throws {
         let gate = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(
