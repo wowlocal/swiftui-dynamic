@@ -587,11 +587,23 @@ public enum LiveCheckSupport {
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil,
         viewportRowCapacity: Int? = nil,
-        viewportSlice: LifecycleViewportSlice = .initial
+        viewportSlice: LifecycleViewportSlice = .initial,
+        expanding: Set<String> = []
     ) throws {
         // Keep a finite guard for malformed recursive Views while allowing
         // valid type-erased branches to nest beyond ordinary app-shell depth.
         guard depth < 128 else { return }
+        // A real app's screens link to EACH OTHER, so the destination walk is
+        // over a graph with cycles: re-entering a screen already being
+        // expanded on this path costs one more full expansion per iteration,
+        // bounded only by the depth guard. On device that screen renders only
+        // after a tap, so the speculative walk stops at the cycle instead.
+        // Only the speculative half is guarded — a required body that nests
+        // its own type is a genuine recursive view and still renders.
+        if node.optionalCoverage, let instance = node.instance,
+           expanding.contains(instance.symbol.name) {
+            return
+        }
         // An action is aimed at by what its own view renders, so remember
         // where this node's subtree begins and close the range once the
         // subtree is walked. Nested actions occupy later indices, so a parent
@@ -650,7 +662,8 @@ public enum LiveCheckSupport {
                                     initialViewport: initialViewport,
                                     viewportRowCapacity:
                                         viewportRowCapacity,
-                                    viewportSlice: viewportSlice)
+                                    viewportSlice: viewportSlice,
+                                    expanding: expanding)
                 strings += optionalStrings
                 lifecycle += optionalLifecycle
                 offscreenLifecycle += optionalOffscreenLifecycle
@@ -667,7 +680,8 @@ public enum LiveCheckSupport {
                             lifecycleEnabled: lifecycleEnabled,
                             initialViewport: initialViewport,
                             viewportRowCapacity: viewportRowCapacity,
-                            viewportSlice: viewportSlice)
+                            viewportSlice: viewportSlice,
+                            expanding: expanding)
     }
 
     private static func collectRequired(
@@ -679,7 +693,8 @@ public enum LiveCheckSupport {
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil,
         viewportRowCapacity: Int? = nil,
-        viewportSlice: LifecycleViewportSlice = .initial
+        viewportSlice: LifecycleViewportSlice = .initial,
+        expanding: Set<String> = []
     ) throws {
         if let instance = node.instance {
             if traceLifecycle, let tracedViewTypes,
@@ -701,7 +716,8 @@ public enum LiveCheckSupport {
                         lifecycleEnabled: lifecycleEnabled,
                         initialViewport: initialViewport,
                         viewportRowCapacity: viewportRowCapacity,
-                        viewportSlice: viewportSlice)
+                        viewportSlice: viewportSlice,
+                        expanding: expanding.union([instance.symbol.name]))
         }
         if node.kind == "ForEach", let initialViewport {
             initialViewport.encounteredRows = true
@@ -726,7 +742,8 @@ public enum LiveCheckSupport {
                                 || rowWasInitiallyVisible),
                     initialViewport: nil,
                     viewportRowCapacity: viewportRowCapacity,
-                    viewportSlice: viewportSlice)
+                    viewportSlice: viewportSlice,
+                    expanding: expanding)
             }
             return
         }
@@ -749,7 +766,8 @@ public enum LiveCheckSupport {
                                     || childWasInitiallyVisible),
                         initialViewport: childConsumesRow ? nil : initialViewport,
                         viewportRowCapacity: viewportRowCapacity,
-                        viewportSlice: viewportSlice)
+                        viewportSlice: viewportSlice,
+                        expanding: expanding)
         }
     }
 }
