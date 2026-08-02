@@ -1939,35 +1939,6 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
 }
 
-private let dateFormatterDateFormatProperty: HostProperty = {
-    do {
-        return try HostProperty(
-            declaration: "var DateFormatter.dateFormat: String",
-            get: { receiver, _ in
-                guard case .host(let any) = receiver,
-                      let box = any as? DateFormatterBox else {
-                    throw RuntimeError(message: "DateFormatter.dateFormat receiver mismatch")
-                }
-                return .native(box.formatter.dateFormat ?? "")
-            },
-            set: { receiver, value, _ in
-                guard case .host(let any) = receiver,
-                      let box = any as? DateFormatterBox,
-                      let format = value.stringValue else {
-                    throw RuntimeError(message: "DateFormatter.dateFormat setter mismatch")
-                }
-                box.formatter.dateFormat = format
-            })
-    } catch {
-        preconditionFailure("invalid DateFormatter property declaration: \(error)")
-    }
-}()
-
-func hostObjectProperty(_ name: String, on value: Any) -> HostProperty? {
-    guard value is DateFormatterBox, name == "dateFormat" else { return nil }
-    return dateFormatterDateFormatProperty
-}
-
 /// Writable members on host objects.
 func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
     if let record = value as? GeneratedCRecordValue {

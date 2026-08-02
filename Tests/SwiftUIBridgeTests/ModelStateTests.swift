@@ -343,6 +343,15 @@ import SwiftInterpreter
         #expect(try interpreter.run(source: source).stringValue == "false true true")
     }
 
+    /// `4 Optional("yyyy") yes` — the output of this exact program compiled
+    /// with real `swiftc`. The SDK declares `DateFormatter.dateFormat` as
+    /// `String!`, so binding it to an unannotated `let` infers `String?` and
+    /// interpolation prints the debug description (native even warns about
+    /// it). This expectation previously read `4 yyyy yes`, which no native
+    /// run produces: it described a handwritten box property declared
+    /// `String` that unwrapped with `?? ""`. Once the box became a generated
+    /// contract carrier the emitted `String?` contract served the member and
+    /// the interpreter started matching the compiler.
     @Test func dateFormatterHostObject() throws {
         let source = """
         let formatter = DateFormatter()
@@ -359,7 +368,7 @@ import SwiftInterpreter
         #expect(firstConstructor.signature?.declaration == "init DateFormatter()")
         let interpreter = Interpreter(registry: registry)
         let result = try interpreter.run(source: source)
-        #expect(result.stringValue == "4 yyyy yes")
+        #expect(result.stringValue == "4 Optional(\"yyyy\") yes")
     }
 
     @Test func hostTypeExtensions() throws {

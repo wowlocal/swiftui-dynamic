@@ -960,7 +960,6 @@ func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
            name, on: carrier) {
         return property
     }
-    if let property = hostObjectProperty(name, on: value) { return property }
     // Preserve hand-normalized reads (notably URLComponents.queryItems), but
     // put swept writable SDK properties behind their generated contract.
     // This retires permissive compatibility setters without changing the
