@@ -31,6 +31,36 @@ extension GeneratedReferencePropertyCarrier {
     }
 }
 
+/// A carrier whose payload is a LIVE Foundation reference. The box keeps only
+/// the members that need genuine interpreted behavior — real formatting, or
+/// coercion of operands the interpreter owns rather than Objective-C — and
+/// every other property its logical type declares reaches the generated
+/// contract and drives the live object through the shared Objective-C
+/// property path. An adopting box therefore names no property: the generated
+/// table decides which names are legal, and KVC performs the write.
+@MainActor
+protocol GeneratedReferenceBackedBox: GeneratedReferencePropertyCarrier {
+    /// The live object the generated contract reads and writes.
+    var generatedReferenceObject: NSObject { get }
+}
+
+extension GeneratedReferenceBackedBox {
+    func applyGeneratedReferenceProperty(
+        _ name: String, declaredType: String, value: RuntimeValue
+    ) throws -> Bool {
+        try ObjCTrampoline.applyGeneratedReferenceProperty(
+            name, declaredType: declaredType, value: value,
+            on: generatedReferenceObject)
+    }
+
+    func generatedReferencePropertyValue(
+        _ name: String, declaredType: String
+    ) throws -> RuntimeValue? {
+        try ObjCTrampoline.generatedReferencePropertyRead(
+            name, declaredType: declaredType, on: generatedReferenceObject)
+    }
+}
+
 @MainActor
 enum GeneratedReferencePropertySupport {
     private static let properties: [String: HostProperty] = {

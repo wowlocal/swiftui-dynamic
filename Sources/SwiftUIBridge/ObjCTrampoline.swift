@@ -211,12 +211,12 @@ enum ObjCTrampoline {
     static func generatedReferencePropertyRead(
         _ name: String,
         declaredType: String,
-        on box: ObjCBox
+        on object: NSObject
     ) throws -> RuntimeValue? {
-        guard box.object.responds(to: Selector(name)) else { return nil }
+        guard object.responds(to: Selector(name)) else { return nil }
         var nativeValue: Any?
         if let exception = DSUICatchObjCException({
-            nativeValue = box.object.value(forKey: name)
+            nativeValue = object.value(forKey: name)
         }) {
             throw RuntimeError(message:
                 "ObjC exception: \(exception.name.rawValue) — "
@@ -245,11 +245,11 @@ enum ObjCTrampoline {
     /// perform(_:with:) cannot provide for non-object Objective-C setters.
     static func applyGeneratedReferenceProperty(
         _ name: String, declaredType: String,
-        value: RuntimeValue, on box: ObjCBox
+        value: RuntimeValue, on object: NSObject
     ) throws -> Bool {
         let setter = Selector(
             "set\(name.prefix(1).uppercased())\(name.dropFirst()):")
-        guard box.object.responds(to: setter) else { return false }
+        guard object.responds(to: setter) else { return false }
 
         let nativeValue: Any?
         if case .implicitMember(let member) = value {
@@ -270,7 +270,7 @@ enum ObjCTrampoline {
         }
 
         if let exception = DSUICatchObjCException({
-            box.object.setValue(nativeValue, forKey: name)
+            object.setValue(nativeValue, forKey: name)
         }) {
             throw RuntimeError(message:
                 "ObjC exception: \(exception.name.rawValue) — "
@@ -570,10 +570,12 @@ private final class ProjectDataAssetObject: NSObject {
 }
 
 /// A live NSObject riding through the interpreter.
-public final class ObjCBox: GeneratedReferencePropertyCarrier {
+public final class ObjCBox: GeneratedReferenceBackedBox {
     let object: NSObject
     let generatedReferenceTypeName: String
     var generatedReferencePropertyValues: [String: RuntimeValue] = [:]
+
+    var generatedReferenceObject: NSObject { object }
 
     init(
         _ object: NSObject,
@@ -582,20 +584,6 @@ public final class ObjCBox: GeneratedReferencePropertyCarrier {
         self.object = object
         self.generatedReferenceTypeName = generatedReferenceTypeName
             ?? String(describing: type(of: object))
-    }
-
-    func applyGeneratedReferenceProperty(
-        _ name: String, declaredType: String, value: RuntimeValue
-    ) throws -> Bool {
-        try ObjCTrampoline.applyGeneratedReferenceProperty(
-            name, declaredType: declaredType, value: value, on: self)
-    }
-
-    func generatedReferencePropertyValue(
-        _ name: String, declaredType: String
-    ) throws -> RuntimeValue? {
-        try ObjCTrampoline.generatedReferencePropertyRead(
-            name, declaredType: declaredType, on: self)
     }
 }
 

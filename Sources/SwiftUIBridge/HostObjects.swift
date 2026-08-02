@@ -14,8 +14,12 @@ let environmentalServiceTypes: Set<String> = ["WeatherService"]
 
 /// Mutable host objects interpreted code constructs and configures —
 /// backed by the real Foundation types. Shared by both registries.
-final class DateFormatterBox {
+final class DateFormatterBox: GeneratedReferenceBackedBox {
     let formatter = DateFormatter()
+    let generatedReferenceTypeName = "DateFormatter"
+    var generatedReferencePropertyValues: [String: RuntimeValue] = [:]
+
+    var generatedReferenceObject: NSObject { formatter }
 }
 
 private let dateFormatterConstructorGateway: HostFunction = {
@@ -51,8 +55,12 @@ final class TimerPublisherBox {
 
 /// `NumberFormatter` — backed by the real Foundation formatter; numberStyle
 /// and fraction-digit writes configure it, string(from:) really formats.
-final class NumberFormatterBox {
+final class NumberFormatterBox: GeneratedReferenceBackedBox {
     let formatter = NumberFormatter()
+    let generatedReferenceTypeName = "NumberFormatter"
+    var generatedReferencePropertyValues: [String: RuntimeValue] = [:]
+
+    var generatedReferenceObject: NSObject { formatter }
 }
 
 /// The interpreted face of `ProcessInfo.processInfo`. `extraEnvironment`
