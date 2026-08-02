@@ -981,6 +981,90 @@ import SwiftInterpreter
         #expect(targeted.contains("detail-boost-0"))
     }
 
+    /// Rows a real app can tap do not exist at launch — they arrive when a
+    /// `.task` finishes. IceCubes' timeline is exactly this shape, and its
+    /// shell renders the fetched authors under a plain render yet offers only
+    /// static settings controls once the interaction rung collects actions.
+    private static let fetchedRowSource = """
+    @Observable
+    final class Feed {
+        var rows: [String] = []
+
+        func load() async {
+            rows = ["alpha", "beta"]
+        }
+    }
+
+    struct ContentView: View {
+        @State private var feed = Feed()
+        @State private var opened = ""
+
+        var body: some View {
+            VStack {
+                Text(opened.isEmpty ? "no-detail" : "detail-" + opened)
+                ForEach(feed.rows, id: \\.self) { row in
+                    Text("row-" + row)
+                        .onTapGesture {
+                            opened = row
+                        }
+                }
+            }
+            .task {
+                await feed.load()
+            }
+        }
+    }
+    """
+
+    @Test func fetchedRowsArePresentBeforeAnyInteraction() async throws {
+        let strings = try await LiveCheckSupport.renderedStrings(
+            source: Self.fetchedRowSource)
+        #expect(strings.contains("row-alpha"))
+        #expect(strings.contains("row-beta"))
+    }
+
+    /// The same screen reached the way a real app reaches it: through an
+    /// `@main` App's scene. IceCubes renders every tab this way.
+    private static let fetchedRowSceneSource = fetchedRowSource + """
+
+    @main
+    struct FeedApp: App {
+        var body: some Scene {
+            WindowGroup {
+                ContentView()
+            }
+        }
+    }
+    """
+
+    @Test func aFetchedRowStaysTappableUnderAnAppScene() async throws {
+        let launch = try await LiveCheckSupport.renderedStrings(
+            source: Self.fetchedRowSceneSource)
+        #expect(launch.contains("row-beta"),
+                Comment(rawValue: "scene launch lost the fetched rows: \(launch)"))
+
+        let after = try await LiveCheckSupport.render(
+            source: Self.fetchedRowSceneSource, afterActions: 1,
+            targeting: .renderingText("row-beta"))
+        #expect(after.strings.contains("detail-beta"),
+                Comment(rawValue:
+                    "a scene-hosted screen must keep its fetched rows while "
+                        + "the interaction rung collects actions; got "
+                        + "\(after.strings) with targets \(after.actionTargets)"))
+    }
+
+    @Test func aFetchedRowStaysTappable() async throws {
+        let after = try await LiveCheckSupport.render(
+            source: Self.fetchedRowSource, afterActions: 1,
+            targeting: .renderingText("row-beta"))
+        #expect(after.strings.contains("detail-beta"),
+                Comment(rawValue:
+                    "the interaction rung must collect actions from the "
+                        + "SETTLED screen: rows that arrived from .task were "
+                        + "gone by the time actions were collected; got "
+                        + "\(after.strings) with targets \(after.actionTargets)"))
+    }
+
     /// A rung whose target matched nothing must be able to say what WAS
     /// tappable, or a red board names no failure class.
     @Test func unmatchedTargetReportsTheAvailableActions() async throws {

@@ -635,7 +635,7 @@ struct IceCubesCheckMain {
 
         let filter = option("--screen", in: arguments)
         let jobs = [
-            "shell", "timeline", "detail-account", "pagination",
+            "shell", "timeline", "detail-account", "pagination", "row-tap",
         ].filter { job in
             guard let filter else { return true }
             return expectedRungs(for: job).contains {
@@ -709,6 +709,8 @@ struct IceCubesCheckMain {
             return ["R1-status-detail", "R1-account-header"]
         case "pagination":
             return ["R3-pagination"]
+        case "row-tap":
+            return ["R3-row-tap"]
         default:
             return ["unknown-worker"]
         }
@@ -850,6 +852,8 @@ struct IceCubesCheckMain {
                 try await paginationRung(
                     paths: paths, oracle: oracle, native: native),
             ]
+        case "row-tap":
+            return [try await rowTapRung(paths: paths, oracle: oracle)]
         default:
             return [RungRecord(
                 name: "unknown-worker", passed: false,
@@ -1141,6 +1145,71 @@ struct IceCubesCheckMain {
         }
         return RungRecord(
             name: "R3-pagination", passed: problems.isEmpty,
+            message: problems.joined(separator: "; "))
+    }
+
+    /// R3 interaction 2 of 3: tapping a row pushes THAT row's status detail.
+    /// Driven through the app's OWN shell — the same merge R0 renders, so the
+    /// tap travels the real StatusRowView → navigateToDetail → RouterPath →
+    /// NavigationTab stack chain rather than a probe's imitation of it.
+    ///
+    /// The tap is aimed at the row by the author name it renders, the same
+    /// property a person aims with: an action's ordinal in a freshly
+    /// collected tree is not something the board can know.
+    private static func rowTapRung(
+        paths: Paths, oracle: FixtureOracle
+    ) async throws -> RungRecord {
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles + paths.appFiles,
+            sourceModules: paths.sourceModules)
+        guard oracle.trendingStatuses.count > 1 else {
+            return RungRecord(
+                name: "R3-row-tap", passed: false,
+                message: "recorded launch timeline has fewer than two statuses")
+        }
+        let tapped = oracle.trendingStatuses[0]
+        let untapped = oracle.trendingStatuses[1]
+        let tappedAuthor = tapped.visibleAccount.visibleName
+        let render = try await LiveCheckSupport.render(
+            source: source, afterActions: 1,
+            targeting: .renderingText(tappedAuthor))
+        let normalized = render.strings.map(FixtureOracle.normalize)
+        if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+            for target in render.actionTargets {
+                print("@@icecubes-action \(target)")
+            }
+            for string in normalized where !string.isEmpty {
+                print("@@icecubes-string \(string)")
+            }
+        }
+        func contains(_ marker: String) -> Bool {
+            !marker.isEmpty && normalized.contains { $0.contains(marker) }
+        }
+        var problems: [String] = []
+        let detailMarker = FixtureOracle.leadingTextMarker(
+            tapped.visibleContent)
+        if !contains(detailMarker) {
+            problems.append(
+                "the screen after tapping '\(tappedAuthor)' never rendered "
+                    + "that status's content '\(detailMarker)'; tappable "
+                    + "targets were \(render.actionTargets.prefix(6))")
+        }
+        // A real compiled NavigationStack paints its destination INSTEAD of
+        // its root (PathDrivenNavigationTests pins that against one), so a
+        // sibling row still on screen means the push never took the screen.
+        if contains(untapped.visibleAccount.visibleName) {
+            problems.append(
+                "the timeline row for '\(untapped.visibleAccount.visibleName)' "
+                    + "is still rendered, so the pushed detail did not replace "
+                    + "the stack root")
+        }
+        if !render.lifecycleErrors.isEmpty {
+            problems.append(
+                "lifecycle errors: "
+                    + render.lifecycleErrors.prefix(3).joined(separator: " | "))
+        }
+        return RungRecord(
+            name: "R3-row-tap", passed: problems.isEmpty,
             message: problems.joined(separator: "; "))
     }
 
