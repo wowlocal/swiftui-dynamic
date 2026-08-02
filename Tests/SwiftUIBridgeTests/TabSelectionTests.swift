@@ -99,6 +99,47 @@ struct TabSelectionTests {
                         + "the compiled TabView paints it; got \(strings)"))
     }
 
+    /// A tab item is a control whose action is to select itself: firing it
+    /// writes its own value into the TabView's selection. This is how any tab
+    /// switch in a real app happens, and what the R3 rung drives.
+    private static let switchSource = """
+    enum Screen: Hashable { case one, two }
+
+    struct ContentView: View {
+        @State private var screen: Screen = .one
+
+        var body: some View {
+            TabView(selection: $screen) {
+                Tab("one-label", systemImage: "1.circle", value: Screen.one) {
+                    Text("screen-one")
+                }
+                Tab("two-label", systemImage: "2.circle", value: Screen.two) {
+                    Text("screen-two")
+                }
+            }
+        }
+    }
+    """
+
+    @Test func firingATabItemSelectsIt() async throws {
+        let before = try await LiveCheckSupport.renderedStrings(
+            source: Self.switchSource)
+        #expect(before.contains("screen-one"))
+        #expect(!before.contains("screen-two"))
+
+        let after = try await LiveCheckSupport.render(
+            source: Self.switchSource, afterActions: 1,
+            targeting: .renderingText("two-label"))
+        #expect(after.strings.contains("screen-two"),
+                Comment(rawValue:
+                    "selecting the second tab must land on its screen; got "
+                        + "\(after.strings) among \(after.actionTargets)"))
+        #expect(!after.strings.contains("screen-one"),
+                Comment(rawValue:
+                    "the tab that was left must no longer be on screen; got "
+                        + "\(after.strings)"))
+    }
+
     /// A `TabView` with no selection keeps its existing behavior exactly — the
     /// change is additive for every app that never binds one.
     private static let unselectedSource = """

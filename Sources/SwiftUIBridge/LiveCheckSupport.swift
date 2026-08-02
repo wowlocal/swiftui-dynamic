@@ -504,8 +504,7 @@ public enum LiveCheckSupport {
                 }
                 // N interactions cycle through the available actions — a
                 // single Add button tapped twice inserts twice.
-                _ = try? interpreter.callHostCallback(
-                    current[position % current.count].closure, arguments: [])
+                current[position % current.count].fire(interpreter)
                 await advanceAsyncLifecycleWork()
             }
             var finalStrings: [String] = []
@@ -546,12 +545,28 @@ public enum LiveCheckSupport {
     /// A fireable action plus the strings its own view subtree rendered —
     /// the only handle a caller has on which screen element it is aiming at.
     private struct CollectedAction {
+        /// Interpreted `action:` closures and bridge-performed binding writes
+        /// are both fireable controls; the rung drives them the same way.
+        enum Invocation {
+            case interpreted(ClosureValue)
+            case host(() -> Void)
+        }
+
         let key: String
-        let closure: ClosureValue
+        let invocation: Invocation
         var renderedContext: [String] = []
 
         var summary: String {
             "\(key) ⟨\(renderedContext.prefix(4).joined(separator: " | "))⟩"
+        }
+
+        func fire(_ interpreter: Interpreter) {
+            switch invocation {
+            case .interpreted(let closure):
+                _ = try? interpreter.callHostCallback(closure, arguments: [])
+            case .host(let write):
+                write()
+            }
         }
     }
 
@@ -609,7 +624,8 @@ public enum LiveCheckSupport {
         // subtree is walked. Nested actions occupy later indices, so a parent
         // never overwrites the tighter context a descendant recorded.
         let subtreeStringStart = strings.count
-        let ownedActions = actions.count..<(actions.count + node.actions.count)
+        let ownedActionCount = node.actions.count + node.hostActions.count
+        let ownedActions = actions.count..<(actions.count + ownedActionCount)
         strings.append(contentsOf: node.args)
         if lifecycleEnabled {
             lifecycle.append(contentsOf: node.lifecycle)
@@ -620,7 +636,9 @@ public enum LiveCheckSupport {
         // gesture must present them in a stable order or the interaction
         // rung fires a different callback run to run.
         actions.append(contentsOf: node.actions.sorted { $0.key < $1.key }
-            .map { CollectedAction(key: $0.key, closure: $0.value) })
+            .map { CollectedAction(key: $0.key, invocation: .interpreted($0.value)) })
+        actions.append(contentsOf: node.hostActions.sorted { $0.key < $1.key }
+            .map { CollectedAction(key: $0.key, invocation: .host($0.value)) })
         defer {
             if !ownedActions.isEmpty {
                 let context = Array(strings[subtreeStringStart...])

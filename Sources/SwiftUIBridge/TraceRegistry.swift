@@ -37,6 +37,12 @@ public final class TraceNode: InertCallable {
     public var builderChildRanges: [String: Range<Int>] = [:]
     public var modifiers: [String] = []
     public var actions: [String: ClosureValue] = [:]
+    /// Actions the BRIDGE performs rather than the interpreted program: a
+    /// control whose whole effect is a binding write the SDK would have made
+    /// (selecting a tab). They are fired by the interaction rung exactly like
+    /// an interpreted `action:`, so a host-driven control and a program-driven
+    /// one are indistinguishable to a test.
+    public var hostActions: [String: () -> Void] = [:]
     public var bindings: [String: BindingStub] = [:]
     public var environmentModels: [String: Instance] = [:]
     public var instance: Instance?
@@ -599,8 +605,12 @@ public final class TraceRegistry: HostRegistry {
         guard let selection = node.bindings["selection"] else { return }
         let selected = NavigationSelectionValues.identity(selection.box.value)
         for item in valueKeyedItems(in: node) {
-            guard let value = item.config["value"],
-                  NavigationSelectionValues.identity(value) != selected
+            guard let value = item.config["value"] else { continue }
+            // An item is a control whose action is to select ITSELF — that is
+            // how every tab switch in a real app happens. Re-selecting the
+            // current item writes the value it already holds.
+            item.hostActions["select"] = { selection.box.value = value }
+            guard NavigationSelectionValues.identity(value) != selected
             else { continue }
             // Keep only what the item's `label:` builder produced. With the
             // title/image spelling there is no label builder and the label
