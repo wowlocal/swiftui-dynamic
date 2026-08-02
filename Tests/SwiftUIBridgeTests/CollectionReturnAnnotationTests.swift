@@ -72,4 +72,52 @@ struct CollectionReturnAnnotationTests {
                     "the single-expression spelling threads it too; got "
                         + "\(strings)"))
     }
+
+    /// Resolution must touch ONLY the untyped elements. Re-deriving a whole
+    /// collection also re-derives the elements that were already concrete,
+    /// and anything with REFERENCE identity does not survive that — a boxed
+    /// `DateFormatter` in such a property came back a different box, so a
+    /// later property assignment on it had nothing to write to
+    /// (`oss:home-assistant-ios`, `cannot assign to 'formattingContext'`).
+    private static let mixedSource = """
+    enum Screen: Hashable { case one, two }
+
+    final class Counter {
+        var count = 0
+    }
+
+    struct Registry {
+        let live = Counter()
+        // A leading-dot member sits beside a reference: resolving the marker
+        // must not rebuild the object next to it.
+        var screens: [Screen] { [.one, .two] }
+        var counters: [Counter] { [live] }
+    }
+
+    struct ContentView: View {
+        var body: some View {
+            let registry = Registry()
+            let screens = registry.screens.map(String.init(describing:))
+            // Mutate through the collection, read back through the property.
+            let fetched = registry.counters.first!
+            fetched.count += 1
+            VStack {
+                Text("screens-\\(screens.joined(separator: "|"))")
+                Text("same-\\(registry.live.count)")
+            }
+        }
+    }
+    """
+
+    @Test func resolutionPreservesTheIdentityOfConcreteElements() async throws {
+        let strings = try await LiveCheckSupport.renderedStrings(
+            source: Self.mixedSource)
+        #expect(strings.contains("screens-Screen.one|Screen.two"),
+                Comment(rawValue: "got \(strings)"))
+        #expect(strings.contains("same-1"),
+                Comment(rawValue:
+                    "an element that was already concrete must come back as "
+                        + "the SAME object — a write through the collection "
+                        + "is visible on the original; got \(strings)"))
+    }
 }

@@ -25,34 +25,78 @@ private enum ContextualStaticMemberFit: Equatable {
 }
 
 extension Interpreter {
-    /// An Array, Dictionary or Set spelling — the shapes whose ELEMENTS are
-    /// reached by iteration rather than by a member access that could carry
-    /// the declared type to them later.
-    static func isCollectionTypeName(_ typeName: String) -> Bool {
-        let name = typeName.trimmingCharacters(in: .whitespaces)
-        if name.hasPrefix("["), name.hasSuffix("]") { return true }
-        return name.hasPrefix("Set<") && name.hasSuffix(">")
-    }
-
-    /// Whether a collection still holds a leading-dot member that nothing has
-    /// given a type. Scanned one level: an element that is itself a nested
-    /// collection resolves through the same annotated recursion.
-    static func containsUnresolvedImplicitMember(_ value: RuntimeValue) -> Bool {
-        func isUnresolved(_ element: RuntimeValue) -> Bool {
-            if case .implicitMember = element { return true }
-            if case .host(let any) = element,
-               let call = any as? ImplicitMemberCall {
-                return call.typeHint == nil
-            }
-            return false
-        }
-        if let array = value.arrayValue { return array.contains(where: isUnresolved) }
-        if let set = value.setValue { return set.elements.contains(where: isUnresolved) }
-        if let dictionary = value.dictValue {
-            return dictionary.keys.contains(where: isUnresolved)
-                || dictionary.values.contains(where: isUnresolved)
+    /// Whether a leading-dot member reached here with nothing having given it
+    /// a type — the only element kind that cannot resolve further downstream.
+    static func isUnresolvedImplicitMember(_ value: RuntimeValue) -> Bool {
+        if case .implicitMember = value { return true }
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall {
+            return call.typeHint == nil
         }
         return false
+    }
+
+    /// Resolve ONLY the untyped leading-dot elements of a collection against
+    /// its declared element type, returning nil when there are none.
+    ///
+    /// Element-wise on purpose. Re-resolving the whole collection also
+    /// re-derives elements that were already concrete, and an element with
+    /// REFERENCE identity does not survive that: a `DateFormatterBox` in a
+    /// `[DateFormatter]` came back a different box, so a later
+    /// `formatter.formattingContext = …` had nothing to assign to
+    /// (home-assistant-ios). Only the elements that carry no type are
+    /// touched; everything else is returned as-is, identity intact.
+    func resolvingUnresolvedCollectionElements(
+        of value: RuntimeValue, collectionTypeName typeName: String
+    ) throws -> RuntimeValue? {
+        let name = typeName.trimmingCharacters(in: .whitespaces)
+        let inner: String
+        if name.hasPrefix("["), name.hasSuffix("]") {
+            inner = String(name.dropFirst().dropLast())
+        } else if name.hasPrefix("Set<"), name.hasSuffix(">") {
+            inner = String(name.dropFirst("Set<".count).dropLast())
+        } else {
+            return nil
+        }
+
+        func resolvingElements(
+            _ elements: [RuntimeValue], typeName elementType: String
+        ) throws -> [RuntimeValue]? {
+            guard elements.contains(where: Self.isUnresolvedImplicitMember)
+            else { return nil }
+            return try elements.map {
+                Self.isUnresolvedImplicitMember($0)
+                    ? try resolveAnnotated($0, typeName: elementType)
+                    : $0
+            }
+        }
+
+        // `[Key: Value]` — a dictionary is the one spelling that shares the
+        // bracket form, told apart by a top-level colon exactly as the
+        // annotated-resolution path already does.
+        if name.hasPrefix("["), name.hasSuffix("]"),
+           let dictionary = value.dictValue {
+            let parts = SwiftInterpreter.splitTopLevel(inner, separator: ":")
+            guard parts.count == 2 else { return nil }
+            let keys = try resolvingElements(dictionary.keys, typeName: parts[0])
+            let values = try resolvingElements(
+                dictionary.values, typeName: parts[1])
+            guard keys != nil || values != nil else { return nil }
+            return .native(DictValue(
+                keys: keys ?? dictionary.keys,
+                values: values ?? dictionary.values))
+        }
+        if let set = value.setValue {
+            guard let resolved = try resolvingElements(
+                set.elements, typeName: inner) else { return nil }
+            return .native(try makeRuntimeSet(
+                resolved, elementTypeName: inner))
+        }
+        if let array = value.arrayValue {
+            guard let resolved = try resolvingElements(
+                array, typeName: inner) else { return nil }
+            return .native(resolved)
+        }
+        return nil
     }
 
     // MARK: - Identifiers & members
@@ -2281,9 +2325,9 @@ extension Interpreter {
                 // IceCubes Tabs.swift:349, whose elements must equal the
                 // `AppTab` a selection binding holds).
                 if let typeName = computed.typeName,
-                   Self.isCollectionTypeName(typeName),
-                   Self.containsUnresolvedImplicitMember(value) {
-                    return try resolveAnnotated(value, typeName: typeName)
+                   let resolved = try resolvingUnresolvedCollectionElements(
+                       of: value, collectionTypeName: typeName) {
+                    return resolved
                 }
                 // Keep contextual markers lazy. Receiver operations that
                 // require the concrete type (notably user subscripts) resolve
