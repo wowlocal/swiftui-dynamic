@@ -29,6 +29,12 @@ public final class TraceNode: InertCallable {
     /// only exists after a tap.
     public var optionalCoverage = false
     public var children: [TraceNode] = []
+    /// Which builder ARGUMENT produced which children, by the SDK's own
+    /// parameter label. An item in a selection container renders its `label`
+    /// whether or not it is selected but its `content` only when it is, and
+    /// the two are otherwise indistinguishable once both closures have been
+    /// expanded into one child list.
+    public var builderChildRanges: [String: Range<Int>] = [:]
     public var modifiers: [String] = []
     public var actions: [String: ClosureValue] = [:]
     public var bindings: [String: BindingStub] = [:]
@@ -532,7 +538,13 @@ public final class TraceRegistry: HostRegistry {
                             }
                         } else if closure.parameters.isEmpty {
                             do {
+                                let start = node.children.count
                                 node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
+                                // A trailing builder with no label is the
+                                // SDK's primary `content:` parameter.
+                                node.builderChildRanges[
+                                    argument.label ?? "content"
+                                ] = start..<node.children.count
                             } catch let error as RuntimeError
                                 where !error.fatal && error.message.hasPrefix("expected a view") {
                                 // Unknown API whose closure isn't a view
@@ -564,9 +576,56 @@ public final class TraceRegistry: HostRegistry {
                         }
                     }
                 }
+                Self.applyValueKeyedSelection(to: node)
                 return .native(node)
             }
         }
+    }
+
+    /// Value-keyed selection: a container holding a `selection:` binding shows
+    /// the content of exactly the item whose own `value:` matches it. The SDK
+    /// interface declares both labels and their shared type
+    /// (`TabView(selection: Binding<SelectionValue>)` over
+    /// `Tab(value: Value)`, `SelectionValue == Value`) but not the semantics,
+    /// so this is the container half of the identity `.tag(_:)` already uses —
+    /// keyed on the declared labels, never on a type name, so any container
+    /// spelled this way selects.
+    ///
+    /// An UNSELECTED item still renders its label: a tab bar shows every tab,
+    /// only one tab's screen. Items are found without descending THROUGH one,
+    /// so a `NavigationLink(value:)` inside a selected item's content is never
+    /// mistaken for a sibling item.
+    private static func applyValueKeyedSelection(to node: TraceNode) {
+        guard let selection = node.bindings["selection"] else { return }
+        let selected = NavigationSelectionValues.identity(selection.box.value)
+        for item in valueKeyedItems(in: node) {
+            guard let value = item.config["value"],
+                  NavigationSelectionValues.identity(value) != selected
+            else { continue }
+            // Keep only what the item's `label:` builder produced. With the
+            // title/image spelling there is no label builder and the label
+            // is already in `args`, so the whole child list is content.
+            item.children = item.builderChildRanges["label"]
+                .map { Array(item.children[$0]) } ?? []
+            item.builderChildRanges = [:]
+        }
+    }
+
+    /// Items of `container`: descendants carrying a `value:`, not descending
+    /// through an item or through a NESTED selection container (whose items
+    /// belong to that container's own selection, not this one).
+    private static func valueKeyedItems(in container: TraceNode) -> [TraceNode] {
+        var items: [TraceNode] = []
+        var frontier = container.children
+        while let node = frontier.popLast() {
+            if node.config["value"] != nil {
+                items.append(node)
+                continue
+            }
+            if node.bindings["selection"] != nil { continue }
+            frontier += node.children
+        }
+        return items
     }
 
     public func hostSuperclassBacking(
