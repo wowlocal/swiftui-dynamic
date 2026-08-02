@@ -886,6 +886,43 @@ import SwiftInterpreter
         let after = try await LiveCheckSupport.renderedStrings(source: Self.todoSource, afterActions: 2)
         #expect(after.filter { $0 == "Bought milk" }.count >= 2)
     }
+
+    /// Row navigation in real apps hangs off `.onTapGesture`, not a Button:
+    /// IceCubes StatusRowView.swift:191 taps into
+    /// StatusRowViewModel.navigateToDetail(), which appends to the observable
+    /// RouterPath the NavigationStack renders. A tap the interaction rung
+    /// cannot fire is a screen transition no rung can measure.
+    private static let tapGestureSource = """
+    struct ContentView: View {
+        @State private var opened = ""
+
+        var body: some View {
+            VStack {
+                Text(opened.isEmpty ? "no-detail" : "detail-" + opened)
+                ForEach(0..<3) { index in
+                    Text("row-\\(index)")
+                        .onTapGesture {
+                            opened = "row-\\(index)"
+                        }
+                }
+            }
+        }
+    }
+    """
+
+    @Test func tapGestureOpensTheTappedRow() async throws {
+        let before = try await LiveCheckSupport.renderedStrings(
+            source: Self.tapGestureSource)
+        #expect(before.contains("no-detail"))
+        #expect(before.contains("row-0"))
+
+        let after = try await LiveCheckSupport.renderedStrings(
+            source: Self.tapGestureSource, afterActions: 1)
+        #expect(after.contains("detail-row-0"),
+                Comment(rawValue:
+                    "the interaction rung must be able to fire a tap gesture, "
+                        + "not just a Button action; got \(after)"))
+    }
 }
 
 /// M4 App-shell env seeding: the scene expression evaluates with the APP

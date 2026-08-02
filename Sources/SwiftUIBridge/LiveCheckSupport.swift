@@ -532,7 +532,11 @@ public enum LiveCheckSupport {
         } else {
             offscreenLifecycle.append(contentsOf: node.lifecycle)
         }
-        actions.append(contentsOf: node.actions.values)
+        // Keyed, not ordered: a node carrying both a Button action and a
+        // gesture must present them in a stable order or the interaction
+        // rung fires a different callback run to run.
+        actions.append(contentsOf: node.actions.sorted { $0.key < $1.key }
+            .map(\.value))
         let initialViewport =
             node.viewportMaterializesLifecycleRows
                 ? viewportRowCapacity.map {

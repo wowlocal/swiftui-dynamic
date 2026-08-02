@@ -563,6 +563,21 @@ public final class TraceRegistry: HostRegistry {
             }
     }
 
+    /// Whether interface metadata says a modifier performs a caller-supplied
+    /// action rather than building content — `.onTapGesture { }` and its
+    /// siblings. Trace mode retains those closures as fireable node actions,
+    /// so the interaction rung can drive tap-initiated screen transitions
+    /// (a status row pushing its detail) exactly as it drives Button actions.
+    private static func isActionModifier(_ name: String) -> Bool {
+        guard let set = GeneratedModifiers.table[name] else { return false }
+        let parameters = set.byArity.values
+            .flatMap { $0 }
+            .flatMap(\.params)
+        return parameters.contains {
+            $0.tag == .action || $0.tag == .syncVoidClosure
+        } && !parameters.contains { $0.tag == .builder }
+    }
+
     private static func executesBuilderOnlyModifier(
         _ name: String,
         context: EvalContext
@@ -594,7 +609,8 @@ public final class TraceRegistry: HostRegistry {
             // fires them and re-renders, so `.task`-fetched data reaches the
             // tree. ProjectCheck/HeadlessVerifier never invoke them —
             // M0 behavior is unchanged.
-            if name == "task" || name == "onAppear",
+            let retainsLifecycle = name == "task" || name == "onAppear"
+            if retainsLifecycle,
                let closure = args.arguments.compactMap({ $0.value.closureValue }).first,
                closure.parameters.isEmpty {
                 let closureIndex = args.arguments.firstIndex {
@@ -622,6 +638,16 @@ public final class TraceRegistry: HostRegistry {
                             ? args.labeled("id")?.stringified : nil),
                     closure: closure,
                     isAsyncAction: isAsyncAction))
+            }
+            // Tap-driven transitions are real screen changes: IceCubes'
+            // StatusRowView taps into navigateToDetail(), which appends to the
+            // RouterPath the NavigationStack renders. Retain the closure so
+            // the interaction rung can fire it; lifecycle modifiers already
+            // retained above keep their own firing discipline.
+            if !retainsLifecycle, Self.isActionModifier(name),
+               let closure = args.arguments.compactMap({ $0.value.closureValue }).first,
+               closure.parameters.isEmpty {
+                node.actions[name] = closure
             }
             if Self.executesBuilderOnlyModifier(name, context: ctx) {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content
