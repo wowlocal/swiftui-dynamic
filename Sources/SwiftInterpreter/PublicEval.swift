@@ -112,7 +112,7 @@ extension Interpreter {
     /// `rootView:` expression. Probes evaluate this in the global scope
     /// instead of instantiating a bare symbol.
     public func declaredRootViewExpression() -> (app: StructSymbol?, expression: ExprSyntax)? {
-        for symbol in structSymbols where symbol.conformances.contains("App") {
+        for symbol in appSymbolsInEntryPointOrder() {
             if let sceneCall = Self.sceneBuilderCall(app: symbol),
                let trailing = sceneCall.trailingClosure,
                let first = trailing.statements.first,
@@ -136,8 +136,23 @@ extension Interpreter {
     /// (stored/@StateObject props evaluate), then collect the scene
     /// closure's views with the App as self — multi-statement and
     /// conditional scenes included. nil when there is no App/scene.
+    /// Swift picks a program's entry point by the `@main` attribute, not by
+    /// declaration order: a program may declare several `App` types (a host
+    /// harness merged with the app it hosts, an app alongside a preview or
+    /// probe scene) and exactly one of them is attributed. Ordering the
+    /// attributed types first makes that the interpreter's rule too, while a
+    /// program with a single unattributed `App` — every ordinary merge —
+    /// resolves exactly as before.
+    func appSymbolsInEntryPointOrder() -> [StructSymbol] {
+        let apps = structSymbols.filter { $0.conformances.contains("App") }
+        let attributed = apps.filter { $0.attributeNames.contains("main") }
+        return attributed + apps.filter {
+            !$0.attributeNames.contains("main")
+        }
+    }
+
     public func declaredAppSceneRoot() -> (app: Instance, sceneBody: CodeBlockItemListSyntax)? {
-        for symbol in structSymbols where symbol.conformances.contains("App") {
+        for symbol in appSymbolsInEntryPointOrder() {
             guard let sceneCall = Self.sceneBuilderCall(app: symbol),
                   let trailing = sceneCall.trailingClosure else { continue }
             guard case .instance(let app)? = try? instantiateRoot(symbol) else { continue }

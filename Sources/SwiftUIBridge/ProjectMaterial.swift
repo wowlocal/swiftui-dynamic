@@ -514,15 +514,19 @@ public enum ProjectMaterial {
     public static func mergedSource(
         at root: String,
         files: [String],
-        sourceModules: [String: String] = [:]
+        sourceModules: [String: String] = [:],
+        entryPoint: EntryPoint = .declared
     ) -> String {
         BundleBox.projectResourceRoot = root
-        return mergedSource(files: files, sourceModules: sourceModules)
+        return mergedSource(
+            files: files, sourceModules: sourceModules,
+            entryPoint: entryPoint)
     }
 
     public static func mergedSource(
         files: [String],
-        sourceModules: [String: String] = [:]
+        sourceModules: [String: String] = [:],
+        entryPoint: EntryPoint = .declared
     ) -> String {
         var merged = ""
         var imports: Set<String> = []
@@ -544,7 +548,8 @@ public enum ProjectMaterial {
             var sourceImports: Set<String> = []
             let stripped = interpreterProjection(
                 of: content,
-                recordingImportsIn: &sourceImports
+                recordingImportsIn: &sourceImports,
+                entryPoint: entryPoint
             )
             imports.formUnion(sourceImports)
             let canonicalPath = URL(fileURLWithPath: path)
@@ -643,13 +648,33 @@ public enum ProjectMaterial {
             .standardizedFileURL.resolvingSymlinksInPath().path == path
     }
 
+    /// Whether a merge keeps the entry point its sources declare. Hosting an
+    /// app's sources under a different scene is the arrangement SwiftPM
+    /// expresses by compiling them as a library target: every type stays, the
+    /// entry point does not, and two `@main` types never compete for it.
+    public enum EntryPoint: Sendable {
+        case declared
+        case suppliedByCaller
+    }
+
     private static func interpreterProjection(
         of source: String,
-        recordingImportsIn imports: inout Set<String>
+        recordingImportsIn imports: inout Set<String>,
+        entryPoint: EntryPoint = .declared
     ) -> String {
-        source.split(
-            separator: "\n", omittingEmptySubsequences: false
-        ).filter { line in
+        let lines = source.split(
+            separator: "\n", omittingEmptySubsequences: false)
+        // The ordinary merge keeps every line as it stands; only a hosted
+        // merge inspects them, so the corpus-wide path allocates nothing.
+        let hosted = entryPoint == .declared ? lines : lines.map { line in
+            let trimmed = line.drop { $0 == " " || $0 == "\t" }
+            if trimmed == "@main" { return trimmed.prefix(0) }
+            if trimmed.hasPrefix("@main ") {
+                return trimmed.dropFirst("@main ".count)
+            }
+            return line
+        }
+        return hosted.filter { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let importPrefixes = [
                 "import ", "@testable import ", "@_exported import ",
