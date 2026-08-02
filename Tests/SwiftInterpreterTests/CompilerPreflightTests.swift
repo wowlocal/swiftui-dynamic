@@ -1080,6 +1080,12 @@ struct CompilerPreflightTests {
         """.write(to: script, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o755], ofItemAtPath: script.path)
+        // macOS validates a freshly written executable on its FIRST exec:
+        // measured here at 266ms against 5ms once warm — longer than the
+        // timeout under test, so an unwarmed run times out before the fake
+        // compiler ever reaches its own first line and the test measures
+        // code-signing latency instead of descendant termination.
+        try warmFirstExec(of: script, writing: descendantPIDFile)
         let configuration = CompilerPreflightConfiguration(
             swiftCompilerPath: script.path,
             compilerVersion: "fake compiler",
@@ -1088,14 +1094,14 @@ struct CompilerPreflightTests {
             targetTriple: "arm64-apple-macosx15.0",
             deploymentTarget: "15.0",
             gatewayManifestSHA256: String(repeating: "a", count: 64),
-            timeoutSeconds: 0.2)
+            timeoutSeconds: 0.5)
         let engine = SwiftCompilerPreflight(configuration: configuration)
 
         do {
             _ = try engine.preflight(source: "let value = 1")
             Issue.record("stuck compiler unexpectedly completed")
         } catch CompilerPreflightError.timedOut(let timeout) {
-            #expect(timeout == 0.2)
+            #expect(timeout == 0.5)
         }
 
         let rawPID = try String(
@@ -1106,6 +1112,34 @@ struct CompilerPreflightTests {
             Thread.sleep(forTimeInterval: 0.01)
         }
         #expect(Darwin.kill(descendantPID, 0) == -1 && errno == ESRCH)
+    }
+
+    /// Run the stuck fake compiler once and kill the tree it made, so the
+    /// one-time first-exec validation is paid outside the measured timeout.
+    /// The script and its child both trap TERM, so both need SIGKILL.
+    private func warmFirstExec(
+        of script: URL, writing descendantPIDFile: URL
+    ) throws {
+        let warmup = Process()
+        warmup.executableURL = script
+        warmup.standardOutput = FileHandle.nullDevice
+        warmup.standardError = FileHandle.nullDevice
+        try warmup.run()
+        let deadline = Date().addingTimeInterval(10)
+        while !FileManager.default.fileExists(atPath: descendantPIDFile.path),
+              warmup.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.005)
+        }
+        if let raw = try? String(
+            contentsOf: descendantPIDFile, encoding: .utf8),
+            let warmed = pid_t(
+                raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        {
+            Darwin.kill(warmed, SIGKILL)
+        }
+        Darwin.kill(warmup.processIdentifier, SIGKILL)
+        warmup.waitUntilExit()
+        try? FileManager.default.removeItem(at: descendantPIDFile)
     }
 
     private static func activePreflight() throws -> SwiftCompilerPreflight {
