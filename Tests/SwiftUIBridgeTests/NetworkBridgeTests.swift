@@ -923,6 +923,74 @@ import SwiftInterpreter
                     "the interaction rung must be able to fire a tap gesture, "
                         + "not just a Button action; got \(after)"))
     }
+
+    /// A real row carries several actions — IceCubes StatusRowView has
+    /// favorite/boost/reply Buttons as well as the tap that opens the detail
+    /// — so "the third row's detail" is not an ordinal a caller can compute
+    /// from outside the tree. A screen transition must be aimed at by what
+    /// the tapped view RENDERS, the same property a person aims with.
+    private static let multiActionRowSource = """
+    struct ContentView: View {
+        @State private var opened = ""
+
+        var body: some View {
+            VStack {
+                Text(opened.isEmpty ? "no-detail" : "detail-" + opened)
+                ForEach(0..<3) { index in
+                    VStack {
+                        Text("row-\\(index)")
+                        Button("boost") {
+                            opened = "boost-\\(index)"
+                        }
+                    }
+                    .onTapGesture {
+                        opened = "row-\\(index)"
+                    }
+                }
+            }
+        }
+    }
+    """
+
+    @Test func untargetedTapCannotReachAParticularRow() async throws {
+        // The ordinal the caller would have to guess belongs to row 0's
+        // inner Button, which is why naming the row is the only usable aim.
+        let positional = try await LiveCheckSupport.renderedStrings(
+            source: Self.multiActionRowSource, afterActions: 1)
+        #expect(positional.contains("detail-row-0"))
+        #expect(!positional.contains("detail-row-2"))
+    }
+
+    @Test func targetedTapFiresTheActionOfTheNamedRow() async throws {
+        let targeted = try await LiveCheckSupport.render(
+            source: Self.multiActionRowSource, afterActions: 1,
+            targeting: .renderingText("row-2"))
+        #expect(targeted.strings.contains("detail-row-2"),
+                Comment(rawValue:
+                    "targeting a row by what it renders must fire that row's "
+                        + "own tap; got \(targeted.strings) with targets "
+                        + "\(targeted.actionTargets)"))
+    }
+
+    /// The tightest view rendering the named text owns the tap, so a label
+    /// inside a row aims at the button rather than at the whole row.
+    @Test func targetedTapPrefersTheInnermostMatchingView() async throws {
+        let targeted = try await LiveCheckSupport.renderedStrings(
+            source: Self.multiActionRowSource, afterActions: 1,
+            targeting: .renderingText("boost"))
+        #expect(targeted.contains("detail-boost-0"))
+    }
+
+    /// A rung whose target matched nothing must be able to say what WAS
+    /// tappable, or a red board names no failure class.
+    @Test func unmatchedTargetReportsTheAvailableActions() async throws {
+        let missed = try await LiveCheckSupport.render(
+            source: Self.multiActionRowSource, afterActions: 1,
+            targeting: .renderingText("row-9"))
+        #expect(missed.strings.contains("no-detail"))
+        #expect(missed.actionTargets.contains { $0.contains("row-2") },
+                Comment(rawValue: "got \(missed.actionTargets)"))
+    }
 }
 
 /// M4 App-shell env seeding: the scene expression evaluates with the APP

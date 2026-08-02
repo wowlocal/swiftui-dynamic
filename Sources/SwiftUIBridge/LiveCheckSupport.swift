@@ -8,6 +8,25 @@ public struct LiveCheckRenderResult: Sendable {
     public let lifecycleErrors: [String]
     public let absorbedHostMembers: [String: Int]
     public var networkRequests: [String]
+    /// One entry per action the last collection pass could fire, as
+    /// `modifier ⟨what its view renders⟩`. A rung that targeted a screen
+    /// element and matched nothing needs to report what WAS tappable.
+    public var actionTargets: [String] = []
+}
+
+/// Which collected action the interaction rung fires. A caller cannot know
+/// an action's ordinal in a freshly collected tree — a real row carries a
+/// favorite and a boost Button as well as the tap that opens its detail — so
+/// a screen transition is named by what the tapped view RENDERS, the same
+/// property a person uses to aim at it.
+public enum LiveCheckActionTarget: Sendable, Equatable {
+    /// Cycle through every collected action in tree order.
+    case any
+    /// Only actions whose own view subtree renders a string containing this
+    /// text, innermost match first: the tightest view rendering the text
+    /// owns the tap, so naming a row's text aims at the row and naming a
+    /// button's label aims at that button.
+    case renderingText(String)
 }
 
 /// Which native viewport transitions a headless live probe should model.
@@ -116,6 +135,7 @@ public enum LiveCheckSupport {
     public static func renderedStrings(
         source: String,
         afterActions actionCount: Int = 0,
+        targeting actionTarget: LiveCheckActionTarget = .any,
         viewportTraversal: LiveCheckViewportTraversal = .initial,
         initialViewportRowCapacity: Int? = nil,
         environment: LiveCheckEnvironment = .current
@@ -123,6 +143,7 @@ public enum LiveCheckSupport {
         try await render(
             source: source,
             afterActions: actionCount,
+            targeting: actionTarget,
             viewportTraversal: viewportTraversal,
             initialViewportRowCapacity: initialViewportRowCapacity,
             environment: environment).strings
@@ -133,6 +154,7 @@ public enum LiveCheckSupport {
     public static func render(
         source: String,
         afterActions actionCount: Int = 0,
+        targeting actionTarget: LiveCheckActionTarget = .any,
         viewportTraversal: LiveCheckViewportTraversal = .initial,
         initialViewportRowCapacity: Int? = nil,
         environment: LiveCheckEnvironment = .current
@@ -148,6 +170,7 @@ public enum LiveCheckSupport {
                 try await renderInCurrentReplayScope(
                     source: source,
                     afterActions: actionCount,
+                    actionTarget: actionTarget,
                     viewportTraversal: viewportTraversal,
                     initialViewportRowCapacity: initialViewportRowCapacity,
                     buildConfiguration: environment.buildConfiguration,
@@ -180,6 +203,7 @@ public enum LiveCheckSupport {
     private static func renderInCurrentReplayScope(
         source: String,
         afterActions actionCount: Int,
+        actionTarget: LiveCheckActionTarget,
         viewportTraversal: LiveCheckViewportTraversal,
         initialViewportRowCapacity: Int?,
         buildConfiguration: InterpreterBuildConfiguration,
@@ -354,7 +378,7 @@ public enum LiveCheckSupport {
             var passStrings: [String] = []
             var lifecycle: [TraceLifecycle] = []
             var passDeferredLifecycle: [TraceLifecycle] = []
-            var passActions: [ClosureValue] = []
+            var passActions: [CollectedAction] = []
             try collect(
                 interpreter, root, into: &passStrings,
                 lifecycle: &lifecycle,
@@ -428,7 +452,7 @@ public enum LiveCheckSupport {
                 var scrolledStrings: [String] = []
                 var scrolledLifecycle: [TraceLifecycle] = []
                 var scrolledDeferredLifecycle: [TraceLifecycle] = []
-                var scrolledActions: [ClosureValue] = []
+                var scrolledActions: [CollectedAction] = []
                 try collect(
                     interpreter, root, into: &scrolledStrings,
                     lifecycle: &scrolledLifecycle,
@@ -462,32 +486,38 @@ public enum LiveCheckSupport {
             for line in strings.prefix(1000) { print("     · \(line.prefix(80))") }
         }
         // Interaction rung: click through the first N actions.
+        var finalActions: [CollectedAction] = []
         if actionCount > 0 {
             for position in 0..<actionCount {
-                var current: [ClosureValue] = []
+                var collected: [CollectedAction] = []
                 var discardStrings: [String] = []
                 var discardLifecycle: [TraceLifecycle] = []
                 var discardOffscreenLifecycle: [TraceLifecycle] = []
                 try collect(interpreter, try renderRoot!(), into: &discardStrings,
                             lifecycle: &discardLifecycle,
                             offscreenLifecycle: &discardOffscreenLifecycle,
-                            actions: &current)
-                guard !current.isEmpty else { break }
+                            actions: &collected)
+                let current = actions(collected, matching: actionTarget)
+                guard !current.isEmpty else {
+                    finalActions = collected
+                    break
+                }
                 // N interactions cycle through the available actions — a
                 // single Add button tapped twice inserts twice.
                 _ = try? interpreter.callHostCallback(
-                    current[position % current.count], arguments: [])
+                    current[position % current.count].closure, arguments: [])
                 await advanceAsyncLifecycleWork()
             }
             var finalStrings: [String] = []
             var discardLifecycle: [TraceLifecycle] = []
             var discardOffscreenLifecycle: [TraceLifecycle] = []
-            var discardActions: [ClosureValue] = []
+            var collected: [CollectedAction] = []
             try collect(interpreter, try renderRoot!(), into: &finalStrings,
                         lifecycle: &discardLifecycle,
                         offscreenLifecycle: &discardOffscreenLifecycle,
-                        actions: &discardActions)
+                        actions: &collected)
             strings = finalStrings
+            if finalActions.isEmpty { finalActions = collected }
         }
         lastAbsorbedHostMembers = interpreter.absorbedHostMembers
         if traceLifecycle {
@@ -502,7 +532,8 @@ public enum LiveCheckSupport {
             lifecycleFired: lastLifecycleFired,
             lifecycleErrors: lastLifecycleErrors,
             absorbedHostMembers: lastAbsorbedHostMembers,
-            networkRequests: [])
+            networkRequests: [],
+            actionTargets: finalActions.map(\.summary))
     }
 
     private static func advanceAsyncLifecycleWork() async {
@@ -512,11 +543,46 @@ public enum LiveCheckSupport {
         }
     }
 
+    /// A fireable action plus the strings its own view subtree rendered —
+    /// the only handle a caller has on which screen element it is aiming at.
+    private struct CollectedAction {
+        let key: String
+        let closure: ClosureValue
+        var renderedContext: [String] = []
+
+        var summary: String {
+            "\(key) ⟨\(renderedContext.prefix(4).joined(separator: " | "))⟩"
+        }
+    }
+
+    /// Matches ordered innermost-first: the view rendering the FEWEST strings
+    /// that still include the named text is the tightest one showing it, so
+    /// naming a row's text aims past that row's inner buttons at the row.
+    /// Ties keep tree order, so the choice cannot vary run to run.
+    private static func actions(
+        _ collected: [CollectedAction], matching target: LiveCheckActionTarget
+    ) -> [CollectedAction] {
+        switch target {
+        case .any:
+            return collected
+        case .renderingText(let text):
+            return collected.enumerated()
+                .filter { $0.element.renderedContext.contains {
+                    $0.contains(text)
+                } }
+                .sorted {
+                    ($0.element.renderedContext.count, $0.offset)
+                        < ($1.element.renderedContext.count, $1.offset)
+                }
+                .map(\.element)
+        }
+    }
+
     private static func collect(
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
         lifecycle: inout [TraceLifecycle],
         offscreenLifecycle: inout [TraceLifecycle],
-        actions: inout [ClosureValue],
+        actions: inout [CollectedAction],
         environment: [String: Instance] = [:], depth: Int = 0,
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil,
@@ -526,6 +592,12 @@ public enum LiveCheckSupport {
         // Keep a finite guard for malformed recursive Views while allowing
         // valid type-erased branches to nest beyond ordinary app-shell depth.
         guard depth < 128 else { return }
+        // An action is aimed at by what its own view renders, so remember
+        // where this node's subtree begins and close the range once the
+        // subtree is walked. Nested actions occupy later indices, so a parent
+        // never overwrites the tighter context a descendant recorded.
+        let subtreeStringStart = strings.count
+        let ownedActions = actions.count..<(actions.count + node.actions.count)
         strings.append(contentsOf: node.args)
         if lifecycleEnabled {
             lifecycle.append(contentsOf: node.lifecycle)
@@ -536,7 +608,15 @@ public enum LiveCheckSupport {
         // gesture must present them in a stable order or the interaction
         // rung fires a different callback run to run.
         actions.append(contentsOf: node.actions.sorted { $0.key < $1.key }
-            .map(\.value))
+            .map { CollectedAction(key: $0.key, closure: $0.value) })
+        defer {
+            if !ownedActions.isEmpty {
+                let context = Array(strings[subtreeStringStart...])
+                for index in ownedActions where index < actions.count {
+                    actions[index].renderedContext = context
+                }
+            }
+        }
         let initialViewport =
             node.viewportMaterializesLifecycleRows
                 ? viewportRowCapacity.map {
@@ -552,7 +632,7 @@ public enum LiveCheckSupport {
                 var optionalStrings: [String] = []
                 var optionalLifecycle: [TraceLifecycle] = []
                 var optionalOffscreenLifecycle: [TraceLifecycle] = []
-                var optionalActions: [ClosureValue] = []
+                var optionalActions: [CollectedAction] = []
                 let probe = TraceNode(kind: node.kind)
                 probe.args = node.args
                 probe.children = node.children
@@ -594,7 +674,7 @@ public enum LiveCheckSupport {
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
         lifecycle: inout [TraceLifecycle],
         offscreenLifecycle: inout [TraceLifecycle],
-        actions: inout [ClosureValue],
+        actions: inout [CollectedAction],
         environment: [String: Instance] = [:], depth: Int = 0,
         lifecycleEnabled: Bool = true,
         initialViewport: InitialLifecycleViewport? = nil,
