@@ -249,6 +249,29 @@ extension Interpreter {
         return try applyViewModifier(modifier, to: content, node: node)
     }
 
+    /// Whether a local binding of this name could satisfy a CALL, and so
+    /// shadow a same-named member family. Swift resolves an unqualified call
+    /// by its syntax, so a scalar property never hides a method: a view with
+    /// both `var expandView: Bool` and `func expandView(_:)` reads the
+    /// property bare and calls the function with an argument list. Verified
+    /// against real swiftc, which prints `called-func-alpha prop-now-true`
+    /// for exactly that pair. Anything that might be invoked — a closure, a
+    /// type, a host callable — still shadows, so only the cases that
+    /// provably cannot be called defer to the member path.
+    private func bindingCanBeCalled(
+        named name: String, in env: Environment
+    ) -> Bool {
+        guard let box = env.box(for: name, before: globals) else {
+            return false
+        }
+        switch box.value {
+        case .int, .double, .bool, .string, .void, .nilValue:
+            return false
+        default:
+            return true
+        }
+    }
+
     func evaluateCall(
         _ call: FunctionCallExprSyntax,
         in env: Environment,
@@ -545,7 +568,7 @@ extension Interpreter {
         // Unqualified overloaded calls inside the type's own body.
         if calleeMetadata.shape == .directReference,
            let name = calleeMetadata.name,
-           env.box(for: name, before: globals) == nil {
+           !bindingCanBeCalled(named: name, in: env) {
             // Bare `path(percentEncoded:)` inside a URL extension — the
             // METHOD/property collision, implicit-self flavor.
             if name == "path",
@@ -696,6 +719,13 @@ extension Interpreter {
     ) -> Bool {
         if overloads.count > 1
             || instance.symbol.computedProperties[name] != nil
+            // A STORED property of the same name is the same ambiguity a
+            // computed one is: `var expandView: Bool` beside
+            // `func expandView(_:)` (DropDown's row tap) binds the bare name
+            // to the Bool, which cannot satisfy a call.
+            || instance.symbol.storedProperties.contains(where: {
+                $0.name == name
+            })
             || GeneratedCollectionDefaultSurface.suppliesProperty(
                 named: name,
                 conformances: Set(transitiveConformances(

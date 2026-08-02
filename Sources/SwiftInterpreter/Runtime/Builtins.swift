@@ -205,6 +205,12 @@ public enum Builtins {
         _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
     ) throws -> RuntimeValue? {
         guard isUInt64Carrier(lhs) || isUInt64Carrier(rhs) else { return nil }
+        // `nil` is not a fixed-width operand. `UInt64(hexString, radix: 16)
+        // != nil` (winston's UIColor(hex:)) is an OPTIONAL test that happens
+        // to carry an unsigned payload, so it belongs to the ordinary
+        // operator table, not to the unsigned domain.
+        if case .nilValue = lhs { return nil }
+        if case .nilValue = rhs { return nil }
         guard let left = uint64Operand(lhs), let right = uint64Operand(rhs) else {
             throw EvalMessage(text: "'\(op)' requires UInt64-compatible operands")
         }
@@ -441,6 +447,22 @@ public enum Builtins {
         if case .hostFunction = value { return false }
         if case .implicitMember(let name) = value { return name == "isEmpty" }
         return nil
+    }
+
+    /// The base a fixed-width integer's failable string initializer parses
+    /// in. Swift defaults to 10 and every integer type takes the same
+    /// argument, so the family shares one reading of it.
+    public static func radix(in args: CallArguments) -> Int {
+        args.labeled("radix")?.intValue ?? 10
+    }
+
+    /// `Int("ff", radix: 16)` — the failable string form, in the base the
+    /// call names. Parsing base-10 regardless silently answered nil for
+    /// every hex string an app parsed (winston's UIColor(hex:)).
+    public static func integer(
+        parsing text: String, args: CallArguments
+    ) -> Int? {
+        Int(text, radix: radix(in: args))
     }
 
     /// The fresh-state numeric reading of an unknowable value: well-known

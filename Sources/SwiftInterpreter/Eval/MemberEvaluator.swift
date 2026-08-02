@@ -1811,6 +1811,15 @@ extension Interpreter {
         if case .instance(let instance) = base, !instance.symbol.subscripts.isEmpty {
             return (instance.symbol, base)
         }
+        // An observed model reached through its projection is the same model:
+        // `componentConfigStore[.CPU]` on an @EnvironmentObject store (eul's
+        // status-bar views) runs the store's own subscript, with the model as
+        // self. Member reads already see through the projection; a subscript
+        // is a member with an argument list.
+        if case .host(let any) = base, let projection = any as? ModelProjection,
+           !projection.model.symbol.subscripts.isEmpty {
+            return (projection.model.symbol, .instance(projection.model))
+        }
         if let payload = base.hostPayload {
             for typeName in hostCandidates(for: payload) {
                 if let extensionSymbol = hostExtensionSymbols[typeName],

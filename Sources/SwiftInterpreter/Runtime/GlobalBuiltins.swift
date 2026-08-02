@@ -412,6 +412,15 @@ extension Interpreter {
                 return .native(UInt64(d.isFinite ? max(0, min(d, Double(UInt64.max))) : 0))
             }
             if let i = value.intValue { return .native(UInt64(max(0, i))) }
+            // The failable string form, like every other fixed-width type:
+            // `UInt64(hexString, radix: 16)` (winston's UIColor(hex:)) is nil
+            // for text the radix cannot spell, never a silent zero.
+            if let s = value.stringValue {
+                return .optional(
+                    UInt64(s, radix: Builtins.radix(in: args))
+                        .map { RuntimeValue.native($0 as Any) },
+                    wrappedTypeName: "UInt64")
+            }
             return .native(UInt64(0))
         }
         define("Int", intrinsic: .intConversion) { args, _ in
@@ -452,7 +461,9 @@ extension Interpreter {
                 return exact ? converted.liftedToOptional(wrappedTypeName: "Int") : converted
             }
             if let s = value.stringValue {
-                return .optional(Int(s).map(RuntimeValue.native), wrappedTypeName: "Int")
+                return .optional(
+                    Builtins.integer(parsing: s, args: args).map(RuntimeValue.native),
+                    wrappedTypeName: "Int")
             }
             // Numeric conversion of an unknowable reads the fresh state —
             // Int(player.currentTime.truncatingRemainder(…)) is 0, not nil.
@@ -657,7 +668,8 @@ extension Interpreter {
                 }
                 if let s = value?.stringValue {
                     return .optional(
-                        Int(s).map(RuntimeValue.native),
+                        Builtins.integer(parsing: s, args: args)
+                            .map(RuntimeValue.native),
                         wrappedTypeName: intType)
                 }
                 if let value, let z = Builtins.absorbedNumeric(value) { return .native(Int(z.isFinite ? z : 0)) }
