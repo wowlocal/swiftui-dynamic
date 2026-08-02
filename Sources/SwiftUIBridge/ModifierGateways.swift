@@ -343,6 +343,14 @@ extension ViewRegistry {
                   let interpreter = ctx as? Interpreter else {
                 return view
             }
+            // The other half of value-based navigation: a programmatic
+            // `NavigationStack(path:)` push never goes through a link tag,
+            // so hand the enclosing stack this builder and the type it
+            // dispatches on.
+            NavigationPresentationBridge.recordDestination(
+                typeName: args.labeled("for").flatMap(
+                    NavigationPresentationBridge.dispatchTypeName(of:)),
+                builder: closure)
             return AnyView(view.navigationDestination(for: String.self) { tag in
                 let value = NavigationSelectionValues.byTag[tag] ?? .native(tag)
                 let views = ((try? interpreter.callBuilderClosure(

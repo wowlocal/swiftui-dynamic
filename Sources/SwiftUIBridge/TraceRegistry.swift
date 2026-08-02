@@ -401,6 +401,36 @@ public final class TraceRegistry: HostRegistry {
             return HostFunction(name: name) { args, _ in
                 args.positional(0) ?? .void
             }
+        case "NavigationStack", "NavigationView":
+            // The trace tree must show the screen the app is ON. A non-empty
+            // path means a pushed destination covers the root — the same
+            // semantic the compiled stack paints (verified against a real
+            // NavigationStack in PathDrivenNavigationTests) and the reason a
+            // row tap can reach a detail screen at all.
+            return HostFunction(name: name) { args, ctx in
+                let node = TraceNode(kind: name)
+                let content = args.closure(labeled: "root")
+                    ?? args.closure(labeled: "content")
+                    ?? args.lastUnlabeledClosure
+                let (rootRows, destinations) = try NavigationPresentationBridge
+                    .collectingDestinations { () -> [RuntimeValue] in
+                        guard let content else { return [] }
+                        return try ctx.callBuilderClosure(
+                            content, arguments: [])
+                    }
+                let path = args.labeled("path")
+                if case .host(let any) = path, let stub = any as? BindingStub {
+                    node.bindings["path"] = stub
+                }
+                if let pushed = NavigationPresentationBridge.pushedDestination(
+                    path: path, destinations: destinations, context: ctx)
+                {
+                    node.children = try pushed.map(Self.node)
+                } else {
+                    node.children = try rootRows.map(Self.node)
+                }
+                return .native(node)
+            }
         case "NavigationLink":
             // Destinations get deep coverage like other PRESENTED content
             // (sheet bodies, tab items): on device they render on tap; the
@@ -648,6 +678,19 @@ public final class TraceRegistry: HostRegistry {
                let closure = args.arguments.compactMap({ $0.value.closureValue }).first,
                closure.parameters.isEmpty {
                 node.actions[name] = closure
+            }
+            // Hand the enclosing NavigationStack the destination this
+            // descendant declares. The builder takes the path element as a
+            // parameter, so the generic recorder below can only record it as
+            // configuration — only the stack knows what to pass.
+            if name == "navigationDestination",
+               let closure = args.arguments.compactMap({
+                   $0.value.closureValue
+               }).first, closure.parameters.count == 1 {
+                NavigationPresentationBridge.recordDestination(
+                    typeName: args.labeled("for").flatMap(
+                        NavigationPresentationBridge.dispatchTypeName(of:)),
+                    builder: closure)
             }
             if Self.executesBuilderOnlyModifier(name, context: ctx) {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content

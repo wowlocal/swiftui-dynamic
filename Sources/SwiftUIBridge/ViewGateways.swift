@@ -462,8 +462,22 @@ extension ViewRegistry {
         // MARK: Navigation
 
         let navigationStack = HostFunction(name: "NavigationStack") { args, ctx in
-            let content = try Self.builderContent(args, ctx)
-            if args.labeled("path") != nil {
+            // Destinations are declared INSIDE the stack, so collect what the
+            // content registers while it builds — that is the only point at
+            // which both the path and its destination builders are known.
+            let (content, destinations) = try NavigationPresentationBridge
+                .collectingDestinations { try Self.builderContent(args, ctx) }
+            if let path = args.labeled("path") {
+                // A pushed element renders its destination OVER the root, as
+                // the compiled stack does.
+                if let pushed = NavigationPresentationBridge.pushedDestination(
+                    path: path, destinations: destinations, context: ctx)
+                {
+                    let views = try pushed.map(Self.anyView)
+                    return .native(NavigationPresentationBridge.contain(
+                        AnyView(VStack { Self.indexed(views) }),
+                        context: ctx))
+                }
                 // A dynamic NavigationPath cannot satisfy NavigationStack's
                 // static path element types. Native path hosting can also
                 // suppress the initial interpreted root outside its App
