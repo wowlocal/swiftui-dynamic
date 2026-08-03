@@ -3159,13 +3159,27 @@ struct ConcurrencyMethodologyTests {
             "--scratch-path \"$INTERP_SCRATCH_PATH\"",
             "\"$INTERP_EXECUTABLE\" --capture",
             "--native-fixtures \"$TWIN_DIR\"",
-            "status-detail 50184",
-            "account-header 35241",
         ] {
             #expect(script.contains(required),
                 Comment(rawValue:
                     "R2 must not reuse the closing gate's --build-tests "
                         + "artifact: " + required))
+        }
+        // Every scored screen must carry a committed floor — but NEVER its
+        // VALUE. Pinning the numbers here (`status-detail 50184`) made the
+        // north star unconvergeable: driving a screen to 0 is the mission,
+        // and doing so deletes the literal and reds this test, so the one
+        // ratchet the loop exists to turn could not turn. The values are
+        // enforced where they carry meaning — Scripts/icecubes-r2.sh exits
+        // non-zero when a screen measures OVER its floor, and the close
+        // policy sums R2_FLOORS at each landed sha as the open pixel debt.
+        for screen in ["timeline", "status-detail", "account-header"] {
+            #expect(
+                script.range(
+                    of: "\n  \(screen) [0-9]+\n",
+                    options: .regularExpression) != nil,
+                Comment(rawValue:
+                    "R2 must declare a committed floor for " + screen))
         }
         #expect(!script.contains(
             "\n.build/arm64-apple-macosx/debug/IceCubesCheck --capture"),
