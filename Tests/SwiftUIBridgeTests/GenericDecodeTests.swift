@@ -16,6 +16,17 @@ import SwiftInterpreter
         try run(directory)
     }
 
+    private static func withAsyncFixture(
+        _ json: String, _ run: (String) async throws -> Void
+    ) async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("generic-decode-\(UUID().uuidString)").path
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+        try json.write(toFile: directory + "/payload.json", atomically: true, encoding: .utf8)
+        try await run(directory)
+    }
+
     @Test func annotationThreadsThroughNestedGenericCalls() throws {
         try Self.withFixture(#"[{"id": "1", "content": "hi"}, {"id": "2", "content": "yo"}]"#) { directory in
             NetworkBridge.policy = .replay(fixturesDirectory: directory)
@@ -121,6 +132,116 @@ import SwiftInterpreter
             """
             let result = try Interpreter(registry: ViewRegistry()).run(source: source)
             #expect(result.stringValue == "el")
+        }
+    }
+
+    @Test func inheritedPropertyAssignmentAnnotationBinds() throws {
+        // The IceCubes account-header genre, distilled: StatusesTabFetcher
+        // (StatusesTab.swift:50) writes `statuses`, declared by its SUPERCLASS
+        // AccountTabFetcher, and `pinned`, declared by itself — both from its
+        // own override, both through `client.get()`. Only the subclass's own
+        // property bound its generic: the call-site annotation comes from the
+        // target's declared type, and that lookup stopped at the subclass, so
+        // an inherited target produced an unbound `Entity`. The inherited write
+        // comes FIRST in the app, so it threw and the pinned write below it
+        // never ran — the empty `pinned` was the symptom, this is the cause.
+        //
+        // The expectation is native-verified, not written: the same program
+        // compiled with swiftc prints inherited=hi / subclass=hi.
+        try Self.withFixture(#"[{"id": "1", "content": "hi"}]"#) { directory in
+            NetworkBridge.policy = .replay(fixturesDirectory: directory)
+            defer { NetworkBridge.policy = .absorbed }
+            let source = """
+            struct Status: Decodable {
+                let id: String
+                let content: String
+            }
+            struct Client {
+                let decoder = JSONDecoder()
+                func get<Entity: Decodable>() throws -> Entity {
+                    try makeEntityRequest()
+                }
+                func makeEntityRequest<Entity: Decodable>() throws -> Entity {
+                    try decoder.decode(Entity.self, from: __fixtureData("payload"))
+                }
+            }
+            @Observable
+            class Base {
+                var statuses: [Status] = []
+                let client = Client()
+            }
+            @Observable
+            class Sub: Base {
+                var pinned: [Status] = []
+                func fetch() throws {
+                    statuses = try client.get()
+                    pinned = try client.get()
+                }
+            }
+            let sub = Sub()
+            try sub.fetch()
+            "inherited=" + sub.statuses.map { $0.content }.joined(separator: ",")
+                + " subclass=" + sub.pinned.map { $0.content }.joined(separator: ",")
+            """
+            let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+            #expect(result.stringValue == "inherited=hi subclass=hi")
+        }
+    }
+
+    @Test func inheritedPropertyWriteSurvivesTheAppsAsyncSpelling() async throws {
+        // The same class in the spelling StatusesTab.swift actually uses: an
+        // actor client, a @MainActor @Observable hierarchy, `try await`, and a
+        // do/catch that SWALLOWS the failure. That last part is why the screen
+        // showed no error — the throw on the inherited write jumped straight to
+        // `statusesState = .error`, leaving `pinned` unwritten and the pinned
+        // header's `if !fetcher.pinned.isEmpty` branch empty. Before the fix
+        // this printed `outcome=ERROR inherited= subclass=`.
+        try await Self.withAsyncFixture(#"[{"id": "1", "content": "hi"}]"#) { directory in
+            NetworkBridge.policy = .replay(fixturesDirectory: directory)
+            defer { NetworkBridge.policy = .absorbed }
+            let source = """
+            struct Status: Decodable {
+                let id: String
+                let content: String
+            }
+            actor Client {
+                let decoder = JSONDecoder()
+                func get<Entity: Decodable>() async throws -> Entity {
+                    try await makeEntityRequest()
+                }
+                func makeEntityRequest<Entity: Decodable>() async throws -> Entity {
+                    try decoder.decode(Entity.self, from: __fixtureData("payload"))
+                }
+            }
+            @MainActor
+            @Observable
+            class Base {
+                var statuses: [Status] = []
+                let client = Client()
+            }
+            @MainActor
+            @Observable
+            class Sub: Base {
+                var pinned: [Status] = []
+                func fetchNewestStatuses() async -> String {
+                    do {
+                        statuses = try await client.get()
+                        pinned = try await client.get()
+                        return "ok"
+                    } catch {
+                        return "ERROR"
+                    }
+                }
+            }
+            let sub = Sub()
+            let outcome = await sub.fetchNewestStatuses()
+            "outcome=" + outcome
+                + " inherited=" + sub.statuses.map { $0.content }.joined(separator: ",")
+                + " subclass=" + sub.pinned.map { $0.content }.joined(separator: ",")
+            """
+            let result = try await Interpreter(registry: ViewRegistry())
+                .runAsync(source: source)
+            #expect(result.stringValue == "outcome=ok inherited=hi subclass=hi")
         }
     }
 

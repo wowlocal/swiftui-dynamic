@@ -438,8 +438,43 @@ public final class StructSymbol {
         return storedProperties.filter { $0.wrapper == .published }.map(\.name)
     }
 
+    /// Swift resolves a stored property against the WHOLE class chain: a
+    /// subclass sees every property its superclasses declare, and `self.x = y`
+    /// in a subclass method means the superclass's `x`. `storedProperties`
+    /// holds only what this symbol declares itself, so a lookup that stopped
+    /// here answered `nil` for every inherited property — not "no declaration
+    /// with that type", but "no such stored property at all", which is what
+    /// callers test. Walking the chain here fixes the whole class of metadata
+    /// queries at once (declared type, wrapper, ownership) instead of at each
+    /// boundary that happens to notice.
+    ///
+    /// A subclass declaration SHADOWS the inherited one, so the walk answers
+    /// with the first match from the bottom up. `superclassSymbol` is bound for
+    /// every interpreted superclass before evaluation begins
+    /// (`resolveInterpretedSuperclassSymbols`) and stays nil for host ones, so
+    /// a host base keeps its existing inert behavior. The identity set bounds a
+    /// malformed chain that would otherwise cycle.
+    ///
+    /// This is one of the hottest metadata queries in the evaluator, and the
+    /// overwhelming majority of its callers ask about a struct or a root class,
+    /// which has no chain to walk. Own storage is therefore scanned before any
+    /// bookkeeping exists: that case stays exactly the single linear scan it was
+    /// before, allocating nothing, and only a real inheritance chain pays for
+    /// the cycle guard.
     public func storedProperty(named name: String) -> StoredProperty? {
-        storedProperties.first { $0.name == name }
+        if let property = storedProperties.first(where: { $0.name == name }) {
+            return property
+        }
+        guard var current = superclassSymbol else { return nil }
+        var seen: Set<ObjectIdentifier> = [ObjectIdentifier(self)]
+        while seen.insert(ObjectIdentifier(current)).inserted {
+            if let property = current.storedProperties.first(where: { $0.name == name }) {
+                return property
+            }
+            guard let next = current.superclassSymbol else { return nil }
+            current = next
+        }
+        return nil
     }
 
     /// `_offset` refers to `offset`'s wrapper storage in custom inits
