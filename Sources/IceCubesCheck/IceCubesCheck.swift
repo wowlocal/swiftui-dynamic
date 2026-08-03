@@ -139,6 +139,9 @@ private struct IceCubesCatalystCaptureRoot: View {
         do {
             try FileManager.default.createDirectory(
                 atPath: directory, withIntermediateDirectories: true)
+            // Pin the geometry BEFORE the content settles so the screen lays
+            // out once, at the size it is scored at.
+            _ = try await Self.captureRootView()
             let session = try IceCubesCheckMain.renderSession(
                 for: screen,
                 nativeFixtureDirectory: nativeFixtureDirectory)
@@ -200,19 +203,15 @@ private struct IceCubesCatalystCaptureRoot: View {
                 print("diagnostic\t\(entry.view)\t\(entry.error.message)")
             }
 
-            let windows = UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap(\.windows)
-            guard let window =
-                    windows.first(where: \.isKeyWindow) ?? windows.first,
-                  let rootView = window.rootViewController?.view else {
+            let rootView = try await Self.captureRootView()
+            guard let captureView = fixedSizeDescendant(in: rootView) else {
                 throw RuntimeError(
-                    message: "Catalyst interpreter has no live window")
+                    message: "\(screen.rawValue) has no view at the scored"
+                        + " size \(IceCubesCheckMain.screenSize); the window"
+                        + " root is \(rootView.bounds.size). Capturing"
+                        + " anything else rescales the screen — fix the"
+                        + " capture, not the floor.")
             }
-            rootView.setNeedsLayout()
-            rootView.layoutIfNeeded()
-            let captureView =
-                fixedSizeDescendant(in: rootView) ?? rootView
             removeAnimations(from: captureView.layer)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
@@ -265,6 +264,54 @@ private struct IceCubesCatalystCaptureRoot: View {
             FileHandle.standardError.write(
                 Data("IceCubesCheck Catalyst: \(error)\n".utf8))
             exit(2)
+        }
+    }
+
+    /// `drawHierarchy(in:)` SCALES whatever view it is handed into the
+    /// destination rect, so a capture view that is not exactly the scored size
+    /// yields a resampled picture rather than the app's own pixels — silently,
+    /// because the result still looks like the screen. Measured 2026-08-04:
+    /// `media` hosts no scroll view, so it had no descendant at the scored
+    /// size and the capture fell back to the whole 1330x990 Catalyst window,
+    /// squashed 0.677x0.707. Every pixel on that screen was an interpolation,
+    /// which is why its residue sat entirely on antialiased edges and no
+    /// in-process micro-twin could reproduce it.
+    ///
+    /// Pinning the SCENE to the scored size makes the window root itself an
+    /// exact-size capture view on every screen, whatever that screen hosts,
+    /// so the match below can be required instead of hoped for.
+    private static func captureRootView() async throws -> UIView {
+        let target = IceCubesCheckMain.screenSize
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        var lastObserved: CGSize?
+        while true {
+            let windows = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+            if let window =
+                windows.first(where: \.isKeyWindow) ?? windows.first,
+                let rootView = window.rootViewController?.view
+            {
+                if let restrictions = window.windowScene?.sizeRestrictions {
+                    restrictions.minimumSize = target
+                    restrictions.maximumSize = target
+                }
+                rootView.setNeedsLayout()
+                rootView.layoutIfNeeded()
+                lastObserved = rootView.bounds.size
+                if abs(rootView.bounds.width - target.width) < 0.5,
+                    abs(rootView.bounds.height - target.height) < 0.5
+                {
+                    return rootView
+                }
+            }
+            guard ContinuousClock.now < deadline else {
+                throw RuntimeError(
+                    message: "Catalyst window never reached the scored size"
+                        + " \(target); last observed"
+                        + " \(lastObserved.map(String.init(describing:)) ?? "no window")")
+            }
+            try await Task.sleep(for: .milliseconds(50))
         }
     }
 

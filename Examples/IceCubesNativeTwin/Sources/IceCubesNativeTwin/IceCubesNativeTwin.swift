@@ -347,6 +347,10 @@ private struct TwinDriverView: View {
 
     private func driveCapture() async {
         do {
+            // Pin the geometry BEFORE any screen settles so every screen lays
+            // out once, at the size it is scored at — the interpreted harness
+            // pins at the same point.
+            try await pinCaptureGeometry()
             if TwinConfiguration.capturesNavigationChrome {
                 try await Task.sleep(for: .seconds(1))
                 try await capturePNG(named: "navigation-chrome")
@@ -812,7 +816,15 @@ private struct TwinDriverView: View {
         }
         rootView.setNeedsLayout()
         rootView.layoutIfNeeded()
-        let captureView = fixedSizeDescendant(in: rootView) ?? rootView
+        guard let captureView = fixedSizeDescendant(in: rootView) else {
+            throw NSError(
+                domain: "IceCubesNativeTwin", code: 14,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "no view at the scored size \(TwinConfiguration.size);"
+                    + " the window root is \(rootView.bounds.size)."
+                    + " Capturing anything else rescales the screen — fix the"
+                    + " capture, not the floor."])
+        }
         removeAnimations(from: captureView.layer)
 
         let format = UIGraphicsImageRendererFormat()
@@ -842,7 +854,51 @@ private struct TwinDriverView: View {
     /// transition or mid-decode frame — the R2 twin divergence of 2026-07-30
     /// (71k AE between two same-state runs) was exactly such a frame slipping
     /// past a wall-clock settle sleep.
+    /// `drawHierarchy(in:)` SCALES whatever view it is handed into the
+    /// destination rect, so a capture view that is not exactly the scored size
+    /// yields a resampled picture rather than the app's own pixels — silently,
+    /// because the result still looks like the screen. Measured 2026-08-04:
+    /// `media` hosts no scroll view, so it had no descendant at the scored
+    /// size and the capture fell back to the whole 1330x990 Catalyst window,
+    /// squashed 0.677x0.707. Pinning the SCENE to the scored size makes the
+    /// window root itself an exact-size capture view on every screen, whatever
+    /// that screen hosts, so the match can be required instead of hoped for.
+    private func pinCaptureGeometry() async throws {
+        let target = TwinConfiguration.size
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        var lastObserved: CGSize?
+        while true {
+            let windows = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+            if let window = windows.first(where: \.isKeyWindow) ?? windows.first,
+               let rootView = window.rootViewController?.view {
+                if let restrictions = window.windowScene?.sizeRestrictions {
+                    restrictions.minimumSize = target
+                    restrictions.maximumSize = target
+                }
+                rootView.setNeedsLayout()
+                rootView.layoutIfNeeded()
+                lastObserved = rootView.bounds.size
+                if abs(rootView.bounds.width - target.width) < 0.5,
+                   abs(rootView.bounds.height - target.height) < 0.5 {
+                    return
+                }
+            }
+            guard ContinuousClock.now < deadline else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 15,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "Catalyst window never reached the scored size"
+                        + " \(target); last observed"
+                        + " \(lastObserved.map(String.init(describing:)) ?? "no window")"])
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
     private func capturePNG(named name: String) async throws {
+        try await pinCaptureGeometry()
         var previous: Data?
         var png: Data?
         let deadline = ContinuousClock.now.advanced(by: .seconds(10))
