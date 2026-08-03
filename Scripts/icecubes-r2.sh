@@ -26,24 +26,17 @@ INTERP_BUILD_DIR="$INTERP_SCRATCH_PATH/arm64-apple-ios-macabi/debug"
 INTERP_BINARY="$INTERP_BUILD_DIR/IceCubesCheck"
 INTERP_APP="$INTERP_BUILD_DIR/IceCubesCheck.app"
 INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
+# The scored screens, in capture order. ONE list: three copies drifted apart
+# is how a screen ends up captured but never scored, which reads exactly like
+# a screen that converged.
+R2_SCREENS=(timeline status-detail account-header media)
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
-for capture_dir in "$TWIN_DIR" "$TWIN_REPEAT_DIR"; do
-  rm -f \
-    "$capture_dir/timeline.png" \
-    "$capture_dir/status-detail.png" \
-    "$capture_dir/account-header.png" \
-    "$capture_dir/media.png" \
-    "$capture_dir/timeline.json"
-done
-for capture_dir in "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
-  rm -f \
-    "$capture_dir/timeline.png" \
-    "$capture_dir/status-detail.png" \
-    "$capture_dir/account-header.png" \
-    "$capture_dir/timeline.json" \
-    "$capture_dir/timeline.log" \
-    "$capture_dir/status-detail.log" \
-    "$capture_dir/account-header.log"
+for capture_dir in \
+  "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
+  rm -f "$capture_dir/timeline.json"
+  for screen in "${R2_SCREENS[@]}"; do
+    rm -f "$capture_dir/$screen.png" "$capture_dir/$screen.log"
+  done
 done
 
 echo "── native IceCubes twin ──"
@@ -86,7 +79,7 @@ twin_reproducible=0
 twin_failure="diverged"
 for attempt in 1 2 3; do
   twin_diverged=0
-  for screen in timeline status-detail account-header; do
+  for screen in "${R2_SCREENS[@]}"; do
     run_twin_screen "$screen" "$TWIN_DIR"
     twin_status=$?
     if (( twin_status == 0 )); then
@@ -189,7 +182,9 @@ capture_interpreted_screen() {
   local screen="$1"
   local out_dir="$2"
   local native_args=()
-  if [[ "$screen" != timeline ]]; then
+  # Mirrors IceCubesCaptureScreen.needsNativeFixtures: only the screens the
+  # TWIN chose a status and prepared endpoints for read its output directory.
+  if [[ "$screen" != timeline && "$screen" != media ]]; then
     native_args=(--native-fixtures "$TWIN_DIR")
   fi
   ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
@@ -245,7 +240,7 @@ capture_reproducible_interpreted_screen() {
   exit 2
 }
 
-for screen in timeline status-detail account-header; do
+for screen in "${R2_SCREENS[@]}"; do
   capture_reproducible_interpreted_screen "$screen"
   cat "$INTERP_DIR/$screen.log"
 done
@@ -259,19 +254,37 @@ fi
 echo "── R2 AE board ──"
 # Ratchet floors — enforced, committed baselines (AUDIT-2026-07-23-R2-stall.md
 # rec #2, mirroring Scripts/foodtruck-r3.sh). The timeline remains the LOOP R2
-# metric and exact at zero. Detail and account are independently measured so a
-# green timeline cannot hide regressions or unmeasured screen gaps.
+# metric and exact at zero. Every other screen is measured independently so a
+# green timeline cannot hide regressions or unmeasured screen gaps — and their
+# SUM is the pixel half of the north star (LOOP-ICECUBES §13), so the honest
+# way to keep it meaningful once the scored screens converge is to score the
+# app's next screen, not to read three zeroes as a finished app.
 typeset -A R2_FLOORS
 R2_FLOORS=(
   timeline 0
   status-detail 0
   account-header 0
+  media 94976
 )
+# A screen captured but unscored is indistinguishable from a screen that
+# converged, so the two lists must name exactly the same screens.
+for screen in "${R2_SCREENS[@]}"; do
+  if [[ -z "${R2_FLOORS[$screen]+set}" ]]; then
+    echo "R2 board: '$screen' is captured but carries no floor" >&2
+    exit 2
+  fi
+done
+for screen in "${(@k)R2_FLOORS}"; do
+  if (( ! ${R2_SCREENS[(Ie)$screen]} )); then
+    echo "R2 board: '$screen' carries a floor but is never captured" >&2
+    exit 2
+  fi
+done
 typeset -A R2_AE_LINES
 board_red=0
 board_below=0
 
-for screen in timeline status-detail account-header; do
+for screen in "${R2_SCREENS[@]}"; do
   ae_line="$(xcrun swift Scripts/pixel-ae.swift \
     "$TWIN_DIR/$screen.png" "$INTERP_DIR/$screen.png")"
   ae_status=$?

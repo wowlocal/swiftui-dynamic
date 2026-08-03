@@ -61,6 +61,19 @@ private enum IceCubesCaptureScreen: String {
     case timeline
     case statusDetail = "status-detail"
     case accountHeader = "account-header"
+    case media
+
+    /// `status-detail` and `account-header` are driven from a status the TWIN
+    /// picked and the endpoints it prepared, so they read the twin's output
+    /// directory. `timeline` and `media` are built from the checked-in replay
+    /// fixtures alone — media attachments resolve to the replay protocol's one
+    /// deterministic PNG, which no fixture directory supplies.
+    var needsNativeFixtures: Bool {
+        switch self {
+        case .timeline, .media: false
+        case .statusDetail, .accountHeader: true
+        }
+    }
 }
 
 private struct NativeScreenFixtureNames: Codable {
@@ -1103,6 +1116,7 @@ struct IceCubesCheckMain {
         case nativeTimeline
         case nativeStatusDetail
         case nativeAccountHeader
+        case nativeMedia
         /// The real navigation shape every IceCubes tab is built from:
         /// `NavigationStack(path: $routerPath.path) { content.withAppRouter() }`
         /// (NavigationTab.swift:25 + AppRegistry.swift:65). Nothing about the
@@ -1734,7 +1748,10 @@ struct IceCubesCheckMain {
         let __icePublicStatuses = try! __iceDecoder.decode(
             [Status].self, from: __fixtureData("api_v1_timelines_public"))
         """ : "",
-            includeTimeline && !includePagination ? """
+            // The media screen is built from this status' attachment alone, so
+            // it needs the boost fixture without any of the timeline globals.
+            (includeTimeline && !includePagination)
+                || presentation == .nativeMedia ? """
         let __iceBoostStatus = try! __iceDecoder.decode(
             Status.self,
             from: __fixtureData("api_v1_statuses_116954929935729788"))
@@ -1835,6 +1852,20 @@ struct IceCubesCheckMain {
                     NavigationStack {
                         AccountDetailView(account: __iceScreenStatus.account)
                     }
+                    .frame(width: \(screenSize.width), height: \(screenSize.height))
+                    .background(Color.white)
+            """
+        case .nativeMedia:
+            // The twin's FocusedMediaScreen frames the preview at 420x560
+            // inside the 900x700 capture, so the interpreter must nest the two
+            // frames the same way — the inner one is what the media layout is
+            // actually measured against.
+            """
+                    __IceMediaProbe(
+                        attachments: __iceBoostStatus.reblog?.mediaAttachments
+                            ?? __iceBoostStatus.mediaAttachments)
+                    .frame(width: 420, height: 560)
+                    .background(Color.white)
                     .frame(width: \(screenSize.width), height: \(screenSize.height))
                     .background(Color.white)
             """
@@ -2275,29 +2306,38 @@ struct IceCubesCheckMain {
     ) throws -> InterpreterRenderSession {
         let paths = try paths()
         Interpreter.interpretsAsPlatform = "iOS"
-        let presentation: RenderProbePresentation
+        // Which fixtures a screen reads is the screen's own declared fact, not
+        // a shape the switch below happens to have: reading it here is what
+        // makes a screen added without deciding the question fail loudly.
         let fixtureDirectory: String
-        let screenStatusFixture: String?
-        switch screen {
-        case .timeline:
-            presentation = .nativeTimeline
-            fixtureDirectory = paths.fixtures
-            screenStatusFixture = nil
-        case .statusDetail, .accountHeader:
+        if screen.needsNativeFixtures {
             guard let nativeFixtureDirectory else {
                 throw RuntimeError(
                     message:
                         "\(screen.rawValue) capture requires native fixtures")
             }
+            fixtureDirectory = nativeFixtureDirectory
+        } else {
+            fixtureDirectory = paths.fixtures
+        }
+        let presentation: RenderProbePresentation
+        let screenStatusFixture: String?
+        switch screen {
+        case .timeline:
+            presentation = .nativeTimeline
+            screenStatusFixture = nil
+        case .media:
+            presentation = .nativeMedia
+            screenStatusFixture = nil
+        case .statusDetail, .accountHeader:
             let metadata = try JSONDecoder().decode(
                 NativeTwinScreenMetadata.self,
                 from: Data(contentsOf: URL(
-                    fileURLWithPath: nativeFixtureDirectory)
+                    fileURLWithPath: fixtureDirectory)
                     .appendingPathComponent("timeline.json")))
             presentation = screen == .statusDetail
                 ? .nativeStatusDetail
                 : .nativeAccountHeader
-            fixtureDirectory = nativeFixtureDirectory
             screenStatusFixture = URL(
                 fileURLWithPath: metadata.screenFixtures.status)
                 .deletingPathExtension().lastPathComponent

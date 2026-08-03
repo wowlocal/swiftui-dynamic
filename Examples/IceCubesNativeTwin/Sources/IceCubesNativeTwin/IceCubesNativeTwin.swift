@@ -65,6 +65,7 @@ private enum TwinCaptureScreen: String {
     case timeline
     case statusDetail = "status-detail"
     case accountHeader = "account-header"
+    case media
 }
 
 @MainActor
@@ -429,6 +430,8 @@ private struct TwinDriverView: View {
                 try await captureAccountHeader(
                     detailStatus.account,
                     endpoints: screenFixtures.accountEndpoints)
+            case .media:
+                try await captureMedia([imageAttachment])
             case nil:
                 try await captureTimeline(statuses: replayStatuses)
                 try await captureStatusDetail(
@@ -436,10 +439,7 @@ private struct TwinDriverView: View {
                 try await captureAccountHeader(
                     detailStatus.account,
                     endpoints: screenFixtures.accountEndpoints)
-                capturedScreen = nil
-                focusedMedia = [imageAttachment]
-                try await Task.sleep(for: .seconds(1))
-                try await capturePNG(named: "media")
+                try await captureMedia([imageAttachment])
                 try captureMetadata(
                     statuses: replayStatuses,
                     detailStatus: detailStatus,
@@ -485,6 +485,20 @@ private struct TwinDriverView: View {
         try await waitForRequests(endpoints)
         try await waitForScreenTransition()
         try await capturePNG(named: TwinCaptureScreen.accountHeader.rawValue)
+    }
+
+    /// The media preview surface, scored as its own screen. Every attachment
+    /// URL resolves to the replay protocol's one deterministic solid PNG, so
+    /// what this screen measures is the app's own media LAYOUT — aspect ratio,
+    /// corner radius, and the frame it reserves — rather than image bytes.
+    private func captureMedia(
+        _ attachments: [MediaAttachment]
+    ) async throws {
+        statuses = []
+        capturedScreen = nil
+        focusedMedia = attachments
+        try await Task.sleep(for: .seconds(1))
+        try await capturePNG(named: TwinCaptureScreen.media.rawValue)
     }
 
     private func drivePagination() async throws {
