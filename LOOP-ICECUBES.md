@@ -250,6 +250,54 @@ advisory by construction — do not answer a missed rule by writing another para
     independently repeated full `swift test` (~30 min) re-covers what the clean-detached
     gate already runs; keep it only when the gate did not run this iteration.
 
+## Binding after the 2026-08-03 north-star audit
+
+15 iterations landed between 2026-07-31 and 2026-08-03 while the pixel debt sat
+frozen at 85,425 AE (`status-detail` 50,184 + `account-header` 35,241) and the
+board climbed 6/6 → 8/8. Discipline was not the problem — the §5/§7 stall
+detector could not fire, for two reasons found in
+`Scripts/validate-icecubes-close-policy.rb` and fixed THERE, not here.
+
+13. **The stall metric is the enforced board, summed over every screen.** The
+    detector scanned `\bR2\b.*?(\d+)/#{TOTAL_PIXELS}` out of free-text
+    `MERGE-DONE` prose. That reads the timeline alone — and only by accident:
+    the lazy match returns whatever digits happen to precede the total, and it
+    had picked `124568` out of an unrelated clause, which is the ONLY reason the
+    window showed a decrease and stayed green. It now resolves each landed sha
+    and sums `R2_FLOORS` from `Scripts/icecubes-r2.sh` AT that sha. Prose is not
+    a metric channel; the board the gate already enforces is. A screen at 0 can
+    no longer mask a screen at 50,184.
+
+14. **A converged target is not a stalled one.** `stalled?` meant "did not
+    decrease over 5 landings", which degenerates the moment the tracked debt
+    reaches 0 — every later window is "did not decrease", so the detector would
+    have pinned ON forever exactly when the mission was met. It now also
+    requires the debt to be positive: 0 reads as converged.
+
+15. **Every close states the open debt, green or red.** The validator prints
+    `R2 open <n> AE across <k> of <m> screens (<per-screen>)` and carries
+    `r2Open` / `r2OpenByScreen` in the receipt payload. A rung count plus the one
+    screen that already converged reads as done; the number the remaining
+    mission is measured by must appear in the same breath.
+
+16. **A decomposition is evidence, not a certificate.** The §7 ack grammar
+    hardcoded ONE frontier (`overlay-cross-import@<sha> row AE <n> -> 0`), so
+    the only satisfiable acknowledgement was a decomposition of the row overlay
+    — and the ledger now carries **50 copies of a single 2026-07-30 ack**,
+    re-posted after every merge because only lines after the last `MERGE-DONE`
+    are read. Binding form, enforced by
+    `Scripts/validate-icecubes-close-policy.rb`:
+
+        STALL-ACK decomposition <screen> <branch>@<sha> microtwin <Name> AE <red> -> 0
+
+    Checked mechanically, each its own red: `<screen>` is a board screen whose
+    debt is still positive (a converged screen discharges nothing); `<branch>`
+    resolves as `refs/remotes/origin/<branch>` (§10 — not a stash); `<sha>` is a
+    real commit RETAINED by that pushed branch; `<sha>` POSTDATES the oldest
+    landing in the stall window, so a certificate cannot outlive the stall it
+    answered; and the commit carries `func <Name>` under `Tests/` — the
+    distilled repro the repro doctrine requires.
+
 ## The instrument: `swift run IceCubesCheck` — bootstrap it first
 
 Per-screen rung ladder, strictly-improving total-rungs score, same discipline as
@@ -367,7 +415,12 @@ doesn't count.**
 
 ## North-star metric + backstops
 
-- **North star**: `IceCubesCheck` total rungs, strictly improving.
+- **North star, BOTH halves**: `IceCubesCheck` total rungs (function), strictly
+  improving, AND the open pixel debt (identical) — the SUM of `R2_FLOORS` over
+  every screen in `Scripts/icecubes-r2.sh` — strictly decreasing toward 0. The
+  halves are not interchangeable and rung growth never discharges the pixel
+  half: rungs are added BY this loop, floors must be driven down against the
+  twin. §13 enforces the pixel half in code.
 - **Backstops (never regress)**: FoodTruckCheck total rungs, ExpenseTracker
   pixel parity, `ProjectCheck` pass count, `LiveCheck` board, concurrency parity
   zero-tail. The closing gate runs all boards at full strength; a receipt is only
