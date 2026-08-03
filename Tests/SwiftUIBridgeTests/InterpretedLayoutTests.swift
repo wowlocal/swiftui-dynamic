@@ -128,8 +128,15 @@ import Testing
 /// fallback is deliberately invisible; its receiver-derived layout and hidden
 /// separator are the reusable collection-composition contract.
 @Suite struct UnbridgedModifierLayoutTests {
+    /// An unbridged modifier must cost its receiver NOTHING: not the
+    /// composition slot (erasing it moves FOOTER up into the missing row) and
+    /// not the content (hiding it claims the row draws nothing, which is a
+    /// statement about the receiver rather than about the unimplemented
+    /// modifier). The expectation is the same List with the modifier simply
+    /// not applied — identity is what an unapplied modifier means, and it is
+    /// the only spelling here that a compiler could also produce.
     @MainActor
-    @Test func erasedCollectionChildrenKeepInvisibleLayout() throws {
+    @Test func erasedCollectionChildrenKeepLayoutAndContent() throws {
         let source = """
         List {
             Text("ROW A")
@@ -160,13 +167,9 @@ import Testing
                 Text("ROW A")
                     .font(.title)
                     .frame(height: 90)
-                    .hidden()
-                    .listRowSeparator(.hidden)
                 Text("ROW B")
                     .font(.title)
                     .frame(height: 90)
-                    .hidden()
-                    .listRowSeparator(.hidden)
                 Text("FOOTER")
             }
             .listStyle(.plain)
@@ -183,9 +186,11 @@ import Testing
 
     /// Generated constructors and static members can now carry a concrete SDK
     /// View to this fallback. It must use the same semantic View predicate as
-    /// ordinary rendering rather than an erasure-era list of wrapper types.
+    /// ordinary rendering rather than an erasure-era list of wrapper types —
+    /// the receiver is recognised as a view, so the chain is diagnosed rather
+    /// than silently dropped.
     @MainActor
-    @Test func concreteViewReceiverUsesInvisibleFallback() throws {
+    @Test func concreteViewReceiverIsDiagnosedNotDropped() throws {
         RenderDiagnostics.reset()
         defer { RenderDiagnostics.reset() }
         let rendered = InterpreterHost().render(
