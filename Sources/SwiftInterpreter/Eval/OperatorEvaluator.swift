@@ -1002,6 +1002,30 @@ extension Interpreter {
         // cancelBag: .test)]` — the literal rides annotation-less), so the
         // declared `==` compares two real cases.
         var lhs = lhs, rhs = rhs
+        // Optional is a WRAPPER, not a different type. `fields.last != field`
+        // is `Optional<Field>` against `Field` in compiled Swift, and the
+        // witness it invokes is still Field's own — the compiler promotes the
+        // concrete peer and compares the payloads. Look through one layer at a
+        // time, the same lifting `Builtins.areEqual` performs, so a declared or
+        // synthesized equality stays reachable through `.first`/`.last`/
+        // `dict[key]`. Without it those comparisons fell past BOTH lookups
+        // below (each matches only a bare `.instance`) to the structural
+        // fallback's `.instance` identity rule, which reports every distinct
+        // box unequal. Each step strictly removes one layer, so this
+        // terminates; a `.none` on either side carries no payload for a
+        // witness to run on and stays with the structural rules.
+        switch (lhs.optionalState, rhs.optionalState) {
+        case (.notOptional, .notOptional):
+            break
+        case (.some(let left, _), .some(let right, _)):
+            return try equalsViaDeclaredOperator(left, right, node: node)
+        case (.some(let left, _), .notOptional):
+            return try equalsViaDeclaredOperator(left, rhs, node: node)
+        case (.notOptional, .some(let right, _)):
+            return try equalsViaDeclaredOperator(lhs, right, node: node)
+        default:
+            return nil
+        }
         func looksLikeMarker(_ value: RuntimeValue) -> Bool {
             if case .implicitMember = value { return true }
             if case .host(let any) = value, any is ImplicitMemberCall { return true }

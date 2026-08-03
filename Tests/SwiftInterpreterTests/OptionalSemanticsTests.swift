@@ -522,6 +522,70 @@ struct OptionalSemanticsTests {
         #expect(optional.wrapped == nil)
     }
 
+    /// Distilled from IceCubes' account-header pixel debt: AccountFieldsView
+    /// draws `if fields.last != field { Divider().padding(.vertical, 4) }`
+    /// (AccountFieldsView.swift:81). With one field the compiled app draws no
+    /// divider; the interpreter drew one, because an Optional-wrapped struct
+    /// reached neither the declared nor the synthesized equality lookup and
+    /// fell to reference identity — so every `.last`/`.first` comparison
+    /// reported unequal. The 11px that divider added (1px rule + 4+4 padding
+    /// + 2 stack spacing) shifted the whole screen below it.
+    ///
+    /// Every expectation below is the exact stdout of this program compiled
+    /// with real swiftc, never hand-written.
+    @Test func optionalWrappedValuesCompareThroughTheirOwnEqualityWitness() throws {
+        let source = """
+        struct Tag: Equatable {
+          let name: String
+          let weight: Int?
+        }
+
+        final class Node: Equatable {
+          let id: String
+          var visits: Int
+          init(id: String, visits: Int) { self.id = id; self.visits = visits }
+          // A DECLARED == deliberately ignores `visits`.
+          static func == (lhs: Node, rhs: Node) -> Bool { lhs.id == rhs.id }
+        }
+
+        let tags = [Tag(name: "website", weight: 1)]
+        let more = tags + [Tag(name: "blog", weight: nil)]
+
+        var out: [String] = []
+        // The AccountFieldsView shape itself: a loop binds each element to a
+        // fresh copy, then compares that copy against `fields.last`. Reference
+        // identity accidentally AGREES when both sides are the same storage
+        // (`tags.last != tags[0]`), so the copy is what exposes the divergence.
+        for field in tags { out.append("bound-copy-differs=\\(tags.last != field)") }
+        let copied = tags[0]
+        out.append("let-copy-differs=\\(tags.last != copied)")
+        out.append("single-last-differs=\\(tags.last != tags[0])")
+        out.append("multi-first-differs=\\(more.first != more[0])")
+        out.append("multi-last-differs=\\(more.last != more[0])")
+        out.append("optional-equals=\\(tags.first == Tag(name: "website", weight: 1))")
+        out.append("optional-nil-payload=\\(more.last == Tag(name: "blog", weight: nil))")
+        out.append("optional-unequal=\\(tags.first == Tag(name: "other", weight: 1))")
+        out.append("declared-through-optional=\\(([Node(id: "a", visits: 3)]).first == Node(id: "a", visits: 99))")
+        out.append("both-nil=\\(([Tag]()).last == ([Tag]()).first)")
+        out.append("some-vs-none=\\(tags.last == ([Tag]()).first)")
+        out.joined(separator: "\\n")
+        """
+        let result = try evaluateOptionalSemantics(source)
+        #expect(result.stringValue == """
+        bound-copy-differs=false
+        let-copy-differs=false
+        single-last-differs=false
+        multi-first-differs=false
+        multi-last-differs=true
+        optional-equals=true
+        optional-nil-payload=true
+        optional-unequal=false
+        declared-through-optional=true
+        both-nil=true
+        some-vs-none=false
+        """)
+    }
+
     @Test func emptyTypedOptionalCanBindAHostGeneric() throws {
         let interpreter = Interpreter()
         let inspect = try HostFunction(
