@@ -401,6 +401,18 @@ extension ViewRegistry {
                 ) {
                     return written
                 }
+                // A single-component key the generated contract does not claim
+                // is the program's own `@Entry`. Carry the write down the tree
+                // instead of dropping it: dispatch is on whether the SDK
+                // surface declares the key, never on the key's spelling.
+                if keyPath.components.count == 1,
+                   let key = keyPath.components.first {
+                    return AnyView(view.transformEnvironment(
+                        \.interpretedProjectValues
+                    ) { environment in
+                        environment.values[key] = value
+                    })
+                }
                 return AnyView(view)
             }
             guard case .instance(let model)? = args.positional(0), args.arguments.count == 1 else {

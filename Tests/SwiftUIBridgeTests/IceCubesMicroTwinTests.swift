@@ -5,6 +5,12 @@ import Translation
 @testable import SwiftInterpreter
 @testable import SwiftUIBridge
 
+extension EnvironmentValues {
+    /// Mirrors Env's `@Entry public var isStatusFocused` so the native side of
+    /// the focused-status twin selects its font exactly as the app does.
+    @Entry var microTwinStatusFocused: Bool = false
+}
+
 /// Pixel metrics distilled from IceCubes' StatusesListView. Keep the row and
 /// trailing pagination geometry independent so either failure can move without
 /// the other hiding it in the full-screen AE total.
@@ -220,6 +226,37 @@ struct IceCubesMicroTwinTests {
                 .translationPresentation(
                     isPresented: .constant(false),
                     text: title)
+        }
+    }
+
+    private struct NativeFocusedStatusText: View {
+        @SwiftUI.Environment(\.microTwinStatusFocused) private var isFocused
+
+        var body: some View {
+            Text("FUCK FUCK FUCK FUCK NOOOOO")
+                .font(isFocused ? .system(size: 21) : .system(size: 19))
+        }
+    }
+
+    private struct NativeFocusedStatusContent: View {
+        var body: some View {
+            NativeFocusedStatusText()
+        }
+    }
+
+    private struct NativeFocusedStatusRow: View {
+        var body: some View {
+            NativeFocusedStatusContent()
+        }
+    }
+
+    private struct NativeFocusedStatusTwin: View {
+        var body: some View {
+            VStack(alignment: .leading) {
+                NativeFocusedStatusRow()
+                    .environment(\.microTwinStatusFocused, true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -1246,6 +1283,76 @@ struct IceCubesMicroTwinTests {
         // native-identical.
         #expect(Self.alignedContentPixelAE(
             actual, expected, size: size) == 0)
+    }
+
+    /// IceCubes' focused status is the only row on the detail screen rendered at
+    /// `Font.scaledBodyFocused` — `body + 2`, two points larger than every other
+    /// row (DesignSystem/Font.swift:61). `StatusRowTextView` selects it from
+    /// `\.isStatusFocused` (StatusRowTextView.swift:29), an `@Entry` value
+    /// declared in the Env package (Env/CustomEnvValues.swift:13) and applied by
+    /// `StatusDetailView` two composition levels above the leaf that reads it
+    /// (StatusDetailView.swift:132). Losing the value across that module and
+    /// composition boundary renders the focused status one font step small and
+    /// shifts every later row up — the whole-screen `status-detail` R2 debt.
+    @MainActor
+    @Test
+    func focusedStatusEntryValueReachesNestedRowText() throws {
+        let environment = ProjectMaterial.mergedSource(source: """
+        import SwiftUI
+
+        extension EnvironmentValues {
+            @Entry public var isStatusFocused: Bool = false
+        }
+        """, moduleName: "Env")
+        let statusKit = ProjectMaterial.mergedSource(source: """
+        import Env
+        import SwiftUI
+
+        struct StatusRowTextView: View {
+            @Environment(\\.isStatusFocused) private var isFocused
+
+            var body: some View {
+                Text("FUCK FUCK FUCK FUCK NOOOOO")
+                    .font(isFocused
+                        ? .system(size: 21)
+                        : .system(size: 19))
+            }
+        }
+
+        struct StatusRowContentView: View {
+            var body: some View {
+                StatusRowTextView()
+            }
+        }
+
+        struct StatusRowView: View {
+            var body: some View {
+                StatusRowContentView()
+            }
+        }
+
+        VStack(alignment: .leading) {
+            StatusRowView()
+                .environment(\\.isStatusFocused, true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        """, moduleName: "StatusKit")
+
+        let rendered = InterpreterHost().render(
+            source: environment + statusKit,
+            lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("focused-status microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 400, height: 60)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeFocusedStatusTwin()), size: size)
+        print("@@icecubes-focused-status-microtwin ae="
+            + "\(Self.pixelAE(actual, expected, size: size))")
+        #expect(Self.pixelAE(actual, expected, size: size) == 0)
     }
 
     private static func isContentPixel(_ color: NSColor?) -> Bool {

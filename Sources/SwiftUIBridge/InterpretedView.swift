@@ -19,6 +19,26 @@ extension EnvironmentValues {
     }
 }
 
+/// `.environment(\.key, value)` writes for keys the generated SDK contract does
+/// not claim — the program's own `extension EnvironmentValues { @Entry var … }`.
+/// Carried by SwiftUI's Environment for the same reason models are: scoping,
+/// override-by-a-nearer-write, and propagation into presented content all come
+/// from SwiftUI rather than from a table the bridge would have to walk itself.
+struct ProjectEnvironment: @unchecked Sendable {
+    var values: [String: RuntimeValue] = [:]
+}
+
+private struct InterpretedProjectValuesKey: EnvironmentKey {
+    nonisolated static let defaultValue = ProjectEnvironment()
+}
+
+extension EnvironmentValues {
+    var interpretedProjectValues: ProjectEnvironment {
+        get { self[InterpretedProjectValuesKey.self] }
+        set { self[InterpretedProjectValuesKey.self] = newValue }
+    }
+}
+
 /// `@Environment(\.self)` — the whole EnvironmentValues as one value; member
 /// reads serve the same table the keyed wrappers use.
 public struct EnvironmentValuesStub {
@@ -175,6 +195,7 @@ public struct InterpretedView: View {
     @StateObject private var store = StateStore()
     // Qualified: the interpreter core also exports an `Environment` type.
     @SwiftUI.Environment(\.interpretedModels) private var modelEnvironment
+    @SwiftUI.Environment(\.interpretedProjectValues) private var projectEnvironment
     @SwiftUI.Environment(\.colorScheme) private var colorScheme
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
@@ -213,6 +234,12 @@ public struct InterpretedView: View {
             dismissAction()
             return .void
         })
+        // Project-declared keys written by an enclosing `.environment(\.key, _)`
+        // outrank the `@Entry` default `injectEnvironmentValues` would resolve,
+        // and are visible to `\.self` reads for the same reason.
+        for (key, value) in projectEnvironment.values {
+            environmentValues[key] = value
+        }
         environmentValues["self"] = .native(EnvironmentValuesStub(values: environmentValues))
         interpreter.injectEnvironmentValues(into: instance, values: environmentValues)
         LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
