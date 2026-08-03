@@ -1310,7 +1310,7 @@ for board in suite corpus live parity r2 icecubes; do
         # The RUNG COUNT is the north star, so match the exact denominator:
         # a rung that is deleted rather than fixed must not read as green.
         # Raise both numbers in the commit that adds a rung.
-        icecubes:*"IceCubesCheck: 8/8 rungs"*) ;;
+        icecubes:*"IceCubesCheck: 9/9 rungs"*) ;;
         *)
             append_gate_diagnostic \
                 "$board board summary did not satisfy the gate contract: $line"
