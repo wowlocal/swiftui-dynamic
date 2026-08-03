@@ -359,6 +359,42 @@ private enum ConcurrencyParityHarness {
             sdkVersion: sdkVersion)
     }
 
+    /// How many times a timed-out NATIVE oracle run may be re-attempted.
+    static let nativeOracleAttemptLimit = 3
+
+    /// The natively compiled fixture is this board's ORACLE, not its subject.
+    /// It completes in milliseconds, so exceeding a wall-clock budget inside
+    /// the gate's deliberately parallel tests stage (2 Swift workers + 6 parity
+    /// shards) measures machine contention, not a property of anything under
+    /// verification — a starved oracle cannot evidence an interpreter
+    /// divergence. Re-attempt a TIMED-OUT oracle on a fresh process, bounded,
+    /// so a fixture that genuinely hangs still exhausts every attempt and stays
+    /// RED. This mirrors `Scripts/icecubes-r2.sh`'s bounded capture retry: the
+    /// same problem class — a wall-clock-sensitive measurement taken in a
+    /// deliberately loaded environment — answered the same way.
+    ///
+    /// The INTERPRETED child is deliberately NOT re-attempted: a
+    /// nondeterministic hang there is precisely what this board exists to
+    /// catch. Every re-attempt prints a marker, so a fixture that needs one
+    /// every run is visible in the gate log rather than silently absorbed.
+    static func runNativeOracle(
+        describedAs operation: String,
+        attemptLimit: Int = nativeOracleAttemptLimit,
+        _ execute: () -> ParityProcessResult
+    ) -> ParityProcessResult {
+        var result = execute()
+        var attempt = 1
+        while result.timedOut, attempt < max(1, attemptLimit) {
+            attempt += 1
+            print(
+                "@@parity-native-oracle-retry "
+                    + #"{"operation":"\#(operation)","attempt":\#(attempt),"#
+                    + #""attemptLimit":\#(max(1, attemptLimit))}"#)
+            result = execute()
+        }
+        return result
+    }
+
     static func nativeOutputs(
         for parityCase: ConcurrencyParityCase,
         repetitions: Int? = nil
@@ -391,8 +427,12 @@ private enum ConcurrencyParityHarness {
         var outputs: [String] = []
         let repetitionCount = max(1, repetitions ?? parityCase.repetitions)
         for repetition in 0..<repetitionCount {
-            let execution = run(
-                binary, [], timeout: parityCase.timeoutSeconds)
+            let execution = runNativeOracle(
+                describedAs: "\(parityCase.id) repetition "
+                    + "\(repetition + 1)/\(repetitionCount)"
+            ) {
+                run(binary, [], timeout: parityCase.timeoutSeconds)
+            }
             if parityCase.assertion == .runtimeTrap {
                 try validateRuntimeTrap(
                     execution,
@@ -1925,6 +1965,59 @@ struct ConcurrencyParityTests {
             Thread.sleep(forTimeInterval: 0.01)
         }
         #expect(Darwin.kill(childPID, 0) == -1 && errno == ESRCH)
+    }
+
+    /// Distilled from three gate reds (2026-08-02, 2026-08-03 ×2) that named
+    /// different cases, always at "repetition 1/20", and never reproduced: the
+    /// operation that timed out is the NATIVELY COMPILED reference binary,
+    /// which runs in milliseconds and passes 20/20 in ~2s when run alone. The
+    /// gate's tests stage deliberately saturates the machine, so the 5s budget
+    /// was sensing contention. A starved oracle is not evidence about the
+    /// interpreter; a hanging one still is, so the retry must stay bounded.
+    @Test func aStarvedNativeOracleIsRetriedWhileAHangingOneStaysRed() {
+        func result(timedOut: Bool) -> ParityProcessResult {
+            ParityProcessResult(
+                status: timedOut ? -1 : 0,
+                standardOutput: timedOut ? "" : "observed",
+                standardError: "",
+                timedOut: timedOut)
+        }
+
+        var starvedAttempts = 0
+        let recovered = ConcurrencyParityHarness.runNativeOracle(
+            describedAs: "starved oracle"
+        ) {
+            starvedAttempts += 1
+            return result(timedOut: starvedAttempts < 3)
+        }
+        #expect(starvedAttempts == 3)
+        #expect(!recovered.timedOut)
+        #expect(recovered.standardOutput == "observed")
+
+        var hangingAttempts = 0
+        let hung = ConcurrencyParityHarness.runNativeOracle(
+            describedAs: "hanging oracle"
+        ) {
+            hangingAttempts += 1
+            return result(timedOut: true)
+        }
+        #expect(hangingAttempts == ConcurrencyParityHarness.nativeOracleAttemptLimit)
+        #expect(hung.timedOut)
+
+        // A run that completes is never re-attempted, whatever its status: only
+        // a TIMEOUT is ambiguous between contention and a real hang. A non-zero
+        // exit is a finding and must reach `successful(_:operation:)` unchanged.
+        var failingAttempts = 0
+        let failed = ConcurrencyParityHarness.runNativeOracle(
+            describedAs: "failing oracle"
+        ) {
+            failingAttempts += 1
+            return ParityProcessResult(
+                status: 1, standardOutput: "", standardError: "boom",
+                timedOut: false)
+        }
+        #expect(failingAttempts == 1)
+        #expect(failed.status == 1)
     }
 
     @Test func registeredNativeRedGapsAreExecutable() throws {
