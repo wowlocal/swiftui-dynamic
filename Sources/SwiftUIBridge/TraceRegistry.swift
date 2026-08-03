@@ -922,12 +922,38 @@ public final class TraceRegistry: HostRegistry {
               let node = value as? TraceNode, node.absorbsUnknownMembers else {
             return nil
         }
+        // The bag is for an OPAQUE imported object, which renders NOTHING. A
+        // node that already produced content is a VIEW, and a member reached
+        // on a view is a modifier — so absorbing it put a fresh EMPTY bag
+        // where the view was and erased everything the view rendered.
+        //
+        // When the generated contract declares the member a view modifier,
+        // decline outright so the real modifier path runs and the view keeps
+        // both its content and the modifier's own semantics.
+        // `Key("size", default:).default` still absorbs (`.default` is no
+        // modifier) and `context.view.frame` still absorbs (an opaque bag
+        // renders nothing).
+        let receiverRenders = !node.args.isEmpty || !node.children.isEmpty
+        if GeneratedModifiers.table[name] != nil, receiverRenders {
+            return nil
+        }
         // Members of opaque imported objects read as memoized chained bags,
         // so `context.view.frame = x` round-trips and calls absorb. This hook
         // runs only after declared/bridged capabilities have declined.
-        let fresh = RuntimeValue.native(TraceNode(
+        //
+        // The bag INHERITS what the receiver rendered. Absorbing is about not
+        // knowing an API, never about deleting content already produced, and
+        // the generated table is not the whole story — `.environment` is a
+        // hand-written gateway and is absent from it, so a table-only rule
+        // would still erase IceCubes' tab labels. Inheriting keeps every
+        // remaining absorbed member content-preserving without naming any of
+        // them; an opaque bag inherits nothing and is unchanged.
+        let bag = TraceNode(
             kind: "\(node.kind).\(name)",
-            absorbsUnknownMembers: true))
+            absorbsUnknownMembers: true)
+        bag.args = node.args
+        bag.children = node.children
+        let fresh = RuntimeValue.native(bag)
         node.config[name] = fresh
         return fresh
     }
