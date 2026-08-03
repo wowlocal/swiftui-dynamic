@@ -170,9 +170,12 @@ extension ViewRegistry {
         }
         // MARK: Geometry & animation
 
-        register("scaleEffect") { view, args, _ in
-            AnyView(view.scaleEffect(try Coerce.cgFloat(args.positional(0) ?? .native(1.0))))
-        }
+        // `scaleEffect` is deliberately NOT registered here: BridgeGen emits
+        // all ten swiftinterface overloads, including every labelled
+        // `x:`/`y:`/`anchor:` spelling. A gateway reading only `positional(0)`
+        // shadows them and silently substitutes the 1.0 default, so a labelled
+        // scale renders the receiver unscaled. Generated coverage is the whole
+        // contract; a hand-written entry could only narrow it.
         register("rotationEffect") { view, args, _ in
             guard let value = args.positional(0) else { throw RuntimeError(message: ".rotationEffect needs an angle") }
             return AnyView(view.rotationEffect(try Coerce.angle(value)))

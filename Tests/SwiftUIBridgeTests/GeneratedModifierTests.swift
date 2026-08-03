@@ -217,6 +217,91 @@ import SwiftInterpreter
         )
     }
 
+    /// `.scaleEffect` spelled with labels is ordinary SDK API that BridgeGen
+    /// already emits in full — ten overloads, `(x:y:)` and `(x:y:anchor:)`
+    /// among them. A handwritten gateway that read only `positional(0)`
+    /// shadowed every one of them and substituted the 1.0 default, so a
+    /// labelled scale rendered the receiver UNSCALED and said nothing. Each
+    /// spelling is compared against the same view compiled.
+    @MainActor
+    @Test func labelledScaleEffectMatchesNativeRendering() throws {
+        let byArity = GeneratedModifiers.table["scaleEffect"]?.byArity ?? [:]
+        #expect((byArity[2] ?? []).contains {
+            $0.params.map(\.label) == ["x", "y"]
+        })
+        #expect((byArity[3] ?? []).contains {
+            $0.params.map(\.label) == ["x", "y", "anchor"]
+        })
+
+        let size = NSSize(width: 100, height: 100)
+        // Each spelling renders a differently-sized rectangle, so a dropped
+        // scale cannot coincide with the right answer.
+        let cases: [(name: String, modifier: String, native: AnyView)] = [
+            (
+                "x:y:anchor:",
+                ".scaleEffect(x: 2.0, y: 3.0, anchor: .topLeading)",
+                AnyView(
+                    Color.blue.frame(width: 20, height: 10)
+                        .scaleEffect(x: 2.0, y: 3.0, anchor: .topLeading))
+            ),
+            (
+                "x:y:",
+                ".scaleEffect(x: 2.0, y: 3.0)",
+                AnyView(
+                    Color.blue.frame(width: 20, height: 10)
+                        .scaleEffect(x: 2.0, y: 3.0))
+            ),
+            (
+                "y:",
+                ".scaleEffect(y: 4.0)",
+                AnyView(
+                    Color.blue.frame(width: 20, height: 10)
+                        .scaleEffect(y: 4.0))
+            ),
+            (
+                "unlabelled",
+                ".scaleEffect(2.5)",
+                AnyView(
+                    Color.blue.frame(width: 20, height: 10)
+                        .scaleEffect(2.5))
+            ),
+            // An integer literal is a CGFloat here to the compiler. The removed
+            // gateway coerced it by hand, so keep the spelling covered.
+            (
+                "integer literal",
+                ".scaleEffect(3)",
+                AnyView(
+                    Color.blue.frame(width: 20, height: 10)
+                        .scaleEffect(3))
+            ),
+        ]
+
+        for testCase in cases {
+            let source = """
+            Color.blue
+                .frame(width: 20, height: 10)
+                \(testCase.modifier)
+            """
+            RenderDiagnostics.reset()
+            defer { RenderDiagnostics.reset() }
+            let rendered = InterpreterHost().render(
+                source: source, lazyTopLevelGlobals: true)
+            guard case .success(let interpreted) = rendered else {
+                Issue.record(
+                    "\(testCase.name) failed to render: \(rendered)")
+                continue
+            }
+            for (viewName, error) in RenderDiagnostics.errors {
+                Issue.record("\(testCase.name) \(viewName): \(error)")
+            }
+            let ae = Self.mismatchedPixels(
+                Self.bitmap(interpreted, size: size),
+                Self.bitmap(testCase.native, size: size),
+                size: size)
+            #expect(ae == 0, "scaleEffect(\(testCase.name)) ae=\(ae)")
+        }
+    }
+
     /// Public `.swiftcrossimport/SwiftUI.swiftoverlay` metadata is part of the
     /// SDK API surface. The generated overload retains both the interface
     /// parameter shape and the triggering source import.
