@@ -3148,6 +3148,39 @@ struct ConcurrencyMethodologyTests {
             "@@icecubes-close-policy-self-test passed"))
     }
 
+    /// `Scripts/pixel-diff-map.swift` does not gate anything — it decides which
+    /// investigation a pixel divergence gets, which is worse to get silently
+    /// wrong than a red board. A flat-region divergence means the two sides drew
+    /// different content and distills to a micro-twin of that view; an
+    /// edge-confined one means they drew the same shapes in the same places and
+    /// no in-process bitmap micro-twin can even express it. Reading the second
+    /// as the first re-distills a screen with nothing to find. The script's
+    /// `--self-test` classifies buffers whose class is known by construction.
+    @Test func pixelDiffMapClassifiesDivergenceKindsCorrectly() throws {
+        let script = Self.packageRoot.appendingPathComponent(
+            "Scripts/pixel-diff-map.swift")
+        let process = Process()
+        // Never a bare `swift` — the ambient Swiftly toolchain is a +assertions
+        // build that crashes in IRGen and poisons .build.
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.standardInput = FileHandle.nullDevice
+        process.arguments = ["swift", script.path, "--self-test"]
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+        let output = String(
+            decoding: stdout.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self)
+        let error = String(
+            decoding: stderr.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self)
+        #expect(process.terminationStatus == 0, Comment(rawValue: error))
+        #expect(output.contains("@@pixel-diff-map-self-test passed"))
+    }
+
     @Test func iceCubesR2UsesAnIsolatedProductBuild() throws {
         let script = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(
