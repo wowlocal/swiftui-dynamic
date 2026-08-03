@@ -324,6 +324,12 @@ def self_test
     stalled?(Array.new(STALL_WINDOW, 0))
   raise "a screen still open must stall even beside a converged one" unless
     stalled?(Array.new(STALL_WINDOW, 85_425))
+  # The window ends at the tip being gated: a flat landed tail plus a tip that
+  # drives the debt down is the shape of a stall being CLEARED, not a stall.
+  raise "a tip that decreases the debt must clear the stall" if
+    stalled?(Array.new(STALL_WINDOW, 85_425) + [35_241])
+  raise "a tip that holds the debt must not clear the stall" unless
+    stalled?(Array.new(STALL_WINDOW, 85_425) + [85_425])
   raise "literal metric accepted incorrectly" unless
     "Metric delta: R2 59695 -> 59695 / 630000".match?(METRIC_PATTERN)
   raise "nonliteral metric accepted" if
@@ -443,18 +449,6 @@ end
 
 claim_lines = File.readlines(claims_path, chomp: true)
 entries = landed_entries(claim_lines)
-metrics = entries.map { |entry| entry.fetch("open") }
-stall_active = stalled?(metrics)
-
-# The stall begins at its OLDEST landing: evidence older than that is a
-# certificate from a previous frontier, not a decomposition of this one.
-stall_epoch = nil
-if stall_active && !entries.empty?
-  window_stamp, _window_error, window_ok = git(
-    "show", "-s", "--format=%ct", entries.first.fetch("sha")
-  )
-  stall_epoch = Integer(window_stamp.strip, 10) if window_ok
-end
 
 # The headline every close receipt and gate log now carries. A rung count and
 # the one screen that already converged read as "done"; the open debt is the
@@ -474,6 +468,31 @@ if open_by_screen
 else
   errors << "R2 board floors are unreadable at #{R2_BOARD_PATH}: the pixel " \
     "half of the north star cannot be measured"
+end
+
+# The window ends at the TIP BEING GATED, not at the last landing. Scoring only
+# landed iterations made the stall unclearable by the thing that actually clears
+# it: a tip that drives a floor down cannot land while the stall is active, and
+# the stall cannot lift until it lands. Worse, the only satisfiable escape was a
+# STALL-ACK naming a screen whose debt is still positive — so a lane that
+# converged the stalled screen was pushed to certify a screen it had NOT
+# decomposed, which is exactly the empty certificate §16 exists to stop.
+# The tip's floors are honest by construction: `Scripts/icecubes-r2.sh` exits
+# non-zero when a screen measures OVER its floor, and gate.sh propagates that,
+# so a floor lowered without the pixels moving reds the same gate this check
+# runs in. A decrease here is therefore measured, not asserted.
+metrics = entries.map { |entry| entry.fetch("open") }
+metrics += [open_total] if open_total
+stall_active = stalled?(metrics)
+
+# The stall begins at its OLDEST landing: evidence older than that is a
+# certificate from a previous frontier, not a decomposition of this one.
+stall_epoch = nil
+if stall_active && !entries.empty?
+  window_stamp, _window_error, window_ok = git(
+    "show", "-s", "--format=%ct", entries.first.fetch("sha")
+  )
+  stall_epoch = Integer(window_stamp.strip, 10) if window_ok
 end
 last_merge_done_index =
   claim_lines.rindex { |line| line.include?("MERGE-DONE") } || -1
