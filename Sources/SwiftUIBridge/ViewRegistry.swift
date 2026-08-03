@@ -363,17 +363,19 @@ public final class ViewRegistry: HostRegistry {
                             in: "anyView")
                         // SwiftUI magic: erasing a rendered collection child
                         // to zero-sized EmptyView also erases its composition
-                        // slot, moving later siblings into the missing row.
-                        // The unknown modifier's pixels remain unknowable, so
-                        // retain only the receiver-derived layout. A separator
-                        // belongs to visible row content and would otherwise
-                        // make the invisible placeholder paint; outside List,
-                        // listRowSeparator is inert.
+                        // slot, moving later siblings into the missing row —
+                        // so the receiver is kept. It is kept VISIBLE, because
+                        // what is unknown is the MODIFIER's pixels, never the
+                        // receiver's: hiding the receiver answers "this view
+                        // draws nothing", which is a far stronger claim than
+                        // "this modifier is unimplemented" and is wrong for
+                        // every modifier that is not itself `.hidden()`.
+                        // Identity is the closest reachable approximation of
+                        // an unapplied modifier, and it keeps both the
+                        // composition slot and the content. A now-visible row
+                        // paints its separator exactly like any other.
                         if let receiver = try? Self.anyView(root) {
-                            return AnyView(
-                                receiver
-                                    .hidden()
-                                    .listRowSeparator(.hidden))
+                            return receiver
                         }
                     }
                 }

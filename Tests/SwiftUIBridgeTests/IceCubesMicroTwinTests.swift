@@ -229,6 +229,21 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    /// The media preview's own spelling: StatusRowMediaPreviewView.swift:162
+    /// hangs `.matchedTransitionSource` off the attachment image. Compiled, the
+    /// modifier only registers a transition source — the image keeps every
+    /// pixel it had.
+    private struct NativeMatchedSourceMedia: View {
+        @Namespace private var namespace
+
+        var body: some View {
+            Color.blue
+                .frame(width: 160, height: 120)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .matchedTransitionSource(id: "media", in: namespace)
+        }
+    }
+
     private struct NativeFocusedStatusText: View {
         @SwiftUI.Environment(\.microTwinStatusFocused) private var isFocused
 
@@ -316,6 +331,47 @@ struct IceCubesMicroTwinTests {
         print("@@icecubes-row-microtwin ae=\(ae)")
         #expect(ae == 0)
         #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
+    /// The R2 media screen's whole 94,976 AE in one distilled view: a modifier
+    /// the bridge does not implement, applied to a view that renders. It was
+    /// kept for LAYOUT and hidden — a claim that the RECEIVER draws nothing,
+    /// when the only unknown is the modifier's own pixels. Natively the image
+    /// is fully drawn, so the interpreted capture must draw it too.
+    @MainActor
+    @Test
+    func matchedTransitionSourceKeepsItsReceiversPixels() throws {
+        let source = """
+        struct MatchedSourceMedia: View {
+            @Namespace private var namespace
+
+            var body: some View {
+                Color.blue
+                    .frame(width: 160, height: 120)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .matchedTransitionSource(id: "media", in: namespace)
+            }
+        }
+
+        MatchedSourceMedia()
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("media microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 220, height: 180)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeMatchedSourceMedia()), size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-media-microtwin ae=\(ae)")
+        #expect(ae == 0)
     }
 
     /// `StatusesListView.makeNextPageRow` follows every translated status row.
