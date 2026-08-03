@@ -3156,6 +3156,12 @@ struct ConcurrencyMethodologyTests {
     /// no in-process bitmap micro-twin can even express it. Reading the second
     /// as the first re-distills a screen with nothing to find. The script's
     /// `--self-test` classifies buffers whose class is known by construction.
+    ///
+    /// It also pins the COMPONENT split, on a buffer carrying TWO divergences
+    /// whose separation is known by construction: the whole-screen verdict can
+    /// only name the kind the worse pixels force, so a second divergence of the
+    /// other kind stays invisible — and the one BBOX spans their union, a region
+    /// neither occupies. A misattributed cluster exits 2 and reds this test.
     @Test func pixelDiffMapClassifiesDivergenceKindsCorrectly() throws {
         let script = Self.packageRoot.appendingPathComponent(
             "Scripts/pixel-diff-map.swift")

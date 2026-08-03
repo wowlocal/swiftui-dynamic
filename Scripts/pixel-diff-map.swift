@@ -22,6 +22,14 @@
  TWIN's own 3x3 neighbourhood is non-uniform there, which is a property of the
  native baseline alone and never of the interpreter's output.
 
+ WHERE and WHAT KIND are still whole-screen answers, and a screen may hold more
+ than one divergence. Then the single BBOX spans their union — a region neither
+ of them occupies — and the single CLASS is whichever verdict the worse pixels
+ force, so the other divergence is invisible until the first is fixed. COMPONENTS
+ splits the differing pixels into spatially separate clusters and gives each its
+ own AE, box, magnitude and class, which is what makes two divergences on one
+ screen two targets rather than one blob.
+
  Exit status mirrors pixel-ae.swift: 0 identical, 1 differing, 2 unusable input.
 */
 import Foundation
@@ -40,6 +48,32 @@ func loadPixels(_ path: String) -> (data: [UInt8], width: Int, height: Int)? {
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
     context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
     return (data, width, height)
+}
+
+/// A pixel counts as an edge pixel when the TWIN's own 3x3 neighbourhood is not
+/// uniform there. Judging that from the native baseline alone keeps the
+/// classification independent of what the interpreter drew.
+func twinIsEdge(_ a: [UInt8], _ x: Int, _ y: Int, width: Int, height: Int) -> Bool {
+    let offset = (y * width + x) * 4
+    for dy in -1...1 {
+        for dx in -1...1 {
+            let nx = x + dx, ny = y + dy
+            guard nx >= 0, nx < width, ny >= 0, ny < height else { continue }
+            let neighbour = (ny * width + nx) * 4
+            for channel in 0..<4 where a[offset + channel] != a[neighbour + channel] {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+/// The verdict itself, shared by the whole-screen CLASS line and the per-component
+/// ones so the two can never drift to different thresholds.
+func classVerdict(flatDiffering: Int, maxDelta: Int) -> String {
+    if flatDiffering == 0 && maxDelta <= 8 { return "EDGE-BLEND" }
+    if flatDiffering == 0 { return "EDGE-GEOMETRY" }
+    return "REGION"
 }
 
 /// The MAGNITUDE/EDGE/CLASS block, over raw RGBA buffers so the same code that
@@ -71,28 +105,12 @@ func classify(
         format: "MAGNITUDE max %d  mean %.2f  of 255 — %d px (%.1f%%) differ by <= 2",
         maxDelta, meanDelta, withinTwo, withinTwoShare))
 
-    // EDGE — a pixel counts as an edge pixel when the TWIN's own 3x3
-    // neighbourhood is not uniform there. Judging that from the native baseline
-    // alone keeps the classification independent of what the interpreter drew.
-    func twinIsEdge(_ x: Int, _ y: Int) -> Bool {
-        let offset = (y * width + x) * 4
-        for dy in -1...1 {
-            for dx in -1...1 {
-                let nx = x + dx, ny = y + dy
-                guard nx >= 0, nx < width, ny >= 0, ny < height else { continue }
-                let neighbour = (ny * width + nx) * 4
-                for channel in 0..<4 where a[offset + channel] != a[neighbour + channel] {
-                    return true
-                }
-            }
-        }
-        return false
-    }
+    // EDGE — how many of the differing pixels sit on the twin's own edges.
     var edgeDiffering = 0
     var edgeTotal = 0
     for y in 0..<height {
         for x in 0..<width {
-            guard twinIsEdge(x, y) else { continue }
+            guard twinIsEdge(a, x, y, width: width, height: height) else { continue }
             edgeTotal += 1
             if differing[y * width + x] { edgeDiffering += 1 }
         }
@@ -104,21 +122,90 @@ func classify(
             + "  [twin has %d edge px]",
         edgeDiffering, differingCount, edgeShare, flatDiffering, edgeTotal))
     // The verdict names the class so the next step is not chosen by eye.
-    if flatDiffering == 0 && maxDelta <= 8 {
+    switch classVerdict(flatDiffering: flatDiffering, maxDelta: maxDelta) {
+    case "EDGE-BLEND":
         lines.append("CLASS EDGE-BLEND — every differing pixel is an antialiased twin edge and"
             + " no flat region differs, so both sides drew the same shapes, in the same"
             + " places, in the same colours. This is a rasterization/compositing"
             + " divergence; an in-process bitmap micro-twin cannot reproduce it.")
-    } else if flatDiffering == 0 {
+    case "EDGE-GEOMETRY":
         lines.append("CLASS EDGE-GEOMETRY — differences are confined to twin edges but reach"
             + " \(maxDelta) levels, which is a displaced or differently-shaped boundary"
             + " rather than a blend of the same one.")
-    } else {
+    default:
         lines.append("CLASS REGION — \(flatDiffering) differing px lie in flat twin regions, so"
             + " content differs (a missing view, a wrong colour, a displaced frame)."
             + " Distill the view covering the BBOX above.")
     }
     return lines
+}
+
+/// One spatially separate cluster of differing pixels, with the same numbers the
+/// whole-screen block reports — measured over that cluster alone.
+struct DivergenceComponent {
+    var ae = 0
+    var minX = Int.max, maxX = -1, minY = Int.max, maxY = -1
+    var maxDelta = 0
+    var deltaSum = 0
+    var flatDiffering = 0
+    var verdict: String {
+        classVerdict(flatDiffering: flatDiffering, maxDelta: maxDelta)
+    }
+    var meanDelta: Double { ae == 0 ? 0 : Double(deltaSum) / Double(ae) }
+}
+
+/// Cluster the differing pixels, joining two of them when they lie within `gap`
+/// pixels of each other. Pure 8-connectivity would shatter one divergence into
+/// dozens of components wherever its own antialiasing happens to agree for a
+/// pixel or two — a hairline rim that matches exactly at four places along its
+/// length is still ONE rim, not five. `gap` is what keeps a cluster the size of
+/// the thing that drew it, while staying far below the distance between two
+/// unrelated features.
+func divergenceComponents(
+    _ a: [UInt8], _ b: [UInt8], width: Int, height: Int, differing: [Bool], gap: Int
+) -> [DivergenceComponent] {
+    var label = [Int](repeating: -1, count: width * height)
+    var components: [DivergenceComponent] = []
+    var queue: [Int] = []
+    for seed in 0..<(width * height) where differing[seed] && label[seed] == -1 {
+        let index = components.count
+        var component = DivergenceComponent()
+        label[seed] = index
+        queue.removeAll(keepingCapacity: true)
+        queue.append(seed)
+        var head = 0
+        while head < queue.count {
+            let pixel = queue[head]; head += 1
+            let x = pixel % width, y = pixel / width
+            let offset = pixel * 4
+            var pixelDelta = 0
+            for channel in 0..<4 {
+                pixelDelta = max(pixelDelta, abs(Int(a[offset + channel]) - Int(b[offset + channel])))
+            }
+            component.ae += 1
+            component.deltaSum += pixelDelta
+            component.maxDelta = max(component.maxDelta, pixelDelta)
+            component.minX = min(component.minX, x); component.maxX = max(component.maxX, x)
+            component.minY = min(component.minY, y); component.maxY = max(component.maxY, y)
+            if !twinIsEdge(a, x, y, width: width, height: height) {
+                component.flatDiffering += 1
+            }
+            for dy in -gap...gap {
+                let ny = y + dy
+                guard ny >= 0, ny < height else { continue }
+                for dx in -gap...gap {
+                    let nx = x + dx
+                    guard nx >= 0, nx < width else { continue }
+                    let neighbour = ny * width + nx
+                    guard differing[neighbour], label[neighbour] == -1 else { continue }
+                    label[neighbour] = index
+                    queue.append(neighbour)
+                }
+            }
+        }
+        components.append(component)
+    }
+    return components.sorted { $0.ae > $1.ae }
 }
 
 func differingMask(_ a: [UInt8], _ b: [UInt8], count: Int) -> (mask: [Bool], total: Int) {
@@ -201,6 +288,64 @@ if CommandLine.arguments.contains("--self-test") {
             "self-test: displaced edge misclassified: \(displacedLines)\n".utf8))
         exit(2)
     }
+    // Two divergences on one screen: a flat recolour inside the square, and a
+    // one-level nudge along the border of a SECOND, far-away square. The
+    // whole-screen verdict can only be REGION — the flat pixels force it — so
+    // the edge-blend divergence is invisible until the components split them.
+    var twoShapes = twin
+    for y in 4..<9 {
+        for x in 32..<37 {
+            let offset = (y * width + x) * 4
+            twoShapes[offset] = 0; twoShapes[offset + 1] = 0; twoShapes[offset + 2] = 0
+        }
+    }
+    var twoDivergences = twoShapes
+    for y in 15..<20 {
+        for x in 15..<20 {
+            let offset = (y * width + x) * 4
+            twoDivergences[offset] = 0
+            twoDivergences[offset + 1] = 200
+            twoDivergences[offset + 2] = 0
+        }
+    }
+    for y in 4..<9 {
+        for x in 32..<37 {
+            let onBorder = y == 4 || y == 8 || x == 32 || x == 36
+            guard onBorder else { continue }
+            let offset = (y * width + x) * 4
+            twoDivergences[offset] = 1
+            twoDivergences[offset + 1] = 1
+            twoDivergences[offset + 2] = 1
+        }
+    }
+    let twoMask = differingMask(twoShapes, twoDivergences, count: width * height)
+    let whole = classify(
+        twoShapes, twoDivergences, width: width, height: height,
+        differing: twoMask.mask, differingCount: twoMask.total)
+    guard whole.last?.hasPrefix("CLASS REGION") == true else {
+        FileHandle.standardError.write(Data(
+            "self-test: two-divergence screen should read REGION whole-screen: \(whole)\n".utf8))
+        exit(2)
+    }
+    let split = divergenceComponents(
+        twoShapes, twoDivergences, width: width, height: height,
+        differing: twoMask.mask, gap: 4)
+    guard split.count == 2 else {
+        FileHandle.standardError.write(Data(
+            ("self-test: expected 2 components, got \(split.count)"
+                + " \(split.map { ($0.ae, $0.minX, $0.minY) })\n").utf8))
+        exit(2)
+    }
+    // The recolour is 25 px and REGION; the nudged border is 16 px and EDGE-BLEND.
+    guard split[0].ae == 25, split[0].verdict == "REGION",
+          split[0].minX == 15, split[0].maxX == 19,
+          split[1].ae == 16, split[1].verdict == "EDGE-BLEND",
+          split[1].minX == 32, split[1].maxX == 36 else {
+        FileHandle.standardError.write(Data(
+            ("self-test: components misattributed:"
+                + " \(split.map { ($0.ae, $0.verdict, $0.minX, $0.maxX, $0.minY, $0.maxY) })\n").utf8))
+        exit(2)
+    }
     print("@@pixel-diff-map-self-test passed")
     exit(0)
 }
@@ -208,7 +353,8 @@ if CommandLine.arguments.contains("--self-test") {
 let arguments = CommandLine.arguments
 guard arguments.count >= 3 else {
     FileHandle.standardError.write(Data(
-        "usage: pixel-diff-map.swift twin.png interp.png [--bands N] [--out diff.png]\n".utf8))
+        ("usage: pixel-diff-map.swift twin.png interp.png"
+            + " [--bands N] [--gap N] [--components N] [--out diff.png]\n").utf8))
     exit(2)
 }
 func option(_ name: String) -> String? {
@@ -217,6 +363,8 @@ func option(_ name: String) -> String? {
     return arguments[index + 1]
 }
 let bandCount = Int(option("--bands") ?? "24") ?? 24
+let componentGap = Int(option("--gap") ?? "4") ?? 4
+let componentLimit = Int(option("--components") ?? "8") ?? 8
 guard let a = loadPixels(arguments[1]), let b = loadPixels(arguments[2]) else {
     FileHandle.standardError.write(Data("cannot read images\n".utf8))
     exit(2)
@@ -259,6 +407,28 @@ if differingCount > 0 {
         differing: differing, differingCount: differingCount
     ) {
         print(line)
+    }
+
+    let components = divergenceComponents(
+        a.data, b.data, width: width, height: height,
+        differing: differing, gap: componentGap)
+    print("COMPONENTS \(components.count) cluster(s) at gap \(componentGap)px"
+        + " — AE  share  box  magnitude  class")
+    for (index, component) in components.prefix(componentLimit).enumerated() {
+        let share = Double(component.ae) * 100 / Double(differingCount)
+        print(String(
+            format: "  #%d  %7d  %5.1f%%  x %d...%d y %d...%d (%dx%d)  max %d mean %.2f  %@",
+            index + 1, component.ae, share,
+            component.minX, component.maxX, component.minY, component.maxY,
+            component.maxX - component.minX + 1, component.maxY - component.minY + 1,
+            component.maxDelta, component.meanDelta, component.verdict))
+    }
+    // Never let a truncated list read as the whole picture.
+    if components.count > componentLimit {
+        let dropped = components.dropFirst(componentLimit)
+        print("  … \(dropped.count) further cluster(s) not shown,"
+            + " \(dropped.reduce(0) { $0 + $1.ae }) AE between them"
+            + " (raise --components to list them)")
     }
 
     let bandHeight = max(1, Int((Double(height) / Double(bandCount)).rounded(.up)))
