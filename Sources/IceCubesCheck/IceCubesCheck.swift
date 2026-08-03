@@ -636,6 +636,7 @@ struct IceCubesCheckMain {
         let filter = option("--screen", in: arguments)
         let jobs = [
             "shell", "timeline", "detail-account", "pagination", "row-tap",
+            "tab-switch",
         ].filter { job in
             guard let filter else { return true }
             return expectedRungs(for: job).contains {
@@ -715,6 +716,8 @@ struct IceCubesCheckMain {
             return ["R3-pagination"]
         case "row-tap":
             return ["R3-row-tap-detail"]
+        case "tab-switch":
+            return ["R3-tab-switch"]
         default:
             return ["unknown-worker"]
         }
@@ -858,6 +861,8 @@ struct IceCubesCheckMain {
             ]
         case "row-tap":
             return [try await rowTapRung(paths: paths, oracle: oracle)]
+        case "tab-switch":
+            return [try await tabSwitchRung(paths: paths, oracle: oracle)]
         default:
             return [RungRecord(
                 name: "unknown-worker", passed: false,
@@ -1333,6 +1338,163 @@ struct IceCubesCheckMain {
         if !problems.isEmpty {
             problems.append(
                 "aimed at '\(target.aimWord)' among "
+                    + "\(after.actionTargets.count) tappable elements")
+        }
+        return record(problems)
+    }
+
+    /// The app's OWN string catalog. Every tab label and screen marker the
+    /// tab-switch rung aims at or asserts is a `LocalizedStringKey` the app
+    /// resolves through this file at runtime, so the rung reads the same
+    /// bytes rather than restating what they say — the localization rule the
+    /// fixtures already follow for the network.
+    private struct AppStringCatalog {
+        private let values: [String: String]
+
+        init(appRoot: String) throws {
+            let path = appRoot
+                + "/IceCubesApp/Resources/Localization/Localizable.xcstrings"
+            guard let data = FileManager.default.contents(atPath: path) else {
+                throw RuntimeError(
+                    message: "app string catalog is missing at \(path)")
+            }
+            let root = try JSONSerialization.jsonObject(with: data)
+            guard let object = root as? [String: Any],
+                  let strings = object["strings"] as? [String: Any]
+            else {
+                throw RuntimeError(
+                    message: "app string catalog at \(path) has no strings")
+            }
+            var values: [String: String] = [:]
+            for (key, entry) in strings {
+                guard let entry = entry as? [String: Any],
+                      let localizations =
+                        entry["localizations"] as? [String: Any],
+                      let english = localizations["en"] as? [String: Any],
+                      let unit = english["stringUnit"] as? [String: Any],
+                      let value = unit["value"] as? String
+                else { continue }
+                values[key] = value
+            }
+            self.values = values
+        }
+
+        /// The trace tree records the KEY a `Text(_: LocalizedStringKey)` was
+        /// given rather than the localized value — the real render localizes,
+        /// which is why the pixel board sits at AE 0 over screens full of
+        /// localized chrome. So the rung aims at and asserts on the app's own
+        /// keys, and the catalog's job is to confirm each one IS a string the
+        /// app defines: a typo would otherwise be a marker that can never
+        /// match, i.e. a rung that fails for the wrong reason.
+        func confirmedKey(_ key: String) throws -> String {
+            guard let value = values[key], !value.isEmpty else {
+                throw RuntimeError(
+                    message: "'\(key)' is not a string the app's own catalog "
+                        + "defines, so no screen can be identified by it")
+            }
+            return key
+        }
+    }
+
+    /// R3 interaction three of three: switching tab lands the right screen.
+    /// The shell drives this through AppView.swift:77 — a `TabView` whose
+    /// selection is a COMPUTED binding routing every write through the app's
+    /// own `updateTab(with:)`, with the items nested in `TabSection`/`ForEach`
+    /// and each carrying a separate `label:` builder. Signed out (the board's
+    /// standing quarantine) `availableSections` is `[.loggedOutTabs]`, whose
+    /// tabs are `[.timeline, .settings]` (Tabs.swift:359) — so the switch this
+    /// rung drives is the only one the unauthenticated app offers.
+    ///
+    /// Nothing about either screen is restated: the rung renders the app's own
+    /// `@main` scene, aims at the label the app puts on the settings tab, and
+    /// identifies the two screens by the recorded fixture authors (timeline)
+    /// and the app's own settings section headers.
+    private static func tabSwitchRung(
+        paths: Paths, oracle: FixtureOracle
+    ) async throws -> RungRecord {
+        func record(_ problems: [String]) -> RungRecord {
+            RungRecord(
+                name: "R3-tab-switch", passed: problems.isEmpty,
+                message: problems.joined(separator: "; "))
+        }
+        let catalog = try AppStringCatalog(appRoot: paths.app)
+        let settingsTabLabel = try catalog.confirmedKey("tab.settings")
+        // Markers only the settings CONTENT renders. The tab's own label is
+        // on screen either way — a tab bar shows every tab — so asserting the
+        // label would pass without the screen ever landing.
+        let settingsMarkers = try ["settings.section.app", "settings.app.source"]
+            .map { try catalog.confirmedKey($0) }
+        // The timeline's presence is read off the recorded bytes, exactly as
+        // every other rung reads it.
+        let timelineAuthors = oracle.trendingStatuses
+            .map(\.visibleAccount.visibleName)
+            .filter { $0.count >= 3 }
+
+        let source = ProjectMaterial.mergedSource(
+            at: paths.app, files: paths.packageFiles + paths.appFiles,
+            sourceModules: paths.sourceModules)
+        let before = try await LiveCheckSupport.render(source: source)
+        func shows(_ render: LiveCheckRenderResult, _ text: String) -> Bool {
+            !text.isEmpty && render.strings
+                .map(FixtureOracle.normalize)
+                .contains { $0.contains(text) }
+        }
+        // Kept small on purpose: the worker's stdout is a pipe the parent
+        // drains only at exit, so dumping every rendered string deadlocks the
+        // worker into its own timeout.
+        if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+            print("@@icecubes-tab-switch aim=\(settingsTabLabel) "
+                + "markers=\(settingsMarkers) "
+                + "strings=\(before.strings.count)")
+            for string in before.strings.map(FixtureOracle.normalize)
+            where string.hasPrefix("tab.") || string.hasPrefix("settings.") {
+                print("@@icecubes-tab-switch-string \(string.prefix(120))")
+            }
+        }
+
+        var problems: [String] = []
+        // The switch is only measurable if the timeline was there first.
+        let authorsBefore = timelineAuthors.filter { shows(before, $0) }
+        if authorsBefore.isEmpty {
+            problems.append(
+                "no replay author reached the timeline tab before the "
+                    + "switch, so landing on settings cannot be told from a "
+                    + "shell that never rendered a tab at all")
+        }
+        let leakedBefore = settingsMarkers.filter { shows(before, $0) }
+        if !leakedBefore.isEmpty {
+            problems.append(
+                "the settings screen is already on screen before the switch: "
+                    + leakedBefore.joined(separator: ", ")
+                    + " — only the selected tab's content may render")
+        }
+        guard problems.isEmpty else { return record(problems) }
+
+        let after = try await LiveCheckSupport.render(
+            source: source, afterActions: 1,
+            targeting: .renderingText(settingsTabLabel))
+        let landed = settingsMarkers.filter { shows(after, $0) }
+        if landed.isEmpty {
+            problems.append(
+                "selecting the '\(settingsTabLabel)' tab did not land its "
+                    + "screen: none of \(settingsMarkers) rendered")
+        }
+        let stillVisible = authorsBefore.filter { shows(after, $0) }
+        if !stillVisible.isEmpty {
+            problems.append(
+                "the timeline tab is still on screen after the switch: "
+                    + stillVisible.prefix(3).joined(separator: ", ")
+                    + " remain visible")
+        }
+        if !after.lifecycleErrors.isEmpty {
+            problems.append(
+                "lifecycle errors: "
+                    + after.lifecycleErrors.prefix(3)
+                        .joined(separator: " | "))
+        }
+        if !problems.isEmpty {
+            problems.append(
+                "aimed at '\(settingsTabLabel)' among "
                     + "\(after.actionTargets.count) tappable elements")
         }
         return record(problems)
