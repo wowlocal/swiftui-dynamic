@@ -2,7 +2,12 @@
 # Resume the lane-foodtruck ralph loop in a dedicated agterm session.
 #
 #   watch:  pick "lane-foodtruck" in the agterm sidebar (workspace "loops")
-#   stop:   agtermctl session close --target "$(cat /tmp/lane-foodtruck-loop/session-id)"
+#   pause:  touch /tmp/lane-foodtruck-loop/stop
+#           Graceful: the runner reads it at the iteration boundary, so the
+#           iteration in flight finishes and commits first. This script clears
+#           the flag, so resuming is just running it again.
+#   kill:   agtermctl session close --target "$(cat /tmp/lane-foodtruck-loop/session-id)"
+#           Hard - SIGHUPs claude wherever it is. Use pause unless it is wedged.
 #   logs:   /tmp/lane-foodtruck-loop/runner.log, .../iter-*.log
 #
 # agterm rather than tmux: the loop's `claude` inherits AGTERM_SESSION_ID from
@@ -20,6 +25,7 @@ WORKSPACE=loops
 SESSION=lane-foodtruck
 
 mkdir -p "$LOG_DIR"
+rm -f "$LOG_DIR/stop"   # a leftover pause flag must not stop the fresh run
 
 # tee: the iteration stream has to outlive the session's scrollback.
 SHELL_LINE="$RUNNER 2>&1 | tee -a $LOG_DIR/runner.log"
