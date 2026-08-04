@@ -15,6 +15,14 @@ import UIKit
 /// gateways are consulted first and always win.
 enum ParamTag: Hashable {
     case string, text, bool, int, double, cgFloat, taskPriority
+    /// A parameter the interface declares as a localization key
+    /// (`LocalizedStringKey`, `LocalizedStringResource`). It carries the same
+    /// runtime `String` as `.string` and converts identically; what the tag
+    /// adds is that a literal argument bound here is READ as a key, so its
+    /// interpolations format under the current locale. The distinction is not
+    /// expressible on the value — both overloads receive the same `String` —
+    /// so it is the declared parameter type that selects the reading.
+    case localizationKey
     /// A homogeneous collection whose element adapter and contextual type are
     /// both derived from the parameter's interface type.
     indirect case array(ParamTag, String)
@@ -341,7 +349,10 @@ enum GeneratedDispatch {
                 contextualArgumentsMatch(
                     overloads: overloads, args: args, ctx: ctx)
             },
-            apply: { value, args, ctx in
+            apply: { value, rawArgs, ctx in
+                // Both branches below see the interface's reading of the call,
+                // so a handwritten body inherits it without naming the rule.
+                let args = readingLocalizationKeys(rawArgs, modifier: name)
                 // An adapter that covers a SUBSET of the name hands the rest
                 // back: those overloads are ordinary interface API and the
                 // generated tier already spells them. Without this the
@@ -408,7 +419,7 @@ enum GeneratedDispatch {
             value = unresolvedValue
         }
         switch tag {
-        case .string:
+        case .string, .localizationKey:
             guard let s = value.stringValue else { throw RuntimeError(message: "expected a String") }
             return s
         case .array(let elementTag, let elementType):
@@ -874,6 +885,58 @@ enum GeneratedDispatch {
             return overload.params
         }
         return nil
+    }
+
+    /// Argument positions this call binds to a parameter the SDK interface
+    /// declares as a localization key.
+    ///
+    /// A position counts when ANY overload whose labels and arity fit the call
+    /// declares it as a key — which is the compiler's own choice between the
+    /// two overloads SwiftUI publishes for the same call (`Text(_:
+    /// LocalizedStringKey)` beside `Text(_: some StringProtocol)`, and the same
+    /// pair at `Button`, `Label`, `Toggle`, `.navigationTitle`): a literal
+    /// selects the key one. The reading only ever applies to an argument that
+    /// WAS spelled as a literal, so a call with a `String`-typed expression is
+    /// untouched no matter which overloads exist.
+    private static func localizationKeyPositions(
+        _ shapes: [[ParamSpec]], _ args: CallArguments
+    ) -> Set<Int> {
+        var positions: Set<Int> = []
+        for params in shapes where labelsMatch(params, args) {
+            for (index, param) in params.enumerated()
+            where param.tag == .localizationKey {
+                positions.insert(index)
+            }
+        }
+        return positions
+    }
+
+    /// The call as its interface-declared localization-key parameters read it.
+    ///
+    /// Applied once per tier boundary rather than per API, so a gateway that is
+    /// still handwritten for interface-inexpressible reasons (`Button`'s
+    /// result-builder label, `Toggle`'s binding) gets the same reading as a
+    /// generated one without knowing the rule exists.
+    ///
+    /// Bounded: the literal is carried per ARGUMENT, so an array of keys
+    /// (`accessibilityInputLabels`) has no per-element reading and stays
+    /// verbatim.
+    static func readingLocalizationKeys(
+        _ args: CallArguments, modifier name: String
+    ) -> CallArguments {
+        guard let overloads = GeneratedModifiers.table[name] else { return args }
+        return args.readingLocalizationKeys(at: localizationKeyPositions(
+            (overloads.byArity[args.arguments.count] ?? []).map(\.params),
+            args))
+    }
+
+    static func readingLocalizationKeys(
+        _ args: CallArguments, constructor overloads: GeneratedConstructorSet?
+    ) -> CallArguments {
+        guard let overloads else { return args }
+        return args.readingLocalizationKeys(at: localizationKeyPositions(
+            (overloads.byArity[args.arguments.count] ?? []).map(\.params),
+            args))
     }
 
     static func isAvailable(

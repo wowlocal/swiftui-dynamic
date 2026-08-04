@@ -88,6 +88,31 @@ public struct CallArguments {
         return nil
     }
 
+    /// The same call with the arguments at `positions` read as localization
+    /// keys rather than as verbatim strings.
+    ///
+    /// The two readings are the same runtime `String`, so nothing but the
+    /// DECLARED PARAMETER TYPE can distinguish them — which is why the caller
+    /// supplies the positions from the SDK interface rather than this type
+    /// guessing. An argument that was not spelled as a literal carries no
+    /// reading and is returned untouched, so a `String`-typed expression keeps
+    /// rendering verbatim exactly as the compiler's overload choice does.
+    public func readingLocalizationKeys(at positions: Set<Int>) -> CallArguments {
+        guard !positions.isEmpty else { return self }
+        var rewritten = self
+        for index in positions where index >= 0 && index < arguments.count {
+            let argument = arguments[index]
+            guard let literal = argument.localizedLiteral else { continue }
+            rewritten.arguments[index] = Argument(
+                label: argument.label,
+                value: .string(literal.localizedText),
+                isTrailing: argument.isTrailing,
+                sourceProvenance: argument.sourceProvenance,
+                localizedLiteral: literal)
+        }
+        return rewritten
+    }
+
     public func closure(labeled label: String) -> ClosureValue? {
         labeled(label)?.closureValue
     }

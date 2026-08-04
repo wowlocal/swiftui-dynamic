@@ -909,9 +909,13 @@ import SwiftInterpreter
     @Test func generatedArrayParametersCoerceElementsFromInterfaceType() throws {
         let overloads = GeneratedModifiers.table["accessibilityInputLabels"]?
             .byArity[1] ?? []
+        // The element adapter follows the interface's ELEMENT type, which for
+        // a key array is the localization-key tag rather than the plain string
+        // one. Both convert a String identically; the tag additionally records
+        // that a literal bound here reads as a key.
         #expect(overloads.contains {
             $0.params.map(\.tag) == [
-                .array(.string, "LocalizedStringKey"),
+                .array(.localizationKey, "LocalizedStringKey"),
             ]
         })
 

@@ -521,9 +521,17 @@ func directMapping(for normalized: String) -> TypeMapping? {
     }
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
-    case "LocalizedStringKey": return .init(tag: "string", cast: "LocalizedStringKey(%@ as! String)")
+    // Localization keys convert exactly like String and are tagged apart from
+    // it for one reason: a literal bound to one of these parameters is read as
+    // a KEY, whose interpolations format under the current locale. The two
+    // readings are the same runtime String, so only the declared type can
+    // distinguish them.
+    case "LocalizedStringKey":
+        return .init(tag: "localizationKey", cast: "LocalizedStringKey(%@ as! String)")
     case "LocalizedStringResource":
-        return .init(tag: "string", cast: "LocalizedStringResource(stringLiteral: %@ as! String)")
+        return .init(
+            tag: "localizationKey",
+            cast: "LocalizedStringResource(stringLiteral: %@ as! String)")
     case "ImageResource":
         return .init(tag: "string", cast: "ImageResource(name: %@ as! String, bundle: .main)")
     case "Text": return .init(tag: "text", cast: "%@ as! Text")
@@ -8069,7 +8077,7 @@ let seedReceivers: [String: String] = [
 
 func probeArgument(for tag: String) -> String? {
     switch tag {
-    case "string": return "\"sample\""
+    case "string", "localizationKey": return "\"sample\""
     case "int": return "3"
     case "double", "cgFloat": return "2.5"
     case "bool": return "true"

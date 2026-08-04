@@ -203,7 +203,12 @@ public final class ViewRegistry: HostRegistry {
         // Hand-written first; if it rejects this call shape and a generated
         // table exists, fall through — so e.g. Text(verbatim:) can come from
         // codegen while Text("x") stays hand-written.
-        return HostFunction(name: name) { args, ctx in
+        return HostFunction(name: name) { rawArgs, ctx in
+            // Both tiers below see the interface's reading of the call, so a
+            // gateway that stays handwritten for interface-inexpressible
+            // reasons inherits it without naming the rule.
+            let args = GeneratedDispatch.readingLocalizationKeys(
+                rawArgs, constructor: generated)
             if let hand {
                 do {
                     return try hand.invoke(args, ctx)
@@ -253,11 +258,13 @@ public final class ViewRegistry: HostRegistry {
                 GeneratedDispatch.contextualArgumentsMatch(
                     overloads: overloads, args: args, ctx: ctx)
             },
-            apply: { value, args, ctx in
+            apply: { value, rawArgs, ctx in
                 let view = try Self.anyView(value)
                 return .native(try GeneratedDispatch.dispatch(
                     name: name, overloads: overloads, view: view,
-                    args: args, ctx: ctx
+                    args: GeneratedDispatch.readingLocalizationKeys(
+                        rawArgs, modifier: name),
+                    ctx: ctx
                 ))
             })
     }
