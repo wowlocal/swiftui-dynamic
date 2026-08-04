@@ -270,7 +270,7 @@ R2_FLOORS=(
   status-detail 0
   account-header 0
   media 3410
-  tags-list 634
+  tags-list 4
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
