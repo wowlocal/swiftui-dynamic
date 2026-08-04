@@ -1325,6 +1325,16 @@ func isUsableIOSOverlay(_ attributes: AttributeListSyntax) -> Bool {
         guard attr.attributeName.trimmedDescription == "available" else {
             continue
         }
+        // A universal `@available(*, unavailable)` is unavailable on the iOS
+        // overlay too — the platform-specific spellings below are the narrower
+        // case, not the whole rule. `isUsable` already reads the universal form
+        // for the macOS tier; without the same reading here an overlay
+        // declaration the SDK forbids compiles into the emitted table and the
+        // Catalyst build fails on it.
+        if text.hasPrefix("@available(*,"),
+           text.contains("unavailable") || text.contains("obsoleted") {
+            return false
+        }
         if text.contains("iOS, unavailable")
             || text.contains("iOS unavailable")
             || text.contains("iOS, obsoleted") {
