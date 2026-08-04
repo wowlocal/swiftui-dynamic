@@ -31,6 +31,12 @@ import UIKit
 /// into (the `@raster` line, see `raster`), and what colours each node
 /// contributed to that blend (see `paint`).
 ///
+/// One quantity is neither a frame nor a rasterization property and still
+/// decides what gets built: a scroll view's CONTENT EXTENT (see `scroll`). It
+/// has no view of its own, so a hierarchy dump cannot show it, yet it is what
+/// UIKit consults before installing a scroller — and an extra scroller is the
+/// tags-list screen's only structural difference between the two sides.
+///
 /// Reporting the destination bitmap replaces an argument that was made from
 /// the artifacts and was not sound: both sides WRITE a 16-bit Display P3 PNG,
 /// which was read as ruling out a blend-space difference, but the PNG is an
@@ -92,6 +98,7 @@ enum CaptureGeometryDump {
         if layer.allowsEdgeAntialiasing { parts.append("edgeAA") }
         parts.append(contentsOf: coverage(of: layer))
         parts.append(contentsOf: paint(of: layer))
+        parts.append(contentsOf: scroll(of: view))
         return parts.joined(separator: " ")
     }
 
@@ -288,6 +295,70 @@ enum CaptureGeometryDump {
             let image = unsafeBitCast(contents, to: CGImage.self)
             parts.append("contentsPixels=\(image.width)x\(image.height)")
             parts.append("contentsBits=\(image.bitsPerComponent)")
+        }
+        return parts
+    }
+
+    /// What a scroll view SCROLLS, which is not any of the frames above.
+    ///
+    /// A `UIScrollView`'s box is its viewport; the extent it can scroll over
+    /// lives in `contentSize`, a property with no view of its own and therefore
+    /// no line in a hierarchy dump. Two sides can agree on every frame in the
+    /// tree — the tags-list screen does, at epsilon 0 — while one of them holds
+    /// a content extent the other does not, and the only visible consequence is
+    /// a scroller UIKit installs lazily for the axis it believes can move.
+    ///
+    /// That is the tags-list residue's one structural difference: the
+    /// interpreted list carries a HORIZONTAL `_UIScrollerImpContainerView` the
+    /// twin never installs, at y=705 — below a 700-tall capture, hidden, opacity
+    /// 0, painting nothing. It still costs, because its indicator artwork takes
+    /// texture-atlas cells ahead of the chart surfaces, and every `TagChartView`
+    /// is consequently sampled from a cell one position along (measured:
+    /// interp(row i) == twin(row i+1) across all eight rows). A `contentsRect`
+    /// origin one cell over lands a few boundary pixels 1-2 LSB apart.
+    ///
+    /// Whether that indicator is an interpreter layout divergence or a
+    /// harness-shape artifact is exactly the question `contentSize` answers and
+    /// nothing already dumped can: if the interpreted content extent is wider
+    /// than its viewport and the twin's is not, the two sides genuinely laid the
+    /// list out to different widths. So this prints the numbers UIKit decides
+    /// on and stops there — no derived "scrollable" verdict. The instrument that
+    /// concluded rather than measured is the one this lane just had to correct.
+    private static func scroll(of view: UIView) -> [String] {
+        guard let scrollView = view as? UIScrollView else { return [] }
+        // `contentSize` always prints: it is the quantity this category exists
+        // to report, and there is no default value for it to be compared
+        // against. Everything below follows the dump's standing rule and
+        // prints only when it is NOT at its default, so a settled capture
+        // stays readable — and `tree-diff.rb` still catches a divergence
+        // either way, since a flag present on one side alone is a flag
+        // difference.
+        var parts = [
+            "contentSize=(\(number(scrollView.contentSize.width)),"
+                + "\(number(scrollView.contentSize.height)))"
+        ]
+        if scrollView.contentOffset != .zero {
+            parts.append(
+                "contentOffset=(\(number(scrollView.contentOffset.x)),"
+                    + "\(number(scrollView.contentOffset.y)))")
+        }
+        // The adjusted inset, not the raw one: the adjusted value is what the
+        // viewport is actually reduced by, and it is what the overflow
+        // comparison is made against.
+        let inset = scrollView.adjustedContentInset
+        if inset != .zero {
+            parts.append(
+                "adjustedInset=(\(number(inset.top)),\(number(inset.left)),"
+                    + "\(number(inset.bottom)),\(number(inset.right)))")
+        }
+        // Same rule as the rest of the dump — only non-default state. Both
+        // indicator flags default to true, so a printed one means a side
+        // suppressed it.
+        if !scrollView.showsHorizontalScrollIndicator {
+            parts.append("noHorizontalIndicator")
+        }
+        if !scrollView.showsVerticalScrollIndicator {
+            parts.append("noVerticalIndicator")
         }
         return parts
     }
