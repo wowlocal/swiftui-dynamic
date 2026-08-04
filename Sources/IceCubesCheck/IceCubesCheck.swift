@@ -1887,37 +1887,30 @@ struct IceCubesCheckMain {
                         .listStyle(.plain)
                         .navigationTitle(TimelineFilter.federated.title)
                     }
-                    .frame(width: \(screenSize.width), height: \(screenSize.height))
-                    .background(Color.white)
             """
         case .nativeStatusDetail:
             """
                     NavigationStack {
                         StatusDetailView(status: __iceScreenStatus)
                     }
-                    .frame(width: \(screenSize.width), height: \(screenSize.height))
-                    .background(Color.white)
             """
         case .nativeAccountHeader:
             """
                     NavigationStack {
                         AccountDetailView(account: __iceScreenStatus.account)
                     }
-                    .frame(width: \(screenSize.width), height: \(screenSize.height))
-                    .background(Color.white)
             """
         case .nativeMedia:
             // The twin's FocusedMediaScreen frames the preview at 420x560
             // inside the 900x700 capture, so the interpreter must nest the two
             // frames the same way — the inner one is what the media layout is
-            // actually measured against.
+            // actually measured against. Only the INNER frame belongs here;
+            // the scored canvas is the harness's, as it is on the twin.
             """
                     __IceMediaProbe(
                         attachments: __iceBoostStatus.reblog?.mediaAttachments
                             ?? __iceBoostStatus.mediaAttachments)
                     .frame(width: 420, height: 560)
-                    .background(Color.white)
-                    .frame(width: \(screenSize.width), height: \(screenSize.height))
                     .background(Color.white)
             """
         case .rowTapNavigation:
@@ -2435,8 +2428,14 @@ struct IceCubesCheckMain {
         let session = try renderSession(
             for: screen,
             nativeFixtureDirectory: nativeFixtureDirectory)
+        // The scored canvas belongs to the capture harness, never to the probe
+        // source: the twin supplies its size and its backing exactly once, at
+        // its own root, so a second copy in the interpreted source is a layer
+        // the twin does not have. Both interpreted capture paths therefore
+        // apply it here, the way `IceCubesCatalystCaptureRoot` does.
         let hosting = NSHostingView(rootView: session.view.frame(
-            width: screenSize.width, height: screenSize.height))
+            width: screenSize.width, height: screenSize.height)
+            .background(Color.white))
         hosting.frame = NSRect(origin: .zero, size: screenSize)
         let window = NSWindow(
             contentRect: hosting.frame, styleMask: .borderless,
