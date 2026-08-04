@@ -884,8 +884,20 @@ extension Interpreter {
         var arguments: [CallArguments.Argument] = []
         for argument in callSiteMetadata(for: call).arguments {
             let value: RuntimeValue
+            var localizedLiteral: RuntimeLocalizedStringLiteral?
             if let trailingClosure = argument.trailingClosure {
                 value = .closure(try makeClosure(trailingClosure, in: env))
+            } else if let literal = argument.expression
+                .as(StringLiteralExprSyntax.self),
+                !literal.tokens(viewMode: .sourceAccurate)
+                    .contains(where: { $0.tokenKind == .keyword(.await) }) {
+                // Read the literal in both of its forms — but only when it
+                // cannot suspend. `"\(await f())"` must stay on the
+                // suspension-aware path, where it forfeits the localization
+                // reading rather than being evaluated synchronously.
+                let evaluated = try evaluatedStringLiteral(literal, in: env)
+                value = evaluated.value
+                localizedLiteral = evaluated.localized
             } else {
                 value = try await evaluateSuspending(
                     argument.expression,
@@ -897,7 +909,8 @@ extension Interpreter {
                 value: value,
                 isTrailing: argument.isTrailing,
                 sourceProvenance: callArgumentSourceProvenance(
-                    of: argument, value: value, in: env)))
+                    of: argument, value: value, in: env),
+                localizedLiteral: localizedLiteral))
         }
         return CallArguments(arguments: arguments)
     }

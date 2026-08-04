@@ -4,8 +4,15 @@ extension Interpreter {
     /// Apply Foundation's printf-style formatting without ever passing a
     /// dynamically typed value under the wrong C vararg representation.
     /// Shared by `String(format:)` and localized interpolation `specifier:`.
+    ///
+    /// `locale` is the difference between the two callers, and it is not
+    /// cosmetic: `String(format: "%lld", 4097)` is `4097` while
+    /// `String(format: "%lld", locale: .current, 4097)` is `4,097` in en_US.
+    /// Swift's `String(format:)` is locale-LESS by definition, so the builtin
+    /// passes nil; a localization key resolves under the current locale, so
+    /// that path passes one.
     static func cFormattedString(
-        _ format: String, values: [RuntimeValue]
+        _ format: String, values: [RuntimeValue], locale: Locale? = nil
     ) -> String {
         let directives = formatDirectives(format)
         var varargs: [CVarArg] = []
@@ -33,6 +40,6 @@ extension Interpreter {
                 varargs.append(value.stringified as NSString)
             }
         }
-        return String(format: format, arguments: varargs)
+        return String(format: format, locale: locale, arguments: varargs)
     }
 }

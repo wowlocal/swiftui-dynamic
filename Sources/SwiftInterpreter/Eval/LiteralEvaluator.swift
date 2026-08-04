@@ -39,21 +39,44 @@ extension Interpreter {
         _ lit: StringLiteralExprSyntax,
         in env: Environment
     ) throws -> RuntimeValue {
+        try evaluatedStringLiteral(lit, in: env).value
+    }
+
+    /// A string literal evaluated ONCE, reported in both readings it can have.
+    ///
+    /// `value` is the ordinary `String` (or attachment carrier) every consumer
+    /// already receives. `localized` is present only when the literal has an
+    /// interpolation whose type carries a format specifier, and is what a host
+    /// adapter with a `LocalizedStringKey` parameter reads instead. Evaluating
+    /// once and reporting twice is the point: re-evaluating the literal to get
+    /// the second reading would run its interpolations' side effects again.
+    struct EvaluatedStringLiteral {
+        let value: RuntimeValue
+        let localized: RuntimeLocalizedStringLiteral?
+    }
+
+    func evaluatedStringLiteral(
+        _ lit: StringLiteralExprSyntax,
+        in env: Environment
+    ) throws -> EvaluatedStringLiteral {
         if let simple = lit.representedLiteralValue {
             if let contextual = try contextualStringLiteral(
                 simple, environment: env
             ) {
-                return contextual
+                return .init(value: contextual, localized: nil)
             }
-            return .native(simple)
+            return .init(value: .native(simple), localized: nil)
         }
         var out = ""
         var segments: [RuntimeInterpolatedString.Segment] = []
+        var localizedSegments: [RuntimeLocalizedStringLiteral.Segment] = []
         var hasAttachment = false
+        var hasFormatSpecifier = false
 
         func appendText(_ text: String) {
             out += text
             segments.append(.text(text))
+            localizedSegments.append(.text(text))
         }
 
         func appendInterpolation(_ value: RuntimeValue) {
@@ -61,9 +84,23 @@ extension Interpreter {
                any is RuntimeStringInterpolationAttachment {
                 hasAttachment = true
                 segments.append(.attachment(value))
-                if let text = interpolationText(value) { out += text }
+                if let text = interpolationText(value) {
+                    out += text
+                    localizedSegments.append(.text(text))
+                }
             } else if let text = interpolationText(value) {
-                appendText(text)
+                out += text
+                segments.append(.text(text))
+                // The SAME value under both readings: verbatim in `out`, and
+                // specifier-formatted for a localization key when its type
+                // supplies one.
+                if let specifier = value.localizedFormatSpecifier {
+                    hasFormatSpecifier = true
+                    localizedSegments.append(
+                        .formatted(value, specifier: specifier))
+                } else {
+                    localizedSegments.append(.text(text))
+                }
             }
         }
 
@@ -97,19 +134,33 @@ extension Interpreter {
                     guard let specifier = specifierArgument.value.stringValue else {
                         throw error(e, "string interpolation specifier must be a String")
                     }
-                    appendText(Self.cFormattedString(
-                        specifier, values: [value]))
+                    // `specifier:` interpolation exists ONLY on
+                    // LocalizedStringKey, so this segment is always a
+                    // localization-key segment; the locale-less rendering
+                    // stays in `out` as the plain reading.
+                    let text = Self.cFormattedString(specifier, values: [value])
+                    out += text
+                    segments.append(.text(text))
+                    hasFormatSpecifier = true
+                    localizedSegments.append(
+                        .formatted(value, specifier: specifier))
                     continue
                 }
                 appendInterpolation(value)
             }
         }
+        let localized = hasFormatSpecifier
+            ? RuntimeLocalizedStringLiteral(
+                segments: localizedSegments, plainText: out)
+            : nil
         if hasAttachment {
-            return .native(RuntimeInterpolatedString(
-                segments: segments,
-                plainText: out))
+            return .init(
+                value: .native(RuntimeInterpolatedString(
+                    segments: segments,
+                    plainText: out)),
+                localized: localized)
         }
-        return .native(out)
+        return .init(value: .native(out), localized: localized)
     }
 
     /// A literal is converted only when its contextual nominal type declares

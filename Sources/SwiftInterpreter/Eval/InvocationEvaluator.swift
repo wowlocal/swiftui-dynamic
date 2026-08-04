@@ -6,8 +6,14 @@ extension Interpreter {
         var arguments: [CallArguments.Argument] = []
         for argument in callSiteMetadata(for: call).arguments {
             let value: RuntimeValue
+            var localizedLiteral: RuntimeLocalizedStringLiteral?
             if let trailingClosure = argument.trailingClosure {
                 value = .closure(try makeClosure(trailingClosure, in: env))
+            } else if let literal = argument.expression
+                .as(StringLiteralExprSyntax.self) {
+                let evaluated = try evaluatedStringLiteral(literal, in: env)
+                value = evaluated.value
+                localizedLiteral = evaluated.localized
             } else {
                 value = try evaluate(argument.expression, in: env)
             }
@@ -16,7 +22,8 @@ extension Interpreter {
                 value: value,
                 isTrailing: argument.isTrailing,
                 sourceProvenance: callArgumentSourceProvenance(
-                    of: argument, value: value, in: env)))
+                    of: argument, value: value, in: env),
+                localizedLiteral: localizedLiteral))
         }
         return CallArguments(
             arguments: arguments,

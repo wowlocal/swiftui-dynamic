@@ -34,6 +34,18 @@ extension ViewRegistry {
                let carrier = any as? GeneratedAttributedTextCarrier {
                 return .native(TextBox(Text(carrier.generatedAttributedText)))
             }
+            // SwiftUI-magic allowlist entry (LocalizedStringKey's typed
+            // segment storage, the same gap ImageBox's attachment covers):
+            // `Text(_ key: LocalizedStringKey)` is selected over
+            // `Text(_ content: some StringProtocol)` by the argument being a
+            // LITERAL, and the two disagree about numbers — a localization key
+            // formats each interpolation under the current locale, so IceCubes'
+            // TagRowView reads `4,097` where the verbatim String reads `4097`.
+            // The interface cannot express that distinction because both
+            // overloads take the same runtime String.
+            if let localized = args.localizedLiteral(positional: 0) {
+                return .native(TextBox(Text(localized.localizedText)))
+            }
             if case .host(let any) = value,
                let interpolation = any as? RuntimeInterpolatedString {
                 var text = Text("")

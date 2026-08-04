@@ -13,24 +13,32 @@ public struct CallArguments {
         public let value: RuntimeValue
         public let isTrailing: Bool
         let sourceProvenance: CallArgumentSourceProvenance
+        /// Present only when this argument was SPELLED as a string literal
+        /// with a format-specifiable interpolation. An adapter whose parameter
+        /// is a localization key reads it; `value` is unchanged for everyone
+        /// else, so carrying it costs existing consumers nothing.
+        public let localizedLiteral: RuntimeLocalizedStringLiteral?
 
         public init(label: String?, value: RuntimeValue, isTrailing: Bool = false) {
             self.label = label
             self.value = value
             self.isTrailing = isTrailing
             sourceProvenance = .unknown
+            localizedLiteral = nil
         }
 
         init(
             label: String?,
             value: RuntimeValue,
             isTrailing: Bool = false,
-            sourceProvenance: CallArgumentSourceProvenance
+            sourceProvenance: CallArgumentSourceProvenance,
+            localizedLiteral: RuntimeLocalizedStringLiteral? = nil
         ) {
             self.label = label
             self.value = value
             self.isTrailing = isTrailing
             self.sourceProvenance = sourceProvenance
+            self.localizedLiteral = localizedLiteral
         }
     }
 
@@ -59,6 +67,22 @@ public struct CallArguments {
         var current = 0
         for argument in arguments where argument.label == nil && !argument.isTrailing {
             if current == index { return argument.value }
+            current += 1
+        }
+        return nil
+    }
+
+    /// The localization-key reading of the n-th positional argument, when it
+    /// was spelled as a string literal carrying a format-specifiable
+    /// interpolation. Nil means "read `positional(index)` as usual" — either
+    /// it was not a literal (a `String` variable, which SwiftUI resolves
+    /// through the verbatim `StringProtocol` overload) or it has nothing a
+    /// locale would change.
+    public func localizedLiteral(positional index: Int) -> RuntimeLocalizedStringLiteral? {
+        guard index >= 0 else { return nil }
+        var current = 0
+        for argument in arguments where argument.label == nil && !argument.isTrailing {
+            if current == index { return argument.localizedLiteral }
             current += 1
         }
         return nil
