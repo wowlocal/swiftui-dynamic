@@ -458,11 +458,11 @@ struct IceCubesMicroTwinTests {
         #expect(ae == 0)
     }
 
-    /// The 3,492 AE still open on the R2 media screen. The interpreted arc runs
-    /// up to 1.2px OUTSIDE the compiled one at the extreme of each corner while
-    /// the straight edges agree to 0.016px, and the interpreted capture logs
-    /// `.matchedTransitionSource` absorbed. Absorbing it mid-chain is what the
-    /// following frame/clip/corner then measure against.
+    /// What the R2 media screen's last open AE was made of. The interpreted arc
+    /// ran up to 1.2px OUTSIDE the compiled one at the extreme of each corner
+    /// while the straight edges agreed to 0.016px, and the interpreted capture
+    /// logged `.matchedTransitionSource` absorbed. Absorbing it mid-chain is
+    /// what the following frame/clip/corner then measured against.
     ///
     /// The two neighbours above are the CONTROLS that make this a bisect rather
     /// than an observation: the identical chain without the modifier is AE 0,
@@ -471,18 +471,16 @@ struct IceCubesMicroTwinTests {
     /// is not the stroke, the clip, or the corner, and not the modifier as
     /// such — it is absorbing a modifier that the rest of the chain wraps.
     ///
-    /// This is a RATCHET, not a pin: the bound only ever moves DOWN, exactly as
-    /// `ICECUBES_R2_FLOOR` does. It is `<=` and not `==` because a measurement
-    /// -calibrated constant asserted as equality reds the suite on progress.
-    /// Tighten it in the same commit as any run that measures below it.
-    /// Driving it to 0 needs `.matchedTransitionSource(id:in:)` GENERATED
-    /// rather than absorbed. BridgeGen declines it on TWO independent
-    /// parameters, both of which have to fall: the opaque `some Hashable` id
-    /// (its own blocker bucket, 4 overloads, all of them this modifier) and
-    /// `SwiftUICore.Namespace.ID`, which no generated tier carries and which
-    /// blocks 29 overloads across 13 names — matchedGeometryEffect, focusScope,
-    /// glassEffectID/Union, draggable, dragContainer, mapScope,
-    /// prefersDefaultFocus and the three accessibility pairings.
+    /// It was born a RATCHET at 652 because a measurement-calibrated constant
+    /// asserted as equality reds the suite on progress. It is now ZERO, which
+    /// is the one bound that cannot be beaten, so the ratchet is spent and the
+    /// end state is asserted directly. Reaching it needed
+    /// `.matchedTransitionSource(id:in:)` GENERATED rather than absorbed, and
+    /// BridgeGen declined it on TWO independent parameters that both had to
+    /// fall: `SwiftUICore.Namespace.ID`, which no generated tier carried
+    /// because the sweep read only top-level declarations, and the opaque
+    /// `some Hashable` id, which had no carrier while its own refinement
+    /// `Equatable` did.
     @MainActor
     @Test
     func midChainMatchedSourceKeepsNativeCornerArc() throws {
@@ -524,7 +522,12 @@ struct IceCubesMicroTwinTests {
             AnyView(NativeMidChainMatchedSourceCorner()), size: size)
         let ae = Self.pixelAE(actual, expected, size: size)
         print("@@icecubes-midchain-corner-microtwin ae=\(ae)")
-        #expect(ae <= 652)
+        #expect(ae == 0)
+        // Ties the pixels to the MECHANISM. AE 0 alone cannot tell a modifier
+        // that dispatched from one that was absorbed and happened not to
+        // matter; the absorb path records itself here, so its silence is what
+        // says `.matchedTransitionSource` was actually applied.
+        #expect(RenderDiagnostics.errors.isEmpty)
     }
 
     /// `StatusesListView.makeNextPageRow` follows every translated status row.

@@ -597,6 +597,7 @@ func constraintConcreteType(for constraint: String) -> String? {
     case "BinaryInteger": return "Int"
     case "Transferable": return "URL"
     case "Equatable": return "InterpretedEquatableValue"
+    case "Hashable": return "InterpretedHashableValue"
     default: return nil
     }
 }
@@ -611,6 +612,9 @@ func constraintMapping(for constraint: String) -> TypeMapping? {
     case "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
     case "BinaryFloatingPoint": return .init(tag: "double", cast: "%@ as! Double")
     case "Equatable": return .init(tag: "equatable", cast: "%@ as! InterpretedEquatableValue")
+    // Hashable refines Equatable, so the same retain-the-payload carrier
+    // answers it — with the hashing the refinement adds.
+    case "Hashable": return .init(tag: "hashable", cast: "%@ as! InterpretedHashableValue")
     case "Shape": return .init(tag: "shape", cast: "%@ as! AnyShape")
     case "Transferable": return .init(tag: "url", cast: "%@ as! URL")
     default: return nil

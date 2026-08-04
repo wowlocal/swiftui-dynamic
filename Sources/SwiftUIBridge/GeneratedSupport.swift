@@ -39,6 +39,9 @@ enum ParamTag: Hashable {
     /// A callback whose framework-supplied inputs are the same interface
     /// generic as an Equatable argument in the enclosing declaration.
     case equatableAction1, equatableAction2, equatable
+    /// The same carrier one refinement up: an interface generic constrained
+    /// only to Hashable (`matchedTransitionSource(id: some Hashable, …)`).
+    case hashable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
     case decimal, characterSet, indexSet, dateComponents, dateInterval
@@ -160,6 +163,33 @@ struct InterpretedEquatableValue: @unchecked Sendable, Equatable {
                 lhs.runtimeValue, rhs.runtimeValue)) ?? false
         }
     }
+}
+
+/// One concrete specialization for an interface generic constrained only to
+/// Hashable, refining the Equatable carrier exactly as the protocol does: the
+/// same retained payload, the same equality, plus a hash.
+///
+/// The hash combines nothing, and that is a correctness choice rather than a
+/// shortcut. Equality here is the INTERPRETER's, which equates values across
+/// representations a Swift `Hashable` synthesis would keep apart, so any hash
+/// derived from one representation could disagree with `==` and silently lose
+/// a key. A constant hash is the only one provably consistent with an equality
+/// this carrier does not own; these values reach SwiftUI identity slots
+/// holding a handful of entries, where bucket distribution costs nothing.
+struct InterpretedHashableValue: @unchecked Sendable, Hashable {
+    let runtimeValue: RuntimeValue
+
+    nonisolated static func == (
+        lhs: InterpretedHashableValue,
+        rhs: InterpretedHashableValue
+    ) -> Bool {
+        MainActor.assumeIsolated {
+            (try? Builtins.equalValues(
+                lhs.runtimeValue, rhs.runtimeValue)) ?? false
+        }
+    }
+
+    nonisolated func hash(into hasher: inout Hasher) {}
 }
 
 /// Generated correlated-generic callbacks use the same closure/context
@@ -531,6 +561,8 @@ enum GeneratedDispatch {
             return EquatableActionValue(closure: closure, context: ctx)
         case .equatable:
             return InterpretedEquatableValue(runtimeValue: value)
+        case .hashable:
+            return InterpretedHashableValue(runtimeValue: value)
         case .date:
             guard let date = value.hostPayload as? Date else { throw RuntimeError(message: "expected a Date") }
             return date
