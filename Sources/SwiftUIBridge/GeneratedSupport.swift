@@ -475,7 +475,9 @@ enum GeneratedDispatch {
             }
             let native = (payload as? GeneratedMemberCarrier)?
                 .generatedMemberValue ?? payload
-            guard GeneratedMembers.keyTypeName(of: native) == typeName else {
+            guard GeneratedMembers.keyTypeName(of: native) == typeName
+                    || GeneratedMembers.declarationPath(of: native) == typeName
+            else {
                 throw RuntimeError(message:
                     "expected a native SwiftUI \(typeName) value")
             }
@@ -1093,6 +1095,19 @@ enum GeneratedMembers {
         // ObjC-renamed argument (Measurement<NSDimension>).
         if name.hasPrefix("Measurement<") { return "Measurement" }
         return name
+    }
+
+    /// The path a consuming interface declaration spells this value's type
+    /// with. `String(describing:)` prints a nested nominal's LEAF, and leaves
+    /// collide — seven SwiftUI nominals declare a nested `ID`, so the printed
+    /// name cannot answer which type a value is. The runtime's own qualified
+    /// name carries the full nesting; drop the module it was declared in and
+    /// what remains is the interface's spelling (`Namespace.ID`, `Color`).
+    static func declarationPath(of value: Any) -> String {
+        let reflected = String(reflecting: type(of: value))
+        guard let separator = reflected.firstIndex(of: "."),
+              !reflected[..<separator].contains("<") else { return reflected }
+        return String(reflected[reflected.index(after: separator)...])
     }
 
     static func member(_ name: String, on value: Any) -> RuntimeValue? {

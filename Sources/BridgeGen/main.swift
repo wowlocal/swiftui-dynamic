@@ -2907,20 +2907,55 @@ for file in interfaceFiles {
 }
 
 // A native nominal can flow through any consuming interface declaration
-// without a type- or consumer-specific adapter.
-concreteNativeSwiftUIValueTypes = Set(interfaceFiles.flatMap { file in
-    file.statements.compactMap { statement -> String? in
-        guard case .decl(let declaration) = statement.item,
-              let structure = declaration.as(StructDeclSyntax.self),
-              isPublicSDKDecl(structure.modifiers),
+// without a type- or consumer-specific adapter. NESTING is not a property of
+// the value: a consuming declaration spells `Namespace.ID` exactly as it
+// spells `Color`, so the sweep walks nominal nesting and keys each type by
+// the declaration path a parameter can name it with. Every enclosing nominal
+// must itself be public and non-generic, since that path is what the emitted
+// call site writes.
+func collectConcreteNativeValueTypes(
+    in declaration: DeclSyntax,
+    path: [String],
+    into found: inout Set<String>
+) {
+    func visit(_ members: MemberBlockItemListSyntax, path: [String]) {
+        for member in members {
+            collectConcreteNativeValueTypes(
+                in: member.decl, path: path, into: &found)
+        }
+    }
+    if let structure = declaration.as(StructDeclSyntax.self) {
+        guard isPublicSDKDecl(structure.modifiers),
               isUsable(structure.attributes),
               structure.genericParameterClause == nil,
-              !structure.name.text.hasPrefix("_") else {
-            return nil
-        }
-        return structure.name.text
+              !structure.name.text.hasPrefix("_") else { return }
+        let nested = path + [structure.name.text]
+        found.insert(nested.joined(separator: "."))
+        visit(structure.memberBlock.members, path: nested)
+        return
     }
-})
+    // An enum carries no value of its own into this tier — the SDK-enum tier
+    // owns those — but it is an ordinary container for nested structs.
+    if let enumeration = declaration.as(EnumDeclSyntax.self) {
+        guard isPublicSDKDecl(enumeration.modifiers),
+              isUsable(enumeration.attributes),
+              enumeration.genericParameterClause == nil,
+              !enumeration.name.text.hasPrefix("_") else { return }
+        visit(
+            enumeration.memberBlock.members,
+            path: path + [enumeration.name.text])
+    }
+}
+
+concreteNativeSwiftUIValueTypes = []
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item else { continue }
+        collectConcreteNativeValueTypes(
+            in: declaration, path: [],
+            into: &concreteNativeSwiftUIValueTypes)
+    }
+}
 
 /// A property wrapper the FRAMEWORK, not the declaration, supplies a value
 /// for. `@Namespace var ns` passes the wrapper no input and reads nothing
