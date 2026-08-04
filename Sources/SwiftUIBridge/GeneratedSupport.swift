@@ -1,3 +1,4 @@
+import CoreTransferable
 import Foundation
 import SwiftUI
 import SwiftInterpreter
@@ -50,6 +51,9 @@ enum ParamTag: Hashable {
     /// The same carrier one refinement up: an interface generic constrained
     /// only to Hashable (`matchedTransitionSource(id: some Hashable, …)`).
     case hashable
+    /// An interface generic constrained only to Transferable
+    /// (`draggable(_: some Transferable)`, `copyable`, `ShareLink(item:)`).
+    case transferable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
     case decimal, characterSet, indexSet, dateComponents, dateInterval
@@ -198,6 +202,87 @@ struct InterpretedHashableValue: @unchecked Sendable, Hashable {
     }
 
     nonisolated func hash(into hasher: inout Hasher) {}
+}
+
+/// One concrete specialization for an interface generic constrained only to
+/// Transferable, in the same shape as the Equatable/Hashable carriers above:
+/// the interpreted payload is retained, and the protocol is answered on its
+/// behalf rather than by narrowing the generic to one concrete conformer.
+///
+/// `Transferable`'s requirement is STATIC (`static var transferRepresentation`),
+/// so one carrier type gets one representation list for every payload it will
+/// ever hold — it cannot ask the instance what content type it declares. What
+/// it can do is condition each representation on the instance, which is what
+/// `exportingCondition` is for, so the list below offers exactly the host
+/// representations the payload already has.
+///
+/// A payload the source program declares `: Transferable` itself is retained
+/// and rendered, but exports nothing yet: reading its own
+/// `transferRepresentation` means evaluating a `TransferRepresentationBuilder`
+/// tower, and `TransferRepresentation` has an associated `Item` type, which is
+/// the same wall that keeps `Tab`/`TabContent` out of the generated carrier
+/// tier. Offering no representation is the truthful answer to "what can this
+/// value become"; inventing a content type it never declared would not be.
+struct InterpretedTransferableValue: @unchecked Sendable, Transferable {
+    /// What the payload already means to the system's transfer machinery.
+    enum Payload: Sendable {
+        case url(URL)
+        case string(String)
+        case data(Data)
+        /// A conformance declared by interpreted source, whose representation
+        /// the bridge cannot evaluate yet.
+        case sourceDeclared
+    }
+
+    let runtimeValue: RuntimeValue
+    let payload: Payload
+
+    @MainActor init(_ value: RuntimeValue, context: EvalContext) throws {
+        runtimeValue = value
+        if let url = value.hostPayload as? URL {
+            payload = .url(url)
+        } else if let data = value.hostPayload as? Data {
+            payload = .data(data)
+        } else if let string = value.stringValue {
+            payload = .string(string)
+        } else if context.hostValue(value, conformsTo: "Transferable") {
+            payload = .sourceDeclared
+        } else {
+            throw RuntimeError(message: "expected a Transferable value")
+        }
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation { (value: InterpretedTransferableValue) -> URL in
+            guard case .url(let url) = value.payload else {
+                throw RuntimeError(message: "payload is not a URL")
+            }
+            return url
+        }
+        .exportingCondition { value in
+            if case .url = value.payload { true } else { false }
+        }
+
+        ProxyRepresentation { (value: InterpretedTransferableValue) -> Data in
+            guard case .data(let data) = value.payload else {
+                throw RuntimeError(message: "payload is not Data")
+            }
+            return data
+        }
+        .exportingCondition { value in
+            if case .data = value.payload { true } else { false }
+        }
+
+        ProxyRepresentation { (value: InterpretedTransferableValue) -> String in
+            guard case .string(let string) = value.payload else {
+                throw RuntimeError(message: "payload is not a String")
+            }
+            return string
+        }
+        .exportingCondition { value in
+            if case .string = value.payload { true } else { false }
+        }
+    }
 }
 
 /// Generated correlated-generic callbacks use the same closure/context
@@ -592,6 +677,8 @@ enum GeneratedDispatch {
             return InterpretedEquatableValue(runtimeValue: value)
         case .hashable:
             return InterpretedHashableValue(runtimeValue: value)
+        case .transferable:
+            return try InterpretedTransferableValue(value, context: ctx)
         case .date:
             guard let date = value.hostPayload as? Date else { throw RuntimeError(message: "expected a Date") }
             return date

@@ -276,12 +276,14 @@ R2_FLOORS=(
   # Both sides now pin `preferredRange`, and the comparator refuses to score a
   # pair that disagrees on its encoding.
   tags-list 2
-  # Measured, not chosen: the interpreted browser renders an error label where
-  # the image and toolbar belong, because `.draggable(_:)` is registered for a
-  # `URL` payload alone and the app hands it an interpreted `Transferable`
-  # (`MediaUIImageTransferable`). Both sides capture reproducibly at AE 0, so
-  # this is fidelity debt, not capture noise. It ratchets down from here.
-  media-browser 367861
+  # Was 367861, of which 197 px were the `.draggable(_:)` error label: that
+  # modifier was registered for a `URL` payload alone and the app hands it an
+  # interpreted `Transferable` (`MediaUIImageTransferable`), so the unmatched
+  # overload replaced the image. The conformance-dispatched carrier answers the
+  # constraint and the label is gone. What remains is cause (b): `.focused` +
+  # `.onKeyPress` + `.scrollPosition` are unregistered and the chain absorbs
+  # from its FIRST unbridged member, so the image itself still never draws.
+  media-browser 367681
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
