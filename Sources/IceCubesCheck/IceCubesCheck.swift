@@ -216,10 +216,6 @@ private struct IceCubesCatalystCaptureRoot: View {
                         + " capture, not the floor.")
             }
             removeAnimations(from: captureView.layer)
-            CaptureGeometryDump.write(
-                captureView: captureView,
-                screen: screen.rawValue,
-                directory: directory)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             format.opaque = false
@@ -236,6 +232,15 @@ private struct IceCubesCatalystCaptureRoot: View {
                         size: IceCubesCheckMain.screenSize),
                     afterScreenUpdates: true)
             }
+            CaptureGeometryDump.record(format: format, product: image)
+            // Dumped from the hierarchy the accepted PNG came from, matching
+            // the twin: `drawHierarchy(afterScreenUpdates: true)` forces a
+            // screen update, so geometry read before it is not necessarily
+            // the geometry that was rasterized.
+            CaptureGeometryDump.write(
+                captureView: captureView,
+                screen: screen.rawValue,
+                directory: directory)
             guard let png = image.pngData() else {
                 throw RuntimeError(
                     message: "Catalyst hierarchy produced no PNG")

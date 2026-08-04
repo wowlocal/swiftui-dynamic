@@ -889,6 +889,7 @@ private struct TwinDriverView: View {
                 in: CGRect(origin: .zero, size: TwinConfiguration.size),
                 afterScreenUpdates: true)
         }
+        CaptureGeometryDump.record(format: format, product: image)
         guard let png = image.pngData() else {
             throw NSError(
                 domain: "IceCubesNativeTwin", code: 3,

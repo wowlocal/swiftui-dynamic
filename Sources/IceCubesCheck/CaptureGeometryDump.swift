@@ -22,6 +22,22 @@ import UIKit
 /// parent that only one side has says nothing, while "this box's left edge is
 /// at x=239.487 here and 239.470 there" is exactly the question a 0.017px
 /// coverage difference asks.
+///
+/// Once the geometry agrees to 1e-6 and the residue is still edge-only, the
+/// question stops being what was laid out and becomes how it was rasterized.
+/// Four things answer that and none of them is a frame: WHERE the capture
+/// landed (the `@capture` line, see `placement`), how each node turns its
+/// geometry into coverage (see `coverage`), what bitmap the capture composited
+/// into (the `@raster` line, see `raster`), and what colours each node
+/// contributed to that blend (see `paint`).
+///
+/// Reporting the destination bitmap replaces an argument that was made from
+/// the artifacts and was not sound: both sides WRITE a 16-bit Display P3 PNG,
+/// which was read as ruling out a blend-space difference, but the PNG is an
+/// encoding of the result and says nothing about the space the blend happened
+/// in. Measured through `@raster`, that space is float extended sRGB on both
+/// sides — the same conclusion, now from the destination itself rather than
+/// from its encoding.
 enum CaptureGeometryDump {
     /// Set `ICECUBES_DUMP_TREE=1` to write `<screen>.tree` beside `<screen>.png`.
     /// Off by default: this is an instrument, never part of a scored capture.
@@ -74,6 +90,8 @@ enum CaptureGeometryDump {
             parts.append("transformed")
         }
         if layer.allowsEdgeAntialiasing { parts.append("edgeAA") }
+        parts.append(contentsOf: coverage(of: layer))
+        parts.append(contentsOf: paint(of: layer))
         return parts.joined(separator: " ")
     }
 
@@ -115,6 +133,8 @@ enum CaptureGeometryDump {
             parts.append("transformed")
         }
         if layer.allowsEdgeAntialiasing { parts.append("edgeAA") }
+        parts.append(contentsOf: coverage(of: layer))
+        parts.append(contentsOf: paint(of: layer))
         // A stroked shape is the one case where a sub-pixel difference is
         // legible as a number rather than as a rasterized edge, so a shape
         // layer reports the geometry it strokes.
@@ -186,7 +206,243 @@ enum CaptureGeometryDump {
         } else {
             parts.append("screenOrigin=detached")
         }
+        // The appearance the capture RESOLVED AGAINST, which is as much a
+        // determinism input as the frozen clock and the frozen network: every
+        // dynamic colour in the app — and `Color.gray` alone paints the media
+        // box's fill and its 1-point stroke — is a different number in each
+        // style, so a capture that inherits the host's setting silently scores
+        // a different picture on a machine in the other mode.
+        let traits = captureView.traitCollection
+        parts.append("style=\(traits.userInterfaceStyle.rawValue)")
+        parts.append("gamut=\(traits.displayGamut.rawValue)")
+        parts.append("contrast=\(traits.accessibilityContrast.rawValue)")
+        parts.append("level=\(traits.userInterfaceLevel.rawValue)")
         return parts.joined(separator: " ")
+    }
+
+    /// How a layer turns its geometry into COVERAGE, which is the half of
+    /// rasterization the frames cannot express. Two layers can agree on
+    /// x/y/w/h to 1e-6 and still put different alpha on the boundary pixel,
+    /// because coverage is decided by the corner curve, by which edges are
+    /// allowed to antialias at all, and — for a layer with contents — by how
+    /// the backing image is mapped into those bounds and filtered on the way.
+    ///
+    /// This is aimed at the residue both remaining screens measure: 100% of
+    /// media's 3410 differing pixels are the antialiased boundary of ONE
+    /// rounded box, max 2/255, with the interpreted side covering ~0.01px more
+    /// on all four sides symmetrically over a byte-identical tree. A symmetric
+    /// sub-pixel widening is what a different corner curve, a different edge
+    /// mask, or a differently-resampled image edge each look like; nothing
+    /// already printed can tell them apart.
+    ///
+    /// Same rule as the rest of the dump: only non-default state gets a line.
+    private static func coverage(of layer: CALayer) -> [String] {
+        var parts: [String] = []
+        // `cornerCurve` is the shape of the corner, not its size, so two
+        // layers reporting the same `corner=10.5` can still round differently.
+        if layer.cornerRadius != 0, layer.cornerCurve != .circular {
+            parts.append("cornerCurve=\(layer.cornerCurve.rawValue)")
+        }
+        // `allowsEdgeAntialiasing` says whether, `edgeAntialiasingMask` says
+        // which — a mask missing one edge is a hard edge on that side only.
+        if layer.allowsEdgeAntialiasing,
+            layer.edgeAntialiasingMask
+                != [.layerLeftEdge, .layerRightEdge, .layerTopEdge,
+                    .layerBottomEdge]
+        {
+            parts.append("edgeAAMask=\(layer.edgeAntialiasingMask.rawValue)")
+        }
+        guard layer.contents != nil else { return parts }
+        // The media box's image is 450pt wide inside a 420pt clip, i.e. it is
+        // MINIFIED. Which filter does that, and what pixel size it starts
+        // from, decide the coverage of the pixels where the image ends.
+        if layer.minificationFilter != .linear {
+            parts.append("minFilter=\(layer.minificationFilter.rawValue)")
+        }
+        if layer.magnificationFilter != .linear {
+            parts.append("magFilter=\(layer.magnificationFilter.rawValue)")
+        }
+        if layer.minificationFilterBias != 0 {
+            parts.append(
+                "minBias=\(number(CGFloat(layer.minificationFilterBias)))")
+        }
+        if layer.contentsGravity != .resize {
+            parts.append("gravity=\(layer.contentsGravity.rawValue)")
+        }
+        // A sub-unit `contentsRect` is a symmetric inset of the source image
+        // expressed in unit space — exactly the shape of a ~0.01px difference
+        // on all four sides.
+        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+        if layer.contentsRect != unit {
+            parts.append("contentsRect=\(rect(layer.contentsRect))")
+        }
+        if layer.contentsCenter != unit {
+            parts.append("contentsCenter=\(rect(layer.contentsCenter))")
+        }
+        // The source resolution itself: a placeholder decoded at a different
+        // pixel size resamples to a different edge even into identical bounds.
+        // `contents` is `Any?` holding a CoreFoundation object, and `as?` to a
+        // CF type always succeeds, so the type has to be asked for by ID.
+        let contents = layer.contents as CFTypeRef?
+        if let contents, CFGetTypeID(contents) == CGImage.typeID {
+            let image = unsafeBitCast(contents, to: CGImage.self)
+            parts.append("contentsPixels=\(image.width)x\(image.height)")
+            parts.append("contentsBits=\(image.bitsPerComponent)")
+        }
+        return parts
+    }
+
+    private static func rect(_ value: CGRect) -> String {
+        "(\(number(value.minX)),\(number(value.minY)),"
+            + "\(number(value.width)),\(number(value.height)))"
+    }
+
+    /// A colour, in its OWN space and at full precision. Converting to sRGB
+    /// first would hide exactly the difference this is looking for: the scored
+    /// PNG is Display P3 and the compositing destination is float extended
+    /// sRGB, so two colours that differ in the fourth decimal of one component
+    /// can round to the same 8-bit sRGB triple and read as identical.
+    private static func color(_ value: CGColor) -> String {
+        let components = (value.components ?? []).map { number($0) }
+        let space = (value.colorSpace?.name as String?) ?? "unnamed"
+        return "[\(space) \(components.joined(separator: ","))]"
+    }
+
+    /// What a layer contributes to a blend, as opposed to where it sits.
+    ///
+    /// Geometry, coverage state and the destination bitmap are all measured
+    /// above, so a residue that survives them is a difference in the VALUES
+    /// being combined — and until this existed the dump could show two sides
+    /// as byte-identical while they filled and stroked in different colours.
+    /// A 1-point border is the case that makes it matter: at capture scale 1
+    /// every pixel of it is a partial-coverage blend, so a hairline whose
+    /// alpha differs slightly produces no flat differing region at all, only
+    /// antialiased edges a level or two apart — indistinguishable, without
+    /// this, from a sub-pixel geometry shift.
+    private static func paint(of layer: CALayer) -> [String] {
+        var parts: [String] = []
+        if let background = layer.backgroundColor {
+            parts.append("bg=\(color(background))")
+        }
+        // Reported whenever a border is actually drawn: a zero-width border
+        // keeps whatever colour it was last assigned, and printing that would
+        // invent a difference on a layer that strokes nothing.
+        if layer.borderWidth != 0, let border = layer.borderColor {
+            parts.append("borderColor=\(color(border))")
+        }
+        // A shadow darkens pixels OUTSIDE the shape it belongs to, which is
+        // the same place an antialiased edge lives.
+        if layer.shadowOpacity != 0 {
+            parts.append("shadowOpacity=\(number(CGFloat(layer.shadowOpacity)))")
+            parts.append("shadowRadius=\(number(layer.shadowRadius))")
+            parts.append(
+                "shadowOffset=(\(number(layer.shadowOffset.width)),"
+                    + "\(number(layer.shadowOffset.height)))")
+            if let shadow = layer.shadowColor {
+                parts.append("shadowColor=\(color(shadow))")
+            }
+        }
+        if let shape = layer as? CAShapeLayer {
+            if let stroke = shape.strokeColor {
+                parts.append("strokeColor=\(color(stroke))")
+            }
+            if let fill = shape.fillColor {
+                parts.append("fillColor=\(color(fill))")
+            }
+        }
+        return parts
+    }
+
+    /// The `@raster` line: the BITMAP the board scores, described by the
+    /// context that actually drew it rather than by the code that asked for
+    /// it. Both harnesses build their format with the same four statements
+    /// (`UIGraphicsImageRendererFormat()`, `scale = 1`, `opaque = false`), so
+    /// reading the source says they agree — but `preferredRange` defaults to
+    /// `.automatic`, which is RESOLVED at render time against the display and
+    /// the trait environment, and the resolved value decides the context's
+    /// colour space and bit depth. Identical source, two processes, possibly
+    /// two blend spaces.
+    ///
+    /// That is worth an instrument because it is the exact shape of the
+    /// media residue: compositing space changes only pixels that are BLENDED,
+    /// so a flat interior stays byte-identical while every antialiased
+    /// boundary moves a level or two — which is what the board measures
+    /// (3410 px, 100% on a twin edge, max 2/255, over a byte-identical tree).
+    /// Layout, placement and coverage state are already ruled out by the
+    /// three sections above; how the destination bitmap composites is the
+    /// remaining variable, and nothing in the tree can express it.
+    ///
+    /// Deliberately carries no bare `x`/`y`/`w`/`h` key, so `tree-diff.rb`
+    /// skips it exactly as it skips `@capture`: this describes the canvas,
+    /// not a node on it.
+    private static func raster(
+        format: UIGraphicsImageRendererFormat, product: UIImage
+    ) -> String {
+        var parts = [
+            "@raster",
+            "formatScale=\(number(format.scale))",
+            "opaque=\(format.opaque)",
+            // `.automatic` is 0, and it STAYS 0 here: the format object is the
+            // one the caller configured, so this reports the request. What the
+            // request resolved to is only legible in the product below.
+            "preferredRange=\(format.preferredRange.rawValue)",
+        ]
+        // The destination is described through the produced image and not
+        // through the renderer's `cgContext`, which was tried first and is a
+        // dead end worth naming so nobody re-adds it: under Catalyst that
+        // context reports bitsPerComponent 0, bitsPerPixel 0 and a nil colour
+        // space, because `drawHierarchy` composites through the window server
+        // rather than into a bitmap context the caller can inspect. The
+        // product is the actual scored bitmap and answers the same question.
+        parts.append("productScale=\(number(product.scale))")
+        guard let image = product.cgImage else {
+            parts.append("product=none")
+            return parts.joined(separator: " ")
+        }
+        parts.append("productPixels=\(image.width)x\(image.height)")
+        parts.append("bitsPerComponent=\(image.bitsPerComponent)")
+        parts.append("bitsPerPixel=\(image.bitsPerPixel)")
+        if let space = image.colorSpace {
+            parts.append("space=\((space.name as String?) ?? "unnamed")")
+            parts.append("spaceModel=\(space.model.rawValue)")
+            parts.append("spaceComponents=\(space.numberOfComponents)")
+        } else {
+            parts.append("space=none")
+        }
+        parts.append("alphaInfo=\(image.alphaInfo.rawValue)")
+        parts.append("bitmapInfo=\(image.bitmapInfo.rawValue)")
+        // A float-component destination blends coverage at a precision an
+        // integer one rounds away, which is a sub-level difference per edge.
+        if image.bitmapInfo.contains(.floatComponents) {
+            parts.append("floatComponents")
+        }
+        parts.append("renderingIntent=\(image.renderingIntent.rawValue)")
+        return parts.joined(separator: " ")
+    }
+
+    /// Set by `record`, emitted by `write`.
+    ///
+    /// The indirection is what lets ONE shared file serve two harnesses that
+    /// rasterize on opposite sides of their dump: the context that can answer
+    /// the question does not outlive the renderer block, and neither harness
+    /// should have to know when the other writes. `record` is pure and
+    /// I/O-free, so it is safe to call from inside the block on either side;
+    /// `write` is the single place the file is produced, so the line cannot
+    /// be half-appended or clobbered by the tree that follows it.
+    /// `nonisolated(unsafe)` is accurate rather than a waiver: both harnesses
+    /// capture on the main actor, one screen per process, and the dump is off
+    /// unless `ICECUBES_DUMP_TREE` asks for it.
+    nonisolated(unsafe) private static var pendingRaster: String?
+
+    /// Records how the destination bitmap composites. Call right after the
+    /// renderer returns, where both the format and the product are in scope.
+    /// Calling it repeatedly is fine — a harness that rasterizes until two
+    /// passes agree records once per pass, and the accepted one is last.
+    static func record(
+        format: UIGraphicsImageRendererFormat, product: UIImage
+    ) {
+        guard isEnabled else { return }
+        pendingRaster = raster(format: format, product: product)
     }
 
     /// Writes the dump next to the capture. Failures are silent by design:
@@ -197,6 +453,7 @@ enum CaptureGeometryDump {
     ) {
         guard isEnabled else { return }
         var lines: [String] = [placement(of: captureView)]
+        if let pendingRaster { lines.append(pendingRaster) }
         walk(captureView, in: captureView, depth: 0, into: &lines)
         let url = URL(fileURLWithPath: directory)
             .appendingPathComponent("\(screen).tree")
