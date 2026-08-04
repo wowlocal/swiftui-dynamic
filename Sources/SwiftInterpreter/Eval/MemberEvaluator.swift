@@ -346,6 +346,47 @@ extension Interpreter {
         ) {
             return value
         }
+        // Operator-function references (`reduce(0, +)`, `sorted(by: >)`).
+        // Swift selects an operator by its OPERANDS, so this is resolved
+        // before the plain global lookup: a user-declared operator must not
+        // win on name alone. SwiftSoup declares
+        // `+(StringBuilder, StringBuilder)`, and once it merged into the same
+        // program `[Int].reduce(0, +)` returned a StringBuilder — the sum
+        // never happened. Selection is DEFERRED to the call, where the
+        // operands exist, and follows `evaluateInfix`'s order exactly:
+        // builtin first, then the declared overloads that fit the runtime
+        // operands. One operator therefore means one thing whether it is
+        // spelled infix or passed as a value.
+        if name.count <= 3, name.allSatisfy({ "+-*/%<>=!&|^~".contains($0) }) {
+            return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
+                guard let lhs = args.positional(0), let rhs = args.positional(1) else {
+                    throw EvalMessage(text: "operator '\(name)' needs two arguments")
+                }
+                do {
+                    return try Builtins.binary(name, lhs, rhs)
+                } catch let builtinError as RuntimeError where !builtinError.fatal {
+                    guard let self else { throw builtinError }
+                    let operatorArguments = CallArguments(arguments: [
+                        .init(label: nil, value: lhs),
+                        .init(label: nil, value: rhs),
+                    ])
+                    if let overloads = self.globalFunctionOverloads[name],
+                       let method = self.operatorFunctionsFittingRuntimeTypes(
+                           from: overloads, args: operatorArguments).first,
+                       let body = self.functionMetadata(for: method).body {
+                        return try self.callWithArguments(
+                            self.makeFunctionClosure(
+                                method, body: body, captured: self.globals),
+                            args: operatorArguments, node: nil)
+                    }
+                    if case .closure(let closure)? = self.globals.lookup(name) {
+                        return try self.callWithArguments(
+                            closure, args: operatorArguments, node: nil)
+                    }
+                    throw builtinError
+                }
+            })
+        }
         if let box = globals.box(for: name) {
             let value = try force(box)
             if (currentLexicalSourceModuleName == nil
@@ -353,17 +394,6 @@ extension Interpreter {
                 || sourceModuleNames(owning: value).isEmpty {
                 return value
             }
-        }
-        // Operator-function references (`reduce(0, +)`, `sorted(by: >)`) —
-        // real Swift passes the global operator function; ours applies the
-        // builtin table. User-declared operator functions won above (globals).
-        if name.count <= 3, name.allSatisfy({ "+-*/%<>=!&|^~".contains($0) }) {
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                guard let lhs = args.positional(0), let rhs = args.positional(1) else {
-                    throw EvalMessage(text: "operator '\(name)' needs two arguments")
-                }
-                return try Builtins.binary(name, lhs, rhs)
-            })
         }
         if name == "Self", let selfValue = env.lookup("self") {
             switch selfValue {

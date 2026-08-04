@@ -1202,6 +1202,39 @@ import Testing
         return foundHashtag
     }
 
+    /// IceCubes `Tag.totalUses` class (Models/Tag.swift:22): SwiftSoup
+    /// declares `+(StringBuilder, StringBuilder)`, and once it merged into the
+    /// same program a bare operator REFERENCE resolved to that declaration by
+    /// name — so `history.compactMap { Int($0.uses) }.reduce(0, +)` summed to
+    /// `StringBuilder(internalBuffer: [], size: 0)` and every trending-tag row
+    /// rendered that where the twin shows a count. Swift selects an operator
+    /// by its OPERANDS; a declared overload that does not fit them cannot win
+    /// on name alone, whether the operator is spelled infix or passed as a
+    /// value.
+    @Test func bareOperatorReferenceSelectsByOperandsNotName() throws {
+        let value = try swiftSoupEvaluation(
+            "<p>counts</p>",
+            additionalSource: """
+            struct History {
+                let uses: String
+            }
+            struct Trend {
+                let history: [History]
+                var totalUses: Int {
+                    history.compactMap { Int($0.uses) }.reduce(0, +)
+                }
+            }
+            """,
+            additionalSourceModule: "Models",
+            suffix: """
+            Trend(history: [History(uses: "135"), History(uses: "57")])
+                .totalUses
+            """,
+            suffixModule: "Explore",
+            lazyTopLevelGlobals: true)
+        #expect(value.intValue == 192)
+    }
+
     private func swiftSoupEvaluation(
         _ html: String,
         additionalSource: String = "",
