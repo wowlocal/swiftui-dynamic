@@ -213,6 +213,10 @@ private struct IceCubesCatalystCaptureRoot: View {
                         + " capture, not the floor.")
             }
             removeAnimations(from: captureView.layer)
+            CaptureGeometryDump.write(
+                captureView: captureView,
+                screen: screen.rawValue,
+                directory: directory)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             format.opaque = false

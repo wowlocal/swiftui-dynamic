@@ -804,7 +804,11 @@ private struct TwinDriverView: View {
         scrollView.layoutIfNeeded()
     }
 
-    private func rasterizeHierarchyPNG() throws -> Data {
+    /// The one view every capture is taken from. Resolved through a single
+    /// function so the geometry dump and the rasterization can never describe
+    /// different views — a dump of a view the PNG did not come from would be
+    /// worse than no dump at all.
+    private func currentCaptureView() throws -> UIView {
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
@@ -825,6 +829,11 @@ private struct TwinDriverView: View {
                     + " Capturing anything else rescales the screen — fix the"
                     + " capture, not the floor."])
         }
+        return captureView
+    }
+
+    private func rasterizeHierarchyPNG() throws -> Data {
+        let captureView = try currentCaptureView()
         removeAnimations(from: captureView.layer)
 
         let format = UIGraphicsImageRendererFormat()
@@ -920,6 +929,12 @@ private struct TwinDriverView: View {
 
         try FileManager.default.createDirectory(
             atPath: TwinConfiguration.outputDirectory, withIntermediateDirectories: true)
+        // Written from the settled hierarchy the accepted PNG came from, so
+        // the geometry and the pixels describe the same moment.
+        CaptureGeometryDump.write(
+            captureView: try currentCaptureView(),
+            screen: name,
+            directory: TwinConfiguration.outputDirectory)
         let imageURL = URL(fileURLWithPath: TwinConfiguration.outputDirectory)
             .appendingPathComponent("\(name).png")
         try png.write(to: imageURL, options: .atomic)
