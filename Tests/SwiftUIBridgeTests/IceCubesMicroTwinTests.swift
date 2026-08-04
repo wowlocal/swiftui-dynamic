@@ -244,6 +244,47 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    /// `MediaPreview` frames the attachment, strokes a rounded rect over it,
+    /// clips, and rounds the corners — the exact modifier order at
+    /// StatusRowMediaPreviewView.swift:141-168.
+    private struct NativeStrokedMediaCorner: View {
+        var body: some View {
+            Color.blue
+                .frame(width: 160, height: 120)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.gray.opacity(0.35), lineWidth: 1)
+                )
+                .frame(width: 160, height: 120)
+                .clipped()
+                .cornerRadius(10)
+        }
+    }
+
+    /// The same chain with `.matchedTransitionSource` where the app actually
+    /// spells it — MID-chain, before the frame/clip/corner that shape the
+    /// boundary, not trailing it as `NativeMatchedSourceMedia` does. Absorbing
+    /// a trailing modifier is invisible; absorbing one the rest of the chain
+    /// wraps changes what those modifiers see.
+    private struct NativeMidChainMatchedSourceCorner: View {
+        @Namespace private var namespace
+
+        var body: some View {
+            Group {
+                Color.blue
+                    .frame(width: 160, height: 120)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(.gray.opacity(0.35), lineWidth: 1)
+                    )
+            }
+            .matchedTransitionSource(id: "media", in: namespace)
+            .frame(width: 160, height: 120)
+            .clipped()
+            .cornerRadius(10)
+        }
+    }
+
     private struct NativeFocusedStatusText: View {
         @SwiftUI.Environment(\.microTwinStatusFocused) private var isFocused
 
@@ -372,6 +413,118 @@ struct IceCubesMicroTwinTests {
         let ae = Self.pixelAE(actual, expected, size: size)
         print("@@icecubes-media-microtwin ae=\(ae)")
         #expect(ae == 0)
+    }
+
+    /// The 3,492 AE left on the R2 media screen, distilled: every delta >= 3
+    /// sits in one of the four corner arcs, the straight edges carry a uniform
+    /// 1-2, and the interpreted boundary is darker everywhere — it covers more
+    /// than the compiled one does.
+    @MainActor
+    @Test
+    func strokedMediaCornerKeepsNativeArcCoverage() throws {
+        let source = """
+        struct StrokedMediaCorner: View {
+            var body: some View {
+                Color.blue
+                    .frame(width: 160, height: 120)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(.gray.opacity(0.35), lineWidth: 1)
+                    )
+                    .frame(width: 160, height: 120)
+                    .clipped()
+                    .cornerRadius(10)
+            }
+        }
+
+        StrokedMediaCorner()
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("stroked-corner microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 220, height: 180)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeStrokedMediaCorner()), size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-stroked-corner-microtwin ae=\(ae)")
+        #expect(ae == 0)
+    }
+
+    /// The 3,492 AE still open on the R2 media screen. The interpreted arc runs
+    /// up to 1.2px OUTSIDE the compiled one at the extreme of each corner while
+    /// the straight edges agree to 0.016px, and the interpreted capture logs
+    /// `.matchedTransitionSource` absorbed. Absorbing it mid-chain is what the
+    /// following frame/clip/corner then measure against.
+    ///
+    /// The two neighbours above are the CONTROLS that make this a bisect rather
+    /// than an observation: the identical chain without the modifier is AE 0,
+    /// and the same modifier TRAILING the chain
+    /// (`matchedTransitionSourceKeepsItsReceiversPixels`) is AE 0. So the class
+    /// is not the stroke, the clip, or the corner, and not the modifier as
+    /// such — it is absorbing a modifier that the rest of the chain wraps.
+    ///
+    /// This is a RATCHET, not a pin: the bound only ever moves DOWN, exactly as
+    /// `ICECUBES_R2_FLOOR` does. It is `<=` and not `==` because a measurement
+    /// -calibrated constant asserted as equality reds the suite on progress.
+    /// Tighten it in the same commit as any run that measures below it.
+    /// Driving it to 0 needs `.matchedTransitionSource(id:in:)` GENERATED
+    /// rather than absorbed. BridgeGen declines it on TWO independent
+    /// parameters, both of which have to fall: the opaque `some Hashable` id
+    /// (its own blocker bucket, 4 overloads, all of them this modifier) and
+    /// `SwiftUICore.Namespace.ID`, which no generated tier carries and which
+    /// blocks 29 overloads across 13 names — matchedGeometryEffect, focusScope,
+    /// glassEffectID/Union, draggable, dragContainer, mapScope,
+    /// prefersDefaultFocus and the three accessibility pairings.
+    @MainActor
+    @Test
+    func midChainMatchedSourceKeepsNativeCornerArc() throws {
+        let source = """
+        struct MidChainMatchedSourceCorner: View {
+            @Namespace private var namespace
+
+            var body: some View {
+                Group {
+                    Color.blue
+                        .frame(width: 160, height: 120)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(.gray.opacity(0.35), lineWidth: 1)
+                        )
+                }
+                .matchedTransitionSource(id: "media", in: namespace)
+                .frame(width: 160, height: 120)
+                .clipped()
+                .cornerRadius(10)
+            }
+        }
+
+        MidChainMatchedSourceCorner()
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("mid-chain matched-source microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 220, height: 180)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeMidChainMatchedSourceCorner()), size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-midchain-corner-microtwin ae=\(ae)")
+        #expect(ae <= 652)
     }
 
     /// `StatusesListView.makeNextPageRow` follows every translated status row.
