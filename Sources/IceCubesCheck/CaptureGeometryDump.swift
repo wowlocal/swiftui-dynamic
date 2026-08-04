@@ -158,6 +158,37 @@ enum CaptureGeometryDump {
         }
     }
 
+    /// Where the capture view sits on the physical display, which is the one
+    /// geometric fact the tree above cannot express: every frame in it is
+    /// relative to the capture view, so two sides can agree on all of them and
+    /// still rasterize differently. `drawHierarchy(afterScreenUpdates:)`
+    /// composites through the window server, so content on HALF-point
+    /// boundaries — the media box's stroke is at x=239.5, corner 10.5 — is
+    /// antialiased according to where the window landed on the device pixel
+    /// grid. Both harnesses pin the window's SIZE and neither pins its ORIGIN.
+    ///
+    /// Deliberately carries no `x=`/`y=`/`w=`/`h=` keys so `tree-diff.rb`
+    /// skips it: this is the capture's placement, not a node in the tree.
+    private static func placement(of captureView: UIView) -> String {
+        let inWindow = captureView.convert(captureView.bounds, to: nil)
+        var parts = [
+            "@capture",
+            "windowOrigin=(\(number(inWindow.minX)),\(number(inWindow.minY)))",
+        ]
+        if let window = captureView.window {
+            let inScreen = window.convert(inWindow, to: nil)
+            parts.append(
+                "screenOrigin=(\(number(inScreen.minX)),"
+                    + "\(number(inScreen.minY)))")
+            let screen = window.screen
+            parts.append("screenScale=\(number(screen.scale))")
+            parts.append("nativeScale=\(number(screen.nativeScale))")
+        } else {
+            parts.append("screenOrigin=detached")
+        }
+        return parts.joined(separator: " ")
+    }
+
     /// Writes the dump next to the capture. Failures are silent by design:
     /// an instrument that can fail a scored capture is a liability, and the
     /// missing file is its own signal.
@@ -165,7 +196,7 @@ enum CaptureGeometryDump {
         captureView: UIView, screen: String, directory: String
     ) {
         guard isEnabled else { return }
-        var lines: [String] = []
+        var lines: [String] = [placement(of: captureView)]
         walk(captureView, in: captureView, depth: 0, into: &lines)
         let url = URL(fileURLWithPath: directory)
             .appendingPathComponent("\(screen).tree")
