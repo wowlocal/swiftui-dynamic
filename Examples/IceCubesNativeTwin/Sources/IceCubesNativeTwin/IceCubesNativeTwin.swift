@@ -926,6 +926,18 @@ private struct TwinDriverView: View {
                     restrictions.minimumSize = target
                     restrictions.maximumSize = target
                 }
+                // Pinning the SIZE is not enough to pin the picture: every
+                // UIKit-backed dynamic colour resolves against the window's
+                // TRAIT COLLECTION, which is inherited from the host's macOS
+                // appearance. The harness already declares light intent with
+                // `.environment(\.colorScheme, .light)`, but that sets a
+                // SwiftUI environment value and does not drive the UIKit
+                // traits, so on a Mac in Dark Mode `Color.gray` resolved dark
+                // here and light in the interpreter — a real 3410 AE on the
+                // media screen that belonged to a system preference. Stated in
+                // the traits, the declaration becomes effective and the twin
+                // stops being a function of who is running it.
+                window.overrideUserInterfaceStyle = .light
                 rootView.setNeedsLayout()
                 rootView.layoutIfNeeded()
                 lastObserved = rootView.bounds.size

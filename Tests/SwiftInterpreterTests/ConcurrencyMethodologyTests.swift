@@ -3277,6 +3277,21 @@ struct ConcurrencyMethodologyTests {
                 Comment(rawValue:
                     source + " no longer suppresses compositor-dependent "
                         + "scroll-edge material during capture"))
+            // Every UIKit-backed dynamic colour resolves against the WINDOW'S
+            // TRAIT COLLECTION, which is inherited from the host's macOS
+            // appearance. A capture that does not pin it scores a different
+            // picture on a Mac in Dark Mode than on one in Light Mode — and
+            // the R2 reproducibility gate structurally cannot catch that,
+            // because both passes on one machine agree; it is the MACHINE
+            // that varies. Measured 2026-08-04: unpinned, this was the whole
+            // of the media screen's 3410 AE, because `Color.gray` resolves to
+            // #98989D dark and #8E8E93 light and the app paints that box's
+            // fill and its 1-point border with it.
+            #expect(capture.contains(
+                "window.overrideUserInterfaceStyle = .light"),
+                Comment(rawValue:
+                    source + " no longer pins the capture appearance, so its "
+                        + "dynamic colours follow whoever is running it"))
         }
         #expect(script.contains(
             "run_twin_screen \"$screen\""),

@@ -308,6 +308,12 @@ private struct IceCubesCatalystCaptureRoot: View {
                     restrictions.minimumSize = target
                     restrictions.maximumSize = target
                 }
+                // The same appearance pin the twin applies, for the same
+                // reason and in the same place — see the comment there. Both
+                // sides must state it: pinning only one would trade a
+                // divergence that depends on the host's Dark Mode setting for
+                // one that is merely constant.
+                window.overrideUserInterfaceStyle = .light
                 rootView.setNeedsLayout()
                 rootView.layoutIfNeeded()
                 lastObserved = rootView.bounds.size

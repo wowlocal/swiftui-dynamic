@@ -269,7 +269,7 @@ R2_FLOORS=(
   timeline 0
   status-detail 0
   account-header 0
-  media 3410
+  media 0
   tags-list 4
 )
 # A screen captured but unscored is indistinguishable from a screen that
