@@ -29,7 +29,7 @@ INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 # The scored screens, in capture order. ONE list: three copies drifted apart
 # is how a screen ends up captured but never scored, which reads exactly like
 # a screen that converged.
-R2_SCREENS=(timeline status-detail account-header media tags-list)
+R2_SCREENS=(timeline status-detail account-header media tags-list media-browser)
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
@@ -189,7 +189,7 @@ capture_interpreted_screen() {
   # Mirrors IceCubesCaptureScreen.needsNativeFixtures: only the screens the
   # TWIN chose a status and prepared endpoints for read its output directory.
   if [[ "$screen" != timeline && "$screen" != media \
-        && "$screen" != tags-list ]]; then
+        && "$screen" != tags-list && "$screen" != media-browser ]]; then
     native_args=(--native-fixtures "$TWIN_DIR")
   fi
   ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
@@ -271,6 +271,12 @@ R2_FLOORS=(
   account-header 0
   media 0
   tags-list 4
+  # Measured, not chosen: the interpreted browser renders an error label where
+  # the image and toolbar belong, because `.draggable(_:)` is registered for a
+  # `URL` payload alone and the app hands it an interpreted `Transferable`
+  # (`MediaUIImageTransferable`). Both sides capture reproducibly at AE 0, so
+  # this is fidelity debt, not capture noise. It ratchets down from here.
+  media-browser 367861
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

@@ -63,6 +63,7 @@ private enum IceCubesCaptureScreen: String {
     case accountHeader = "account-header"
     case media
     case tagsList = "tags-list"
+    case mediaBrowser = "media-browser"
 
     /// `status-detail` and `account-header` are driven from a status the TWIN
     /// picked and the endpoints it prepared, so they read the twin's output
@@ -73,7 +74,7 @@ private enum IceCubesCaptureScreen: String {
     /// needs nothing the twin prepares.
     var needsNativeFixtures: Bool {
         switch self {
-        case .timeline, .media, .tagsList: false
+        case .timeline, .media, .tagsList, .mediaBrowser: false
         case .statusDetail, .accountHeader: true
         }
     }
@@ -1183,6 +1184,13 @@ struct IceCubesCheckMain {
         case nativeAccountHeader
         case nativeMedia
         case nativeTagsList
+        /// The app's full-screen media browser (`MediaUIView`), the screen
+        /// tapping an attachment opens. Unlike every other scored screen it is
+        /// not a `List`: its body is a horizontal `ScrollView` over a
+        /// `LazyHStack` driven by `containerRelativeFrame`,
+        /// `scrollTargetLayout`, `scrollTargetBehavior(.viewAligned)` and
+        /// `scrollPosition(id:)`, under a `ToolbarContent` type of its own.
+        case nativeMediaBrowser
         /// The real navigation shape every IceCubes tab is built from:
         /// `NavigationStack(path: $routerPath.path) { content.withAppRouter() }`
         /// (NavigationTab.swift:25 + AppRegistry.swift:65). Nothing about the
@@ -1817,7 +1825,8 @@ struct IceCubesCheckMain {
             // The media screen is built from this status' attachment alone, so
             // it needs the boost fixture without any of the timeline globals.
             (includeTimeline && !includePagination)
-                || presentation == .nativeMedia ? """
+                || presentation == .nativeMedia
+                || presentation == .nativeMediaBrowser ? """
         let __iceBoostStatus = try! __iceDecoder.decode(
             Status.self,
             from: __fixtureData("api_v1_statuses_116954929935729788"))
@@ -1844,6 +1853,14 @@ struct IceCubesCheckMain {
             presentation == .nativeTagsList ? """
         let __iceTrendingTags = try! __iceDecoder.decode(
             [Models.Tag].self, from: __fixtureData("api_v1_trends_tags"))
+        """ : "",
+            // The twin browses `boostStatus.reblog?.mediaAttachments.first`;
+            // this is that same attachment, reached through the same optional
+            // chain rather than restated by index from the other side.
+            presentation == .nativeMediaBrowser ? """
+        let __iceBrowserAttachment =
+            (__iceBoostStatus.reblog?.mediaAttachments
+                ?? __iceBoostStatus.mediaAttachments)[0]
         """ : "",
         ].filter { !$0.isEmpty }.joined(separator: "\n")
         let initialStatuses = includePagination
@@ -1953,6 +1970,17 @@ struct IceCubesCheckMain {
                         TagsListView(tags: __iceTrendingTags)
                     }
             """
+        case .nativeMediaBrowser:
+            // The app's own `MediaUIView`, constructed from the SAME attachment
+            // the twin selects (`boostStatus.reblog?.mediaAttachments.first`) so
+            // the two sides browse the same recorded media. `MediaUIView` brings
+            // its own NavigationStack — the toolbar lives in it — so no stack is
+            // added here, exactly as on the twin.
+            """
+                    MediaUIView(
+                        selectedAttachment: __iceBrowserAttachment,
+                        attachments: [__iceBrowserAttachment])
+            """
         case .rowTapNavigation:
             """
                     __IceRowTapProbe()
@@ -1993,6 +2021,7 @@ struct IceCubesCheckMain {
         import Env
         import Explore
         import Foundation
+        import MediaUI
         import Models
         import NetworkClient
         import StatusKit
@@ -2416,6 +2445,9 @@ struct IceCubesCheckMain {
             screenStatusFixture = nil
         case .tagsList:
             presentation = .nativeTagsList
+            screenStatusFixture = nil
+        case .mediaBrowser:
+            presentation = .nativeMediaBrowser
             screenStatusFixture = nil
         case .statusDetail, .accountHeader:
             let metadata = try JSONDecoder().decode(

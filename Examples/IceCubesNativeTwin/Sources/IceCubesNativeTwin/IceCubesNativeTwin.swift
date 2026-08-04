@@ -5,6 +5,7 @@ import DesignSystem
 import Env
 import Explore
 import Foundation
+import MediaUI
 import Models
 import NetworkClient
 import Nuke
@@ -69,6 +70,7 @@ private enum TwinCaptureScreen: String {
     case accountHeader = "account-header"
     case media
     case tagsList = "tags-list"
+    case mediaBrowser = "media-browser"
 }
 
 @MainActor
@@ -281,6 +283,7 @@ private struct TwinDriverView: View {
         case statusDetail(Status)
         case accountHeader(Account)
         case tagsList([Tag])
+        case mediaBrowser(MediaAttachment, [MediaAttachment])
     }
 
     @State private var statuses: [Status] = []
@@ -333,6 +336,19 @@ private struct TwinDriverView: View {
                     ) {
                         TagsListView(tags: tags)
                     }
+                    .id(capturedScreenIdentity)
+                case .mediaBrowser(let selected, let attachments):
+                    // `MediaUIView` brings its OWN NavigationStack (its toolbar
+                    // lives in it), so it is hosted through the app environment
+                    // directly rather than through `TwinNavigationScreen` —
+                    // nesting a second stack would put chrome on the screen
+                    // that the app never shows.
+                    MediaUIView(
+                        selectedAttachment: selected,
+                        attachments: attachments
+                    )
+                    .twinAppEnvironment(
+                        client: client, routerPath: routerPath)
                     .id(capturedScreenIdentity)
                 }
             } else if let focusedMedia {
@@ -460,6 +476,10 @@ private struct TwinDriverView: View {
                 try await captureMedia([imageAttachment])
             case .tagsList:
                 try await captureTagsList(trendingTags)
+            case .mediaBrowser:
+                try await captureMediaBrowser(
+                    selected: imageAttachment,
+                    attachments: [imageAttachment])
             case nil:
                 try await captureTimeline(statuses: replayStatuses)
                 try await captureStatusDetail(
@@ -469,6 +489,9 @@ private struct TwinDriverView: View {
                     endpoints: screenFixtures.accountEndpoints)
                 try await captureMedia([imageAttachment])
                 try await captureTagsList(trendingTags)
+                try await captureMediaBrowser(
+                    selected: imageAttachment,
+                    attachments: [imageAttachment])
                 try captureMetadata(
                     statuses: replayStatuses,
                     detailStatus: detailStatus,
@@ -542,6 +565,31 @@ private struct TwinDriverView: View {
         focusedMedia = attachments
         try await Task.sleep(for: .seconds(1))
         try await capturePNG(named: TwinCaptureScreen.media.rawValue)
+    }
+
+    /// The full-screen media browser, scored as its own screen: the app's own
+    /// public `MediaUIView` — what tapping an attachment opens. It is the first
+    /// scored screen that is not a `List`, and it is the only one whose body
+    /// reaches the modern scroll API (`containerRelativeFrame`,
+    /// `scrollTargetLayout`, `scrollTargetBehavior(.viewAligned)`,
+    /// `scrollPosition(id:)`) and a `ToolbarContent` type of its own.
+    ///
+    /// `MediaUIView` reveals its toolbar from a `DispatchQueue.main.asyncAfter`
+    /// 0.15s after `onAppear` — the toolbar is bound to `scrolledItem`, which is
+    /// nil until then. The settle below is longer than that delay on BOTH
+    /// sides, so what is scored is the settled screen rather than whichever
+    /// side won a race; the board's reproducibility gate is what proves it.
+    private func captureMediaBrowser(
+        selected: MediaAttachment,
+        attachments: [MediaAttachment]
+    ) async throws {
+        statuses = []
+        focusedMedia = nil
+        capturedScreen = .mediaBrowser(selected, attachments)
+        capturedScreenIdentity = UUID()
+        try await waitForScreenTransition()
+        try await Task.sleep(for: .seconds(1))
+        try await capturePNG(named: TwinCaptureScreen.mediaBrowser.rawValue)
     }
 
     private func drivePagination() async throws {
