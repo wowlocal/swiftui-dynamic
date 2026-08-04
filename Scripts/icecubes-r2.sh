@@ -35,7 +35,11 @@ for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
   rm -f "$capture_dir/timeline.json"
   for screen in "${R2_SCREENS[@]}"; do
-    rm -f "$capture_dir/$screen.png" "$capture_dir/$screen.log"
+    # `.tree` is cleared with the rest: a geometry dump left over from an
+    # earlier run is indistinguishable from this run's, and a stale one is
+    # read as evidence about the capture sitting next to it.
+    rm -f "$capture_dir/$screen.png" "$capture_dir/$screen.log" \
+      "$capture_dir/$screen.tree"
   done
 done
 
