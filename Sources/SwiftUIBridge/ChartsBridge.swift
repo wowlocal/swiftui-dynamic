@@ -305,14 +305,36 @@ extension ViewRegistry {
             return .native(AxisMarksSpec(automatic: values, content: content, interpreter: interpreter))
         }
 
-        modifiers["chartXAxis"] = HostModifier(name: "chartXAxis") { value, args, ctx in
+        // These three names each carry an interface-inexpressible overload
+        // AND ordinary ones the generated tier already spells. Claim only the
+        // inexpressible spelling; the rest fall through to that tier, which
+        // reads the real signature. `.chartXAxis(.hidden)` is the case that
+        // forced this: it has no builder, so the axis body below had nothing
+        // to apply and handed the receiver straight back.
+        let ownsAxisBuilder: @MainActor (CallArguments, EvalContext) -> Bool = {
+            args, _ in args.firstUnlabeledClosure != nil
+        }
+        modifiers["chartXAxis"] = HostModifier(
+            name: "chartXAxis", ownsCall: ownsAxisBuilder
+        ) { value, args, ctx in
             try Self.applyAxis(value, args, ctx, isX: true)
         }
-        modifiers["chartYAxis"] = HostModifier(name: "chartYAxis") { value, args, ctx in
+        modifiers["chartYAxis"] = HostModifier(
+            name: "chartYAxis", ownsCall: ownsAxisBuilder
+        ) { value, args, ctx in
             try Self.applyAxis(value, args, ctx, isX: false)
         }
 
-        modifiers["chartYScale"] = HostModifier(name: "chartYScale") { value, args, _ in
+        // `domain: .automatic(…)` is a ChartScaleDomain the generated tier
+        // cannot construct; every other domain spelling is ordinary API.
+        modifiers["chartYScale"] = HostModifier(
+            name: "chartYScale",
+            ownsCall: { args, _ in
+                guard case .host(let any)? = args.labeled("domain"),
+                      let call = any as? ImplicitMemberCall else { return false }
+                return call.name == "automatic"
+            }
+        ) { value, args, _ in
             let view = try Self.anyView(value)
             if case .host(let any)? = args.labeled("domain"), let call = any as? ImplicitMemberCall,
                call.name == "automatic" {

@@ -341,7 +341,25 @@ enum GeneratedDispatch {
                 contextualArgumentsMatch(
                     overloads: overloads, args: args, ctx: ctx)
             },
-            apply: modifier.apply)
+            apply: { value, args, ctx in
+                // An adapter that covers a SUBSET of the name hands the rest
+                // back: those overloads are ordinary interface API and the
+                // generated tier already spells them. Without this the
+                // handwritten body sees arguments it has no case for and
+                // returns the receiver, so the modifier silently does nothing.
+                //
+                // Only when that tier actually has a fitting overload, though.
+                // A declined call no tier can serve stays with the adapter it
+                // has always had, so this can add reach and never remove it.
+                if !modifier.ownsCall(args, in: ctx),
+                   serves(overloads: overloads, args: args, ctx: ctx) {
+                    let view = try ViewRegistry.anyView(value)
+                    return .native(try dispatch(
+                        name: name, overloads: overloads, view: view,
+                        args: args, ctx: ctx))
+                }
+                return try modifier.apply(value, args, ctx)
+            })
     }
 
     /// A leading-dot initializer is contextual syntax: `.init(...)` names
@@ -869,24 +887,20 @@ enum GeneratedDispatch {
         }
     }
 
-    static func dispatch(
-        name: String,
+    /// The overload this call resolves to, and the arguments coerced for it.
+    /// Selection only — nothing is invoked, so asking whether the generated
+    /// tier serves a call costs exactly what dispatching it would decide.
+    private static func resolvedOverload(
         overloads: GeneratedOverloadSet,
-        view: AnyView,
         args: CallArguments,
         ctx: EvalContext
-    ) throws -> AnyView {
+    ) -> (overload: GeneratedOverload, values: [Any])? {
         let candidates = overloads.byArity[args.arguments.count] ?? []
         for overload in candidates where provesResultBuilder(
             overload.params, args, ctx) {
             guard isAvailable(overload, in: ctx) else { continue }
             guard let values = matches(overload.params, args, ctx) else { continue }
-            let native = try overload.invoke(view, values)
-            guard let adapter = overload.semanticAdapter else {
-                return native
-            }
-            return adapter.apply(
-                to: native, receiver: view, values: values, context: ctx)
+            return (overload, values)
         }
         for overload in candidates where !provesResultBuilder(
             overload.params, args, ctx) {
@@ -894,15 +908,40 @@ enum GeneratedDispatch {
             guard let values = matches(overload.params, args, ctx) else {
                 continue
             }
-            let native = try overload.invoke(view, values)
-            guard let adapter = overload.semanticAdapter else {
-                return native
-            }
-            return adapter.apply(
-                to: native, receiver: view, values: values, context: ctx)
+            return (overload, values)
         }
-        let shape = args.arguments.map { $0.label ?? "_" }.joined(separator: ":")
-        throw RuntimeError(message: "no matching overload for .\(name)(\(shape):) — argument types or labels don't fit")
+        return nil
+    }
+
+    /// Whether the interface tier has an overload that fits this call. Shares
+    /// `resolvedOverload` with `dispatch`, so the answer and the dispatch
+    /// cannot disagree.
+    static func serves(
+        overloads: GeneratedOverloadSet,
+        args: CallArguments,
+        ctx: EvalContext
+    ) -> Bool {
+        resolvedOverload(overloads: overloads, args: args, ctx: ctx) != nil
+    }
+
+    static func dispatch(
+        name: String,
+        overloads: GeneratedOverloadSet,
+        view: AnyView,
+        args: CallArguments,
+        ctx: EvalContext
+    ) throws -> AnyView {
+        guard let (overload, values) = resolvedOverload(
+            overloads: overloads, args: args, ctx: ctx) else {
+            let shape = args.arguments.map { $0.label ?? "_" }.joined(separator: ":")
+            throw RuntimeError(message: "no matching overload for .\(name)(\(shape):) — argument types or labels don't fit")
+        }
+        let native = try overload.invoke(view, values)
+        guard let adapter = overload.semanticAdapter else {
+            return native
+        }
+        return adapter.apply(
+            to: native, receiver: view, values: values, context: ctx)
     }
 
     static func construct(

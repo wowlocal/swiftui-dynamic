@@ -573,4 +573,217 @@ extension InterpretedChartTests {
         print("PROBE legend-position-bare-axis-labels mismatched:", mismatched)
         #expect(mismatched == 0)
     }
+
+    /// IceCubes `TagChartView` class (Explore/Components/TagChartView.swift):
+    /// the trending-tag sparkline hides both axes with `.chartXAxis(.hidden)` /
+    /// `.chartYAxis(.hidden)`, so the twin draws a bare ramp while the
+    /// interpreted capture drew tick labels and gridlines — the bulk of the
+    /// `tags-list` R2 residue.
+    ///
+    /// The name is the whole failure: `ChartsBridge` registers a handwritten
+    /// adapter for `chartXAxis` to serve the `@AxisContentBuilder` overload,
+    /// and a handwritten adapter shadows EVERY generated overload of the same
+    /// name. The `Visibility` overload is generated
+    /// (`GeneratedModifiers` — interface line `chartXAxis(_ visibility:)`),
+    /// but the call never reached it: the handwritten body found no closure
+    /// and returned the receiver unchanged.
+    ///
+    /// Both spellings are asserted together, because a fix that reaches the
+    /// generated overload by dropping the handwritten one would take the
+    /// builder overload down with it.
+    @MainActor
+    @Test func axisVisibilityReachesGeneratedOverloadBesideBuilderOverload() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    AreaMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 5.0))
+                    AreaMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 9.0))
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let hidden = Self.chartBitmap(view, size: size)
+        // The expectation is a REAL compiled chart with the same modifiers,
+        // never a hand-written pixel count.
+        let nativeHidden = Self.chartBitmap(AnyView(
+            Chart {
+                AreaMark(x: .value("X", 1.0), y: .value("Y", 5.0))
+                AreaMark(x: .value("X", 2.0), y: .value("Y", 9.0))
+            }
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)), size: size)
+        // …and a compiled chart WITHOUT them, so "hidden" is proven to be a
+        // visible difference rather than a no-op both sides agree on.
+        let nativeShown = Self.chartBitmap(AnyView(
+            Chart {
+                AreaMark(x: .value("X", 1.0), y: .value("Y", 5.0))
+                AreaMark(x: .value("X", 2.0), y: .value("Y", 9.0))
+            }), size: size)
+
+        func mismatches(
+            _ a: NSBitmapImageRep, _ b: NSBitmapImageRep
+        ) -> Int {
+            var count = 0
+            for x in 0..<Int(size.width) {
+                for y in 0..<Int(size.height) {
+                    guard let lhs = a.colorAt(x: x, y: y),
+                          let rhs = b.colorAt(x: x, y: y) else { continue }
+                    if abs(lhs.redComponent - rhs.redComponent) > 0.02
+                        || abs(lhs.greenComponent - rhs.greenComponent) > 0.02
+                        || abs(lhs.blueComponent - rhs.blueComponent) > 0.02 {
+                        count += 1
+                    }
+                }
+            }
+            return count
+        }
+
+        let axisPixels = mismatches(nativeHidden, nativeShown)
+        #expect(
+            axisPixels > 100,
+            "compiled hidden/shown axes differ by \(axisPixels) px; the control is degenerate and the assertion below proves nothing")
+        let drift = mismatches(hidden, nativeHidden)
+        print("PROBE hidden-axis drift:", drift, "axis px:", axisPixels)
+        #expect(
+            drift == 0,
+            "interpreted `.chartXAxis(.hidden)` differs from the compiled chart by \(drift) px; the axes were drawn anyway")
+    }
+
+    /// The builder overload of the SAME name must keep working — it is the
+    /// half `ChartsBridge` legitimately owns (`@AxisContentBuilder` builds
+    /// `AxisContent`, an associated-type protocol no generated tier carries).
+    @MainActor
+    @Test func axisBuilderOverloadSurvivesGeneratedFallthrough() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    AreaMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 5.0))
+                    AreaMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 9.0))
+                }
+                .chartXAxis {
+                    AxisMarks { value in
+                        AxisTick()
+                        AxisGridLine()
+                    }
+                }
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interp = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                AreaMark(x: .value("X", 1.0), y: .value("Y", 5.0))
+                AreaMark(x: .value("X", 2.0), y: .value("Y", 9.0))
+            }
+            .chartXAxis {
+                AxisMarks { _ in
+                    AxisTick()
+                    AxisGridLine()
+                }
+            }), size: size)
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height) {
+                guard let a = interp.colorAt(x: x, y: y),
+                      let b = native.colorAt(x: x, y: y) else { continue }
+                if abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.greenComponent - b.greenComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        print("PROBE axis-builder drift:", mismatched)
+        #expect(mismatched == 0)
+    }
+
+    /// The other side of the same fallthrough: a declined call that the
+    /// generated tier ALSO cannot serve must keep the behaviour it had, not
+    /// start throwing. IceCubes' `AccountMetricsComponents.swift:63` is the
+    /// live instance — `.chartYScale(domain: 0...max(value, 1))` carries a
+    /// range domain, and `Charts.ScaleDomain` coerces only from `.automatic`,
+    /// so no generated overload fits. Routing it out of the handwritten
+    /// adapter unconditionally would turn a rendered screen into a runtime
+    /// error, which is why the fallthrough is conditioned on a real match.
+    @MainActor
+    @Test func declinedCallNoTierServesKeepsItsExistingAdapter() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    AreaMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 5.0))
+                    AreaMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 9.0))
+                }
+                .chartYScale(domain: 0...12)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed — an unserveable domain must absorb, not throw")
+            return
+        }
+        // Absorbing the domain still has to leave a drawn chart behind.
+        let size = NSSize(width: 300, height: 200)
+        let rep = Self.chartBitmap(view, size: size)
+        var painted = 0
+        for x in stride(from: 40, to: 290, by: 4) {
+            for y in stride(from: 10, to: 190, by: 4) {
+                if let color = rep.colorAt(x: x, y: y),
+                   color.redComponent + color.greenComponent
+                       + color.blueComponent < 2.7 {
+                    painted += 1
+                }
+            }
+        }
+        #expect(
+            painted > 10,
+            "chart painted \(painted) samples; an unserveable scale domain took the whole chart with it")
+    }
 }

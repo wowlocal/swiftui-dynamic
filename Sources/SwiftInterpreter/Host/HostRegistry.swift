@@ -102,6 +102,8 @@ public struct HostModifier {
         (@MainActor (CallArguments, EvalContext) -> [[String?]])?
     private let argumentMatchBody:
         (@MainActor (CallArguments, EvalContext) -> Bool?)?
+    private let ownsCallBody:
+        (@MainActor (CallArguments, EvalContext) -> Bool)?
     public let apply: @MainActor (RuntimeValue, CallArguments, EvalContext) throws -> RuntimeValue
 
     public init(
@@ -112,6 +114,9 @@ public struct HostModifier {
         argumentMatch:
             (@MainActor (CallArguments, EvalContext) -> Bool?)?
             = nil,
+        ownsCall:
+            (@MainActor (CallArguments, EvalContext) -> Bool)?
+            = nil,
         apply: @escaping @MainActor (
             RuntimeValue, CallArguments, EvalContext
         ) throws -> RuntimeValue
@@ -119,6 +124,7 @@ public struct HostModifier {
         self.name = name
         self.parameterTypeCandidatesBody = parameterTypeCandidates
         self.argumentMatchBody = argumentMatch
+        self.ownsCallBody = ownsCall
         self.apply = apply
     }
 
@@ -144,6 +150,24 @@ public struct HostModifier {
         _ arguments: CallArguments, in context: EvalContext
     ) -> Bool? {
         argumentMatchBody?(arguments, context)
+    }
+
+    /// Whether this adapter claims THIS call, as opposed to the name.
+    ///
+    /// A handwritten adapter is registered under a bare name, so it shadows
+    /// every interface-derived overload that shares it. That is right when the
+    /// adapter implements the whole name and wrong when it implements one
+    /// spelling of it: the overloads it does not serve reach a body that
+    /// cannot recognise them and silently return the receiver. An adapter that
+    /// covers a subset declares the subset here and the rest dispatch through
+    /// the generated tier, which has the real signature.
+    ///
+    /// Declaring nothing means claiming the name outright — the established
+    /// behaviour for the adapters that legitimately own one.
+    public func ownsCall(
+        _ arguments: CallArguments, in context: EvalContext
+    ) -> Bool {
+        ownsCallBody?(arguments, context) ?? true
     }
 }
 

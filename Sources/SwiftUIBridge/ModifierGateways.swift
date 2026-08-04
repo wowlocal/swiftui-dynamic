@@ -370,10 +370,10 @@ extension ViewRegistry {
         // accept its presentation/configuration modifiers inertly.
         // chartLegend graduated to the generated tier (Charts joined the
         // BridgeGen modifier sweep; AnnotationPosition coerces).
-        for name in [
-            "chartOverlay", "chartPlotStyle",
-            "chartXAxis", "chartYAxis", "chartYScale",
-        ] {
+        // chartXAxis/chartYAxis/chartYScale are NOT listed: `registerChartViews`
+        // runs after this and registers all three, so an inert entry here was
+        // only ever a dead shadow of the adapter that actually serves them.
+        for name in ["chartOverlay", "chartPlotStyle"] {
             register(name) { view, _, _ in view }
         }
 
