@@ -53,8 +53,26 @@ extension ViewRegistry {
             guard let content = args.firstUnlabeledClosure else {
                 throw RuntimeError(message: "Chart needs a content builder")
             }
-            let values = try ctx.callBuilderClosure(content, arguments: [])
-            let marks = Self.chartContents(values, recordDrops: true)
+            // Charts declares two initializer families: `Chart { marks }`,
+            // whose builder takes nothing, and `Chart(_ data:content:)`, whose
+            // builder Charts calls once per element. Which one a call site
+            // means is carried by the closure's own arity together with an
+            // unlabeled collection argument — the same evidence `ForEach`
+            // dispatches on — so neither shape needs naming a chart type.
+            let marks: [AnyChartContent]
+            if content.parameters.count == 1,
+               let data = args.positional(0)?.arrayValue {
+                marks = try data.flatMap { element in
+                    Self.chartContents(
+                        try ctx.callBuilderClosure(
+                            content, arguments: [element]),
+                        recordDrops: true)
+                }
+            } else {
+                marks = Self.chartContents(
+                    try ctx.callBuilderClosure(content, arguments: []),
+                    recordDrops: true)
+            }
             return .native(AnyView(Chart { Self.composed(marks) }))
         }
 

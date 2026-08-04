@@ -73,6 +73,89 @@ import Testing
         #expect(painted > 10, "area mark region painted \(painted) samples; expected a filled chart")
     }
 
+    /// IceCubes `TagChartView` class (Explore/Components/TagChartView.swift):
+    /// the trending-tag sparkline is built with the DATA-DRIVEN initializer
+    /// `Chart(sortedHistory) { data in AreaMark(…) }`, whose builder Charts
+    /// calls once per element. The bridge only ever called the builder with no
+    /// arguments, so a one-parameter builder failed with "missing argument for
+    /// parameter 'data'" and every sparkline absorbed to blank — 10 of them on
+    /// the `tags-list` R2 screen. Distilled to a 2-field point so the repro
+    /// carries no Models/Explore import.
+    @MainActor
+    @Test func dataDrivenChartCallsBuilderPerElement() throws {
+        let source = """
+        struct Point: Identifiable {
+            let id: Int
+            let value: Double
+        }
+
+        struct P2: View {
+            let points: [Point] = [
+                Point(id: 0, value: 1.0),
+                Point(id: 1, value: 5.0),
+                Point(id: 2, value: 9.0),
+            ]
+
+            var body: some View {
+                Chart(points) { point in
+                    AreaMark(
+                        x: .value(String("i"), Double(point.id)),
+                        y: .value(String("v"), point.value))
+                }
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 300, pixelsHigh: 200,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = size
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        // The ramp fills the lower-right of the plot; a builder that never ran
+        // leaves the whole canvas white.
+        var painted = 0
+        for x in stride(from: 180, to: 260, by: 8) {
+            for y in stride(from: 100, to: 180, by: 8) {
+                if let color = rep.colorAt(x: x, y: y),
+                   color.redComponent + color.greenComponent
+                       + color.blueComponent < 2.7 {
+                    painted += 1
+                }
+            }
+        }
+        #expect(
+            painted > 10,
+            "data-driven Chart painted \(painted) samples; expected a filled chart")
+    }
+
     @MainActor
     @Test func linearGradientFactoryCoercesToRealStyle() throws {
         let source = """
