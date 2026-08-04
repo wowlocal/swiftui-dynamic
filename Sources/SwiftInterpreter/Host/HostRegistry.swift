@@ -580,6 +580,14 @@ public protocol HostRegistry: AnyObject {
     /// Constructors for host object types (DateFormatter()) shared across
     /// real and trace registries. Return nil for unknown names.
     func hostObjectConstructor(named name: String) -> HostFunction?
+    /// The storage of a property whose wrapper the FRAMEWORK supplies a value
+    /// for (`@Namespace var ns`). Such a declaration passes the wrapper no
+    /// input and writes no initializer, so there is no source expression to
+    /// evaluate — only the framework can say what the property holds. Nil
+    /// when no interface-derived wrapper of that name supplies its own value.
+    func frameworkSuppliedWrapperValue(
+        forAttributes attributes: [String]
+    ) -> RuntimeValue?
     /// Host-typed operators the core can't know (`Text + Text`). Return nil
     /// to fall through to the numeric/string builtins.
     func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue?
@@ -689,4 +697,7 @@ extension HostRegistry {
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? { nil }
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool { false }
     public func hostObjectConstructor(named name: String) -> HostFunction? { nil }
+    public func frameworkSuppliedWrapperValue(
+        forAttributes attributes: [String]
+    ) -> RuntimeValue? { nil }
 }

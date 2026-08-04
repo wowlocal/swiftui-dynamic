@@ -77,6 +77,12 @@ public final class ViewRegistry: HostRegistry {
             named: name, fileManager: fileManagerBox)
     }
 
+    public func frameworkSuppliedWrapperValue(
+        forAttributes attributes: [String]
+    ) -> RuntimeValue? {
+        generatedFrameworkSuppliedWrapperValue(forAttributes: attributes)
+    }
+
     public func hostGlobal(named name: String) -> RuntimeValue? {
         GeneratedPlatformBridge.globalValue(
             named: name, applicationShells: applicationShells)

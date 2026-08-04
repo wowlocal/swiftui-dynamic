@@ -1536,6 +1536,28 @@ enum GeneratedConstructors {
     }
 }
 
+/// Namespace the generated framework-supplied property wrappers extend with
+/// `build()`. `@Namespace var ns` hands the wrapper nothing and reads nothing
+/// back but `wrappedValue`, so the value belongs to the framework, not to the
+/// declaration — and there is no source expression to evaluate for it.
+enum GeneratedPropertyWrappers {
+    static let table: [String: @MainActor () -> Any] = build()
+
+    /// The value a declaration annotated with these attributes stores. The
+    /// attribute list comes from the source declaration, so a wrapper the
+    /// interpreter models itself never reaches here.
+    @MainActor
+    static func suppliedValue(forAttributes attributes: [String]) -> Any? {
+        for attribute in attributes {
+            // `@SwiftUI.Namespace` names the same wrapper as `@Namespace`.
+            let name = attribute.split(separator: ".").last.map(String.init)
+                ?? attribute
+            if let supply = table[name] { return supply() }
+        }
+        return nil
+    }
+}
+
 /// Namespace the generated same-type static factories extend with `build()`.
 ///
 /// These are the interface's second spelling of a nominal's own constructor —

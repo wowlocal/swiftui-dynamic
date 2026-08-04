@@ -428,6 +428,17 @@ func interfaceValidatedHostObjectConstructor(
         named: name, implementation: implementation)
 }
 
+/// The storage a framework-supplied property wrapper hands its declaration.
+/// Shared by both registries: which wrappers these are, and what they hand
+/// back, is decided entirely by the generated interface sweep.
+@MainActor
+func generatedFrameworkSuppliedWrapperValue(
+    forAttributes attributes: [String]
+) -> RuntimeValue? {
+    GeneratedPropertyWrappers.suppliedValue(forAttributes: attributes)
+        .map { RuntimeValue.native($0) }
+}
+
 func bridgeHostObjectConstructor(
     named name: String,
     fileManager: FileManagerBox

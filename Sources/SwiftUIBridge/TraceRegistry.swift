@@ -181,6 +181,12 @@ public final class TraceRegistry: HostRegistry {
             named: name, fileManager: fileManagerBox)
     }
 
+    public func frameworkSuppliedWrapperValue(
+        forAttributes attributes: [String]
+    ) -> RuntimeValue? {
+        generatedFrameworkSuppliedWrapperValue(forAttributes: attributes)
+    }
+
     public func importedNestedTypeName(for path: String) -> String? {
         GeneratedMembers.knownImportedNestedTypePaths.contains(path)
             ? path : nil

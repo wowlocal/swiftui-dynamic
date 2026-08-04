@@ -150,6 +150,14 @@ extension Interpreter {
                     typeName: property.typeName ?? "",
                     seen: &seen)) ?? .nilValue
             }
+            if case .void = value,
+               let supplied = registry?.frameworkSuppliedWrapperValue(
+                forAttributes: property.attributeNames) {
+                // A framework-supplied wrapper (`@Namespace var ns`) writes no
+                // initializer and takes no input, so there is nothing in the
+                // source to evaluate: the framework owns the value.
+                value = supplied
+            }
             let box = Box(
                 value.copiedForValueSemantics(),
                 declaredTypeName: annotationText.isEmpty ? nil : annotationText,
@@ -1372,6 +1380,13 @@ extension Interpreter {
             for property in symbol.storedProperties
             where property.initializer == nil && !property.isBuilderClosure {
                 let typeName = property.typeName ?? ""
+                // A framework-supplied wrapper is not a memberwise input: the
+                // declaration names no type and passes no value, so there is
+                // nothing a caller could hand it. Construction fills it.
+                if registry?.frameworkSuppliedWrapperValue(
+                    forAttributes: property.attributeNames) != nil {
+                    continue
+                }
                 switch property.wrapper {
                 case .none:
                     if let constraint = symbol.genericParameters[typeName] {
