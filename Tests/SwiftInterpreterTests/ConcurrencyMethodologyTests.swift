@@ -3152,10 +3152,24 @@ struct ConcurrencyMethodologyTests {
     /// investigation a pixel divergence gets, which is worse to get silently
     /// wrong than a red board. A flat-region divergence means the two sides drew
     /// different content and distills to a micro-twin of that view; an
-    /// edge-confined one means they drew the same shapes in the same places and
-    /// no in-process bitmap micro-twin can even express it. Reading the second
-    /// as the first re-distills a screen with nothing to find. The script's
-    /// `--self-test` classifies buffers whose class is known by construction.
+    /// edge-confined one means they drew the same shapes in the same places.
+    /// Reading the second as the first re-distills a screen with nothing to find.
+    /// The script's `--self-test` classifies buffers whose class is known by
+    /// construction.
+    ///
+    /// It also pins what an edge-confined verdict may NOT conclude. Geometry
+    /// being equal does not make the COLOURS equal: a stroke thinner than a
+    /// pixel, or a fill covered by something drawn over it, has no fully-covered
+    /// pixel to land in a flat region, so recolouring it is edge-only by
+    /// construction. The tool used to answer that question by assumption — "in
+    /// the same colours" — and the media screen spent three iterations being
+    /// investigated as a rasterization difference before its 3410 AE turned out
+    /// to be `systemGray` resolved in two appearances. The two readings are now
+    /// separated by evidence the 8-bit path cannot carry: a coverage change
+    /// inherits the local contrast and lands unequally on R, G and B, while a
+    /// neutral recolour lands equally on all three whatever it is drawn over.
+    /// Both shapes are pinned here, at one level of magnitude and identical
+    /// geometry, so nothing but the channel reading can tell them apart.
     ///
     /// It also pins the COMPONENT split, on a buffer carrying TWO divergences
     /// whose separation is known by construction: the whole-screen verdict can

@@ -50,6 +50,63 @@ func loadPixels(_ path: String) -> (data: [UInt8], width: Int, height: Int)? {
     return (data, width, height)
 }
 
+/// The same pixels at the depth and in the colour space the capture actually
+/// carries, used ONLY as evidence about channels — never for the AE, which stays
+/// on the 8-bit sRGB path above so this tool and `pixel-ae.swift` can never
+/// disagree about the number a floor is compared against.
+///
+/// The scored captures are 16-bit Display P3. Reading them at 8 bits throws away
+/// the byte that says WHICH KIND of divergence they are: the tags-list residue is
+/// 16-32 parts in 65535, which quantizes to the same "1 of 255" whatever its
+/// per-channel shape, and the media residue's decisive property — equal ink on
+/// R, G and B — is not expressible at all once the samples have been requantized
+/// through a different colour space.
+func loadNativeSamples(_ path: String) -> (data: [UInt16], depth: Int)? {
+    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+    let width = image.width, height = image.height
+    let space = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
+    var data = [UInt16](repeating: 0, count: width * height * 4)
+    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        | CGBitmapInfo.byteOrder16Little.rawValue
+    let drawn = data.withUnsafeMutableBytes { raw -> Bool in
+        guard let context = CGContext(
+            data: raw.baseAddress, width: width, height: height, bitsPerComponent: 16,
+            bytesPerRow: width * 8, space: space, bitmapInfo: bitmapInfo) else { return false }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return true
+    }
+    guard drawn else { return nil }
+    return (data, image.bitsPerComponent)
+}
+
+/// Per-channel delta shape over the differing pixels, which is the evidence the
+/// EDGE/CLASS pair cannot supply on its own.
+///
+/// Coverage and colour are distinguishable HERE and nowhere else in this tool.
+/// A coverage change contributes `dAlpha * (shape - background)` at a pixel, so its
+/// per-channel deltas inherit the local contrast and are equal across R, G and B
+/// only when that contrast happens to be neutral. A shape whose COLOUR changed
+/// contributes `alpha * (new - old)`, so a neutral recolour lands equally on all
+/// three channels no matter what it is drawn over. Counting the two shapes is
+/// therefore the measurement that separates them.
+func channelSignature(
+    _ a: [UInt16], _ b: [UInt16], differing: [Bool], count: Int
+) -> (neutral: Int, skewed: Int, maxAbs: Int) {
+    var neutral = 0, skewed = 0, maxAbs = 0
+    for pixel in 0..<count where differing[pixel] {
+        let offset = pixel * 4
+        let dR = Int(b[offset]) - Int(a[offset])
+        let dG = Int(b[offset + 1]) - Int(a[offset + 1])
+        let dB = Int(b[offset + 2]) - Int(a[offset + 2])
+        maxAbs = max(maxAbs, max(abs(dR), max(abs(dG), abs(dB))))
+        // Equal on every channel INCLUDING the zeros: a delta of (-32,-32,0) is
+        // not a neutral shift, it is a skew that happens to spare one channel.
+        if dR == dG, dG == dB, dR != 0 { neutral += 1 } else { skewed += 1 }
+    }
+    return (neutral, skewed, maxAbs)
+}
+
 /// A pixel counts as an edge pixel when the TWIN's own 3x3 neighbourhood is not
 /// uniform there. Judging that from the native baseline alone keeps the
 /// classification independent of what the interpreter drew.
@@ -80,7 +137,8 @@ func classVerdict(flatDiffering: Int, maxDelta: Int) -> String {
 /// classifies a real capture pair is what `--self-test` exercises.
 func classify(
     _ a: [UInt8], _ b: [UInt8], width: Int, height: Int, differing: [Bool],
-    differingCount: Int
+    differingCount: Int,
+    native: (a: [UInt16], b: [UInt16], depth: Int)? = nil
 ) -> [String] {
     var lines: [String] = []
     // MAGNITUDE — how far apart the differing pixels actually are. A boundary
@@ -105,6 +163,21 @@ func classify(
         format: "MAGNITUDE max %d  mean %.2f  of 255 — %d px (%.1f%%) differ by <= 2",
         maxDelta, meanDelta, withinTwo, withinTwoShare))
 
+    // CHANNELS — the per-channel shape of those deltas, at the depth the capture
+    // carries. This is the line that says colour-or-coverage; MAGNITUDE and EDGE
+    // between them cannot.
+    let samples = native
+        ?? (a: a.map(UInt16.init), b: b.map(UInt16.init), depth: 8)
+    let signature = channelSignature(
+        samples.a, samples.b, differing: differing, count: width * height)
+    let fullScale = (1 << samples.depth) - 1
+    let neutralShare = Double(signature.neutral) * 100 / Double(differingCount)
+    lines.append(String(
+        format: "CHANNELS at %d-bit — %d px neutral (dR==dG==dB), %d px channel-skewed;"
+            + " max |delta| %d of %d  (%.1f%% neutral)",
+        samples.depth, signature.neutral, signature.skewed, signature.maxAbs,
+        fullScale, neutralShare))
+
     // EDGE — how many of the differing pixels sit on the twin's own edges.
     var edgeDiffering = 0
     var edgeTotal = 0
@@ -124,10 +197,34 @@ func classify(
     // The verdict names the class so the next step is not chosen by eye.
     switch classVerdict(flatDiffering: flatDiffering, maxDelta: maxDelta) {
     case "EDGE-BLEND":
+        // What "no flat pixel differs" licenses is narrower than it reads, and the
+        // 2026-08-04 media screen is the proof: its residue was a pure COLOUR
+        // difference (systemGray resolved dark against light) that presented here
+        // as edge-only for three iterations. A stroke thinner than a pixel, or a
+        // fill completely covered by something else, has no fully-covered pixel to
+        // land in a flat region — so a recolour of it is edge-only by construction.
+        // The verdict therefore states the geometry it established and defers the
+        // colour question to CHANNELS instead of answering it by assumption.
         lines.append("CLASS EDGE-BLEND — every differing pixel is an antialiased twin edge and"
-            + " no flat region differs, so both sides drew the same shapes, in the same"
-            + " places, in the same colours. This is a rasterization/compositing"
-            + " divergence; an in-process bitmap micro-twin cannot reproduce it.")
+            + " no flat region differs, so both sides drew the same shapes in the same"
+            + " places. Whether they drew them in the same COLOURS is decided by"
+            + " CHANNELS above, not by this line.")
+        if signature.neutral == differingCount {
+            lines.append("  ^ CHANNELS says every delta is neutral, which coverage cannot"
+                + " produce over non-neutral contrast: read this as a COLOUR difference on a"
+                + " sub-pixel stroke or a covered fill, and look for a dynamic colour"
+                + " resolving differently, before any rasterization theory.")
+        } else if signature.skewed == differingCount {
+            lines.append("  ^ CHANNELS says every delta is channel-skewed, i.e. it follows the"
+                + " local contrast — the signature of a coverage/compositing difference over"
+                + " identical colours. An in-process bitmap micro-twin cannot reproduce it;"
+                + " compare what the two sides COMPOSITED (surfaces, atlas cells, filters).")
+        } else {
+            lines.append(String(
+                format: "  ^ CHANNELS is mixed (%.1f%% neutral), so more than one divergence is"
+                    + " present here; split them with COMPONENTS before theorising about either.",
+                neutralShare))
+        }
     case "EDGE-GEOMETRY":
         lines.append("CLASS EDGE-GEOMETRY — differences are confined to twin edges but reach"
             + " \(maxDelta) levels, which is a displaced or differently-shaped boundary"
@@ -226,6 +323,15 @@ func differingMask(_ a: [UInt8], _ b: [UInt8], count: Int) -> (mask: [Bool], tot
 // misname a class silently, so the two verdicts are pinned against synthetic
 // buffers whose class is known by construction.
 if CommandLine.arguments.contains("--self-test") {
+    // The CLASS line is no longer the last line — EDGE-BLEND is followed by the
+    // channel reading that says which kind of edge divergence it is — so the
+    // verdict is looked up by prefix rather than by position.
+    func verdict(_ lines: [String]) -> String {
+        lines.first(where: { $0.hasPrefix("CLASS ") }) ?? "(no CLASS line)"
+    }
+    func channelNote(_ lines: [String]) -> String {
+        lines.first(where: { $0.hasPrefix("  ^ CHANNELS") }) ?? "(no channel note)"
+    }
     let width = 40, height = 40
     // A flat white field with a hard-edged black square: every interior pixel is
     // flat, every square boundary pixel is an edge.
@@ -248,7 +354,7 @@ if CommandLine.arguments.contains("--self-test") {
     let regionLines = classify(
         twin, region, width: width, height: height,
         differing: regionMask.mask, differingCount: regionMask.total)
-    guard regionMask.total == 25, regionLines.last?.hasPrefix("CLASS REGION") == true else {
+    guard regionMask.total == 25, verdict(regionLines).hasPrefix("CLASS REGION") else {
         FileHandle.standardError.write(Data(
             "self-test: flat-region divergence misclassified: \(regionLines)\n".utf8))
         exit(2)
@@ -268,9 +374,47 @@ if CommandLine.arguments.contains("--self-test") {
     let blendLines = classify(
         twin, blend, width: width, height: height,
         differing: blendMask.mask, differingCount: blendMask.total)
-    guard blendLines.last?.hasPrefix("CLASS EDGE-BLEND") == true else {
+    guard verdict(blendLines).hasPrefix("CLASS EDGE-BLEND") else {
         FileHandle.standardError.write(Data(
             "self-test: edge-only divergence misclassified: \(blendLines)\n".utf8))
+        exit(2)
+    }
+    // THE MEDIA CASE, pinned so it cannot be misread a fourth time. Those border
+    // pixels moved by the SAME amount on R, G and B — a neutral recolour of a
+    // one-pixel stroke, which is what the media screen's 3410 AE turned out to be
+    // after three iterations spent looking for a rasterization difference. The
+    // geometry verdict is legitimately EDGE-BLEND; what must not happen again is
+    // the tool volunteering "in the same colours" on top of it.
+    guard channelNote(blendLines).contains("COLOUR difference") else {
+        FileHandle.standardError.write(Data(
+            ("self-test: neutral recolour of a sub-pixel stroke was not reported as a"
+             + " colour difference: \(blendLines)\n").utf8))
+        exit(2)
+    }
+    guard !blendLines.contains(where: { $0.contains("in the same colours") }) else {
+        FileHandle.standardError.write(Data(
+            ("self-test: EDGE-BLEND still asserts equal colours, which it cannot"
+             + " establish: \(blendLines)\n").utf8))
+        exit(2)
+    }
+    // The coverage twin of that case: the same border pixels, nudged by amounts
+    // that FOLLOW the local contrast instead of ignoring it. Same geometry, same
+    // magnitude, opposite reading — so the two are separated by the channel
+    // evidence alone and not by anything MAGNITUDE or EDGE can see.
+    var covered = twin
+    for pixel in 0..<(width * height) where blendMask.mask[pixel] {
+        let offset = pixel * 4
+        covered[offset] = 2; covered[offset + 1] = 1; covered[offset + 2] = 0
+    }
+    let coveredMask = differingMask(twin, covered, count: width * height)
+    let coveredLines = classify(
+        twin, covered, width: width, height: height,
+        differing: coveredMask.mask, differingCount: coveredMask.total)
+    guard verdict(coveredLines).hasPrefix("CLASS EDGE-BLEND"),
+          channelNote(coveredLines).contains("coverage/compositing") else {
+        FileHandle.standardError.write(Data(
+            ("self-test: channel-skewed edge divergence was not reported as coverage:"
+             + " \(coveredLines)\n").utf8))
         exit(2)
     }
     // The same edge pixels, moved far enough that a blend cannot explain them.
@@ -283,7 +427,7 @@ if CommandLine.arguments.contains("--self-test") {
     let displacedLines = classify(
         twin, displaced, width: width, height: height,
         differing: displacedMask.mask, differingCount: displacedMask.total)
-    guard displacedLines.last?.hasPrefix("CLASS EDGE-GEOMETRY") == true else {
+    guard verdict(displacedLines).hasPrefix("CLASS EDGE-GEOMETRY") else {
         FileHandle.standardError.write(Data(
             "self-test: displaced edge misclassified: \(displacedLines)\n".utf8))
         exit(2)
@@ -322,7 +466,7 @@ if CommandLine.arguments.contains("--self-test") {
     let whole = classify(
         twoShapes, twoDivergences, width: width, height: height,
         differing: twoMask.mask, differingCount: twoMask.total)
-    guard whole.last?.hasPrefix("CLASS REGION") == true else {
+    guard verdict(whole).hasPrefix("CLASS REGION") else {
         FileHandle.standardError.write(Data(
             "self-test: two-divergence screen should read REGION whole-screen: \(whole)\n".utf8))
         exit(2)
@@ -402,9 +546,22 @@ if differingCount > 0 {
     print("BBOX x \(minX)...\(maxX)  y \(minY)...\(maxY)"
         + "  (\(maxX - minX + 1)x\(maxY - minY + 1))")
 
+    // The native samples are evidence, not the metric: when a capture cannot be
+    // re-read at its own depth the AE and every verdict above still stand, and
+    // CHANNELS simply reports at 8 bits.
+    var nativeSamples: (a: [UInt16], b: [UInt16], depth: Int)?
+    if let nativeA = loadNativeSamples(arguments[1]),
+       let nativeB = loadNativeSamples(arguments[2]),
+       nativeA.data.count == width * height * 4,
+       nativeB.data.count == width * height * 4,
+       nativeA.depth == nativeB.depth
+    {
+        nativeSamples = (nativeA.data, nativeB.data, nativeA.depth)
+    }
     for line in classify(
         a.data, b.data, width: width, height: height,
-        differing: differing, differingCount: differingCount
+        differing: differing, differingCount: differingCount,
+        native: nativeSamples
     ) {
         print(line)
     }
