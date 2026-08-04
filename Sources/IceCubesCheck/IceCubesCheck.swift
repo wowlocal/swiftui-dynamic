@@ -62,15 +62,18 @@ private enum IceCubesCaptureScreen: String {
     case statusDetail = "status-detail"
     case accountHeader = "account-header"
     case media
+    case tagsList = "tags-list"
 
     /// `status-detail` and `account-header` are driven from a status the TWIN
     /// picked and the endpoints it prepared, so they read the twin's output
-    /// directory. `timeline` and `media` are built from the checked-in replay
-    /// fixtures alone — media attachments resolve to the replay protocol's one
-    /// deterministic PNG, which no fixture directory supplies.
+    /// directory. `timeline`, `media` and `tags-list` are built from the
+    /// checked-in replay fixtures alone — media attachments resolve to the
+    /// replay protocol's one deterministic PNG, which no fixture directory
+    /// supplies, and the trending tags are a recorded public response that
+    /// needs nothing the twin prepares.
     var needsNativeFixtures: Bool {
         switch self {
-        case .timeline, .media: false
+        case .timeline, .media, .tagsList: false
         case .statusDetail, .accountHeader: true
         }
     }
@@ -1168,6 +1171,7 @@ struct IceCubesCheckMain {
         case nativeStatusDetail
         case nativeAccountHeader
         case nativeMedia
+        case nativeTagsList
         /// The real navigation shape every IceCubes tab is built from:
         /// `NavigationStack(path: $routerPath.path) { content.withAppRouter() }`
         /// (NavigationTab.swift:25 + AppRegistry.swift:65). Nothing about the
@@ -1815,6 +1819,21 @@ struct IceCubesCheckMain {
         let __iceScreenStatus = try! __iceDecoder.decode(
             Status.self, from: __fixtureData("\(fixture)"))
         """ } ?? "",
+            // The recorded trending-tags bytes carry no `following` key, so
+            // this decode runs `Tag.init(from:)`'s own
+            // `catch DecodingError.keyNotFound` fallback rather than a
+            // synthesized memberwise decode.
+            //
+            // `Models.Tag` is spelled module-qualified because this probe
+            // imports both Models and SwiftSoup, and BOTH declare a top-level
+            // `Tag`. Bare `Tag` here is ambiguous to the real compiler too, so
+            // qualifying is what swiftc requires — not a workaround. The app's
+            // own `TagsListView` needs no qualifier: module Explore imports
+            // Models without SwiftSoup, so its `Tag` is unambiguous.
+            presentation == .nativeTagsList ? """
+        let __iceTrendingTags = try! __iceDecoder.decode(
+            [Models.Tag].self, from: __fixtureData("api_v1_trends_tags"))
+        """ : "",
         ].filter { !$0.isEmpty }.joined(separator: "\n")
         let initialStatuses = includePagination
             ? "__icePublicStatuses"
@@ -1913,6 +1932,16 @@ struct IceCubesCheckMain {
                     .frame(width: 420, height: 560)
                     .background(Color.white)
             """
+        case .nativeTagsList:
+            // The screen `RouterDestination.tagsList` pushes, in the twin's own
+            // shape: the app's public `TagsListView` inside a NavigationStack.
+            // Nothing about the rows is restated here — `TagRowView` and its
+            // Swift Charts sparkline come from the merged Explore package.
+            """
+                    NavigationStack {
+                        TagsListView(tags: __iceTrendingTags)
+                    }
+            """
         case .rowTapNavigation:
             """
                     __IceRowTapProbe()
@@ -1951,6 +1980,7 @@ struct IceCubesCheckMain {
         import AppAccount
         import DesignSystem
         import Env
+        import Explore
         import Foundation
         import Models
         import NetworkClient
@@ -2372,6 +2402,9 @@ struct IceCubesCheckMain {
             screenStatusFixture = nil
         case .media:
             presentation = .nativeMedia
+            screenStatusFixture = nil
+        case .tagsList:
+            presentation = .nativeTagsList
             screenStatusFixture = nil
         case .statusDetail, .accountHeader:
             let metadata = try JSONDecoder().decode(

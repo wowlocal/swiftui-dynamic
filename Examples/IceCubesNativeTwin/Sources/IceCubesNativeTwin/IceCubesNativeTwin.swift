@@ -3,6 +3,7 @@ import Account
 import AppAccount
 import DesignSystem
 import Env
+import Explore
 import Foundation
 import Models
 import NetworkClient
@@ -58,6 +59,7 @@ private struct PaginationMetadata: Codable {
 private enum FixtureName {
     static let publicTimeline = "api_v1_timelines_public.json"
     static let trendingStatuses = "api_v1_trends_statuses.json"
+    static let trendingTags = "api_v1_trends_tags.json"
     static let boostStatus = "api_v1_statuses_116954929935729788.json"
 }
 
@@ -66,6 +68,7 @@ private enum TwinCaptureScreen: String {
     case statusDetail = "status-detail"
     case accountHeader = "account-header"
     case media
+    case tagsList = "tags-list"
 }
 
 @MainActor
@@ -277,6 +280,7 @@ private struct TwinDriverView: View {
     private enum CapturedScreen {
         case statusDetail(Status)
         case accountHeader(Account)
+        case tagsList([Tag])
     }
 
     @State private var statuses: [Status] = []
@@ -321,6 +325,13 @@ private struct TwinDriverView: View {
                         client: client, routerPath: routerPath
                     ) {
                         AccountDetailView(account: account)
+                    }
+                    .id(capturedScreenIdentity)
+                case .tagsList(let tags):
+                    TwinNavigationScreen(
+                        client: client, routerPath: routerPath
+                    ) {
+                        TagsListView(tags: tags)
                     }
                     .id(capturedScreenIdentity)
                 }
@@ -414,6 +425,17 @@ private struct TwinDriverView: View {
                     userInfo: [NSLocalizedDescriptionKey:
                         "recorded boost fixture has no supported image attachment"])
             }
+            let tagsData = try Data(contentsOf: URL(
+                fileURLWithPath: TwinConfiguration.fixtureDirectory)
+                .appendingPathComponent(FixtureName.trendingTags))
+            let trendingTags = try detailDecoder.decode(
+                [Tag].self, from: tagsData)
+            guard !trendingTags.isEmpty else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 7,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "recorded trending-tags fixture has no tags"])
+            }
             let replayStatuses = decoded + [boostStatus]
             let screenFixtures = try prepareScreenFixtures(
                 detailStatus: detailStatus)
@@ -436,6 +458,8 @@ private struct TwinDriverView: View {
                     endpoints: screenFixtures.accountEndpoints)
             case .media:
                 try await captureMedia([imageAttachment])
+            case .tagsList:
+                try await captureTagsList(trendingTags)
             case nil:
                 try await captureTimeline(statuses: replayStatuses)
                 try await captureStatusDetail(
@@ -444,6 +468,7 @@ private struct TwinDriverView: View {
                     detailStatus.account,
                     endpoints: screenFixtures.accountEndpoints)
                 try await captureMedia([imageAttachment])
+                try await captureTagsList(trendingTags)
                 try captureMetadata(
                     statuses: replayStatuses,
                     detailStatus: detailStatus,
@@ -489,6 +514,20 @@ private struct TwinDriverView: View {
         try await waitForRequests(endpoints)
         try await waitForScreenTransition()
         try await capturePNG(named: TwinCaptureScreen.accountHeader.rawValue)
+    }
+
+    /// The trending-tags list, scored as its own screen. It is the app's own
+    /// public `TagsListView` — the screen `RouterDestination.tagsList` pushes —
+    /// driven by the recorded `/api/v1/trends/tags` bytes. Those bytes carry no
+    /// `following` key, so decoding them runs `Tag.init(from:)`'s
+    /// `catch DecodingError.keyNotFound` fallback rather than a synthesized
+    /// memberwise decode, and each row draws a Swift Charts `AreaMark` sparkline.
+    private func captureTagsList(_ tags: [Tag]) async throws {
+        statuses = []
+        capturedScreen = .tagsList(tags)
+        capturedScreenIdentity = UUID()
+        try await waitForScreenTransition()
+        try await capturePNG(named: TwinCaptureScreen.tagsList.rawValue)
     }
 
     /// The media preview surface, scored as its own screen. Every attachment

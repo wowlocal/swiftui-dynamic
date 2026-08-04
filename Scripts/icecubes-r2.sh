@@ -29,7 +29,7 @@ INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 # The scored screens, in capture order. ONE list: three copies drifted apart
 # is how a screen ends up captured but never scored, which reads exactly like
 # a screen that converged.
-R2_SCREENS=(timeline status-detail account-header media)
+R2_SCREENS=(timeline status-detail account-header media tags-list)
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
@@ -188,7 +188,8 @@ capture_interpreted_screen() {
   local native_args=()
   # Mirrors IceCubesCaptureScreen.needsNativeFixtures: only the screens the
   # TWIN chose a status and prepared endpoints for read its output directory.
-  if [[ "$screen" != timeline && "$screen" != media ]]; then
+  if [[ "$screen" != timeline && "$screen" != media \
+        && "$screen" != tags-list ]]; then
     native_args=(--native-fixtures "$TWIN_DIR")
   fi
   ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
@@ -269,6 +270,7 @@ R2_FLOORS=(
   status-detail 0
   account-header 0
   media 3410
+  tags-list 12459
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
