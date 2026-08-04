@@ -603,7 +603,7 @@ func constraintConcreteType(for constraint: String) -> String? {
     case "BinaryFloatingPoint", "FloatingPoint": return "Double"
     case "StringProtocol": return "String"
     case "BinaryInteger": return "Int"
-    case "Transferable": return "URL"
+    case "Transferable": return "InterpretedTransferableValue"
     case "Equatable": return "InterpretedEquatableValue"
     case "Hashable": return "InterpretedHashableValue"
     default: return nil
@@ -624,7 +624,10 @@ func constraintMapping(for constraint: String) -> TypeMapping? {
     // answers it — with the hashing the refinement adds.
     case "Hashable": return .init(tag: "hashable", cast: "%@ as! InterpretedHashableValue")
     case "Shape": return .init(tag: "shape", cast: "%@ as! AnyShape")
-    case "Transferable": return .init(tag: "url", cast: "%@ as! URL")
+    case "Transferable":
+        return .init(
+            tag: "transferable",
+            cast: "%@ as! InterpretedTransferableValue")
     default: return nil
     }
 }

@@ -716,12 +716,18 @@ import SwiftInterpreter
     /// `@autoclosure () -> T where T: Transferable` payload shape. Native
     /// Swift accepts that value directly; BridgeGen must map the payload's
     /// result type and keep the receiver a rendered View.
+    ///
+    /// The payload maps to the CONSTRAINT's carrier, not to whichever single
+    /// conformer the app happened to pass: a `URL` and a source-declared
+    /// `Transferable` are the same parameter, and specializing the generic to
+    /// `URL` left the second fitting no overload at all
+    /// (`InterpretedTransferablePayloadTests`).
     @Test func autoclosureGenericModifierMapsPayloadResult() throws {
         let nativePayload = URL(string: "https://example.com/status/1")!
         _ = Text("native row").draggable(nativePayload)
 
         let draggable = GeneratedModifiers.table["draggable"]?.byArity[1] ?? []
-        #expect(draggable.contains { $0.params.map(\.tag) == [.url] })
+        #expect(draggable.contains { $0.params.map(\.tag) == [.transferable] })
 
         let registry = ViewRegistry()
         let result = try Interpreter(registry: registry).run(source: """
