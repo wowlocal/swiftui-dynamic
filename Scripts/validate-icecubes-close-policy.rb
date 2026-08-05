@@ -37,6 +37,15 @@ R2_COMMENT_PATTERN = /#[^\n]*/
 # candidate that does not resolve to the board is simply not a sha.
 MERGE_DONE_SHA_PATTERN = /\b[0-9a-f]{7,40}\b/
 MERGE_DONE_SHA_CANDIDATES = 4
+MERGE_DONE_MARKER = "MERGE-DONE"
+# Binding form:
+#   STALL-ESCALATION <screen> — <the decision the steward owes>
+# The escalation is the OTHER disposition §5 allows, and it was the only one
+# read by bare substring, so any sentence containing the word escalated. It now
+# names its frontier on the same terms `verify_decomposition` demands of an
+# ack: a screen the board measures, whose debt is still open. An escalation of
+# a converged screen asks the steward about nothing.
+ESCALATION_PATTERN = /\bSTALL-ESCALATION\s+([\w-]+)/i
 
 def git(*arguments)
   stdout, stderr, status = Open3.capture3("git", *arguments)
@@ -81,6 +90,29 @@ def r2_floors_at(sha)
   parse_r2_floors(source) || :unreadable
 end
 
+# A marker is POSTED, not MENTIONED. Every real landing carries the sha it
+# landed; a prose reference to one ("no MERGE-DONE follows it", "sits after the
+# last MERGE-DONE") carries none, and `git show` is the arbiter of which is
+# which. Recognising the marker by bare substring made a note that DESCRIBED
+# the ledger indistinguishable from an entry IN it — see `last_landing_index`.
+def merge_done_landing(line, resolver)
+  marker = line.index(MERGE_DONE_MARKER)
+  return nil unless marker
+
+  # /usr/bin/ruby is 2.6 (no filter_map) and the gate calls it by path.
+  line[marker..-1]
+    .scan(MERGE_DONE_SHA_PATTERN)
+    .first(MERGE_DONE_SHA_CANDIDATES)
+    .each do |candidate|
+      floors = resolver.call(candidate)
+      next unless floors
+
+      return { "sha" => candidate,
+               "open" => floors == :unreadable ? nil : floors.values.sum }
+    end
+  nil
+end
+
 # Walks back from the newest claim, so only the window's worth of shas is
 # resolved instead of every MERGE-DONE ever posted. Returns the landing sha
 # beside its open debt — the oldest sha in the window dates the stall.
@@ -89,27 +121,20 @@ def landed_entries(lines, resolver: method(:r2_floors_at), limit: STALL_WINDOW)
   lines.reverse_each do |line|
     break if entries.length == limit
 
-    marker = line.index("MERGE-DONE")
-    next unless marker
-
-    landed = nil
-    # /usr/bin/ruby is 2.6 (no filter_map) and the gate calls it by path.
-    line[marker..-1]
-      .scan(MERGE_DONE_SHA_PATTERN)
-      .first(MERGE_DONE_SHA_CANDIDATES)
-      .each do |candidate|
-        floors = resolver.call(candidate)
-        next unless floors
-
-        landed = { "sha" => candidate,
-                   "open" => floors == :unreadable ? nil : floors.values.sum }
-        break
-      end
+    landed = merge_done_landing(line, resolver)
     next unless landed
 
     entries << landed
   end
   entries.reverse
+end
+
+# Where the disposition window opens: dispositions are read only AFTER the last
+# landing, because a merge consumes the ack or escalation that permitted it.
+# This asks the same question `landed_entries` asks — did this line land a sha —
+# so the two cannot disagree about what a landing is.
+def last_landing_index(lines, resolver: method(:r2_floors_at))
+  lines.rindex { |line| merge_done_landing(line, resolver) } || -1
 end
 
 def landed_metrics(lines, resolver: method(:r2_floors_at), limit: STALL_WINDOW)
@@ -160,6 +185,21 @@ def decomposition_acknowledgement(lines, last_merge_done_index)
       "microtwin" => match[4],
       "redAE" => Integer(match[5], 10)
     }
+  end.last
+end
+
+# The escalation posted after the last landing, or nil. Reading it structurally
+# is a TIGHTENING in the same stroke that stops prose from suppressing one: the
+# sentence "the STALL-ESCALATION sits after the last MERGE-DONE" no longer
+# escalates, and neither does an escalation of a screen already at AE 0.
+def stall_escalation(lines, last_landing_index, open_by_screen)
+  lines.drop(last_landing_index + 1).each_with_object([]) do |line, matches|
+    screen = line[ESCALATION_PATTERN, 1]
+    next unless screen
+    next unless open_by_screen
+    next unless open_by_screen.fetch(screen, 0).positive?
+
+    matches << { "line" => line.strip, "screen" => screen }
   end.last
 end
 
@@ -412,6 +452,45 @@ def self_test
       0
     ).nil?
 
+  # A marker is POSTED, not MENTIONED. Both halves of the disposition scan
+  # keyed off a bare substring, so a note that DESCRIBED the ledger read as an
+  # entry IN it: `.claude/claims.md:1300` wrote "the 17:50Z STALL-ESCALATION
+  # sits after the last MERGE-DONE" and thereby moved the last-landing index
+  # PAST the escalation two lines above it, reporting the close as
+  # unacknowledged while a valid escalation stood. Every real landing carries
+  # the sha it landed; every prose reference to one does not.
+  open_debt = { "timeline" => 0, "media-browser" => 367_681 }
+  prose = "t lane PROGRESS — the STALL-ESCALATION sits after the last " \
+    "MERGE-DONE, so the batch is landable on it"
+  described = [
+    "t lane MERGE-DONE #{shas[0]} main x -> y",
+    "t lane STALL-ESCALATION media-browser — steward: quarantine or board?",
+    prose
+  ]
+  raise "a prose mention of MERGE-DONE must not end the disposition window" \
+    unless last_landing_index(described, resolver: resolver) == 0
+  raise "a posted escalation must survive prose that mentions it" unless
+    stall_escalation(described, 0, open_debt)
+  raise "a prose mention must not itself escalate" if
+    stall_escalation([prose], -1, open_debt)
+  raise "an escalation must name a screen the board measures" if
+    stall_escalation(
+      ["t lane STALL-ESCALATION sideways — not a screen"], -1, open_debt
+    )
+  raise "an escalation naming a converged screen discharges nothing" if
+    stall_escalation(
+      ["t lane STALL-ESCALATION timeline — nothing open here"], -1, open_debt
+    )
+  raise "an escalation before the last landing is already consumed" if
+    stall_escalation(
+      [
+        "t lane STALL-ESCALATION media-browser — steward?",
+        "t lane MERGE-DONE #{shas[0]} main x -> y"
+      ],
+      1,
+      open_debt
+    )
+
   unstalled_payload = policy_payload(
     integration_base: "origin/main",
     commits: [],
@@ -552,8 +631,7 @@ if stall_active && !entries.empty?
   )
   stall_epoch = Integer(window_stamp.strip, 10) if window_ok
 end
-last_merge_done_index =
-  claim_lines.rindex { |line| line.include?("MERGE-DONE") } || -1
+last_merge_done_index = last_landing_index(claim_lines)
 acknowledgement =
   decomposition_acknowledgement(claim_lines, last_merge_done_index)
 decomposition = nil
@@ -563,9 +641,9 @@ if stall_active
     decomposition = verify_decomposition(
       acknowledgement, errors, open_by_screen, stall_epoch
     )
-  elsif claim_lines.drop(last_merge_done_index + 1).none? do |line|
-      line.match?(/\bSTALL-ESCALATION\b/i)
-    end
+  elsif stall_escalation(
+    claim_lines, last_merge_done_index, open_by_screen
+  ).nil?
     errors << "STALL: open R2 AE across ALL screens did not decrease over " \
       "the last #{STALL_WINDOW} landed iterations " \
       "(#{metrics.last(STALL_WINDOW).join(", ")}); adding rungs does not " \
