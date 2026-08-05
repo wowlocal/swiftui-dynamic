@@ -51,7 +51,13 @@ enum ParamTag: Hashable {
     /// descriptor after overload selection.
     case resultBuilder(String, String)
     case action, asyncAction
-    case syncVoidClosure, syncCGFloatClosure
+    case syncVoidClosure
+    /// A framework-owned synchronous callback whose declared result is a
+    /// value rather than `Void`. The associated values are how many inputs
+    /// the SDK supplies and the coercion its result resolves through — the
+    /// same vocabulary a parameter of that type would use, so a callback
+    /// returning a newly bridged type needs no new tag here.
+    indirect case syncClosure(inputs: Int, result: ParamTag)
     /// A callback whose framework-supplied inputs are the same interface
     /// generic as an Equatable argument in the enclosing declaration.
     case equatableAction1, equatableAction2, equatable
@@ -80,6 +86,25 @@ enum ParamTag: Hashable {
     /// the opposite host. The generated semantic adapter consumes the typed
     /// box without pretending its unavailable native payload exists.
     case platformSemanticValue(String, String)
+}
+
+extension ParamTag {
+    /// Whether an interpreted closure is what this parameter coerces, which
+    /// is also what lets an unlabelled trailing argument bind to it. Asked of
+    /// the tag rather than enumerated at each use, so a callback shape added
+    /// later cannot be bridged and then silently miss trailing-closure
+    /// syntax.
+    var bindsAnInterpretedClosure: Bool {
+        switch self {
+        case .builder, .resultBuilder,
+             .action, .asyncAction,
+             .syncVoidClosure, .syncClosure,
+             .equatableAction1, .equatableAction2:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 struct ParamSpec {
@@ -349,6 +374,11 @@ struct SyncClosureValue: @unchecked Sendable {
     func call(argument: RuntimeValue) throws -> RuntimeValue {
         try context.callHostCallback(closure, arguments: [argument])
     }
+
+    @MainActor
+    func call(arguments: [RuntimeValue]) throws -> RuntimeValue {
+        try context.callHostCallback(closure, arguments: arguments)
+    }
 }
 
 /// `ViewDimensions` is intentionally non-Sendable even though SwiftUI's
@@ -357,6 +387,10 @@ struct SyncClosureValue: @unchecked Sendable {
 /// runtime value through an explicitly unchecked box.
 private struct SyncClosureRuntimeArgument: @unchecked Sendable {
     let value: RuntimeValue
+}
+
+private struct SyncClosureRuntimeArguments: @unchecked Sendable {
+    let values: [RuntimeValue]
 }
 
 /// Keeps generated result-builder arguments lazy while overload labels and
@@ -702,7 +736,7 @@ enum GeneratedDispatch {
                 context: ctx,
                 diagnosticContext: "generated SwiftUI async action")
             return AsyncActionValue(run: { await callback.call() })
-        case .syncVoidClosure, .syncCGFloatClosure:
+        case .syncVoidClosure, .syncClosure:
             guard let closure = value.closureValue else {
                 throw RuntimeError(message: "expected a synchronous closure")
             }
@@ -867,23 +901,9 @@ enum GeneratedDispatch {
     ) -> Bool {
         guard params.count == args.arguments.count else { return false }
         for (param, argument) in zip(params, args.arguments) {
-            let isResultBuilder: Bool
-            if case .resultBuilder = param.tag {
-                isResultBuilder = true
-            } else {
-                isResultBuilder = false
-            }
-            let isClosureParam = isResultBuilder
-                || param.tag == .builder
-                || param.tag == .action
-                || param.tag == .asyncAction
-                || param.tag == .syncVoidClosure
-                || param.tag == .syncCGFloatClosure
-                || param.tag == .equatableAction1
-                || param.tag == .equatableAction2
             guard argument.label == param.label
                 || (argument.isTrailing && argument.label == nil
-                    && isClosureParam)
+                    && param.tag.bindsAnInterpretedClosure)
             else {
                 return false
             }
@@ -2007,26 +2027,69 @@ nonisolated func generatedSyncVoidClosure<Input>(
     }
 }
 
-nonisolated func generatedSyncCGFloatClosure<Input>(
-    _ value: Any
-) -> @Sendable (Input) -> CGFloat {
+/// The same boundary for a callback the SDK calls back FOR a value. The
+/// interpreted result is coerced through the identical vocabulary a parameter
+/// of that declared type would use, so no result type is named here and a
+/// newly bridged one needs no new adapter.
+///
+/// `fallback` is reachable only when the interpreted callback itself failed —
+/// it already recorded a diagnostic and no answer it could give is the right
+/// one. BridgeGen supplies the value instead of this adapter choosing it, so
+/// what a failed callback returns is visible in the emitted source rather
+/// than hidden in a runtime default.
+nonisolated func generatedSyncClosureResult<Produced: Sendable>(
+    _ callback: SyncClosureValue,
+    _ inputs: [RuntimeValue],
+    _ result: ParamTag,
+    _ contextualType: String?,
+    _ fallback: Produced
+) -> Produced {
+    let arguments = SyncClosureRuntimeArguments(values: inputs)
+    return MainActor.assumeIsolated {
+        do {
+            let produced = try callback.call(arguments: arguments.values)
+            guard let coerced = try GeneratedDispatch.coerce(
+                result, produced, callback.context,
+                contextualType: contextualType) as? Produced
+            else {
+                throw RuntimeError(message:
+                    "callback returned a value that is not the declared "
+                        + (contextualType ?? "\(Produced.self)"))
+            }
+            return coerced
+        } catch let error as RuntimeError {
+            RenderDiagnostics.record(
+                error, in: "generated synchronous callback result")
+        } catch {
+            RenderDiagnostics.record(
+                RuntimeError(message: String(describing: error)),
+                in: "generated synchronous callback result")
+        }
+        return fallback
+    }
+}
+
+/// Arity is a structural property of the declared callback, so the two shapes
+/// differ only in how many inputs they hand across — not in what they do.
+nonisolated func generatedSyncClosure0<Produced: Sendable>(
+    _ value: Any, result: ParamTag, contextualType: String?,
+    fallback: Produced
+) -> @Sendable () -> Produced {
+    let callback = value as! SyncClosureValue
+    return {
+        generatedSyncClosureResult(
+            callback, [], result, contextualType, fallback)
+    }
+}
+
+nonisolated func generatedSyncClosure1<Input, Produced: Sendable>(
+    _ value: Any, result: ParamTag, contextualType: String?,
+    fallback: Produced
+) -> @Sendable (Input) -> Produced {
     let callback = value as! SyncClosureValue
     return { input in
-        let argument = SyncClosureRuntimeArgument(value: .host(input))
-        return MainActor.assumeIsolated {
-            do {
-                return try Coerce.cgFloat(
-                    callback.call(argument: argument.value))
-            } catch let error as RuntimeError {
-                RenderDiagnostics.record(
-                    error, in: "generated synchronous CGFloat closure")
-            } catch {
-                RenderDiagnostics.record(
-                    RuntimeError(message: String(describing: error)),
-                    in: "generated synchronous CGFloat closure")
-            }
-            return 0
-        }
+        generatedSyncClosureResult(
+            callback, [.host(input)], result, contextualType, fallback)
     }
 }
 

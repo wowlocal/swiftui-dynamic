@@ -629,6 +629,57 @@ func constraintConcreteType(for constraint: String) -> String? {
     }
 }
 
+/// The value a bridged callback hands back to the framework when the
+/// interpreted callback FAILED — it threw, or produced something that is not
+/// the declared result type. The call is already wrong at that point and the
+/// recorded diagnostic is the signal; what this supplies is the obligation the
+/// framework's declaration imposes, that a synchronous callback must return
+/// something.
+///
+/// It is derived from the result type's declared structure — an empty option
+/// set, a numeric or boolean zero, or, for a payload-free enum, its first case
+/// under the same total order the contextual-value table is already kept in.
+/// That last choice is arbitrary in the sense that no case is more correct
+/// after a failure; it is deliberately NOT a case the generator recognizes by
+/// name, and it is emitted into the generated source so what a failed callback
+/// returns is visible at the call site rather than decided at runtime.
+///
+/// A result with no such value returns nil, and the overload stays
+/// ungeneratable: a callback result the generator cannot produce without the
+/// interpreter is one whose failure would have no defined behavior.
+func interpretedFailureValue(
+    for normalized: String, _ mapping: TypeMapping
+) -> String? {
+    // Keyed on the TAG the type mapping already resolved, not on the result's
+    // spelling: the tag is what the scan derived from the interface, so a
+    // scalar reachable under another name is covered without being named here
+    // a second time.
+    switch mapping.tag {
+    case "bool": return "false"
+    case "int", "double", "cgFloat": return "0"
+    default: break
+    }
+    let contextual = callbackResultContextualType(normalized, mapping)
+    if sdkSetAlgebraTypes.contains(contextual) { return "[]" }
+    guard let first = sdkEnumCases[contextual]?.first else { return nil }
+    return "\(contextual).\(first)"
+}
+
+/// The concrete type a callback result's leading-dot members resolve against.
+/// A contextual-value tag already carries the table key it was matched to,
+/// which can differ from the spelling at the use site.
+func callbackResultContextualType(
+    _ normalized: String, _ mapping: TypeMapping
+) -> String {
+    let prefix = "sdkEnum(\""
+    let suffix = "\")"
+    if mapping.tag.hasPrefix(prefix), mapping.tag.hasSuffix(suffix) {
+        return String(
+            mapping.tag.dropFirst(prefix.count).dropLast(suffix.count))
+    }
+    return mapping.contextualType ?? normalized
+}
+
 func constraintMapping(for constraint: String) -> TypeMapping? {
     switch constraint {
     case "ShapeStyle":
@@ -855,10 +906,11 @@ func parameterSelections(_ analyzed: [AnalyzedParam]) -> [ParameterSelection] {
         let isFinalClosure = index == analyzed.count - 1
             && ([
                     "builder", "action", "asyncAction",
-                    "syncVoidClosure", "syncCGFloatClosure",
+                    "syncVoidClosure",
                     "equatableAction1", "equatableAction2",
                 ].contains(closureTag)
-                || closureTag.hasPrefix("resultBuilder("))
+                || closureTag.hasPrefix("resultBuilder(")
+                || closureTag.hasPrefix("syncClosure("))
         let requiresTrailingClosure = omittedUnlabeledDefault
             && parameter.label == nil
             && isFinalClosure
@@ -1019,36 +1071,62 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             hasDefault: hasDefault, blocker: nil, usesGeneric: generic,
             genericConcrete: "InterpretedEquatableValue", contractType: normalized)
     }
-    // Framework-owned synchronous callbacks with one concrete input share one
-    // argument adapter. The SDK supplies the input value; the declared result
-    // shape selects whether the interpreter result is discarded or coerced.
-    // This is driven by closure structure, not modifier or input identity.
+    // Framework-owned synchronous callbacks share one argument adapter. The
+    // SDK supplies the inputs and consumes the result, and BOTH ends resolve
+    // through the same coercion vocabulary every ordinary parameter uses — so
+    // a callback returning a bridged SDK value needs no entry of its own.
+    // Driven by closure structure, not by modifier, input or result identity.
     if let closure = type.as(FunctionTypeSyntax.self),
-       closure.parameters.count == 1,
-       let inputParameter = closure.parameters.first,
-       inputParameter.type.as(AttributedTypeSyntax.self)?
-           .specifiers.isEmpty != false,
-       let input = Optional({
-           normalize($0.type.trimmedDescription)
-       }(inputParameter)),
-       !referencesGenericIdentifier(input, generics: generics) {
+       (0...1).contains(closure.parameters.count),
+       closure.parameters.allSatisfy({ parameter in
+           parameter.type.as(AttributedTypeSyntax.self)?
+               .specifiers.isEmpty != false
+               && !referencesGenericIdentifier(
+                   normalize(parameter.type.trimmedDescription),
+                   generics: generics)
+       }) {
         let result = normalize(
             closure.returnClause.type.trimmedDescription)
-        let mapping: TypeMapping? = switch result {
-        case "Void":
-            .init(
-                tag: "syncVoidClosure",
-                cast: "generatedSyncVoidClosure(%@)")
-        case "CGFloat":
-            .init(
-                tag: "syncCGFloatClosure",
-                cast: "generatedSyncCGFloatClosure(%@)")
-        default:
-            nil
-        }
-        if let mapping {
+        // A Void result is the one genuinely distinct shape: there is nothing
+        // to coerce back, so it needs no result adapter and no failed-call
+        // value.
+        if result == "Void", closure.parameters.count == 1 {
             return .init(
-                label: label, mapping: mapping,
+                label: label,
+                mapping: .init(
+                    tag: "syncVoidClosure",
+                    cast: "generatedSyncVoidClosure(%@)"),
+                hasDefault: hasDefault, blocker: nil, usesGeneric: nil,
+                contractType: normalized)
+        }
+        if result != "Void",
+           // Effects are only disqualifying once there is a value to hand
+           // back: the result has to EXIST by the time the framework's call
+           // returns, and an `async` callback cannot promise that. The `Void`
+           // shape above is unaffected — it produces nothing, and a
+           // non-`async` closure already converts to an `async` parameter, so
+           // restricting it would un-bridge callbacks that work today.
+           closure.effectSpecifiers == nil,
+           let resultMapping = directMapping(for: result),
+           // Only bridge a result the generator can also produce WITHOUT the
+           // interpreter. A callback that fails still has to return something
+           // to the framework, and inventing that value at runtime would hide
+           // the failure behind a guess this file never made.
+           let fallback = interpretedFailureValue(for: result, resultMapping) {
+            let contextual = callbackResultContextualType(
+                result, resultMapping)
+            let tag = "syncClosure(inputs: \(closure.parameters.count), "
+                + "result: .\(resultMapping.tag))"
+            return .init(
+                label: label,
+                mapping: .init(
+                    tag: tag,
+                    cast: "generatedSyncClosure"
+                        + "\(closure.parameters.count)(%@, "
+                        + "result: .\(resultMapping.tag), "
+                        + "contextualType: \"\(contextual)\", "
+                        + "fallback: \(fallback))",
+                    requiredFramework: resultMapping.requiredFramework),
                 hasDefault: hasDefault, blocker: nil, usesGeneric: nil,
                 contractType: normalized)
         }
@@ -5038,6 +5116,17 @@ func sdkEnumType(from tag: String) -> String? {
     return String(tag.dropFirst(prefix.count).dropLast(suffix.count))
 }
 
+/// How many inputs a bridged synchronous callback tag declares, or nil when
+/// the tag is not one. Arity is structural, so the trailing-closure form is
+/// derived from it rather than listed per callback shape.
+func syncClosureInputCount(from tag: String) -> Int? {
+    let prefix = "syncClosure(inputs: "
+    guard tag.hasPrefix(prefix) else { return nil }
+    let rest = tag.dropFirst(prefix.count)
+    guard let comma = rest.firstIndex(of: ",") else { return nil }
+    return Int(rest[rest.startIndex..<comma])
+}
+
 func sdkProtocolComposition(from tag: String) -> String? {
     let prefix = "sdkProtocolValue(\""
     let suffix = "\")"
@@ -5458,6 +5547,12 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
         return "\(callee)(\(argList))"
     }
     let head = argList.isEmpty ? callee : "\(callee)(\(argList))"
+    // A bridged synchronous callback carries its whole adapter in its cast,
+    // so the trailing form only has to apply it to the inputs the SDK will
+    // supply.
+    let syncAdapter = generatedMappedValue(
+        cast: variant.params[trailingIndex].cast, isOptional: false,
+        storage: "v[\(trailingIndex)]")
     let closure = switch variant.params[trailingIndex].tag {
     case "builder": "{ b\(trailingIndex) }"
     case let tag where resultBuilderDescriptor(from: tag) != nil:
@@ -5466,8 +5561,10 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
     case "asyncAction": "{ await a\(trailingIndex)() }"
     case "syncVoidClosure":
         "{ value in generatedSyncVoidClosure(v[\(trailingIndex)])(value) }"
-    case "syncCGFloatClosure":
-        "{ value in generatedSyncCGFloatClosure(v[\(trailingIndex)])(value) }"
+    case let tag where syncClosureInputCount(from: tag) == 0:
+        "{ \(syncAdapter)() }"
+    case let tag where syncClosureInputCount(from: tag) == 1:
+        "{ value in \(syncAdapter)(value) }"
     case "equatableAction1":
         "{ value in generatedEquatableAction1(v[\(trailingIndex)])(value) }"
     case "equatableAction2":
