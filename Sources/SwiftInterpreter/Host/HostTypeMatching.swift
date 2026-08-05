@@ -493,6 +493,22 @@ extension HostSignature {
 /// those hooks merely to use typed primitive gateways.
 @MainActor
 enum HostRuntimeTypeSystem {
+    /// A CoreFoundation value's dynamic class is one shared opaque wrapper, so
+    /// reflection reports the WHOLE family — CGColor, CGPath, CGImage — under
+    /// the single meaningless name `__NSCFType`, and every declared CF return
+    /// type reads as violated. The CFTypeID recovers what the value actually
+    /// is; resolving it here answers the family at once rather than listing
+    /// the types one interface at a time.
+    static func coreFoundationTypeName(of any: Any) -> String? {
+        guard String(describing: Swift.type(of: any)) == opaqueCoreFoundationClass
+        else { return nil }
+        // Already known to BE a CF object by its dynamic class, so the
+        // reference cast is the identity rather than a bridging conversion.
+        return CFCopyTypeIDDescription(CFGetTypeID(any as AnyObject)) as String?
+    }
+
+    static let opaqueCoreFoundationClass = "__NSCFType"
+
     static func typeName(of value: RuntimeValue) -> String {
         switch value {
         case .void: return "Void"
@@ -535,6 +551,9 @@ enum HostRuntimeTypeSystem {
             return "\(nominal)<\(bound.map(typeName) ?? "Any")>"
         case .host(let any):
             if let marker = any as? HostTypeMarker { return marker.name + ".Type" }
+            if let coreFoundation = coreFoundationTypeName(of: any) {
+                return coreFoundation
+            }
             return String(describing: Swift.type(of: any))
         case .instance(let instance): return instance.symbol.name
         case .closure, .hostFunction: return "Function"
@@ -617,6 +636,10 @@ enum HostRuntimeTypeSystem {
             }
             if HostSignature.equivalentTypeName(
                 String(describing: Swift.type(of: any)), type) {
+                return true
+            }
+            if let coreFoundation = coreFoundationTypeName(of: any),
+               HostSignature.equivalentTypeName(coreFoundation, type) {
                 return true
             }
             // Class contracts accept SUBCLASS instances: Foundation's unit
