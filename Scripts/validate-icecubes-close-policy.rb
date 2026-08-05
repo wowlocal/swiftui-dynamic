@@ -173,19 +173,21 @@ def post_policy_commits(integration_base, policy_epoch)
 end
 
 def decomposition_acknowledgement(lines, last_merge_done_index)
-  lines.drop(last_merge_done_index + 1).each_with_object([]) do |line, matches|
-    match = line.match(DECOMPOSITION_PATTERN)
-    next unless match
+  lines.each_with_index.drop(last_merge_done_index + 1)
+    .each_with_object([]) do |(line, index), matches|
+      match = line.match(DECOMPOSITION_PATTERN)
+      next unless match
 
-    matches << {
-      "line" => line.strip,
-      "screen" => match[1],
-      "branch" => match[2],
-      "commit" => match[3],
-      "microtwin" => match[4],
-      "redAE" => Integer(match[5], 10)
-    }
-  end.last
+      matches << {
+        "index" => index,
+        "line" => line.strip,
+        "screen" => match[1],
+        "branch" => match[2],
+        "commit" => match[3],
+        "microtwin" => match[4],
+        "redAE" => Integer(match[5], 10)
+      }
+    end.last
 end
 
 # The escalation posted after the last landing, or nil. Reading it structurally
@@ -193,14 +195,33 @@ end
 # sentence "the STALL-ESCALATION sits after the last MERGE-DONE" no longer
 # escalates, and neither does an escalation of a screen already at AE 0.
 def stall_escalation(lines, last_landing_index, open_by_screen)
-  lines.drop(last_landing_index + 1).each_with_object([]) do |line, matches|
-    screen = line[ESCALATION_PATTERN, 1]
-    next unless screen
-    next unless open_by_screen
-    next unless open_by_screen.fetch(screen, 0).positive?
+  lines.each_with_index.drop(last_landing_index + 1)
+    .each_with_object([]) do |(line, index), matches|
+      screen = line[ESCALATION_PATTERN, 1]
+      next unless screen
+      next unless open_by_screen
+      next unless open_by_screen.fetch(screen, 0).positive?
 
-    matches << { "line" => line.strip, "screen" => screen }
-  end.last
+      matches << { "index" => index, "line" => line.strip, "screen" => screen }
+    end.last
+end
+
+# §5 allows a stall to be dispositioned two ways, and the ledger's LATEST
+# posting is the lane's current position. Preferring an ack whenever one exists
+# inverts the ledger's chronology: an 11:20Z certificate outranked a 17:50Z
+# escalation, and the close then failed on the STALE ack's defects while the
+# escalation that superseded it went unread. Recency governs symmetrically —
+# ack after escalation is verified as an ack, so this cannot be used to dodge
+# `verify_decomposition` by escalating afterwards, only to supersede a
+# certificate the lane no longer stands behind.
+def latest_disposition(lines, last_landing_index, open_by_screen)
+  acknowledgement = decomposition_acknowledgement(lines, last_landing_index)
+  escalation = stall_escalation(lines, last_landing_index, open_by_screen)
+  candidates = []
+  candidates << { "kind" => "decomposition", "entry" => acknowledgement } if
+    acknowledgement
+  candidates << { "kind" => "escalation", "entry" => escalation } if escalation
+  candidates.max_by { |candidate| candidate.fetch("entry").fetch("index") }
 end
 
 def verify_decomposition(acknowledgement, errors, open_by_screen, stall_epoch)
@@ -281,7 +302,7 @@ end
 
 def policy_payload(
   integration_base:, commits:, metrics:, stall_active:, decomposition:, errors:,
-  open_by_screen: nil
+  open_by_screen: nil, escalation: nil
 )
   payload = {
     "version" => 2,
@@ -293,11 +314,17 @@ def policy_payload(
     "landedR2Tail" => metrics.last(STALL_WINDOW),
     "stallWindow" => STALL_WINDOW,
     "stallActive" => stall_active,
+    # An escalated stall is not an unacknowledged one. Collapsing the two made
+    # the receipt say nobody had answered the detector at the exact moment a
+    # lane was asking the steward a question, so the answer lived only in
+    # prose — the channel this policy exists to stop trusting.
     "stallDisposition" =>
       if !stall_active
         "not-stalled"
       elsif decomposition
         "decomposition"
+      elsif escalation
+        "escalation"
       else
         "unacknowledged"
       end,
@@ -309,6 +336,7 @@ def policy_payload(
     payload["r2OpenByScreen"] = open_by_screen
   end
   payload["decomposition"] = decomposition if decomposition
+  payload["escalation"] = escalation if escalation
   payload
 end
 
@@ -435,6 +463,7 @@ def self_test
   )
   raise "decomposition acknowledgement parsing failed" unless
     acknowledgement == {
+      "index" => 1,
       "line" => ack_line,
       "screen" => "status-detail",
       "branch" => "status-detail-caption",
@@ -490,6 +519,38 @@ def self_test
       1,
       open_debt
     )
+
+  # Recency governs, symmetrically. An ack was preferred whenever one existed,
+  # so an 11:20Z certificate outranked a 17:50Z escalation and the close failed
+  # on the STALE ack's defects — a lane could not withdraw a certificate it no
+  # longer stood behind. The mirror case is what keeps that from being a dodge:
+  # an ack posted after an escalation is still verified as an ack.
+  landing = "t lane MERGE-DONE #{shas[0]} main x -> y"
+  escalation_line = "t lane STALL-ESCALATION media-browser — steward?"
+  raise "the later escalation must govern an earlier ack" unless
+    latest_disposition(
+      [landing, ack_line, escalation_line], 0, open_debt
+    ).fetch("kind") == "escalation"
+  raise "the later ack must govern an earlier escalation" unless
+    latest_disposition(
+      [landing, escalation_line, ack_line], 0, open_debt
+    ).fetch("kind") == "decomposition"
+  raise "no disposition after the landing must read as none" unless
+    latest_disposition([landing], 0, open_debt).nil?
+
+  escalated_payload = policy_payload(
+    integration_base: "origin/main",
+    commits: [],
+    metrics: Array.new(STALL_WINDOW, 367_683),
+    stall_active: true,
+    decomposition: nil,
+    errors: [],
+    escalation: { "index" => 2, "line" => escalation_line,
+                  "screen" => "media-browser" }
+  )
+  raise "an escalated stall must not report as unacknowledged" unless
+    escalated_payload.fetch("stallDisposition") == "escalation"
+  assert_plist_representable(escalated_payload)
 
   unstalled_payload = policy_payload(
     integration_base: "origin/main",
@@ -632,18 +693,20 @@ if stall_active && !entries.empty?
   stall_epoch = Integer(window_stamp.strip, 10) if window_ok
 end
 last_merge_done_index = last_landing_index(claim_lines)
-acknowledgement =
-  decomposition_acknowledgement(claim_lines, last_merge_done_index)
+disposition =
+  latest_disposition(claim_lines, last_merge_done_index, open_by_screen)
 decomposition = nil
+escalation = nil
 
 if stall_active
-  if acknowledgement
+  case disposition && disposition.fetch("kind")
+  when "decomposition"
     decomposition = verify_decomposition(
-      acknowledgement, errors, open_by_screen, stall_epoch
+      disposition.fetch("entry"), errors, open_by_screen, stall_epoch
     )
-  elsif stall_escalation(
-    claim_lines, last_merge_done_index, open_by_screen
-  ).nil?
+  when "escalation"
+    escalation = disposition.fetch("entry")
+  else
     errors << "STALL: open R2 AE across ALL screens did not decrease over " \
       "the last #{STALL_WINDOW} landed iterations " \
       "(#{metrics.last(STALL_WINDOW).join(", ")}); adding rungs does not " \
@@ -659,7 +722,8 @@ payload = policy_payload(
   stall_active: stall_active,
   decomposition: decomposition,
   errors: errors,
-  open_by_screen: open_by_screen
+  open_by_screen: open_by_screen,
+  escalation: escalation
 )
 puts "@@icecubes-close-policy #{JSON.generate(payload)}"
 errors.each { |error| warn(error) }
