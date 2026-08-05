@@ -547,8 +547,20 @@ enum GeneratedDispatch {
               call.name == "init" else {
             return nil
         }
-        let typeName = GeneratedPlatformBridge.canonicalTypeName(
+        var typeName = GeneratedPlatformBridge.canonicalTypeName(
             contextualType)
+        // A parameter typed as a generic INSTANTIATION names its constructors
+        // under the base nominal: `preview: SharePreview<…, Never>` is built
+        // by the `SharePreview` table, because a Swift initializer belongs to
+        // the generic type and the arguments choose the instantiation. The
+        // instantiation still governs what is ACCEPTED — the tag consuming
+        // this value checks the full spelling — so widening the lookup here
+        // cannot admit a value the parameter would not have taken.
+        if GeneratedConstructors.table[typeName] == nil,
+           GeneratedMembers.nativeValueConstructors[typeName] == nil,
+           let base = typeName.firstIndex(of: "<") {
+            typeName = String(typeName[..<base])
+        }
         guard GeneratedConstructors.table[typeName] != nil
                 || GeneratedMembers.nativeValueConstructors[typeName] != nil
         else {

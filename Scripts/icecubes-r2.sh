@@ -293,11 +293,20 @@ R2_FLOORS=(
   # generic it is sugar for, onto the carrier the wrapper projections already
   # drive.
   #
-  # What remains is what that chain was hiding, and both are named by the
-  # screen's own diagnostics rather than inferred: `.quickLookPreview` is
-  # unbridged and absorbs, and `MediaUIShareLink` reports no matching
-  # initializer for `ShareLink(item:preview:)`.
-  media-browser 1136
+  # Was 1136 — `MediaUIShareLink`'s `ShareLink(item:preview:)`. ONE failure
+  # that read as three: `Scripts/pixel-diff-map.swift` put the 1136 AE in three
+  # 25x23 boxes, and the first two were pure ~3px SHIFTS of correct glyphs,
+  # because toolbar items are trailing-aligned and the failing button's wrong
+  # width displaced its neighbours. Two links: `SharePreview<Image, Icon>` is a
+  # compound over TWO constrained generics, which BridgeGen had no spelling
+  # for; and once `preview:` was typed at an instantiation, the leading-dot
+  # `.init(…)` looked that whole spelling up in a table keyed by nominal.
+  #
+  # The other diagnostic this screen still prints is NOT a pixel: an absorbed
+  # `.quickLookPreview` leaves its receiver rendering, and the info button it
+  # decorates is byte-identical on both sides. It was named as a blocker by
+  # prose; the pixels acquit it.
+  media-browser 0
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
