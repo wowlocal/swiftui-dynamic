@@ -134,6 +134,16 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         ],
         globalFunctionSelection: .referencingSelectedTypes),
     .init(
+        // Every platform view owns a layer, so `view.layer` is the boundary
+        // an interpreted representable crosses to configure what it draws.
+        // Without this sweep the read degraded into an absorbing call chain
+        // and every write through it was silently discarded.
+        name: "QuartzCore", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0), "iOS": (18, 0)],
+        roots: ["CALayer"],
+        validationViews: [macCatalyst18SymbolGraphView]),
+    .init(
         name: "AppKit", sdkName: "macosx",
         target: "arm64-apple-macosx15.0",
         deployments: ["macOS": (15, 0)],

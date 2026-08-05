@@ -3,8 +3,8 @@
 import SwiftInterpreter
 
 enum GeneratedCompilerPreflightSurface {
-    static let exportedModules = ["AppKit", "Combine", "CoreGraphics", "CoreLocation", "Darwin", "Foundation", "MapKit", "Metal", "ObjectiveC", "SwiftUI", "UIKit", "WebKit", "_Concurrency"]
+    static let exportedModules = ["AppKit", "Combine", "CoreGraphics", "CoreLocation", "Darwin", "Foundation", "MapKit", "Metal", "ObjectiveC", "QuartzCore", "SwiftUI", "UIKit", "WebKit", "_Concurrency"]
     static let module = CompilerPreflightHostModule(
         moduleName: "DynamicSwiftUIHostSurface",
-        source: "@_exported import _Concurrency\n@_exported import Foundation\n@_exported import SwiftUI\n#if canImport(AppKit)\n@_exported import AppKit\n#endif\n#if canImport(Combine)\n@_exported import Combine\n#endif\n#if canImport(CoreGraphics)\n@_exported import CoreGraphics\n#endif\n#if canImport(CoreLocation)\n@_exported import CoreLocation\n#endif\n#if canImport(Darwin)\n@_exported import Darwin\n#endif\n#if canImport(MapKit)\n@_exported import MapKit\n#endif\n#if canImport(Metal)\n@_exported import Metal\n#endif\n#if canImport(ObjectiveC)\n@_exported import ObjectiveC\n#endif\n#if canImport(UIKit)\n@_exported import UIKit\n#endif\n#if canImport(WebKit)\n@_exported import WebKit\n#endif\n")
+        source: "@_exported import _Concurrency\n@_exported import Foundation\n@_exported import SwiftUI\n#if canImport(AppKit)\n@_exported import AppKit\n#endif\n#if canImport(Combine)\n@_exported import Combine\n#endif\n#if canImport(CoreGraphics)\n@_exported import CoreGraphics\n#endif\n#if canImport(CoreLocation)\n@_exported import CoreLocation\n#endif\n#if canImport(Darwin)\n@_exported import Darwin\n#endif\n#if canImport(MapKit)\n@_exported import MapKit\n#endif\n#if canImport(Metal)\n@_exported import Metal\n#endif\n#if canImport(ObjectiveC)\n@_exported import ObjectiveC\n#endif\n#if canImport(QuartzCore)\n@_exported import QuartzCore\n#endif\n#if canImport(UIKit)\n@_exported import UIKit\n#endif\n#if canImport(WebKit)\n@_exported import WebKit\n#endif\n")
 }
