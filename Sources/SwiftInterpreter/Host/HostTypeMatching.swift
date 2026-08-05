@@ -126,14 +126,36 @@ extension HostSignature {
         // enumerate an arbitrary host enum's cases, so the statically typed
         // gateway performs the final case conversion after overload choice.
         if case .implicitMember = value {
-            let primitiveNames: Set<String> = [
-                "Void", "Bool", "Int", "Double", "Float", "CGFloat",
-                "String", "Substring", "Character", "Decimal",
-            ]
-            guard !primitiveNames.contains(unqualified(type)),
-                  !type.hasPrefix("["), !type.hasPrefix("("),
-                  genericApplication(type) == nil else { return nil }
+            guard acquiresTypeFromContract(type) else { return nil }
             return 9
+        }
+
+        // An array LITERAL is how Swift spells an option set, and it acquires
+        // its type from the same contract for the same reason: `[.width,
+        // .height]` has no type of its own, element by element. Admitting it
+        // here is the array-shaped half of the rule directly above — the
+        // statically typed gateway, which knows the declared type's
+        // `ExpressibleByArrayLiteral` conformance, still performs the
+        // conversion and still refuses a type that has none.
+        //
+        // The rule stays a property of the VALUE: every element must either
+        // carry no type of its own or already be of the contract's type, which
+        // is exactly `OptionSet`'s `Element == Self` literal. An array of
+        // unrelated values is not an option-set literal and is refused here,
+        // as it is by the compiler. Scored below a lone implicit member so a
+        // parameter declared `[T]` — which matches this same value at 22 plus
+        // its elements — always outranks the scalar deferral.
+        if case .array(let elements) = value, acquiresTypeFromContract(type) {
+            for element in elements {
+                if case .implicitMember = element { continue }
+                guard matchType(
+                    element, against: type, genericNames: genericNames,
+                    bindings: &bindings, representatives: &representatives,
+                    context: context, mayBind: mayBind) != nil else {
+                    return nil
+                }
+            }
+            return 8
         }
 
         if type.hasPrefix("[") && type.hasSuffix("]"),
@@ -477,6 +499,21 @@ extension HostSignature {
         if parts.count == 1 { return ("Array", parts) }
         if parts.count == 2 { return ("Dictionary", parts) }
         return nil
+    }
+
+    /// Whether a contract can give a type to a literal that has none of its
+    /// own — a leading-dot member, or an array literal of them. A primitive,
+    /// collection, tuple or generic application already types its own
+    /// literals, so deferring those to the gateway would only widen matching
+    /// where the core can decide.
+    static func acquiresTypeFromContract(_ type: String) -> Bool {
+        let primitiveNames: Set<String> = [
+            "Void", "Bool", "Int", "Double", "Float", "CGFloat",
+            "String", "Substring", "Character", "Decimal",
+        ]
+        return !primitiveNames.contains(unqualified(type))
+            && !type.hasPrefix("[") && !type.hasPrefix("(")
+            && genericApplication(type) == nil
     }
 
     static func unqualified(_ type: String) -> String {

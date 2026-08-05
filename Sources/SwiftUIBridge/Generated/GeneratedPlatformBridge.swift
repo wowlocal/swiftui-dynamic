@@ -89543,6 +89543,43 @@ extension GeneratedPlatformBridge {
         return t
     }
 
+    static func buildOptionSetAdapters() -> [GeneratedPlatformTypeKey: GeneratedPlatformOptionSetAdapter] {
+        var t: [GeneratedPlatformTypeKey: GeneratedPlatformOptionSetAdapter] = [:]
+#if canImport(Foundation)
+        registerOptionSetAdapter(&t, framework: "Foundation", type: "ProcessInfo.ActivityOptions", ProcessInfo.ActivityOptions.self)
+#endif
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSApplication.ActivationOptions", NSApplication.ActivationOptions.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSApplication.OcclusionState", NSApplication.OcclusionState.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSApplication.PresentationOptions", NSApplication.PresentationOptions.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSApplication.RemoteNotificationType", NSApplication.RemoteNotificationType.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSApplication.WindowListOptions", NSApplication.WindowListOptions.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSBitmapImageRep.Format", NSBitmapImageRep.Format.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSCollectionView.ScrollPosition", NSCollectionView.ScrollPosition.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSMenu.Properties", NSMenu.Properties.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSTableView.AnimationOptions", NSTableView.AnimationOptions.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSTableView.GridLineStyle", NSTableView.GridLineStyle.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSView.AutoresizingMask", NSView.AutoresizingMask.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSViewController.TransitionOptions", NSViewController.TransitionOptions.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSWindow.CollectionBehavior", NSWindow.CollectionBehavior.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSWindow.NumberListOptions", NSWindow.NumberListOptions.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSWindow.OcclusionState", NSWindow.OcclusionState.self)
+        registerOptionSetAdapter(&t, framework: "AppKit", type: "NSWindow.StyleMask", NSWindow.StyleMask.self)
+#endif
+#if canImport(UIKit)
+        registerOptionSetAdapter(&t, framework: "UIKit", type: "UICollectionView.ScrollPosition", UICollectionView.ScrollPosition.self)
+        registerOptionSetAdapter(&t, framework: "UIKit", type: "UIControl.Event", UIControl.Event.self)
+        registerOptionSetAdapter(&t, framework: "UIKit", type: "UIControl.State", UIControl.State.self)
+        registerOptionSetAdapter(&t, framework: "UIKit", type: "UIView.AnimationOptions", UIView.AnimationOptions.self)
+        registerOptionSetAdapter(&t, framework: "UIKit", type: "UIView.AutoresizingMask", UIView.AutoresizingMask.self)
+        registerOptionSetAdapter(&t, framework: "UIKit", type: "UIView.KeyframeAnimationOptions", UIView.KeyframeAnimationOptions.self)
+#endif
+#if canImport(Metal)
+        registerOptionSetAdapter(&t, framework: "Metal", type: "MTLResourceOptions", MTLResourceOptions.self)
+#endif
+        return t
+    }
+
     static func buildNominalKinds() -> [GeneratedPlatformTypeKey: Bool] {
         var t: [GeneratedPlatformTypeKey: Bool] = [:]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "BlockOperation")] = false

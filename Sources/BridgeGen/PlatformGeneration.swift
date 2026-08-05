@@ -337,6 +337,7 @@ private struct PlatformNominal {
     let root: String
     let kind: PlatformNominalKind
     let isEquatable: Bool
+    let isOptionSet: Bool
     /// Generic parameter name -> the erasure this sweep specialized it at.
     /// Empty for every non-generic nominal, which is the whole existing tier.
     let genericWitnessing: [String: String]
@@ -892,6 +893,17 @@ private func parsePlatformFramework(
             && ($0.target == "s:SY"
                 || $0.targetFallback == "Swift.RawRepresentable")
     }.map(\.source))
+    // An option set is what makes `[.flexibleWidth, .flexibleHeight]` mean a
+    // value rather than an array, and the interface is where that is declared.
+    // `OptionSet` and not its `SetAlgebra` supertype: only the refinement
+    // fixes `Element == Self`, which is what makes an array literal a union of
+    // values of the SAME type. A plain `SetAlgebra` (`IndexSet`) takes a
+    // literal of its ELEMENTS instead, a different conversion entirely.
+    let optionSetNominals = Set(graph.relationships.lazy.filter {
+        $0.kind == "conformsTo"
+            && ($0.target == "s:s9OptionSetP"
+                || $0.targetFallback == "Swift.OptionSet")
+    }.map(\.source))
     var blockers: [String: Int] = [:]
     var allNominals: [String: PlatformNominal] = [:]
     for symbol in graph.symbols {
@@ -916,6 +928,7 @@ private func parsePlatformFramework(
             root: symbol.pathComponents[0],
             kind: kind,
             isEquatable: equatableNominals.contains(symbol.identifier.precise),
+            isOptionSet: optionSetNominals.contains(symbol.identifier.precise),
             genericWitnessing: witnessing,
             isCoreFoundationReference:
                 kind == .class
@@ -2443,6 +2456,21 @@ private func emitPlatformBridge(
         output += "#if \(platformNativeImportCondition(for: framework.spec))\n"
         for nominal in equatable {
             output += "        registerEqualityAdapter(&t, framework: \(swiftLiteral(framework.spec.name)), type: \(swiftLiteral(nominal.type)), \(nominal.nativeType).self)\n"
+        }
+        output += "#endif\n"
+    }
+    output += "        return t\n    }\n"
+
+    output += "\n    static func buildOptionSetAdapters() -> [GeneratedPlatformTypeKey: GeneratedPlatformOptionSetAdapter] {\n"
+    output += "        var t: [GeneratedPlatformTypeKey: GeneratedPlatformOptionSetAdapter] = [:]\n"
+    for framework in frameworks {
+        let optionSets = framework.nominals.values
+            .filter { $0.isOptionSet && $0.kind != .protocol }
+            .sorted(by: { $0.type < $1.type })
+        guard !optionSets.isEmpty else { continue }
+        output += "#if \(platformNativeImportCondition(for: framework.spec))\n"
+        for nominal in optionSets {
+            output += "        registerOptionSetAdapter(&t, framework: \(swiftLiteral(framework.spec.name)), type: \(swiftLiteral(nominal.type)), \(nominal.nativeType).self)\n"
         }
         output += "#endif\n"
     }

@@ -579,6 +579,17 @@ struct GeneratedPlatformEqualityAdapter {
     let equals: @MainActor (Any, Any) -> Bool?
 }
 
+/// Folds an option-set literal into the single value it denotes. `OptionSet`
+/// carries associated-type requirements, so `T.self as? any OptionSet.Type`
+/// never forms at runtime and the union cannot be written generically at the
+/// boundary; the generator, which has the concrete type in hand, registers
+/// this closure for every nominal whose interface declares the conformance.
+struct GeneratedPlatformOptionSetAdapter {
+    /// Nil when an element is not of the adapter's type — the boundary then
+    /// reports its ordinary conversion failure rather than a partial union.
+    let union: @MainActor ([Any]) -> Any?
+}
+
 /// A generated table under construction, carrying the availability of the
 /// group currently registering into it.
 ///
@@ -627,6 +638,7 @@ enum GeneratedPlatformBridge {
     private static let staticProperties = buildStaticProperties()
     private static let enumValues = buildEnumValues()
     private static let equalityAdapters = buildEqualityAdapters()
+    private static let optionSetAdapters = buildOptionSetAdapters()
     private static let knownMembers = buildKnownMembers()
     private static let nominalKinds = buildNominalKinds()
     private static let supertypes = buildSupertypes()
@@ -1199,6 +1211,19 @@ enum GeneratedPlatformBridge {
     ) -> Bool? {
         equalityAdapters[GeneratedPlatformTypeKey(
             framework: framework, type: type)]?.equals(lhs, rhs)
+    }
+
+    /// How an array literal folds into an interface-declared option set, or
+    /// nil when the named type is not one — an array reaching any other
+    /// contract is not an option-set literal and keeps its ordinary failure.
+    static func optionSetAdapter(
+        framework: String, type: String
+    ) -> GeneratedPlatformOptionSetAdapter? {
+        let canonical = canonicalTypeName(type)
+        guard let owner = owningFramework(
+            ofType: canonical, preferring: framework) else { return nil }
+        return optionSetAdapters[GeneratedPlatformTypeKey(
+            framework: owner, type: canonical)]
     }
 
     static func isValueType(framework: String, type: String) -> Bool {
@@ -1806,6 +1831,27 @@ enum GeneratedPlatformBridge {
                 return lhs == rhs
             }
     }
+
+    /// `SetAlgebra` defines an array literal as the union of its elements, and
+    /// `OptionSet`'s `Element == Self` makes every element the same type as the
+    /// result — so an empty literal is the empty set, and a literal mixing
+    /// leading-dot members with existing values is one union.
+    static func registerOptionSetAdapter<T: OptionSet>(
+        _ table: inout [GeneratedPlatformTypeKey: GeneratedPlatformOptionSetAdapter],
+        framework: String,
+        type: String,
+        _: T.Type
+    ) {
+        table[GeneratedPlatformTypeKey(framework: framework, type: type)] =
+            GeneratedPlatformOptionSetAdapter { elements in
+                var result = T()
+                for element in elements {
+                    guard let element = element as? T else { return nil }
+                    result.formUnion(element)
+                }
+                return result
+            }
+    }
 }
 
 // MARK: - Generated argument/result conversions
@@ -2182,6 +2228,28 @@ func generatedPlatformArgument<T>(
            type: optionalWrappedType(typeName) ?? typeName,
            member: member) as? T {
         return payload
+    }
+    // The executable half of the array-literal deferral host-signature
+    // matching admits: `[.flexibleWidth, .flexibleHeight]` is an option set,
+    // and `SetAlgebra` defines that literal as the union of its elements.
+    // Each element converts through this same function one level down — a
+    // leading-dot member and an already-typed value are the same conversion,
+    // because `OptionSet`'s `Element == Self` — and the generated adapter,
+    // which holds the concrete type, folds them. Only the interfaces decide
+    // which types have one, so no option set is named here.
+    if case .array(let elements) = value,
+       let optionSet = GeneratedPlatformBridge.optionSetAdapter(
+           framework: framework,
+           type: optionalWrappedType(typeName) ?? typeName) {
+        let resolvedType = optionalWrappedType(typeName) ?? typeName
+        var converted: [Any] = []
+        converted.reserveCapacity(elements.count)
+        for element in elements {
+            converted.append(try generatedPlatformArgument(
+                element, as: T.self, framework: framework,
+                typeName: resolvedType, context: context))
+        }
+        if let union = optionSet.union(converted) as? T { return union }
     }
     if let convertible = T.self as? GeneratedPlatformRuntimeConvertible.Type,
        let converted = try convertible.generatedPlatformValue(
