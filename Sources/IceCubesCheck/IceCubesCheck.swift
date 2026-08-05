@@ -220,6 +220,17 @@ private struct IceCubesCatalystCaptureRoot: View {
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             format.opaque = false
+            // The renderer's colour range resolves from the PROCESS's ambient
+            // display association when it is left `.automatic`, so the twin and
+            // this harness — same capture code, different Info.plist — resolved
+            // to Display P3 16-bit and sRGB 8-bit respectively. Comparing those
+            // scores the format difference as fidelity: the 8-bit side dithers
+            // a flat near-white fill that the 16-bit side represents exactly,
+            // which cost media-browser 77,274 AE of pure ±1 noise. Pin it on
+            // BOTH sides. `.standard` is the comparator's own space
+            // (Scripts/pixel-ae.swift loads into sRGB 8-bit), so capturing here
+            // removes a lossy conversion rather than adding one.
+            format.preferredRange = .standard
             let renderer = UIGraphicsImageRenderer(
                 size: IceCubesCheckMain.screenSize, format: format)
             // `drawHierarchy` is the only capture that materializes Catalyst

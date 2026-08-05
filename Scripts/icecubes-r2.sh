@@ -270,7 +270,12 @@ R2_FLOORS=(
   status-detail 0
   account-header 0
   media 0
-  tags-list 4
+  # Was 4. Two of those pixels were never interpreter fidelity: they were the
+  # twin encoding its capture as Display P3 16-bit while IceCubesCheck encoded
+  # sRGB 8-bit, so one side dithered a flat fill the other represented exactly.
+  # Both sides now pin `preferredRange`, and the comparator refuses to score a
+  # pair that disagrees on its encoding.
+  tags-list 2
   # Measured, not chosen: the interpreted browser renders an error label where
   # the image and toolbar belong, because `.draggable(_:)` is registered for a
   # `URL` payload alone and the app hands it an interpreted `Transferable`
@@ -301,7 +306,8 @@ for screen in "${R2_SCREENS[@]}"; do
     "$TWIN_DIR/$screen.png" "$INTERP_DIR/$screen.png")"
   ae_status=$?
   if (( ae_status == 2 )); then
-    echo "$screen R2 board: pixel comparison failed (size mismatch or unreadable capture)" >&2
+    echo "$screen R2 board: pixel comparison failed —" \
+      "$ae_line (size/format mismatch or unreadable capture)" >&2
     exit 2
   fi
   ae_count="$(print -r -- "$ae_line" | sed -E 's/^AE ([0-9]+) of .*/\1/')"

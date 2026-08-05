@@ -106,6 +106,13 @@ final class ReplayURLProtocol: URLProtocol, @unchecked Sendable {
     private static let placeholderPNG: Data = {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
+        // SwiftUIBridge's NetworkBridge hard-codes the sRGB bytes 77/128/184
+        // as "the exact sRGB bytes emitted by the compiled twin's
+        // 0.30/0.50/0.72 UIKit fixture". That equality only holds if this
+        // renderer actually emits sRGB — left `.automatic` it follows the
+        // process's display association, and a P3 encoding of the same
+        // nominal colour is different bytes. Pin what the comment assumes.
+        format.preferredRange = .standard
         let renderer = UIGraphicsImageRenderer(
             size: CGSize(width: 8, height: 8), format: format)
         let image = renderer.image { context in

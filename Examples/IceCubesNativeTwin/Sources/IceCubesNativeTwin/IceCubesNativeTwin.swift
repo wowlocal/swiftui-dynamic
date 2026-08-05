@@ -926,6 +926,11 @@ private struct TwinDriverView: View {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false
+        // Pinned for the same reason as the interpreted harness: left
+        // `.automatic`, this process resolved to Display P3 16-bit while
+        // IceCubesCheck resolved to sRGB 8-bit, and the board scored that
+        // format gap as interpreter fidelity. Both sides must name the range.
+        format.preferredRange = .standard
         let renderer = UIGraphicsImageRenderer(size: TwinConfiguration.size, format: format)
         // `drawHierarchy` is the only capture that materializes Catalyst
         // hosting-layer contents (an in-process `layer.render(in:)` draws
