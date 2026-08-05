@@ -32,6 +32,12 @@ enum ParamTag: Hashable {
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
     case symbolRenderingMode
     case bindingBool, bindingString, bindingDouble
+    /// `Binding<(some Hashable)?>` — the selection-shaped binding a modifier
+    /// declares when the value it tracks is "one of the identified items, or
+    /// none". Carried by the same `InterpretedHashableValue` the wrapper
+    /// projections use, so a selection written by the framework reads back
+    /// through the interpreted binding unchanged.
+    case bindingHashableOptional
     /// A projection of an SDK property wrapper that the interface declares
     /// with no public initializer, so no argument coercion can produce one
     /// (`FocusState<Value>.Binding`). The associated values are the enclosing
@@ -676,6 +682,8 @@ enum GeneratedDispatch {
             return isOptionalValue
                 ? try Coerce.hashableOptionalBinding(value, context: ctx)
                 : try Coerce.boolBinding(value, context: ctx)
+        case .bindingHashableOptional:
+            return try Coerce.hashableOptionalBinding(value, context: ctx)
         case .bindingString:
             return try Coerce.stringBinding(value, context: ctx)
         case .bindingDouble:

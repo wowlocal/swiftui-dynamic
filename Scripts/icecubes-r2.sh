@@ -286,12 +286,18 @@ R2_FLOORS=(
   # With a native view answering the View existential it satisfies, the image
   # draws and the cliff pays out.
   #
-  # What remains is the surrounding container, NOT the image: the
-  # `.scrollPosition.toolbar.onAppear` chain is still absorbed from its first
-  # unbridged member (`.scrollPosition(id:)`, whose interface declares
-  # `Binding<(some Hashable)?>` — an opaque parameter written in place inside a
-  # compound type, which BridgeGen specializes in neither of its two paths).
-  media-browser 18929
+  # Was 18929 — the surrounding container, absorbed from `.scrollPosition(id:)`,
+  # whose interface declares `Binding<(some Hashable)?>`: an opaque parameter
+  # written IN PLACE inside a compound type, a third spelling BridgeGen
+  # specialized in neither of its two paths. Now specialized like the named
+  # generic it is sugar for, onto the carrier the wrapper projections already
+  # drive.
+  #
+  # What remains is what that chain was hiding, and both are named by the
+  # screen's own diagnostics rather than inferred: `.quickLookPreview` is
+  # unbridged and absorbs, and `MediaUIShareLink` reports no matching
+  # initializer for `ShareLink(item:preview:)`.
+  media-browser 1136
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

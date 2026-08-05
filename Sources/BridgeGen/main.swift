@@ -576,6 +576,14 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "ButtonRole": return .init(tag: "buttonRole", cast: "%@ as! ButtonRole")
     case "Axis": return .init(tag: "axis", cast: "%@ as! Axis")
     case "AnnotationPosition": return .init(tag: "annotationPosition", cast: "%@ as! AnnotationPosition")
+    // The optional-of-a-constraint binding every selection-shaped modifier
+    // declares (`scrollPosition(id:)`, and the same shape wherever a generic
+    // is constrained to Hashable). The carrier is the one the wrapper
+    // projections already drive; only the spelling that reaches it is new.
+    case "Binding<InterpretedHashableValue?>":
+        return .init(
+            tag: "bindingHashableOptional",
+            cast: "%@ as! Binding<InterpretedHashableValue?>")
     case "Binding<Bool>": return .init(tag: "bindingBool", cast: "%@ as! Binding<Bool>")
     case "Binding<String>": return .init(tag: "bindingString", cast: "%@ as! Binding<String>")
     case "Binding<Double>": return .init(tag: "bindingDouble", cast: "%@ as! Binding<Double>")
@@ -612,6 +620,35 @@ func directMapping(for normalized: String) -> TypeMapping? {
             tag: "nativeSwiftUIValue(\"\(normalized)\")",
             cast: "%@ as! \(normalized)")
     }
+}
+
+/// Rewrite every opaque parameter written IN PLACE inside a compound type to
+/// the canonical concrete carrier for its constraint, so the result maps like
+/// any other compound type: `Binding<(some Hashable)?>` becomes
+/// `Binding<InterpretedHashableValue?>`.
+///
+/// Returns nil unless EVERY occurrence has a carrier. A partially specialized
+/// type must never reach a mapping: `Binding<some Plottable>` has no carrier
+/// for `Plottable`, and rewriting nothing would leave `some ` in a type the
+/// emitter would then spell into generated Swift.
+func specializingInPlaceOpaqueParameters(in type: String) -> String? {
+    let pattern = try! NSRegularExpression(
+        pattern: #"\(?\bsome\s+([A-Za-z_][A-Za-z0-9_.]*)\)?"#)
+    let source = type as NSString
+    let matches = pattern.matches(
+        in: type, range: NSRange(location: 0, length: source.length))
+    guard !matches.isEmpty else { return nil }
+    var specialized = type
+    // Replace from the end so earlier ranges stay valid.
+    for match in matches.reversed() {
+        guard match.numberOfRanges > 1,
+              let concrete = constraintConcreteType(
+                for: normalize(source.substring(with: match.range(at: 1))))
+        else { return nil }
+        specialized = (specialized as NSString)
+            .replacingCharacters(in: match.range, with: concrete)
+    }
+    return specialized
 }
 
 /// The canonical concrete type a lone conformance constraint specializes
@@ -1181,6 +1218,22 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
                 label: label, mapping: preservingOptional(mapping),
                 hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
         }
+    }
+    // The same anonymous generic, written in place INSIDE a compound type
+    // (`Binding<(some Hashable)?>`). SE-0341 defines `some P` in parameter
+    // position as sugar for an unnamed generic constrained to P, so this is
+    // the identical rule the loop below already applies to a NAMED generic
+    // (`Binding<V>` with `V: Hashable`) — only the spelling differs, and only
+    // because this one never gets a name to key on. Specializing first lets
+    // one carrier answer both spellings, exactly as the bare case above and
+    // `matchedTransitionSource`'s two spellings already share theirs.
+    if normalized.contains("some "), !normalized.hasPrefix("some "),
+       let specialized = specializingInPlaceOpaqueParameters(in: normalized),
+       let mapping = directMapping(for: specialized)?
+        .contextualized(as: specialized) {
+        return .init(
+            label: label, mapping: preservingOptional(mapping),
+            hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
     }
     if let mapping = directMapping(for: normalized)?
         .contextualized(as: normalized) {
