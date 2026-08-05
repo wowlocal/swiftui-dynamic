@@ -98,16 +98,10 @@ final class InterpretedHostController: NSViewController {
         view = Self.unwrapView(interpreted.box(for: "view")?.value) ?? NSView()
     }
 
+    /// The same recovery the view-representable witness performs; a controller
+    /// differs only in STORING its view rather than returning it.
     static func unwrapView(_ value: RuntimeValue?) -> NSView? {
-        guard let value else { return nil }
-        if case .host(let any) = value {
-            if let view = any as? NSView { return view }
-            if let platform = any as? GeneratedPlatformValue,
-               let view = platform.payload as? NSView {
-                return view
-            }
-        }
-        return nil
+        interpretedRepresentedView(value)
     }
 }
 #endif

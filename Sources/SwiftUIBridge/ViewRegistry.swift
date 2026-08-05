@@ -288,6 +288,17 @@ public final class ViewRegistry: HostRegistry {
                 return .native(AnyView(representable))
             }
 #endif
+#if (canImport(AppKit) && !targetEnvironment(macCatalyst)) || canImport(UIKit)
+            // View representables EXECUTE the same way, under whichever
+            // framework this build hosts through: the interpreted
+            // makeCoordinator/make/update run and the platform view they
+            // construct IS the represented view.
+            if let representable = InterpretedViewRepresentable.hosting(
+                instance: instance, interpreter: interpreter
+            ) {
+                return .native(AnyView(representable))
+            }
+#endif
             // Other representables embed host views we can't run — the
             // honest stand-in remains an inert empty view (Lottie precedent).
             return .native(AnyView(EmptyView()))
