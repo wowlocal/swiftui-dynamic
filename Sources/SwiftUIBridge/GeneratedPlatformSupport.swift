@@ -369,6 +369,7 @@ struct GeneratedPlatformMethodEntry {
     let signature: HostSignature
     let framework: String
     let resultType: String
+    let compiledHere: Bool
     let semanticAdapter: SemanticAdapter?
     let invoke: Invoke
 
@@ -378,7 +379,8 @@ struct GeneratedPlatformMethodEntry {
             if let result = try semanticAdapter?(base, values, context) {
                 return result
             }
-            if !GeneratedPlatformBridge.frameworkIsNative(framework)
+            if !GeneratedPlatformBridge.executesNatively(
+                framework: framework, compiledHere: compiledHere)
                 || base.payload == nil
             {
                 return GeneratedPlatformBridge.fallbackResult(
@@ -396,11 +398,13 @@ struct GeneratedPlatformStaticMethodEntry {
     let signature: HostSignature
     let framework: String
     let resultType: String
+    let compiledHere: Bool
     let invoke: Invoke
 
     func function() throws -> HostFunction {
         try HostFunction(signature: signature) { arguments, context in
-            guard GeneratedPlatformBridge.frameworkIsNative(framework) else {
+            guard GeneratedPlatformBridge.executesNatively(
+                framework: framework, compiledHere: compiledHere) else {
                 return GeneratedPlatformBridge.fallbackResult(
                     framework: framework, type: resultType)
             }
@@ -416,6 +420,7 @@ struct GeneratedPlatformGlobalFunctionEntry {
     let signature: HostSignature
     let framework: String
     let resultType: String
+    let compiledHere: Bool
     let invoke: Invoke
 
     func function(
@@ -423,7 +428,8 @@ struct GeneratedPlatformGlobalFunctionEntry {
         fallbackEffect: GeneratedPlatformGlobalFallbackEffect
     ) throws -> HostFunction {
         try HostFunction(signature: signature) { arguments, context in
-            guard GeneratedPlatformBridge.frameworkIsNative(framework) else {
+            guard GeneratedPlatformBridge.executesNatively(
+                framework: framework, compiledHere: compiledHere) else {
                 return fallbackRuntime.result(
                     for: fallbackEffect,
                     framework: framework,
@@ -441,6 +447,7 @@ struct GeneratedPlatformGlobalPropertyEntry {
     let name: String
     let resultType: String
     let isImplicitlyUnwrapped: Bool
+    let compiledHere: Bool
     let get: Get
 }
 
@@ -556,6 +563,7 @@ struct GeneratedPlatformStaticPropertyEntry {
     let name: String
     let resultType: String
     let isImplicitlyUnwrapped: Bool
+    let compiledHere: Bool
     let get: Get
 }
 
@@ -563,11 +571,45 @@ struct GeneratedPlatformEnumEntry {
     let framework: String
     let type: String
     let name: String
+    let compiledHere: Bool
     let get: @MainActor () -> Any
 }
 
 struct GeneratedPlatformEqualityAdapter {
     let equals: @MainActor (Any, Any) -> Bool?
+}
+
+/// A generated table under construction, carrying the availability of the
+/// group currently registering into it.
+///
+/// A member's availability can be NARROWER than that of the framework
+/// declaring it: `UIHostingController` is declared in SwiftUI, which is
+/// present on every platform this runs on, but exists only where UIKit does.
+/// Two facts about such an entry differ and must not be conflated:
+///
+/// - its CONTRACT (arity, result type, optionality) is platform-independent,
+///   and is what gives an off-platform value its typed inert reading — a
+///   `UIView` stub answers `subviews` with `[]` precisely because the contract
+///   says `[UIView]`, so `.contains(where:)` on it is an ordinary Bool rather
+///   than an absorbing chain;
+/// - its BODY calls the real SDK, and compiles only where that SDK does.
+///
+/// Registering the whole entry under the body's `#if` withdraws both at once,
+/// so the member stops being merely inert here and becomes unknown. Leaving it
+/// registered unconditionally runs the off-platform `#else` arm and traps. The
+/// table therefore keeps every contract and records, per entry, whether that
+/// entry's body was compiled here; the opposite-platform fallback every lookup
+/// already performs does the rest.
+struct GeneratedPlatformRegistrationTable<Entries> {
+    var entries: Entries
+    /// Whether the native bodies of the group now registering compiled into
+    /// this binary. A group the generator emits under no condition always
+    /// compiles, so this defaults to true.
+    var compiledHere = true
+
+    init(_ entries: Entries) {
+        self.entries = entries
+    }
 }
 
 /// Runtime half of the generated platform bridge. The generated file only
@@ -888,7 +930,9 @@ enum GeneratedPlatformBridge {
                     resultType: entry.resultType,
                     isImplicitlyUnwrapped: entry.isImplicitlyUnwrapped)
             }
-            guard frameworkIsNative(entry.framework) else {
+            guard executesNatively(
+                framework: entry.framework, compiledHere: entry.compiledHere)
+            else {
                 return applyingImplicitlyUnwrappedOptional(
                     fallbackResult(
                         framework: entry.framework, type: entry.resultType),
@@ -1098,7 +1142,9 @@ enum GeneratedPlatformBridge {
                 let key = GeneratedPlatformMemberKey(
                     framework: framework, type: type, member: name)
                 if let property = staticProperties[key] {
-                    if frameworkIsNative(framework) {
+                    if executesNatively(
+                        framework: framework,
+                        compiledHere: property.compiledHere) {
                         return try? applyingImplicitlyUnwrappedOptional(
                             property.get(), resultType: property.resultType,
                             isImplicitlyUnwrapped:
@@ -1107,7 +1153,9 @@ enum GeneratedPlatformBridge {
                     return staticPropertyFallback(property)
                 }
                 if let cases = enumValues[key], let value = cases.first {
-                    if frameworkIsNative(framework) {
+                    if executesNatively(
+                        framework: framework,
+                        compiledHere: value.compiledHere) {
                         return generatedPlatformResult(
                             value.get(), framework: framework,
                             declaredType: value.type)
@@ -1136,7 +1184,10 @@ enum GeneratedPlatformBridge {
     ) -> Any? {
         let key = GeneratedPlatformMemberKey(
             framework: framework, type: type, member: member)
-        guard frameworkIsNative(framework), let value = enumValues[key]?.first else {
+        guard let value = enumValues[key]?.first,
+              executesNatively(
+                framework: framework, compiledHere: value.compiledHere)
+        else {
             return nil
         }
         return value.get()
@@ -1373,8 +1424,19 @@ enum GeneratedPlatformBridge {
 
     // MARK: Generated registration API
 
+    /// Whether an entry runs its statically compiled SDK body here. Both
+    /// halves must hold: the framework has to be present, AND the entry's own
+    /// availability has to have compiled its body into this binary. They are
+    /// not the same question — see `GeneratedPlatformRegistrationTable`.
+    static func executesNatively(
+        framework: String, compiledHere: Bool
+    ) -> Bool {
+        compiledHere && frameworkIsNative(framework)
+    }
+
     static func registerConstructor(
-        _ table: inout [String: [GeneratedPlatformConstructorEntry]],
+        _ table: inout GeneratedPlatformRegistrationTable<
+            [String: [GeneratedPlatformConstructorEntry]]>,
         framework: String,
         declaration: String,
         resultType: String,
@@ -1384,6 +1446,7 @@ enum GeneratedPlatformBridge {
             ([RuntimeValue], EvalContext) throws -> RuntimeValue
     ) {
         do {
+            let compiledHere = table.compiledHere
             let signature = try HostSignature(parsing: declaration)
             let function = try HostFunction(signature: signature) { arguments, context in
                 let values = arguments.arguments.map(\.value)
@@ -1392,7 +1455,8 @@ enum GeneratedPlatformBridge {
                         ? .some(result, wrappedTypeName: resultType)
                         : result
                 }
-                if !frameworkIsNative(framework) {
+                if !executesNatively(
+                    framework: framework, compiledHere: compiledHere) {
                     var config: [String: RuntimeValue] = [:]
                     for argument in arguments.arguments {
                         if let label = argument.label { config[label] = argument.value }
@@ -1409,7 +1473,7 @@ enum GeneratedPlatformBridge {
                 }
                 return try invoke(values, context)
             }
-            table[signature.callableName, default: []].append(
+            table.entries[signature.callableName, default: []].append(
                 GeneratedPlatformConstructorEntry(
                     framework: framework, type: resultType, function: function))
         } catch {
@@ -1419,7 +1483,8 @@ enum GeneratedPlatformBridge {
     }
 
     static func registerMethod(
-        _ table: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]],
+        _ table: inout GeneratedPlatformRegistrationTable<
+            [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>,
         framework: String,
         declaration: String,
         resultType: String,
@@ -1433,9 +1498,10 @@ enum GeneratedPlatformBridge {
             }
             let key = GeneratedPlatformMemberKey(
                 framework: framework, type: type, member: signature.name)
-            table[key, default: []].append(GeneratedPlatformMethodEntry(
+            table.entries[key, default: []].append(GeneratedPlatformMethodEntry(
                 signature: signature, framework: framework,
                 resultType: resultType,
+                compiledHere: table.compiledHere,
                 semanticAdapter: semanticAdapter,
                 invoke: invoke))
         } catch {
@@ -1445,7 +1511,8 @@ enum GeneratedPlatformBridge {
     }
 
     static func registerStaticMethod(
-        _ table: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]],
+        _ table: inout GeneratedPlatformRegistrationTable<
+            [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>,
         framework: String,
         declaration: String,
         resultType: String,
@@ -1458,9 +1525,10 @@ enum GeneratedPlatformBridge {
             }
             let key = GeneratedPlatformMemberKey(
                 framework: framework, type: type, member: signature.name)
-            table[key, default: []].append(GeneratedPlatformStaticMethodEntry(
+            table.entries[key, default: []].append(GeneratedPlatformStaticMethodEntry(
                 signature: signature, framework: framework,
-                resultType: resultType, invoke: invoke))
+                resultType: resultType, compiledHere: table.compiledHere,
+                invoke: invoke))
         } catch {
             preconditionFailure(
                 "BridgeGen emitted an invalid platform static method '\(declaration)': \(error)")
@@ -1468,7 +1536,8 @@ enum GeneratedPlatformBridge {
     }
 
     static func registerGlobalFunction(
-        _ table: inout [String: [GeneratedPlatformGlobalFunctionEntry]],
+        _ table: inout GeneratedPlatformRegistrationTable<
+            [String: [GeneratedPlatformGlobalFunctionEntry]]>,
         framework: String,
         declaration: String,
         resultType: String,
@@ -1476,10 +1545,11 @@ enum GeneratedPlatformBridge {
     ) {
         do {
             let signature = try HostSignature(parsing: declaration)
-            table[signature.callableName, default: []].append(
+            table.entries[signature.callableName, default: []].append(
                 GeneratedPlatformGlobalFunctionEntry(
                     signature: signature, framework: framework,
-                    resultType: resultType, invoke: invoke))
+                    resultType: resultType, compiledHere: table.compiledHere,
+                    invoke: invoke))
         } catch {
             preconditionFailure(
                 "BridgeGen emitted an invalid platform global '\(declaration)': \(error)")
@@ -1487,23 +1557,26 @@ enum GeneratedPlatformBridge {
     }
 
     static func registerGlobalProperty(
-        _ table: inout [String: [GeneratedPlatformGlobalPropertyEntry]],
+        _ table: inout GeneratedPlatformRegistrationTable<
+            [String: [GeneratedPlatformGlobalPropertyEntry]]>,
         framework: String,
         name: String,
         resultType: String,
         isImplicitlyUnwrapped: Bool,
         get: @escaping GeneratedPlatformGlobalPropertyEntry.Get
     ) {
-        table[name, default: []].append(GeneratedPlatformGlobalPropertyEntry(
+        table.entries[name, default: []].append(GeneratedPlatformGlobalPropertyEntry(
             framework: framework,
             name: name,
             resultType: resultType,
             isImplicitlyUnwrapped: isImplicitlyUnwrapped,
+            compiledHere: table.compiledHere,
             get: get))
     }
 
     static func registerProperty(
-        _ table: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry],
+        _ table: inout GeneratedPlatformRegistrationTable<
+            [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>,
         framework: String,
         declaration: String,
         resultType: String,
@@ -1513,6 +1586,7 @@ enum GeneratedPlatformBridge {
         set: GeneratedPlatformPropertyEntry.Set?
     ) {
         do {
+            let compiledHere = table.compiledHere
             let signature = try HostSignature(parsing: declaration)
             guard let type = signature.receiverType else {
                 preconditionFailure("generated platform property has no receiver: \(declaration)")
@@ -1526,7 +1600,9 @@ enum GeneratedPlatformBridge {
                             message: "generated platform property setter receiver mismatch",
                             fatal: true)
                     }
-                    guard frameworkIsNative(framework), var payload = base.payload else {
+                    guard executesNatively(
+                            framework: framework, compiledHere: compiledHere),
+                          var payload = base.payload else {
                         base.config[signature.name] = value
                         return
                     }
@@ -1550,7 +1626,9 @@ enum GeneratedPlatformBridge {
                             stored, resultType: resultType,
                             isImplicitlyUnwrapped: isImplicitlyUnwrapped)
                     }
-                    guard frameworkIsNative(framework), let payload = base.payload else {
+                    guard executesNatively(
+                            framework: framework, compiledHere: compiledHere),
+                          let payload = base.payload else {
                         return applyingImplicitlyUnwrappedOptional(
                             fallbackSemantic?.result()
                                 ?? fallbackResult(
@@ -1641,7 +1719,7 @@ enum GeneratedPlatformBridge {
                 set: opaqueReferenceSetter)
             let key = GeneratedPlatformMemberKey(
                 framework: framework, type: type, member: signature.name)
-            table[key] = GeneratedPlatformPropertyEntry(
+            table.entries[key] = GeneratedPlatformPropertyEntry(
                 framework: framework, type: type,
                 resultType: resultType,
                 isImplicitlyUnwrapped: isImplicitlyUnwrapped,
@@ -1655,7 +1733,8 @@ enum GeneratedPlatformBridge {
     }
 
     static func registerStaticProperty(
-        _ table: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry],
+        _ table: inout GeneratedPlatformRegistrationTable<
+            [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>,
         framework: String,
         type: String,
         name: String,
@@ -1663,17 +1742,19 @@ enum GeneratedPlatformBridge {
         isImplicitlyUnwrapped: Bool = false,
         get: @escaping GeneratedPlatformStaticPropertyEntry.Get
     ) {
-        table[GeneratedPlatformMemberKey(
+        table.entries[GeneratedPlatformMemberKey(
             framework: framework, type: type, member: name)] =
             GeneratedPlatformStaticPropertyEntry(
                 framework: framework, type: type, name: name,
                 resultType: resultType,
                 isImplicitlyUnwrapped: isImplicitlyUnwrapped,
+                compiledHere: table.compiledHere,
                 get: get)
     }
 
     static func registerEnumValue(
-        _ table: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]],
+        _ table: inout GeneratedPlatformRegistrationTable<
+            [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>,
         framework: String,
         type: String,
         name: String,
@@ -1681,8 +1762,9 @@ enum GeneratedPlatformBridge {
     ) {
         let key = GeneratedPlatformMemberKey(
             framework: framework, type: type, member: name)
-        table[key, default: []].append(GeneratedPlatformEnumEntry(
-            framework: framework, type: type, name: name, get: get))
+        table.entries[key, default: []].append(GeneratedPlatformEnumEntry(
+            framework: framework, type: type, name: name,
+            compiledHere: table.compiledHere, get: get))
     }
 
     static func registerEqualityAdapter<T: Equatable>(

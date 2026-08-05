@@ -2430,6 +2430,7 @@ private func emitPlatformBridge(
         name: "KnownMembers",
         tableType: "[GeneratedPlatformMemberKey: Bool]",
         groups: knownMemberGroups,
+        bindsAvailability: false,
         entry: emitPlatformKnownMember)
 
     output += "\n    static func buildEqualityAdapters() -> [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] {\n"
@@ -2482,6 +2483,12 @@ private func emitBuilder<T>(
     name: String,
     tableType: String,
     groups: [(framework: String, condition: String, values: [T])],
+    // Whether this table's entries carry a statically compiled SDK body. Such
+    // a table registers through `GeneratedPlatformRegistrationTable`, which
+    // records per entry whether that body compiled here. A table of pure
+    // metadata has no body that could be unavailable, so it stays a plain
+    // dictionary and its facts hold on every platform.
+    bindsAvailability: Bool = true,
     entry: (T, String) -> String
 ) -> String {
     let chunkSize = 35
@@ -2496,8 +2503,13 @@ private func emitBuilder<T>(
             condition: group.condition,
             values: group.values)
     }
+    let parameterType = bindsAvailability
+        ? "GeneratedPlatformRegistrationTable<\(tableType)>"
+        : tableType
     var output = "\n    static func build\(name)() -> \(tableType) {\n"
-    output += "        var t: \(tableType) = [:]\n"
+    output += bindsAvailability
+        ? "        var t = \(parameterType)([:])\n"
+        : "        var t: \(tableType) = [:]\n"
     for group in identifiedGroups {
         let chunks = stride(from: 0, to: group.values.count, by: chunkSize).map {
             Array(group.values[$0..<min($0 + chunkSize, group.values.count)])
@@ -2506,27 +2518,35 @@ private func emitBuilder<T>(
             output += "        build\(name)\(group.identifier)\(index)(&t)\n"
         }
     }
-    output += "        return t\n    }\n"
+    output += bindsAvailability
+        ? "        return t.entries\n    }\n"
+        : "        return t\n    }\n"
     for group in identifiedGroups {
         let chunks = stride(from: 0, to: group.values.count, by: chunkSize).map {
             Array(group.values[$0..<min($0 + chunkSize, group.values.count)])
         }
         for (index, chunk) in chunks.enumerated() {
-            output += "\n    private static func build\(name)\(group.identifier)\(index)(_ t: inout \(tableType)) {\n"
+            output += "\n    private static func build\(name)\(group.identifier)\(index)(_ t: inout \(parameterType)) {\n"
             // A group's condition can be NARROWER than the availability of the
             // framework that declares it: `UIHostingController` is declared in
-            // SwiftUI but exists only where UIKit does. Guarding the entry BODY
-            // alone leaves such a member registered on a platform that cannot
-            // run it, so lookup succeeds and then hits the off-platform
-            // `preconditionFailure` — a fatal crash where the member used to be
-            // merely absent. Register under the same condition that compiles
-            // the body, so off-platform the member is absent and the call falls
-            // back to the ordinary unresolved-member path.
-            output += "#if \(group.condition)\n"
+            // SwiftUI but exists only where UIKit does. Its BODY therefore
+            // compiles only under the group's condition, while its CONTRACT
+            // holds everywhere — and that contract is what lets an off-platform
+            // value read as typed and inert instead of as unknown. Registering
+            // the entry under the body's condition withdraws both at once;
+            // registering it with the body unguarded runs the `#else` arm and
+            // traps. Record which of the two this platform has, so the member
+            // keeps its contract here and runs its body only where it exists.
+            if bindsAvailability {
+                output += "#if \(group.condition)\n"
+                output += "        t.compiledHere = true\n"
+                output += "#else\n"
+                output += "        t.compiledHere = false\n"
+                output += "#endif\n"
+            }
             for value in chunk {
                 output += entry(value, group.condition) + "\n"
             }
-            output += "#endif\n"
             output += "    }\n"
         }
     }

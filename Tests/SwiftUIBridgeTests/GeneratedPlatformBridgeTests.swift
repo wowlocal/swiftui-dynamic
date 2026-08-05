@@ -41,12 +41,19 @@ import AppKit
 
     /// A member's availability can be narrower than that of the framework
     /// DECLARING it — `UIHostingController` is declared in SwiftUI but exists
-    /// only where UIKit does. Guarding only the entry body leaves such a member
-    /// registered on a platform that cannot run it, so lookup succeeds and the
-    /// call reaches the off-platform `preconditionFailure`: a process-fatal
-    /// crash where the member used to be merely absent. RED before the fix,
-    /// where every registration sat outside its group's `#if`.
-    @Test func everyGeneratedRegistrationIsGuardedByItsOwnAvailability() throws {
+    /// only where UIKit does. Leaving such an entry registered with its body
+    /// guarded means lookup succeeds and the call reaches the off-platform
+    /// `preconditionFailure`: a process-fatal crash where the member used to
+    /// be merely absent. Withdrawing the whole registration instead takes the
+    /// CONTRACT with it, and the contract is what an off-platform value reads
+    /// its typed inert answer from.
+    ///
+    /// The structure that satisfies both: every group registering an entry
+    /// with a compiled body states its own availability first, so the entry
+    /// keeps its contract here and runs its body only where that body exists.
+    /// RED both ways — before any guard existed (no group states it) and under
+    /// the guard-the-registration fix (registrations sit inside the `#if`).
+    @Test func everyGeneratedRegistrationStatesItsOwnAvailability() throws {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -56,27 +63,48 @@ import AppKit
         let source = try String(contentsOf: generated, encoding: .utf8)
 
         var conditionDepth = 0
-        var unguarded: [String] = []
+        var statedAvailability = false
+        var registersUnderCondition: [String] = []
+        var registersWithoutAvailability: [String] = []
         for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("#if") {
+            if trimmed.hasPrefix("private static func build") {
+                // A builder over a table of executable entries; the metadata
+                // tables have no body that could be unavailable.
+                statedAvailability = !trimmed.contains(
+                    "GeneratedPlatformRegistrationTable")
+            } else if trimmed.hasPrefix("#if") {
                 conditionDepth += 1
             } else if trimmed.hasPrefix("#endif") {
                 conditionDepth -= 1
-            } else if trimmed.hasPrefix("register"), trimmed.hasSuffix("("),
-                conditionDepth == 0
-            {
-                unguarded.append(trimmed)
+            } else if trimmed.hasPrefix("t.compiledHere =") {
+                statedAvailability = true
+            } else if trimmed.hasPrefix("register"), trimmed.hasSuffix("(") {
+                if conditionDepth > 0 {
+                    registersUnderCondition.append(trimmed)
+                }
+                if !statedAvailability {
+                    registersWithoutAvailability.append(trimmed)
+                }
             }
         }
 
         #expect(conditionDepth == 0)
         #expect(
-            unguarded.isEmpty,
+            registersWithoutAvailability.isEmpty,
             """
-            \(unguarded.count) generated registrations are emitted outside any
-            availability guard, so they register on platforms whose bodies
-            compile to preconditionFailure: \(unguarded.prefix(3))
+            \(registersWithoutAvailability.count) generated registrations do \
+            not state their group's availability, so their entries claim to \
+            run bodies that compile to preconditionFailure here: \
+            \(registersWithoutAvailability.prefix(3))
+            """)
+        #expect(
+            registersUnderCondition.isEmpty,
+            """
+            \(registersUnderCondition.count) generated registrations are \
+            emitted inside an availability condition, so their contract is \
+            withdrawn on the platform that needs it to read inertly: \
+            \(registersUnderCondition.prefix(3))
             """)
     }
 

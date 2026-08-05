@@ -90,7 +90,7 @@ extension GeneratedPlatformBridge {
     }
 
     static func buildConstructors() -> [String: [GeneratedPlatformConstructorEntry]] {
-        var t: [String: [GeneratedPlatformConstructorEntry]] = [:]
+        var t = GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>([:])
         buildConstructorsFoundation0(&t)
         buildConstructorsSwiftUI10(&t)
         buildConstructorsSwiftUI20(&t)
@@ -111,11 +111,15 @@ extension GeneratedPlatformBridge {
         buildConstructorsMapKit0(&t)
         buildConstructorsCoreLocation0(&t)
         buildConstructorsMetal0(&t)
-        return t
+        return t.entries
     }
 
-    private static func buildConstructorsFoundation0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsFoundation0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "Foundation",
             declaration: "init BlockOperation(block p0: () -> Void)",
@@ -273,11 +277,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsSwiftUI10(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsSwiftUI10(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "SwiftUI",
             declaration: "init NSHostingController(rootView p0: any View)",
@@ -298,11 +305,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("SwiftUI gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsSwiftUI20(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsSwiftUI20(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "SwiftUI",
             declaration: "init UIHostingController(rootView p0: any View)",
@@ -313,11 +323,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("SwiftUI gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsCoreGraphics0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsCoreGraphics0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(CoreGraphics)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "CoreGraphics",
             declaration: "init? CGColorSpace(patternBaseSpace p0: CGColorSpace?)",
@@ -362,11 +375,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreGraphics gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsQuartzCore0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsQuartzCore0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(QuartzCore)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "QuartzCore",
             declaration: "init CALayer()",
@@ -407,11 +423,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("QuartzCore gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsAppKit0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsAppKit0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSAppearance.Name(_ p0: String)",
@@ -762,11 +781,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsAppKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsAppKit1(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSColor(red p0: CGFloat, green p1: CGFloat, blue p2: CGFloat, alpha p3: CGFloat)",
@@ -1117,11 +1139,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsAppKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsAppKit2(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSTableView(frame p0: CGRect)",
@@ -1472,11 +1497,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsAppKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsAppKit3(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init? NSApplication.RequestUserAttentionType(rawValue p0: UInt)",
@@ -1827,11 +1855,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsAppKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsAppKit4(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init? NSImage(systemSymbolName p0: String, accessibilityDescription p1: String?)",
@@ -2182,11 +2213,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsAppKit5(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsAppKit5(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init? NSWindow.TitleVisibility(rawValue p0: Int)",
@@ -2217,11 +2251,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsUIKit0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsUIKit0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init NSDirectionalEdgeInsets()",
@@ -2572,11 +2609,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsUIKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsUIKit1(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIImage(cgImage p0: CGImage, scale p1: CGFloat, orientation p2: UIImage.Orientation)",
@@ -2927,11 +2967,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsUIKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsUIKit2(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIView.Invalidations.Configuration()",
@@ -3282,11 +3325,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsUIKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsUIKit3(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIImage(named p0: String)",
@@ -3637,11 +3683,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsUIKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsUIKit4(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init? UIView.ContentMode(rawValue p0: Int)",
@@ -3692,11 +3741,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsWebKit0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsWebKit0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(UIKit) && canImport(WebKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "WebKit",
             declaration: "init WKWebView()",
@@ -3717,11 +3769,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("WebKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsMapKit0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsMapKit0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(MapKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "MapKit",
             declaration: "init MKMapCamera(lookingAtCenter p0: CLLocationCoordinate2D, fromDistance p1: Double, pitch p2: CGFloat, heading p3: Double)",
@@ -3862,11 +3917,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("MapKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsCoreLocation0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsCoreLocation0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(CoreLocation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "CoreLocation",
             declaration: "init CLLocation(coordinate p0: CLLocationCoordinate2D, altitude p1: Double, horizontalAccuracy p2: Double, verticalAccuracy p3: Double, course p4: Double, speed p5: Double, timestamp p6: Date)",
@@ -3917,11 +3975,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreLocation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildConstructorsMetal0(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+    private static func buildConstructorsMetal0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformConstructorEntry]]>) {
 #if canImport(Metal)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerConstructor(
             &t, framework: "Metal",
             declaration: "init MTLCompileOptions()",
@@ -3972,11 +4033,10 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Metal gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
     static func buildMethods() -> [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]] {
-        var t: [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]] = [:]
+        var t = GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>([:])
         buildMethodsFoundation0(&t)
         buildMethodsSwiftUI10(&t)
         buildMethodsSwiftUI20(&t)
@@ -4013,11 +4073,15 @@ extension GeneratedPlatformBridge {
         buildMethodsCoreLocation0(&t)
         buildMethodsMetal0(&t)
         buildMethodsMetal1(&t)
-        return t
+        return t.entries
     }
 
-    private static func buildMethodsFoundation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsFoundation0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "Foundation",
             declaration: "func BlockOperation.addExecutionBlock(_ p0: () -> Void) -> Void",
@@ -4424,11 +4488,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsSwiftUI10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsSwiftUI10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "SwiftUI",
             declaration: "func NSHostingController.sizeThatFits(in p0: CGSize) -> CGSize",
@@ -4797,11 +4864,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("SwiftUI gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsSwiftUI20(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsSwiftUI20(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "SwiftUI",
             declaration: "func UIHostingController.didMove(toParent p0: UIViewController?) -> Void",
@@ -4927,11 +4997,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("SwiftUI gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsCoreGraphics0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsCoreGraphics0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(CoreGraphics)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "CoreGraphics",
             declaration: "func CGColorSpace.isHDR() -> Bool",
@@ -5449,11 +5522,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreGraphics gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsCoreGraphics1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsCoreGraphics1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(CoreGraphics)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "CoreGraphics",
             declaration: "func CGContext.replacePathWithStrokedPath() -> Void",
@@ -5978,11 +6054,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreGraphics gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsCoreGraphics2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsCoreGraphics2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(CoreGraphics)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "CoreGraphics",
             declaration: "func CGContext.stroke(_ p0: CGRect) -> Void",
@@ -6158,11 +6237,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreGraphics gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsQuartzCore0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsQuartzCore0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(QuartzCore)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "QuartzCore",
             declaration: "func CALayer.addSublayer(_ p0: CALayer) -> Void",
@@ -6640,11 +6722,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("QuartzCore gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSAppearance.bestMatch(from p0: [NSAppearance.Name]) -> NSAppearance.Name?",
@@ -7132,11 +7217,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSApplication.runModal(for p0: NSWindow) -> NSApplication.ModalResponse",
@@ -7622,11 +7710,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSBezierPath.relativeCurve(to p0: CGPoint, controlPoint1 p1: CGPoint, controlPoint2 p2: CGPoint) -> Void",
@@ -8104,11 +8195,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit3(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSColor.setFill() -> Void",
@@ -8585,11 +8679,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit4(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSImage.removeRepresentation(_ p0: NSImageRep) -> Void",
@@ -9064,11 +9161,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit5(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSResponder.resignFirstResponder() -> Bool",
@@ -9544,11 +9644,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit6(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSTableView.scrollRowToVisible(_ p0: Int) -> Void",
@@ -10037,11 +10140,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit7(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit7(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSTextView.orderFrontTablePanel(_ p0: Any?) -> Void",
@@ -10527,11 +10633,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit8(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit8(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSTextView.updateFontPanel() -> Void",
@@ -11007,11 +11116,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit9(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSView.convertFromLayer(_ p0: CGRect) -> CGRect",
@@ -11486,11 +11598,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSView.isMousePoint(_ p0: CGPoint, in p1: CGRect) -> Bool",
@@ -11973,11 +12088,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit11(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit11(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSView.shouldDrawColor() -> Bool",
@@ -12465,11 +12583,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit12(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit12(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSViewController.removeFromParent() -> Void",
@@ -12945,11 +13066,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit13(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit13(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSWindow.disableKeyEquivalentForDefaultButtonCell() -> Void",
@@ -13437,11 +13561,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit14(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit14(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSWindow.performZoom(_ p0: Any?) -> Void",
@@ -13931,11 +14058,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsAppKit15(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsAppKit15(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSWindow.zoom(_ p0: Any?) -> Void",
@@ -13950,11 +14080,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsUIKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsUIKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIApplication.beginIgnoringInteractionEvents() -> Void",
@@ -14435,11 +14568,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsUIKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsUIKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIButton.imageRect(forContentRect p0: CGRect) -> CGRect",
@@ -14919,11 +15055,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsUIKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsUIKit2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIColor.set() -> Void",
@@ -15411,11 +15550,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsUIKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsUIKit3(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIImage.withConfiguration(_ p0: UIImage.Configuration) -> UIImage",
@@ -15892,11 +16034,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsUIKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsUIKit4(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UITableView.rectForFooter(inSection p0: Int) -> CGRect",
@@ -16370,11 +16515,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsUIKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsUIKit5(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIView.didAddSubview(_ p0: UIView) -> Void",
@@ -16855,11 +17003,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsUIKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsUIKit6(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIView.viewWithTag(_ p0: Int) -> UIView?",
@@ -17344,11 +17495,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsUIKit7(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsUIKit7(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIViewController.viewDidLoad() -> Void",
@@ -17569,11 +17723,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsWebKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsWebKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(UIKit) && canImport(WebKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "WebKit",
             declaration: "func WKWebView.closeAllMediaPresentations() -> Void",
@@ -17616,11 +17773,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("WebKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsMapKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsMapKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(MapKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "MapKit",
             declaration: "func MKMapView.exchangeOverlay(at p0: Int, withOverlayAt p1: Int) -> Void",
@@ -17691,11 +17851,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("MapKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsCoreLocation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsCoreLocation0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(CoreLocation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "CoreLocation",
             declaration: "func CLLocation.distance(from p0: CLLocation) -> Double",
@@ -17709,11 +17872,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreLocation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsMetal0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsMetal0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(Metal)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "Metal",
             declaration: "func MTLBuffer.contents() -> Any",
@@ -18211,11 +18377,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Metal gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildMethodsMetal1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+    private static func buildMethodsMetal1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]>) {
 #if canImport(Metal)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerMethod(
             &t, framework: "Metal",
             declaration: "func MTLDevice.makeBuffer(length p0: Int, options p1: MTLResourceOptions) -> MTLBuffer?",
@@ -18412,11 +18581,10 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Metal gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
     static func buildStaticMethods() -> [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]] {
-        var t: [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]] = [:]
+        var t = GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>([:])
         buildStaticMethodsFoundation0(&t)
         buildStaticMethodsQuartzCore0(&t)
         buildStaticMethodsAppKit0(&t)
@@ -18424,11 +18592,15 @@ extension GeneratedPlatformBridge {
         buildStaticMethodsUIKit0(&t)
         buildStaticMethodsUIKit1(&t)
         buildStaticMethodsWebKit0(&t)
-        return t
+        return t.entries
     }
 
-    private static func buildStaticMethodsFoundation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+    private static func buildStaticMethodsFoundation0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticMethod(
             &t, framework: "Foundation",
             declaration: "static func OperationQueue.SchedulerTimeType.Stride.microseconds(_ p0: Int) -> OperationQueue.SchedulerTimeType.Stride",
@@ -18479,11 +18651,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildStaticMethodsQuartzCore0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+    private static func buildStaticMethodsQuartzCore0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>) {
 #if canImport(QuartzCore)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticMethod(
             &t, framework: "QuartzCore",
             declaration: "static func CALayer.defaultValue(forKey p0: String) -> Any?",
@@ -18504,11 +18679,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("QuartzCore gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildStaticMethodsAppKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+    private static func buildStaticMethodsAppKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticMethod(
             &t, framework: "AppKit",
             declaration: "static func NSAppearance.currentDrawing() -> NSAppearance",
@@ -18866,11 +19044,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildStaticMethodsAppKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+    private static func buildStaticMethodsAppKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticMethod(
             &t, framework: "AppKit",
             declaration: "static func NSImageRep.canInit(with p0: Data) -> Bool",
@@ -19074,11 +19255,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildStaticMethodsUIKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+    private static func buildStaticMethodsUIKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticMethod(
             &t, framework: "UIKit",
             declaration: "static func UIButton.Configuration.bordered() -> UIButton.Configuration",
@@ -19442,11 +19626,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildStaticMethodsUIKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+    private static func buildStaticMethodsUIKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticMethod(
             &t, framework: "UIKit",
             declaration: "static func UIView.setAnimationStart(_ p0: Date) -> Void",
@@ -19491,11 +19678,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildStaticMethodsWebKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+    private static func buildStaticMethodsWebKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]>) {
 #if canImport(UIKit) && canImport(WebKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticMethod(
             &t, framework: "WebKit",
             declaration: "static func WKWebView.handlesURLScheme(_ p0: String) -> Bool",
@@ -19506,11 +19696,10 @@ extension GeneratedPlatformBridge {
             preconditionFailure("WebKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
     static func buildGlobalFunctions() -> [String: [GeneratedPlatformGlobalFunctionEntry]] {
-        var t: [String: [GeneratedPlatformGlobalFunctionEntry]] = [:]
+        var t = GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>([:])
         buildGlobalFunctionsFoundation0(&t)
         buildGlobalFunctionsFoundation1(&t)
         buildGlobalFunctionsFoundation2(&t)
@@ -19522,11 +19711,15 @@ extension GeneratedPlatformBridge {
         buildGlobalFunctionsMapKit0(&t)
         buildGlobalFunctionsCoreLocation0(&t)
         buildGlobalFunctionsMetal0(&t)
-        return t
+        return t.entries
     }
 
-    private static func buildGlobalFunctionsFoundation0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsFoundation0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "Foundation",
             declaration: "func NSAllocateMemoryPages(_ p0: Int) -> Any",
@@ -19877,11 +20070,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsFoundation1(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsFoundation1(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "Foundation",
             declaration: "func NSMidX(_ p0: CGRect) -> Double",
@@ -20232,11 +20428,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsFoundation2(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsFoundation2(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "Foundation",
             declaration: "func NSSwapHostShortToBig(_ p0: UInt16) -> UInt16",
@@ -20387,11 +20586,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsObjectiveC0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsObjectiveC0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(ObjectiveC)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "ObjectiveC",
             declaration: "func autoreleasepool(invoking p0: () throws -> Any) throws -> Any",
@@ -20407,11 +20609,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("ObjectiveC gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsSwiftUI0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsSwiftUI0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(SwiftUI)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "SwiftUI",
             declaration: "func withTransaction(_ p0: Any, _ p1: () throws -> Any) throws -> Any",
@@ -20436,11 +20641,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("SwiftUI gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsCoreGraphics0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsCoreGraphics0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(CoreGraphics)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "CoreGraphics",
             declaration: "func CGColorSpaceCopyBaseColorSpace(_ p0: CGColorSpace) -> CGColorSpace",
@@ -20592,11 +20800,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreGraphics gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsAppKit0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsAppKit0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "AppKit",
             declaration: "func NSCopyBits(_ p0: Int, _ p1: CGRect, _ p2: CGPoint) -> Void",
@@ -20791,11 +21002,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsUIKit0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsUIKit0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "UIKit",
             declaration: "func UIEdgeInsetsEqualToEdgeInsets(_ p0: UIEdgeInsets, _ p1: UIEdgeInsets) -> Bool",
@@ -20999,11 +21213,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsMapKit0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsMapKit0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(MapKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "MapKit",
             declaration: "func MKMapPointsPerMeterAtLatitude(_ p0: Double) -> Double",
@@ -21024,11 +21241,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("MapKit gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsCoreLocation0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsCoreLocation0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(CoreLocation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "CoreLocation",
             declaration: "func CLLocationCoordinate2DIsValid(_ p0: CLLocationCoordinate2D) -> Bool",
@@ -21049,11 +21269,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreLocation gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalFunctionsMetal0(_ t: inout [String: [GeneratedPlatformGlobalFunctionEntry]]) {
+    private static func buildGlobalFunctionsMetal0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalFunctionEntry]]>) {
 #if canImport(Metal)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalFunction(
             &t, framework: "Metal",
             declaration: "func MTLCopyAllDevices() -> [MTLDevice]",
@@ -21094,18 +21317,21 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Metal gateway invoked off-platform")
 #endif
         }
-#endif
     }
 
     static func buildGlobalProperties() -> [String: [GeneratedPlatformGlobalPropertyEntry]] {
-        var t: [String: [GeneratedPlatformGlobalPropertyEntry]] = [:]
+        var t = GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalPropertyEntry]]>([:])
         buildGlobalPropertiesAppKit0(&t)
         buildGlobalPropertiesCoreLocation0(&t)
-        return t
+        return t.entries
     }
 
-    private static func buildGlobalPropertiesAppKit0(_ t: inout [String: [GeneratedPlatformGlobalPropertyEntry]]) {
+    private static func buildGlobalPropertiesAppKit0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalPropertyEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalProperty(
             &t, framework: "AppKit",
             name: "NSApp",
@@ -21128,11 +21354,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit global getter invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildGlobalPropertiesCoreLocation0(_ t: inout [String: [GeneratedPlatformGlobalPropertyEntry]]) {
+    private static func buildGlobalPropertiesCoreLocation0(_ t: inout GeneratedPlatformRegistrationTable<[String: [GeneratedPlatformGlobalPropertyEntry]]>) {
 #if canImport(CoreLocation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerGlobalProperty(
             &t, framework: "CoreLocation",
             name: "kCLLocationCoordinate2DInvalid",
@@ -21144,11 +21373,10 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreLocation global getter invoked off-platform")
 #endif
         }
-#endif
     }
 
     static func buildProperties() -> [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry] {
-        var t: [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry] = [:]
+        var t = GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>([:])
         buildPropertiesFoundation0(&t)
         buildPropertiesFoundation1(&t)
         buildPropertiesSwiftUI10(&t)
@@ -21196,11 +21424,15 @@ extension GeneratedPlatformBridge {
         buildPropertiesCoreLocation0(&t)
         buildPropertiesMetal0(&t)
         buildPropertiesMetal1(&t)
-        return t
+        return t.entries
     }
 
-    private static func buildPropertiesFoundation0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesFoundation0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "Foundation",
             declaration: "var CharacterSet.bitmapRepresentation: Data { get }",
@@ -21822,11 +22054,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesFoundation1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesFoundation1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "Foundation",
             declaration: "var ProcessInfo.isMacCatalystApp: Bool { get }",
@@ -21974,11 +22209,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesSwiftUI10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesSwiftUI10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "SwiftUI",
             declaration: "var NSHostingController.preferredContentSize: CGSize { get set }",
@@ -22246,11 +22484,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("SwiftUI setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesSwiftUI20(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesSwiftUI20(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "SwiftUI",
             declaration: "var UIHostingController.childForHomeIndicatorAutoHidden: UIViewController? { get }",
@@ -22395,11 +22636,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("SwiftUI setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesCoreGraphics0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesCoreGraphics0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(CoreGraphics)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "CoreGraphics",
             declaration: "var CGColorSpace.baseColorSpace: CGColorSpace? { get }",
@@ -22879,11 +23123,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesQuartzCore0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesQuartzCore0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(QuartzCore)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "QuartzCore",
             declaration: "var CALayer.ToneMapMode.hashValue: Int { get }",
@@ -23805,11 +24052,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("QuartzCore setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesQuartzCore1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesQuartzCore1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(QuartzCore)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "QuartzCore",
             declaration: "var CALayer.shadowRadius: CGFloat { get set }",
@@ -24002,11 +24252,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("QuartzCore setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesAppKit0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSAppearance.Name.hashValue: Int { get }",
@@ -24593,11 +24846,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSApplication.occlusionState: NSApplication.OcclusionState { get }",
@@ -25243,11 +25499,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSBitmapImageRep.cgImage: CGImage? { get }",
@@ -26037,11 +26296,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesAppKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit3(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSCollectionView.allowsMultipleSelection: Bool { get set }",
@@ -26688,11 +26950,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit4(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSColorSpace.cgColorSpace: CGColorSpace? { get }",
@@ -27470,11 +27735,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit5(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSFont.TextStyle.rawValue: String { get }",
@@ -28000,11 +28268,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit6(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSImage.accessibilityDescription: String? { get set }",
@@ -28854,11 +29125,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesAppKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit7(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSMenu.PresentationStyle.rawValue: Int { get }",
@@ -29637,11 +29911,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit8(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSMenuItem.keyEquivalent: String { get set }",
@@ -30350,11 +30627,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit9(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSScrollView.FindBarPosition.rawValue: Int { get }",
@@ -31180,11 +31460,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTableView.SelectionHighlightStyle.rawValue: Int { get }",
@@ -31962,11 +32245,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesAppKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit11(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTableView.usesAutomaticRowHeights: Bool { get set }",
@@ -32889,11 +33175,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesAppKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit12(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextView.isAutomaticLinkDetectionEnabled: Bool { get set }",
@@ -33683,11 +33972,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit13(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.DefinitionPresentationType.hashValue: Int { get }",
@@ -34369,11 +34661,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit14(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit14(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.isHorizontalContentSizeConstraintActive: Bool { get set }",
@@ -35091,11 +35386,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesAppKit15(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit15(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.visibleRect: CGRect { get }",
@@ -35753,11 +36051,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit16(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit16(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.Level.hashValue: Int { get }",
@@ -36452,11 +36753,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesAppKit17(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit17(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.contentLayoutRect: CGRect { get }",
@@ -37198,11 +37502,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesAppKit18(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit18(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.isReleasedWhenClosed: Bool { get set }",
@@ -38005,11 +38312,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesAppKit19(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesAppKit19(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.title: String { get set }",
@@ -38190,11 +38500,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesUIKit0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var NSDirectionalEdgeInsets.bottom: CGFloat { get set }",
@@ -38840,11 +39153,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesUIKit1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIBezierPath.lineWidth: CGFloat { get set }",
@@ -39682,11 +39998,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesUIKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIButton.currentAttributedTitle: NSAttributedString? { get }",
@@ -40393,11 +40712,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesUIKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit3(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UICollectionView.indexPathsForSelectedItems: [IndexPath]? { get }",
@@ -41115,11 +41437,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesUIKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit4(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIEdgeInsets.left: CGFloat { get set }",
@@ -41681,11 +42006,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesUIKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit5(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIImage.isHighDynamicRange: Bool { get }",
@@ -42489,11 +42817,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit6(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UILabel.shadowOffset: CGSize { get set }",
@@ -43129,11 +43460,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit7(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIScrollView.IndexDisplayMode.rawValue: Int { get }",
@@ -43947,11 +44281,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesUIKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit8(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIScrollView.minimumZoomScale: CGFloat { get set }",
@@ -44765,11 +45102,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesUIKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit9(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.isPrefetchingEnabled: Bool { get set }",
@@ -45655,11 +45995,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesUIKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITextField.interactionState: Any { get set }",
@@ -46488,11 +46831,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesUIKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit11(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.AutoresizingMask.rawValue: UInt { get }",
@@ -47282,11 +47628,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesUIKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit12(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.largeContentImageInsets: UIEdgeInsets { get set }",
@@ -48029,11 +48378,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesUIKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit13(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIViewController.children: [UIViewController] { get }",
@@ -48752,11 +49104,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesUIKit14(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesUIKit14(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIViewController.viewIfLoaded: UIView? { get }",
@@ -49223,11 +49578,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesWebKit0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesWebKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(UIKit) && canImport(WebKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "WebKit",
             declaration: "var WKWebView.FullscreenState.rawValue: Int { get }",
@@ -49697,11 +50055,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesMapKit0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesMapKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(MapKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "MapKit",
             declaration: "var MKMapCamera.altitude: Double { get set }",
@@ -50549,11 +50910,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("MapKit setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesCoreLocation0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesCoreLocation0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(CoreLocation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "CoreLocation",
             declaration: "var CLLocation.altitude: Double { get }",
@@ -50728,11 +51092,14 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("CoreLocation setter invoked off-platform")
 #endif
             })
-#endif
     }
 
-    private static func buildPropertiesMetal0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesMetal0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(Metal)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "Metal",
             declaration: "var MTLBuffer.length: Int { get }",
@@ -51366,11 +51733,14 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-#endif
     }
 
-    private static func buildPropertiesMetal1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+    private static func buildPropertiesMetal1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]>) {
 #if canImport(Metal)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerProperty(
             &t, framework: "Metal",
             declaration: "var MTLDevice.registryID: UInt64 { get }",
@@ -51923,11 +52293,10 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("Metal setter invoked off-platform")
 #endif
             })
-#endif
     }
 
     static func buildStaticProperties() -> [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry] {
-        var t: [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry] = [:]
+        var t = GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>([:])
         buildStaticPropertiesFoundation0(&t)
         buildStaticPropertiesFoundation1(&t)
         buildStaticPropertiesSwiftUI10(&t)
@@ -51959,11 +52328,15 @@ extension GeneratedPlatformBridge {
         buildStaticPropertiesUIKit8(&t)
         buildStaticPropertiesMapKit0(&t)
         buildStaticPropertiesMetal0(&t)
-        return t
+        return t.entries
     }
 
-    private static func buildStaticPropertiesFoundation0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesFoundation0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "Foundation",
             type: "CharacterSet",
@@ -52489,11 +52862,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesFoundation1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesFoundation1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "Foundation",
             type: "ProcessInfo",
@@ -52524,11 +52900,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesSwiftUI10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesSwiftUI10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "SwiftUI",
             type: "NSHostingView",
@@ -52544,11 +52923,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("SwiftUI getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesQuartzCore0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesQuartzCore0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(QuartzCore)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "QuartzCore",
             type: "CALayer.ToneMapMode",
@@ -52594,11 +52976,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("QuartzCore getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSAppearance.Name",
@@ -53125,11 +53510,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSApplication.PresentationOptions",
@@ -53655,11 +54043,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSBezierPath",
@@ -54185,11 +54576,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit3(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSCollectionView.ScrollPosition",
@@ -54715,11 +55109,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit4(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSColor",
@@ -55245,11 +55642,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit5(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSColor",
@@ -55775,11 +56175,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit6(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSColorSpace",
@@ -56305,11 +56708,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit7(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSFont.Weight",
@@ -56835,11 +57241,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit8(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSImage",
@@ -57365,11 +57774,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit9(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSImage",
@@ -57895,11 +58307,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSImage",
@@ -58425,11 +58840,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit11(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSImage",
@@ -58955,11 +59373,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit12(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSScreen",
@@ -59485,11 +59906,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit13(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSView.DefinitionOptionKey",
@@ -60015,11 +60439,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit14(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit14(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSWindow.CollectionBehavior",
@@ -60545,11 +60972,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesAppKit15(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesAppKit15(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSWindow",
@@ -61030,11 +61460,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "NSDirectionalEdgeInsets",
@@ -61560,11 +61993,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIApplication",
@@ -62090,11 +62526,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIColor",
@@ -62620,11 +63059,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit3(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIColor",
@@ -63150,11 +63592,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit4(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIControl.Event",
@@ -63680,11 +64125,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit5(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIFont.Weight",
@@ -64210,11 +64658,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit6(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIScreen",
@@ -64740,11 +65191,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit7(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIView.AnimationOptions",
@@ -65270,11 +65724,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesUIKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesUIKit8(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "UIKit",
             type: "UIWindow.Level",
@@ -65350,11 +65807,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesMapKit0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesMapKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(MapKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "MapKit",
             type: "MKPointOfInterestFilter",
@@ -65385,11 +65845,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("MapKit getter invoked off-platform")
 #endif
         })
-#endif
     }
 
-    private static func buildStaticPropertiesMetal0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+    private static func buildStaticPropertiesMetal0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]>) {
 #if canImport(Metal)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerStaticProperty(
             &t, framework: "Metal",
             type: "MTLResourceOptions",
@@ -65495,11 +65958,10 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Metal getter invoked off-platform")
 #endif
         })
-#endif
     }
 
     static func buildEnumValues() -> [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]] {
-        var t: [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]] = [:]
+        var t = GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>([:])
         buildEnumValuesFoundation0(&t)
         buildEnumValuesFoundation1(&t)
         buildEnumValuesCoreGraphics0(&t)
@@ -65534,11 +65996,15 @@ extension GeneratedPlatformBridge {
         buildEnumValuesWebKit0(&t)
         buildEnumValuesMapKit0(&t)
         buildEnumValuesMetal0(&t)
-        return t
+        return t.entries
     }
 
-    private static func buildEnumValuesFoundation0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesFoundation0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "Foundation",
             type: "CharacterSet", name: "alphanumerics") {
@@ -65854,11 +66320,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesFoundation1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesFoundation1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(Foundation)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "Foundation",
             type: "ProcessInfo.ActivityOptions", name: "trackingEnabled") {
@@ -65931,11 +66400,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Foundation enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesCoreGraphics0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesCoreGraphics0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(CoreGraphics)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "CoreGraphics",
             type: "CGImageAlphaInfo", name: "alphaOnly") {
@@ -66008,11 +66480,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("CoreGraphics enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesQuartzCore0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesQuartzCore0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(QuartzCore)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "QuartzCore",
             type: "CALayer.ToneMapMode", name: "automatic") {
@@ -66040,11 +66515,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("QuartzCore enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSAppearance.Name", name: "accessibilityHighContrastAqua") {
@@ -66360,11 +66838,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSApplication.PresentationOptions", name: "disableAppleMenu") {
@@ -66680,11 +67161,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSBezierPath.WindingRule", name: "evenOdd") {
@@ -67000,11 +67484,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit3(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSBitmapImageRep.PropertyKey", name: "rgbColorTable") {
@@ -67320,11 +67807,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit4(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSButton.ButtonType", name: "onOff") {
@@ -67640,11 +68130,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit5(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSColor", name: "controlAccentColor") {
@@ -67960,11 +68453,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit6(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSColor", name: "secondarySelectedControlColor") {
@@ -68280,11 +68776,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit7(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit7(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSColor", name: "white") {
@@ -68600,11 +69099,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit8(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit8(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSColorSpaceName", name: "custom") {
@@ -68920,11 +69422,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit9(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSFont.Weight", name: "heavy") {
@@ -69240,11 +69745,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSImageView.FrameStyle", name: "button") {
@@ -69560,11 +70068,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit11(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit11(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSTableView.DraggingDestinationFeedbackStyle", name: "none") {
@@ -69880,11 +70391,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit12(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit12(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSView.BackgroundStyle", name: "lowered") {
@@ -70200,11 +70714,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit13(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit13(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSWindow.AnimationBehavior", name: "alertPanel") {
@@ -70520,11 +71037,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit14(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit14(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSWindow.Depth", name: "twentyfourBitRGB") {
@@ -70840,11 +71360,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesAppKit15(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit15(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSWindow.StyleMask", name: "utilityWindow") {
@@ -70971,11 +71494,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "NSDirectionalEdgeInsets", name: "zero") {
@@ -71291,11 +71817,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit1(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIButton.Configuration.CornerStyle", name: "dynamic") {
@@ -71611,11 +72140,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit2(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UICollectionView.ScrollPosition", name: "left") {
@@ -71931,11 +72463,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit3(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIColor", name: "systemBrown") {
@@ -72251,11 +72786,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit4(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIContentSizeCategory", name: "extraExtraExtraLarge") {
@@ -72571,11 +73109,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit5(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIControl.Event", name: "touchDragOutside") {
@@ -72891,11 +73432,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit6(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIFont.Width", name: "condensed") {
@@ -73211,11 +73755,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit7(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit7(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIImage.SymbolWeight", name: "light") {
@@ -73531,11 +74078,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit8(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit8(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UITableView.RowAnimation", name: "fade") {
@@ -73851,11 +74401,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit9(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIView.AnimationOptions", name: "autoreverse") {
@@ -74171,11 +74724,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesUIKit10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesUIKit10(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "UIKit",
             type: "UIView.ContentMode", name: "center") {
@@ -74491,11 +75047,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesWebKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesWebKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(UIKit) && canImport(WebKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "WebKit",
             type: "WKWebView.FullscreenState", name: "enteringFullscreen") {
@@ -74532,11 +75091,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("WebKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesMapKit0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesMapKit0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(MapKit)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "MapKit",
             type: "MKMapConfiguration.ElevationStyle", name: "flat") {
@@ -74591,11 +75153,14 @@ extension GeneratedPlatformBridge {
             preconditionFailure("MapKit enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
-    private static func buildEnumValuesMetal0(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesMetal0(_ t: inout GeneratedPlatformRegistrationTable<[GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]>) {
 #if canImport(Metal)
+        t.compiledHere = true
+#else
+        t.compiledHere = false
+#endif
         registerEnumValue(
             &t, framework: "Metal",
             type: "MTLCommandBufferStatus", name: "committed") {
@@ -74713,7 +75278,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("Metal enum value invoked off-platform")
 #endif
         }
-#endif
     }
 
     static func buildKnownMembers() -> [GeneratedPlatformMemberKey: Bool] {
@@ -74825,7 +75389,6 @@ extension GeneratedPlatformBridge {
     }
 
     private static func buildKnownMembersFoundation0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Foundation)
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "BlockOperation",
@@ -74966,11 +75529,9 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "Operation",
             member: "main")] = true
-#endif
     }
 
     private static func buildKnownMembersFoundation1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Foundation)
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "Operation",
@@ -75111,11 +75672,9 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "ProcessInfo",
             member: "beginActivity")] = true
-#endif
     }
 
     private static func buildKnownMembersFoundation2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Foundation)
         t[GeneratedPlatformMemberKey(
             framework: "Foundation",
             type: "ProcessInfo",
@@ -75192,11 +75751,9 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "ProcessInfo",
             member: "thermalState")] = false
-#endif
     }
 
     private static func buildKnownMembersSwiftUI10(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "SwiftUI",
             type: "NSHostingController",
@@ -75337,11 +75894,9 @@ extension GeneratedPlatformBridge {
             framework: "SwiftUI",
             type: "NSHostingView",
             member: "layerContentsRedrawPolicy")] = false
-#endif
     }
 
     private static func buildKnownMembersSwiftUI11(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "SwiftUI",
             type: "NSHostingView",
@@ -75482,11 +76037,9 @@ extension GeneratedPlatformBridge {
             framework: "SwiftUI",
             type: "NSHostingView",
             member: "touchesBegan")] = true
-#endif
     }
 
     private static func buildKnownMembersSwiftUI12(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "SwiftUI",
             type: "NSHostingView",
@@ -75547,11 +76100,9 @@ extension GeneratedPlatformBridge {
             framework: "SwiftUI",
             type: "NSHostingView",
             member: "willRemoveSubview")] = true
-#endif
     }
 
     private static func buildKnownMembersSwiftUI20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "SwiftUI",
             type: "UIHostingController",
@@ -75660,11 +76211,9 @@ extension GeneratedPlatformBridge {
             framework: "SwiftUI",
             type: "UIHostingController",
             member: "willMove")] = true
-#endif
     }
 
     private static func buildKnownMembersCoreGraphics0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(CoreGraphics)
         t[GeneratedPlatformMemberKey(
             framework: "CoreGraphics",
             type: "CGColorSpace",
@@ -75805,11 +76354,9 @@ extension GeneratedPlatformBridge {
             framework: "CoreGraphics",
             type: "CGContext",
             member: "clip")] = true
-#endif
     }
 
     private static func buildKnownMembersCoreGraphics1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(CoreGraphics)
         t[GeneratedPlatformMemberKey(
             framework: "CoreGraphics",
             type: "CGContext",
@@ -75950,11 +76497,9 @@ extension GeneratedPlatformBridge {
             framework: "CoreGraphics",
             type: "CGContext",
             member: "scaleBy")] = true
-#endif
     }
 
     private static func buildKnownMembersCoreGraphics2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(CoreGraphics)
         t[GeneratedPlatformMemberKey(
             framework: "CoreGraphics",
             type: "CGContext",
@@ -76095,11 +76640,9 @@ extension GeneratedPlatformBridge {
             framework: "CoreGraphics",
             type: "CGContext",
             member: "strokeEllipse")] = true
-#endif
     }
 
     private static func buildKnownMembersCoreGraphics3(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(CoreGraphics)
         t[GeneratedPlatformMemberKey(
             framework: "CoreGraphics",
             type: "CGContext",
@@ -76224,11 +76767,9 @@ extension GeneratedPlatformBridge {
             framework: "CoreGraphics",
             type: "CGImageAlphaInfo",
             member: "debugDescription")] = false
-#endif
     }
 
     private static func buildKnownMembersQuartzCore0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(QuartzCore)
         t[GeneratedPlatformMemberKey(
             framework: "QuartzCore",
             type: "CALayer",
@@ -76369,11 +76910,9 @@ extension GeneratedPlatformBridge {
             framework: "QuartzCore",
             type: "CALayer",
             member: "displayIfNeeded")] = true
-#endif
     }
 
     private static func buildKnownMembersQuartzCore1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(QuartzCore)
         t[GeneratedPlatformMemberKey(
             framework: "QuartzCore",
             type: "CALayer",
@@ -76514,11 +77053,9 @@ extension GeneratedPlatformBridge {
             framework: "QuartzCore",
             type: "CALayer",
             member: "replaceSublayer")] = true
-#endif
     }
 
     private static func buildKnownMembersQuartzCore2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(QuartzCore)
         t[GeneratedPlatformMemberKey(
             framework: "QuartzCore",
             type: "CALayer",
@@ -76619,11 +77156,9 @@ extension GeneratedPlatformBridge {
             framework: "QuartzCore",
             type: "CALayer.ToneMapMode",
             member: "hashValue")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSAppearance",
@@ -76764,11 +77299,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSApplication",
             member: "finishLaunching")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSApplication",
@@ -76909,11 +77442,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSApplication",
             member: "run")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSApplication",
@@ -77054,11 +77585,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSBezierPath",
             member: "addClip")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit3(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSBezierPath",
@@ -77199,11 +77728,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSBezierPath",
             member: "setAssociatedPoints")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit4(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSBezierPath",
@@ -77344,11 +77871,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSButton",
             member: "allowsMixedState")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit5(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSButton",
@@ -77489,11 +78014,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSCollectionView",
             member: "backgroundView")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit6(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSCollectionView",
@@ -77634,11 +78157,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSCollectionView",
             member: "performBatchUpdates")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit7(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSCollectionView",
@@ -77779,11 +78300,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSColor",
             member: "hueComponent")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit8(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSColor",
@@ -77924,11 +78443,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSControl",
             member: "baseWritingDirection")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit9(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSControl",
@@ -78069,11 +78586,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSControl",
             member: "tag")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit10(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSControl",
@@ -78214,11 +78729,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSFont",
             member: "leading")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit11(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSFont",
@@ -78359,11 +78872,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSImage",
             member: "draw")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit12(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSImage",
@@ -78504,11 +79015,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSImageRep",
             member: "pixelsWide")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit13(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSImageRep",
@@ -78649,11 +79158,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSMenu",
             member: "menuBarHeight")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit14(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSMenu",
@@ -78794,11 +79301,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSMenuItem",
             member: "isSectionHeader")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit15(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSMenuItem",
@@ -78939,11 +79444,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSResponder",
             member: "magnify")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit16(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSResponder",
@@ -79084,11 +79587,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSResponder",
             member: "touchesBegan")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit17(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSResponder",
@@ -79229,11 +79730,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSScreen",
             member: "supportedWindowDepths")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit18(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSScreen",
@@ -79374,11 +79873,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSScrollView",
             member: "scrollerInsets")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit19(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSScrollView",
@@ -79519,11 +80016,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "didAdd")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -79664,11 +80159,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "numberOfColumns")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -79809,11 +80302,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "sortDescriptors")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -79954,11 +80445,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextField",
             member: "textDidChange")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextField",
@@ -80099,11 +80588,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "drawBackground")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -80244,11 +80731,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "mathExpressionCompletionType")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -80389,11 +80874,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "setNeedsDisplay")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -80534,11 +81017,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "typingAttributes")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -80679,11 +81160,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "adjustPageHeightNew")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -80824,11 +81303,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "constraintsAffectingLayout")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit29(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -80969,11 +81446,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "focusRingMaskBounds")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit30(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -81114,11 +81589,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "layerUsesCoreImageFilters")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit31(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -81259,11 +81732,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "printView")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit32(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -81404,11 +81875,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "setContentCompressionResistancePriority")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit33(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -81549,11 +82018,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "viewDidUnhide")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit34(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -81694,11 +82161,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSViewController",
             member: "extensionContext")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit35(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSViewController",
@@ -81839,11 +82304,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSViewController",
             member: "viewWillTransition")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit36(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -81984,11 +82447,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "cascadingReferenceFrame")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit37(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -82129,11 +82590,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "disableKeyEquivalentForDefaultButtonCell")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit38(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -82274,11 +82733,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "hasShadow")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit39(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -82419,11 +82876,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "makeKey")] = true
-#endif
     }
 
     private static func buildKnownMembersAppKit40(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -82564,11 +83019,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "representedFilename")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit41(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -82709,11 +83162,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "sheets")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit42(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -82854,11 +83305,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "windowTitlebarLayoutDirection")] = false
-#endif
     }
 
     private static func buildKnownMembersAppKit43(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -82891,11 +83340,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow.Level",
             member: "hashValue")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "NSDirectionalEdgeInsets",
@@ -83036,11 +83483,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIApplication",
             member: "isStatusBarHidden")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIApplication",
@@ -83181,11 +83626,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIApplication.ExtensionPointIdentifier",
             member: "hashValue")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIApplication.LaunchOptionsKey",
@@ -83326,11 +83769,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIButton",
             member: "attributedTitle")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit3(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIButton",
@@ -83471,11 +83912,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIButton",
             member: "setNeedsUpdateConfiguration")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit4(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIButton",
@@ -83616,11 +84055,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIButton.Configuration",
             member: "preferredSymbolConfigurationForImage")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit5(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIButton.Configuration",
@@ -83761,11 +84198,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UICollectionView",
             member: "dataSource")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit6(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UICollectionView",
@@ -83906,11 +84341,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UICollectionView",
             member: "register")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit7(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UICollectionView",
@@ -84051,11 +84484,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIControl",
             member: "allControlEvents")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit8(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIControl",
@@ -84196,11 +84627,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIFont",
             member: "descender")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit9(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIFont",
@@ -84341,11 +84770,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIImage",
             member: "imageOrientation")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit10(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIImage",
@@ -84486,11 +84913,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIImage.SymbolConfiguration",
             member: "configurationWithoutScale")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit11(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIImage.SymbolConfiguration",
@@ -84631,11 +85056,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UILabel",
             member: "lineBreakStrategy")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit12(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UILabel",
@@ -84776,11 +85199,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIResponder",
             member: "pressesCancelled")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit13(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIResponder",
@@ -84921,11 +85342,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIScreen",
             member: "nativeScale")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit14(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIScreen",
@@ -85066,11 +85485,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIScrollView",
             member: "indicatorStyle")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit15(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIScrollView",
@@ -85211,11 +85628,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITableView",
             member: "allowsFocus")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit16(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITableView",
@@ -85356,11 +85771,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITableView",
             member: "indexPathsForRows")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit17(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITableView",
@@ -85501,11 +85914,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITableView",
             member: "selectRow")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit18(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITableView",
@@ -85646,11 +86057,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITextField",
             member: "leftView")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit19(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextField",
@@ -85791,11 +86200,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITextView",
             member: "performTextSearch")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextView",
@@ -85936,11 +86343,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITraitCollection",
             member: "replacing")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITraitCollection",
@@ -86081,11 +86486,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "contentCompressionResistancePriority")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -86226,11 +86629,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "invalidateIntrinsicContentSize")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -86371,11 +86772,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "removeGestureRecognizer")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -86516,11 +86915,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "unregisterForTraitChanges")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -86661,11 +87058,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "contentUnavailableConfigurationState")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -86806,11 +87201,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "nibName")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -86951,11 +87344,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "setContentScrollView")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -87096,11 +87487,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "updateContentUnavailableConfiguration")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit29(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -87241,11 +87630,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindow",
             member: "makeKey")] = true
-#endif
     }
 
     private static func buildKnownMembersUIKit30(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindow",
@@ -87386,11 +87773,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindowScene.Geometry",
             member: "interfaceOrientation")] = false
-#endif
     }
 
     private static func buildKnownMembersUIKit31(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit)
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindowScene.GeometryPreferences.Mac",
@@ -87399,11 +87784,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindowScene.GeometryPreferences.iOS",
             member: "interfaceOrientations")] = false
-#endif
     }
 
     private static func buildKnownMembersWebKit0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit) && canImport(WebKit)
         t[GeneratedPlatformMemberKey(
             framework: "WebKit",
             type: "WKWebView",
@@ -87544,11 +87927,9 @@ extension GeneratedPlatformBridge {
             framework: "WebKit",
             type: "WKWebView",
             member: "microphoneCaptureState")] = false
-#endif
     }
 
     private static func buildKnownMembersWebKit1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(UIKit) && canImport(WebKit)
         t[GeneratedPlatformMemberKey(
             framework: "WebKit",
             type: "WKWebView",
@@ -87641,11 +88022,9 @@ extension GeneratedPlatformBridge {
             framework: "WebKit",
             type: "WKWebView",
             member: "url")] = false
-#endif
     }
 
     private static func buildKnownMembersMapKit0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(MapKit)
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
             type: "MKMapCamera",
@@ -87786,11 +88165,9 @@ extension GeneratedPlatformBridge {
             framework: "MapKit",
             type: "MKMapView",
             member: "register")] = true
-#endif
     }
 
     private static func buildKnownMembersMapKit1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(MapKit)
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
             type: "MKMapView",
@@ -87931,11 +88308,9 @@ extension GeneratedPlatformBridge {
             framework: "MapKit",
             type: "MKStandardMapConfiguration",
             member: "emphasisStyle")] = false
-#endif
     }
 
     private static func buildKnownMembersMapKit2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(MapKit)
         t[GeneratedPlatformMemberKey(
             framework: "MapKit",
             type: "MKStandardMapConfiguration",
@@ -87944,11 +88319,9 @@ extension GeneratedPlatformBridge {
             framework: "MapKit",
             type: "MKStandardMapConfiguration",
             member: "showsTraffic")] = false
-#endif
     }
 
     private static func buildKnownMembersCoreLocation0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(CoreLocation)
         t[GeneratedPlatformMemberKey(
             framework: "CoreLocation",
             type: "CLLocation",
@@ -88009,11 +88382,9 @@ extension GeneratedPlatformBridge {
             framework: "CoreLocation",
             type: "CLLocationCoordinate2D",
             member: "longitude")] = false
-#endif
     }
 
     private static func buildKnownMembersMetal0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Metal)
         t[GeneratedPlatformMemberKey(
             framework: "Metal",
             type: "MTLBuffer",
@@ -88154,11 +88525,9 @@ extension GeneratedPlatformBridge {
             framework: "Metal",
             type: "MTLCommandBuffer",
             member: "status")] = false
-#endif
     }
 
     private static func buildKnownMembersMetal1(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Metal)
         t[GeneratedPlatformMemberKey(
             framework: "Metal",
             type: "MTLCommandBuffer",
@@ -88299,11 +88668,9 @@ extension GeneratedPlatformBridge {
             framework: "Metal",
             type: "MTLComputeCommandEncoder",
             member: "dispatchThreads")] = true
-#endif
     }
 
     private static func buildKnownMembersMetal2(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Metal)
         t[GeneratedPlatformMemberKey(
             framework: "Metal",
             type: "MTLComputeCommandEncoder",
@@ -88444,11 +88811,9 @@ extension GeneratedPlatformBridge {
             framework: "Metal",
             type: "MTLComputePipelineState",
             member: "makeComputePipelineStateWithAdditionalBinaryFunctions")] = true
-#endif
     }
 
     private static func buildKnownMembersMetal3(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Metal)
         t[GeneratedPlatformMemberKey(
             framework: "Metal",
             type: "MTLComputePipelineState",
@@ -88589,11 +88954,9 @@ extension GeneratedPlatformBridge {
             framework: "Metal",
             type: "MTLDevice",
             member: "makeIOFileHandle")] = true
-#endif
     }
 
     private static func buildKnownMembersMetal4(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Metal)
         t[GeneratedPlatformMemberKey(
             framework: "Metal",
             type: "MTLDevice",
@@ -88734,11 +89097,9 @@ extension GeneratedPlatformBridge {
             framework: "Metal",
             type: "MTLDevice",
             member: "supportsPullModelInterpolation")] = false
-#endif
     }
 
     private static func buildKnownMembersMetal5(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Metal)
         t[GeneratedPlatformMemberKey(
             framework: "Metal",
             type: "MTLDevice",
@@ -88879,11 +89240,9 @@ extension GeneratedPlatformBridge {
             framework: "Metal",
             type: "MTLResource",
             member: "makeAliasable")] = true
-#endif
     }
 
     private static func buildKnownMembersMetal6(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
-#if canImport(Metal)
         t[GeneratedPlatformMemberKey(
             framework: "Metal",
             type: "MTLResource",
@@ -88908,7 +89267,6 @@ extension GeneratedPlatformBridge {
             framework: "Metal",
             type: "MTLSize",
             member: "width")] = false
-#endif
     }
 
     static func buildEqualityAdapters() -> [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] {
