@@ -1369,6 +1369,30 @@ enum GeneratedPlatformBridge {
         }
     }
 
+    /// The inert reading of a member the interface spells `T!`.
+    ///
+    /// `!` is the importer's record that a value is non-nil in practice while
+    /// the header cannot prove it, and source compiled against such a member
+    /// passes it straight into `T` positions — `addSubview(controller.view)`
+    /// compiles, and traps at runtime if the value really is absent. So `nil`
+    /// is not the typed inert reading of a `T!` member; it is the one reading
+    /// that cannot occur in working compiled code. Fall back on the WRAPPED
+    /// type and re-wrap, so an off-platform read is inert AND present, exactly
+    /// as a plain `T` member's fallback already is. A declared `T?` keeps its
+    /// `nil`: there, absence is something the interface actually states.
+    static func fallbackResult(
+        framework: String, type: String, isImplicitlyUnwrapped: Bool
+    ) -> RuntimeValue {
+        guard isImplicitlyUnwrapped,
+              let wrapped = optionalWrappedType(type) else {
+            return fallbackResult(framework: framework, type: type)
+        }
+        return .some(
+            fallbackResult(framework: framework, type: wrapped),
+            wrappedTypeName: wrapped,
+            isImplicitlyUnwrapped: true)
+    }
+
     /// Swift symbol graphs preserve imported `T!` spelling even though the
     /// executable bridge contract uses `T?`. Reapply that source semantic at
     /// the shared dispatch boundary so native payloads, inert fallbacks, and
@@ -1632,7 +1656,9 @@ enum GeneratedPlatformBridge {
                         return applyingImplicitlyUnwrappedOptional(
                             fallbackSemantic?.result()
                                 ?? fallbackResult(
-                                    framework: framework, type: resultType),
+                                    framework: framework, type: resultType,
+                                    isImplicitlyUnwrapped:
+                                        isImplicitlyUnwrapped),
                             resultType: resultType,
                             isImplicitlyUnwrapped: isImplicitlyUnwrapped)
                     }
@@ -1670,7 +1696,8 @@ enum GeneratedPlatformBridge {
                             generatedNominalName($0.typeName) == expectedType
                         }?.value
                         ?? fallbackResult(
-                            framework: framework, type: resultType)
+                            framework: framework, type: resultType,
+                            isImplicitlyUnwrapped: isImplicitlyUnwrapped)
                     return applyingImplicitlyUnwrappedOptional(
                         value, resultType: resultType,
                         isImplicitlyUnwrapped: isImplicitlyUnwrapped)

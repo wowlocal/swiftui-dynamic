@@ -33,4 +33,24 @@ import SwiftInterpreter
         #expect(tuple.values[0].boolValue == false)
         #expect(tuple.values[1].boolValue == true)
     }
+
+    /// `UIViewController.view` is declared `UIView!`. The `!` records that the
+    /// value is non-nil in practice while the header cannot prove it, and
+    /// compiled source relies on exactly that — it passes the member straight
+    /// into `UIView` positions. So `nil` is not this member's inert reading;
+    /// it is the reading that traps. An off-platform read must be inert AND
+    /// present.
+    @Test func implicitlyUnwrappedMemberReadsPresentOffPlatform() throws {
+        let value = try run("""
+        import SwiftUI
+
+        let controller = UIViewController()
+        let view = controller.view
+        (view == nil, controller.view.subviews.isEmpty)
+        """)
+
+        let tuple = try #require(value.tupleValue)
+        #expect(tuple.values[0].boolValue == false)
+        #expect(tuple.values[1].boolValue == true)
+    }
 }
