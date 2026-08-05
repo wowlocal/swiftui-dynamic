@@ -2513,9 +2513,20 @@ private func emitBuilder<T>(
         }
         for (index, chunk) in chunks.enumerated() {
             output += "\n    private static func build\(name)\(group.identifier)\(index)(_ t: inout \(tableType)) {\n"
+            // A group's condition can be NARROWER than the availability of the
+            // framework that declares it: `UIHostingController` is declared in
+            // SwiftUI but exists only where UIKit does. Guarding the entry BODY
+            // alone leaves such a member registered on a platform that cannot
+            // run it, so lookup succeeds and then hits the off-platform
+            // `preconditionFailure` — a fatal crash where the member used to be
+            // merely absent. Register under the same condition that compiles
+            // the body, so off-platform the member is absent and the call falls
+            // back to the ordinary unresolved-member path.
+            output += "#if \(group.condition)\n"
             for value in chunk {
                 output += entry(value, group.condition) + "\n"
             }
+            output += "#endif\n"
             output += "    }\n"
         }
     }

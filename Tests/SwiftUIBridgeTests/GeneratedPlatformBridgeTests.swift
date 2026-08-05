@@ -39,6 +39,47 @@ import AppKit
         #expect(tuple.values[1].stringValue == "entered")
     }
 
+    /// A member's availability can be narrower than that of the framework
+    /// DECLARING it — `UIHostingController` is declared in SwiftUI but exists
+    /// only where UIKit does. Guarding only the entry body leaves such a member
+    /// registered on a platform that cannot run it, so lookup succeeds and the
+    /// call reaches the off-platform `preconditionFailure`: a process-fatal
+    /// crash where the member used to be merely absent. RED before the fix,
+    /// where every registration sat outside its group's `#if`.
+    @Test func everyGeneratedRegistrationIsGuardedByItsOwnAvailability() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let generated = packageRoot.appendingPathComponent(
+            "Sources/SwiftUIBridge/Generated/GeneratedPlatformBridge.swift")
+        let source = try String(contentsOf: generated, encoding: .utf8)
+
+        var conditionDepth = 0
+        var unguarded: [String] = []
+        for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("#if") {
+                conditionDepth += 1
+            } else if trimmed.hasPrefix("#endif") {
+                conditionDepth -= 1
+            } else if trimmed.hasPrefix("register"), trimmed.hasSuffix("("),
+                conditionDepth == 0
+            {
+                unguarded.append(trimmed)
+            }
+        }
+
+        #expect(conditionDepth == 0)
+        #expect(
+            unguarded.isEmpty,
+            """
+            \(unguarded.count) generated registrations are emitted outside any
+            availability guard, so they register on platforms whose bodies
+            compile to preconditionFailure: \(unguarded.prefix(3))
+            """)
+    }
+
     @Test func darwinSocketMemoryLayoutsMatchNativeSwift() throws {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
