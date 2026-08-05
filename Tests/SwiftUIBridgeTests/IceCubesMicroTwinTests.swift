@@ -124,6 +124,48 @@ struct IceCubesMicroTwinTests {
         func updateNSView(_ nsView: NSView, context: Context) {}
     }
 
+    /// The media browser's own shape, one step past the plain hosted
+    /// controller above: the hosted content arrives through a `@ViewBuilder`
+    /// closure rather than as a type the source constructs at the call, so
+    /// what reaches `rootView:` is whatever the builder produced — for
+    /// `MediaUIAttachmentImageView` a modifier chain, not a bare struct.
+    private struct BuilderHostedBox<Content: View>: NSViewRepresentable {
+        private let content: Content
+
+        init(@ViewBuilder content: () -> Content) {
+            self.content = content()
+        }
+
+        func makeNSView(context: Context) -> NSView {
+            let container = NSView()
+            let hosted = context.coordinator.hostingController.view
+            hosted.frame = NSRect(x: 0, y: 0, width: 120, height: 60)
+            container.addSubview(hosted)
+            return container
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {}
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator(hostingController: NSHostingController(rootView: content))
+        }
+
+        class Coordinator: NSObject {
+            var hostingController: NSHostingController<Content>
+
+            init(hostingController: NSHostingController<Content>) {
+                self.hostingController = hostingController
+            }
+        }
+    }
+
+    private struct NativeBuilderHostedTwin: View {
+        var body: some View {
+            BuilderHostedBox { Color.red }
+                .frame(width: 120, height: 60)
+        }
+    }
+
     private struct NativeHostedControllerTwin: View {
         var body: some View {
             HostedControllerBox()
@@ -495,6 +537,71 @@ struct IceCubesMicroTwinTests {
             AnyView(NativeHostedControllerTwin()), size: size)
         let ae = Self.pixelAE(actual, expected, size: size)
         print("@@icecubes-hosting-controller-microtwin ae=\(ae)")
+        #expect(ae == 0)
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
+    /// RED at ce5645ff: the media browser's `ZoomableScrollView` reports
+    /// `nonthrowing 'func UIView.addSubview(_ p0: UIView) -> Void' threw:
+    /// cannot convert '<UIKit.UIView stub>' to generated UIKit type 'UIView'`.
+    /// The controller above hosts an interpreted struct and draws; this one
+    /// hosts what a `@ViewBuilder` closure produced, which is the app's shape
+    /// (`MediaUIZoomableContainer { LazyImage(…)… }`).
+    @MainActor
+    @Test
+    func builderSuppliedRootViewDrawsThroughItsHostingController() throws {
+        let source = """
+        import AppKit
+
+        struct BuilderHostedBox<Content: View>: NSViewRepresentable {
+            private let content: Content
+
+            init(@ViewBuilder content: () -> Content) {
+                self.content = content()
+            }
+
+            func makeNSView(context: Context) -> NSView {
+                let container = NSView()
+                let hosted = context.coordinator.hostingController.view
+                hosted.frame = NSRect(x: 0, y: 0, width: 120, height: 60)
+                container.addSubview(hosted)
+                return container
+            }
+
+            func updateNSView(_ nsView: NSView, context: Context) {}
+
+            func makeCoordinator() -> Coordinator {
+                Coordinator(hostingController: NSHostingController(rootView: content))
+            }
+
+            class Coordinator: NSObject {
+                var hostingController: NSHostingController<Content>
+
+                init(hostingController: NSHostingController<Content>) {
+                    self.hostingController = hostingController
+                }
+            }
+        }
+
+        BuilderHostedBox { Color.red }
+            .frame(width: 120, height: 60)
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("builder-hosted microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 160, height: 100)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeBuilderHostedTwin()), size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-builder-hosted-microtwin ae=\(ae)")
         #expect(ae == 0)
         #expect(RenderDiagnostics.errors.isEmpty)
     }

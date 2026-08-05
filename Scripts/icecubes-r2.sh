@@ -276,14 +276,22 @@ R2_FLOORS=(
   # Both sides now pin `preferredRange`, and the comparator refuses to score a
   # pair that disagrees on its encoding.
   tags-list 2
-  # Was 367861, of which 197 px were the `.draggable(_:)` error label: that
-  # modifier was registered for a `URL` payload alone and the app hands it an
-  # interpreted `Transferable` (`MediaUIImageTransferable`), so the unmatched
-  # overload replaced the image. The conformance-dispatched carrier answers the
-  # constraint and the label is gone. What remains is cause (b): `.focused` +
-  # `.onKeyPress` + `.scrollPosition` are unregistered and the chain absorbs
-  # from its FIRST unbridged member, so the image itself still never draws.
-  media-browser 367681
+  # Was 367681 — the whole image block, behind a UIKit hosting stack that
+  # stopped at a different statement every iteration (representable
+  # conformance, then the generic hosting controller, then `.view`'s
+  # optionality, then `autoresizingMask`, then `addSubview`). The last link was
+  # not in that chain at all: an SDK parameter spelled `any View` refused every
+  # value SwiftUI builds, so `UIHostingController(rootView:)` fell to its
+  # payload-less stub and `.view` handed `addSubview` a typed inert `UIView`.
+  # With a native view answering the View existential it satisfies, the image
+  # draws and the cliff pays out.
+  #
+  # What remains is the surrounding container, NOT the image: the
+  # `.scrollPosition.toolbar.onAppear` chain is still absorbed from its first
+  # unbridged member (`.scrollPosition(id:)`, whose interface declares
+  # `Binding<(some Hashable)?>` — an opaque parameter written in place inside a
+  # compound type, which BridgeGen specializes in neither of its two paths).
+  media-browser 18929
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

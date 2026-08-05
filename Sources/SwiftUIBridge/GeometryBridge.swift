@@ -1290,6 +1290,22 @@ func bridgeHostProtocolCandidates(of value: Any) -> [String] {
     default:
         break
     }
+    // A native SwiftUI view answers the existential it actually satisfies.
+    // Every other arm above reads a conformance the bridge declares; this one
+    // reads the conformance SwiftUI itself declares, so no view type is named.
+    //
+    // Without it, an SDK parameter spelled `any View` refuses the very values
+    // SwiftUI builds. It costs nothing while a view stays an interpreted
+    // instance — that answers `View` through its own symbol — but a
+    // ViewBuilder slot erases what passes through it, so an interpreted view
+    // reaching a generic `Content` arrives as a native `AnyView`, and a
+    // bridged `Color.red` was never an instance at all. Both then failed the
+    // `any View` match at `UIHostingController(rootView:)`, which fell to the
+    // payload-less stub and made `.view` a typed inert `UIView` — the media
+    // browser's `addSubview` sentence.
+    if value is any View {
+        candidates.append("View")
+    }
     var seen: Set<String> = []
     return candidates.filter { seen.insert($0).inserted }
 }
