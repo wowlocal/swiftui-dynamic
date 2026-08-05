@@ -1773,7 +1773,30 @@ let generatedTargetDeployments: [
 ] = [
     "iOS": (18, 0),
     "macCatalyst": (18, 0),
+    // The generator reads the macOS interface and the generated bridge is
+    // compiled for the macOS host too, so the host's own floor belongs in the
+    // same table. Its absence was not a design: a declaration newer than
+    // macOS 15 could state no clause, so `needsAvailabilityGuard` had nothing
+    // to fall back to and the declaration was dropped instead of guarded.
+    "macOS": (15, 0),
 ]
+
+/// The availability an interface declares for a NOMINAL, keyed by its name.
+/// Availability is a property of the declaration, not of the pass that happens
+/// to scan it, and several passes compute the same `guarded` verdict from the
+/// same attributes — so the clause each verdict came from is recorded once
+/// here and read back where a guard can be emitted.
+var interfaceAvailabilitiesByType: [String: Set<GeneratedTargetAvailability>] =
+    [:]
+
+func recordInterfaceAvailability(
+    of typeName: String, _ attributes: AttributeListSyntax
+) {
+    let availabilities = minimumTargetAvailabilities(attributes)
+    guard !availabilities.isEmpty else { return }
+    interfaceAvailabilitiesByType[typeName, default: []]
+        .formUnion(availabilities)
+}
 
 func minimumTargetAvailabilities(
     _ attributes: AttributeListSyntax
@@ -2963,6 +2986,88 @@ var initSeenKeys = Set<String>()
 var initTotal = 0
 var initGeneratable = 0
 var initGuarded = 0
+/// Newer-OS inits that are now EMITTED, behind the availability their own
+/// interface declares. Reported separately from `initGuarded` so the two
+/// dispositions — "guarded and reachable" and "unstatable, still dropped" —
+/// can never be read as one number.
+var initRuntimeGuarded = 0
+/// Selections dropped because the nominal's own overload set makes the call
+/// ambiguous — the compiler would reject the spelling too.
+var initAmbiguous = 0
+
+/// One declared initializer parameter, as the interface spells it.
+struct InitParameterFact: Hashable {
+    let label: String?
+    let type: String
+    let hasDefault: Bool
+}
+
+/// Every usable initializer a nominal declares, so a selection that omits
+/// defaulted parameters can be checked against the SIBLINGS it would compete
+/// with. Dropping a defaulted parameter is only legal when the remaining
+/// labels still name exactly one initializer: `ConcentricRectangle` declares
+/// several all-defaulted inits that share `topLeadingCorner:`, so
+/// `ConcentricRectangle(topLeadingCorner:)` is ambiguous to the real compiler
+/// and must not be emitted at all.
+///
+/// Only candidates the compiler would actually PREFER compete. A deprecated
+/// or disfavored sibling loses overload resolution rather than making the call
+/// ambiguous — `ScrollView(content:)` resolves today precisely because the
+/// sibling accepting `content:` is `deprecated: 100000.0`.
+var interfaceInitSignatures: [String: [[InitParameterFact]]] = [:]
+var interfaceInitSignatureKeys: [String: Set<String>] = [:]
+
+/// Whether an initializer is a candidate overload resolution would prefer.
+func isPreferredOverloadCandidate(_ attributes: AttributeListSyntax) -> Bool {
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self) else { continue }
+        let name = attr.attributeName.trimmedDescription
+        if name == "_disfavoredOverload" { return false }
+        guard name == "available" else { continue }
+        let text = attr.trimmedDescription
+        if text.contains("deprecated") || text.contains("obsoleted")
+            || text.contains("unavailable") {
+            return false
+        }
+    }
+    return true
+}
+/// The initializer each emitted variant came from, so ambiguity is judged
+/// against the declared types at the selected labels rather than labels alone
+/// (two inits sharing a label but not its type are what the compiler resolves,
+/// and they must keep both variants).
+var initVariantOwnerSignature: [String: [InitParameterFact]] = [:]
+
+func recordInterfaceInitSignature(
+    of typeName: String, _ signature: [InitParameterFact],
+    attributes: AttributeListSyntax
+) {
+    guard isPreferredOverloadCandidate(attributes) else { return }
+    let key = signature.map {
+        "\($0.label ?? "_"):\($0.type):\($0.hasDefault)"
+    }.joined(separator: ",")
+    guard interfaceInitSignatureKeys[typeName, default: []]
+        .insert(key).inserted else { return }
+    interfaceInitSignatures[typeName, default: []].append(signature)
+}
+
+/// Whether `signature` could satisfy a call that passes exactly `labels`,
+/// with the declared types `reference` gives those labels.
+func initSignature(
+    _ signature: [InitParameterFact],
+    accepts labels: [String],
+    typedAs reference: [InitParameterFact]
+) -> Bool {
+    var remaining = signature
+    for label in labels {
+        guard let index = remaining.firstIndex(where: { $0.label == label }),
+              let referenced = reference.first(where: { $0.label == label }),
+              remaining[index].type == referenced.type
+        else { return false }
+        remaining.remove(at: index)
+    }
+    return remaining.allSatisfy(\.hasDefault)
+}
 var viewStructs = Set<String>()
 var valueStructs = Set<String>()
 /// A value struct's generic parameter names, in declaration order, so a
@@ -3000,12 +3105,25 @@ func processInit(
     collectWhereClause(initDecl.genericWhereClause, into: &generics)
 
     let parameters = initDecl.signature.parameterClause.parameters
+    let declaredSignature = parameters.map { parameter in
+        InitParameterFact(
+            label: parameter.firstName.text == "_"
+                ? nil : parameter.firstName.text,
+            type: normalize(parameter.type.trimmedDescription),
+            hasDefault: parameter.defaultValue != nil)
+    }
+    recordInterfaceInitSignature(
+        of: structName, declaredSignature,
+        attributes: initDecl.attributes)
     if parameters.contains(where: { $0.ellipsis != nil }) {
         initBlockers["variadic", default: 0] += 1
         return
     }
     var generated = false
     var firstBlocker: String?
+    let availabilityClauses = interfaceAvailabilitiesByType[
+        structName, default: []
+    ].union(minimumTargetAvailabilities(initDecl.attributes))
     for specialization in associatedGenericSpecializations(
         generics, parameters: parameters
     ).flatMap({
@@ -3033,8 +3151,18 @@ func processInit(
         if let blocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
             firstBlocker = firstBlocker ?? blocked.blocker ?? "?"; continue
         }
+        // Availability is the one obstacle that is not a missing mapping: the
+        // parameters resolve, the call is spellable, and the only question is
+        // whether the host running the generated bridge has the type. That is
+        // a runtime question, and the interface states it — so state it back,
+        // exactly as the target-overlay modifier tier already does. A verdict
+        // with no clause behind it (a platform outside the generated floors)
+        // still cannot be spelled, so it stays skipped.
         if guarded || needsAvailabilityGuard(initDecl.attributes) {
-            initGuarded += 1; return
+            guard !availabilityClauses.isEmpty else {
+                initGuarded += 1; return
+            }
+            initRuntimeGuarded += 1
         }
         generated = true
         guard !denyStructs.contains(structName) else { continue }
@@ -3052,9 +3180,18 @@ func processInit(
                     platformFrameworkRequirements(initDecl.attributes)),
                 targetImportRequirements: [],
                 unavailableTargetEnvironments: [],
-                minimumTargetAvailabilities: [],
+                // Only a declaration the generator would otherwise have
+                // dropped carries a clause. An ordinary init stays
+                // unconditional, so nothing already reachable becomes
+                // conditional on the host's OS version.
+                minimumTargetAvailabilities:
+                    guarded || needsAvailabilityGuard(initDecl.attributes)
+                        ? availabilityClauses : [],
                 preservesSemanticValue: preservesSemanticValue)
-            if initSeenKeys.insert(variant.key).inserted { initVariants.append(variant) }
+            if initSeenKeys.insert(variant.key).inserted {
+                initVariantOwnerSignature[variant.key] = declaredSignature
+                initVariants.append(variant)
+            }
         }
     }
     if generated { initGeneratable += 1; generatableStructs.insert(structName) }
@@ -3597,6 +3734,7 @@ for file in interfaceFiles {
             viewStructs.insert(name)
             let guarded = needsAvailabilityGuard(structDecl.attributes)
                 || (extensionConformance?.guarded ?? false)
+            recordInterfaceAvailability(of: name, structDecl.attributes)
             let frameworkRequirements = platformFrameworkRequirements(
                 structDecl.attributes).union(
                     extensionConformance?.frameworkRequirements ?? [])
@@ -3735,6 +3873,7 @@ for file in interfaceFiles {
         }
         let guarded = needsAvailabilityGuard(structure.attributes)
             || (extensionInfo?.guarded ?? false)
+        recordInterfaceAvailability(of: name, structure.attributes)
         let frameworks = platformFrameworkRequirements(
             structure.attributes
         ).union(extensionInfo?.frameworkRequirements ?? [])
@@ -3907,6 +4046,7 @@ for file in interfaceFiles {
             continue
         }
         let guarded = needsAvailabilityGuard(structure.attributes)
+        recordInterfaceAvailability(of: name, structure.attributes)
         let frameworkRequirements = platformFrameworkRequirements(
             structure.attributes)
         let generics = structGenerics(structure)
@@ -5420,7 +5560,45 @@ func supportsResultBuilders(_ variant: Variant) -> Bool {
 }
 
 let emittedModifierVariants = variants.filter(supportsResultBuilders)
-let emittedInitVariants = initVariants.filter(supportsResultBuilders)
+
+/// A selection that drops defaulted parameters is only emitted when the
+/// remaining labels still name ONE initializer of that nominal. This is judged
+/// here rather than inside `processInit` because the competing siblings are not
+/// all scanned yet while any single initializer is being processed — the
+/// verdict needs the nominal's complete declared overload set.
+func initSelectionIsUnambiguous(_ variant: Variant) -> Bool {
+    let labels = variant.params.compactMap(\.label)
+    guard labels.count == variant.params.count, !labels.isEmpty,
+          let owner = initVariantOwnerSignature[variant.key],
+          let signatures = interfaceInitSignatures[variant.name],
+          signatures.count > 1
+    else { return true }
+    let accepting = signatures.filter {
+        initSignature($0, accepts: labels, typedAs: owner)
+    }
+    // Swift ranks a candidate that applies FEWER default arguments above one
+    // that applies more, so a call is only ambiguous when the fewest-defaults
+    // candidate is not unique: `AngularGradient(gradient:center:)` resolves to
+    // the `angle:` init over the `startAngle:endAngle:` one, while
+    // `ConcentricRectangle(topLeadingCorner:)` has two candidates tied at the
+    // same count and is the spelling the compiler rejects.
+    let fewestDefaults = accepting.map { $0.count - labels.count }.min()
+    let contenders = accepting.filter {
+        $0.count - labels.count == fewestDefaults
+    }
+    guard contenders.count > 1 else { return true }
+    initAmbiguous += 1
+    if ProcessInfo.processInfo.environment["BRIDGEGEN_DUMP_BLOCKED"] != nil {
+        print(
+            "   blocked[ambiguous] init \(variant.name)"
+                + "(\(labels.map { "\($0):" }.joined()))")
+    }
+    return false
+}
+
+let emittedInitVariants = initVariants
+    .filter(supportsResultBuilders)
+    .filter(initSelectionIsUnambiguous)
 
 // MARK: - Report
 
@@ -5440,6 +5618,8 @@ parameter value structs: \(valueStructs.count)
 total inits:            \(initTotal)
 generatable inits:      \(initGeneratable)  (across \(generatableStructs.count) structs)
 newer-OS (skipped):     \(initGuarded)
+newer-OS (guarded):     \(initRuntimeGuarded)
+ambiguous selections:   \(initAmbiguous)
 emitted variants:       \(emittedInitVariants.count)
 
 ═══ Top blocking types ═══
@@ -6442,7 +6622,28 @@ func initEntryCode(_ variant: Variant) -> String {
         }
     }
     lines.append("    }")
-    return compileGuarded(lines.joined(separator: "\n"), for: variant)
+    return compileGuarded(
+        runtimeAvailabilityRegistration(lines.joined(separator: "\n"),
+                                        for: variant),
+        for: variant)
+}
+
+/// A registration the host may be too old to run is registered only where the
+/// type exists. Unlike the modifier tier's guard — which has a receiver to
+/// fall back to and so needs an `else` — an absent constructor has no value to
+/// stand in for: the entry simply is not there, and resolution reports the
+/// initializer unresolved exactly as it did before this widening.
+func runtimeAvailabilityRegistration(
+    _ source: String, for variant: Variant
+) -> String {
+    let clauses = targetAvailabilityClauses(
+        variant.minimumTargetAvailabilities)
+    guard !clauses.isEmpty else { return source }
+    return """
+        if #available(\(clauses.joined(separator: ", ")), *) {
+    \(indentGeneratedSource(source))
+        }
+    """
 }
 
 func platformSemanticAdapterEntryCode(
