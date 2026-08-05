@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import SwiftInterpreter
+import SwiftUI
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
 #endif
@@ -1260,6 +1261,12 @@ enum GeneratedPlatformBridge {
         }
     }
 
+    /// A class's ancestry is a property of the CLASS, not of the sweep that
+    /// observed it: a subclass declared in one framework inherits from a
+    /// superclass owned by another (SwiftUI's hosting controllers extend
+    /// AppKit/UIKit view controllers). Follow the preferred framework's edges
+    /// first, then any framework that records an edge for the same type, which
+    /// is the walk `importedType(named:matchesType:)` already performs.
     static func typeCandidates(framework: String, type: String) -> [String] {
         var result: [String] = []
         var queue: [String] = [type]
@@ -1270,6 +1277,10 @@ enum GeneratedPlatformBridge {
             result.append(value)
             queue.append(contentsOf: supertypes[GeneratedPlatformTypeKey(
                 framework: framework, type: value)] ?? [])
+            for (key, parents) in supertypes
+            where key.type == value && key.framework != framework {
+                queue.append(contentsOf: parents)
+            }
         }
         return result
     }
@@ -1799,6 +1810,29 @@ extension Optional: GeneratedPlatformRuntimeConvertible {
                 typeName: wrappedType, context: context)
             return result as Any
         }
+    }
+}
+
+/// The erasure a witnessed generic sweep specializes `View` at. Structural,
+/// exactly like the `Optional`/`Array`/`Dictionary` siblings above: a runtime
+/// value crosses into a statically typed carrier, and the carrier's own
+/// erasing constructor does the work. Only reachable because a spec DECLARED
+/// this erasure, so it costs nothing on any sweep that declares none.
+extension AnyView: GeneratedPlatformRuntimeConvertible {
+    fileprivate static func generatedPlatformValue(
+        from value: RuntimeValue,
+        framework: String,
+        typeName: String,
+        context: EvalContext
+    ) throws -> Any {
+        // An interpreted View reaches the boundary as a bare instance, which
+        // is the same argument position `anyViewResolving` already answers for
+        // the handwritten view gateways.
+        if let interpreter = context as? Interpreter,
+           let registry = interpreter.registry as? ViewRegistry {
+            return try registry.anyViewResolving(value, context)
+        }
+        return try ViewRegistry.anyView(value)
     }
 }
 

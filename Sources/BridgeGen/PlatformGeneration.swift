@@ -15,6 +15,30 @@ struct PlatformCoverageSection: Encodable {
     let emittedEnumValues: Int
     let emittedSignatures: [String]
     let blockers: [String: Int]
+
+    /// A module whose types split across SDK families is swept by more than
+    /// one spec. Its coverage is the sum of those sweeps, reported under the
+    /// one module name every consumer imports.
+    func merging(_ other: PlatformCoverageSection) -> PlatformCoverageSection {
+        PlatformCoverageSection(
+            scannedSymbols: scannedSymbols + other.scannedSymbols,
+            selectedTypes: selectedTypes + other.selectedTypes,
+            emittedConstructors: emittedConstructors + other.emittedConstructors,
+            emittedProperties: emittedProperties + other.emittedProperties,
+            emittedMethods: emittedMethods + other.emittedMethods,
+            emittedStaticProperties:
+                emittedStaticProperties + other.emittedStaticProperties,
+            emittedStaticMethods:
+                emittedStaticMethods + other.emittedStaticMethods,
+            emittedGlobalFunctions:
+                emittedGlobalFunctions + other.emittedGlobalFunctions,
+            emittedGlobalProperties:
+                emittedGlobalProperties + other.emittedGlobalProperties,
+            emittedEnumValues: emittedEnumValues + other.emittedEnumValues,
+            emittedSignatures:
+                (emittedSignatures + other.emittedSignatures).sorted(),
+            blockers: blockers.merging(other.blockers, uniquingKeysWith: +))
+    }
 }
 
 struct PlatformGenerationResult {
@@ -74,6 +98,13 @@ private struct PlatformFrameworkSpec {
     /// scopes instead of exposing unrelated low-level global entry points.
     var globalFunctionSelection: PlatformGlobalFunctionSelection =
         .mechanicallyBridgeable
+    /// Erasures this sweep may specialize a GENERIC nominal at, keyed by the
+    /// protocol its type parameter is constrained to. Type-level policy in the
+    /// same sense as `roots`: it names a protocol and the SDK's own eraser for
+    /// it, never a generic type. Admitting `View` admits every generic class
+    /// over `View` at once — the sweep still requires the interface to PROVE
+    /// each parameter carries exactly that one constraint.
+    var genericWitnesses: [String: String] = [:]
 }
 
 private let macCatalyst18SymbolGraphView = PlatformSymbolGraphView(
@@ -121,6 +152,31 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         roots: [],
         extractionModule: "SwiftUICore",
         globalFunctionSelection: .interpretedResultScopes),
+    .init(
+        // A SwiftUI view reaches a platform view hierarchy only through a
+        // hosting controller, and that controller is GENERIC over the view it
+        // hosts. Without a witnessed specialization the sweep dropped the whole
+        // class at nominal selection, so an interpreted representable that
+        // hosts SwiftUI content got an absorbing bag with no `view` to add.
+        // `AnyView` is SwiftUI's own eraser for `View`, so the specialization
+        // is the SDK's, not the bridge's.
+        name: "SwiftUI", sdkName: "macosx",
+        target: "arm64-apple-macosx15.0",
+        deployments: ["macOS": (15, 0)],
+        roots: ["NSHostingController", "NSHostingView"],
+        nativeImportCondition:
+            "canImport(AppKit) && !targetEnvironment(macCatalyst)",
+        genericWitnesses: ["View": "AnyView"]),
+    .init(
+        // The UIKit spelling of the same generic class, which is the half the
+        // Catalyst board measures.
+        name: "SwiftUI", sdkName: "iphoneos",
+        target: "arm64-apple-ios18.0",
+        deployments: ["iOS": (18, 0)],
+        roots: ["UIHostingController"],
+        validationViews: [macCatalyst18SymbolGraphView],
+        nativeImportCondition: "canImport(UIKit)",
+        genericWitnesses: ["View": "AnyView"]),
     .init(
         // Core Graphics reference values cross UIKit/AppKit boundaries as
         // constructor arguments and method results. Sweep the connected
@@ -281,10 +337,96 @@ private struct PlatformNominal {
     let root: String
     let kind: PlatformNominalKind
     let isEquatable: Bool
+    /// Generic parameter name -> the erasure this sweep specialized it at.
+    /// Empty for every non-generic nominal, which is the whole existing tier.
+    let genericWitnessing: [String: String]
     /// Clang CF typedefs import as Swift classes but reject conditional
     /// downcasts from `Any` as vacuous. Their `c:@T@...Ref` symbol identity
     /// distinguishes that importer category from Objective-C classes.
     let isCoreFoundationReference: Bool
+
+    /// The statically compiled spelling. A witnessed generic is constructed
+    /// and downcast AT its specialization; the runtime keeps the bare `type`,
+    /// which is what interpreted source writes.
+    var nativeType: String {
+        guard !genericWitnessing.isEmpty else { return type }
+        let arguments = genericWitnessing.keys.sorted()
+            .map { genericWitnessing[$0]! }
+        return "\(type)<\(arguments.joined(separator: ", "))>"
+    }
+
+    /// Rewrites a member declaration into the specialization, so every
+    /// downstream analysis sees the erased type rather than a type parameter
+    /// it has no contract for.
+    func specialized(_ declaration: String) -> String {
+        guard !genericWitnessing.isEmpty else { return declaration }
+        var result = declaration
+        for (parameter, witness) in genericWitnessing {
+            result = result.replacingOccurrences(
+                of: "\\b\(NSRegularExpression.escapedPattern(for: parameter))\\b",
+                with: witness, options: .regularExpression)
+        }
+        return result
+    }
+}
+
+/// Admits a generic nominal only when the interface PROVES every type
+/// parameter carries exactly one protocol constraint the spec can erase.
+/// Returns an empty mapping for a non-generic declaration (the existing tier),
+/// and nil when the declaration is generic but unwitnessed — which keeps the
+/// previous blanket rejection for every sweep that declares no witnesses.
+private func platformGenericWitnessing(
+    _ declaration: String, for spec: PlatformFrameworkSpec
+) -> [String: String]? {
+    guard declaration.contains("<") else { return [:] }
+    guard let parsed = parsePlatformDecl(declaration) else { return nil }
+    let generics: GenericParameterClauseSyntax?
+    let whereClause: GenericWhereClauseSyntax?
+    switch parsed.as(DeclSyntaxEnum.self) {
+    case .classDecl(let declaration):
+        generics = declaration.genericParameterClause
+        whereClause = declaration.genericWhereClause
+    case .structDecl(let declaration):
+        generics = declaration.genericParameterClause
+        whereClause = declaration.genericWhereClause
+    case .enumDecl(let declaration):
+        generics = declaration.genericParameterClause
+        whereClause = declaration.genericWhereClause
+    default:
+        return nil
+    }
+    // A "<" that is not a generic parameter list (an operator, a nested
+    // sugar spelling) leaves the nominal exactly as non-generic as before.
+    guard let generics else { return [:] }
+
+    var constraints: [String: Set<String>] = [:]
+    for parameter in generics.parameters {
+        constraints[parameter.name.text] = []
+        if let inherited = parameter.inheritedType {
+            constraints[parameter.name.text]?.insert(inherited.trimmedDescription)
+        }
+    }
+    for requirement in whereClause?.requirements ?? [] {
+        // A same-type requirement pins a parameter to something the eraser
+        // cannot stand in for; reject rather than specialize past it.
+        guard case .conformanceRequirement(let conformance) =
+            requirement.requirement,
+            let name = conformance.leftType.as(IdentifierTypeSyntax.self)?
+                .name.text,
+            constraints[name] != nil else { return nil }
+        constraints[name]?.insert(
+            conformance.rightType.trimmedDescription
+                .split(separator: ".").last.map(String.init) ?? "")
+    }
+
+    var witnessing: [String: String] = [:]
+    for (parameter, requirements) in constraints {
+        guard requirements.count == 1,
+              let witness = spec.genericWitnesses[requirements.first!]
+        else { return nil }
+        witnessing[parameter] = witness
+    }
+    return witnessing
 }
 
 private struct PlatformParameter {
@@ -507,7 +649,18 @@ private struct ParsedPlatformFramework {
 /// others' types (graphs are disk-cached; the decode is cheap).
 private var platformCrossFrameworkSelectedTypes: Set<String> = []
 
+/// Erasure -> the protocol it erases, inverted from every spec's witness
+/// table. A specialized parameter is COMPILED at the erasure but CONTRACTED
+/// at the constraint: at runtime the acceptable values are exactly the ones
+/// conforming to the protocol, which is what interpreted source passes.
+private var platformErasedProtocolByWitness: [String: String] = [:]
+
 func generatePlatformBridge() throws -> PlatformGenerationResult {
+    platformErasedProtocolByWitness = platformFrameworkSpecs.reduce(into: [:]) {
+        for (protocolName, witness) in $1.genericWitnesses {
+            $0[witness] = protocolName
+        }
+    }
     platformCrossFrameworkSelectedTypes = Set(
         try platformFrameworkSpecs.flatMap { spec -> [String] in
             let graph = try platformValidatedSymbolGraph(for: spec)
@@ -539,7 +692,11 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
                 + framework.properties.map(\.signatureKey)
                 + framework.staticProperties.map(\.signatureKey)
         ).sorted()
-        coverage[framework.spec.name] = PlatformCoverageSection(
+        // One framework can be swept by more than one spec (a module whose
+        // types split across SDK families). The key stays the MODULE name —
+        // downstream consumers import it — so the sections merge rather than
+        // the later sweep silently replacing the earlier one's report.
+        let section = PlatformCoverageSection(
             scannedSymbols: framework.graph.symbols.count,
             selectedTypes: framework.nominals.count,
             emittedConstructors: framework.constructors.count,
@@ -552,6 +709,8 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
             emittedEnumValues: framework.enumValues.count,
             emittedSignatures: signatures,
             blockers: framework.blockers)
+        coverage[framework.spec.name] = coverage[framework.spec.name]
+            .map { $0.merging(section) } ?? section
         summaries.append(
             "\(framework.spec.name): \(framework.nominals.count) types, "
                 + "\(framework.constructors.count) constructors, "
@@ -733,12 +892,22 @@ private func parsePlatformFramework(
             && ($0.target == "s:SY"
                 || $0.targetFallback == "Swift.RawRepresentable")
     }.map(\.source))
+    var blockers: [String: Int] = [:]
     var allNominals: [String: PlatformNominal] = [:]
     for symbol in graph.symbols {
         guard let kind = nominalKindBySymbolKind[symbol.kind.identifier],
               !symbol.pathComponents.isEmpty,
-              platformSymbolIsAvailable(symbol, for: spec),
-              (!symbol.declaration.contains("<") || kind == .protocol) else { continue }
+              platformSymbolIsAvailable(symbol, for: spec) else { continue }
+        let witnessing: [String: String]
+        if kind == .protocol {
+            witnessing = [:]
+        } else if let resolved = platformGenericWitnessing(
+            symbol.declaration, for: spec) {
+            witnessing = resolved
+        } else {
+            blockers["unwitnessed generic nominal", default: 0] += 1
+            continue
+        }
         let type = symbol.pathComponents.joined(separator: ".")
         allNominals[symbol.identifier.precise] = PlatformNominal(
             framework: spec.name,
@@ -747,6 +916,7 @@ private func parsePlatformFramework(
             root: symbol.pathComponents[0],
             kind: kind,
             isEquatable: equatableNominals.contains(symbol.identifier.precise),
+            genericWitnessing: witnessing,
             isCoreFoundationReference:
                 kind == .class
                     && symbol.identifier.precise.hasPrefix("c:@T@")
@@ -891,8 +1061,11 @@ private func parsePlatformFramework(
     // by ANY sweep (MKMapCamera's initializer takes CoreLocation's
     // CLLocationCoordinate2D); the runtime unwraps platform values by
     // dynamic cast, so acceptance is framework-agnostic.
+    // An erasure this spec specializes at is by construction a type the
+    // bridge can carry, so it is acceptable wherever a selected type is.
     let selectedTypes = Set(selected.values.map(\.type))
         .union(platformCrossFrameworkSelectedTypes)
+        .union(spec.genericWitnesses.values)
 
     var supertypesByType: [String: [String]] = [:]
     for relationship in graph.relationships
@@ -912,7 +1085,6 @@ private func parsePlatformFramework(
         }
     }
 
-    var blockers: [String: Int] = [:]
     var constructors: [PlatformCallable] = []
     var methods: [PlatformCallable] = []
     var staticMethods: [PlatformCallable] = []
@@ -1067,9 +1239,13 @@ private func parsePlatformFramework(
                 name: name, isCallable: callable)
         }
 
+        // A witnessed generic contributes its members AT the specialization;
+        // for every non-generic nominal this is the declaration verbatim.
+        let declaration = nominal.specialized(symbol.declaration)
+
         switch symbol.kind.identifier {
         case "swift.init":
-            guard let initDecl = parsePlatformDecl(symbol.declaration)?
+            guard let initDecl = parsePlatformDecl(declaration)?
                 .as(InitializerDeclSyntax.self) else {
                 blockers["unparsed initializer", default: 0] += 1
                 continue
@@ -1100,7 +1276,7 @@ private func parsePlatformFramework(
                 var callable = PlatformCallable(
                     framework: spec.name, kind: .constructor,
                     receiverType: nominal.type,
-                    nativeReceiverType: nominal.type,
+                    nativeReceiverType: nominal.nativeType,
                     receiverIsValueType: nominal.kind.isValueType,
                     receiverIsCoreFoundationReference:
                         nominal.isCoreFoundationReference,
@@ -1123,7 +1299,7 @@ private func parsePlatformFramework(
             }
 
         case "swift.method", "swift.type.method":
-            guard let function = parsePlatformDecl(symbol.declaration)?
+            guard let function = parsePlatformDecl(declaration)?
                 .as(FunctionDeclSyntax.self) else {
                 blockers["unparsed method", default: 0] += 1
                 continue
@@ -1180,7 +1356,7 @@ private func parsePlatformFramework(
                 let callable = PlatformCallable(
                     framework: spec.name, kind: kind,
                     receiverType: nominal.type,
-                    nativeReceiverType: nominal.kind.nativePrefix + nominal.type,
+                    nativeReceiverType: nominal.kind.nativePrefix + nominal.nativeType,
                     receiverIsValueType: nominal.kind.isValueType,
                     receiverIsCoreFoundationReference:
                         nominal.isCoreFoundationReference,
@@ -1200,7 +1376,7 @@ private func parsePlatformFramework(
             }
 
         case "swift.property", "swift.type.property":
-            guard let variable = parsePlatformDecl(symbol.declaration)?
+            guard let variable = parsePlatformDecl(declaration)?
                 .as(VariableDeclSyntax.self),
                   let binding = variable.bindings.first,
                   let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
@@ -1226,7 +1402,7 @@ private func parsePlatformFramework(
             let property = PlatformProperty(
                 framework: spec.name,
                 receiverType: nominal.type,
-                nativeReceiverType: nominal.kind.nativePrefix + nominal.type,
+                nativeReceiverType: nominal.kind.nativePrefix + nominal.nativeType,
                 receiverIsValueType: nominal.kind.isValueType,
                 receiverIsCoreFoundationReference:
                     nominal.isCoreFoundationReference,
@@ -1288,7 +1464,7 @@ private func parsePlatformFramework(
         constructors.append(PlatformCallable(
             framework: spec.name, kind: .constructor,
             receiverType: nominal.type,
-            nativeReceiverType: nominal.type,
+            nativeReceiverType: nominal.nativeType,
             receiverIsValueType: false,
             receiverIsCoreFoundationReference:
                 nominal.isCoreFoundationReference,
@@ -1326,7 +1502,7 @@ private func parsePlatformFramework(
         let property = PlatformProperty(
             framework: spec.name,
             receiverType: nominal.type,
-            nativeReceiverType: nominal.kind.nativePrefix + nominal.type,
+            nativeReceiverType: nominal.kind.nativePrefix + nominal.nativeType,
             receiverIsValueType: nominal.kind.isValueType,
             receiverIsCoreFoundationReference:
                 nominal.isCoreFoundationReference,
@@ -1857,10 +2033,19 @@ private func analyzePlatformParameters(
             blockers["parameter \(normalized)", default: 0] += 1
             return nil
         }
+        // An erasure is COMPILED as itself and CONTRACTED as its protocol:
+        // the native call still erases, while the runtime accepts exactly the
+        // values that conform — which is what interpreted source passes.
+        var contract = nilOnly ? "Never?"
+            : (pointerKind != nil
+                ? platformPointerContractType(nativeType) : normalized)
+        if let erased = platformErasedProtocolByWitness[normalized] {
+            normalized = "any \(erased)"
+            contract = normalized
+        }
         result.append(PlatformParameter(
             label: label, type: normalized, nativeType: nativeType,
-            contractType: nilOnly ? "Never?"
-                : (pointerKind != nil ? platformPointerContractType(nativeType) : normalized),
+            contractType: contract,
             hasDefault: parameter.defaultValue != nil,
             isAction: isAction, pointerKind: pointerKind))
     }
@@ -2256,7 +2441,7 @@ private func emitPlatformBridge(
         guard !equatable.isEmpty else { continue }
         output += "#if \(platformNativeImportCondition(for: framework.spec))\n"
         for nominal in equatable {
-            output += "        registerEqualityAdapter(&t, framework: \(swiftLiteral(framework.spec.name)), type: \(swiftLiteral(nominal.type)), \(nominal.type).self)\n"
+            output += "        registerEqualityAdapter(&t, framework: \(swiftLiteral(framework.spec.name)), type: \(swiftLiteral(nominal.type)), \(nominal.nativeType).self)\n"
         }
         output += "#endif\n"
     }
@@ -2341,7 +2526,10 @@ private func emitPlatformConstructor(
     _ value: PlatformCallable, nativeCondition: String
 ) -> String {
     let arguments = platformCallArguments(value.params)
-    let call = "\(value.receiverType)(\(arguments))"
+    // The NATIVE spelling constructs: a witnessed generic is instantiated at
+    // its specialization while the runtime contract keeps the bare name the
+    // interpreted source writes.
+    let call = "\(value.nativeReceiverType)(\(arguments))"
     var body = platformInvocationBody(
         call: call, resultType: value.resultType,
         framework: value.framework,
@@ -2578,7 +2766,7 @@ private func emitPlatformStaticMethod(
     _ value: PlatformCallable, nativeCondition: String
 ) -> String {
     let arguments = platformCallArguments(value.params)
-    let call = "\(value.receiverType).`\(value.name)`(\(arguments))"
+    let call = "\(value.nativeReceiverType).`\(value.name)`(\(arguments))"
     var body = platformInvocationBody(
         call: call, resultType: value.resultType,
         framework: value.framework,
@@ -2684,7 +2872,7 @@ private func emitPlatformStaticProperty(
                 get: {
     #if \(nativeCondition)
                 generatedPlatformResult(
-                    \(value.receiverType).`\(value.name)`,
+                    \(value.nativeReceiverType).`\(value.name)`,
                     framework: \(swiftLiteral(value.framework)),
                     declaredType: \(swiftLiteral(value.resultType)))
     #else

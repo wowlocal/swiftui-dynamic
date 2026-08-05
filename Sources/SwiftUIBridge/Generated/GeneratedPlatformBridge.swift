@@ -10,6 +10,12 @@ import ObjectiveC
 #if canImport(SwiftUI)
 import SwiftUI
 #endif
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+import SwiftUI
+#endif
+#if canImport(UIKit)
+import SwiftUI
+#endif
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
@@ -50,6 +56,12 @@ extension GeneratedPlatformBridge {
 #if canImport(SwiftUI)
     values.insert("SwiftUI")
 #endif
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    values.insert("SwiftUI")
+#endif
+#if canImport(UIKit)
+    values.insert("SwiftUI")
+#endif
 #if canImport(CoreGraphics)
     values.insert("CoreGraphics")
 #endif
@@ -80,6 +92,8 @@ extension GeneratedPlatformBridge {
     static func buildConstructors() -> [String: [GeneratedPlatformConstructorEntry]] {
         var t: [String: [GeneratedPlatformConstructorEntry]] = [:]
         buildConstructorsFoundation0(&t)
+        buildConstructorsSwiftUI10(&t)
+        buildConstructorsSwiftUI20(&t)
         buildConstructorsCoreGraphics0(&t)
         buildConstructorsQuartzCore0(&t)
         buildConstructorsAppKit0(&t)
@@ -256,6 +270,42 @@ extension GeneratedPlatformBridge {
             return generatedPlatformResult(ProcessInfo.ThermalState(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "Foundation", typeName: "Int", context: ctx)), framework: "Foundation", declaredType: "ProcessInfo.ThermalState")
 #else
             preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildConstructorsSwiftUI10(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+        registerConstructor(
+            &t, framework: "SwiftUI",
+            declaration: "init NSHostingController(rootView p0: any View)",
+            resultType: "NSHostingController") { v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            return generatedPlatformResult(NSHostingController<AnyView>(rootView: try generatedPlatformArgument(v[0], as: AnyView.self, framework: "SwiftUI", typeName: "any View", context: ctx)), framework: "SwiftUI", declaredType: "NSHostingController")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "SwiftUI",
+            declaration: "init NSHostingView(rootView p0: any View)",
+            resultType: "NSHostingView") { v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            return generatedPlatformResult(NSHostingView<AnyView>(rootView: try generatedPlatformArgument(v[0], as: AnyView.self, framework: "SwiftUI", typeName: "any View", context: ctx)), framework: "SwiftUI", declaredType: "NSHostingView")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildConstructorsSwiftUI20(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+        registerConstructor(
+            &t, framework: "SwiftUI",
+            declaration: "init UIHostingController(rootView p0: any View)",
+            resultType: "UIHostingController") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIHostingController<AnyView>(rootView: try generatedPlatformArgument(v[0], as: AnyView.self, framework: "SwiftUI", typeName: "any View", context: ctx)), framework: "SwiftUI", declaredType: "UIHostingController")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
 #endif
         }
     }
@@ -3888,6 +3938,8 @@ extension GeneratedPlatformBridge {
     static func buildMethods() -> [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]] {
         var t: [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]] = [:]
         buildMethodsFoundation0(&t)
+        buildMethodsSwiftUI10(&t)
+        buildMethodsSwiftUI20(&t)
         buildMethodsCoreGraphics0(&t)
         buildMethodsCoreGraphics1(&t)
         buildMethodsCoreGraphics2(&t)
@@ -4329,6 +4381,505 @@ extension GeneratedPlatformBridge {
             return .void
 #else
             preconditionFailure("Foundation gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildMethodsSwiftUI10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingController.sizeThatFits(in p0: CGSize) -> CGSize",
+            resultType: "CGSize") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`sizeThatFits`(in: try generatedPlatformArgument(v[0], as: CGSize.self, framework: "SwiftUI", typeName: "CGSize", context: ctx)), framework: "SwiftUI", declaredType: "CGSize")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.accessibilityChildren() -> [Any]?",
+            resultType: "[Any]?") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`accessibilityChildren`(), framework: "SwiftUI", declaredType: "[Any]?")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.accessibilityHitTest(_ p0: CGPoint) -> Any?",
+            resultType: "Any?") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`accessibilityHitTest`(try generatedPlatformArgument(v[0], as: CGPoint.self, framework: "SwiftUI", typeName: "CGPoint", context: ctx)), framework: "SwiftUI", declaredType: "Any?")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.beginDocument() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`beginDocument`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.didAddSubview(_ p0: NSView) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`didAddSubview`(try generatedPlatformArgument(v[0], as: NSView.self, framework: "SwiftUI", typeName: "NSView", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.didChangeValue(forKey p0: String) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`didChangeValue`(forKey: try generatedPlatformArgument(v[0], as: String.self, framework: "SwiftUI", typeName: "String", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.endDocument() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`endDocument`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.hitTest(_ p0: CGPoint) -> NSView?",
+            resultType: "NSView?") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`hitTest`(try generatedPlatformArgument(v[0], as: CGPoint.self, framework: "SwiftUI", typeName: "CGPoint", context: ctx)), framework: "SwiftUI", declaredType: "NSView?")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.insertText(_ p0: Any) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`insertText`(try generatedPlatformArgument(v[0], as: Any.self, framework: "SwiftUI", typeName: "Any", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.isAccessibilityElement() -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`isAccessibilityElement`(), framework: "SwiftUI", declaredType: "Bool")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.layout() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`layout`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.measureAction(action p0: () -> Void) -> Double",
+            resultType: "Double") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`measureAction`(action: generatedAction(try GeneratedDispatch.coerce(.action, v[0], ctx))), framework: "SwiftUI", declaredType: "Double")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.measureRender() -> Double",
+            resultType: "Double") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`measureRender`(), framework: "SwiftUI", declaredType: "Double")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.measureRender(interval p0: Double) -> Double",
+            resultType: "Double") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`measureRender`(interval: try generatedPlatformArgument(v[0], as: Double.self, framework: "SwiftUI", typeName: "Double", context: ctx)), framework: "SwiftUI", declaredType: "Double")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.measureRenders(duration p0: Double) -> [Double]",
+            resultType: "[Double]") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`measureRenders`(duration: try generatedPlatformArgument(v[0], as: Double.self, framework: "SwiftUI", typeName: "Double", context: ctx)), framework: "SwiftUI", declaredType: "[Double]")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.measureRenders(seconds p0: Double) -> [Double]",
+            resultType: "[Double]") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`measureRenders`(seconds: try generatedPlatformArgument(v[0], as: Double.self, framework: "SwiftUI", typeName: "Double", context: ctx)), framework: "SwiftUI", declaredType: "[Double]")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.prepareForReuse() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`prepareForReuse`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.setFrameSize(_ p0: CGSize) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`setFrameSize`(try generatedPlatformArgument(v[0], as: CGSize.self, framework: "SwiftUI", typeName: "CGSize", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.showContextMenuForSelection(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`showContextMenuForSelection`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "SwiftUI", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.updateConstraints() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`updateConstraints`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.viewDidChangeBackingProperties() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewDidChangeBackingProperties`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.viewDidChangeEffectiveAppearance() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewDidChangeEffectiveAppearance`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.viewDidEndLiveResize() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewDidEndLiveResize`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.viewDidMoveToWindow() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewDidMoveToWindow`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.viewWillMove(toWindow p0: NSWindow?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewWillMove`(toWindow: try generatedPlatformArgument(v[0], as: NSWindow?.self, framework: "SwiftUI", typeName: "NSWindow?", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.viewWillStartLiveResize() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewWillStartLiveResize`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func NSHostingView.willRemoveSubview(_ p0: NSView) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            guard let receiver = base.payload as? NSHostingView<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`willRemoveSubview`(try generatedPlatformArgument(v[0], as: NSView.self, framework: "SwiftUI", typeName: "NSView", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildMethodsSwiftUI20(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.didMove(toParent p0: UIViewController?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`didMove`(toParent: try generatedPlatformArgument(v[0], as: UIViewController?.self, framework: "SwiftUI", typeName: "UIViewController?", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.loadView() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`loadView`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.sizeThatFits(in p0: CGSize) -> CGSize",
+            resultType: "CGSize") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`sizeThatFits`(in: try generatedPlatformArgument(v[0], as: CGSize.self, framework: "SwiftUI", typeName: "CGSize", context: ctx)), framework: "SwiftUI", declaredType: "CGSize")
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.viewDidAppear(_ p0: Bool) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewDidAppear`(try generatedPlatformArgument(v[0], as: Bool.self, framework: "SwiftUI", typeName: "Bool", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.viewDidDisappear(_ p0: Bool) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewDidDisappear`(try generatedPlatformArgument(v[0], as: Bool.self, framework: "SwiftUI", typeName: "Bool", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.viewWillAppear(_ p0: Bool) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewWillAppear`(try generatedPlatformArgument(v[0], as: Bool.self, framework: "SwiftUI", typeName: "Bool", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.viewWillDisappear(_ p0: Bool) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewWillDisappear`(try generatedPlatformArgument(v[0], as: Bool.self, framework: "SwiftUI", typeName: "Bool", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.viewWillLayoutSubviews() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`viewWillLayoutSubviews`()
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "SwiftUI",
+            declaration: "func UIHostingController.willMove(toParent p0: UIViewController?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIHostingController<AnyView> else {
+                throw RuntimeError(message: "generated SwiftUI receiver mismatch", fatal: true)
+            }
+            receiver.`willMove`(toParent: try generatedPlatformArgument(v[0], as: UIViewController?.self, framework: "SwiftUI", typeName: "UIViewController?", context: ctx))
+            return .void
+#else
+            preconditionFailure("SwiftUI gateway invoked off-platform")
 #endif
         }
     }
@@ -20448,6 +20999,8 @@ extension GeneratedPlatformBridge {
         var t: [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry] = [:]
         buildPropertiesFoundation0(&t)
         buildPropertiesFoundation1(&t)
+        buildPropertiesSwiftUI10(&t)
+        buildPropertiesSwiftUI20(&t)
         buildPropertiesCoreGraphics0(&t)
         buildPropertiesQuartzCore0(&t)
         buildPropertiesQuartzCore1(&t)
@@ -21266,6 +21819,423 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesSwiftUI10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingController.preferredContentSize: CGSize { get set }",
+            resultType: "CGSize",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`preferredContentSize`, framework: "SwiftUI", declaredType: "CGSize")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                receiver.`preferredContentSize` = try generatedPlatformArgument(
+                    newValue, as: CGSize.self,
+                    framework: "SwiftUI",
+                    typeName: "CGSize", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("SwiftUI setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingController.rootView: AnyView { get set }",
+            resultType: "AnyView",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`rootView`, framework: "SwiftUI", declaredType: "AnyView")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                receiver.`rootView` = try generatedPlatformArgument(
+                    newValue, as: AnyView.self,
+                    framework: "SwiftUI",
+                    typeName: "AnyView", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("SwiftUI setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.acceptsFirstResponder: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`acceptsFirstResponder`, framework: "SwiftUI", declaredType: "Bool")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.accessibilityFocusedUIElement: Any? { get }",
+            resultType: "Any?",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`accessibilityFocusedUIElement`, framework: "SwiftUI", declaredType: "Any?")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.clipsToBounds: Bool { get set }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`clipsToBounds`, framework: "SwiftUI", declaredType: "Bool")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                receiver.`clipsToBounds` = try generatedPlatformArgument(
+                    newValue, as: Bool.self,
+                    framework: "SwiftUI",
+                    typeName: "Bool", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("SwiftUI setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.firstBaselineOffsetFromTop: CGFloat { get }",
+            resultType: "CGFloat",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`firstBaselineOffsetFromTop`, framework: "SwiftUI", declaredType: "CGFloat")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.firstTextLineCenter: CGFloat? { get }",
+            resultType: "CGFloat?",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`firstTextLineCenter`, framework: "SwiftUI", declaredType: "CGFloat?")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.intrinsicContentSize: CGSize { get }",
+            resultType: "CGSize",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`intrinsicContentSize`, framework: "SwiftUI", declaredType: "CGSize")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.isFlipped: Bool { get set }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isFlipped`, framework: "SwiftUI", declaredType: "Bool")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                receiver.`isFlipped` = try generatedPlatformArgument(
+                    newValue, as: Bool.self,
+                    framework: "SwiftUI",
+                    typeName: "Bool", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("SwiftUI setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.lastBaselineOffsetFromBottom: CGFloat { get }",
+            resultType: "CGFloat",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`lastBaselineOffsetFromBottom`, framework: "SwiftUI", declaredType: "CGFloat")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.layerContentsRedrawPolicy: NSView.LayerContentsRedrawPolicy { get set }",
+            resultType: "NSView.LayerContentsRedrawPolicy",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`layerContentsRedrawPolicy`, framework: "SwiftUI", declaredType: "NSView.LayerContentsRedrawPolicy")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                receiver.`layerContentsRedrawPolicy` = try generatedPlatformArgument(
+                    newValue, as: NSView.LayerContentsRedrawPolicy.self,
+                    framework: "SwiftUI",
+                    typeName: "NSView.LayerContentsRedrawPolicy", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("SwiftUI setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.needsPanelToBecomeKey: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`needsPanelToBecomeKey`, framework: "SwiftUI", declaredType: "Bool")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var NSHostingView.rootView: AnyView { get set }",
+            resultType: "AnyView",
+            get: { base in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`rootView`, framework: "SwiftUI", declaredType: "AnyView")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                guard let receiver = base as? NSHostingView<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                receiver.`rootView` = try generatedPlatformArgument(
+                    newValue, as: AnyView.self,
+                    framework: "SwiftUI",
+                    typeName: "AnyView", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("SwiftUI setter invoked off-platform")
+#endif
+            })
+    }
+
+    private static func buildPropertiesSwiftUI20(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var UIHostingController.childForHomeIndicatorAutoHidden: UIViewController? { get }",
+            resultType: "UIViewController?",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`childForHomeIndicatorAutoHidden`, framework: "SwiftUI", declaredType: "UIViewController?")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var UIHostingController.childForScreenEdgesDeferringSystemGestures: UIViewController? { get }",
+            resultType: "UIViewController?",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`childForScreenEdgesDeferringSystemGestures`, framework: "SwiftUI", declaredType: "UIViewController?")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var UIHostingController.childForStatusBarHidden: UIViewController? { get }",
+            resultType: "UIViewController?",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`childForStatusBarHidden`, framework: "SwiftUI", declaredType: "UIViewController?")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var UIHostingController.childForStatusBarStyle: UIViewController? { get }",
+            resultType: "UIViewController?",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`childForStatusBarStyle`, framework: "SwiftUI", declaredType: "UIViewController?")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var UIHostingController.isModalInPresentation: Bool { get set }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`isModalInPresentation`, framework: "SwiftUI", declaredType: "Bool")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                receiver.`isModalInPresentation` = try generatedPlatformArgument(
+                    newValue, as: Bool.self,
+                    framework: "SwiftUI",
+                    typeName: "Bool", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("SwiftUI setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var UIHostingController.prefersHomeIndicatorAutoHidden: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`prefersHomeIndicatorAutoHidden`, framework: "SwiftUI", declaredType: "Bool")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var UIHostingController.prefersStatusBarHidden: Bool { get }",
+            resultType: "Bool",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`prefersStatusBarHidden`, framework: "SwiftUI", declaredType: "Bool")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "SwiftUI",
+            declaration: "var UIHostingController.rootView: AnyView { get set }",
+            resultType: "AnyView",
+            get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(receiver.`rootView`, framework: "SwiftUI", declaredType: "AnyView")
+#else
+                preconditionFailure("SwiftUI getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(UIKit)
+                guard let receiver = base as? UIHostingController<AnyView> else {
+                    throw RuntimeError(message: "generated SwiftUI property receiver mismatch", fatal: true)
+                }
+                receiver.`rootView` = try generatedPlatformArgument(
+                    newValue, as: AnyView.self,
+                    framework: "SwiftUI",
+                    typeName: "AnyView", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("SwiftUI setter invoked off-platform")
+#endif
+            })
     }
 
     private static func buildPropertiesCoreGraphics0(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
@@ -50714,6 +51684,7 @@ extension GeneratedPlatformBridge {
         var t: [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry] = [:]
         buildStaticPropertiesFoundation0(&t)
         buildStaticPropertiesFoundation1(&t)
+        buildStaticPropertiesSwiftUI10(&t)
         buildStaticPropertiesQuartzCore0(&t)
         buildStaticPropertiesAppKit0(&t)
         buildStaticPropertiesAppKit1(&t)
@@ -51302,6 +52273,24 @@ extension GeneratedPlatformBridge {
                 declaredType: "Notification.Name")
 #else
             preconditionFailure("Foundation getter invoked off-platform")
+#endif
+        })
+    }
+
+    private static func buildStaticPropertiesSwiftUI10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
+        registerStaticProperty(
+            &t, framework: "SwiftUI",
+            type: "NSHostingView",
+            name: "requiresConstraintBasedLayout",
+            resultType: "Bool",
+            get: {
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            generatedPlatformResult(
+                NSHostingView<AnyView>.`requiresConstraintBasedLayout`,
+                framework: "SwiftUI",
+                declaredType: "Bool")
+#else
+            preconditionFailure("SwiftUI getter invoked off-platform")
 #endif
         })
     }
@@ -73356,6 +74345,10 @@ extension GeneratedPlatformBridge {
         buildKnownMembersFoundation0(&t)
         buildKnownMembersFoundation1(&t)
         buildKnownMembersFoundation2(&t)
+        buildKnownMembersSwiftUI10(&t)
+        buildKnownMembersSwiftUI11(&t)
+        buildKnownMembersSwiftUI12(&t)
+        buildKnownMembersSwiftUI20(&t)
         buildKnownMembersCoreGraphics0(&t)
         buildKnownMembersCoreGraphics1(&t)
         buildKnownMembersCoreGraphics2(&t)
@@ -73818,6 +74811,466 @@ extension GeneratedPlatformBridge {
             framework: "Foundation",
             type: "ProcessInfo",
             member: "thermalState")] = false
+    }
+
+    private static func buildKnownMembersSwiftUI10(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingController",
+            member: "identifier")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingController",
+            member: "preferredContentSize")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingController",
+            member: "rootView")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingController",
+            member: "safeAreaRegions")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingController",
+            member: "sceneBridgingOptions")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingController",
+            member: "sizeThatFits")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingController",
+            member: "sizingOptions")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "acceptsFirstMouse")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "acceptsFirstResponder")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "accessibilityChildren")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "accessibilityChildrenInNavigationOrder")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "accessibilityFocusedUIElement")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "accessibilityHitTest")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "accessibilityRole")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "accessibilitySubrole")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "beginDocument")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "clipsToBounds")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "cursorUpdate")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "didAddSubview")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "didChangeValue")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "doCommand")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "draggingSession")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "endDocument")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "firstBaselineOffsetFromTop")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "firstTextLineCenter")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "forwardingTarget")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "hitTest")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "insertText")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "intrinsicContentSize")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "isAccessibilityElement")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "isFlipped")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "keyDown")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "keyUp")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "lastBaselineOffsetFromBottom")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "layerContentsRedrawPolicy")] = false
+    }
+
+    private static func buildKnownMembersSwiftUI11(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "layout")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "magnify")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "makeTouchBar")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "measureAction")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "measureRender")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "measureRenders")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "menu")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "mouseDown")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "mouseDragged")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "mouseEntered")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "mouseExited")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "mouseMoved")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "mouseUp")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "needsPanelToBecomeKey")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "observeValue")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "otherMouseDown")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "otherMouseDragged")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "otherMouseUp")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "performKeyEquivalent")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "prepareForReuse")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "responds")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "rightMouseDown")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "rightMouseDragged")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "rightMouseUp")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "rootView")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "rotate")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "safeAreaRegions")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "sceneBridgingOptions")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "scrollWheel")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "setFrameSize")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "shouldDelayWindowOrdering")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "showContextMenuForSelection")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "sizingOptions")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "stateForIdentifier")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "touchesBegan")] = true
+    }
+
+    private static func buildKnownMembersSwiftUI12(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "touchesCancelled")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "touchesEnded")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "touchesMoved")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "updateConstraints")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "userInterfaceLayoutDirection")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "validRequestor")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "validateUserInterfaceItem")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "viewDidChangeBackingProperties")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "viewDidChangeEffectiveAppearance")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "viewDidEndLiveResize")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "viewDidMoveToWindow")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "viewForIdentifier")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "viewWillMove")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "viewWillStartLiveResize")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "NSHostingView",
+            member: "willRemoveSubview")] = true
+    }
+
+    private static func buildKnownMembersSwiftUI20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "childForHomeIndicatorAutoHidden")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "childForScreenEdgesDeferringSystemGestures")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "childForStatusBarHidden")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "childForStatusBarStyle")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "didMove")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "isModalInPresentation")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "keyCommands")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "loadView")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "preferredContentSizeDidChange")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "preferredScreenEdgesDeferringSystemGestures")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "preferredStatusBarStyle")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "preferredStatusBarUpdateAnimation")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "prefersHomeIndicatorAutoHidden")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "prefersStatusBarHidden")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "rootView")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "safeAreaRegions")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "sizeThatFits")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "sizingOptions")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "target")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "undoManager")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "viewDidAppear")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "viewDidDisappear")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "viewWillAppear")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "viewWillDisappear")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "viewWillLayoutSubviews")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "viewWillTransition")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "SwiftUI",
+            type: "UIHostingController",
+            member: "willMove")] = true
     }
 
     private static func buildKnownMembersCoreGraphics0(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
@@ -86890,6 +88343,13 @@ extension GeneratedPlatformBridge {
         registerEqualityAdapter(&t, framework: "Foundation", type: "ProcessInfo.ActivityOptions", ProcessInfo.ActivityOptions.self)
         registerEqualityAdapter(&t, framework: "Foundation", type: "ProcessInfo.ThermalState", ProcessInfo.ThermalState.self)
 #endif
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        registerEqualityAdapter(&t, framework: "SwiftUI", type: "NSHostingController", NSHostingController<AnyView>.self)
+        registerEqualityAdapter(&t, framework: "SwiftUI", type: "NSHostingView", NSHostingView<AnyView>.self)
+#endif
+#if canImport(UIKit)
+        registerEqualityAdapter(&t, framework: "SwiftUI", type: "UIHostingController", UIHostingController<AnyView>.self)
+#endif
 #if canImport(CoreGraphics)
         registerEqualityAdapter(&t, framework: "CoreGraphics", type: "CGColorSpace", CGColorSpace.self)
         registerEqualityAdapter(&t, framework: "CoreGraphics", type: "CGContext", CGContext.self)
@@ -87156,6 +88616,9 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo")] = false
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo.ActivityOptions")] = true
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo.ThermalState")] = true
+        t[GeneratedPlatformTypeKey(framework: "SwiftUI", type: "NSHostingController")] = false
+        t[GeneratedPlatformTypeKey(framework: "SwiftUI", type: "NSHostingView")] = false
+        t[GeneratedPlatformTypeKey(framework: "SwiftUI", type: "UIHostingController")] = false
         t[GeneratedPlatformTypeKey(framework: "CoreGraphics", type: "CGColorSpace")] = false
         t[GeneratedPlatformTypeKey(framework: "CoreGraphics", type: "CGContext")] = false
         t[GeneratedPlatformTypeKey(framework: "CoreGraphics", type: "CGImage")] = false
@@ -87425,6 +88888,9 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "Operation")] = ["NSObject"]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "OperationQueue")] = ["NSObject", "ProgressReporting"]
         t[GeneratedPlatformTypeKey(framework: "Foundation", type: "ProcessInfo")] = ["NSObject"]
+        t[GeneratedPlatformTypeKey(framework: "SwiftUI", type: "NSHostingController")] = ["NSViewController"]
+        t[GeneratedPlatformTypeKey(framework: "SwiftUI", type: "NSHostingView")] = ["NSView"]
+        t[GeneratedPlatformTypeKey(framework: "SwiftUI", type: "UIHostingController")] = ["UIViewController"]
         t[GeneratedPlatformTypeKey(framework: "QuartzCore", type: "CALayer")] = ["CAMediaTiming", "NSObject"]
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSAppearance")] = ["NSObject"]
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSApplication")] = ["NSAccessibilityElementProtocol", "NSAccessibilityProtocol", "NSAppearanceCustomization", "NSMenuItemValidation", "NSResponder", "NSStandardKeyBindingResponding", "NSTouchBarProvider", "NSUserActivityRestoring", "NSUserInterfaceValidations"]

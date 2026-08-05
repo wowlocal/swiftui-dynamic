@@ -92,6 +92,45 @@ struct IceCubesMicroTwinTests {
         func updateNSView(_ nsView: NSView, context: Context) {}
     }
 
+    /// What is LEFT of the media-browser block once the representable itself
+    /// executes. `ZoomableScrollView.makeCoordinator` builds
+    /// `UIHostingController(rootView: content)` and `makeUIView` adds that
+    /// controller's `view` to the scroll view — so the SwiftUI content reaches
+    /// the screen only by crossing BACK into UIKit through a hosting
+    /// controller. That controller is a GENERIC SDK class
+    /// (`UIHostingController<Content> where Content: View`) and the platform
+    /// sweep skips every generic initializer ("generic initializer" blocker),
+    /// so the construction degrades to an absorbing bag and the board reports
+    /// `cannot convert host argument 'p0' of type 'UIKitStub' to expected type
+    /// 'UIView'` at the `addSubview`.
+    ///
+    /// Spelled with AppKit's `NSHostingController` because this suite hosts
+    /// through `NSHostingView`; the Catalyst screen that surfaced it declares
+    /// the UIKit spelling of the same generic class.
+    private struct NativeHostedContent: View {
+        var body: some View {
+            Color.red
+        }
+    }
+
+    private struct HostedControllerBox: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView {
+            let controller = NSHostingController(rootView: NativeHostedContent())
+            let hosted = controller.view
+            hosted.frame = NSRect(x: 0, y: 0, width: 120, height: 60)
+            return hosted
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {}
+    }
+
+    private struct NativeHostedControllerTwin: View {
+        var body: some View {
+            HostedControllerBox()
+                .frame(width: 120, height: 60)
+        }
+    }
+
     private struct NativeAvatarShapeTwin: View {
         var body: some View {
             Color.blue
@@ -408,6 +447,55 @@ struct IceCubesMicroTwinTests {
         // The class is SILENT, which is why it survived to be 99.8% of the
         // board's open debt: assert the absence of a diagnostic separately so
         // a future fix cannot pass by merely reporting the failure.
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
+    /// RED at 3969d9c6: the representable now EXECUTES, but the SwiftUI
+    /// content it hosts never becomes a view — `NSHostingController(rootView:)`
+    /// is a generic SDK class, the sweep emits no constructor for it, and the
+    /// absorbing bag that stands in has no `view` to add.
+    @Test
+    func hostingControllerDrawsItsInterpretedRootView() throws {
+        let source = """
+        import AppKit
+
+        struct HostedContent: View {
+            var body: some View {
+                Color.red
+            }
+        }
+
+        struct HostedControllerBox: NSViewRepresentable {
+            func makeNSView(context: Context) -> NSView {
+                let controller = NSHostingController(rootView: HostedContent())
+                let hosted = controller.view
+                hosted.frame = NSRect(x: 0, y: 0, width: 120, height: 60)
+                return hosted
+            }
+
+            func updateNSView(_ nsView: NSView, context: Context) {}
+        }
+
+        HostedControllerBox()
+            .frame(width: 120, height: 60)
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("hosting-controller microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 160, height: 100)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeHostedControllerTwin()), size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-hosting-controller-microtwin ae=\(ae)")
+        #expect(ae == 0)
         #expect(RenderDiagnostics.errors.isEmpty)
     }
 
