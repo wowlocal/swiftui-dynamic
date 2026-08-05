@@ -2081,6 +2081,18 @@ func generatedPlatformArgument<T>(
     typeName: String,
     context: EvalContext
 ) throws -> T {
+    // The executable half of the same rule host-signature matching applies:
+    // a `T!` argument reaching a `T` parameter force-unwraps. Matching admits
+    // the call, so the conversion has to be able to complete it — otherwise
+    // the boundary accepts an argument it cannot pass.
+    if case .optional(let optional) = value,
+       optional.isImplicitlyUnwrapped,
+       let wrapped = optional.wrapped,
+       optionalWrappedType(typeName) == nil {
+        return try generatedPlatformArgument(
+            wrapped, as: T.self, framework: framework,
+            typeName: typeName, context: context)
+    }
     // Unwrap our typed carrier before attempting a direct dynamic cast.
     // Clang-imported reference typedefs can report a vacuous conditional cast
     // from arbitrary host objects; letting that cast see the carrier itself

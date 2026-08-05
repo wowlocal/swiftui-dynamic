@@ -53,4 +53,22 @@ import SwiftInterpreter
         #expect(tuple.values[0].boolValue == false)
         #expect(tuple.values[1].boolValue == true)
     }
+
+    /// `T!` converts implicitly to `T` at a call boundary — that is what the
+    /// spelling means, and `addSubview(controller.view)` compiles because of
+    /// it. A plain `T?` in the same position stays the error the compiler
+    /// reports, so the rule is keyed on the declared spelling, not on the
+    /// value happening to be present.
+    @Test func implicitlyUnwrappedArgumentSatisfiesNonOptionalParameter() throws {
+        let value = try run("""
+        import SwiftUI
+
+        let controller = UIViewController()
+        let host = UIView()
+        host.addSubview(controller.view)
+        host.subviews.count
+        """)
+
+        #expect(value.intValue == 0)
+    }
 }

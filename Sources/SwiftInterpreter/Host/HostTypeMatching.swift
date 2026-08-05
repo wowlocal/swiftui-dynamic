@@ -44,6 +44,22 @@ extension HostSignature {
                     context: context, mayBind: mayBind).map { $0 - 2 }
             }
         }
+        // `T!` converts implicitly to `T` — that spelling is a `T?` which the
+        // compiler force-unwraps wherever a `T` is wanted, which is the whole
+        // reason a declaration spells it that way (`UIViewController.view` is
+        // `UIView!`, and `addSubview(view)` compiles). Only the IUO spelling
+        // does this: a plain `T?` in a `T` position stays the error it is when
+        // compiled. Scored below the direct match so an overload taking the
+        // Optional still wins over one that has to unwrap.
+        if case .optional(let optional) = value,
+           optional.isImplicitlyUnwrapped,
+           let wrapped = optional.wrapped {
+            return matchType(
+                wrapped, against: type, genericNames: genericNames,
+                bindings: &bindings, representatives: &representatives,
+                context: context, mayBind: mayBind).map { $0 - 1 }
+        }
+
         if value.isNil { return type == "Any" ? 1 : nil }
 
         if genericNames.contains(type) {
