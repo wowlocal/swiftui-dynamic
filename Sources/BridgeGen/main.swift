@@ -508,6 +508,20 @@ func arrayElementType(_ normalized: String) -> String? {
 
 /// Public, non-generic native values declared by SwiftUI's interfaces.
 var concreteNativeSwiftUIValueTypes: Set<String> = []
+/// Generic SDK value structs, by declared arity. `SharePreview<Image, Icon>`
+/// is not a type; `SharePreview<InterpretedTransferableValue, Never>` is.
+var genericNativeSwiftUIValueTypeArity: [String: Int] = [:]
+/// Value types the deployment target cannot name without a guard.
+var newerOSNativeValueTypes: Set<String> = []
+/// Where a generic type declares that one of its own parameters may be the
+/// uninhabited type, by argument position: `extension SwiftUI.SharePreview
+/// where Icon == Swift.Never` says position 1 is an ABSENT SLOT, and the
+/// initializers that extension carries (`init(_:image:)`) are the ones that
+/// build that shape. This is the declaration's own statement about which
+/// instantiations exist, which is stronger evidence than `Never` merely
+/// conforming to the constraint — and it is readable from the interfaces
+/// already parsed, while the conformance itself lives in CoreTransferable.
+var sdkNominalNeverPositions: [String: Set<Int>] = [:]
 
 /// A property wrapper whose PROJECTION the interface publishes as a parameter
 /// type but gives no way to build. Collected by shape further down; declared
@@ -614,6 +628,28 @@ func directMapping(for normalized: String) -> TypeMapping? {
                 requiredFramework: requirements.count == 1
                     ? requirements.first : nil)
         }
+        // A generic SDK value struct whose every argument is supplied is a
+        // concrete type, and the emitted call spells it exactly. An argument
+        // is supplied when it is a carrier standing in for a constraint, the
+        // uninhabited type filling an absent slot, or any type this table
+        // already maps.
+        if let parts = genericTypeParts(normalized),
+           let arity = genericNativeSwiftUIValueTypeArity[parts.base],
+           arity == parts.arguments.count,
+           // Fail closed on availability: the emitted call spells every one of
+           // these names, so an argument the deployment target cannot see makes
+           // the whole instantiation unspellable regardless of how available
+           // the declaration that uses it is.
+           !newerOSNativeValueTypes.contains(parts.base),
+           parts.arguments.allSatisfy({
+               !newerOSNativeValueTypes.contains($0)
+                   && ($0 == "Never" || constraintCarrierTypes.contains($0)
+                       || directMapping(for: $0) != nil)
+           }) {
+            return .init(
+                tag: "nativeSwiftUIValue(\"\(normalized)\")",
+                cast: "%@ as! \(normalized)")
+        }
         guard concreteNativeSwiftUIValueTypes.contains(normalized)
         else { return nil }
         return .init(
@@ -651,19 +687,90 @@ func specializingInPlaceOpaqueParameters(in type: String) -> String? {
     return specialized
 }
 
+/// Specialize EVERY generic argument of a compound type, in order, and return
+/// each instantiation the interface admits.
+///
+/// `Binding<V>` (V: Hashable) and `SharePreview<Image, Icon>` (both
+/// Transferable) differ only in how many arguments there are to substitute —
+/// substitution itself is per-argument. The single-argument spelling was the
+/// only one recognized, so every two-argument compound stayed blocked on the
+/// whole type, which is why all six `ShareLink(item:…preview:)` initializers
+/// reported `SharePreview<PreviewImage, PreviewIcon>` as their blocker.
+///
+/// An argument specializes to its constraint's carrier, and ALSO to `Never` at
+/// any position the RECEIVING TYPE declares may be absent — read off
+/// `extension SharePreview where Icon == Never`, the same extension that
+/// carries the `init(_:image:)` building that shape. `Never` is admissible
+/// there precisely because it is uninhabited: a compound can be instantiated
+/// at a phantom argument no call has to supply, while a bare parameter of that
+/// type could never receive a value. Returns every combination; the caller
+/// keeps whichever the mapping table recognizes, so a spelling the SDK does
+/// not declare simply finds no mapping and is dropped.
+func specializingGenericArguments(
+    in type: String, generics: Generics
+) -> [String] {
+    guard let parts = genericTypeParts(type), parts.arguments.count > 1
+    else { return [] }
+    let neverPositions = sdkNominalNeverPositions[parts.base] ?? []
+    var candidatesPerArgument: [[String]] = []
+    for (position, argument) in parts.arguments.enumerated() {
+        guard let facts = generics[argument] else {
+            // Already concrete: it substitutes to itself.
+            candidatesPerArgument.append([argument])
+            continue
+        }
+        switch facts {
+        case .concrete(let concrete):
+            candidatesPerArgument.append([concrete])
+        case .constraints(let set):
+            guard set.count == 1, let constraint = set.first,
+                  let carrier = constraintConcreteType(for: constraint)
+            else { return [] }
+            var candidates = [carrier]
+            if neverPositions.contains(position) { candidates.append("Never") }
+            candidatesPerArgument.append(candidates)
+        }
+    }
+    var results = [""]
+    for candidates in candidatesPerArgument {
+        results = results.flatMap { prefix in
+            candidates.map { prefix.isEmpty ? $0 : prefix + ", " + $0 }
+        }
+    }
+    return results.map { "\(parts.base)<\($0)>" }
+}
+
 /// The canonical concrete type a lone conformance constraint specializes
 /// to when it appears INSIDE a compound type (`ClosedRange<V>` with
 /// V: BinaryFloatingPoint → ClosedRange<Double>).
 func constraintConcreteType(for constraint: String) -> String? {
-    switch constraint {
-    case "BinaryFloatingPoint", "FloatingPoint": return "Double"
-    case "StringProtocol": return "String"
-    case "BinaryInteger": return "Int"
-    case "Transferable": return "InterpretedTransferableValue"
-    case "Equatable": return "InterpretedEquatableValue"
-    case "Hashable": return "InterpretedHashableValue"
-    default: return nil
-    }
+    constraintConcreteTypes[constraint]
+}
+
+let constraintConcreteTypes: [String: String] = [
+    "BinaryFloatingPoint": "Double",
+    "FloatingPoint": "Double",
+    "StringProtocol": "String",
+    "BinaryInteger": "Int",
+    "Transferable": "InterpretedTransferableValue",
+    "Equatable": "InterpretedEquatableValue",
+    "Hashable": "InterpretedHashableValue",
+]
+
+/// The concrete types a constraint specializes TO. These stand in for a
+/// generic rather than being SDK types themselves, so they carry no direct
+/// mapping of their own and a compound type holding one must recognize them
+/// by identity.
+let constraintCarrierTypes = Set(constraintConcreteTypes.values)
+
+/// The constraint a carrier stands in for. Only the carriers that are NOT
+/// themselves SDK types need this — `Double` and `String` already map as
+/// themselves, so the first spelling wins and the reverse lookup is only
+/// consulted when a direct mapping found nothing.
+let constraintOfCarrier: [String: String] = constraintConcreteTypes.reduce(
+    into: [:]
+) { result, entry in
+    if result[entry.value] == nil { result[entry.value] = entry.key }
 }
 
 /// The value a bridged callback hands back to the framework when the
@@ -818,6 +925,59 @@ func sdkAssociatedType(_ name: String, of concreteType: String,
 
 /// Concrete contextual values reached by associated-generic consumers.
 var associatedGenericConcreteTypes: Set<String> = []
+
+/// Fan a declaration out over the instantiations an absent slot allows.
+///
+/// `ShareLink(item:preview:)` declares `preview: SharePreview<PreviewImage,
+/// PreviewIcon>` with both generics constrained to `Transferable`, and the
+/// value that actually arrives depends on which `SharePreview` initializer
+/// built it: `SharePreview(_:image:)` yields `<Image, Never>`, `(_:icon:)`
+/// yields `<Never, Icon>`. One instantiation per declaration would type-check
+/// and then fail every cast but one.
+///
+/// A generic gets the extra `Never` instantiation only where it lands in an
+/// argument position the receiving type itself declares may be absent, and
+/// only where it is a PHANTOM — nested inside a compound parameter type, never
+/// a parameter's own type. An uninhabited parameter could receive no argument;
+/// an uninhabited generic ARGUMENT merely selects a shape.
+func uninhabitedGenericSpecializations(
+    _ generics: Generics, parameters: FunctionParameterListSyntax
+) -> [Generics] {
+    let parameterTypes = parameters.map { normalize($0.type.trimmedDescription) }
+    /// The generic names sitting at a declared-absent argument position.
+    var absentSlotNames: Set<String> = []
+    for parameterType in parameterTypes {
+        guard let parts = genericTypeParts(parameterType),
+              let neverPositions = sdkNominalNeverPositions[parts.base]
+        else { continue }
+        for position in neverPositions
+        where parts.arguments.indices.contains(position) {
+            absentSlotNames.insert(parts.arguments[position])
+        }
+    }
+    let phantoms = generics.compactMap { name, facts -> String? in
+        guard case .constraints(let set) = facts, set.count == 1,
+              let constraint = set.first,
+              absentSlotNames.contains(name),
+              constraintConcreteType(for: constraint) != nil,
+              // Never the parameter's own type, but present inside one.
+              !parameterTypes.contains(name)
+        else { return nil }
+        return name
+    }.sorted()
+    // Two is what the SDK declares (`SharePreview<Image, Icon>`); a wider
+    // product would be guessing at shapes rather than enumerating them.
+    guard !phantoms.isEmpty, phantoms.count <= 2 else { return [generics] }
+    var results = [generics]
+    for name in phantoms {
+        results = results.flatMap { specialization -> [Generics] in
+            var withNever = specialization
+            withNever[name] = .concrete("Never")
+            return [specialization, withNever]
+        }
+    }
+    return results
+}
 
 func associatedGenericSpecializations(_ generics: Generics,
                                       parameters: FunctionParameterListSyntax) -> [Generics] {
@@ -1178,6 +1338,18 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
                 .contextualized(as: concrete) {
                 return .init(label: label, mapping: preservingOptional(mapping), hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: concrete)
             }
+            // A generic BOUND to a carrier is the same parameter as a generic
+            // CONSTRAINED to what that carrier stands for — binding it is how
+            // an instantiation is requested, not a different kind of type. The
+            // carrier has no direct mapping of its own because it is not an SDK
+            // type, so the constraint's mapping is what answers it.
+            if let constraint = constraintOfCarrier[concrete],
+               let mapping = constraintMapping(for: constraint) {
+                return .init(
+                    label: label, mapping: preservingOptional(mapping),
+                    hasDefault: hasDefault, blocker: nil,
+                    usesGeneric: normalized, genericConcrete: concrete)
+            }
             return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "== \(concrete)", usesGeneric: normalized)
         case .constraints(let set):
             if set.count == 1, let mapping = constraintMapping(for: set.first!) {
@@ -1257,6 +1429,22 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
            let mapping = directMapping(for: specialized)?
             .contextualized(as: specialized) {
             return .init(label: label, mapping: preservingOptional(mapping), hasDefault: hasDefault, blocker: nil, usesGeneric: name, genericConcrete: concrete)
+        }
+    }
+    // The same substitution where the compound carries MORE THAN ONE generic
+    // argument (`SharePreview<Image, Icon>`). The loop above rewrites the sole
+    // argument `<V>`, which no two-argument spelling ever matches — yet
+    // substitution is per-argument and each argument is answered by exactly
+    // the rule that loop applies. Doing it argument-wise subsumes the arity-1
+    // case; it is kept above only because it also honours a same-type
+    // requirement that resolves to a type with no carrier.
+    for specialized in specializingGenericArguments(
+        in: normalized, generics: generics) {
+        if let mapping = directMapping(for: specialized)?
+            .contextualized(as: specialized) {
+            return .init(
+                label: label, mapping: preservingOptional(mapping),
+                hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
         }
     }
     return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: normalized, usesGeneric: nil)
@@ -2777,6 +2965,9 @@ var initGeneratable = 0
 var initGuarded = 0
 var viewStructs = Set<String>()
 var valueStructs = Set<String>()
+/// A value struct's generic parameter names, in declaration order, so a
+/// demanded instantiation's arguments can be bound positionally.
+var valueStructGenericParameterNames: [String: [String]] = [:]
 var generatableStructs = Set<String>()
 var initBlockers: [String: Int] = [:]
 
@@ -2816,7 +3007,10 @@ func processInit(
     var generated = false
     var firstBlocker: String?
     for specialization in associatedGenericSpecializations(
-        generics, parameters: parameters) {
+        generics, parameters: parameters
+    ).flatMap({
+        uninhabitedGenericSpecializations($0, parameters: parameters)
+    }) {
         let analyzed = parameters.map { analyzeParameter(
             $0, generics: specialization) }
         if requiresPlatformParameter,
@@ -3109,9 +3303,26 @@ func collectConcreteNativeValueTypes(
     if let structure = declaration.as(StructDeclSyntax.self) {
         guard isPublicSDKDecl(structure.modifiers),
               isUsable(structure.attributes),
-              structure.genericParameterClause == nil,
               !structure.name.text.hasPrefix("_") else { return }
         let nested = path + [structure.name.text]
+        // A declaration's own availability guards the declaration; a type
+        // NAMED inside a generic instantiation carries its own, and the two
+        // can differ (`Binding<Chart3DPose>` is spelled by an initializer with
+        // no guard at all, while `Chart3DPose` is macOS 26). Record it so a
+        // specialized instantiation can fail closed on what it names.
+        if needsAvailabilityGuard(structure.attributes) {
+            newerOSNativeValueTypes.insert(nested.joined(separator: "."))
+        }
+        // A GENERIC struct is not a type until its arguments are supplied, so
+        // it never joins the concrete set. Record its arity instead: a fully
+        // specialized instantiation of it IS concrete, and that is what
+        // `directMapping` needs to recognize below.
+        guard structure.genericParameterClause == nil else {
+            genericNativeSwiftUIValueTypeArity[nested.joined(separator: ".")] =
+                structure.genericParameterClause?.parameters.count ?? 0
+            visit(structure.memberBlock.members, path: nested)
+            return
+        }
         found.insert(nested.joined(separator: "."))
         visit(structure.memberBlock.members, path: nested)
         return
@@ -3136,6 +3347,32 @@ for file in interfaceFiles {
         collectConcreteNativeValueTypes(
             in: declaration, path: [],
             into: &concreteNativeSwiftUIValueTypes)
+    }
+}
+
+// Every argument position a generic type declares may be the uninhabited
+// type. Read off `extension <Base> where <Parameter> == Never`, so which
+// shapes exist is the interface's statement and not a list kept here.
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item,
+              let extensionDeclaration = declaration.as(ExtensionDeclSyntax.self)
+        else { continue }
+        let base = normalize(
+            extensionDeclaration.extendedType.trimmedDescription)
+        guard let parameterNames = sdkNominalGenericParameters[base] else {
+            continue
+        }
+        for requirement in extensionDeclaration.genericWhereClause?
+            .requirements ?? [] {
+            guard let sameType = requirement.requirement.as(
+                SameTypeRequirementSyntax.self),
+                  normalize(sameType.rightType.trimmedDescription) == "Never",
+                  let position = parameterNames.firstIndex(
+                    of: normalize(sameType.leftType.trimmedDescription))
+            else { continue }
+            sdkNominalNeverPositions[base, default: []].insert(position)
+        }
     }
 }
 
@@ -3621,6 +3858,39 @@ var valueStructInfo: [String: (
     frameworkRequirements: Set<String>
 )] = [:]
 
+/// A demanded value type may be a generic INSTANTIATION
+/// (`SharePreview<InterpretedTransferableValue, Never>`), while scanning is
+/// keyed on the struct. Record the argument list each struct was demanded at,
+/// so its own generic parameters can be bound to those arguments before its
+/// initializers are read — left unbound they are ordinary constrained
+/// generics and every initializer blocks on them, which is the state that made
+/// `SharePreview` unscannable and `ShareLink(item:…preview:)` unreachable.
+var demandedValueStructArguments: [String: Set<[String]>] = [:]
+for demanded in generatedParameterValueTypes {
+    guard let parts = genericTypeParts(demanded) else { continue }
+    demandedValueStructArguments[parts.base, default: []]
+        .insert(parts.arguments)
+}
+
+/// Bind a struct's generic parameters, in declaration order, to one demanded
+/// argument list. Returns nil when a binding would contradict a requirement
+/// the declaration already states — an extension constrained `where Icon ==
+/// Never` says nothing about the instantiation that supplies an icon.
+func specializedValueStructGenerics(
+    _ base: Generics, parameterNames: [String], arguments: [String]
+) -> Generics? {
+    guard parameterNames.count == arguments.count else { return nil }
+    var specialized = base
+    for (name, argument) in zip(parameterNames, arguments) {
+        if case .concrete(let required)? = base[name],
+           normalize(required) != normalize(argument) {
+            return nil
+        }
+        specialized[name] = .concrete(argument)
+    }
+    return specialized
+}
+
 for file in interfaceFiles {
     for statement in file.statements {
         guard case .decl(let declaration) = statement.item,
@@ -3631,26 +3901,42 @@ for file in interfaceFiles {
             continue
         }
         let name = structure.name.text
-        guard generatedParameterValueTypes.contains(name) else {
+        let demandedArguments = demandedValueStructArguments[name] ?? []
+        guard generatedParameterValueTypes.contains(name)
+                || !demandedArguments.isEmpty else {
             continue
         }
         let guarded = needsAvailabilityGuard(structure.attributes)
         let frameworkRequirements = platformFrameworkRequirements(
             structure.attributes)
         let generics = structGenerics(structure)
+        let parameterNames = structure.genericParameterClause?
+            .parameters.map(\.name.text) ?? []
         valueStructs.insert(name)
         valueStructInfo[name] = (
             generics, guarded, frameworkRequirements)
+        valueStructGenericParameterNames[name] = parameterNames
+        // A non-generic struct is demanded by name and scanned once; a generic
+        // one is scanned once per instantiation it was demanded at.
+        let specializations: [Generics] = demandedArguments.isEmpty
+            ? [generics]
+            : demandedArguments.compactMap {
+                specializedValueStructGenerics(
+                    generics, parameterNames: parameterNames, arguments: $0)
+            }
         for member in structure.memberBlock.members {
             guard let initializer = member.decl.as(
                 InitializerDeclSyntax.self),
                   isUsable(initializer.attributes) else {
                 continue
             }
-            processInit(
-                name, initializer, generics: generics, guarded: guarded,
-                frameworkRequirements: frameworkRequirements,
-                preservesSemanticValue: true)
+            for specialization in specializations {
+                processInit(
+                    name, initializer, generics: specialization,
+                    guarded: guarded,
+                    frameworkRequirements: frameworkRequirements,
+                    preservesSemanticValue: true)
+            }
         }
     }
 }
@@ -3676,17 +3962,34 @@ for file in interfaceFiles {
         let frameworkRequirements = info.frameworkRequirements.union(
             platformFrameworkRequirements(
                 extensionDeclaration.attributes))
+        // The where-clause is read FIRST, so a demanded instantiation that
+        // contradicts it drops out here rather than emitting an initializer
+        // this extension does not declare: `extension SharePreview where Icon
+        // == Never` offers `init(_:image:)` to the icon-less instantiation
+        // only.
+        let demandedArguments = demandedValueStructArguments[extendedName] ?? []
+        let specializations: [Generics] = demandedArguments.isEmpty
+            ? [generics]
+            : demandedArguments.compactMap {
+                specializedValueStructGenerics(
+                    generics,
+                    parameterNames: valueStructGenericParameterNames[
+                        extendedName] ?? [],
+                    arguments: $0)
+            }
         for member in extensionDeclaration.memberBlock.members {
             guard let initializer = member.decl.as(
                 InitializerDeclSyntax.self),
                   isUsable(initializer.attributes) else {
                 continue
             }
-            processInit(
-                extendedName, initializer, generics: generics,
-                guarded: guarded,
-                frameworkRequirements: frameworkRequirements,
-                preservesSemanticValue: true)
+            for specialization in specializations {
+                processInit(
+                    extendedName, initializer, generics: specialization,
+                    guarded: guarded,
+                    frameworkRequirements: frameworkRequirements,
+                    preservesSemanticValue: true)
+            }
         }
     }
 }
@@ -6193,6 +6496,10 @@ var viewsOutput = """
 // GENERATED by BridgeGen from the SDK's SwiftUICore/SwiftUI swiftinterfaces.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(sortedInits.count) initializer variants across \(Set(sortedInits.map(\.name)).count) SwiftUI structs.
+// Charts is imported for the same reason the modifier table imports it: both
+// tables are emitted from the same parsed primary interfaces, so either may
+// name a type declared by any of them.
+import Charts
 import SwiftUI
 \(emittedSupportingImportBlock)import SwiftInterpreter
 #if canImport(AppKit)
