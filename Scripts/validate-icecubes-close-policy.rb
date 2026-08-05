@@ -23,8 +23,14 @@ DECOMPOSITION_PATTERN =
   /\bSTALL-ACK\b[^\n]*?\bdecomposition\s+([\w-]+)\s+([\w.\/-]+)@([0-9a-f]{8,40})\b[^\n]*?\bmicrotwin\s+([A-Za-z_]\w*)[^\n]*?\bAE\s+(\d+)\s*->\s*0\b/i
 MICROTWIN_SEARCH_PATH = "Tests/"
 R2_BOARD_PATH = "Scripts/icecubes-r2.sh"
-R2_FLOORS_PATTERN = /R2_FLOORS=\(\s*(.*?)\s*\)/m
+# The terminator is a LINE-INITIAL `)`, not the first `)` anywhere in the
+# block. Floors carry prose explaining what each number is, and one of those
+# comments names `.draggable(_:)` — a non-greedy scan ended the array inside
+# that comment and silently dropped every screen below it.
+R2_FLOORS_PATTERN = /R2_FLOORS=\((.*?)^\s*\)/m
+R2_SCREENS_PATTERN = /R2_SCREENS=\(([^)]*)\)/
 R2_FLOOR_ENTRY_PATTERN = /^\s*([A-Za-z][\w-]*)\s+(\d+)\s*$/
+R2_COMMENT_PATTERN = /#[^\n]*/
 # Four MERGE-DONE spellings are in the ledger (`MERGE-DONE <sha>`,
 # `MERGE-DONE <lane> <sha>`, a steward form, and 7-hex shorthand), so the sha is
 # found by candidate rather than by position. `git show` is the arbiter: a
@@ -48,17 +54,31 @@ def parse_r2_floors(source)
   body = source[R2_FLOORS_PATTERN, 1]
   return nil unless body
 
-  entries = body.scan(R2_FLOOR_ENTRY_PATTERN)
+  entries = body.gsub(R2_COMMENT_PATTERN, "").scan(R2_FLOOR_ENTRY_PATTERN)
   return nil if entries.empty?
 
-  entries.to_h { |screen, value| [screen, Integer(value, 10)] }
+  floors = entries.to_h { |screen, value| [screen, Integer(value, 10)] }
+  # What makes the next truncation impossible to miss. `icecubes-r2.sh` already
+  # refuses at RUNTIME to score a screen carrying no floor, or to hold a floor
+  # for a screen it never captures; this asserts that same agreement STATICALLY.
+  # A screen the parser fails to see then reads as UNREADABLE — which the tip
+  # path reports as an error and fails the close — instead of as zero debt,
+  # which is what let `media-browser 367681` leave the sum unnoticed.
+  screens = source[R2_SCREENS_PATTERN, 1]&.split
+  return nil if screens && screens.sort != floors.keys.sort
+
+  floors
 end
 
+# nil means "this candidate is not a sha, keep looking"; :unreadable means the
+# candidate IS a landing whose board would not parse. Collapsing the two let a
+# window silently shrink past the truncation that caused it — the window would
+# just walk further back and report five numbers as though nothing were missing.
 def r2_floors_at(sha)
   source, _error, ok = git("show", "#{sha}:#{R2_BOARD_PATH}")
   return nil unless ok
 
-  parse_r2_floors(source)
+  parse_r2_floors(source) || :unreadable
 end
 
 # Walks back from the newest claim, so only the window's worth of shas is
@@ -81,7 +101,8 @@ def landed_entries(lines, resolver: method(:r2_floors_at), limit: STALL_WINDOW)
         floors = resolver.call(candidate)
         next unless floors
 
-        landed = { "sha" => candidate, "open" => floors.values.sum }
+        landed = { "sha" => candidate,
+                   "open" => floors == :unreadable ? nil : floors.values.sum }
         break
       end
     next unless landed
@@ -292,6 +313,37 @@ def self_test
   raise "a board without floors must not parse" if
     parse_r2_floors("typeset -A R2_AE_LINES\n")
 
+  # The shape that actually shipped: floors annotated with prose, one comment
+  # naming `.draggable(_:)`. Terminating the array at the first `)` ended it
+  # INSIDE that comment, so `media-browser` left the sum and the close reported
+  # `R2 open 2 AE` against a real debt of 367683. The fixture above could not
+  # catch it because it carries no comments at all.
+  commented = <<~BOARD
+    R2_SCREENS=(timeline tags-list media-browser)
+    typeset -A R2_FLOORS
+    R2_FLOORS=(
+      timeline 0
+      # Was 4. Two of those pixels were the twin encoding Display P3 16bpc.
+      tags-list 2
+      # Was 367861, of which 197 px were the `.draggable(_:)` error label.
+      media-browser 367681
+    )
+    typeset -A R2_AE_LINES
+  BOARD
+  raise "a `)` inside a floor comment truncated the board" unless
+    parse_r2_floors(commented) ==
+      { "timeline" => 0, "tags-list" => 2, "media-browser" => 367_681 }
+
+  # A floor the parser cannot see must read as UNREADABLE, never as no debt:
+  # `R2_SCREENS` names a screen the floors do not, so the sum would be short.
+  raise "floors disagreeing with R2_SCREENS must not parse" if
+    parse_r2_floors(<<~BOARD)
+      R2_SCREENS=(timeline media-browser)
+      R2_FLOORS=(
+        timeline 0
+      )
+    BOARD
+
   shas = Array.new(6) { |index| (index + 1).to_s * 40 }
   floors_by_sha = {
     shas[0] => { "timeline" => 0, "a" => 60_000 },
@@ -481,7 +533,13 @@ end
 # non-zero when a screen measures OVER its floor, and gate.sh propagates that,
 # so a floor lowered without the pixels moving reds the same gate this check
 # runs in. A decrease here is therefore measured, not asserted.
-metrics = entries.map { |entry| entry.fetch("open") }
+entries
+  .select { |entry| entry.fetch("open").nil? }
+  .each do |entry|
+    errors << "the R2 board at landed #{entry.fetch("sha")[0, 12]} does not " \
+      "parse, so the stall window cannot be measured against it"
+  end
+metrics = entries.map { |entry| entry.fetch("open") }.compact
 metrics += [open_total] if open_total
 stall_active = stalled?(metrics)
 
