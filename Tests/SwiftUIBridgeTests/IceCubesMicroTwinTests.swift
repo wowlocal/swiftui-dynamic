@@ -61,6 +61,37 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    /// The whole open media-browser image block (366,896 AE of the R2 board's
+    /// 367,681) in one distilled view. `MediaUIView` reaches its image through
+    /// `MediaUIZoomableContainer`, whose body is `ZoomableScrollView` — a
+    /// representable the APP declares, not one the SDK owns. Nothing in the
+    /// bridge builds an interpreted representable conformance, so the whole
+    /// subtree is dropped with no diagnostic and no view: the captured
+    /// `PlatformGroupContainer` for that screen measures w=0.
+    ///
+    /// Spelled `NSViewRepresentable` because this suite hosts through
+    /// `NSHostingView`; the conformance the interpreter fails to build is the
+    /// protocol's, not either platform's, and the Catalyst screen that
+    /// surfaced it declares the `UIViewRepresentable` spelling of the same
+    /// shape.
+    private struct NativeRepresentableBoxTwin: View {
+        var body: some View {
+            RepresentableBox()
+                .frame(width: 120, height: 60)
+        }
+    }
+
+    private struct RepresentableBox: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView {
+            let view = NSView()
+            view.wantsLayer = true
+            view.layer?.backgroundColor = NSColor.red.cgColor
+            return view
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {}
+    }
+
     private struct NativeAvatarShapeTwin: View {
         var body: some View {
             Color.blue
@@ -334,6 +365,52 @@ struct IceCubesMicroTwinTests {
     /// modifier on the interpreted iOS path. The inactive presentation must
     /// preserve every native receiver pixel, independently of the footer.
     @MainActor
+    /// RED at 83d79312: the interpreted representable contributes no view at
+    /// all, so this measures the twin's red box against blank — it is the
+    /// media-browser image block's whole AE, isolated from the toolbar band
+    /// the same screen also carries, exactly as section 1 requires.
+    @Test
+    func appDeclaredRepresentableDrawsItsNativeView() throws {
+        let source = """
+        import AppKit
+
+        struct RepresentableBox: NSViewRepresentable {
+            func makeNSView(context: Context) -> NSView {
+                let view = NSView()
+                view.wantsLayer = true
+                view.layer?.backgroundColor = NSColor.red.cgColor
+                return view
+            }
+
+            func updateNSView(_ nsView: NSView, context: Context) {}
+        }
+
+        RepresentableBox()
+            .frame(width: 120, height: 60)
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("representable microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 160, height: 100)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeRepresentableBoxTwin()), size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-representable-microtwin ae=\(ae)")
+        #expect(ae == 0)
+        // The class is SILENT, which is why it survived to be 99.8% of the
+        // board's open debt: assert the absence of a diagnostic separately so
+        // a future fix cannot pass by merely reporting the failure.
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
     @Test
     func translatedRowPreservesNativePixels() throws {
         let source = """
