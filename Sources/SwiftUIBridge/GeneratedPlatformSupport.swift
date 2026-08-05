@@ -616,6 +616,25 @@ enum GeneratedPlatformBridge {
         nativeFrameworks.contains(framework)
     }
 
+    /// A real instance of an ObjC-visible platform class, for a construction
+    /// the generated tier declares no initializer for.
+    ///
+    /// `init()` is NSObject's own required initializer, so every ObjC class
+    /// inherits it and the runtime can supply what the symbol graph omitted.
+    /// Source that writes `Type()` would call exactly this initializer when
+    /// compiled, which is what makes the substitution faithful rather than a
+    /// guess. A Swift-native class mangles its runtime name and simply does
+    /// not resolve — those keep the established stub.
+    static func objectiveCInstance(ofType type: String) -> AnyObject? {
+        // Nested types (`NSView.AutoresizingMask`) name no ObjC class, and
+        // the generated tier already declares their real initializers.
+        guard !type.contains("."),
+              let cls = NSClassFromString(type) as? NSObject.Type else {
+            return nil
+        }
+        return cls.init()
+    }
+
     private static var frameworkPreference: [String] {
         let nativeSurfaces = platformFrameworkOrder.filter {
             platformSurfaceFrameworks.contains($0)
@@ -811,6 +830,23 @@ enum GeneratedPlatformBridge {
                         $0.match(arguments: arguments, in: context) != nil
                     }) {
                         return try typed.invoke(arguments, context)
+                    }
+                    // A symbol graph lists an inherited `init()` only on the
+                    // class that DECLARES it, so every swept subclass reaches
+                    // here for a no-argument construction — `NSView()`,
+                    // `UIScrollView()` — and used to absorb into a payload-less
+                    // stub. The real class is still in the ObjC runtime, and a
+                    // no-argument call is exactly the shape `init()` names, so
+                    // resolving it there answers the whole swept family at once
+                    // rather than re-declaring initializers type by type.
+                    if arguments.arguments.isEmpty,
+                       frameworkIsNative(framework),
+                       let instance = objectiveCInstance(ofType: type) {
+                        return .native(GeneratedPlatformValue(
+                            framework: framework,
+                            typeName: type,
+                            isValueType: false,
+                            payload: instance))
                     }
                     var config: [String: RuntimeValue] = [:]
                     for (index, argument) in arguments.arguments.enumerated() {
