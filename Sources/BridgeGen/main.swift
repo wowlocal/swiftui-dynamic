@@ -509,6 +509,20 @@ func arrayElementType(_ normalized: String) -> String? {
 /// Public, non-generic native values declared by SwiftUI's interfaces.
 var concreteNativeSwiftUIValueTypes: Set<String> = []
 
+/// A property wrapper whose PROJECTION the interface publishes as a parameter
+/// type but gives no way to build. Collected by shape further down; declared
+/// here because `directMapping` consults it.
+struct WrapperProjection {
+    let wrapper: String
+    /// The interface offers `init() where Value == Bool` and `init<T>() where
+    /// Value == T?, T: Hashable`, so a projection is reachable in exactly two
+    /// value shapes. Which one applies is read from the generic argument at
+    /// each use site, not stored here.
+    let hasBoolValue: Bool
+    let hasOptionalHashableValue: Bool
+}
+var wrapperProjectionWrappers: [String: WrapperProjection] = [:]
+
 func directMapping(for normalized: String) -> TypeMapping? {
     if let elementType = arrayElementType(normalized),
        let element = directMapping(for: elementType),
@@ -570,6 +584,11 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Date": return .init(tag: "date", cast: "%@ as! Date")
     case "Data": return .init(tag: "data", cast: "%@ as! Data")
     default:
+        // A projection of a wrapper the interface leaves uninitializable: the
+        // carrier declares the wrapper, so what crosses is an ordinary binding.
+        if let projection = wrapperProjectionMapping(for: normalized) {
+            return projection
+        }
         if let frameworks = platformTypeFrameworks[normalized],
            frameworks.count == 1, let framework = frameworks.first {
             return .init(
@@ -3044,6 +3063,116 @@ for file in interfaceFiles {
 }
 frameworkSuppliedWrappers.sort { $0.name < $1.name }
 
+/// A property wrapper whose PROJECTION the interface publishes as a parameter
+/// type but gives no way to build. `FocusState<Value>.Binding` stores a
+/// `private var _binding` and declares `wrappedValue`/`projectedValue` and no
+/// initializer at all, so a parameter of that type cannot be satisfied by
+/// converting an argument — only by DECLARING the enclosing wrapper somewhere
+/// real and passing what SwiftUI hands back.
+///
+/// That is the property collected here, and nothing below names a wrapper: an
+/// initializer-less nested `@propertyWrapper` inside a generic
+/// `@propertyWrapper` selects them. The generated carrier for each is what
+/// makes such a parameter reachable at all.
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item,
+              let structure = declaration.as(StructDeclSyntax.self),
+              isPublicSDKDecl(structure.modifiers),
+              isUsable(structure.attributes),
+              structure.genericParameterClause != nil,
+              !structure.name.text.hasPrefix("_"),
+              structure.attributes.contains(where: {
+                  $0.as(AttributeSyntax.self)?.attributeName
+                      .trimmedDescription == "propertyWrapper"
+              }) else { continue }
+        // The nested projection type: itself a property wrapper, public, and
+        // declaring no initializer any caller could reach.
+        let projections = structure.memberBlock.members.compactMap {
+            member -> StructDeclSyntax? in
+            guard let nested = member.decl.as(StructDeclSyntax.self),
+                  isPublicSDKDecl(nested.modifiers),
+                  nested.attributes.contains(where: {
+                      $0.as(AttributeSyntax.self)?.attributeName
+                          .trimmedDescription == "propertyWrapper"
+                  }),
+                  !nested.memberBlock.members.contains(where: {
+                      guard let initializer = $0.decl
+                          .as(InitializerDeclSyntax.self) else { return false }
+                      return isPublicSDKDecl(initializer.modifiers)
+                  }) else { return nil }
+            return nested
+        }
+        guard let projection = projections.first else { continue }
+        // Which value shapes the ENCLOSING wrapper can actually be declared
+        // in, since the carrier has to declare it: `Value == Bool` and
+        // `Value == T?, T: Hashable` are the two the interface permits.
+        var hasBool = false
+        var hasOptionalHashable = false
+        for member in structure.memberBlock.members {
+            guard let initializer = member.decl
+                .as(InitializerDeclSyntax.self),
+                  isPublicSDKDecl(initializer.modifiers),
+                  initializer.signature.parameterClause.parameters.isEmpty,
+                  let whereClause = initializer.genericWhereClause else {
+                continue
+            }
+            // What `Value` is pinned to by this initializer's same-type
+            // requirement. The interface spells it `Swift.Bool` and leaves a
+            // separator on all but the last requirement, so both go through
+            // the same normalization every other type here does.
+            let boundValues = whereClause.requirements.compactMap {
+                requirement -> String? in
+                let text = requirement.trimmedDescription
+                    .trimmingCharacters(in: CharacterSet(charactersIn: " ,"))
+                let sides = text.components(separatedBy: "==")
+                guard sides.count == 2,
+                      normalize(sides[0].trimmingCharacters(
+                          in: .whitespaces)) == "Value" else { return nil }
+                return normalize(sides[1].trimmingCharacters(in: .whitespaces))
+            }
+            if boundValues.contains("Bool") { hasBool = true }
+            // `Value == T?` with `T: Hashable` — the generic is the wrapper's
+            // own, so the shape, not the spelling, is what identifies it.
+            if boundValues.contains(where: { $0.hasSuffix("?") }) {
+                hasOptionalHashable = true
+            }
+        }
+        guard hasBool || hasOptionalHashable else { continue }
+        wrapperProjectionWrappers[
+            "\(structure.name.text).\(projection.name.text)"
+        ] = .init(
+            wrapper: structure.name.text,
+            hasBoolValue: hasBool,
+            hasOptionalHashableValue: hasOptionalHashable)
+    }
+}
+
+/// Read a use-site parameter type (`FocusState<Bool>.Binding`,
+/// `AccessibilityFocusState<Value>.Binding`) back to the collected wrapper and
+/// the value shape its generic argument asks for.
+func wrapperProjectionMapping(for normalized: String) -> TypeMapping? {
+    guard let open = normalized.firstIndex(of: "<"),
+          let close = normalized.lastIndex(of: ">") else { return nil }
+    let base = String(normalized[normalized.startIndex..<open])
+    let nested = String(normalized[normalized.index(after: close)...])
+    guard nested.hasPrefix("."),
+          let projection = wrapperProjectionWrappers[base + nested]
+    else { return nil }
+    let argument = String(normalized[normalized.index(after: open)..<close])
+    // `Bool` names the concrete shape; anything else at this position is the
+    // declaration's own generic parameter, which the interface constrains to
+    // Hashable and the wrapper can only hold as an optional.
+    let isBoolShape = argument == "Bool"
+    guard isBoolShape ? projection.hasBoolValue
+        : projection.hasOptionalHashableValue else { return nil }
+    return .init(
+        tag: "wrapperProjection(\"\(projection.wrapper)\", \(!isBoolShape))",
+        cast: isBoolShape
+            ? "%@ as! Binding<Bool>"
+            : "%@ as! Binding<InterpretedHashableValue?>")
+}
+
 // Pass A: View-extension modifiers + View structs (recording their generics
 // so pass B can process extension-declared inits, where most of them live).
 var viewStructInfo: [String: (
@@ -5313,6 +5442,10 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
                 // native generic call; an inline cast fixes the generic
                 // argument to the existential type itself.
                 value = "p\(index)"
+            } else if param.tag.hasPrefix("wrapperProjection(") {
+                // Bound by the enclosing carrier, which is the only thing that
+                // can produce this parameter's type.
+                value = "p\(index)"
             } else {
                 value = generatedMappedValue(
                     cast: param.cast, isOptional: param.isOptional,
@@ -5363,6 +5496,59 @@ func generatedProtocolConstraint(from tag: String) -> String? {
 /// generic function and erase the result before it crosses that boundary.
 /// Both the constraints and the need for this adapter come from interface
 /// metadata; no SDK declaration identity participates in the decision.
+/// The carrier type for a wrapper projection, derived from the wrapper's own
+/// name so the emitter and the call site agree without a lookup table. A
+/// wrapper the SDK adds later lands here automatically; if its carrier were
+/// somehow missing, the generated call would fail to compile against the real
+/// SDK rather than fail in a session.
+func generatedWrapperProjectionCarrierName(
+    wrapper: String, isOptionalValue: Bool
+) -> String {
+    "Generated\(isOptionalValue ? "Optional" : "")\(wrapper)Projection"
+}
+
+/// The parameters a variant declares as uninitializable wrapper projections.
+func wrapperProjectionParameters(
+    _ variant: Variant
+) -> [(index: Int, wrapper: String, isOptionalValue: Bool)] {
+    variant.params.enumerated().compactMap { index, param in
+        let prefix = "wrapperProjection(\""
+        guard param.tag.hasPrefix(prefix), param.tag.hasSuffix(")") else {
+            return nil
+        }
+        let inner = param.tag.dropFirst(prefix.count).dropLast()
+        let parts = inner.components(separatedBy: "\", ")
+        guard parts.count == 2 else { return nil }
+        return (index, parts[0], parts[1] == "true")
+    }
+}
+
+/// Wrap the receiver in the carrier that declares the wrapper, and hand the
+/// modifier the projection SwiftUI produced. This restructures the RECEIVER
+/// rather than converting the argument, which is the only move available when
+/// the parameter's type admits no conversion at all.
+func generatedWrapperProjectionCall(
+    _ variant: Variant, returnedExpression: String
+) -> [String]? {
+    let projections = wrapperProjectionParameters(variant)
+    guard let projection = projections.first else { return nil }
+    guard projections.count == 1 else {
+        fatalError(
+            "\(variant.key) takes more than one wrapper projection; one "
+                + "carrier cannot declare both wrappers")
+    }
+    let carrier = generatedWrapperProjectionCarrierName(
+        wrapper: projection.wrapper,
+        isOptionalValue: projection.isOptionalValue)
+    let cast = variant.params[projection.index].cast
+        .replacingOccurrences(of: "%@", with: "v[\(projection.index)]")
+    return [
+        "        return AnyView(\(carrier)(binding: \(cast)) { p\(projection.index) in",
+        "            \(returnedExpression)",
+        "        })",
+    ]
+}
+
 func generatedProtocolOpeningCall(
     _ variant: Variant, resultType: String, returnedExpression: String
 ) -> [String]? {
@@ -5527,7 +5713,11 @@ func entryCode(_ variant: Variant) -> String {
     let returnedExpression =
         "AnyView(\(generatedCall("view.\(variant.name)", variant)))"
     var invocation: [String] = []
-    if let opened = generatedProtocolOpeningCall(
+    if let carried = generatedWrapperProjectionCall(
+        variant, returnedExpression: returnedExpression
+    ) {
+        invocation.append(contentsOf: carried)
+    } else if let opened = generatedProtocolOpeningCall(
         variant, resultType: "AnyView",
         returnedExpression: returnedExpression
     ) {
@@ -7980,6 +8170,83 @@ extension GeneratedPropertyWrappers {
 }
 
 """
+// One carrier pair per wrapper whose projection the interface leaves
+// uninitializable. The body is the same in every case because the gap is the
+// same in every case: declare the real wrapper, hand the modifier the
+// projection SwiftUI made, and keep the interpreted binding and the wrapper's
+// value in step both ways. Nothing here is written per wrapper by hand, so a
+// wrapper the SDK adds later is carried the moment the scan sees it.
+func wrapperProjectionCarrierSource(
+    wrapper: String, isOptionalValue: Bool
+) -> String {
+    let carrier = generatedWrapperProjectionCarrierName(
+        wrapper: wrapper, isOptionalValue: isOptionalValue)
+    let generics = isOptionalValue
+        ? "<Value: Hashable, Content: View>" : "<Content: View>"
+    let stored = isOptionalValue ? "Value?" : "Bool"
+    return """
+    /// Bridges an ordinary interpreted binding to `\(wrapper)`'s projection,
+    /// which the interface declares with no initializer any caller can reach.
+    struct \(carrier)\(generics): View {
+        @\(wrapper) private var focus: \(stored)
+        let binding: Binding<\(stored)>
+        let content: (\(wrapper)<\(stored)>.Binding) -> Content
+
+        var body: some View {
+            content($focus)
+                .onAppear { focus = binding.wrappedValue }
+                .onChange(of: binding.wrappedValue) { _, new in
+                    guard focus != new else { return }
+                    focus = new
+                }
+                .onChange(of: focus) { _, new in
+                    guard binding.wrappedValue != new else { return }
+                    binding.wrappedValue = new
+                }
+        }
+    }
+    """
+}
+
+let wrapperProjectionCarrierSources = wrapperProjectionWrappers
+    .sorted { $0.key < $1.key }
+    .flatMap { _, projection -> [String] in
+        var sources: [String] = []
+        if projection.hasBoolValue {
+            sources.append(wrapperProjectionCarrierSource(
+                wrapper: projection.wrapper, isOptionalValue: false))
+        }
+        if projection.hasOptionalHashableValue {
+            sources.append(wrapperProjectionCarrierSource(
+                wrapper: projection.wrapper, isOptionalValue: true))
+        }
+        return sources
+    }
+
+let wrapperProjectionsOutput = """
+// Generated by BridgeGen. Do not edit.
+//
+// A property wrapper whose PROJECTION the interface publishes as a parameter
+// type but gives no way to build: `FocusState<Value>.Binding` stores a
+// `private var _binding` and declares `wrappedValue`/`projectedValue` and no
+// initializer at all. Such a parameter cannot be satisfied by converting an
+// argument, only by DECLARING the enclosing wrapper somewhere real — which is
+// what these carriers do.
+
+import SwiftUI
+
+\(wrapperProjectionCarrierSources.joined(separator: "\n\n"))
+
+"""
+let wrapperProjectionsPath =
+    "Sources/SwiftUIBridge/Generated/GeneratedWrapperProjections.swift"
+try wrapperProjectionsOutput.write(
+    toFile: wrapperProjectionsPath, atomically: true, encoding: .utf8)
+print(
+    "wrote \(wrapperProjectionsPath) "
+        + "(\(wrapperProjectionCarrierSources.count) projection carriers for "
+        + "\(wrapperProjectionWrappers.count) wrappers)")
+
 let propertyWrappersPath =
     "Sources/SwiftUIBridge/Generated/GeneratedPropertyWrappers.swift"
 try propertyWrappersOutput.write(

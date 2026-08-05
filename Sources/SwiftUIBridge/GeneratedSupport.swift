@@ -32,6 +32,13 @@ enum ParamTag: Hashable {
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
     case symbolRenderingMode
     case bindingBool, bindingString, bindingDouble
+    /// A projection of an SDK property wrapper that the interface declares
+    /// with no public initializer, so no argument coercion can produce one
+    /// (`FocusState<Value>.Binding`). The associated values are the enclosing
+    /// wrapper's base name and whether its value is the interface's
+    /// optional-Hashable shape; a generated carrier declares that wrapper and
+    /// bridges it to the ordinary binding this tag coerces.
+    case wrapperProjection(String, Bool)
     case shapeStyle, genericShapeStyle, anyView, shape
     /// A public, non-generic native value declared by SwiftUI's interfaces.
     case nativeSwiftUIValue(String)
@@ -203,6 +210,33 @@ struct InterpretedHashableValue: @unchecked Sendable, Hashable {
 
     nonisolated func hash(into hasher: inout Hasher) {}
 }
+
+/// A property-wrapper projection the SDK declares with NO public initializer.
+///
+/// `FocusState<Value>.Binding` and `AccessibilityFocusState<Value>.Binding` are
+/// each `@propertyWrapper struct Binding { private var _binding; var
+/// wrappedValue; var projectedValue }` — every stored member private, and not
+/// one initializer in the interface. So unlike every other parameter the
+/// bridge coerces, this one admits no conversion at all: no value can be cast,
+/// constructed, or adapted into the projection. It exists ONLY where the
+/// enclosing wrapper is declared on a real view, as what SwiftUI hands back
+/// from `$focus`.
+///
+/// That makes the whole family unbridgeable by argument coercion, which is the
+/// property these carriers dispatch on rather than the name of any modifier:
+/// the fix restructures the RECEIVER instead of converting the argument. The
+/// carrier declares the real wrapper, hands the modifier SwiftUI's own
+/// projection, and keeps the ordinary interpreted binding and the wrapper's
+/// value in sync in both directions — so interpreted `@FocusState` state still
+/// drives, and observes, native focus.
+///
+/// The carriers themselves are GENERATED, one pair per wrapper the scan finds
+/// (`Sources/SwiftUIBridge/Generated/GeneratedWrapperProjections.swift`): the
+/// pair is a Bool carrier and an optional-Hashable one, because those are the
+/// two initializers the interface declares — `init() where Value == Bool` and
+/// `init<T>() where Value == T?, T: Hashable`. `FocusState<Value>` is not
+/// constructible for a bare generic `Value: Hashable`, so the split follows
+/// what the interface permits rather than what would be tidier.
 
 /// One concrete specialization for an interface generic constrained only to
 /// Transferable, in the same shape as the Equatable/Hashable carriers above:
@@ -602,6 +636,12 @@ enum GeneratedDispatch {
             return try Coerce.axis(value)
         case .bindingBool:
             return try Coerce.boolBinding(value, context: ctx)
+        case .wrapperProjection(_, let isOptionalValue):
+            // The projection itself is not constructible; what crosses here is
+            // the ordinary binding the generated carrier will drive it from.
+            return isOptionalValue
+                ? try Coerce.hashableOptionalBinding(value, context: ctx)
+                : try Coerce.boolBinding(value, context: ctx)
         case .bindingString:
             return try Coerce.stringBinding(value, context: ctx)
         case .bindingDouble:

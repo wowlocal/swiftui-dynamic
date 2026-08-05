@@ -150,6 +150,30 @@ enum Coerce {
         )
     }
 
+    /// A binding over the interpreted Hashable carrier, for the interface
+    /// generics that constrain their value to `Hashable` alone
+    /// (`FocusState<Value>` where `Value == T?`). Nil round-trips as the
+    /// interpreter's own nil rather than as a carrier wrapping `.void`, so
+    /// "nothing is focused" stays distinguishable from "a value that is
+    /// absent".
+    static func hashableOptionalBinding(
+        _ value: RuntimeValue,
+        context: EvalContext? = nil
+    ) throws -> Binding<InterpretedHashableValue?> {
+        let box = try bindingBox(value, context: context)
+        return Binding(
+            get: {
+                // An unfocused `@FocusState var x: Foo?` reads as the
+                // interpreter's nil, or as `.void` while it is still
+                // uninitialized; both mean "nothing is focused".
+                if box.value.isNil { return nil }
+                if case .void = box.value { return nil }
+                return InterpretedHashableValue(runtimeValue: box.value)
+            },
+            set: { box.value = $0?.runtimeValue ?? .nilValue }
+        )
+    }
+
     /// Tagged-selection binding: reads the state's stable string identity
     /// and writes back the ORIGINAL runtime value a `.tag(...)` registered
     /// for it — enum-case selections keep switch-matching after a control
