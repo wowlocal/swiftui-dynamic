@@ -160,7 +160,7 @@ extension GeneratedModifiers {
         return AnyView(view.accessibilityCustomContent(LocalizedStringKey(v[0] as! String), v[1] as! String))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "accessibilityDefaultFocus", [ParamSpec(nil, .wrapperProjection("AccessibilityFocusState", true), contextualType: "AccessibilityFocusState<Value>.Binding"), ParamSpec(nil, .hashable)], requiredImports: ["UIKit"]) { view, v in
             return AnyView(GeneratedOptionalAccessibilityFocusStateProjection(binding: v[0] as! Binding<InterpretedHashableValue?>) { p0 in
                 AnyView(view.accessibilityDefaultFocus(p0, v[1] as! InterpretedHashableValue))
@@ -344,7 +344,7 @@ register(&t, "accessibilityDefaultFocus", [ParamSpec(nil, .wrapperProjection("Ac
         return AnyView(view.accessibilityScrollAction(generatedSyncVoidClosure(v[0])))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .text, contextualType: "Text")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.accessibilityScrollStatus(v[0] as! Text))
         }
@@ -359,7 +359,7 @@ register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .text, contextualType:
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.accessibilityScrollStatus(LocalizedStringKey(v[0] as! String)))
         }
@@ -374,7 +374,7 @@ register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .localizationKey, cont
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .string, contextualType: "StringProtocol")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.accessibilityScrollStatus(v[0] as! String))
         }
@@ -389,7 +389,7 @@ register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .string, contextualTyp
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("isEnabled", .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.accessibilityScrollStatus(v[0] as! Text, isEnabled: v[1] as! Bool))
         }
@@ -404,7 +404,7 @@ register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .text, contextualType:
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isEnabled", .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.accessibilityScrollStatus(LocalizedStringKey(v[0] as! String), isEnabled: v[1] as! Bool))
         }
@@ -419,7 +419,7 @@ register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .localizationKey, cont
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .string, contextualType: "StringProtocol"), ParamSpec("isEnabled", .bool, contextualType: "Bool")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.accessibilityScrollStatus(v[0] as! String, isEnabled: v[1] as! Bool))
         }
@@ -541,7 +541,7 @@ register(&t, "accessibilityScrollStatus", [ParamSpec(nil, .string, contextualTyp
 
     private static func build3(_ t: inout [String: [GeneratedOverload]]) {
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "assistiveAccessNavigationIcon", [ParamSpec(nil, .nativeSwiftUIValue("Image"), contextualType: "Image")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.assistiveAccessNavigationIcon(v[0] as! Image))
         }
@@ -556,7 +556,7 @@ register(&t, "assistiveAccessNavigationIcon", [ParamSpec(nil, .nativeSwiftUIValu
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "assistiveAccessNavigationIcon", [ParamSpec("systemImage", .string, contextualType: "String")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.assistiveAccessNavigationIcon(systemImage: v[0] as! String))
         }
@@ -661,7 +661,7 @@ register(&t, "assistiveAccessNavigationIcon", [ParamSpec("systemImage", .string,
         return generatedInvoke(p0, p1)
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "backgroundExtensionEffect", [], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.backgroundExtensionEffect())
         }
@@ -676,7 +676,7 @@ register(&t, "backgroundExtensionEffect", [], requiredImports: ["UIKit"], execut
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "backgroundExtensionEffect", [ParamSpec("isEnabled", .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.backgroundExtensionEffect(isEnabled: v[0] as! Bool))
         }
@@ -754,7 +754,7 @@ register(&t, "backgroundExtensionEffect", [ParamSpec("isEnabled", .bool, context
         return AnyView(view.buttonRepeatBehavior(v[0] as! ButtonRepeatBehavior))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "buttonSizing", [ParamSpec(nil, .sdkEnum("ButtonSizing"), contextualType: "ButtonSizing")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.buttonSizing(v[0] as! ButtonSizing))
         }
@@ -786,7 +786,7 @@ register(&t, "buttonSizing", [ParamSpec(nil, .sdkEnum("ButtonSizing"), contextua
         return generatedInvoke(p0)
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chart3DCameraProjection", [], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chart3DCameraProjection())
         }
@@ -801,7 +801,7 @@ register(&t, "chart3DCameraProjection", [], requiredImports: ["UIKit"], executes
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chart3DCameraProjection", [ParamSpec(nil, .sdkEnum("Chart3DCameraProjection"), contextualType: "Chart3DCameraProjection")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chart3DCameraProjection(v[0] as! Chart3DCameraProjection))
         }
@@ -816,7 +816,7 @@ register(&t, "chart3DCameraProjection", [ParamSpec(nil, .sdkEnum("Chart3DCameraP
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chart3DPose", [ParamSpec(nil, .sdkEnum("Chart3DPose"), contextualType: "Chart3DPose")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chart3DPose(v[0] as! Chart3DPose))
         }
@@ -1219,7 +1219,7 @@ register(&t, "chart3DPose", [ParamSpec(nil, .sdkEnum("Chart3DPose"), contextualT
         return generatedInvoke(p0, p1)
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxis", [ParamSpec(nil, .visibility, contextualType: "Visibility")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxis(v[0] as! Visibility))
         }
@@ -1234,7 +1234,7 @@ register(&t, "chartZAxis", [ParamSpec(nil, .visibility, contextualType: "Visibil
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxisLabel(LocalizedStringKey(v[0] as! String)))
         }
@@ -1249,7 +1249,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "StringProtocol")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.chartZAxisLabel(v[0] as! String))
         }
@@ -1264,7 +1264,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "String
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxisLabel(LocalizedStringKey(v[0] as! String), spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }))
         }
@@ -1279,7 +1279,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("alignment", .alignment, isOptional: true, contextualType: "Alignment")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxisLabel(LocalizedStringKey(v[0] as! String), alignment: generatedOptionalArgument(v[1]) { value in value as! Alignment }))
         }
@@ -1294,7 +1294,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition))
         }
@@ -1309,7 +1309,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "StringProtocol"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.chartZAxisLabel(v[0] as! String, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }))
         }
@@ -1324,7 +1324,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "String
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "StringProtocol"), ParamSpec("alignment", .alignment, isOptional: true, contextualType: "Alignment")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.chartZAxisLabel(v[0] as! String, alignment: generatedOptionalArgument(v[1]) { value in value as! Alignment }))
         }
@@ -1339,7 +1339,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "String
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "StringProtocol"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.chartZAxisLabel(v[0] as! String, position: v[1] as! AnnotationPosition))
         }
@@ -1354,7 +1354,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "String
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("alignment", .alignment, isOptional: true, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxisLabel(LocalizedStringKey(v[0] as! String), alignment: generatedOptionalArgument(v[1]) { value in value as! Alignment }, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }))
         }
@@ -1369,7 +1369,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }))
         }
@@ -1384,7 +1384,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, isOptional: true, contextualType: "Alignment")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, alignment: generatedOptionalArgument(v[2]) { value in value as! Alignment }))
         }
@@ -1399,7 +1399,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "StringProtocol"), ParamSpec("alignment", .alignment, isOptional: true, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.chartZAxisLabel(v[0] as! String, alignment: generatedOptionalArgument(v[1]) { value in value as! Alignment }, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }))
         }
@@ -1414,7 +1414,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "String
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "StringProtocol"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.chartZAxisLabel(v[0] as! String, position: v[1] as! AnnotationPosition, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }))
         }
@@ -1429,7 +1429,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "String
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "StringProtocol"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, isOptional: true, contextualType: "Alignment")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.chartZAxisLabel(v[0] as! String, position: v[1] as! AnnotationPosition, alignment: generatedOptionalArgument(v[2]) { value in value as! Alignment }))
         }
@@ -1444,7 +1444,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "String
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, isOptional: true, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.chartZAxisLabel(LocalizedStringKey(v[0] as! String), position: v[1] as! AnnotationPosition, alignment: generatedOptionalArgument(v[2]) { value in value as! Alignment }, spacing: generatedOptionalArgument(v[3]) { value in value as! CGFloat }))
         }
@@ -1459,7 +1459,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .localizationKey, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "StringProtocol"), ParamSpec("position", .annotationPosition, contextualType: "AnnotationPosition"), ParamSpec("alignment", .alignment, isOptional: true, contextualType: "Alignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"], isDisfavored: true) { view, v in
             return AnyView(view.chartZAxisLabel(v[0] as! String, position: v[1] as! AnnotationPosition, alignment: generatedOptionalArgument(v[2]) { value in value as! Alignment }, spacing: generatedOptionalArgument(v[3]) { value in value as! CGFloat }))
         }
@@ -1474,7 +1474,7 @@ register(&t, "chartZAxisLabel", [ParamSpec(nil, .string, contextualType: "String
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZScale", [ParamSpec("domain", .sdkProtocolValue("Charts.ScaleDomain"), contextualType: "Charts.ScaleDomain")], requiredImports: ["UIKit"]) { view, v in
             let p0 = v[0] as! any Charts.ScaleDomain
             func generatedInvoke<P0: Charts.ScaleDomain>(_ p0: P0) -> AnyView {
@@ -1493,7 +1493,7 @@ register(&t, "chartZScale", [ParamSpec("domain", .sdkProtocolValue("Charts.Scale
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZScale", [ParamSpec("range", .sdkProtocolValue("Charts.PositionScaleRange"), contextualType: "Charts.PositionScaleRange")], requiredImports: ["UIKit"]) { view, v in
             let p0 = v[0] as! any Charts.PositionScaleRange
             func generatedInvoke<P0: Charts.PositionScaleRange>(_ p0: P0) -> AnyView {
@@ -1512,7 +1512,7 @@ register(&t, "chartZScale", [ParamSpec("range", .sdkProtocolValue("Charts.Positi
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZScale", [ParamSpec("domain", .sdkProtocolValue("Charts.ScaleDomain"), contextualType: "Charts.ScaleDomain"), ParamSpec("range", .sdkProtocolValue("Charts.PositionScaleRange"), contextualType: "Charts.PositionScaleRange")], requiredImports: ["UIKit"]) { view, v in
             let p0 = v[0] as! any Charts.ScaleDomain
             let p1 = v[1] as! any Charts.PositionScaleRange
@@ -1532,7 +1532,7 @@ register(&t, "chartZScale", [ParamSpec("domain", .sdkProtocolValue("Charts.Scale
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZScale", [ParamSpec("domain", .sdkProtocolValue("Charts.ScaleDomain"), contextualType: "Charts.ScaleDomain"), ParamSpec("type", .sdkEnum("ScaleType"), isOptional: true, contextualType: "ScaleType")], requiredImports: ["UIKit"]) { view, v in
             let p0 = v[0] as! any Charts.ScaleDomain
             func generatedInvoke<P0: Charts.ScaleDomain>(_ p0: P0) -> AnyView {
@@ -1554,7 +1554,7 @@ register(&t, "chartZScale", [ParamSpec("domain", .sdkProtocolValue("Charts.Scale
 
     private static func build7(_ t: inout [String: [GeneratedOverload]]) {
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZScale", [ParamSpec("range", .sdkProtocolValue("Charts.PositionScaleRange"), contextualType: "Charts.PositionScaleRange"), ParamSpec("type", .sdkEnum("ScaleType"), isOptional: true, contextualType: "ScaleType")], requiredImports: ["UIKit"]) { view, v in
             let p0 = v[0] as! any Charts.PositionScaleRange
             func generatedInvoke<P0: Charts.PositionScaleRange>(_ p0: P0) -> AnyView {
@@ -1573,7 +1573,7 @@ register(&t, "chartZScale", [ParamSpec("range", .sdkProtocolValue("Charts.Positi
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "chartZScale", [ParamSpec("domain", .sdkProtocolValue("Charts.ScaleDomain"), contextualType: "Charts.ScaleDomain"), ParamSpec("range", .sdkProtocolValue("Charts.PositionScaleRange"), contextualType: "Charts.PositionScaleRange"), ParamSpec("type", .sdkEnum("ScaleType"), isOptional: true, contextualType: "ScaleType")], requiredImports: ["UIKit"]) { view, v in
             let p0 = v[0] as! any Charts.ScaleDomain
             let p1 = v[1] as! any Charts.PositionScaleRange
@@ -1692,7 +1692,7 @@ register(&t, "chartZScale", [ParamSpec("domain", .sdkProtocolValue("Charts.Scale
         return AnyView(view.containerBackground(for: v[0] as! ContainerBackgroundPlacement, alignment: v[1] as! Alignment, content: { b2 }))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "containerCornerOffset", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.containerCornerOffset(v[0] as! Edge.Set))
         }
@@ -1707,7 +1707,7 @@ register(&t, "containerCornerOffset", [ParamSpec(nil, .edgeSet, contextualType: 
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "containerCornerOffset", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set"), ParamSpec("sizeToFit", .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.containerCornerOffset(v[0] as! Edge.Set, sizeToFit: v[1] as! Bool))
         }
@@ -1780,7 +1780,7 @@ register(&t, "containerCornerOffset", [ParamSpec(nil, .edgeSet, contextualType: 
         return AnyView(view.contentShape(v[0] as! ContentShapeKinds, v[1] as! AnyShape, eoFill: v[2] as! Bool))
     }
 #if canImport(UIKit)
-    if #available(iOS 18.4, *) {
+    if #available(iOS 18.4, macOS 15.4, *) {
         register(&t, "contentToolbar", [ParamSpec("for", .sdkEnum("ContentToolbarPlacement"), contextualType: "ContentToolbarPlacement"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b1 = try generatedBuilder(v[1])
             return AnyView(view.contentToolbar(for: v[0] as! ContentToolbarPlacement, content: { b1 }))
@@ -1796,7 +1796,7 @@ register(&t, "contentToolbar", [ParamSpec("for", .sdkEnum("ContentToolbarPlaceme
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 18.4, *) {
+    if #available(iOS 18.4, macOS 15.4, *) {
         register(&t, "contentToolbar", [ParamSpec("for", .sdkEnum("ContentToolbarPlacement"), contextualType: "ContentToolbarPlacement"), ParamSpec("content", .resultBuilder("ToolbarContentBuilder", "ToolbarContent"))], requiredImports: ["UIKit"]) { view, v in
             if #available(iOS 17.5, macOS 14.5, tvOS 17.5, watchOS 10.5, *) {
                 let b1 = try GeneratedResultBuilderCarriers.toolbarContent(v[1])
@@ -2071,8 +2071,14 @@ register(&t, "defersSystemGestures", [ParamSpec("on", .edgeSet, contextualType: 
         return AnyView(view.fileMover(isPresented: v[0] as! Binding<Bool>, file: generatedOptionalArgument(v[1]) { value in value as! URL }, onCompletion: generatedSyncVoidClosure(v[2]), onCancellation: generatedAction(v[3])))
     }
 #if canImport(UIKit)
-    register(&t, "findDisabled", [], requiredImports: ["UIKit"]) { view, v in
-        return AnyView(view.findDisabled())
+    if #available(macOS 26.0, *) {
+        register(&t, "findDisabled", [], requiredImports: ["UIKit"]) { view, v in
+            return AnyView(view.findDisabled())
+        }
+    } else {
+    register(&t, "findDisabled", [], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
+        return AnyView(view)
+    }
     }
 #else
 register(&t, "findDisabled", [], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
@@ -2080,8 +2086,14 @@ register(&t, "findDisabled", [], requiredImports: ["UIKit"], executesBuilderArgu
 }
 #endif
 #if canImport(UIKit)
-    register(&t, "findDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
-        return AnyView(view.findDisabled(v[0] as! Bool))
+    if #available(macOS 26.0, *) {
+        register(&t, "findDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
+            return AnyView(view.findDisabled(v[0] as! Bool))
+        }
+    } else {
+    register(&t, "findDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
+        return AnyView(view)
+    }
     }
 #else
 register(&t, "findDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
@@ -2089,8 +2101,14 @@ register(&t, "findDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], re
 }
 #endif
 #if canImport(UIKit)
-    register(&t, "findNavigator", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>")], requiredImports: ["UIKit"]) { view, v in
-        return AnyView(view.findNavigator(isPresented: v[0] as! Binding<Bool>))
+    if #available(macOS 26.0, *) {
+        register(&t, "findNavigator", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>")], requiredImports: ["UIKit"]) { view, v in
+            return AnyView(view.findNavigator(isPresented: v[0] as! Binding<Bool>))
+        }
+    } else {
+    register(&t, "findNavigator", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
+        return AnyView(view)
+    }
     }
 #else
 register(&t, "findNavigator", [ParamSpec("isPresented", .bindingBool, contextualType: "Binding<Bool>")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
@@ -2625,7 +2643,7 @@ register(&t, "fullScreenCover", [ParamSpec("isPresented", .bindingBool, contextu
         return AnyView(view.geometryGroup())
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "glassEffect", [], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.glassEffect())
         }
@@ -2640,7 +2658,7 @@ register(&t, "glassEffect", [], requiredImports: ["UIKit"], executesBuilderArgum
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "glassEffect", [ParamSpec("in", .shape, contextualType: "Shape")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.glassEffect(in: v[0] as! AnyShape))
         }
@@ -2655,7 +2673,7 @@ register(&t, "glassEffect", [ParamSpec("in", .shape, contextualType: "Shape")], 
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "glassEffect", [ParamSpec(nil, .sdkEnum("Glass"), contextualType: "Glass")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.glassEffect(v[0] as! Glass))
         }
@@ -2670,7 +2688,7 @@ register(&t, "glassEffect", [ParamSpec(nil, .sdkEnum("Glass"), contextualType: "
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "glassEffect", [ParamSpec(nil, .sdkEnum("Glass"), contextualType: "Glass"), ParamSpec("in", .shape, contextualType: "Shape")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.glassEffect(v[0] as! Glass, in: v[1] as! AnyShape))
         }
@@ -2685,7 +2703,7 @@ register(&t, "glassEffect", [ParamSpec(nil, .sdkEnum("Glass"), contextualType: "
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "glassEffectTransition", [ParamSpec(nil, .sdkEnum("GlassEffectTransition"), contextualType: "GlassEffectTransition")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.glassEffectTransition(v[0] as! GlassEffectTransition))
         }
@@ -2890,7 +2908,7 @@ register(&t, "hoverEffectDisabled", [ParamSpec(nil, .bool, contextualType: "Bool
         return AnyView(view.keyboardShortcut(v[0] as! KeyEquivalent, modifiers: v[1] as! EventModifiers, localization: v[2] as! KeyboardShortcut.Localization))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "labelIconToTitleSpacing", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.labelIconToTitleSpacing(v[0] as! CGFloat))
         }
@@ -2905,7 +2923,7 @@ register(&t, "labelIconToTitleSpacing", [ParamSpec(nil, .cgFloat, contextualType
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "labelReservedIconWidth", [ParamSpec(nil, .cgFloat, contextualType: "CGFloat")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.labelReservedIconWidth(v[0] as! CGFloat))
         }
@@ -2967,7 +2985,7 @@ register(&t, "labelReservedIconWidth", [ParamSpec(nil, .cgFloat, contextualType:
         return AnyView(view.listRowInsets(generatedOptionalArgument(v[0]) { value in value as! EdgeInsets }))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "listRowInsets", [ParamSpec(nil, .edgeSet, contextualType: "Edge.Set"), ParamSpec(nil, .cgFloat, isOptional: true, contextualType: "CGFloat")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.listRowInsets(v[0] as! Edge.Set, generatedOptionalArgument(v[1]) { value in value as! CGFloat }))
         }
@@ -3185,7 +3203,7 @@ register(&t, "mapScope", [ParamSpec(nil, .nativeSwiftUIValue("Namespace.ID"), co
         return AnyView(view.multilineTextAlignment(v[0] as! TextAlignment))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "multilineTextAlignment", [ParamSpec("strategy", .sdkEnum("Text.AlignmentStrategy"), contextualType: "Text.AlignmentStrategy")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.multilineTextAlignment(strategy: v[0] as! Text.AlignmentStrategy))
         }
@@ -3502,7 +3520,7 @@ register(&t, "onChange", [ParamSpec("of", .equatable), ParamSpec("perform", .equ
         return AnyView(view.onHover(perform: generatedSyncVoidClosure(v[0])))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "onInteractiveResizeChange", [ParamSpec(nil, .syncVoidClosure)], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.onInteractiveResizeChange(generatedSyncVoidClosure(v[0])))
         }
@@ -3572,7 +3590,7 @@ register(&t, "onMapCameraChange", [ParamSpec(nil, .syncVoidClosure)], requiredIm
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "onOpenURL", [ParamSpec("prefersInApp", .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.onOpenURL(prefersInApp: v[0] as! Bool))
         }
@@ -3879,8 +3897,14 @@ register(&t, "productIconBorder", [], requiredImports: ["StoreKit"], executesBui
         return AnyView(view.renameAction(generatedAction(v[0])))
     }
 #if canImport(UIKit)
-    register(&t, "replaceDisabled", [], requiredImports: ["UIKit"]) { view, v in
-        return AnyView(view.replaceDisabled())
+    if #available(macOS 26.0, *) {
+        register(&t, "replaceDisabled", [], requiredImports: ["UIKit"]) { view, v in
+            return AnyView(view.replaceDisabled())
+        }
+    } else {
+    register(&t, "replaceDisabled", [], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
+        return AnyView(view)
+    }
     }
 #else
 register(&t, "replaceDisabled", [], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
@@ -3888,8 +3912,14 @@ register(&t, "replaceDisabled", [], requiredImports: ["UIKit"], executesBuilderA
 }
 #endif
 #if canImport(UIKit)
-    register(&t, "replaceDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
-        return AnyView(view.replaceDisabled(v[0] as! Bool))
+    if #available(macOS 26.0, *) {
+        register(&t, "replaceDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
+            return AnyView(view.replaceDisabled(v[0] as! Bool))
+        }
+    } else {
+    register(&t, "replaceDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
+        return AnyView(view)
+    }
     }
 #else
 register(&t, "replaceDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"], executesBuilderArguments: false) { view, _ in
@@ -3903,7 +3933,7 @@ register(&t, "replaceDisabled", [ParamSpec(nil, .bool, contextualType: "Bool")],
         return AnyView(view.rotationEffect(v[0] as! Angle, anchor: v[1] as! UnitPoint))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("VerticalEdge"), contextualType: "VerticalEdge"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b1 = try generatedBuilder(v[1])
             return AnyView(view.safeAreaBar(edge: v[0] as! VerticalEdge, content: { b1 }))
@@ -3919,7 +3949,7 @@ register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("VerticalEdge"), context
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b1 = try generatedBuilder(v[1])
             return AnyView(view.safeAreaBar(edge: v[0] as! HorizontalEdge, content: { b1 }))
@@ -3935,7 +3965,7 @@ register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), conte
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("VerticalEdge"), contextualType: "VerticalEdge"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b2 = try generatedBuilder(v[2])
             return AnyView(view.safeAreaBar(edge: v[0] as! VerticalEdge, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 }))
@@ -3951,7 +3981,7 @@ register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("VerticalEdge"), context
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("VerticalEdge"), contextualType: "VerticalEdge"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b2 = try generatedBuilder(v[2])
             return AnyView(view.safeAreaBar(edge: v[0] as! VerticalEdge, alignment: v[1] as! HorizontalAlignment, content: { b2 }))
@@ -3967,7 +3997,7 @@ register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("VerticalEdge"), context
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b2 = try generatedBuilder(v[2])
             return AnyView(view.safeAreaBar(edge: v[0] as! HorizontalEdge, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 }))
@@ -3983,7 +4013,7 @@ register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), conte
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b2 = try generatedBuilder(v[2])
             return AnyView(view.safeAreaBar(edge: v[0] as! HorizontalEdge, alignment: v[1] as! VerticalAlignment, content: { b2 }))
@@ -3999,7 +4029,7 @@ register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), conte
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("VerticalEdge"), contextualType: "VerticalEdge"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b3 = try generatedBuilder(v[3])
             return AnyView(view.safeAreaBar(edge: v[0] as! VerticalEdge, alignment: v[1] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, content: { b3 }))
@@ -4015,7 +4045,7 @@ register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("VerticalEdge"), context
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), contextualType: "HorizontalEdge"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)], requiredImports: ["UIKit"]) { view, v in
             let b3 = try generatedBuilder(v[3])
             return AnyView(view.safeAreaBar(edge: v[0] as! HorizontalEdge, alignment: v[1] as! VerticalAlignment, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, content: { b3 }))
@@ -4153,7 +4183,7 @@ register(&t, "safeAreaBar", [ParamSpec("edge", .sdkEnum("HorizontalEdge"), conte
         return AnyView(view.scrollDismissesKeyboard(v[0] as! ScrollDismissesKeyboardMode))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "scrollEdgeEffectHidden", [], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.scrollEdgeEffectHidden())
         }
@@ -4168,7 +4198,7 @@ register(&t, "scrollEdgeEffectHidden", [], requiredImports: ["UIKit"], executesB
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "scrollEdgeEffectHidden", [ParamSpec("for", .edgeSet, contextualType: "Edge.Set")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.scrollEdgeEffectHidden(for: v[0] as! Edge.Set))
         }
@@ -4183,7 +4213,7 @@ register(&t, "scrollEdgeEffectHidden", [ParamSpec("for", .edgeSet, contextualTyp
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "scrollEdgeEffectHidden", [ParamSpec(nil, .bool, contextualType: "Bool")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.scrollEdgeEffectHidden(v[0] as! Bool))
         }
@@ -4198,7 +4228,7 @@ register(&t, "scrollEdgeEffectHidden", [ParamSpec(nil, .bool, contextualType: "B
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "scrollEdgeEffectHidden", [ParamSpec(nil, .bool, contextualType: "Bool"), ParamSpec("for", .edgeSet, contextualType: "Edge.Set")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.scrollEdgeEffectHidden(v[0] as! Bool, for: v[1] as! Edge.Set))
         }
@@ -4213,7 +4243,7 @@ register(&t, "scrollEdgeEffectHidden", [ParamSpec(nil, .bool, contextualType: "B
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "scrollEdgeEffectStyle", [ParamSpec(nil, .sdkEnum("ScrollEdgeEffectStyle"), isOptional: true, contextualType: "ScrollEdgeEffectStyle"), ParamSpec("for", .edgeSet, contextualType: "Edge.Set")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.scrollEdgeEffectStyle(generatedOptionalArgument(v[0]) { value in value as! ScrollEdgeEffectStyle }, for: v[1] as! Edge.Set))
         }
@@ -4308,7 +4338,7 @@ register(&t, "searchDictationBehavior", [ParamSpec(nil, .sdkEnum("TextInputDicta
         return AnyView(view.searchSuggestions(v[0] as! Visibility, for: v[1] as! SearchSuggestionsPlacement.Set))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "searchToolbarBehavior", [ParamSpec(nil, .sdkEnum("SearchToolbarBehavior"), contextualType: "SearchToolbarBehavior")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.searchToolbarBehavior(v[0] as! SearchToolbarBehavior))
         }
@@ -4410,7 +4440,7 @@ register(&t, "searchToolbarBehavior", [ParamSpec(nil, .sdkEnum("SearchToolbarBeh
         return AnyView(view.sectionActions(content: { b0 }))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "sectionIndexLabel", [ParamSpec(nil, .text, isOptional: true, contextualType: "Text")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.sectionIndexLabel(generatedOptionalArgument(v[0]) { value in value as! Text }))
         }
@@ -4425,7 +4455,7 @@ register(&t, "sectionIndexLabel", [ParamSpec(nil, .text, isOptional: true, conte
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "sectionIndexLabel", [ParamSpec(nil, .string, isOptional: true)], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.sectionIndexLabel(generatedOptionalArgument(v[0]) { value in value as! String }))
         }
@@ -4477,7 +4507,7 @@ register(&t, "sectionIndexLabel", [ParamSpec(nil, .string, isOptional: true)], r
         return AnyView(view.sheet(isPresented: v[0] as! Binding<Bool>, content: { b1 }))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "sliderThumbVisibility", [ParamSpec(nil, .visibility, contextualType: "Visibility")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.sliderThumbVisibility(v[0] as! Visibility))
         }
@@ -4661,7 +4691,7 @@ register(&t, "subscriptionStorePolicyForegroundStyle", [ParamSpec(nil, .genericS
         return AnyView(view.swipeActions(edge: v[0] as! HorizontalEdge, allowsFullSwipe: v[1] as! Bool, content: { b2 }))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "symbolColorRenderingMode", [ParamSpec(nil, .sdkEnum("SymbolColorRenderingMode"), isOptional: true, contextualType: "SymbolColorRenderingMode")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.symbolColorRenderingMode(generatedOptionalArgument(v[0]) { value in value as! SymbolColorRenderingMode }))
         }
@@ -4727,7 +4757,7 @@ register(&t, "symbolColorRenderingMode", [ParamSpec(nil, .sdkEnum("SymbolColorRe
         return AnyView(view.symbolRenderingMode(generatedOptionalArgument(v[0]) { value in value as! SymbolRenderingMode }))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "symbolVariableValueMode", [ParamSpec(nil, .sdkEnum("SymbolVariableValueMode"), isOptional: true, contextualType: "SymbolVariableValueMode")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.symbolVariableValueMode(generatedOptionalArgument(v[0]) { value in value as! SymbolVariableValueMode }))
         }
@@ -4748,7 +4778,7 @@ register(&t, "symbolVariableValueMode", [ParamSpec(nil, .sdkEnum("SymbolVariable
 
     private static func build24(_ t: inout [String: [GeneratedOverload]]) {
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "tabBarMinimizeBehavior", [ParamSpec(nil, .sdkEnum("TabBarMinimizeBehavior"), contextualType: "TabBarMinimizeBehavior")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.tabBarMinimizeBehavior(v[0] as! TabBarMinimizeBehavior))
         }
@@ -4802,7 +4832,7 @@ register(&t, "tabViewBottomAccessory", [ParamSpec("isEnabled", .bool, contextual
         return AnyView(view.tabViewCustomization(generatedOptionalArgument(v[0]) { value in value as! Binding<TabViewCustomization> }))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "tabViewSearchActivation", [ParamSpec(nil, .sdkEnum("TabSearchActivation"), contextualType: "TabSearchActivation")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.tabViewSearchActivation(v[0] as! TabSearchActivation))
         }
@@ -4982,7 +5012,7 @@ register(&t, "textInputAutocapitalization", [ParamSpec(nil, .sdkEnum("TextInputA
     }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "textInputFormattingControlVisibility", [ParamSpec(nil, .visibility, contextualType: "Visibility"), ParamSpec("for", .sdkEnum("TextInputFormattingControlPlacement.Set"), contextualType: "TextInputFormattingControlPlacement.Set")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.textInputFormattingControlVisibility(v[0] as! Visibility, for: v[1] as! TextInputFormattingControlPlacement.Set))
         }
@@ -5215,7 +5245,7 @@ register(&t, "translationTask", [ParamSpec("action", .syncVoidClosure)], require
         return AnyView(view.windowToolbarFullScreenVisibility(v[0] as! WindowToolbarFullScreenVisibility))
     }
 #if canImport(UIKit)
-    if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "writingDirection", [ParamSpec("strategy", .sdkEnum("Text.WritingDirectionStrategy"), contextualType: "Text.WritingDirectionStrategy")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.writingDirection(strategy: v[0] as! Text.WritingDirectionStrategy))
         }
@@ -5230,7 +5260,7 @@ register(&t, "writingDirection", [ParamSpec("strategy", .sdkEnum("Text.WritingDi
 }
 #endif
 #if canImport(UIKit)
-    if #available(iOS 18.4, *) {
+    if #available(iOS 18.4, macOS 15.4, *) {
         register(&t, "writingToolsAffordanceVisibility", [ParamSpec(nil, .visibility, contextualType: "Visibility")], requiredImports: ["UIKit"]) { view, v in
             return AnyView(view.writingToolsAffordanceVisibility(v[0] as! Visibility))
         }
