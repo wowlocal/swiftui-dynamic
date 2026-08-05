@@ -417,6 +417,34 @@ public final class ViewRegistry: HostRegistry {
             if let stub = any as? PathDrawStub { return AnyView(stub.path) }
             if let gradient = any as? LinearGradient { return AnyView(gradient) }
             if let view = any as? any View { return AnyView(view) }
+            if let node = any as? TraceNode {
+                // The trace instrument's recorded view. It is a VIEW — the
+                // registry that made it says so — but it carries no native
+                // SwiftUI rendering, because that instrument records a tree
+                // instead of drawing one. A native boundary asking for a
+                // real `AnyView` therefore takes the same inert placeholder
+                // the absorbed-view degrade above uses.
+                //
+                // This is the erasure declining to render, never declining
+                // to ACCEPT: throwing here would make an ordinary conforming
+                // View illegal under one of the two instruments, which is
+                // how a corpus project that renders under the pixel harness
+                // failed under the trace harness at the same source line.
+                //
+                // Recorded, because the placeholder DOES cost coverage: the
+                // node's subtree is not walked from here, so a screen hosted
+                // this way is counted by neither instrument. That is what
+                // the boundary did before it had a contract at all, so it
+                // takes nothing away — but it is a gap, and this file's own
+                // history is that every silent blank cost a bisect hunt.
+                RenderDiagnostics.record(
+                    RuntimeError(message:
+                        "native view boundary took '\(node.kind)' as a "
+                            + "placeholder; its subtree is recorded by the "
+                            + "trace instrument, not rendered here"),
+                    in: "anyView")
+                return AnyView(EmptyView())
+            }
         }
         if let color = Coerce.colorLike(value) { return AnyView(color) }
         throw RuntimeError(message: "expected a View, got \(value.stringified)")
@@ -451,11 +479,39 @@ public final class ViewRegistry: HostRegistry {
     /// Like `anyView`, but also accepts a bare interpreted-View instance in
     /// argument position (e.g. `NavigationLink(destination: DetailView())`).
     func anyViewResolving(_ value: RuntimeValue, _ ctx: EvalContext) throws -> AnyView {
-        if case .instance(let instance) = value,
-           instance.symbol.conformsToView || instance.symbol.isRepresentable,
-           let interpreter = ctx as? Interpreter {
-            return try Self.anyView(makeRenderable(instance: instance, interpreter: interpreter))
+        try Self.anyView(value, resolving: ctx, preferring: self)
+    }
+
+    /// Erase a value the interface types `any View`.
+    ///
+    /// A source type declaring `: View` CONFORMS, and conformance is the whole
+    /// contract `any View` states — so a bare interpreted instance is a legal
+    /// argument and must reach a renderable through the registry's own
+    /// `makeRenderable` before erasure. `Self.anyView` alone reads host
+    /// payloads only, so it rejects the one shape interpreted source passes
+    /// most often.
+    ///
+    /// This is the SINGLE spelling of that rule. The handwritten gateways
+    /// reached it through `anyViewResolving` while the generated tier called
+    /// the host-only static, so the two tiers disagreed about what `any View`
+    /// accepts and only the generated one was wrong.
+    ///
+    /// The resolution goes through the `HostRegistry` requirement rather than
+    /// this type's own method, so the rule holds for whichever registry is
+    /// driving — the generated tier serves the trace and view registries
+    /// alike, and they render through different instruments.
+    static func anyView(
+        _ value: RuntimeValue, resolving ctx: EvalContext,
+        preferring registry: HostRegistry? = nil
+    ) throws -> AnyView {
+        guard case .instance(let instance) = value,
+              instance.symbol.conformsToView || instance.symbol.isRepresentable,
+              let interpreter = ctx as? Interpreter,
+              let host = registry ?? interpreter.registry
+        else {
+            return try Self.anyView(value)
         }
-        return try Self.anyView(value)
+        return try Self.anyView(
+            host.makeRenderable(instance: instance, interpreter: interpreter))
     }
 }

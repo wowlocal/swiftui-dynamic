@@ -685,7 +685,7 @@ enum GeneratedDispatch {
         case .genericShapeStyle:
             return try Coerce.genericShapeStyle(value)
         case .anyView:
-            return try ViewRegistry.anyView(value)
+            return try ViewRegistry.anyView(value, resolving: ctx)
         case .nativeSwiftUIValue(let typeName):
             guard let payload = value.hostPayload else {
                 throw RuntimeError(message:

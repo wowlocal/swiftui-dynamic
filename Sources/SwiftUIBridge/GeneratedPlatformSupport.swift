@@ -1828,11 +1828,15 @@ extension AnyView: GeneratedPlatformRuntimeConvertible {
         // An interpreted View reaches the boundary as a bare instance, which
         // is the same argument position `anyViewResolving` already answers for
         // the handwritten view gateways.
-        if let interpreter = context as? Interpreter,
-           let registry = interpreter.registry as? ViewRegistry {
-            return try registry.anyViewResolving(value, context)
-        }
-        return try ViewRegistry.anyView(value)
+        // Resolved through the `HostRegistry` requirement, never through a
+        // downcast to one registry class: this boundary previously resolved
+        // only `interpreter.registry as? ViewRegistry` and fell back to the
+        // host-only static otherwise, so the SAME source that rendered under
+        // the pixel instrument threw under the trace instrument. Which
+        // registry is driving is a property of the harness, not of the
+        // argument, and it must not decide whether a conforming View is a
+        // View.
+        return try ViewRegistry.anyView(value, resolving: context)
     }
 }
 
