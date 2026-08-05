@@ -59,6 +59,40 @@ struct GeneratedNewerOSConstructorTests {
         #expect(overloads.byArity[2]?.isEmpty == false)
     }
 
+    /// The widening's own guard rail. Emitting a newer-OS type also meant
+    /// emitting `ConcentricRectangle`, whose several all-defaulted inits share
+    /// `topLeadingCorner:` — a spelling the REAL compiler rejects as ambiguous,
+    /// which is how it was caught (the Catalyst build refused it). The type
+    /// stays reachable through the selections that do name one candidate; only
+    /// the ambiguous ones are dropped.
+    @MainActor
+    @Test func anAmbiguousDefaultedSelectionIsNotEmitted() throws {
+        let overloads = try #require(
+            GeneratedConstructors.table["ConcentricRectangle"],
+            "the newer-OS type itself is still reachable")
+        let ambiguous = overloads.byArity[1]?.contains {
+            $0.params.first?.label == "topLeadingCorner"
+        }
+        #expect(
+            ambiguous != true,
+            "ConcentricRectangle(topLeadingCorner:) does not compile")
+    }
+
+    /// The other direction of that rule, pinned because getting it wrong is
+    /// exactly what happened: a first, label-only version of the ambiguity
+    /// check dropped 18 working selections. Swift ranks the candidate applying
+    /// FEWER defaults higher, so this call resolves to `init(gradient:center:
+    /// angle:)` and must stay registered.
+    @MainActor
+    @Test func aRankedDefaultedSelectionSurvives() throws {
+        let overloads = try #require(
+            GeneratedConstructors.table["AngularGradient"])
+        let ranked = overloads.byArity[2]?.contains {
+            $0.params.map(\.label) == ["gradient", "center"]
+        }
+        #expect(ranked == true)
+    }
+
     /// The behavioural half on the render path, in the app's own shape: a
     /// `.toolbar` whose builder holds an availability-guarded newer-OS item
     /// beside an ordinary one. What this pins is the RECEIVER — a builder
