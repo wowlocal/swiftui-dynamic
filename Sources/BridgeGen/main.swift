@@ -2864,7 +2864,14 @@ func processInit(
         }
     }
     if generated { initGeneratable += 1; generatableStructs.insert(structName) }
-    else if let firstBlocker { initBlockers[firstBlocker, default: 0] += 1 }
+    else if let firstBlocker {
+        initBlockers[firstBlocker, default: 0] += 1
+        if ProcessInfo.processInfo.environment["BRIDGEGEN_DUMP_BLOCKED"] != nil {
+            print(
+                "   blocked[\(firstBlocker)] init \(structName)"
+                    + "\(initDecl.signature.parameterClause.trimmedDescription)")
+        }
+    }
 }
 
 // MARK: - Same-type static factories
