@@ -506,6 +506,88 @@ func arrayElementType(_ normalized: String) -> String? {
     return String(inner)
 }
 
+/// Extract the value type a `Binding<…>` parameter publishes. The
+/// collection-element shapes (`Binding<C>` where `C: MutableCollection`) carry
+/// their own element-projection contract and are deliberately not this.
+func bindingValueType(_ normalized: String) -> String? {
+    guard normalized.hasPrefix("Binding<"), normalized.last == ">" else {
+        return nil
+    }
+    let inner = normalized.dropFirst("Binding<".count).dropLast()
+    guard !inner.isEmpty,
+          !inner.contains(where: { $0 == ":" || $0 == "," }) else { return nil }
+    return String(inner)
+}
+
+/// Only a plain downcast round-trips. A mapping that CONSTRUCTS its host value
+/// (`LocalizedStringKey(%@ as! String)`) can carry an argument INTO the SDK but
+/// cannot read one back out, and a binding needs both directions — so the shape
+/// of the cast, not a list of type names, is what decides.
+func plainDowncastType(_ cast: String) -> String? {
+    let prefix = "%@ as! "
+    guard cast.hasPrefix(prefix) else { return nil }
+    let type = String(cast.dropFirst(prefix.count))
+    guard !type.isEmpty, !type.contains(" "), !type.contains("(") else {
+        return nil
+    }
+    return type
+}
+
+/// Resolve a binding's VALUE through the same vocabulary an ordinary parameter
+/// of that type resolves through — `directMapping` for a concrete type, the
+/// protocol carriers for an opaque `some P`. A type that reaches the vocabulary
+/// therefore becomes available in binding position with no entry here, which is
+/// what distinguishes this from the three hardcoded `Binding<…>` spellings it
+/// replaces.
+func bindingValueMapping(for valueType: String) -> (tag: String, native: String)? {
+    var inner = valueType
+    var isOptional = false
+    if inner.hasSuffix("?") {
+        inner = String(inner.dropLast())
+        isOptional = true
+    }
+    inner = inner.trimmingCharacters(in: CharacterSet(charactersIn: "()"))
+    let mapping: TypeMapping?
+    if inner.hasPrefix("some ") {
+        let constraint = normalize(String(inner.dropFirst("some ".count)))
+        mapping = constraint.contains("&")
+            ? nil : constraintMapping(for: constraint)
+    } else {
+        mapping = directMapping(for: inner)
+    }
+    guard let mapping, !mapping.isOptional,
+          let native = plainDowncastType(mapping.cast) else { return nil }
+    // A binding needs its value to travel BOTH ways, and only the tags
+    // `Coerce.binding` projects into binding form do. Emitting a registration
+    // the runtime cannot carry would be worse than leaving the overload
+    // blocked: an unmatched modifier keeps its receiver visible, while a
+    // matched-then-failing one raises. `BindingValueVocabularyTests` walks
+    // the emitted tables and fails if this list and that projection disagree.
+    guard bindingCarrierTags.contains(BindingCarrier(tag: mapping.tag, isOptional: isOptional))
+    else { return nil }
+    return (mapping.tag, isOptional ? "\(native)?" : native)
+}
+
+struct BindingCarrier: Hashable {
+    let tag: String
+    let isOptional: Bool
+}
+
+/// The value coercions that round-trip through a binding today. Keyed by the
+/// VOCABULARY rather than by an SDK spelling of `Binding<…>`, so widening this
+/// is one entry plus its projection arm, not one entry per modifier.
+let bindingCarrierTags: Set<BindingCarrier> = [
+    .init(tag: "bool", isOptional: false),
+    .init(tag: "string", isOptional: false),
+    .init(tag: "double", isOptional: false),
+    // `scrollPosition(id:)` and the selection family: an interface generic
+    // constrained to Hashable alone, which the carrier can only hold optional.
+    .init(tag: "hashable", isOptional: true),
+    // A location the program has not resolved yet, where nil is meaningful
+    // rather than a zero value (`quickLookPreview(_:)`).
+    .init(tag: "url", isOptional: true),
+]
+
 /// Public, non-generic native values declared by SwiftUI's interfaces.
 var concreteNativeSwiftUIValueTypes: Set<String> = []
 
@@ -532,6 +614,16 @@ func directMapping(for normalized: String) -> TypeMapping? {
             tag: "array(.\(element.tag), \"\(elementType)\")",
             cast: "(%@ as! [Any]).map { element in \(elementCast) }",
             requiredFramework: element.requiredFramework)
+    }
+    // A binding composes over the value vocabulary exactly as an array composes
+    // over its element's: what a `Binding<T>` needs is a coercion for `T` plus
+    // the general host->runtime write-back, neither of which depends on how the
+    // SDK spells the binding.
+    if let valueType = bindingValueType(normalized),
+       let value = bindingValueMapping(for: valueType) {
+        return .init(
+            tag: "binding(.\(value.tag), \"\(value.native)\")",
+            cast: "%@ as! Binding<\(value.native)>")
     }
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
@@ -576,9 +668,6 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "ButtonRole": return .init(tag: "buttonRole", cast: "%@ as! ButtonRole")
     case "Axis": return .init(tag: "axis", cast: "%@ as! Axis")
     case "AnnotationPosition": return .init(tag: "annotationPosition", cast: "%@ as! AnnotationPosition")
-    case "Binding<Bool>": return .init(tag: "bindingBool", cast: "%@ as! Binding<Bool>")
-    case "Binding<String>": return .init(tag: "bindingString", cast: "%@ as! Binding<String>")
-    case "Binding<Double>": return .init(tag: "bindingDouble", cast: "%@ as! Binding<Double>")
     case "AnyShapeStyle": return .init(tag: "shapeStyle", cast: "%@ as! AnyShapeStyle")
     case "URL": return .init(tag: "url", cast: "%@ as! URL")
     case "Date": return .init(tag: "date", cast: "%@ as! Date")

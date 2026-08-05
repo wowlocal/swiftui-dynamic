@@ -31,7 +31,12 @@ enum ParamTag: Hashable {
     case alignment, horizontalAlignment, verticalAlignment, textAlignment
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
     case symbolRenderingMode
-    case bindingBool, bindingString, bindingDouble
+    /// A two-way binding whose VALUE resolves through the same vocabulary a
+    /// one-way parameter of that type resolves through, plus the native value
+    /// type the generated call site instantiates. Reads coerce forward, writes
+    /// go back through the general host->runtime bridge, so a modifier taking
+    /// `Binding<T>` for an already-bridged `T` needs no case of its own.
+    indirect case binding(ParamTag, String)
     /// A projection of an SDK property wrapper that the interface declares
     /// with no public initializer, so no argument coercion can produce one
     /// (`FocusState<Value>.Binding`). The associated values are the enclosing
@@ -668,18 +673,15 @@ enum GeneratedDispatch {
             return role
         case .axis:
             return try Coerce.axis(value)
-        case .bindingBool:
-            return try Coerce.boolBinding(value, context: ctx)
+        case .binding(let valueTag, let valueType):
+            return try Coerce.binding(
+                value, valueTag: valueTag, valueType: valueType, context: ctx)
         case .wrapperProjection(_, let isOptionalValue):
             // The projection itself is not constructible; what crosses here is
             // the ordinary binding the generated carrier will drive it from.
             return isOptionalValue
                 ? try Coerce.hashableOptionalBinding(value, context: ctx)
                 : try Coerce.boolBinding(value, context: ctx)
-        case .bindingString:
-            return try Coerce.stringBinding(value, context: ctx)
-        case .bindingDouble:
-            return try Coerce.doubleBinding(value, context: ctx)
         case .shapeStyle:
             return try Coerce.shapeStyle(value)
         case .genericShapeStyle:

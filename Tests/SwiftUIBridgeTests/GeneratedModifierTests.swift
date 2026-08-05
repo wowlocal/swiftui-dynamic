@@ -310,7 +310,7 @@ import SwiftInterpreter
             "translationPresentation"]?.byArity[2] ?? []
         #expect(variants.contains {
             $0.params.map(\.label) == ["isPresented", "text"]
-                && $0.params.map(\.tag) == [.bindingBool, .string]
+                && $0.params.map(\.tag) == [.binding(.bool, "Bool"), .string]
                 && $0.requiredImports == ["Translation"]
         })
     }
@@ -694,7 +694,7 @@ import SwiftInterpreter
 
         let alert = GeneratedModifiers.table["alert"]?.byArity[3] ?? []
         #expect(alert.contains {
-            $0.params.map(\.tag) == [.string, .bindingBool, .builder]
+            $0.params.map(\.tag) == [.string, .binding(.bool, "Bool"), .builder]
         })
 
         let navigationDocument = GeneratedModifiers.table["navigationDocument"]?.byArity[1] ?? []

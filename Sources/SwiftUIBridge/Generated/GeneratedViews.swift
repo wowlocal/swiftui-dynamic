@@ -341,16 +341,16 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return DisclosureGroup(v[0] as! String, content: { b1 })
     }
-    register(&t, "DisclosureGroup", [ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+    register(&t, "DisclosureGroup", [ParamSpec("isExpanded", .binding(.bool, "Bool"), contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         return DisclosureGroup(isExpanded: v[0] as! Binding<Bool>, content: { b1 }, label: { b2 })
     }
-    register(&t, "DisclosureGroup", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { v in
+    register(&t, "DisclosureGroup", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isExpanded", .binding(.bool, "Bool"), contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return DisclosureGroup(LocalizedStringKey(v[0] as! String), isExpanded: v[1] as! Binding<Bool>, content: { b2 })
     }
-    register(&t, "DisclosureGroup", [ParamSpec(nil, .string), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)], isDisfavored: true) { v in
+    register(&t, "DisclosureGroup", [ParamSpec(nil, .string), ParamSpec("isExpanded", .binding(.bool, "Bool"), contextualType: "Binding<Bool>"), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
         return DisclosureGroup(v[0] as! String, isExpanded: v[1] as! Binding<Bool>, content: { b2 })
     }
@@ -1346,15 +1346,15 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return Section(content: { b0 }, header: { b1 }, footer: { b2 })
     }
-    register(&t, "Section", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Section", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isExpanded", .binding(.bool, "Bool"), contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Section(LocalizedStringKey(v[0] as! String), isExpanded: v[1] as! Binding<Bool>, content: { b2 })
     }
-    register(&t, "Section", [ParamSpec(nil, .string), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)], isDisfavored: true) { v in
+    register(&t, "Section", [ParamSpec(nil, .string), ParamSpec("isExpanded", .binding(.bool, "Bool"), contextualType: "Binding<Bool>"), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
         return Section(v[0] as! String, isExpanded: v[1] as! Binding<Bool>, content: { b2 })
     }
-    register(&t, "Section", [ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("header", .builder)]) { v in
+    register(&t, "Section", [ParamSpec("isExpanded", .binding(.bool, "Bool"), contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("header", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         return Section(isExpanded: v[0] as! Binding<Bool>, content: { b1 }, header: { b2 })
@@ -1363,33 +1363,33 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return Section(header: v[0] as! AnyView, footer: v[1] as! AnyView, content: { b2 })
     }
-    register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "SecureField", [ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return SecureField(text: v[0] as! Binding<String>, label: { b1 })
     }
-    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
+    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>")]) { v in
         return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>)
     }
-    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>")], isDisfavored: true) { v in
+    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>")], isDisfavored: true) { v in
         return SecureField(v[0] as! String, text: v[1] as! Binding<String>)
     }
-    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
+    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
         return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
         return SecureField(v[0] as! String, text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "SecureField", [ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return SecureField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
     }
 
     private static func build9(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
+    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
         return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
     }
-    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
+    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
         return SecureField(v[0] as! String, text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
     }
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
@@ -1537,117 +1537,117 @@ extension GeneratedConstructors {
     register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
         return ShareLink(v[0] as! Text, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>")]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>")]) { v in
         return Slider(value: v[0] as! Binding<Double>)
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Slider(value: v[0] as! Binding<Double>, label: { b1 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         return Slider(value: v[0] as! Binding<Double>, onEditingChanged: generatedSyncVoidClosure(v[1]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>")]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>")]) { v in
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>)
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Slider(value: v[0] as! Binding<Double>, label: { b1 }, onEditingChanged: generatedSyncVoidClosure(v[2]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, onEditingChanged: generatedSyncVoidClosure(v[2]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double)]) { v in
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double)
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
         return Slider(value: v[0] as! Binding<Double>, onEditingChanged: generatedSyncVoidClosure(v[1]), label: { b2 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return Slider(value: v[0] as! Binding<Double>, label: { b1 }, minimumValueLabel: { b2 }, maximumValueLabel: { b3 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 }, onEditingChanged: generatedSyncVoidClosure(v[3]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, label: { b3 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, onEditingChanged: generatedSyncVoidClosure(v[3]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return Slider(value: v[0] as! Binding<Double>, minimumValueLabel: v[1] as! AnyView, maximumValueLabel: v[2] as! AnyView, label: { b3 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
         let b3 = try generatedBuilder(v[3])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, onEditingChanged: generatedSyncVoidClosure(v[2]), label: { b3 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return Slider(value: v[0] as! Binding<Double>, label: { b1 }, minimumValueLabel: { b2 }, maximumValueLabel: { b3 }, onEditingChanged: generatedSyncVoidClosure(v[4]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 }, minimumValueLabel: { b3 }, maximumValueLabel: { b4 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b3 = try generatedBuilder(v[3])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, label: { b3 }, onEditingChanged: generatedSyncVoidClosure(v[4]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
         let b4 = try generatedBuilder(v[4])
         return Slider(value: v[0] as! Binding<Double>, onEditingChanged: generatedSyncVoidClosure(v[1]), minimumValueLabel: v[2] as! AnyView, maximumValueLabel: v[3] as! AnyView, label: { b4 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
         let b4 = try generatedBuilder(v[4])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, minimumValueLabel: v[2] as! AnyView, maximumValueLabel: v[3] as! AnyView, label: { b4 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
         let b4 = try generatedBuilder(v[4])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, onEditingChanged: generatedSyncVoidClosure(v[3]), label: { b4 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 }, minimumValueLabel: { b3 }, maximumValueLabel: { b4 }, onEditingChanged: generatedSyncVoidClosure(v[5]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         let b5 = try generatedBuilder(v[5])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, label: { b3 }, minimumValueLabel: { b4 }, maximumValueLabel: { b5 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
         let b5 = try generatedBuilder(v[5])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, onEditingChanged: generatedSyncVoidClosure(v[2]), minimumValueLabel: v[3] as! AnyView, maximumValueLabel: v[4] as! AnyView, label: { b5 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
         let b5 = try generatedBuilder(v[5])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, minimumValueLabel: v[3] as! AnyView, maximumValueLabel: v[4] as! AnyView, label: { b5 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         let b5 = try generatedBuilder(v[5])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, label: { b3 }, minimumValueLabel: { b4 }, maximumValueLabel: { b5 }, onEditingChanged: generatedSyncVoidClosure(v[6]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .binding(.double, "Double"), contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
         let b6 = try generatedBuilder(v[6])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, onEditingChanged: generatedSyncVoidClosure(v[3]), minimumValueLabel: v[4] as! AnyView, maximumValueLabel: v[5] as! AnyView, label: { b6 })
     }
@@ -1760,93 +1760,93 @@ extension GeneratedConstructors {
     register(&t, "Text", [ParamSpec(nil, .date, contextualType: "Date"), ParamSpec("style", .sdkEnum("Text.DateStyle"), contextualType: "Text.DateStyle")]) { v in
         return Text(v[0] as! Date, style: v[1] as! Text.DateStyle)
     }
-    register(&t, "TextEditor", [ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
+    register(&t, "TextEditor", [ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>")]) { v in
         return TextEditor(text: v[0] as! Binding<String>)
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return TextField(text: v[0] as! Binding<String>, label: { b1 })
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>")]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>)
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>")], isDisfavored: true) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>")], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>)
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, axis: v[2] as! Axis)
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis")], isDisfavored: true) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis")], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>, axis: v[2] as! Axis)
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return TextField(text: v[0] as! Binding<String>, axis: v[1] as! Axis, label: { b2 })
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return TextField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]))
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)], isDisfavored: true) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]))
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text }, axis: v[3] as! Axis)
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")], isDisfavored: true) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text }, axis: v[3] as! Axis)
     }
     }
 
     private static func build12(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
+    register(&t, "TextField", [ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return TextField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, axis: v[2] as! Axis, label: { b3 })
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)]) { v in
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]), onCommit: generatedAction(v[3]))
     }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .binding(.string, "String"), contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]), onCommit: generatedAction(v[3]))
     }
     register(&t, "Toggle", [ParamSpec(nil, .nativeSwiftUIValue("ToggleStyleConfiguration"), contextualType: "ToggleStyleConfiguration")]) { v in
         return Toggle(v[0] as! ToggleStyleConfiguration)
     }
-    register(&t, "Toggle", [ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "Toggle", [ParamSpec("isOn", .binding(.bool, "Bool"), contextualType: "Binding<Bool>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Toggle(isOn: v[0] as! Binding<Bool>, label: { b1 })
     }
-    register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isOn", .binding(.bool, "Bool"), contextualType: "Binding<Bool>")]) { v in
         return Toggle(LocalizedStringKey(v[0] as! String), isOn: v[1] as! Binding<Bool>)
     }
-    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")], isDisfavored: true) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("isOn", .binding(.bool, "Bool"), contextualType: "Binding<Bool>")], isDisfavored: true) { v in
         return Toggle(v[0] as! String, isOn: v[1] as! Binding<Bool>)
     }
-    register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .binding(.bool, "Bool"), contextualType: "Binding<Bool>")]) { v in
         return Toggle(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, isOn: v[2] as! Binding<Bool>)
     }
-    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")], isDisfavored: true) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .binding(.bool, "Bool"), contextualType: "Binding<Bool>")], isDisfavored: true) { v in
         return Toggle(v[0] as! String, systemImage: v[1] as! String, isOn: v[2] as! Binding<Bool>)
     }
-    register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("isOn", .binding(.bool, "Bool"), contextualType: "Binding<Bool>")]) { v in
         return Toggle(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), isOn: v[2] as! Binding<Bool>)
     }
-    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")], isDisfavored: true) { v in
+    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("isOn", .binding(.bool, "Bool"), contextualType: "Binding<Bool>")], isDisfavored: true) { v in
         return Toggle(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), isOn: v[2] as! Binding<Bool>)
     }
     register(&t, "ToolbarItem", [ParamSpec("content", .builder)]) { v in

@@ -139,6 +139,59 @@ enum Coerce {
         throw RuntimeError(message: "expected a binding like $someState, got \(value.stringified)")
     }
 
+    /// Project the value vocabulary into binding form. The arms are keyed by
+    /// the COERCION TAG, not by how an SDK declaration spells its binding, so
+    /// the number of arms tracks the vocabulary rather than the number of
+    /// modifiers that take a binding. `valueType` is the native type the
+    /// generated call site instantiates; its Optional-ness is part of the
+    /// shape, since an optional value must keep "absent" distinguishable from
+    /// a zero value rather than collapsing both to a default.
+    static func binding(
+        _ value: RuntimeValue,
+        valueTag: ParamTag,
+        valueType: String,
+        context: EvalContext? = nil
+    ) throws -> Any {
+        let isOptional = valueType.hasSuffix("?")
+        switch (valueTag, isOptional) {
+        case (.bool, false): return try boolBinding(value, context: context)
+        case (.string, false): return try stringBinding(value, context: context)
+        case (.double, false): return try doubleBinding(value, context: context)
+        case (.hashable, true):
+            return try hashableOptionalBinding(value, context: context)
+        case (.url, true):
+            return try urlOptionalBinding(value, context: context)
+        default:
+            throw RuntimeError(
+                message: "no binding carrier for a \(valueType) value")
+        }
+    }
+
+    /// Project a value coercion into OPTIONAL binding form.
+    ///
+    /// Absence — the interpreter's nil, or `.void` while the state is still
+    /// uninitialized — round-trips as nil rather than as a zero value, which
+    /// is the whole reason a declaration spells its binding `Binding<T?>`
+    /// instead of `Binding<T>`: "no value yet" has to stay distinguishable
+    /// from "a value that happens to be empty". A read the value coercion
+    /// rejects also reads as absent, since a binding's getter cannot throw.
+    private static func optionalBinding<T>(
+        _ value: RuntimeValue,
+        context: EvalContext?,
+        read: @escaping (RuntimeValue) -> T?,
+        write: @escaping (T) -> RuntimeValue
+    ) throws -> Binding<T?> {
+        let box = try bindingBox(value, context: context)
+        return Binding(
+            get: {
+                if box.value.isNil { return nil }
+                if case .void = box.value { return nil }
+                return read(box.value)
+            },
+            set: { box.value = $0.map(write) ?? .nilValue }
+        )
+    }
+
     static func boolBinding(
         _ value: RuntimeValue,
         context: EvalContext? = nil
@@ -160,18 +213,27 @@ enum Coerce {
         _ value: RuntimeValue,
         context: EvalContext? = nil
     ) throws -> Binding<InterpretedHashableValue?> {
-        let box = try bindingBox(value, context: context)
-        return Binding(
-            get: {
-                // An unfocused `@FocusState var x: Foo?` reads as the
-                // interpreter's nil, or as `.void` while it is still
-                // uninitialized; both mean "nothing is focused".
-                if box.value.isNil { return nil }
-                if case .void = box.value { return nil }
-                return InterpretedHashableValue(runtimeValue: box.value)
-            },
-            set: { box.value = $0?.runtimeValue ?? .nilValue }
-        )
+        // An unfocused `@FocusState var x: Foo?` reads as the interpreter's
+        // nil, or as `.void` while it is still uninitialized; both mean
+        // "nothing is focused", which is the general absence rule.
+        try optionalBinding(
+            value, context: context,
+            read: { InterpretedHashableValue(runtimeValue: $0) },
+            write: \.runtimeValue)
+    }
+
+    /// A binding over an optional `URL`, for the declarations that hand the
+    /// SDK a location the program has not resolved yet
+    /// (`quickLookPreview(_: Binding<URL?>)`). Nil means "nothing to preview",
+    /// so it must not collapse to a placeholder URL.
+    static func urlOptionalBinding(
+        _ value: RuntimeValue,
+        context: EvalContext? = nil
+    ) throws -> Binding<URL?> {
+        try optionalBinding(
+            value, context: context,
+            read: { $0.hostPayload as? URL },
+            write: { .native($0) })
     }
 
     /// Tagged-selection binding: reads the state's stable string identity
