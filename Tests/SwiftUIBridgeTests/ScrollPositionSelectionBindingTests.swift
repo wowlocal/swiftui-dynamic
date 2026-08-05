@@ -27,18 +27,34 @@ struct ScrollPositionSelectionBindingTests {
     /// Both overloads the interface declares reach the shared carrier — the
     /// one-argument form and the one that also takes `anchor:`. IceCubes uses
     /// both spellings across its three call sites.
+    /// Selected by LABEL, not by position. `scrollPosition` also declares an
+    /// unlabelled `Binding<ScrollPosition>` overload at each arity, which was
+    /// blocked when this suite was written and generates now that a compound
+    /// type's argument can be spelled — so "the first arity-1 overload" stopped
+    /// naming the one under test. What the suite means is the `id:` spelling.
     @MainActor
     @Test func bothOverloadsCarryTheSelectionBinding() {
         let single = GeneratedModifiers.table["scrollPosition"]?.byArity[1]?
-            .first
+            .first { $0.params.first?.label == "id" }
         #expect(single != nil, "scrollPosition(id:) is generatable")
         #expect(single?.params.first?.tag == .bindingHashableOptional)
 
         let anchored = GeneratedModifiers.table["scrollPosition"]?.byArity[2]?
-            .first
+            .first { $0.params.first?.label == "id" }
         #expect(anchored != nil, "scrollPosition(id:anchor:) is generatable")
         #expect(anchored?.params.first?.tag == .bindingHashableOptional)
         #expect(anchored?.params.last?.tag == .unitPoint)
+    }
+
+    /// The sibling that widening reached, pinned so it is recorded rather than
+    /// silently absorbed: `scrollPosition(_ position: Binding<ScrollPosition>)`
+    /// is a real SDK overload that no longer blocks on its own parameter type.
+    @MainActor
+    @Test func theConcreteScrollPositionOverloadIsAlsoReachable() {
+        let positional = GeneratedModifiers.table["scrollPosition"]?
+            .byArity[1]?.first { $0.params.first?.label == nil }
+        #expect(positional?.params.first?.tag
+            == .nativeSwiftUIValue("Binding<ScrollPosition>"))
     }
 
     /// The tag has to reach the carrier that actually round-trips, or the
