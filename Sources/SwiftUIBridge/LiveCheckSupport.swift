@@ -726,7 +726,9 @@ public enum LiveCheckSupport {
                 values: InterpretedEnvironment.defaults(
                     platformName: interpreter.buildConfiguration.platformName))
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
-            let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            let body = try interpreter.withAmbientEnvironmentModels(environment) {
+                try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            }
             try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,
                         offscreenLifecycle: &offscreenLifecycle,
                         actions: &actions, environment: environment,

@@ -268,7 +268,11 @@ public struct InterpretedView: View {
         do {
             // Presented content (sheets) re-reads the environment through
             // SwiftUI, so nested InterpretedViews resolve their own models.
-            return try ViewRegistry.anyView(interpreter.evaluateBody(of: instance))
+            return try interpreter.withAmbientEnvironmentModels(
+                modelEnvironment.models
+            ) {
+                try ViewRegistry.anyView(interpreter.evaluateBody(of: instance))
+            }
         } catch let error as RuntimeError {
             RenderDiagnostics.record(error, in: instance.symbol.name)
             return AnyView(errorLabel(error.description))

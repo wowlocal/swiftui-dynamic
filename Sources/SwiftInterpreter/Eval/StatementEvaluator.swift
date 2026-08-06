@@ -917,6 +917,13 @@ extension Interpreter {
                 values.append(value)
                 return
             }
+            // A View's `@Environment` properties are filled by the host that
+            // renders it; a non-View builder conformer has no such host, so it
+            // reads the environment its enclosing body saw. Without this its
+            // `@Environment(Model.self)` properties stay unset and every value
+            // read off them renders empty.
+            try injectEnvironmentObjects(
+                into: instance, models: ambientEnvironmentModels)
             values += try evaluateComputedResultBuilderBody(
                 body,
                 selfValue: value,

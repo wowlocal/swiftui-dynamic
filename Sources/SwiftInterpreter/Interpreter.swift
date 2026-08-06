@@ -274,6 +274,26 @@ public final class Interpreter {
         _read { yield runtimeHeap.synthesizedEnvironmentModels }
         _modify { yield &runtimeHeap.synthesizedEnvironmentModels }
     }
+    /// Models visible to the body currently under evaluation.
+    var ambientEnvironmentModels: [String: Instance] {
+        _read { yield runtimeHeap.ambientEnvironmentModels }
+        _modify { yield &runtimeHeap.ambientEnvironmentModels }
+    }
+
+    /// Evaluate `body` with `models` as the ambient environment, restoring the
+    /// enclosing set afterwards. Every host that fills a view's `@Environment`
+    /// properties before evaluating its body scopes that body through here, so
+    /// result-builder content the body constructs resolves against the same
+    /// environment the view itself saw.
+    public func withAmbientEnvironmentModels<T>(
+        _ models: [String: Instance],
+        _ body: () throws -> T
+    ) rethrows -> T {
+        let enclosing = ambientEnvironmentModels
+        ambientEnvironmentModels = models
+        defer { ambientEnvironmentModels = enclosing }
+        return try body()
+    }
     /// Interpreted `extension View { … }` / `extension String { … }` members,
     /// keyed by the extended host type's name.
     var hostExtensionSymbols: [String: StructSymbol] {

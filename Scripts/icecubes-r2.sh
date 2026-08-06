@@ -341,13 +341,21 @@ R2_FLOORS=(
   # older number would enshrine ~459k AE of debt that no longer exists and then
   # read its removal as progress.
   #
-  # Proven-reproducible, which is what makes it a floor and not a sample: twin
-  # vs twin-repeat AE 0, interpreted vs interpreted-repeat AE 0, twin vs
-  # interpreted AE 1761, three times over. The residual is ONE 140x33 box at
-  # the navigation title (`TimelineToolbarTitleView`) — 1296 AE of content in a
-  # 140x19 region plus 465 AE of edge geometry below it; every other pixel of
-  # the app's own timeline is identical to the twin.
-  trending-timeline 1761
+  # Was 1761 — ONE 140x33 box at the navigation title. The twin drew TWO lines
+  # there and the interpreter drew only the first, so 1296 AE was the missing
+  # `Text(client.server)` and the other 465 was the surviving line sitting
+  # ~1-2px low, because a one-child VStack centers where a two-child one does
+  # not: one defect plus its displacement, not two bugs.
+  #
+  # `TimelineToolbarTitleView` is a `ToolbarContent` conformer, NOT a View. A
+  # View's `@Environment` properties are filled by the host that renders it
+  # (`InterpretedView`); a non-View result-builder conformer has no such host,
+  # so `@Environment(MastodonClient.self)` stayed unset and `client.server`
+  # read off `()`. The conformer now sees the environment its enclosing body
+  # saw. The competing hypothesis — a ViewBuilder switch case yielding MULTIPLE
+  # views rendering only the first — was REFUTED by the repro rather than
+  # argued away: its headline expectation passes with the fix stashed.
+  trending-timeline 0
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

@@ -186,7 +186,10 @@ public enum HeadlessVerifier {
                 values: InterpretedEnvironment.defaults(
                     platformName: interpreter.buildConfiguration.platformName))
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
-            let body = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
+            let body = try interpreter.withAmbientEnvironmentModels(environment) {
+                LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+                return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            }
             count += try deepRender(interpreter, body, actions: &actions, environment: environment, depth: depth + 1)
         }
         for child in node.children {

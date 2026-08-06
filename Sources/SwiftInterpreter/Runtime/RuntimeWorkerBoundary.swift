@@ -21,6 +21,7 @@ nonisolated enum RuntimeHeapEdgeDisposition: String, Sendable, Equatable {
 nonisolated enum RuntimeWorkerHeapEdge: String, CaseIterable, Sendable {
     case globals
     case synthesizedEnvironmentModels
+    case ambientEnvironmentModels
     case viewStateCells
 }
 
