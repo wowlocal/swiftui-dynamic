@@ -28,7 +28,7 @@ final class RuntimeSourceContinuation: RuntimeConcurrencyHostValue {
     let id: RuntimeContinuationID
     let policy: RuntimeContinuationPolicy
     let allowsThrowingResume: Bool
-    private let function: String
+    let function: String
     private let diagnostics: RuntimeDiagnosticSink
     private var didResume = false
     private var wasInfrastructureAborted = false

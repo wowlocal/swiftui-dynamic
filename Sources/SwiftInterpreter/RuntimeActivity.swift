@@ -23,6 +23,32 @@ public nonisolated struct InterpreterRuntimeActivity:
 }
 
 extension Interpreter {
+    /// What each still-scheduled task is waiting on, as
+    /// `kind:state[:suspension]`. A quiescence timeout otherwise reports only
+    /// a COUNT, which cannot distinguish "waiting on a host response that
+    /// never arrives" from "sleeping until a frozen clock advances" from "a
+    /// steady-state respawn loop" — three failures with three different fixes.
+    public var pendingTaskDescriptions: [String] {
+        scheduledTasks
+            .map { handle in
+                "\(handle.kind):\(handle.state)"
+                    + (handle.suspension.map { ":\($0)" } ?? "")
+            }
+            .sorted()
+    }
+
+    /// Each unresumed continuation as `id:state:function` — the `function`
+    /// being the source function that suspended, which names the code that
+    /// owes a `resume`.
+    public var pendingContinuationDescriptions: [String] {
+        concurrencyRuntime.continuations.values
+            .map { record in
+                "\(record.id):\(record.state)"
+                    + ":\(record.sourceToken?.function ?? "released")"
+            }
+            .sorted()
+    }
+
     public var runtimeActivity: InterpreterRuntimeActivity {
         InterpreterRuntimeActivity(
             activeTaskCount: concurrencyRuntime.activeRecordCount,
