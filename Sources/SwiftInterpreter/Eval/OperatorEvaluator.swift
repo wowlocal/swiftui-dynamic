@@ -564,11 +564,15 @@ extension Interpreter {
                    name == (ProcessInfo.processInfo.environment["INTERP_TRACE_PROP"] ?? "statusesState") {
                     Swift.print("   ✍ \(instance.symbol.name)(\(UInt(bitPattern: ObjectIdentifier(instance).hashValue) % 100000)).\(name) = \(value.stringified.prefix(50))")
                 }
-                // Assigning a $binding into an @Binding property shares the
-                // parent's box instead of copying the stub (custom inits).
-                if case .host(let any) = value, let stub = any as? BindingStub,
-                   instance.symbol.storedProperty(named: name)?.wrapper == .binding {
-                    instance.properties[name] = stub.box
+                // `_group = group` in a custom init — the wrapper BACKING
+                // spelling, which installs the storage itself rather than
+                // writing a wrapped value. Both binding spellings answer here,
+                // exactly as they do at the memberwise boundary: a projection
+                // shares the parent's box, `.constant(v)` gets a private one.
+                if let property = instance.symbol.storedProperty(named: name),
+                   let storage = try interpreter.bindingStorage(
+                       for: value, property: property) {
+                    instance.properties[name] = storage
                     return
                 }
                 if let box = instance.box(for: name) {
