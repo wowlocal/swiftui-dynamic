@@ -149,14 +149,30 @@ final class StateStore: ObservableObject {
         }
     }
 
-    /// Any @StateObject/@ObservedObject model this view declares re-renders it
-    /// when a notifying property mutates. Keyed subscription keeps repeated
-    /// adoption idempotent.
+    /// Any OBSERVABLE model this view declares re-renders it when a notifying
+    /// property mutates. Keyed subscription keeps repeated adoption idempotent.
+    ///
+    /// The rule reads the VALUE, not the wrapper that spelled the storage.
+    /// Observation makes a model's own declaration (`@Observable`, or
+    /// `ObservableObject` + `@Published`) the thing that drives invalidation,
+    /// which is why the framework's own guidance is to hold such a model in
+    /// plain `@State`; a view that spells `@State private var viewModel =
+    /// TimelineViewModel()` observes it exactly as one that spells
+    /// `@StateObject`. Keying on the three pre-Observation wrappers therefore
+    /// silently split the two spellings apart, and IceCubes' `TimelineView`
+    /// and `StatusesListView` are both on the losing side of that split: the
+    /// R2 `trending-timeline` view model fetched, decoded and reached
+    /// `.displayWithGaps` while the screen kept drawing
+    /// `Status.placeholders()`, because nothing re-evaluated the body that had
+    /// read `.loading`.
+    ///
+    /// A non-observable class stays unsubscribed, which is what the compiler
+    /// does — mutating a member of a plain `@State`-held class does not
+    /// invalidate the view, and only a reassignment of the box does.
     private func wireModelSubscriptions(of instance: Instance) {
-        for property in instance.symbol.storedProperties
-        where property.wrapper == .stateObject || property.wrapper == .observedObject
-            || property.wrapper == .environmentObject {
-            guard case .instance(let model)? = instance.box(for: property.name)?.value else { continue }
+        for property in instance.symbol.storedProperties {
+            guard case .instance(let model)? = instance.box(for: property.name)?.value,
+                  model.symbol.isObservable else { continue }
             if ProcessInfo.processInfo.environment["INTERP_TRACE_BINDING"] != nil {
                 print("TRACE-BINDING subscribe \(instance.symbol.name) store=\(ObjectIdentifier(self))")
             }
