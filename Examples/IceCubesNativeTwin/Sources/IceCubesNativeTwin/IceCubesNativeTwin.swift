@@ -71,6 +71,16 @@ private enum TwinCaptureScreen: String {
     case media
     case tagsList = "tags-list"
     case mediaBrowser = "media-browser"
+    /// The one scored screen that renders through the app's OWN timeline
+    /// machinery. Every other timeline pixel on this board comes from a
+    /// harness-supplied `StatusesFetcher` handed a decoded fixture, so
+    /// `TimelineView` + `TimelineViewModel` — the real fetch, state and
+    /// datasource path a user actually scrolls — were never compared. The
+    /// trending filter is the only one the unauthenticated app can drive:
+    /// `TimelineFilter.trending`'s endpoint is public (`Trends.statuses`) and
+    /// its `isCacheEnabled` is false on all three of its terms, so the screen
+    /// reaches the network exactly once and keeps nothing on disk.
+    case trendingTimeline = "trending-timeline"
 }
 
 @MainActor
@@ -284,6 +294,10 @@ private struct TwinDriverView: View {
         case accountHeader(Account)
         case tagsList([Tag])
         case mediaBrowser(MediaAttachment, [MediaAttachment])
+        /// Carries no payload: the app's own view model does the fetching, so
+        /// the screen is defined by the filter alone and its statuses arrive
+        /// through the replayed endpoint rather than from this driver.
+        case trendingTimeline
     }
 
     @State private var statuses: [Status] = []
@@ -337,6 +351,21 @@ private struct TwinDriverView: View {
                         TagsListView(tags: tags)
                     }
                     .id(capturedScreenIdentity)
+                case .trendingTimeline:
+                    TwinNavigationScreen(
+                        client: client, routerPath: routerPath
+                    ) {
+                        // Exactly what `RouterDestination.trendingTimeline`
+                        // builds (AppRegistry.swift:118) — constant bindings
+                        // and `canFilterTimeline: false` are the app's own
+                        // arguments, not a harness simplification.
+                        TimelineView(
+                            timeline: .constant(.trending),
+                            pinnedFilters: .constant([]),
+                            selectedTagGroup: .constant(nil),
+                            canFilterTimeline: false)
+                    }
+                    .id(capturedScreenIdentity)
                 case .mediaBrowser(let selected, let attachments):
                     // `MediaUIView` brings its OWN NavigationStack (its toolbar
                     // lives in it), so it is hosted through the app environment
@@ -374,6 +403,14 @@ private struct TwinDriverView: View {
 
     private func driveCapture() async {
         do {
+            // What `IceCubesApp.init()` installs before any scene exists
+            // (IceCubesApp.swift:94). `TimelineViewModel` signals telemetry
+            // from its own datasource path, and TelemetryDeck traps on an
+            // uninitialized shared manager — so a harness that skips this
+            // cannot host the app's real timeline at all. Mirroring the app's
+            // launch is the same rule the QuickLook namespace already follows;
+            // the signals themselves reach the fail-closed replay transport.
+            Telemetry.setup()
             // Pin the geometry BEFORE any screen settles so every screen lays
             // out once, at the size it is scored at — the interpreted harness
             // pins at the same point.
@@ -480,6 +517,8 @@ private struct TwinDriverView: View {
                 try await captureMediaBrowser(
                     selected: imageAttachment,
                     attachments: [imageAttachment])
+            case .trendingTimeline:
+                try await captureTrendingTimeline()
             case nil:
                 try await captureTimeline(statuses: replayStatuses)
                 try await captureStatusDetail(
@@ -492,6 +531,7 @@ private struct TwinDriverView: View {
                 try await captureMediaBrowser(
                     selected: imageAttachment,
                     attachments: [imageAttachment])
+                try await captureTrendingTimeline()
                 try captureMetadata(
                     statuses: replayStatuses,
                     detailStatus: detailStatus,
@@ -545,6 +585,20 @@ private struct TwinDriverView: View {
     /// `following` key, so decoding them runs `Tag.init(from:)`'s
     /// `catch DecodingError.keyNotFound` fallback rather than a synthesized
     /// memberwise decode, and each row draws a Swift Charts `AreaMark` sparkline.
+    /// The app's own `TimelineView`, fetching through its own view model. No
+    /// statuses are handed in: waiting on the endpoint the app's filter chose
+    /// is what proves the fetch actually ran, so a screen that rendered its
+    /// loading state forever fails loudly instead of being captured empty.
+    private func captureTrendingTimeline() async throws {
+        statuses = []
+        capturedScreen = .trendingTimeline
+        capturedScreenIdentity = UUID()
+        try await waitForRequests([Trends.statuses(offset: nil)])
+        try await waitForScreenTransition()
+        try await capturePNG(
+            named: TwinCaptureScreen.trendingTimeline.rawValue)
+    }
+
     private func captureTagsList(_ tags: [Tag]) async throws {
         statuses = []
         capturedScreen = .tagsList(tags)

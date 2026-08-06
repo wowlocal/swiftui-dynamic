@@ -29,7 +29,8 @@ INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 # The scored screens, in capture order. ONE list: three copies drifted apart
 # is how a screen ends up captured but never scored, which reads exactly like
 # a screen that converged.
-R2_SCREENS=(timeline status-detail account-header media tags-list media-browser)
+R2_SCREENS=(timeline status-detail account-header media tags-list media-browser
+  trending-timeline)
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
@@ -188,8 +189,10 @@ capture_interpreted_screen() {
   local native_args=()
   # Mirrors IceCubesCaptureScreen.needsNativeFixtures: only the screens the
   # TWIN chose a status and prepared endpoints for read its output directory.
-  if [[ "$screen" != timeline && "$screen" != media \
-        && "$screen" != tags-list && "$screen" != media-browser ]]; then
+  # Stated as the SHORT side of that split — the screens that DO need them —
+  # so adding a screen built from the checked-in recordings cannot silently
+  # drift this condition away from the Swift enum.
+  if [[ "$screen" == status-detail || "$screen" == account-header ]]; then
     native_args=(--native-fixtures "$TWIN_DIR")
   fi
   ICECUBES_FROZEN_NOW="$FROZEN_NOW" \
@@ -307,6 +310,27 @@ R2_FLOORS=(
   # decorates is byte-identical on both sides. It was named as a blocker by
   # prose; the pixels acquit it.
   media-browser 0
+  # NEW SCREEN, entering at its first measured value — this is a measurement
+  # that did not exist before, not a regression of one that did. The six
+  # screens above are unchanged (2 AE, all of it tags-list).
+  #
+  # Why it is worth scoring: every timeline pixel already on this board comes
+  # from a harness `StatusesFetcher` handed decoded fixture statuses, on BOTH
+  # sides. The app's own `TimelineView` over its own `TimelineViewModel` — the
+  # fetch, the state machine, the datasource, the toolbar — had never been
+  # compared to the twin at all. `RouterDestination.trendingTimeline` is the
+  # one spelling of it the unauthenticated app can drive end to end
+  # (`Trends.statuses` is public, and `isCacheEnabled` is false on all three
+  # of its terms, so nothing touches disk).
+  #
+  # What the number is made of, measured rather than assumed: the interpreted
+  # screen renders the app's real view model STUCK IN `.loading` — redacted
+  # placeholder rows — while the twin shows the recorded trending statuses.
+  # That is the Client-actor fetch class this loop's capability queue put
+  # first, now reachable for the first time: until `ToolbarSpacer` became
+  # constructible (d10c6838) the whole screen was one error label at 389990,
+  # and executing MORE of it moved the number UP before it can move down.
+  trending-timeline 461250
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
