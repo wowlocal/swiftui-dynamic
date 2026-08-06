@@ -64,6 +64,12 @@ private enum IceCubesCaptureScreen: String {
     case media
     case tagsList = "tags-list"
     case mediaBrowser = "media-browser"
+    /// The app's own `TimelineView` over its own `TimelineViewModel`. The
+    /// `timeline` screen above scores a harness `StatusesFetcher` handed
+    /// already-decoded statuses on both sides, so the app's real fetch and
+    /// datasource path had no pixels on this board; `.trending` is the filter
+    /// the unauthenticated app can drive end to end.
+    case trendingTimeline = "trending-timeline"
 
     /// `status-detail` and `account-header` are driven from a status the TWIN
     /// picked and the endpoints it prepared, so they read the twin's output
@@ -75,6 +81,10 @@ private enum IceCubesCaptureScreen: String {
     var needsNativeFixtures: Bool {
         switch self {
         case .timeline, .media, .tagsList, .mediaBrowser: false
+        // The app's view model chooses the endpoint (`Trends.statuses`) and
+        // the checked-in recording answers it, so nothing about this screen
+        // depends on what the twin prepared.
+        case .trendingTimeline: false
         case .statusDetail, .accountHeader: true
         }
     }
@@ -1331,6 +1341,10 @@ struct IceCubesCheckMain {
         /// `scrollTargetLayout`, `scrollTargetBehavior(.viewAligned)` and
         /// `scrollPosition(id:)`, under a `ToolbarContent` type of its own.
         case nativeMediaBrowser
+        /// `RouterDestination.trendingTimeline` (AppRegistry.swift:118): the
+        /// app's `TimelineView` driving its own `TimelineViewModel`, which
+        /// fetches, decodes and installs its datasource itself.
+        case nativeTrendingTimeline
         /// The real navigation shape every IceCubes tab is built from:
         /// `NavigationStack(path: $routerPath.path) { content.withAppRouter() }`
         /// (NavigationTab.swift:25 + AppRegistry.swift:65). Nothing about the
@@ -2121,6 +2135,20 @@ struct IceCubesCheckMain {
                         selectedAttachment: __iceBrowserAttachment,
                         attachments: [__iceBrowserAttachment])
             """
+        case .nativeTrendingTimeline:
+            // The app's own arguments for this destination, verbatim: constant
+            // bindings and `canFilterTimeline: false`. No fetcher is supplied
+            // — `TimelineViewModel` picks `Trends.statuses` from the filter and
+            // runs the request through the replayed client itself.
+            """
+                    NavigationStack {
+                        TimelineView(
+                            timeline: .constant(.trending),
+                            pinnedFilters: .constant([]),
+                            selectedTagGroup: .constant(nil),
+                            canFilterTimeline: false)
+                    }
+            """
         case .rowTapNavigation:
             """
                     __IceRowTapProbe()
@@ -2588,6 +2616,9 @@ struct IceCubesCheckMain {
             screenStatusFixture = nil
         case .mediaBrowser:
             presentation = .nativeMediaBrowser
+            screenStatusFixture = nil
+        case .trendingTimeline:
+            presentation = .nativeTrendingTimeline
             screenStatusFixture = nil
         case .statusDetail, .accountHeader:
             let metadata = try JSONDecoder().decode(
