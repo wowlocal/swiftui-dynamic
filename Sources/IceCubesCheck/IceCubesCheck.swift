@@ -164,8 +164,12 @@ private struct IceCubesCatalystCaptureRoot: View {
                     renderActivity: session.renderActivity)
             } while ContinuousClock.now < settleDeadline
 
+            // Deliberately NOT configurable: a "wait longer" knob turns a real
+            // settle failure into a slow pass, which is the capture-side
+            // version of moving a floor.
             let readinessDeadline =
                 ContinuousClock.now.advanced(by: .seconds(30))
+            var nextSample = ContinuousClock.now
             while !readiness.isReadyForCapture
                 && ContinuousClock.now < readinessDeadline
             {
@@ -173,11 +177,45 @@ private struct IceCubesCatalystCaptureRoot: View {
                 readiness.observe(
                     runtimeActivity: session.interpreter.runtimeActivity,
                     renderActivity: session.renderActivity)
+                if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1",
+                   ContinuousClock.now >= nextSample {
+                    nextSample = ContinuousClock.now.advanced(by: .seconds(1))
+                    let a = session.interpreter.runtimeActivity
+                    // Sampled, not just reported at the deadline: a count that
+                    // OSCILLATES (work respawning) and one that is FLAT (work
+                    // stuck) look identical in a single end-of-wait snapshot.
+                    print(
+                        "@@icecubes-readiness-sample"
+                            + " tasks=\(a.activeTaskCount)"
+                            + " scheduled=\(a.scheduledTaskCount)"
+                            + " host=\(a.activeHostOperationCount)"
+                            + " continuations=\(a.activeContinuationCount)"
+                            + " revision=\(session.renderActivity.bodyEvaluationCount)"
+                            + " pending=\(session.interpreter.pendingTaskDescriptions)"
+                            + " blocked=\(session.interpreter.pendingContinuationDescriptions)")
+                }
             }
             guard readiness.isReadyForCapture else {
+                // Say WHICH half of readiness is missing. "Not ready" has two
+                // very different causes — work that never quiesces, and work
+                // that quiesced without a later body evaluation — and the bare
+                // message sent the 2026-08-06 trending-timeline investigation
+                // looking for a render bug when the runtime simply still had
+                // tasks in flight.
+                let activity = session.interpreter.runtimeActivity
                 throw RuntimeError(
                     message:
-                        "Catalyst capture did not reach presentation readiness")
+                        "Catalyst capture did not reach presentation readiness"
+                        + " (quiescent=\(activity.isQuiescent)"
+                        + " activeTasks=\(activity.activeTaskCount)"
+                        + " scheduledTasks=\(activity.scheduledTaskCount)"
+                        + " hostOperations=\(activity.activeHostOperationCount)"
+                        + " continuations=\(activity.activeContinuationCount)"
+                        + " observedActive="
+                        + "\(readiness.firstActiveRenderRevision != nil)"
+                        + " initialRevision=\(initialRenderRevision)"
+                        + " revision="
+                        + "\(session.renderActivity.bodyEvaluationCount))")
             }
             if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
                 let activity = session.interpreter.runtimeActivity
