@@ -110,6 +110,12 @@ private final class IceCubesCheckAppDelegate:
 
 @MainActor
 private struct IceCubesCatalystCaptureRoot: View {
+    /// How many consecutive 50ms samples must agree before the layout counts
+    /// as settled. Three rather than one: a transition passes through frames
+    /// that repeat by coincidence at its endpoints, and a single match there
+    /// certifies the same unsettled tree this exists to reject.
+    static let requiredStableGeometrySamples = 3
+
     let directory: String
     let screen: IceCubesCaptureScreen
     let nativeFixtureDirectory: String?
@@ -268,6 +274,34 @@ private struct IceCubesCatalystCaptureRoot: View {
                         + " root is \(rootView.bounds.size). Capturing"
                         + " anything else rescales the screen — fix the"
                         + " capture, not the floor.")
+            }
+            // Interpreter quiescence is not layout quiescence. A SwiftUI
+            // transition keeps re-laying out for several frames AFTER the work
+            // that triggered it finished, so the readiness above can be
+            // satisfied while the tree is still moving — and the pixels then
+            // record wherever the animation happened to be. Require the
+            // geometry to repeat before believing it.
+            let geometryDeadline =
+                ContinuousClock.now.advanced(by: .seconds(5))
+            var previousFingerprint =
+                CaptureGeometryDump.fingerprint(captureView: captureView)
+            var stableSamples = 0
+            while stableSamples < Self.requiredStableGeometrySamples
+                && ContinuousClock.now < geometryDeadline
+            {
+                try await Task.sleep(for: .milliseconds(50))
+                let fingerprint =
+                    CaptureGeometryDump.fingerprint(captureView: captureView)
+                stableSamples =
+                    fingerprint == previousFingerprint ? stableSamples + 1 : 0
+                previousFingerprint = fingerprint
+            }
+            if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+                print(
+                    "@@icecubes-geometry-settle"
+                        + " stableSamples=\(stableSamples)"
+                        + " settled="
+                        + "\(stableSamples >= Self.requiredStableGeometrySamples)")
             }
             removeAnimations(from: captureView.layer)
             let format = UIGraphicsImageRendererFormat()

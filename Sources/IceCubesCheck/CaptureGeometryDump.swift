@@ -516,6 +516,28 @@ enum CaptureGeometryDump {
         pendingRaster = raster(format: format, product: product)
     }
 
+    /// The tree's geometry as one string, independent of `isEnabled`.
+    ///
+    /// Capture readiness uses it to require a SETTLED LAYOUT. SwiftUI animates
+    /// a transition by re-laying out over several frames, and nothing already
+    /// in the readiness predicate can see that: the interpreter is quiescent
+    /// (the work that triggered the animation finished), a later body has been
+    /// evaluated, and `removeAnimations` only strips `CAAnimation`s — the frames
+    /// it leaves behind are the current step's real values, not the final ones.
+    /// The R2 `status-detail` screen caught its capture mid
+    /// `.transition(.move(edge: .leading))` and scored 11k-50k AE differently
+    /// on every run of the same binary over the same bytes.
+    ///
+    /// Deliberately geometry only, and deliberately not a deadline extension:
+    /// this makes readiness STRICTER by requiring the layout to stop moving,
+    /// where a longer wait would only give unsettled content more time to look
+    /// settled.
+    static func fingerprint(captureView: UIView) -> String {
+        var lines: [String] = []
+        walk(captureView, in: captureView, depth: 0, into: &lines)
+        return lines.joined(separator: "\n")
+    }
+
     /// Writes the dump next to the capture. Failures are silent by design:
     /// an instrument that can fail a scored capture is a liability, and the
     /// missing file is its own signal.
