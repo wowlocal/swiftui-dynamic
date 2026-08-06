@@ -960,6 +960,14 @@ extension Interpreter {
         declaredTypeName: String? = nil
     ) throws -> HostExtensionMethodOverloads? {
         guard let payload = receiver.hostPayload else { return nil }
+        // The single `return` below is guarded by a non-empty
+        // `hostExtensionSymbols[typeName]?.methods[name]`, so a name no
+        // source extension declares cannot produce a family no matter which
+        // type names the receiver yields. Answering that first keeps the
+        // typealias-chain walk off the path taken by every `String`/`Array`
+        // member access in an interpreted program.
+        guard hostExtensionMethodNames.contains(name) else { return nil }
+        noteHostExtensionCandidateDerivation()
 
         var typeNames: [String] = []
         func appendTypeName(_ typeName: String?) {

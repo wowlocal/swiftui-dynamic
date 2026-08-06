@@ -52,7 +52,22 @@ final class RuntimeProgramState {
         parentRevision: UInt64,
         symbols: [String: StructSymbol]
     )?
+    private var visibleHostExtensionMethodNameCache: (
+        symbolsRevision: UInt64,
+        methodNameRevision: UInt64,
+        names: Set<String>
+    )?
     private(set) var visibleHostExtensionMaterializationCount = 0
+    /// Times `hostExtensionMethodOverloads` derived a receiver's candidate
+    /// type names — the walk the method-name guard above exists to skip.
+    /// Deriving them for an array reads EVERY element to decide whether the
+    /// array is homogeneous, so a name-independent walk makes ordinary
+    /// `Array` member access quadratic in the receiver's own size.
+    private(set) var hostExtensionCandidateDerivationCount = 0
+
+    func noteHostExtensionCandidateDerivation() {
+        hostExtensionCandidateDerivationCount &+= 1
+    }
     var protocolInheritance: [String: [String]] = [:]
     var dependencyCache: [String: RuntimeValue] = [:]
     var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]
@@ -125,6 +140,34 @@ final class RuntimeProgramState {
         visibleHostExtensionCache = (
             hostExtensionLocalRevision, parentRevision, result)
         return result
+    }
+
+    /// Every method name declared by any VISIBLE host extension.
+    ///
+    /// `hostExtensionMethodOverloads` can only ever return a family it found
+    /// at `hostExtensionSymbols[typeName]?.methods[name]`, so a name absent
+    /// here provably has no such family on any type — and the receiver's
+    /// candidate type names, which cost a typealias-chain walk per lookup,
+    /// need never be derived. Interpreting SwiftSoup asks this question on
+    /// every member access against a host payload (`String.count`,
+    /// `Array.append`), and virtually every such name is imported rather
+    /// than source-declared.
+    var visibleHostExtensionMethodNames: Set<String> {
+        let symbols = visibleHostExtensionSymbols
+        if let cached = visibleHostExtensionMethodNameCache,
+           cached.symbolsRevision == visibleHostExtensionRevision,
+           cached.methodNameRevision == StructSymbol.methodNameRevision {
+            return cached.names
+        }
+        var names: Set<String> = []
+        for symbol in symbols.values {
+            names.formUnion(symbol.methods.keys)
+        }
+        visibleHostExtensionMethodNameCache = (
+            visibleHostExtensionRevision,
+            StructSymbol.methodNameRevision,
+            names)
+        return names
     }
 
     var visibleDeclarationLexicalOwners: [SyntaxIdentifier: AnyObject] {

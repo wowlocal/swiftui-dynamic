@@ -284,6 +284,24 @@ public final class Interpreter {
         _modify { yield &activeProgramState.hostExtensionSymbols }
     }
 
+    /// Names for which `hostExtensionSymbols[_]?.methods[name]` can be
+    /// non-empty. Every other name is answerable without deriving the
+    /// receiver's candidate type names.
+    var hostExtensionMethodNames: Set<String> {
+        activeProgramState.visibleHostExtensionMethodNames
+    }
+
+    /// Times the name guard above admitted a lookup to the candidate
+    /// type-name walk. Observable so a regression pin can assert the walk
+    /// stays off ordinary host member access rather than time it.
+    var hostExtensionCandidateDerivationCount: Int {
+        activeProgramState.hostExtensionCandidateDerivationCount
+    }
+
+    func noteHostExtensionCandidateDerivation() {
+        activeProgramState.noteHostExtensionCandidateDerivation()
+    }
+
     func mutableHostExtensionSymbol(named name: String) -> StructSymbol {
         if let symbol = activeProgramState.hostExtensionSymbols[name] {
             return symbol

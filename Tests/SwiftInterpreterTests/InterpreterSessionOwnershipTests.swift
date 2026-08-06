@@ -1,3 +1,5 @@
+import SwiftParser
+import SwiftSyntax
 import Testing
 @testable import SwiftInterpreter
 
@@ -213,6 +215,42 @@ struct InterpreterSessionOwnershipTests {
 
         #expect(child.visibleHostExtensionSymbols["Int"] === integerSymbol)
         #expect(child.visibleHostExtensionMaterializationCount == 2)
+    }
+
+    /// `hostExtensionMethodOverloads` skips deriving a receiver's candidate
+    /// type names for any name no source extension declares, which makes the
+    /// visible method-NAME set a correctness surface rather than a hint. A
+    /// symbol already in `hostExtensionSymbols` is a reference, so declaring
+    /// a method on it mutates nothing the dictionary's own observer sees: the
+    /// set must notice the late declaration anyway, or the member it declares
+    /// becomes permanently unreachable.
+    @Test func hostExtensionMethodNamesSeeADeclarationOnAVisibleSymbol() {
+        let parent = RuntimeProgramState()
+        let stringSymbol = StructSymbol(
+            name: "String", conformsToView: false)
+        parent.hostExtensionSymbols["String"] = stringSymbol
+        let child = RuntimeProgramState(hostExtensionParent: parent)
+
+        #expect(child.visibleHostExtensionMethodNames.isEmpty)
+
+        stringSymbol.methods["lateMember"] = [Self.functionDecl(
+            "func lateMember() -> String { \"late\" }")]
+
+        #expect(child.visibleHostExtensionMethodNames.contains("lateMember"))
+
+        // Another overload of a name already present leaves the set valid,
+        // so the revision must not force a rebuild for it.
+        let settled = child.visibleHostExtensionMethodNames
+        stringSymbol.methods["lateMember"]?.append(Self.functionDecl(
+            "func lateMember(_ other: String) -> String { other }"))
+
+        #expect(child.visibleHostExtensionMethodNames == settled)
+    }
+
+    private static func functionDecl(_ source: String) -> FunctionDeclSyntax {
+        Parser.parse(source: source).statements.compactMap {
+            $0.item.as(FunctionDeclSyntax.self)
+        }.first!
     }
 
     @Test func expressionOnlyRunsDoNotRetainEmptyProgramStateLineage() throws {

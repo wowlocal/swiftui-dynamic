@@ -327,7 +327,20 @@ public final class StructSymbol {
     public internal(set) var subscripts: [SubscriptMember] = []
     public internal(set) var storedProperties: [StoredProperty] = []
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
-    public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
+    public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:] {
+        didSet {
+            // A symbol already in `hostExtensionSymbols` is a reference, so
+            // adding a method to it mutates nothing the dictionary's own
+            // `didSet` can see. Derived indexes over method NAMES therefore
+            // need this counter to notice an in-place declaration.
+            if methods.count != oldValue.count {
+                StructSymbol.methodNameRevision &+= 1
+            }
+        }
+    }
+    /// Bumped whenever any symbol gains a method NAME (appending another
+    /// overload to a name already present leaves every such index valid).
+    static var methodNameRevision: UInt64 = 0
     public internal(set) var initializers: [InitializerDeclSyntax] = []
     public internal(set) var staticProperties: [String: StaticProperty] = [:]
     /// Origins exist only for static properties declared `private` or
