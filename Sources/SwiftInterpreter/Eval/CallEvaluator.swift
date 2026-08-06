@@ -1000,7 +1000,9 @@ extension Interpreter {
                   let range = args.positional(0)?.rangeValue else {
                 throw error(call, "replaceSubrange needs a range and 'with:'")
             }
-            text.replaceSubrange(try stringSlice(range, in: text, node: call), with: replacement)
+            text.replaceSubrange(
+                try stringSlice(range, in: text[...], node: call),
+                with: replacement)
             try relocating(call) { try target.writeOwned(.native(text), self) }
             return .void
         }
