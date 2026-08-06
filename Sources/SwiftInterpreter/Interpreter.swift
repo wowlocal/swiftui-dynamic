@@ -465,16 +465,25 @@ public final class Interpreter {
         }
         return compatibilityLocationConverter
     }
-    private lazy var synchronousEvaluationTaskContext = EvaluationTaskContext(
-        id: 0, concurrencyRuntime: concurrencyRuntime)
+    /// Deliberately NOT `lazy`. Every synchronous evaluation falls back to
+    /// this context, so a lazy binding puts an initialization check and its
+    /// exclusivity enforcement on the interpreter's hottest read.
+    private let synchronousEvaluationTaskContext: EvaluationTaskContext
 
     var evaluationTaskContext: EvaluationTaskContext {
+        evaluationTaskContextResolutions &+= 1
         if let current = EvaluationTaskContext.current,
            current.concurrencyRuntime === concurrencyRuntime {
             return current
         }
         return synchronousEvaluationTaskContext
     }
+
+    /// Times the owning task context was resolved — a task-local read plus a
+    /// weak load. Observable so a regression pin can assert the per-node path
+    /// resolves it ONCE per evaluated node rather than once per piece of
+    /// bookkeeping, without timing anything.
+    private(set) var evaluationTaskContextResolutions = 0
 
     /// White-box identity used by concurrency ownership and host re-entry
     /// tests. Runtime task identity itself is introduced in M2.
@@ -1199,6 +1208,8 @@ public final class Interpreter {
             for: executionMode)
         runtimeClock = ContinuousRuntimeClock()
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
+        synchronousEvaluationTaskContext = EvaluationTaskContext(
+            id: 0, concurrencyRuntime: concurrencyRuntime)
         defineGlobalBuiltins()
     }
 
@@ -1236,6 +1247,8 @@ public final class Interpreter {
             for: executionMode)
         runtimeClock = ContinuousRuntimeClock()
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
+        synchronousEvaluationTaskContext = EvaluationTaskContext(
+            id: 0, concurrencyRuntime: concurrencyRuntime)
         defineGlobalBuiltins()
     }
 
@@ -1270,6 +1283,8 @@ public final class Interpreter {
             for: executionMode)
         self.runtimeClock = runtimeClock
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
+        synchronousEvaluationTaskContext = EvaluationTaskContext(
+            id: 0, concurrencyRuntime: concurrencyRuntime)
         defineGlobalBuiltins()
     }
 
@@ -1310,6 +1325,8 @@ public final class Interpreter {
             for: executionMode)
         self.runtimeClock = runtimeClock
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
+        synchronousEvaluationTaskContext = EvaluationTaskContext(
+            id: 0, concurrencyRuntime: concurrencyRuntime)
         defineGlobalBuiltins()
     }
 

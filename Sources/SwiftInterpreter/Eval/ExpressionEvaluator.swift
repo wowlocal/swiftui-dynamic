@@ -4,15 +4,25 @@ import SwiftSyntax
 /// Expression evaluation: the big dispatch over folded `ExprSyntax`.
 extension Interpreter {
     func evaluate(_ expr: ExprSyntax, in env: Environment) throws -> RuntimeValue {
-        try tick(expr)
+        // The owning task context is resolved ONCE for the whole node. This
+        // function is synchronous, so no suspension can rebind
+        // `EvaluationTaskContext.current` between its statements and every
+        // read below is provably the same object. Reading it per access
+        // instead charged each AST node TEN resolutions — a task-local read
+        // plus a weak load apiece: the step budget's get and set, the nesting
+        // depth's get and set, its two reads in the stack-probe condition, the
+        // 20_000 guard, the deferred decrement's get and set, and the stack
+        // bounds.
+        let taskContext = evaluationTaskContext
+        try tick(expr, in: taskContext)
         // Native-stack guard for resolution CYCLES that never pass
         // callWithArguments (lazy-global force loops, member-dispatch
         // cycles). A fixed nesting count can't fit both TCA's legitimate
         // depth and small thread stacks, so probe the real bounds.
-        evaluationDepth += 1
-        defer { evaluationDepth -= 1 }
+        let evaluationDepth = taskContext.evaluationDepth + 1
+        taskContext.evaluationDepth = evaluationDepth
+        defer { taskContext.evaluationDepth -= 1 }
 
-        let taskContext = evaluationTaskContext
         let thread = pthread_self()
         var threadID: UInt64 = 0
         let hasStableThreadID = pthread_threadid_np(nil, &threadID) == 0

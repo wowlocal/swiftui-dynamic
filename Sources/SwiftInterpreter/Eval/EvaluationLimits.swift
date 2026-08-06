@@ -26,7 +26,20 @@ extension Interpreter {
     }
 
     func tick(_ node: some SyntaxProtocol) throws {
-        steps += 1
+        try tick(node, in: evaluationTaskContext)
+    }
+
+    /// The budget tick against an ALREADY-resolved owning context. Callers on
+    /// the per-node path resolve the context once and hand it to every piece
+    /// of bookkeeping the node needs; `steps` alone is a get and a set, and
+    /// each goes through a task-local read and a weak load to find the same
+    /// object the caller is already holding.
+    func tick(
+        _ node: some SyntaxProtocol,
+        in context: EvaluationTaskContext
+    ) throws {
+        let steps = context.steps + 1
+        context.steps = steps
         // Task cancellation lookup is appreciably more expensive than the
         // integer budget check. Poll immediately, then once per 64 syntax
         // nodes; cancellation remains prompt without taxing every AST node.
