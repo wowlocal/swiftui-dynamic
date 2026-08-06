@@ -137,6 +137,13 @@ private func rangeEval(_ source: String) throws -> RuntimeValue {
         #expect(try rangeEval(source).stringValue == "display")
     }
 
+    /// A closed range subscript keeps its upper bound, and the `ArraySlice` it
+    /// produces keeps its BASE's index space. This test previously read the
+    /// slice as `middle[0], middle[1]`, which is the re-based reading the
+    /// interpreter used to produce; the real compiler traps on `middle[0]`
+    /// ("Swift/SliceBuffer.swift:307: Fatal error: Index out of bounds") and
+    /// answers `startIndex == 1`, `endIndex == 3`. The expectation is the
+    /// compiler's, checked by compiling this same slice with `swiftc`.
     @Test func integerRangesIterateAndSliceWithoutLosingClosedness() throws {
         let source = """
         var total = 0
@@ -144,9 +151,19 @@ private func rangeEval(_ source: String) throws -> RuntimeValue {
         let middle = [10, 20, 30, 40][1...2]
         let prefix = "abcd"[..<2]
         let suffix = "abcd"[2...]
-        "\\(total):\\(middle[0]),\\(middle[1]):\\(prefix):\\(suffix)"
+        "\\(total):\\(middle[1]),\\(middle[2]):\\(prefix):\\(suffix)"
         """
         #expect(try rangeEval(source).stringValue == "6:20,30:ab:cd")
+    }
+
+    /// The index space the case above depends on, stated on its own so a
+    /// regression names the rule rather than a string mismatch.
+    @Test func closedRangeSliceKeepsItsBaseIndexSpace() throws {
+        let source = """
+        let middle = [10, 20, 30, 40][1...2]
+        "\\(middle.startIndex),\\(middle.endIndex),\\(middle.count)"
+        """
+        #expect(try rangeEval(source).stringValue == "1,3,2")
     }
 
     @Test func unboundedRangeSubscriptsReturnWholeCollectionSlices() throws {

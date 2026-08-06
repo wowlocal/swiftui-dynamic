@@ -243,10 +243,32 @@ extension RuntimeValue {
         }
     }
 
+    /// The index-space-preserving counterpart of `arrayValue`, and the exact
+    /// analogue of `substringValue`: `a[i...].startIndex` IS `i`, and an index
+    /// an `ArraySlice` hands back stays valid in `a`. Every member whose
+    /// RESULT is an index reads the receiver through here. A plain array
+    /// answers `self[...]`, whose indices are its own, so the rule degenerates
+    /// to the old behaviour wherever nothing was sliced.
+    public var arraySliceValue: ArraySlice<RuntimeValue>? {
+        switch self {
+        case .array(let array): return array[...]
+        case .host(let any):
+            if let slice = any as? ArraySlice<RuntimeValue> { return slice }
+            return arrayValue?[...]
+        default: return arrayValue?[...]
+        }
+    }
+
     public var arrayValue: [RuntimeValue]? {
         switch self {
         case .array(let array): return array
         case .host(let any):
+            // A slice's ELEMENTS are just its elements; consumers that want
+            // the contents rather than the index space cannot tell it from
+            // the array it came from.
+            if let slice = any as? ArraySlice<RuntimeValue> {
+                return Array(slice)
+            }
             if let array = any as? [RuntimeValue] { return array }
             if let sequence = any as? any RuntimeMaterializedSequence {
                 return sequence.runtimeMaterializedElements
@@ -281,6 +303,11 @@ extension RuntimeValue {
         case .array(let array): return array
         case .set(let set): return set.elements
         case .host(let any):
+            // A slice is a Sequence of its elements like any other; only its
+            // index space is special, and that is `arraySliceValue`'s job.
+            if let slice = any as? ArraySlice<RuntimeValue> {
+                return Array(slice)
+            }
             if let array = any as? [RuntimeValue] { return array }
             if let sequence = any as? any RuntimeMaterializedSequence {
                 return sequence.runtimeMaterializedElements

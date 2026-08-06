@@ -61,6 +61,20 @@ extension Interpreter {
         case .range(let range):
             return try nativeMember(name, on: range as Any)
         case .host(let host):
+            // A slice is a view into its base INCLUDING its element type, so
+            // it derives `Element` exactly the way the `.array` case above
+            // does. Reaching the untyped entry point instead would drop
+            // `declaredTypeName` on the floor, and an element type is how the
+            // interpreter dispatches `slice.first!.isWhitespace` onto `UInt8`
+            // rather than onto a bare `Int`.
+            if let slice = host as? ArraySlice<RuntimeValue> {
+                return try arrayMember(
+                    name,
+                    Array(slice),
+                    elementTypeName: RuntimeDeclaredType
+                        .arrayPayloadElementTypeName(in: declaredTypeName),
+                    indexSpace: slice)
+            }
             return try nativeMember(name, on: host)
         default:
             return nil
@@ -485,6 +499,12 @@ extension Interpreter {
         if let string = any as? String {
             return stringMember(name, string)
         }
+        if let slice = any as? ArraySlice<RuntimeValue> {
+            // Same member surface as an Array — a slice differs only in the
+            // index space its index-valued members answer in.
+            return try arrayMember(
+                name, Array(slice), indexSpace: slice)
+        }
         if let slice = any as? Substring {
             // Same member surface as a String — a slice differs only in which
             // index space its index-valued members answer in, so it hands that
@@ -776,19 +796,25 @@ extension Interpreter {
         return nil
     }
 
+    /// `indexSpace` is the receiver's own slice view — the array counterpart
+    /// of `stringMember`'s. Element members read the same elements either way;
+    /// a member whose RESULT is an index must answer in the space its receiver
+    /// actually has, which for an `ArraySlice` is its base's.
     private func arrayMember(
         _ name: String,
         _ array: [RuntimeValue],
-        elementTypeName: String? = nil
+        elementTypeName: String? = nil,
+        indexSpace: ArraySlice<RuntimeValue>? = nil
     ) throws -> RuntimeValue? {
+        let slice = indexSpace ?? array[...]
         if let generated = GeneratedCollectionDefaultSurface
             .nativeIndexMotionMember(
-                named: name, receiver: .native(array)) {
+                named: name, receiver: .native(slice)) {
             return .hostFunction(generated)
         }
         if let generated = GeneratedCollectionDefaultSurface
             .nativeIndexSearchMember(
-                named: name, receiver: .native(array)) {
+                named: name, receiver: .native(slice)) {
             return .hostFunction(generated)
         }
         switch name {
@@ -800,9 +826,10 @@ extension Interpreter {
         case "last":
             return .optional(
                 array.last, wrappedTypeName: elementTypeName)
-        case "indices": return .native(0..<array.count)
-        case "startIndex": return .native(0)
-        case "endIndex": return .native(array.count)
+        case "indices":
+            return .native(slice.startIndex..<slice.endIndex)
+        case "startIndex": return .native(slice.startIndex)
+        case "endIndex": return .native(slice.endIndex)
         case "elementsEqual":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let other = args.positional(0)?.arrayValue, other.count == array.count else {
