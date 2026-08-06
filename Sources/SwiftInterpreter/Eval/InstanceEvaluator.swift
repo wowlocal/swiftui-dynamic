@@ -1780,6 +1780,19 @@ extension Interpreter {
             }
         }
 
+        // Everything below answers ONE question: which value does this
+        // annotation's TYPE give to a member the expression could not resolve
+        // on its own (`.now`, `.init(…)`, `.success(x)`)? Every branch from
+        // here to the end of this function is guarded by that marker shape,
+        // and the fall-through returns the value unchanged — so for a value
+        // that is already resolved the whole tail is provably an identity.
+        // It is not free, though: it splits the name, walks the lexical type
+        // scopes, canonicalizes typealiases and reads the host-extension
+        // tables twice, and it ran on every annotated parameter bind and
+        // every declared function return. Ask the necessary condition first.
+        guard value.carriesUnresolvedContextualMember else { return value }
+        noteAnnotationTypeContextResolution()
+
         // `[any Processor] = [.factory(...)]`: contextual member lookup on a
         // protocol existential may select a static factory from an extension
         // constrained by `Self == Concrete`. The parsed constraint, concrete

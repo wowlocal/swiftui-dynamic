@@ -302,6 +302,18 @@ public final class Interpreter {
         activeProgramState.noteHostExtensionCandidateDerivation()
     }
 
+    /// Times an annotation reached the program's symbol tables to give an
+    /// unresolved contextual member its type context. Observable so a
+    /// regression pin can assert the tail stays off ordinary annotated binds
+    /// and returns rather than time them.
+    var annotationTypeContextResolutionCount: Int {
+        activeProgramState.annotationTypeContextResolutionCount
+    }
+
+    func noteAnnotationTypeContextResolution() {
+        activeProgramState.noteAnnotationTypeContextResolution()
+    }
+
     func mutableHostExtensionSymbol(named name: String) -> StructSymbol {
         if let symbol = activeProgramState.hostExtensionSymbols[name] {
             return symbol

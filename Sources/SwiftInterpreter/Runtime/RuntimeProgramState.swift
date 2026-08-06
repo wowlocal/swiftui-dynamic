@@ -68,6 +68,17 @@ final class RuntimeProgramState {
     func noteHostExtensionCandidateDerivation() {
         hostExtensionCandidateDerivationCount &+= 1
     }
+    /// Times an annotation resolved its TYPE NAME against the program's
+    /// symbols — the lexical type lookup, typealias canonicalization and
+    /// host-extension tables `resolveAnnotated` reaches only to give an
+    /// unresolved contextual member (`.now`, `.init(…)`) its type context.
+    /// Every annotated parameter bind and every declared function return
+    /// paid for it, including the ones whose value was already resolved.
+    private(set) var annotationTypeContextResolutionCount = 0
+
+    func noteAnnotationTypeContextResolution() {
+        annotationTypeContextResolutionCount &+= 1
+    }
     var protocolInheritance: [String: [String]] = [:]
     var dependencyCache: [String: RuntimeValue] = [:]
     var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]

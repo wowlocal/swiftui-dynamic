@@ -166,6 +166,24 @@ extension RuntimeValue {
         }
     }
 
+    /// Whether this value still NAMES a member it could not resolve without
+    /// a type context: a leading-dot member (`.now`), its call form
+    /// (`.init(…)`, `.success(x)`), or a chain continuing from one
+    /// (`.now.startOfMonth`). These are the only shapes an annotation's type
+    /// can still turn into a real value — every other value is already
+    /// resolved and an annotation's TYPE identity cannot change it.
+    var carriesUnresolvedContextualMember: Bool {
+        switch self {
+        case .implicitMember:
+            return true
+        case .host(let payload):
+            return payload is ImplicitMemberCall
+                || payload is ChainedImplicitCall
+        default:
+            return false
+        }
+    }
+
     /// Generated native storage owned by an interpreter-defined subclass of
     /// an imported SDK class. Host adapters may recursively coerce this value
     /// when a compiled API accepts the superclass; source member dispatch
