@@ -32,3 +32,37 @@ public final class BindingStub {
         return array.indices.compactMap { elementBinding(at: $0) }
     }
 }
+
+extension Interpreter {
+    /// The storage a `@Binding` property adopts for an incoming value, or nil
+    /// when the value is not a binding at all.
+    ///
+    /// A binding reaches a `@Binding` property in TWO spellings, and both mean
+    /// "this property is bound to that storage":
+    ///
+    /// - a projection (`$x`, `$viewModel.tag`) — a `BindingStub`, whose box is
+    ///   SHARED so the child's writes land in the parent's state;
+    /// - `Binding.constant(v)` — an `ImplicitMemberCall`, which has no upstream
+    ///   to write back to, so it gets a fresh private box holding the payload.
+    ///
+    /// Every boundary that seeds a `@Binding` property has to answer both. One
+    /// that answers only the projection leaves the `.constant` MARKER to be
+    /// coerced into the property's declared type, and a marker is not a value
+    /// of that type: the coercion yields a fresh empty stand-in, so
+    /// `.constant("hello")` reads back as `""` and — worse, because it is
+    /// silent — `.constant(nil)` reads back as a non-nil placeholder that
+    /// `if let` happily unwraps.
+    func bindingStorage(
+        for value: RuntimeValue, property: StructSymbol.StoredProperty
+    ) throws -> Box? {
+        guard property.wrapper == .binding, case .host(let any) = value else {
+            return nil
+        }
+        if let stub = any as? BindingStub { return stub.box }
+        guard let call = any as? ImplicitMemberCall, call.name == "constant"
+        else { return nil }
+        return Box(try resolveAnnotated(
+            call.arguments.positional(0) ?? .void,
+            typeName: property.typeName).copiedForValueSemantics())
+    }
+}

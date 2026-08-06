@@ -426,16 +426,9 @@ extension Interpreter {
                     throw RuntimeError(message: message)
                 }
                 assigned.insert(label)
-                if property.wrapper == .binding,
-                   case .host(let any) = argument.value, let stub = any as? BindingStub {
-                    instance.properties[label] = stub.box
-                } else if property.wrapper == .binding,
-                          case .host(let any) = argument.value,
-                          let call = any as? ImplicitMemberCall, call.name == "constant" {
-                    // `.constant("")` — a binding to a fixed value.
-                    instance.properties[label] = Box(try resolveAnnotated(
-                        call.arguments.positional(0) ?? .void,
-                        typeName: property.typeName).copiedForValueSemantics())
+                if let storage = try bindingStorage(
+                    for: argument.value, property: property) {
+                    instance.properties[label] = storage
                 } else if let closure = argument.value.closureValue,
                           property.isBuilderClosure,
                           !(property.typeName?.contains("->") ?? false) {
