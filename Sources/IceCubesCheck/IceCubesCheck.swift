@@ -170,19 +170,32 @@ private struct IceCubesCatalystCaptureRoot: View {
                     renderActivity: session.renderActivity)
             } while ContinuousClock.now < settleDeadline
 
-            // Deliberately NOT configurable: a "wait longer" knob turns a real
-            // settle failure into a slow pass, which is the capture-side
-            // version of moving a floor.
-            let readinessDeadline =
-                ContinuousClock.now.advanced(by: .seconds(30))
+            // Still deliberately NOT a "wait longer" knob — it is not a
+            // duration at all. The wait ends when the session STOPS MAKING
+            // PROGRESS, which fails a wedged capture sooner than the 30s total
+            // budget this replaces while letting a capture that is genuinely
+            // still working finish. See `CaptureReadinessBudget`.
+            var budget = CaptureReadinessBudget.captureHarness(
+                startedAt: ContinuousClock.now)
+            var readinessExpiry: CaptureReadinessBudget.Expiry?
+            var previousActivity = session.interpreter.runtimeActivity
+            var previousRevision =
+                session.renderActivity.bodyEvaluationCount
             var nextSample = ContinuousClock.now
-            while !readiness.isReadyForCapture
-                && ContinuousClock.now < readinessDeadline
-            {
+            while !readiness.isReadyForCapture && readinessExpiry == nil {
                 try await Task.sleep(for: .milliseconds(50))
                 readiness.observe(
                     runtimeActivity: session.interpreter.runtimeActivity,
                     renderActivity: session.renderActivity)
+                let activity = session.interpreter.runtimeActivity
+                let revision = session.renderActivity.bodyEvaluationCount
+                let progressed =
+                    activity != previousActivity
+                        || revision != previousRevision
+                previousActivity = activity
+                previousRevision = revision
+                readinessExpiry = budget.observe(
+                    progressed: progressed, at: ContinuousClock.now)
                 if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1",
                    ContinuousClock.now >= nextSample {
                     nextSample = ContinuousClock.now.advanced(by: .seconds(1))
@@ -236,7 +249,36 @@ private struct IceCubesCatalystCaptureRoot: View {
                         + "\(readiness.firstActiveRenderRevision != nil)"
                         + " initialRevision=\(initialRenderRevision)"
                         + " revision="
-                        + "\(session.renderActivity.bodyEvaluationCount))")
+                        + "\(session.renderActivity.bodyEvaluationCount)"
+                        // WHICH bound ended the wait, and the stall that
+                        // calibrates it. `noProgress` means the session stopped;
+                        // `oscillating` means it never stopped — opposite
+                        // conditions that the old total budget reported
+                        // identically.
+                        + " expiry=\(readinessExpiry?.rawValue ?? "none")"
+                        + " longestStall=\(budget.longestObservedStall)"
+                        + " progressObservations=\(budget.progressCount))")
+            }
+            // The calibration read, and it has to be on the SUCCESS path: the
+            // constant `noProgressLimit` must clear is the longest stall a
+            // HEALTHY capture shows, so reporting the stall only when the
+            // capture fails measures the one population that cannot calibrate
+            // it. Gated exactly like the non-Catalyst loop's equivalent line
+            // (`ICECUBES_TRACE_READINESS=1`) so one env var answers the
+            // question on whichever path built the binary — and this is the
+            // path the macabi R2 board runs.
+            if ProcessInfo.processInfo.environment["ICECUBES_TRACE_READINESS"]
+                == "1"
+            {
+                print(
+                    "@@icecubes-capture-readiness"
+                        + " screen=\(screen.rawValue)"
+                        + " ready=\(readiness.isReadyForCapture)"
+                        + " expiry=\(readinessExpiry?.rawValue ?? "none")"
+                        + " longestStall=\(budget.longestObservedStall)"
+                        + " progressObservations=\(budget.progressCount)"
+                        + " elapsed="
+                        + "\(budget.startedAt.duration(to: .now))")
             }
             if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
                 let activity = session.interpreter.runtimeActivity
@@ -2641,8 +2683,12 @@ struct IceCubesCheckMain {
                 && ProcessInfo.processInfo.environment[
                     "ICECUBES_TRACE_READINESS"
                 ] == "1"
-        let readinessDeadline =
-            ContinuousClock.now.advanced(by: .seconds(30))
+        // Bounded by lack of PROGRESS, not by total time — see
+        // `CaptureReadinessBudget`. The progress comparison below already
+        // existed for tracing; it is now what ends the wait.
+        var budget = CaptureReadinessBudget.captureHarness(
+            startedAt: ContinuousClock.now)
+        var readinessExpiry: CaptureReadinessBudget.Expiry?
         var previousActivity =
             session.interpreter.runtimeActivity
         var previousRevision =
@@ -2666,9 +2712,7 @@ struct IceCubesCheckMain {
             printReadinessSample(
                 previousActivity, revision: previousRevision)
         }
-        while !captureReadiness.isReadyForCapture
-            && ContinuousClock.now < readinessDeadline
-        {
+        while !captureReadiness.isReadyForCapture && readinessExpiry == nil {
             _ = CFRunLoopRunInMode(.defaultMode, 0.05, true)
             hosting.layoutSubtreeIfNeeded()
             window.displayIfNeeded()
@@ -2676,22 +2720,31 @@ struct IceCubesCheckMain {
             let activity = session.interpreter.runtimeActivity
             let revision =
                 session.renderActivity.bodyEvaluationCount
-            if traceReadiness
-                && (activity != previousActivity
-                    || revision != previousRevision)
-            {
+            // Tracked unconditionally: this comparison used to live inside the
+            // `traceReadiness` branch, which also owned the only update of
+            // `previous*`. It now ends the wait, so tracing must not be able to
+            // change what the bound observes.
+            let progressed =
+                activity != previousActivity
+                    || revision != previousRevision
+            if traceReadiness && progressed {
                 printReadinessSample(activity, revision: revision)
-                previousActivity = activity
-                previousRevision = revision
             }
+            previousActivity = activity
+            previousRevision = revision
+            readinessExpiry = budget.observe(
+                progressed: progressed, at: ContinuousClock.now)
         }
-        let readinessDeadlineReached =
-            !captureReadiness.isReadyForCapture
         if traceReadiness {
             print(
                 "@@icecubes-capture-readiness"
                     + " ready=\(captureReadiness.isReadyForCapture)"
-                    + " deadline=\(readinessDeadlineReached)"
+                    + " expiry=\(readinessExpiry?.rawValue ?? "none")"
+                    // The calibration input for `noProgressLimit`: the longest
+                    // stall this capture survived. A healthy screen's value is
+                    // what the limit must stay a stated multiple above.
+                    + " longestStall=\(budget.longestObservedStall)"
+                    + " progressObservations=\(budget.progressCount)"
                     + " firstQuiescentRevision="
                     + "\(captureReadiness.firstQuiescentRenderRevision.map(String.init) ?? "none")"
                     + " readyRevision="
@@ -2699,7 +2752,10 @@ struct IceCubesCheckMain {
         }
         guard captureReadiness.isReadyForCapture else {
             throw RuntimeError(
-                message: "capture did not reach owned presentation readiness")
+                message: "capture did not reach owned presentation readiness"
+                    + " (expiry=\(readinessExpiry?.rawValue ?? "none")"
+                    + " longestStall=\(budget.longestObservedStall)"
+                    + " progressObservations=\(budget.progressCount))")
         }
         if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
             let finalRuntimeActivity = session.interpreter.runtimeActivity
