@@ -202,7 +202,35 @@ extension RuntimeValue {
             if let interpolated = any as? RuntimeInterpolatedString {
                 return interpolated.plainText
             }
+            // A slice's TEXT is just its characters; every consumer that wants
+            // the text and not the index space reads it here and cannot tell
+            // a slice from the string it came from — which is exactly Swift's
+            // own relationship between `Substring` and `String`.
+            if let slice = any as? Substring { return String(slice) }
             return any as? String
+        default: return nil
+        }
+    }
+
+    /// The same text as `stringValue`, viewed WITHOUT re-basing its indices.
+    ///
+    /// In Swift a slice shares its base's index space: `s[i...].startIndex`
+    /// IS `i`, and an index a slice hands back stays valid in `s`. Copying a
+    /// slice into a fresh `String` silently re-bases it to zero, which turns
+    /// index arithmetic across the two into nonsense — a loop that advances
+    /// `startIndex = s[after...].firstIndex(of: x)!` stops making progress and
+    /// never terminates. Anything whose RESULT is an index must read the
+    /// receiver through here; a plain `String` answers `self[...]`, whose
+    /// indices are its own, so the two agree wherever no slicing happened.
+    public var substringValue: Substring? {
+        switch self {
+        case .string(let string): return string[...]
+        case .host(let any):
+            if let slice = any as? Substring { return slice }
+            if let interpolated = any as? RuntimeInterpolatedString {
+                return interpolated.plainText[...]
+            }
+            return (any as? String)?[...]
         default: return nil
         }
     }

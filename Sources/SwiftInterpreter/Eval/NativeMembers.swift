@@ -485,6 +485,12 @@ extension Interpreter {
         if let string = any as? String {
             return stringMember(name, string)
         }
+        if let slice = any as? Substring {
+            // Same member surface as a String — a slice differs only in which
+            // index space its index-valued members answer in, so it hands that
+            // space down instead of getting a second implementation.
+            return stringMember(name, String(slice), indexSpace: slice)
+        }
         if let blob = any as? EncodedValueBlob {
             switch name {
             case "write":
@@ -1193,15 +1199,26 @@ extension Interpreter {
         return current
     }
 
-    private func stringMember(_ name: String, _ string: String) -> RuntimeValue? {
+    /// `indexSpace` is the receiver's own slice view. Text members read the
+    /// same characters either way, but a member whose RESULT is an index must
+    /// answer in the space its receiver actually has: for a `Substring` that
+    /// is its base's, not a copy re-based to zero. A plain `String` passes
+    /// nothing and gets `string[...]`, whose indices are its own — the rule is
+    /// one rule, and it degenerates to today's behaviour where nothing sliced.
+    private func stringMember(
+        _ name: String,
+        _ string: String,
+        indexSpace: Substring? = nil
+    ) -> RuntimeValue? {
+        let slice = indexSpace ?? string[...]
         if let generated = GeneratedCollectionDefaultSurface
             .nativeIndexMotionMember(
-                named: name, receiver: .native(string)) {
+                named: name, receiver: .native(slice)) {
             return .hostFunction(generated)
         }
         if let generated = GeneratedCollectionDefaultSurface
             .nativeIndexSearchMember(
-                named: name, receiver: .native(string)) {
+                named: name, receiver: .native(slice)) {
             return .hostFunction(generated)
         }
         if let generated = GeneratedCollectionDefaultSurface
@@ -1349,8 +1366,8 @@ extension Interpreter {
             if name == "localizedLowercase" { return .native(string.localizedLowercase) }
             if name == "localizedUppercase" { return .native(string.localizedUppercase) }
             return .hostFunction(HostFunction(name: name) { _, _ in .native(string) })
-        case "startIndex": return .native(string.startIndex)
-        case "endIndex": return .native(string.endIndex)
+        case "startIndex": return .native(slice.startIndex)
+        case "endIndex": return .native(slice.endIndex)
         case "range":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let target = (args.labeled("of") ?? args.positional(0))?.stringValue else {
@@ -1374,7 +1391,7 @@ extension Interpreter {
                         }
                     }
                 }
-                return .native(string.range(of: target, options: options))
+                return .native(slice.range(of: target, options: options))
             })
         case "data":
             // `str.data(using: .utf8)` — real bytes (encodings beyond utf8
@@ -1388,7 +1405,7 @@ extension Interpreter {
                       case .host(let toAny)? = args.labeled("to"), let to = toAny as? String.Index else {
                     throw RuntimeError(message: "distance(from:to:) needs String.Index bounds")
                 }
-                return .native(string.distance(from: from, to: to))
+                return .native(slice.distance(from: from, to: to))
             })
         case "first":
             return .optional(

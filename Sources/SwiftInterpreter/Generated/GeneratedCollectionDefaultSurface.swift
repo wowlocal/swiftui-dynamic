@@ -226,7 +226,10 @@ enum GeneratedCollectionDefaultSurface {
         from indexValue: RuntimeValue,
         by distance: Int
     ) throws -> RuntimeValue {
-        if let string = receiver.stringValue {
+        // `substringValue`, not `stringValue`: a member whose RESULT is an
+        // index has to speak the receiver's own index space, and a slice
+        // shares its base's. Reading the text as a fresh String re-bases it.
+        if let string = receiver.substringValue {
             guard case .host(let payload) = indexValue,
                   let index = payload as? String.Index else {
                 throw RuntimeError(
@@ -255,7 +258,7 @@ enum GeneratedCollectionDefaultSurface {
         by distance: Int,
         limitedBy limitValue: RuntimeValue
     ) throws -> RuntimeValue {
-        if let string = receiver.stringValue {
+        if let string = receiver.substringValue {
             guard case .host(let indexPayload) = indexValue,
                   let index = indexPayload as? String.Index,
                   case .host(let limitPayload) = limitValue,
@@ -356,7 +359,7 @@ enum GeneratedCollectionDefaultSurface {
         direction: NativeIndexSearchDirection,
         where matches: (RuntimeValue) throws -> Bool
     ) throws -> RuntimeValue {
-        if let string = receiver.stringValue {
+        if let string = receiver.substringValue {
             switch direction {
             case .forward:
                 var index = string.startIndex

@@ -463,8 +463,19 @@ extension Interpreter {
         if let string = base.stringValue {
             // `text[range]` / `text[i]` with String.Index values.
             if let range = index.rangeValue {
+                // A range subscript yields a Substring, and a Substring SHARES
+                // its base's indices — `s[i...].startIndex` is `i`, and an
+                // index the slice hands back is still valid in `s`. Copying it
+                // into a fresh String re-bases those indices to zero, which
+                // silently breaks every loop that walks a string by slicing
+                // what is left and searching it (IceCubes' `URL.init(string:
+                // encodePath:)` never terminates: `startIndex = endIndex`
+                // assigns a slice-relative offset back into a base-relative
+                // cursor, so the cursor oscillates instead of advancing).
+                // Slice the receiver's OWN index space so nesting composes.
+                let source = base.substringValue ?? string[...]
                 return chained(.native(
-                    String(string[try stringSlice(range, in: string, node: call)])))
+                    source[try stringSlice(range, in: source, node: call)]))
             }
             if case .host(let indexAny) = index,
                let position = indexAny as? String.Index,
@@ -565,9 +576,12 @@ extension Interpreter {
         return lower..<upper
     }
 
+    /// Bounds are resolved in the RECEIVER's index space, so this takes the
+    /// slice view rather than a String: `Substring` and `String` share
+    /// `String.Index`, and only the slice knows where its own bounds are.
     func stringSlice(
         _ range: RuntimeRangeValue,
-        in string: String,
+        in string: Substring,
         node: some SyntaxProtocol
     ) throws -> Range<String.Index> {
         func index(_ value: RuntimeValue?, fallback: String.Index) throws -> String.Index {
