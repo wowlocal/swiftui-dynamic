@@ -1728,7 +1728,18 @@ extension Interpreter {
             for payload in value.associated { hasher.combine(payload.stringified) }
             return .native(hasher.finalize())
         }
-        if name == "rawValue" { return value.rawValue }
+        // A `rawValue` the type WRITES is the type's `rawValue`. Only a
+        // raw-VALUED enum has one to synthesize, and such an enum cannot also
+        // declare the property; when a written one exists the enum is not
+        // raw-valued at all and the ordinal below is a stand-in for a member
+        // that does not exist. IceCubes' `TimelineFilter` conforms to
+        // `RawRepresentable` in an extension whose `rawValue` JSON-encodes
+        // `self`, so answering `3` there is not a worse spelling of the same
+        // value — it is the wrong type, and it fails the first `String` slot
+        // it reaches.
+        if name == "rawValue", value.symbol.computedProperties[name] == nil {
+            return value.rawValue
+        }
         if value.symbol.conformances.contains("CodingKey") {
             if name == "stringValue" {
                 return .native(value.rawValue.stringValue ?? value.name)
