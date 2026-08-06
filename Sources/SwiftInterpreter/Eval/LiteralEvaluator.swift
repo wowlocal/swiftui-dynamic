@@ -389,12 +389,39 @@ extension Interpreter {
             })
         }
         if let array = base.arrayValue {
-            if let i = index.intValue, array.indices.contains(i) {
-                return chained(array[i])
+            // The receiver's OWN index space: for a slice that is its base's,
+            // so an absolute index reads the element it names in the base and
+            // a sub-slice composes instead of re-basing a second time.
+            let source = base.arraySliceValue ?? array[...]
+            if let i = index.intValue, source.indices.contains(i) {
+                return chained(source[i])
             }
             if let range = index.rangeValue {
-                let bounds = try integerSlice(range, count: array.count, name: "array", node: call)
-                return chained(.native(Array(array[bounds])))
+                // Bounds are ABSOLUTE indices in the receiver's own space, not
+                // offsets from the slice's start: `b[2...][4...]` begins at 4,
+                // not at 6. An omitted bound is the receiver's own start/end,
+                // so a whole array (start 0) resolves exactly as before.
+                //
+                // The RESULT keeps that space. `Array(...)` here would re-base
+                // it to zero and break every reader that walks a buffer by
+                // slicing what is left — SwiftSoup's
+                // `CharacterReader.nextIndexOf` does exactly that
+                // (`input[pos...].firstIndex(of:)`, then `pos = targetIx`), so
+                // a re-based index sends its cursor backwards and its
+                // entity-table loop never terminates.
+                let lower = range.lowerBound?.intValue ?? source.startIndex
+                var upper = range.upperBound?.intValue ?? source.endIndex
+                if range.includesUpperBound, range.upperBound != nil {
+                    guard upper < source.endIndex else {
+                        throw error(call, "array slice out of bounds")
+                    }
+                    upper += 1
+                }
+                guard lower >= source.startIndex, upper <= source.endIndex,
+                      lower <= upper else {
+                    throw error(call, "array slice out of bounds")
+                }
+                return chained(.native(source[lower..<upper]))
             }
             throw error(call, "array index out of range")
         }

@@ -243,7 +243,7 @@ enum GeneratedCollectionDefaultSurface {
             }
             return .native(moved)
         }
-        if receiver.arrayValue != nil,
+        if receiver.arraySliceValue != nil,
            let index = indexValue.intValue {
             return .native(index + distance)
         }
@@ -273,7 +273,7 @@ enum GeneratedCollectionDefaultSurface {
             return .some(
                 .native(moved), wrappedTypeName: "String.Index")
         }
-        if receiver.arrayValue != nil,
+        if receiver.arraySliceValue != nil,
            let index = indexValue.intValue,
            let limit = limitValue.intValue {
             let delta = limit - index
@@ -382,7 +382,9 @@ enum GeneratedCollectionDefaultSurface {
             }
             return .none(wrappedTypeName: "String.Index")
         }
-        if let array = receiver.arrayValue {
+        if let array = receiver.arraySliceValue {
+            // `arraySliceValue`: a search RETURNS an index, so it has to be
+            // an index into the base the receiver came from.
             let indices: AnySequence<Int> = switch direction {
             case .forward: AnySequence(array.indices)
             case .backward: AnySequence(array.indices.reversed())
