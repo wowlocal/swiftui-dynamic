@@ -203,6 +203,21 @@ private struct IceCubesCatalystCaptureRoot: View {
                 // looking for a render bug when the runtime simply still had
                 // tasks in flight.
                 let activity = session.interpreter.runtimeActivity
+                // The network log and the render diagnostics printed BELOW
+                // are the evidence a stalled capture most needs, and the
+                // success-only placement withheld them exactly when they
+                // matter: a capture that never quiesces says which tasks are
+                // waiting but not which requests were served or which views
+                // failed. Print both here too, so the failing path is at
+                // least as legible as the passing one.
+                if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+                    for request in NetworkBridge.requestLog {
+                        print("@@icecubes-network \(request)")
+                    }
+                    for entry in RenderDiagnostics.errors.prefix(20) {
+                        print("diagnostic\t\(entry.view)\t\(entry.error.message)")
+                    }
+                }
                 throw RuntimeError(
                     message:
                         "Catalyst capture did not reach presentation readiness"
