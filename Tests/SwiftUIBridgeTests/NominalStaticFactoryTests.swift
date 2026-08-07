@@ -58,6 +58,67 @@ import Testing
         }
     }
 
+    /// The whole `ServerDate` chain, distilled: a NAMED-type duration reaching
+    /// its format style through the interpreter.
+    ///
+    /// Native baseline, `xcrun swiftc -O`: "2m".
+    @MainActor
+    @Test func namedDurationReachesItsFormatStyle() async throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                Text(Duration.seconds(100).formatted(
+                    .units(width: .narrow, maximumUnitCount: 1)))
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("2m"))
+    }
+
+    /// A second duration through the same chain, so the assertion above cannot
+    /// pass by answering one memorised string.
+    ///
+    /// Native baseline, `xcrun swiftc -O`: "45s" and "1 hour, 2 minutes".
+    @MainActor
+    @Test func theRenderedTextTracksTheDurationAndTheStyle() async throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    Text(Duration.seconds(45).formatted(
+                        .units(width: .narrow, maximumUnitCount: 1)))
+                    Text(Duration.seconds(3700).formatted(
+                        .units(width: .wide, maximumUnitCount: 2)))
+                }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("45s"))
+        #expect(strings.contains("1 hour, 2 minutes"))
+    }
+
+    /// The receiver is built from a computed argument, not a literal — the app
+    /// spells `Duration.seconds(-date.timeIntervalSinceNow)`.
+    ///
+    /// Native baseline, `xcrun swiftc -O`: "2m".
+    @MainActor
+    @Test func theDurationArgumentIsEvaluated() async throws {
+        let source = """
+        struct ContentView: View {
+            var seconds: Double { 40.0 + 60.0 }
+
+            var body: some View {
+                Text(Duration.seconds(seconds).formatted(
+                    .units(width: .narrow, maximumUnitCount: 1)))
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("2m"))
+    }
+
     /// COUNTER-DIRECTION on the clock readers. A named-type duration now
     /// arrives as a real `Duration` where it used to arrive as a marker, and
     /// the two places that destructure durations must read both spellings the

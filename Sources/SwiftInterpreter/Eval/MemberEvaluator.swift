@@ -3519,6 +3519,25 @@ extension Interpreter {
                     return .native(KeyPathStub(components: head + rest))
                 })
             }
+            // A member the host bridge can SERVE is not an unknown member.
+            // Everything above answers by RECEIVER — a table keyed on this
+            // exact type, its extensions, its conformances — while the method
+            // bridge also carries arms selected by the ARGUMENT, and those
+            // have had no position in this ordering at all. Reached only
+            // here, they cannot outrank any typed answer above; reached
+            // BEFORE the absorb, they stop a real answer from being recorded
+            // as a gap.
+            //
+            // `Duration.seconds(100).formatted(.units(…))` is the shape that
+            // exposed the gap: `formatted` is generic over the style, so no
+            // per-receiver table declares it, and the absorb below swallowed
+            // the call into a chain that renders as nothing. The CALL path
+            // consults this same bridge (`CallEvaluator`, twice) but only
+            // after member access answers nil — and the absorb meant it never
+            // did.
+            if let method = registry?.hostMethod(name, on: any) {
+                return method
+            }
             if assumesCompiledImports {
                 // Compiled sources: an unknown member on a NATIVE that
                 // survived every dispatch (host members, extensions, stdlib)

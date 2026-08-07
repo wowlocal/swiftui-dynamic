@@ -1967,6 +1967,66 @@ struct IceCubesMicroTwinTests {
             height: maximumY - minimumY + 1)
     }
 
+    /// IceCubes' `Models/Alias/ServerDate.swift:18`, distilled to the one
+    /// expression that draws: a relative timestamp is
+    /// `Duration.seconds(-date.timeIntervalSinceNow).formatted(.units(width:
+    /// .narrow, maximumUnitCount: 1))`, and `ServerDate.init()` pins
+    /// `asDate = Date() - 100`, so every example post on the display-settings
+    /// screen is exactly `Duration.seconds(100)` under this style.
+    ///
+    /// RED before the nominal same-type static sweep: `Duration.seconds(100)`
+    /// had no way to be BUILT — the interface sweep read static storage but not
+    /// static FUNCS — so the receiver stayed an unresolved leading-dot marker,
+    /// `.formatted(…)` absorbed into a chain, and the label drew EMPTY against
+    /// a native "2m".
+    ///
+    /// This measures the timestamp BY ITSELF rather than through the
+    /// display-settings whole-screen AE, so a row-render win cannot be masked
+    /// by anything else on that screen.
+    private struct NativeRelativeTimestampTwin: View {
+        var body: some View {
+            Text(Duration.seconds(100).formatted(
+                .units(width: .narrow, maximumUnitCount: 1)))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @Test
+    func namedDurationTimestampDrawsItsFormattedText() throws {
+        let source = """
+        Text(Duration.seconds(100).formatted(
+            .units(width: .narrow, maximumUnitCount: 1)))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("relative-timestamp microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 120, height: 40)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(
+            AnyView(NativeRelativeTimestampTwin()), size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-relative-timestamp-microtwin ae=\(ae)")
+        #expect(ae == 0)
+        // The class draws NOTHING rather than something wrong, so an empty
+        // capture on BOTH sides would read as agreement. Require the native
+        // side to have actually drawn the glyphs this is measuring.
+        #expect(Self.pixelAE(
+            expected,
+            Self.bitmap(AnyView(Color.clear), size: size),
+            size: size) > 0)
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
     private static func pixelAE(
         _ lhs: NSBitmapImageRep,
         _ rhs: NSBitmapImageRep,
