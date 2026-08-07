@@ -29,6 +29,72 @@ extension Interpreter {
             || (name.hasPrefix("_") && name.dropFirst().first?.isLowercase == true)
     }
 
+    /// The ELEMENT spelling of an array annotation, or nil when the annotation
+    /// is not a spelled-out array. `[UInt8]` and `Array<UInt8>` both answer
+    /// `UInt8`; a dictionary (`[String: Int]`), a bare `Array` and any other
+    /// nominal answer nil, so those keep the shape-only reading they have
+    /// always had.
+    static func arrayElementAnnotation(_ typeName: String) -> String? {
+        let type = typeName.trimmingCharacters(in: .whitespaces)
+        if let inner = outerContents(type, opening: "[", closing: "]") {
+            // A dictionary is spelled with the same brackets; only a single
+            // top-level component is an element.
+            let components = SwiftInterpreter.splitTopLevel(
+                inner, separator: ":")
+            guard components.count == 1 else { return nil }
+            let element = components[0]
+            return element.isEmpty ? nil : element
+        }
+        for nominal in ["Array", "Swift.Array", "ContiguousArray",
+                        "Swift.ContiguousArray"]
+        where type.hasPrefix(nominal + "<") {
+            guard let inner = outerContents(
+                String(type.dropFirst(nominal.count)),
+                opening: "<", closing: ">") else { return nil }
+            let components = SwiftInterpreter.splitTopLevel(
+                inner, separator: ",")
+            guard components.count == 1, !components[0].isEmpty else {
+                return nil
+            }
+            return components[0]
+        }
+        return nil
+    }
+
+    /// Whether an array's elements can inhabit the annotated element type.
+    /// Only elements whose runtime type the interpreter actually KNOWS may
+    /// reject: an unspelled element type, an empty array, a nil element and an
+    /// opaque host value all carry no counter-evidence, and an unknowable must
+    /// not decide — the same rule `valueIsType` already applies to a marker.
+    /// Reading absence of a match as a mismatch would un-fit every array of
+    /// SDK values from the parameter written for it (`[Text]` reaching a
+    /// `[Text]` extension is the measured case).
+    private func elementsSatisfy(
+        _ elements: [RuntimeValue], _ elementAnnotation: String?
+    ) -> Bool {
+        guard let elementAnnotation else { return true }
+        return elements.allSatisfy { element in
+            guard let unwrapped = element.unwrappedOptionalOrSelf,
+                  Self.hasKnownRuntimeType(unwrapped) else { return true }
+            return valueIsType(unwrapped, elementAnnotation)
+        }
+    }
+
+    /// Whether this value's own shape determines its type. The interpreter
+    /// owns these shapes outright, so `valueIsType` answering false about one
+    /// is a real answer rather than a gap; host payloads, metatypes and
+    /// implicit-member markers are named only as far as a registry happens to
+    /// reach, so a false there means "not known to be", not "known not to be".
+    private static func hasKnownRuntimeType(_ value: RuntimeValue) -> Bool {
+        switch value {
+        case .int, .double, .bool, .string, .array, .set, .dictionary,
+             .range, .tuple, .instance, .enumCase:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Runtime type test for `is`: primitives and interpreted symbols check
     /// truly; host natives match the registry's type name; markers and nil
     /// read false.
@@ -109,6 +175,12 @@ extension Interpreter {
                     HostSignature.tupleComponentType(component))
             }
         }
+        // Read the ELEMENT before the generic argument list is dropped below:
+        // an array annotation constrains what it holds, exactly as a tuple
+        // annotation constrains its components above. Without this, `[UInt8]`
+        // and `[UnicodeScalar]` are the same runtime type, so an overload
+        // family that distinguishes them is decided by declaration order.
+        let arrayElement = Self.arrayElementAnnotation(typeName)
         if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
         if typeName.hasPrefix("Swift.") {
             typeName.removeFirst("Swift.".count)
@@ -134,7 +206,10 @@ extension Interpreter {
             return string.unicodeScalars.count == 1
                 && GeneratedUnicodeScalarSurface.representsScalarType(
                     named: typeName)
-        case .array: return ["Array", "NSArray"].contains(typeName) || typeName.hasPrefix("[")
+        case .array(let elements):
+            guard ["Array", "NSArray"].contains(typeName)
+                || typeName.hasPrefix("[") else { return false }
+            return elementsSatisfy(elements, arrayElement)
         case .set: return typeName == "Set"
         case .dictionary:
             return ["Dictionary", "NSDictionary"].contains(typeName) || typeName.hasPrefix("[")
@@ -196,7 +271,11 @@ extension Interpreter {
             if any is Date { return ["Date", "NSDate"].contains(typeName) }
             if any is URL { return ["URL", "NSURL"].contains(typeName) }
             if any is Data { return ["Data", "NSData"].contains(typeName) }
-            if any is [RuntimeValue] { return ["Array", "NSArray"].contains(typeName) || typeName.hasPrefix("[") }
+            if let elements = any as? [RuntimeValue] {
+                guard ["Array", "NSArray"].contains(typeName)
+                    || typeName.hasPrefix("[") else { return false }
+                return elementsSatisfy(elements, arrayElement)
+            }
             if any is DictValue { return ["Dictionary", "NSDictionary"].contains(typeName) || typeName.hasPrefix("[") }
             // A registry may attach concrete source-type evidence to an
             // otherwise opaque/inert host carrier (trace-recorded values are

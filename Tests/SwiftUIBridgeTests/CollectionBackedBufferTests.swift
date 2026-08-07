@@ -1201,6 +1201,99 @@ import Testing
         #expect(value.stringValue == "isCharacter=false")
     }
 
+    /// IceCubes `HTMLString.init(from:)` class, second half. Distilled from
+    /// SwiftSoup's `Tokeniser.emit`, which declares `emit([UInt8])` above
+    /// `emit([UnicodeScalar])` and is handed the `[UnicodeScalar]` its entity
+    /// decoder produced (`TokeniserState.swift:2959`). Selecting the byte
+    /// overload writes scalars into a `[UInt8]`, and the DOM then compares a
+    /// `'` against 128 bytes later, far from the call that mis-selected.
+    ///
+    /// The native expectation is not written down: `NativeEmitSink` below is
+    /// the same declaration family compiled by the real compiler, and both
+    /// sides are asked the same question.
+    @Test func arrayOverloadSelectsByElementNotDeclarationOrder() throws {
+        let native = NativeEmitSink()
+        native.emit([UnicodeScalar(39)!])
+        #expect((native.bytes.count, native.scalars.count) == (0, 1))
+        let value = try Interpreter(registry: TraceRegistry()).run(source: """
+            final class Sink {
+                var bytes: [UInt8] = []
+                var scalars: [UnicodeScalar] = []
+                func emit(_ str: [UInt8]) { bytes.append(contentsOf: str) }
+                func emit(_ c: [UnicodeScalar]) {
+                    scalars.append(contentsOf: c)
+                }
+            }
+            let sink = Sink()
+            sink.emit([UnicodeScalar(39)!])
+            "bytes=\\(sink.bytes.count) scalars=\\(sink.scalars.count)"
+            """)
+        #expect(value.stringValue
+            == "bytes=\(native.bytes.count) scalars=\(native.scalars.count)")
+    }
+
+    /// Only an element whose type the interpreter OWNS may reject; an opaque
+    /// host element carries no counter-evidence and must still fit. This pins
+    /// the owning direction — that the rule stays a real check for values the
+    /// interpreter types itself, rather than degenerating into "arrays never
+    /// reject", which is `[UInt8]` winning on declaration order again.
+    ///
+    /// The unknowable direction is pinned by
+    /// `throwingConversionPreservesFallbackForOpaqueParserOutput`
+    /// (BindingTests.swift): reading absence of a match as a mismatch un-fits
+    /// `[Text]` from its own `extension [Text]`, whose `.joined()` then
+    /// absorbs and renders the array's description. Every local repro tried
+    /// for that direction passed with the rule REMOVED — the shaped-overload
+    /// fallback rescues an ordinary call — so it is cited rather than
+    /// duplicated by a control that would pin nothing.
+    @Test func arrayOfInterpretedElementsStillFitsItsAnnotation() throws {
+        let value = try Interpreter(registry: TraceRegistry()).run(source: """
+            struct Box { let marker: String }
+            func take(_ values: [Box]) -> String { "took \\(values.count)" }
+            take([Box(marker: "a"), Box(marker: "b")])
+            """)
+        #expect(value.stringValue == "took 2")
+    }
+
+    /// The IceCubes class end to end, over the recorded bytes that surfaced
+    /// it: the first paragraph of the `#swift` hashtag timeline's second row
+    /// (`api_v1_timelines_tag_swift.json`), trimmed to the one entity that
+    /// reproduces it. Before the fix the whole pipeline THREW, so `asRawText`
+    /// fell back to raw markup — 2828 scalars where the twin has 543, which
+    /// is what put the row over `collapseThresholdLength` and drew
+    /// "status.show-full-post" where the twin draws the post.
+    ///
+    /// The expectation is native SwiftSoup's own answer over the same bytes,
+    /// computed here rather than written.
+    @Test func swiftSoupEntityPipelineMatchesNativeOverRecordedBytes() throws {
+        let html = "<p>Got another 20 tests passing, which just leaves two "
+            + "left! Tomorrow night, let&#39;s try and see what is causing "
+            + "lists to not be marked as dirty. See you then!</p>"
+        let document = try SwiftSoup.parse(html)
+        document.outputSettings(OutputSettings().prettyPrint(pretty: false))
+        try document.select("p.quote-inline").remove()
+        try document.select("br").after("\n")
+        try document.select("p").after("\n\n")
+        let cleaned = try SwiftSoup.clean(
+            try document.html(), "", Whitelist.none(),
+            OutputSettings().prettyPrint(pretty: false)) ?? ""
+        let native = (try? Entities.unescape(cleaned)) ?? cleaned
+        #expect(native.contains("let's"))
+        let value = try swiftSoupEvaluation(html, suffix: """
+            document.outputSettings(
+                OutputSettings().prettyPrint(pretty: false))
+            try document.select("p.quote-inline").remove()
+            try document.select("br").after("\\n")
+            try document.select("p").after("\\n\\n")
+            let html = try document.html()
+            let text = try SwiftSoup.clean(
+                html, "", Whitelist.none(),
+                OutputSettings().prettyPrint(pretty: false)) ?? ""
+            (try? Entities.unescape(text)) ?? text
+            """)
+        #expect(value.stringValue == native)
+    }
+
     private func swiftSoupText(_ html: String) throws -> String? {
         try swiftSoupEvaluation(
             html, suffix: "try document.text()\n").stringValue
@@ -1313,4 +1406,14 @@ import Testing
             lazyTopLevelGlobals: lazyTopLevelGlobals)
     }
 
+}
+
+/// The compiled half of `arrayOverloadSelectsByElementNotDeclarationOrder`:
+/// SwiftSoup's `Tokeniser.emit` declaration order, kept in real Swift so the
+/// expectation is the compiler's answer rather than a written literal.
+final class NativeEmitSink {
+    var bytes: [UInt8] = []
+    var scalars: [UnicodeScalar] = []
+    func emit(_ str: [UInt8]) { bytes.append(contentsOf: str) }
+    func emit(_ c: [UnicodeScalar]) { scalars.append(contentsOf: c) }
 }
