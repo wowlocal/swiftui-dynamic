@@ -278,6 +278,21 @@ R2_FLOORS=(
   # sRGB 8-bit, so one side dithered a flat fill the other represented exactly.
   # Both sides now pin `preferredRange`, and the comparator refuses to score a
   # pair that disagrees on its encoding.
+  #
+  # THE REMAINING 2 ARE CLASSIFIED, AND NO RENDERER FIX IS OWED — recorded here
+  # so they are not re-distilled a third time. `Scripts/pixel-diff-map.swift`
+  # over a reproducible pair (each side AE 0 against its own repeat) reports:
+  # two spatially separate 1x1 clusters, x 860 y 627 and x 857 y 638; MAGNITUDE
+  # max 1 mean 1.00 of 255; EDGE 2 of 2 differing px sit on a twin edge and 0 in
+  # any flat region; CHANNELS 0 neutral, 2 channel-skewed. Both sides therefore
+  # drew the SAME shapes in the SAME places in the SAME colours and rounded the
+  # antialiased coverage blend one level apart on two pixels. That is the
+  # EDGE-BLEND class the map's own header warns is not distillable: an
+  # in-process bitmap micro-twin compares rendered output and so cannot express
+  # a compositing rounding difference at all. Reading it as a content
+  # divergence is how a converged screen gets re-distilled with nothing to
+  # find. This floor stays at 2 until the comparator's rasterization question
+  # is answered, and it is NOT evidence of an interpreter gap.
   tags-list 2
   # Was 367681 — the whole image block, behind a UIKit hosting stack that
   # stopped at a different statement every iteration (representable
