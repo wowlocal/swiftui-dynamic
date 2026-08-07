@@ -359,47 +359,24 @@ extension ViewRegistry {
         }
 
         constructors["Form"] = HostFunction(name: "Form") { args, ctx in
-            // Sections rebuild UN-ERASED inside the Form's own builder so
-            // grouped styling boxes them separately with outside headers;
-            // bare-row runs batch into anonymous groups like native.
-            guard let closure = args.closure(labeled: "content") ?? args.lastUnlabeledClosure else {
-                throw RuntimeError(message: "missing content closure")
-            }
-            let values = try ctx.callBuilderClosure(closure, arguments: [])
-            var specs: [SectionSpec] = []
-            var pendingRows: [AnyView] = []
-            @MainActor func collect(_ value: RuntimeValue) throws {
-                if case .host(let any) = value, let spec = any as? SectionSpec {
-                    if !pendingRows.isEmpty {
-                        specs.append(SectionSpec(header: nil, rows: pendingRows))
-                        pendingRows = []
-                    }
-                    specs.append(spec)
-                    return
-                }
-                // @ViewBuilder members arrive as fans — unpack the raw
-                // builder output so their sections stay sections.
-                if case .host(let any) = value, let fan = any as? ForEachFan,
-                   let raw = fan.rawValues {
-                    for element in raw { try collect(element) }
-                    return
-                }
-                pendingRows.append(try Self.anyView(value))
-            }
-            for value in values { try collect(value) }
-            if !pendingRows.isEmpty {
-                specs.append(SectionSpec(header: nil, rows: pendingRows))
-            }
-            let sections = specs
-            return .native(AnyView(Form {
-                ForEach(sections.indices, id: \.self) { index in
-                    Section {
-                        Self.indexed(sections[index].rows)
-                    } header: {
-                        sections[index].header ?? AnyView(EmptyView())
-                    }
-                }
-            }))
+            // Emitted straight through, exactly like `List` above: `anyView`
+            // renders a SectionSpec as a real `Section`, and a Form groups
+            // what it is given. This gateway used to REBUILD the sections it
+            // recognised and wrap everything else in an implicit anonymous
+            // `Section` — which is what lost section structure the moment a
+            // section arrived by any route the rebuild did not enumerate (a
+            // custom view's body, an erased modifier receiver), because those
+            // values landed in the anonymous wrapper and NESTED inside it.
+            //
+            // The premise for rebuilding — that erasure hides section
+            // structure from a Form — was measured and refuted: natively, a
+            // Form groups an `AnyView`-erased Section, one vended through a
+            // custom view's body, and one inside an indexed `ForEach` all
+            // identically to a section written directly in its builder. Only
+            // wrapping a section in another Section diverges. Not rebuilding
+            // is therefore not a degrade; it is the shape that matches.
+            let content = try Self.builderContent(args, ctx)
+            return .native(AnyView(Form { Self.indexed(content) }))
         }
 
         constructors["Grid"] = HostFunction(name: "Grid") { args, ctx in
@@ -433,10 +410,11 @@ extension ViewRegistry {
             } else if let title = args.positional(0)?.stringValue {
                 header = AnyView(Text(title))
             }
-            // A SPEC, not an AnyView: Form/List grouped styling must SEE
-            // Section structure, and AnyView erasure hides it. Containers
-            // that understand sections rebuild them un-erased; anyView()
-            // renders the spec as a real Section for every other position.
+            // A spec rather than an eager `AnyView`, but no longer because a
+            // container must re-read it: nothing rebuilds sections now that
+            // erasure is known not to hide them. It is a deferral — `anyView`
+            // is the single place a section becomes a real `Section`, so the
+            // header lands in header position exactly once, on every route.
             return .native(SectionSpec(header: header, rows: content))
         }
 

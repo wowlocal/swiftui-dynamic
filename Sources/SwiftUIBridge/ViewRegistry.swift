@@ -346,10 +346,12 @@ public final class ViewRegistry: HostRegistry {
         // members SPLICE as siblings of whatever container the value lands
         // in (variadic-tree expansion reaches through custom view bodies).
         // The fan carrier preserves that — containers and custom Layouts
-        // splice fan.views, section-aware containers (Form) unpack the raw
-        // values, and anyView degrades to an indexed ForEach, which SwiftUI
-        // expands into the enclosing container exactly like a TupleView.
-        return .native(ForEachFan(views: anyViews, rawValues: views))
+        // splice fan.views, and anyView degrades to an indexed ForEach, which
+        // SwiftUI expands into the enclosing container exactly like a
+        // TupleView. Sections need no special case on this path: fan.views is
+        // already mapped through anyView, so a SectionSpec riding a fan is a
+        // real Section by the time any container sees it.
+        return .native(ForEachFan(views: anyViews))
     }
 
     // MARK: - Helpers shared by gateways

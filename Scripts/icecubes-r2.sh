@@ -396,39 +396,43 @@ R2_FLOORS=(
   # the codebase had never been compared at all: `scored-subset-reads-as-
   # converged` one level up, a subset of the CODEBASE rather than of screens.
   #
-  # IT ENTERS AT 143467, and that number is the honest first measurement of
-  # that region, not a regression. Both sides are proven reproducible at AE 0
-  # before scoring (twin-vs-twin and interp-vs-interp), so this is interpreter
-  # debt and not capture noise.
+  # It entered at 143467 as the honest first measurement of that region. Both
+  # sides are proven reproducible at AE 0 before scoring (twin-vs-twin and
+  # interp-vs-interp), so every number here is interpreter debt, never capture
+  # noise. That 143467 was characterized as two independent classes, and the
+  # dominant one is now DISCHARGED:
   #
-  # WHAT THE 143467 IS MADE OF, characterized rather than left as a number.
-  # Two independent classes, one dominant:
+  # (1) 143082 AE, FIXED. Section structure did not survive an interpreted view
+  #     boundary. The `Form` gateway REBUILT the `SectionSpec`s it recognised
+  #     and wrapped everything else in one implicit anonymous `Section` — but
+  #     it inspected only its OWN direct builder output, so a section arriving
+  #     by any other route landed inside that wrapper and NESTED. The app
+  #     writes `Form { InstanceInfoSection(instance:) }` and that view's body
+  #     vends the Sections one level down, so their headers rendered as
+  #     ordinary rows inside a single box instead of as headers above two, and
+  #     everything below shifted — one structural defect plus its displacement,
+  #     which is what made the number large.
   #
-  # (1) Section structure does not survive an interpreted view boundary. The
-  #     `Form` gateway rebuilds `SectionSpec`s un-erased so grouped styling
-  #     boxes them separately with headers OUTSIDE — but it inspects only its
-  #     OWN direct builder output. Here the app writes
-  #     `Form { InstanceInfoSection(instance:) }`, and the two Sections are
-  #     vended by that interpreted view's body, one level down. The Form sees
-  #     a single non-SectionSpec value, batches it as anonymous rows, and
-  #     wraps it in one implicit Section — so the inner Sections nest, and
-  #     their headers render as ordinary rows inside a single box instead of
-  #     as gray headers above two. Everything below then shifts, which is what
-  #     makes the number large: one structural defect plus its displacement.
-  #     Not IceCubes-specific; `Form { MyView() }` is the general shape.
+  #     The premise the rebuild rested on was measured and REFUTED rather than
+  #     patched around: natively, a grouped `Form` boxes an `AnyView`-erased
+  #     Section, one vended through a custom view's body, one inside an indexed
+  #     `ForEach` and one carrying a row modifier all identically to a section
+  #     written directly in its builder. `AnyView` erasure never hid section
+  #     structure from a `Form`. So the fix is subtractive — `Form` now emits
+  #     straight through `builderContent` exactly like `List`, and `anyView` is
+  #     the single place a `SectionSpec` becomes a real `Section`. A per-
+  #     container special case was DELETED, not another one added.
+  #     Pinned by `Tests/SwiftUIBridgeTests/FormSectionBoundaryMicroTwinTests
+  #     .swift`, six macOS micro-twins: three routes to the defect (across a
+  #     view boundary, through an erased modifier receiver, both at once) each
+  #     RED at ~30602 AE with the fix stashed, plus two counter-direction pins
+  #     that keep loose rows grouped now that nothing wraps them implicitly.
   #
-  # (2) `.number.notation(.compactName)` is not applied. The contact row's
-  #     follower count reads "874,788 875K" natively and "874,788 874,788"
-  #     interpreted — the format style falls back to plain decimal. Small in
-  #     pixels, independent of (1), and its own class.
-  #
-  # Neither is fixed here, and this screen buys no progress by itself; what it
-  # buys is that both are now MEASURED instead of invisible. (1) is the
-  # decomposition target: it wants a distilled repro of a Form over a
-  # user-defined view that vends Sections, driven RED first, and the
-  # preserve-vs-collapse question it raises belongs in the central
-  # opaque-boundary answer (LOOP-ICECUBES §6) rather than in a local
-  # heuristic at the Form gateway.
+  # (2) 385 AE, OPEN — and it is the whole remaining number. A single 41x15
+  #     cluster at x 343...383 y 660...674: `.number.notation(.compactName)` is
+  #     not applied, so the contact row's follower count reads "875K" natively
+  #     and "874,788" interpreted. Independent of (1), its own class, and the
+  #     obvious next decomposition on this screen.
   #
   # One harness property to keep in mind when reading the capture: the app
   # target's own `.xcstrings` is not in either side's bundle, so app-declared
@@ -437,7 +441,7 @@ R2_FLOORS=(
   # deterministic placeholder PNG standing in for remote images — it does not
   # affect the diff, but it does mean this screen measures the app's Form
   # layout and typography rather than its localized copy.
-  instance-info 143467
+  instance-info 385
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

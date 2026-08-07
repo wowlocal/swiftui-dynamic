@@ -198,13 +198,8 @@ final class ShapeBox {
 /// indexed ForEach for every ordinary consumer.
 final class ForEachFan {
     let views: [AnyView]
-    /// The UNCOMPOSED builder output when this fan carries a @ViewBuilder
-    /// member's result — section-aware containers (Form) unpack the raw
-    /// values so SectionSpecs survive to their builders.
-    let rawValues: [RuntimeValue]?
 
-    init(views: [AnyView], rawValues: [RuntimeValue]? = nil) {
+    init(views: [AnyView]) {
         self.views = views
-        self.rawValues = rawValues
     }
 }
