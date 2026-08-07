@@ -24,9 +24,15 @@ dry_run=false
 
 cd "$(dirname "$0")/.." || exit 2
 
-# Both spellings the protocol has used over time.
+# FOUR naming schemes are on disk from the project's life so far —
+# lane-gate-<sha>, lane-<sha>-gate[.XXXX], lane-<sha>-full-gate.XXXX and
+# lane-<x>-clean-gate.XXXX. An earlier version of this script matched only the
+# first two and left 62 directories behind, which is exactly the failure it
+# exists to prevent. Match on "gate" anywhere so a fifth spelling is covered
+# too; the loop's own log directory (lane-foodtruck-loop) has no "gate" in it
+# and is therefore never a candidate.
 scratch_dirs=()
-for pattern in /tmp/lane-gate-* /private/tmp/lane-gate-* /tmp/lane-*-full-gate* /private/tmp/lane-*-full-gate*; do
+for pattern in /tmp/lane-*gate* /private/tmp/lane-*gate*; do
     for candidate in $~pattern(N); do
         [[ -d "$candidate" ]] && scratch_dirs+=("$candidate:A")
     done
