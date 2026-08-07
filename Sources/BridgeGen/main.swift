@@ -297,6 +297,18 @@ struct SDKProtocolContextualFactoryDecl {
     let function: FunctionDeclSyntax
 }
 
+/// A same-type static FUNC declared on a NOMINAL: `Duration.seconds(_:)`.
+///
+/// This is the call-shaped sibling of the static storage collected beside it.
+/// A type's contextual surface is spelled in two declaration positions and the
+/// sweep long read only one, so `Duration.zero` was constructible while
+/// `Duration.seconds(100)` — the same type, the same extension — was not.
+struct SDKNominalContextualFactoryDecl {
+    let concreteType: String
+    let function: FunctionDeclSyntax
+}
+var sdkNominalContextualFactoryDecls: [SDKNominalContextualFactoryDecl] = []
+
 /// A method that CONSUMES a protocol value passed as a bare generic argument:
 /// `func formatted<S>(_ v: S) -> S.FormatOutput where S: FormatStyle`.
 ///
@@ -990,6 +1002,37 @@ func sdkAssociatedType(_ name: String, of concreteType: String,
     }
     let unique = Set(resolved)
     return unique.count == 1 ? unique.first : nil
+}
+
+/// The same question, also reading the witness a nominal declares in its OWN
+/// BODY rather than in the extension that carries the conformance.
+///
+/// `sdkAssociatedConformances` is appended only from the extension branch of
+/// `collectSDKProtocolMetadata`, and both positions occur in the same interface
+/// for the same protocol: `Date.FormatStyle` spells `FormatInput` in an
+/// extension, `Duration.UnitsFormatStyle` spells it inside the struct — so the
+/// sweep could never see the one style whose input is `Duration`.
+///
+/// This is deliberately NOT folded into `sdkAssociatedType`, which the
+/// associated-generic constructor sweep calls. That sweep enforces a
+/// same-type requirement on an associated type but not a CONFORMANCE one, so
+/// widening what it resolves makes it emit constructors the compiler rejects:
+/// `Stepper(value:step:format:)` requires `F.FormatInput : BinaryFloatingPoint`
+/// and would take `Date.FormatStyle`. Fixing that needs conformance data this
+/// interface pass does not yet have — a nominal's cross-module conformances
+/// (`Foundation.Date : Swift.Equatable`) are dropped today — so the wider
+/// reading stays where its answer is used as a TYPE, not as a constraint.
+func sdkDeclaredAssociatedType(_ name: String, of concreteType: String,
+                               conformingTo protocolType: String) -> String? {
+    if let resolved = sdkAssociatedType(
+        name, of: concreteType, conformingTo: protocolType) { return resolved }
+    // Only a non-generic nominal answers: a generic one would need its body
+    // alias substituted against the conformance's parameters, which is exactly
+    // the binding this position has no record of.
+    let concrete = normalize(concreteType)
+    guard genericTypeParts(concrete) == nil,
+          let declared = sdkNominalTypealiases[concrete]?[name] else { return nil }
+    return resolvingSDKTypealiases(declared)
 }
 
 /// Concrete contextual values reached by associated-generic consumers.
@@ -2554,6 +2597,58 @@ for support in protocolMetadataInterfaceFiles {
     }
 }
 
+/// The `FormatStyle` protocol, looked up by its normalized name rather than
+/// spelled qualified, so a module rename cannot silently empty the list.
+let formatStyleProtocolNames = sdkProtocols.filter {
+    normalize($0) == "FormatStyle"
+}
+
+/// Every interface type whose conformance closure reaches `FormatStyle`.
+///
+/// Conformances are recorded under MODULE-QUALIFIED keys while contextual
+/// types are normalized, so the two are matched by normalizing the conformance
+/// side rather than by querying with a name the map is not keyed by.
+let sdkFormatStyleTypeNames = Set(
+    sdkNominalConformances.compactMap { type, conformances -> String? in
+        let closure = conformances.reduce(into: Set<String>()) {
+            $0.formUnion(protocolClosure(of: $1))
+        }
+        return closure.isDisjoint(with: formatStyleProtocolNames)
+            ? nil : normalize(type)
+    })
+
+/// The types those styles declare they FORMAT — each style's own `FormatInput`.
+///
+/// This is the interface's own statement of which values the format family can
+/// receive, and a style that formats a value the interpreter cannot construct
+/// is a style with nothing to format. So the same conformance that admits a
+/// style admits its input, and the pair stays in step as the SDK adds families
+/// with no list to maintain.
+///
+/// It exists this early because the STDLIB contextual sweep is bounded by it.
+/// Sweeping the whole stdlib for same-type statics was measured at 75 admitted
+/// types and a 176K -> 6.1MB generated blowup; reading which stdlib types the
+/// format family actually names bounds the same sweep at a handful.
+/// A style that is itself generic states its input as its OWN generic
+/// parameter (`FloatingPointFormatStyle<Value>` formats `Value`), which names
+/// no type to construct. Those are dropped by asking the interface for the
+/// style's parameter list rather than by filtering identifiers that look
+/// generic.
+let sdkFormatInputTypes = Set(
+    sdkFormatStyleTypeNames.compactMap { style -> String? in
+        guard let input = formatStyleProtocolNames.lazy.compactMap({
+            sdkDeclaredAssociatedType("FormatInput", of: style, conformingTo: $0)
+        }).first.map(normalize) else { return nil }
+        let parameters = sdkNominalGenericParameters[style]
+            ?? sdkNominalGenericParameters[normalize(style)] ?? []
+        guard !parameters.contains(input) else { return nil }
+        // A type the bridge ALREADY maps needs no contextual construction —
+        // `String` and `Int64` arrive as themselves. Admitting them would put
+        // a second, contextual spelling in front of a value that already has a
+        // direct one, so the sweep is for exactly the inputs with no mapping.
+        return directMapping(for: input) == nil ? input : nil
+    })
+
 // MARK: - Automatically coercible contextual SDK values
 
 func isPublicSDKDecl(_ modifiers: DeclModifierListSyntax) -> Bool {
@@ -2665,6 +2760,36 @@ func collectSameTypeSDKStatics(
     minimumTargetAvailabilities inheritedAvailabilities: Set<GeneratedTargetAvailability>
 ) {
     guard !guarded else { return }
+    // The CALL-shaped half of the same surface. `Duration` declares `zero` as
+    // static storage and `seconds(_:)` as a static func in the very same
+    // extension; reading only the storage made half a type's contextual values
+    // unconstructible for a reason the interface does not draw.
+    //
+    // Same-type is the whole test, exactly as it is below: a static returning
+    // something OTHER than the enclosing type is an ordinary member, not a way
+    // to write a value of this type. Generic and effectful factories are left
+    // out because their arguments cannot be analyzed without the binding a call
+    // site would supply — and where the SDK offers one it offers a concrete
+    // sibling too (`seconds<T: BinaryInteger>` beside `seconds(Double)`).
+    for member in members where recordsValues {
+        guard let function = member.decl.as(FunctionDeclSyntax.self),
+              isPublicSDKDecl(function.modifiers),
+              function.modifiers.contains(where: { $0.name.text == "static" }),
+              sweep.isUsable(function.attributes),
+              !sweep.needsGuard(function.attributes),
+              function.genericParameterClause == nil,
+              function.genericWhereClause == nil,
+              function.signature.effectSpecifiers == nil,
+              let first = function.name.text.first, first.isLetter,
+              !function.name.text.hasPrefix("_"),
+              let returned = function.signature.returnClause?.type
+                .trimmedDescription else { continue }
+        let normalizedReturn = normalize(returned)
+        guard normalizedReturn == type
+                || normalizedReturn.hasSuffix("." + type) else { continue }
+        sdkNominalContextualFactoryDecls.append(
+            .init(concreteType: type, function: function))
+    }
     for member in members {
         guard let variable = member.decl.as(VariableDeclSyntax.self),
               isPublicSDKDecl(variable.modifiers),
@@ -4832,6 +4957,46 @@ if let foundationFile {
     }
 }
 
+/// The type a top-level declaration contributes contextual members to: the
+/// nominal it declares, or the type an extension extends.
+func sdkContextualSubjectType(of decl: DeclSyntax) -> String? {
+    if let enumDecl = decl.as(EnumDeclSyntax.self) {
+        return normalize(enumDecl.name.text)
+    }
+    if let nominal = sdkNominalParts(decl) {
+        return normalize(nominal.name)
+    }
+    if let extensionDecl = decl.as(ExtensionDeclSyntax.self) {
+        return normalize(extensionDecl.extendedType.trimmedDescription)
+    }
+    return nil
+}
+
+// The STDLIB supplies contextual values too, but only for the types the format
+// family names as its own inputs. `Duration.seconds(_:)` is declared in an
+// `extension Swift.Duration`, and `Duration.UnitsFormatStyle` is exactly the
+// style that formats it — a style whose input cannot be constructed formats
+// nothing, so the conformance that admits the style admits its input.
+//
+// The bound is the point. Sweeping the stdlib wholesale — every nominal with a
+// same-type static — was measured at 75 admitted types and a 176K -> 6.1MB
+// generated blowup, which is why the interface's own `FormatInput` statement,
+// not a size heuristic or a name list, is what selects here.
+if let stdlibFile {
+    var swept: Set<String> = []
+    for statement in stdlibFile.statements {
+        guard case .decl(let declaration) = statement.item,
+              let subject = sdkContextualSubjectType(of: declaration),
+              sdkFormatInputTypes.contains(subject) else { continue }
+        swept.insert(subject)
+        collectSDKEnums(
+            in: declaration, path: [], guarded: false,
+            frameworkRequirements: [])
+    }
+    print("stdlib format inputs: declared [\(sdkFormatInputTypes.sorted().joined(separator: ", "))] "
+        + "swept [\(swept.sorted().joined(separator: ", "))]")
+}
+
 /// Foundation properties whose declared result conforms to a standard
 /// sequence protocol cross into the interpreter's ordinary array plane. The
 /// set is derived from extension conformances in Foundation.swiftinterface;
@@ -5893,10 +6058,13 @@ let associatedSDKContextualMethodVariants:
 /// concrete type, the argument labels, their contextual types and their
 /// defaults are all read from that declaration, so a style family the SDK
 /// adds becomes constructible without an edit here.
-let sdkContextualFactoryVariants: [SDKContextualMethodVariant] = {
+@MainActor
+func contextualFactoryVariants(
+    _ declarations: [(concreteType: String, function: FunctionDeclSyntax)]
+) -> [SDKContextualMethodVariant] {
     var variants: [SDKContextualMethodVariant] = []
     var seen: Set<String> = []
-    for declaration in sdkProtocolContextualFactoryDecls {
+    for declaration in declarations {
         let analyzed = declaration.function.signature.parameterClause
             .parameters.map { analyzeParameter($0, generics: [:]) }
         let availabilities = minimumTargetAvailabilities(
@@ -5918,30 +6086,73 @@ let sdkContextualFactoryVariants: [SDKContextualMethodVariant] = {
         ($0.type, $0.name, $0.params.count, $0.key)
             < ($1.type, $1.name, $1.params.count, $1.key)
     }
-}()
+}
+
+/// Factories whose concrete type a leading dot is the ONLY way to name.
+let sdkProtocolContextualFactoryVariants = contextualFactoryVariants(
+    sdkProtocolContextualFactoryDecls.map {
+        (concreteType: $0.concreteType, function: $0.function)
+    })
+
+/// Factories declared on a nominal, which ENRICH a type without admitting one.
+///
+/// The asymmetry with the protocol list above is the whole reason these are
+/// separate. A `Self == Concrete` protocol extension is reachable only by
+/// writing a leading dot, so collecting one is also a reason to emit its type.
+/// A nominal factory's type already has a NAME — `Duration` is spelled
+/// `Duration` — so having a static factory says nothing about whether a
+/// contextual coercion for it is ever needed. Letting these admit their own
+/// types pulls in 57 more and takes the generated file from 0.28MB to 5.97MB,
+/// nearly all of it for types no leading dot ever denotes.
+let sdkNominalContextualFactoryVariants = contextualFactoryVariants(
+    sdkNominalContextualFactoryDecls.map {
+        (concreteType: $0.concreteType, function: $0.function)
+    })
+
+let sdkContextualFactoryVariants =
+    sdkProtocolContextualFactoryVariants + sdkNominalContextualFactoryVariants
 let sdkContextualFactoriesByType = Dictionary(
     grouping: sdkContextualFactoryVariants, by: \.type)
 
-let emittedSDKEnumTypes = Set(
-    (emittedModifierVariants + emittedInitVariants)
-        .flatMap(\.params)
-        .compactMap { sdkEnumType(from: $0.tag) }
-        // A factory's own concrete type is reachable BY the factory: the
-        // leading dot is the only spelling a caller ever writes for it.
-        + sdkContextualFactoryVariants.map(\.type)
-        + sdkContextualFactoryVariants.flatMap(\.params)
-            .compactMap { sdkEnumType(from: $0.tag) }
-        + associatedSDKContextualMethodVariants.flatMap(\.params)
-            .compactMap { sdkEnumType(from: $0.tag) }
-        + nativeValueInits.flatMap(\.params)
-            .compactMap { parameter in
-                parameter.mapping.flatMap {
-                    sdkEnumType(from: $0.tag)
-                }
-            }
-        + environmentValueVariants.values.compactMap {
-            sdkEnumType(from: $0.mapping.tag)
-        })
+/// Every contextual type some emitted position can actually name.
+///
+/// Built in steps rather than as one `+` chain: each source is a differently
+/// shaped projection, and inferring them together is what tips the type-checker
+/// over its limit.
+let emittedSDKEnumTypes: Set<String> = { @MainActor in
+    var reached: Set<String> = []
+
+    @MainActor
+    func reach(_ tags: [String]) {
+        reached.formUnion(tags.compactMap { sdkEnumType(from: $0) })
+    }
+
+    reach((emittedModifierVariants + emittedInitVariants)
+        .flatMap(\.params).map(\.tag))
+    // A PROTOCOL-extension factory's own concrete type is reachable BY the
+    // factory: the leading dot is the only spelling a caller ever writes for
+    // it. A nominal factory carries no such argument — see
+    // `sdkNominalContextualFactoryVariants` — so it enriches types admitted
+    // here without admitting any.
+    reached.formUnion(sdkProtocolContextualFactoryVariants.map(\.type))
+    reach(sdkContextualFactoryVariants.flatMap(\.params).map(\.tag))
+    reach(associatedSDKContextualMethodVariants.flatMap(\.params).map(\.tag))
+    reach(nativeValueInits.flatMap(\.params).compactMap { $0.mapping?.tag })
+    reach(environmentValueVariants.values.map(\.mapping.tag))
+
+    // A format style's own INPUT is reachable the same way a factory's
+    // concrete type is. Every other source here is a parameter POSITION that
+    // names its type, and no SwiftUI parameter names `Duration` — but
+    // `Duration.UnitsFormatStyle` declares `FormatInput = Duration`, so the
+    // interface does say the value must exist for the style to format it.
+    //
+    // Admission alone emits nothing: the emission loop skips any type with no
+    // cases and no factories, so an input the sweep never reached (a
+    // Foundation one already carried by its own module pass) costs nothing.
+    reached.formUnion(sdkFormatInputTypes)
+
+    return reached
+}()
 
 let targetSDKContextualMethodVariants: [SDKContextualMethodVariant] = {
     var variants: [SDKContextualMethodVariant] = []
@@ -7349,17 +7560,10 @@ enumsOutput += """
 // conformance side rather than by querying with a name the map is not keyed
 // by. The protocol itself is looked up the same way instead of spelling its
 // qualified name, so a module rename cannot silently empty this list.
-let formatStyleProtocolNames = sdkProtocols.filter {
-    normalize($0) == "FormatStyle"
-}
-let sdkFormatStyleTypeNames = Set(
-    sdkNominalConformances.compactMap { type, conformances -> String? in
-        let closure = conformances.reduce(into: Set<String>()) {
-            $0.formUnion(protocolClosure(of: $1))
-        }
-        return closure.isDisjoint(with: formatStyleProtocolNames)
-            ? nil : normalize(type)
-    })
+//
+// `formatStyleProtocolNames` and `sdkFormatStyleTypeNames` are derived right
+// after the protocol-metadata sweep, because the STDLIB contextual sweep needs
+// them long before this emission point.
 let emittedFormatStyleTypes = emittedSDKEnumTypes
     .filter { sdkFormatStyleTypeNames.contains($0) }
     .sorted()
