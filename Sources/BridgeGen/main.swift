@@ -285,10 +285,23 @@ struct SDKProtocolContextualValue: Hashable {
     let declaringProtocol: String
 }
 
+/// The CALL-shaped counterpart of `SDKProtocolContextualValue`: the same
+/// `P where Self == Concrete` extension may manufacture its concrete value
+/// from arguments (`static func units(width:maximumUnitCount:) -> Self`)
+/// rather than from storage (`static var number: Self`). Only the declaration
+/// kind differs, so the two are collected side by side from one sweep; the
+/// parameter shape is analyzed later, with the rest of the emittable surface.
+struct SDKProtocolContextualFactoryDecl {
+    let concreteType: String
+    let declaringProtocol: String
+    let function: FunctionDeclSyntax
+}
+
 var sdkProtocols: Set<String> = []
 var sdkProtocolRefinements: [String: Set<String>] = [:]
 var sdkNominalConformances: [String: Set<String>] = [:]
 var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
+var sdkProtocolContextualFactoryDecls: [SDKProtocolContextualFactoryDecl] = []
 
 /// Interface metadata for specializing public associated-type relationships.
 struct SDKAssociatedConformance {
@@ -2278,6 +2291,34 @@ func collectSDKProtocolMetadata(
                     concreteType: concrete,
                     declaringProtocol: extended))
             }
+        }
+        // The same extension's static FUNCS manufacture the same concrete
+        // type from arguments. `Self` is the only return spelling the
+        // constraint permits, so matching it needs no type table; a generic
+        // factory is skipped because its own parameter would have to be
+        // solved for before the concrete type is known.
+        for member in extensionDecl.memberBlock.members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  isPublicSDKDecl(function.modifiers),
+                  hasModifier(function.modifiers, "static"),
+                  isUniversallyUsable(function.attributes),
+                  !needsAvailabilityGuard(function.attributes),
+                  function.genericParameterClause == nil,
+                  function.genericWhereClause == nil,
+                  function.signature.effectSpecifiers == nil,
+                  let first = function.name.text.first, first.isLetter,
+                  !function.name.text.hasPrefix("_"),
+                  let declaredReturn = function.signature.returnClause?.type
+                    .trimmedDescription else { continue }
+            let normalizedReturn = canonicalSDKType(
+                declaredReturn, module: module,
+                localTopLevelNames: localTopLevelNames)
+            guard normalizedReturn == "Self"
+                    || normalizedReturn == concrete else { continue }
+            sdkProtocolContextualFactoryDecls.append(.init(
+                concreteType: concrete,
+                declaringProtocol: extended,
+                function: function))
         }
     }
 
@@ -5758,10 +5799,50 @@ let associatedSDKContextualMethodVariants:
         }
     }()
 
+/// A leading-dot FACTORY: `.units(width: .narrow, maximumUnitCount: 1)` is to
+/// `.number` exactly what a call is to a value, and the interface says so in
+/// one place — the `Self == Concrete` extension both are declared in. The
+/// concrete type, the argument labels, their contextual types and their
+/// defaults are all read from that declaration, so a style family the SDK
+/// adds becomes constructible without an edit here.
+let sdkContextualFactoryVariants: [SDKContextualMethodVariant] = {
+    var variants: [SDKContextualMethodVariant] = []
+    var seen: Set<String> = []
+    for declaration in sdkProtocolContextualFactoryDecls {
+        let analyzed = declaration.function.signature.parameterClause
+            .parameters.map { analyzeParameter($0, generics: [:]) }
+        let availabilities = minimumTargetAvailabilities(
+            declaration.function.attributes)
+        // Defaulted parameters are what make `.units(width:)` spell fewer
+        // arguments than the declaration does; each admissible prefix is its
+        // own overload, exactly as the contextual-method sweep treats them.
+        for selection in parameterSelections(analyzed)
+        where selection.trailingClosureIndex == nil {
+            let variant = SDKContextualMethodVariant(
+                type: normalize(declaration.concreteType),
+                name: declaration.function.name.text,
+                params: selection.params.map { .init(analyzed: $0) },
+                minimumTargetAvailabilities: availabilities)
+            if seen.insert(variant.key).inserted { variants.append(variant) }
+        }
+    }
+    return variants.sorted {
+        ($0.type, $0.name, $0.params.count, $0.key)
+            < ($1.type, $1.name, $1.params.count, $1.key)
+    }
+}()
+let sdkContextualFactoriesByType = Dictionary(
+    grouping: sdkContextualFactoryVariants, by: \.type)
+
 let emittedSDKEnumTypes = Set(
     (emittedModifierVariants + emittedInitVariants)
         .flatMap(\.params)
         .compactMap { sdkEnumType(from: $0.tag) }
+        // A factory's own concrete type is reachable BY the factory: the
+        // leading dot is the only spelling a caller ever writes for it.
+        + sdkContextualFactoryVariants.map(\.type)
+        + sdkContextualFactoryVariants.flatMap(\.params)
+            .compactMap { sdkEnumType(from: $0.tag) }
         + associatedSDKContextualMethodVariants.flatMap(\.params)
             .compactMap { sdkEnumType(from: $0.tag) }
         + nativeValueInits.flatMap(\.params)
@@ -6936,6 +7017,55 @@ enum GeneratedSDKEnumCoercions {
 
 """
 
+/// The call-shaped arm of the same coercion: an `ImplicitMemberCall` is a
+/// leading dot that carried arguments, so it resolves against the same
+/// contextual type a bare `.implicitMember` would — through the factory the
+/// interface declares rather than through storage.
+func contextualFactoryDispatchCode(
+    type: String, validationOnly: Bool
+) -> String {
+    guard let factories = sdkContextualFactoriesByType[type],
+          !factories.isEmpty else {
+        return ""
+    }
+    var output = ""
+    output += "            if case .host(let any) = value,\n"
+    output += "               let call = any as? ImplicitMemberCall,\n"
+    output += "               let context {\n"
+    for factory in factories {
+        let specs = factory.params.map(paramSpecCode).joined(separator: ", ")
+        let arguments = factory.params.enumerated().map {
+            index, parameter -> String in
+            let value = generatedMappedValue(
+                cast: parameter.cast,
+                isOptional: parameter.isOptional,
+                storage: "arguments[\(index)]")
+            return (parameter.label.map { "\($0): " } ?? "") + value
+        }.joined(separator: ", ")
+        let availability = targetAvailabilityClauses(
+            factory.minimumTargetAvailabilities)
+        if !validationOnly, !availability.isEmpty {
+            output += "                if #available(\(availability.joined(separator: ", ")), *) {\n"
+        }
+        let indent = !validationOnly && !availability.isEmpty
+            ? "                    " : "                "
+        output += "\(indent)if call.name == \(String(reflecting: factory.name)),\n"
+        output += "\(indent)   let arguments = GeneratedDispatch.contextualMethodArguments([\(specs)], call.arguments, context) {\n"
+        if validationOnly {
+            output += "\(indent)    return call\n"
+        } else {
+            output += "\(indent)    return \(type).`\(factory.name)`(\(arguments))\n"
+        }
+        output += "\(indent)}\n"
+        if !validationOnly, !availability.isEmpty {
+            output += "                }\n"
+        }
+    }
+    output += "                throw RuntimeError(message: \"unknown \(type) contextual factory '.\\(call.name)'\")\n"
+    output += "            }\n"
+    return output
+}
+
 func contextualMethodDispatchCode(
     type: String, validationOnly: Bool
 ) -> String {
@@ -6987,7 +7117,11 @@ func contextualMethodDispatchCode(
 }
 
 for type in emittedSDKEnumTypes.sorted() {
-    guard let cases = sdkEnumCases[type], !cases.isEmpty else { continue }
+    let cases = sdkEnumCases[type] ?? []
+    let factories = sdkContextualFactoriesByType[type] ?? []
+    // A type whose whole contextual surface is call-shaped (`.units(…)` with
+    // no payload-free sibling) still has a coercion to emit.
+    guard !cases.isEmpty || !factories.isEmpty else { continue }
     enumsOutput += "        case \"\(type)\":\n"
     let frameworkCondition = (
         sdkEnumFrameworkRequirements[type] ?? []
@@ -7003,11 +7137,17 @@ for type in emittedSDKEnumTypes.sorted() {
             output += "                return elements\n"
             output += "            }\n"
         }
+        output += contextualFactoryDispatchCode(
+            type: type, validationOnly: true)
         output += contextualMethodDispatchCode(
             type: type, validationOnly: true)
         output += "            guard case .implicitMember(let member) = value else {\n"
         output += "                throw RuntimeError(message: \"expected a \(type) implicit member\")\n"
         output += "            }\n"
+        guard !cases.isEmpty else {
+            output += "            throw RuntimeError(message: \"unknown \(type) member '.\\(member)'\")\n"
+            return output
+        }
         output += "            switch member {\n"
         output += "            case \(cases.map { "\"\($0)\"" }.joined(separator: ", ")): return member\n"
         output += "            default:\n"
@@ -7023,6 +7163,8 @@ for type in emittedSDKEnumTypes.sorted() {
         enumsOutput += "            if #available(\(availabilityClauses.joined(separator: ", ")), *) {\n"
     }
     enumsOutput += "            if case .host(let any) = value, let typed = any as? \(type) { return typed }\n"
+    enumsOutput += contextualFactoryDispatchCode(
+        type: type, validationOnly: false)
     enumsOutput += contextualMethodDispatchCode(
         type: type, validationOnly: false)
     if sdkSetAlgebraTypes.contains(type) {
