@@ -6726,8 +6726,12 @@ let sortedStaticFactories = staticFactoryVariants
     .filter { supportsResultBuilders($0.variant) }
     .sorted { $0.key < $1.key }
 
+// `key` breaks the tie because name-and-arity does not: the eight
+// `Binding(projectedValue:)` variants differ only in their value type, so
+// without it their emitted order is whatever seed the upstream Set was
+// iterated under, and two runs of the same binary disagree.
 let sortedInits = emittedInitVariants.sorted {
-    ($0.name, $0.params.count) < ($1.name, $1.params.count)
+    ($0.name, $0.params.count, $0.key) < ($1.name, $1.params.count, $1.key)
 }
 let initChunks = stride(from: 0, to: sortedInits.count, by: chunkSize).map {
     Array(sortedInits[$0..<min($0 + chunkSize, sortedInits.count)])

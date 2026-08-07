@@ -42,14 +42,14 @@ extension GeneratedConstructors {
     }
 
     private static func build0(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "AccessibilityActionCategory", [ParamSpec(nil, .text, contextualType: "Text")]) { v in
-        return AccessibilityActionCategory(v[0] as! Text)
-    }
     register(&t, "AccessibilityActionCategory", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")]) { v in
         return AccessibilityActionCategory(LocalizedStringKey(v[0] as! String))
     }
     register(&t, "AccessibilityActionCategory", [ParamSpec(nil, .string, contextualType: "StringProtocol")], isDisfavored: true) { v in
         return AccessibilityActionCategory(v[0] as! String)
+    }
+    register(&t, "AccessibilityActionCategory", [ParamSpec(nil, .text, contextualType: "Text")]) { v in
+        return AccessibilityActionCategory(v[0] as! Text)
     }
     register(&t, "AccessibilityActionKind", [ParamSpec("named", .text, contextualType: "Text")]) { v in
         return AccessibilityActionKind(named: v[0] as! Text)
@@ -57,11 +57,11 @@ extension GeneratedConstructors {
     register(&t, "AccessibilityCustomContentKey", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")]) { v in
         return AccessibilityCustomContentKey(LocalizedStringKey(v[0] as! String))
     }
-    register(&t, "AccessibilityCustomContentKey", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("id", .string, contextualType: "String")]) { v in
-        return AccessibilityCustomContentKey(v[0] as! Text, id: v[1] as! String)
-    }
     register(&t, "AccessibilityCustomContentKey", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("id", .string, contextualType: "String")]) { v in
         return AccessibilityCustomContentKey(LocalizedStringKey(v[0] as! String), id: v[1] as! String)
+    }
+    register(&t, "AccessibilityCustomContentKey", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("id", .string, contextualType: "String")]) { v in
+        return AccessibilityCustomContentKey(v[0] as! Text, id: v[1] as! String)
     }
     register(&t, "AccessibilityTraits", []) { v in
         return AccessibilityTraits()
@@ -72,20 +72,26 @@ extension GeneratedConstructors {
     register(&t, "Angle", []) { v in
         return Angle()
     }
-    register(&t, "Angle", [ParamSpec("radians", .double, contextualType: "Double")]) { v in
-        return Angle(radians: v[0] as! Double)
-    }
     register(&t, "Angle", [ParamSpec("degrees", .double, contextualType: "Double")]) { v in
         return Angle(degrees: v[0] as! Double)
     }
-    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
-        return AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint)
+    register(&t, "Angle", [ParamSpec("radians", .double, contextualType: "Double")]) { v in
+        return Angle(radians: v[0] as! Double)
     }
     register(&t, "AngularGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
         return AngularGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint)
     }
+    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
+        return AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint)
+    }
     register(&t, "AngularGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
         return AngularGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint)
+    }
+    register(&t, "AngularGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("angle", .angle, contextualType: "Angle")]) { v in
+        return AngularGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, angle: v[2] as! Angle)
+    }
+    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("angle", .angle, contextualType: "Angle")]) { v in
+        return AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, angle: v[2] as! Angle)
     }
     register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
         return AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, endAngle: v[2] as! Angle)
@@ -93,20 +99,14 @@ extension GeneratedConstructors {
     register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle")]) { v in
         return AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startAngle: v[2] as! Angle)
     }
-    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("angle", .angle, contextualType: "Angle")]) { v in
-        return AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, angle: v[2] as! Angle)
-    }
-    register(&t, "AngularGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("angle", .angle, contextualType: "Angle")]) { v in
-        return AngularGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, angle: v[2] as! Angle)
-    }
     register(&t, "AngularGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("angle", .angle, contextualType: "Angle")]) { v in
         return AngularGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint, angle: v[2] as! Angle)
     }
-    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
-        return AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startAngle: v[2] as! Angle, endAngle: v[3] as! Angle)
-    }
     register(&t, "AngularGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
         return AngularGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, startAngle: v[2] as! Angle, endAngle: v[3] as! Angle)
+    }
+    register(&t, "AngularGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
+        return AngularGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startAngle: v[2] as! Angle, endAngle: v[3] as! Angle)
     }
     register(&t, "AngularGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startAngle", .angle, contextualType: "Angle"), ParamSpec("endAngle", .angle, contextualType: "Angle")]) { v in
         return AngularGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint, startAngle: v[2] as! Angle, endAngle: v[3] as! Angle)
@@ -133,17 +133,20 @@ extension GeneratedConstructors {
     register(&t, "AsyncImage", [ParamSpec("url", .url, isOptional: true, contextualType: "URL"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat")]) { v in
         return AsyncImage(url: generatedOptionalArgument(v[0]) { value in value as! URL }, scale: v[1] as! CGFloat)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.date, "Date"), contextualType: "Binding<Date>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<Date>)
+    register(&t, "Binding", [ParamSpec(nil, .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>")]) { v in
+        return Binding(v[0] as! Binding<InterpretedHashableValue>)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.nativeSwiftUIValue("NavigationPath"), "NavigationPath"), contextualType: "Binding<NavigationPath>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<NavigationPath>)
-    }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingString, contextualType: "Binding<String>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<String>)
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingBool, contextualType: "Binding<Bool>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<Bool>)
     }
     register(&t, "Binding", [ParamSpec("projectedValue", .bindingDouble, contextualType: "Binding<Double>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<Double>)
+    }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingHashableOptional, contextualType: "Binding<InterpretedHashableValue?>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<InterpretedHashableValue?>)
+    }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingString, contextualType: "Binding<String>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<String>)
     }
     register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.color, "Color"), contextualType: "Binding<Color>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<Color>)
@@ -151,20 +154,17 @@ extension GeneratedConstructors {
     register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.data, "Data"), contextualType: "Binding<Data>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<Data>)
     }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.date, "Date"), contextualType: "Binding<Date>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<Date>)
+    }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.nativeSwiftUIValue("NavigationPath"), "NavigationPath"), contextualType: "Binding<NavigationPath>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<NavigationPath>)
+    }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.nativeSwiftUIValue("ScrollPosition"), "ScrollPosition"), contextualType: "Binding<ScrollPosition>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<ScrollPosition>)
+    }
     register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.nativeSwiftUIValue("TabViewCustomization"), "TabViewCustomization"), contextualType: "Binding<TabViewCustomization>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<TabViewCustomization>)
-    }
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<InterpretedHashableValue>)
-    }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingBool, contextualType: "Binding<Bool>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<Bool>)
-    }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingHashableOptional, contextualType: "Binding<InterpretedHashableValue?>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<InterpretedHashableValue?>)
-    }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<NavigationSplitViewVisibility>)
     }
     }
 
@@ -172,18 +172,14 @@ extension GeneratedConstructors {
     register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<NavigationSplitViewColumn>)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.nativeSwiftUIValue("ScrollPosition"), "ScrollPosition"), contextualType: "Binding<ScrollPosition>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<ScrollPosition>)
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<NavigationSplitViewVisibility>)
     }
-    register(&t, "Binding", [ParamSpec(nil, .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>")]) { v in
-        return Binding(v[0] as! Binding<InterpretedHashableValue>)
+    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<InterpretedHashableValue>)
     }
     register(&t, "Button", [ParamSpec(nil, .nativeSwiftUIValue("PrimitiveButtonStyleConfiguration"), contextualType: "PrimitiveButtonStyleConfiguration")]) { v in
         return Button(v[0] as! PrimitiveButtonStyleConfiguration)
-    }
-    register(&t, "Button", [ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return Button(action: generatedAction(v[0]), label: { b1 })
     }
     register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("action", .action)]) { v in
         return Button(LocalizedStringKey(v[0] as! String), action: generatedAction(v[1]))
@@ -191,39 +187,43 @@ extension GeneratedConstructors {
     register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("action", .action)], isDisfavored: true) { v in
         return Button(v[0] as! String, action: generatedAction(v[1]))
     }
-    register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("action", .action)]) { v in
-        return Button(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, action: generatedAction(v[2]))
-    }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("action", .action)], isDisfavored: true) { v in
-        return Button(v[0] as! String, systemImage: v[1] as! String, action: generatedAction(v[2]))
+    register(&t, "Button", [ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return Button(action: generatedAction(v[0]), label: { b1 })
     }
     register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("action", .action)]) { v in
         return Button(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), action: generatedAction(v[2]))
     }
+    register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
+        return Button(LocalizedStringKey(v[0] as! String), role: generatedOptionalArgument(v[1]) { value in value as! ButtonRole }, action: generatedAction(v[2]))
+    }
+    register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("action", .action)]) { v in
+        return Button(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, action: generatedAction(v[2]))
+    }
     register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("action", .action)], isDisfavored: true) { v in
         return Button(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), action: generatedAction(v[2]))
+    }
+    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)], isDisfavored: true) { v in
+        return Button(v[0] as! String, role: generatedOptionalArgument(v[1]) { value in value as! ButtonRole }, action: generatedAction(v[2]))
+    }
+    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("action", .action)], isDisfavored: true) { v in
+        return Button(v[0] as! String, systemImage: v[1] as! String, action: generatedAction(v[2]))
     }
     register(&t, "Button", [ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Button(role: generatedOptionalArgument(v[0]) { value in value as! ButtonRole }, action: generatedAction(v[1]), label: { b2 })
     }
-    register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
-        return Button(LocalizedStringKey(v[0] as! String), role: generatedOptionalArgument(v[1]) { value in value as! ButtonRole }, action: generatedAction(v[2]))
-    }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)], isDisfavored: true) { v in
-        return Button(v[0] as! String, role: generatedOptionalArgument(v[1]) { value in value as! ButtonRole }, action: generatedAction(v[2]))
+    register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
+        return Button(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), role: generatedOptionalArgument(v[2]) { value in value as! ButtonRole }, action: generatedAction(v[3]))
     }
     register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
         return Button(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, role: generatedOptionalArgument(v[2]) { value in value as! ButtonRole }, action: generatedAction(v[3]))
     }
-    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)], isDisfavored: true) { v in
-        return Button(v[0] as! String, systemImage: v[1] as! String, role: generatedOptionalArgument(v[2]) { value in value as! ButtonRole }, action: generatedAction(v[3]))
-    }
-    register(&t, "Button", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)]) { v in
-        return Button(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), role: generatedOptionalArgument(v[2]) { value in value as! ButtonRole }, action: generatedAction(v[3]))
-    }
     register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)], isDisfavored: true) { v in
         return Button(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), role: generatedOptionalArgument(v[2]) { value in value as! ButtonRole }, action: generatedAction(v[3]))
+    }
+    register(&t, "Button", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("role", .buttonRole, isOptional: true, contextualType: "ButtonRole"), ParamSpec("action", .action)], isDisfavored: true) { v in
+        return Button(v[0] as! String, systemImage: v[1] as! String, role: generatedOptionalArgument(v[2]) { value in value as! ButtonRole }, action: generatedAction(v[3]))
     }
     register(&t, "Capsule", []) { v in
         return Capsule()
@@ -234,20 +234,9 @@ extension GeneratedConstructors {
     register(&t, "Circle", []) { v in
         return Circle()
     }
-    register(&t, "Color", [ParamSpec("white", .double, contextualType: "Double")]) { v in
-        return Color(white: v[0] as! Double)
-    }
-    register(&t, "Color", [ParamSpec(nil, .string, contextualType: "String")]) { v in
-        return Color(v[0] as! String)
-    }
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "Color", [ParamSpec(nil, .platformValue("AppKit", "NSColor"), contextualType: "NSColor")], isDisfavored: true) { v in
         return Color(v[0] as! NSColor)
-    }
-#endif
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
-    register(&t, "Color", [ParamSpec("nsColor", .platformValue("AppKit", "NSColor"), contextualType: "NSColor")]) { v in
-        return Color(nsColor: v[0] as! NSColor)
     }
 #endif
 #if canImport(UIKit)
@@ -255,19 +244,27 @@ extension GeneratedConstructors {
         return Color(v[0] as! UIColor)
     }
 #endif
+    register(&t, "Color", [ParamSpec(nil, .string, contextualType: "String")]) { v in
+        return Color(v[0] as! String)
+    }
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    register(&t, "Color", [ParamSpec("nsColor", .platformValue("AppKit", "NSColor"), contextualType: "NSColor")]) { v in
+        return Color(nsColor: v[0] as! NSColor)
+    }
+#endif
 #if canImport(UIKit)
     register(&t, "Color", [ParamSpec("uiColor", .platformValue("UIKit", "UIColor"), contextualType: "UIColor")]) { v in
         return Color(uiColor: v[0] as! UIColor)
     }
 #endif
-    register(&t, "Color", [ParamSpec("white", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
-        return Color(white: v[0] as! Double, opacity: v[1] as! Double)
+    register(&t, "Color", [ParamSpec("white", .double, contextualType: "Double")]) { v in
+        return Color(white: v[0] as! Double)
     }
     register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("white", .double, contextualType: "Double")]) { v in
         return Color(v[0] as! Color.RGBColorSpace, white: v[1] as! Double)
     }
-    register(&t, "Color", [ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double")]) { v in
-        return Color(red: v[0] as! Double, green: v[1] as! Double, blue: v[2] as! Double)
+    register(&t, "Color", [ParamSpec("white", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
+        return Color(white: v[0] as! Double, opacity: v[1] as! Double)
     }
     register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("white", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return Color(v[0] as! Color.RGBColorSpace, white: v[1] as! Double, opacity: v[2] as! Double)
@@ -275,8 +272,8 @@ extension GeneratedConstructors {
     register(&t, "Color", [ParamSpec("hue", .double, contextualType: "Double"), ParamSpec("saturation", .double, contextualType: "Double"), ParamSpec("brightness", .double, contextualType: "Double")]) { v in
         return Color(hue: v[0] as! Double, saturation: v[1] as! Double, brightness: v[2] as! Double)
     }
-    register(&t, "Color", [ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
-        return Color(red: v[0] as! Double, green: v[1] as! Double, blue: v[2] as! Double, opacity: v[3] as! Double)
+    register(&t, "Color", [ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double")]) { v in
+        return Color(red: v[0] as! Double, green: v[1] as! Double, blue: v[2] as! Double)
     }
     register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double")]) { v in
         return Color(v[0] as! Color.RGBColorSpace, red: v[1] as! Double, green: v[2] as! Double, blue: v[3] as! Double)
@@ -284,12 +281,11 @@ extension GeneratedConstructors {
     register(&t, "Color", [ParamSpec("hue", .double, contextualType: "Double"), ParamSpec("saturation", .double, contextualType: "Double"), ParamSpec("brightness", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return Color(hue: v[0] as! Double, saturation: v[1] as! Double, brightness: v[2] as! Double, opacity: v[3] as! Double)
     }
+    register(&t, "Color", [ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
+        return Color(red: v[0] as! Double, green: v[1] as! Double, blue: v[2] as! Double, opacity: v[3] as! Double)
+    }
     register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return Color(v[0] as! Color.RGBColorSpace, red: v[1] as! Double, green: v[2] as! Double, blue: v[3] as! Double, opacity: v[4] as! Double)
-    }
-    register(&t, "ColorPicker", [ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return ColorPicker(selection: v[0] as! Binding<Color>, label: { b1 })
     }
     register(&t, "ColorPicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>")]) { v in
         return ColorPicker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<Color>)
@@ -297,18 +293,22 @@ extension GeneratedConstructors {
     register(&t, "ColorPicker", [ParamSpec(nil, .string), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>")], isDisfavored: true) { v in
         return ColorPicker(v[0] as! String, selection: v[1] as! Binding<Color>)
     }
-    register(&t, "ColorPicker", [ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool"), ParamSpec("label", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ColorPicker(selection: v[0] as! Binding<Color>, supportsOpacity: v[1] as! Bool, label: { b2 })
+    register(&t, "ColorPicker", [ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return ColorPicker(selection: v[0] as! Binding<Color>, label: { b1 })
+    }
+    register(&t, "ColorPicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool")]) { v in
+        return ColorPicker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<Color>, supportsOpacity: v[2] as! Bool)
     }
     }
 
     private static func build2(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "ColorPicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool")]) { v in
-        return ColorPicker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<Color>, supportsOpacity: v[2] as! Bool)
-    }
     register(&t, "ColorPicker", [ParamSpec(nil, .string), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool")], isDisfavored: true) { v in
         return ColorPicker(v[0] as! String, selection: v[1] as! Binding<Color>, supportsOpacity: v[2] as! Bool)
+    }
+    register(&t, "ColorPicker", [ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool"), ParamSpec("label", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ColorPicker(selection: v[0] as! Binding<Color>, supportsOpacity: v[1] as! Bool, label: { b2 })
     }
     if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ConcentricRectangle", []) { v in
@@ -331,6 +331,13 @@ extension GeneratedConstructors {
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ConcentricRectangle", [ParamSpec("uniformLeadingCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(uniformLeadingCorners: v[0] as! Edge.Corner.Style)
+        }
+    }
+#endif
+#if canImport(UIKit)
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
             return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style)
         }
@@ -345,8 +352,8 @@ extension GeneratedConstructors {
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("uniformLeadingCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(uniformLeadingCorners: v[0] as! Edge.Corner.Style)
+        register(&t, "ConcentricRectangle", [ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(bottomLeadingCorner: v[0] as! Edge.Corner.Style, bottomTrailingCorner: v[1] as! Edge.Corner.Style)
         }
     }
 #endif
@@ -359,22 +366,8 @@ extension GeneratedConstructors {
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(bottomLeadingCorner: v[0] as! Edge.Corner.Style, bottomTrailingCorner: v[1] as! Edge.Corner.Style)
-        }
-    }
-#endif
-#if canImport(UIKit)
-    if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(topTrailingCorner: v[0] as! Edge.Corner.Style, bottomTrailingCorner: v[1] as! Edge.Corner.Style)
-        }
-    }
-#endif
-#if canImport(UIKit)
-    if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(topTrailingCorner: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style)
+        register(&t, "ConcentricRectangle", [ParamSpec("topLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(topLeadingCorner: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style)
         }
     }
 #endif
@@ -387,13 +380,6 @@ extension GeneratedConstructors {
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("topLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(topLeadingCorner: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style)
-        }
-    }
-#endif
-#if canImport(UIKit)
-    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ConcentricRectangle", [ParamSpec("topLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
             return ConcentricRectangle(topLeadingCorner: v[0] as! Edge.Corner.Style, topTrailingCorner: v[1] as! Edge.Corner.Style)
         }
@@ -401,36 +387,15 @@ extension GeneratedConstructors {
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("uniformBottomCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style, uniformBottomCorners: v[1] as! Edge.Corner.Style)
+        register(&t, "ConcentricRectangle", [ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(topTrailingCorner: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style)
         }
     }
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("uniformLeadingCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("uniformTrailingCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(uniformLeadingCorners: v[0] as! Edge.Corner.Style, uniformTrailingCorners: v[1] as! Edge.Corner.Style)
-        }
-    }
-#endif
-#if canImport(UIKit)
-    if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style, bottomTrailingCorner: v[1] as! Edge.Corner.Style)
-        }
-    }
-#endif
-#if canImport(UIKit)
-    if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style)
-        }
-    }
-#endif
-#if canImport(UIKit)
-    if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("uniformBottomCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(uniformBottomCorners: v[0] as! Edge.Corner.Style, topTrailingCorner: v[1] as! Edge.Corner.Style)
+        register(&t, "ConcentricRectangle", [ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(topTrailingCorner: v[0] as! Edge.Corner.Style, bottomTrailingCorner: v[1] as! Edge.Corner.Style)
         }
     }
 #endif
@@ -438,6 +403,13 @@ extension GeneratedConstructors {
     if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ConcentricRectangle", [ParamSpec("uniformBottomCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("topLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
             return ConcentricRectangle(uniformBottomCorners: v[0] as! Edge.Corner.Style, topLeadingCorner: v[1] as! Edge.Corner.Style)
+        }
+    }
+#endif
+#if canImport(UIKit)
+    if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ConcentricRectangle", [ParamSpec("uniformBottomCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(uniformBottomCorners: v[0] as! Edge.Corner.Style, topTrailingCorner: v[1] as! Edge.Corner.Style)
         }
     }
 #endif
@@ -457,6 +429,34 @@ extension GeneratedConstructors {
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ConcentricRectangle", [ParamSpec("uniformLeadingCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("uniformTrailingCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(uniformLeadingCorners: v[0] as! Edge.Corner.Style, uniformTrailingCorners: v[1] as! Edge.Corner.Style)
+        }
+    }
+#endif
+#if canImport(UIKit)
+    if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style)
+        }
+    }
+#endif
+#if canImport(UIKit)
+    if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style, bottomTrailingCorner: v[1] as! Edge.Corner.Style)
+        }
+    }
+#endif
+#if canImport(UIKit)
+    if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("uniformBottomCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style, uniformBottomCorners: v[1] as! Edge.Corner.Style)
+        }
+    }
+#endif
+#if canImport(UIKit)
+    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ConcentricRectangle", [ParamSpec("uniformTrailingCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
             return ConcentricRectangle(uniformTrailingCorners: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style)
         }
@@ -471,22 +471,8 @@ extension GeneratedConstructors {
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(topTrailingCorner: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style, bottomTrailingCorner: v[2] as! Edge.Corner.Style)
-        }
-    }
-#endif
-#if canImport(UIKit)
-    if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ConcentricRectangle", [ParamSpec("topLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
             return ConcentricRectangle(topLeadingCorner: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style, bottomTrailingCorner: v[2] as! Edge.Corner.Style)
-        }
-    }
-#endif
-#if canImport(UIKit)
-    if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("topLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(topLeadingCorner: v[0] as! Edge.Corner.Style, topTrailingCorner: v[1] as! Edge.Corner.Style, bottomTrailingCorner: v[2] as! Edge.Corner.Style)
         }
     }
 #endif
@@ -499,8 +485,15 @@ extension GeneratedConstructors {
 #endif
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
-            return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style, bottomTrailingCorner: v[2] as! Edge.Corner.Style)
+        register(&t, "ConcentricRectangle", [ParamSpec("topLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(topLeadingCorner: v[0] as! Edge.Corner.Style, topTrailingCorner: v[1] as! Edge.Corner.Style, bottomTrailingCorner: v[2] as! Edge.Corner.Style)
+        }
+    }
+#endif
+#if canImport(UIKit)
+    if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ConcentricRectangle", [ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(topTrailingCorner: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style, bottomTrailingCorner: v[2] as! Edge.Corner.Style)
         }
     }
 #endif
@@ -515,6 +508,13 @@ extension GeneratedConstructors {
     if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ConcentricRectangle", [ParamSpec("uniformLeadingCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("topTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
             return ConcentricRectangle(uniformLeadingCorners: v[0] as! Edge.Corner.Style, topTrailingCorner: v[1] as! Edge.Corner.Style, bottomTrailingCorner: v[2] as! Edge.Corner.Style)
+        }
+    }
+#endif
+#if canImport(UIKit)
+    if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ConcentricRectangle", [ParamSpec("uniformTopCorners", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomLeadingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style"), ParamSpec("bottomTrailingCorner", .sdkEnum("Edge.Corner.Style"), contextualType: "Edge.Corner.Style")]) { v in
+            return ConcentricRectangle(uniformTopCorners: v[0] as! Edge.Corner.Style, bottomLeadingCorner: v[1] as! Edge.Corner.Style, bottomTrailingCorner: v[2] as! Edge.Corner.Style)
         }
     }
 #endif
@@ -542,6 +542,21 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return ContentUnavailableView(label: { b0 })
     }
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String")]) { v in
+        return ContentUnavailableView(LocalizedStringKey(v[0] as! String), image: v[1] as! String)
+    }
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String")]) { v in
+        return ContentUnavailableView(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String)
+    }
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "String")], isDisfavored: true) { v in
+        return ContentUnavailableView(v[0] as! String, image: v[1] as! String)
+    }
+    }
+
+    private static func build3(_ t: inout [String: [GeneratedConstructor]]) {
+    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String")], isDisfavored: true) { v in
+        return ContentUnavailableView(v[0] as! String, systemImage: v[1] as! String)
+    }
     register(&t, "ContentUnavailableView", [ParamSpec("label", .builder), ParamSpec("actions", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
@@ -551,27 +566,6 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
         return ContentUnavailableView(label: { b0 }, description: { b1 })
-    }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String")]) { v in
-        return ContentUnavailableView(LocalizedStringKey(v[0] as! String), image: v[1] as! String)
-    }
-    }
-
-    private static func build3(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String")]) { v in
-        return ContentUnavailableView(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String)
-    }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "String")], isDisfavored: true) { v in
-        return ContentUnavailableView(v[0] as! String, image: v[1] as! String)
-    }
-    register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String")], isDisfavored: true) { v in
-        return ContentUnavailableView(v[0] as! String, systemImage: v[1] as! String)
-    }
-    register(&t, "ContentUnavailableView", [ParamSpec("label", .builder), ParamSpec("description", .builder), ParamSpec("actions", .builder)]) { v in
-        let b0 = try generatedBuilder(v[0])
-        let b1 = try generatedBuilder(v[1])
-        let b2 = try generatedBuilder(v[2])
-        return ContentUnavailableView(label: { b0 }, description: { b1 }, actions: { b2 })
     }
     register(&t, "ContentUnavailableView", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String"), ParamSpec("description", .text, isOptional: true, contextualType: "Text")]) { v in
         return ContentUnavailableView(LocalizedStringKey(v[0] as! String), image: v[1] as! String, description: generatedOptionalArgument(v[2]) { value in value as! Text })
@@ -585,17 +579,18 @@ extension GeneratedConstructors {
     register(&t, "ContentUnavailableView", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("description", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
         return ContentUnavailableView(v[0] as! String, systemImage: v[1] as! String, description: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ControlGroup", [ParamSpec("content", .builder)]) { v in
+    register(&t, "ContentUnavailableView", [ParamSpec("label", .builder), ParamSpec("description", .builder), ParamSpec("actions", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
-        return ControlGroup(content: { b0 })
+        let b1 = try generatedBuilder(v[1])
+        let b2 = try generatedBuilder(v[2])
+        return ContentUnavailableView(label: { b0 }, description: { b1 }, actions: { b2 })
     }
     register(&t, "ControlGroup", [ParamSpec(nil, .nativeSwiftUIValue("ControlGroupStyleConfiguration"), contextualType: "ControlGroupStyleConfiguration")]) { v in
         return ControlGroup(v[0] as! ControlGroupStyleConfiguration)
     }
-    register(&t, "ControlGroup", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+    register(&t, "ControlGroup", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
-        let b1 = try generatedBuilder(v[1])
-        return ControlGroup(content: { b0 }, label: { b1 })
+        return ControlGroup(content: { b0 })
     }
     register(&t, "ControlGroup", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -605,31 +600,36 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return ControlGroup(v[0] as! String, content: { b1 })
     }
-    register(&t, "ControlGroup", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ControlGroup(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, content: { b2 })
-    }
-    register(&t, "ControlGroup", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)], isDisfavored: true) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ControlGroup(v[0] as! String, systemImage: v[1] as! String, content: { b2 })
+    register(&t, "ControlGroup", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+        let b0 = try generatedBuilder(v[0])
+        let b1 = try generatedBuilder(v[1])
+        return ControlGroup(content: { b0 }, label: { b1 })
     }
     register(&t, "ControlGroup", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return ControlGroup(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 })
     }
+    register(&t, "ControlGroup", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ControlGroup(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, content: { b2 })
+    }
     register(&t, "ControlGroup", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
         return ControlGroup(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 })
     }
-    register(&t, "DatePicker", [ParamSpec("selection", .bindingValue(.date, "Date"), contextualType: "Binding<Date>"), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return DatePicker(selection: v[0] as! Binding<Date>, label: { b1 })
+    register(&t, "ControlGroup", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)], isDisfavored: true) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ControlGroup(v[0] as! String, systemImage: v[1] as! String, content: { b2 })
     }
     register(&t, "DatePicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .bindingValue(.date, "Date"), contextualType: "Binding<Date>")]) { v in
         return DatePicker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<Date>)
     }
     register(&t, "DatePicker", [ParamSpec(nil, .string), ParamSpec("selection", .bindingValue(.date, "Date"), contextualType: "Binding<Date>")], isDisfavored: true) { v in
         return DatePicker(v[0] as! String, selection: v[1] as! Binding<Date>)
+    }
+    register(&t, "DatePicker", [ParamSpec("selection", .bindingValue(.date, "Date"), contextualType: "Binding<Date>"), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return DatePicker(selection: v[0] as! Binding<Date>, label: { b1 })
     }
     if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "DebugReplaceableView", [ParamSpec("erasing", .anyView)]) { v in
@@ -654,11 +654,6 @@ extension GeneratedConstructors {
             return DefaultToolbarItem(kind: v[0] as! ToolbarDefaultItemKind, placement: v[1] as! ToolbarItemPlacement)
         }
     }
-    register(&t, "DisclosureGroup", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
-        let b0 = try generatedBuilder(v[0])
-        let b1 = try generatedBuilder(v[1])
-        return DisclosureGroup(content: { b0 }, label: { b1 })
-    }
     register(&t, "DisclosureGroup", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return DisclosureGroup(LocalizedStringKey(v[0] as! String), content: { b1 })
@@ -667,10 +662,10 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return DisclosureGroup(v[0] as! String, content: { b1 })
     }
-    register(&t, "DisclosureGroup", [ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+    register(&t, "DisclosureGroup", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+        let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
-        let b2 = try generatedBuilder(v[2])
-        return DisclosureGroup(isExpanded: v[0] as! Binding<Bool>, content: { b1 }, label: { b2 })
+        return DisclosureGroup(content: { b0 }, label: { b1 })
     }
     register(&t, "DisclosureGroup", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -679,6 +674,11 @@ extension GeneratedConstructors {
     register(&t, "DisclosureGroup", [ParamSpec(nil, .string), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
         return DisclosureGroup(v[0] as! String, isExpanded: v[1] as! Binding<Bool>, content: { b2 })
+    }
+    register(&t, "DisclosureGroup", [ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        let b2 = try generatedBuilder(v[2])
+        return DisclosureGroup(isExpanded: v[0] as! Binding<Bool>, content: { b1 }, label: { b2 })
     }
     register(&t, "Divider", []) { v in
         return Divider()
@@ -692,14 +692,29 @@ extension GeneratedConstructors {
     register(&t, "Ellipse", []) { v in
         return Ellipse()
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient")]) { v in
-        return EllipticalGradient(gradient: v[0] as! Gradient)
-    }
     register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]")]) { v in
         return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color })
     }
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient")]) { v in
+        return EllipticalGradient(gradient: v[0] as! Gradient)
+    }
     register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]")]) { v in
         return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop })
+    }
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
+        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint)
+    }
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
+        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, endRadiusFraction: v[1] as! CGFloat)
+    }
+    }
+
+    private static func build4(_ t: inout [String: [GeneratedConstructor]]) {
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
+        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, startRadiusFraction: v[1] as! CGFloat)
+    }
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
+        return EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint)
     }
     register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(gradient: v[0] as! Gradient, endRadiusFraction: v[1] as! CGFloat)
@@ -707,20 +722,8 @@ extension GeneratedConstructors {
     register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(gradient: v[0] as! Gradient, startRadiusFraction: v[1] as! CGFloat)
     }
-    }
-
-    private static func build4(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
-        return EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint)
-    }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
-        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, endRadiusFraction: v[1] as! CGFloat)
-    }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
-        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, startRadiusFraction: v[1] as! CGFloat)
-    }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
-        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint)
+    register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
+        return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint)
     }
     register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, endRadiusFraction: v[1] as! CGFloat)
@@ -728,11 +731,14 @@ extension GeneratedConstructors {
     register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, startRadiusFraction: v[1] as! CGFloat)
     }
-    register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint")]) { v in
-        return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint)
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
+        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, endRadiusFraction: v[2] as! CGFloat)
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
-        return EllipticalGradient(gradient: v[0] as! Gradient, startRadiusFraction: v[1] as! CGFloat, endRadiusFraction: v[2] as! CGFloat)
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
+        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat)
+    }
+    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
+        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, startRadiusFraction: v[1] as! CGFloat, endRadiusFraction: v[2] as! CGFloat)
     }
     register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, endRadiusFraction: v[2] as! CGFloat)
@@ -740,17 +746,8 @@ extension GeneratedConstructors {
     register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat)
     }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
-        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, startRadiusFraction: v[1] as! CGFloat, endRadiusFraction: v[2] as! CGFloat)
-    }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
-        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, endRadiusFraction: v[2] as! CGFloat)
-    }
-    register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
-        return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat)
-    }
-    register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
-        return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, startRadiusFraction: v[1] as! CGFloat, endRadiusFraction: v[2] as! CGFloat)
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
+        return EllipticalGradient(gradient: v[0] as! Gradient, startRadiusFraction: v[1] as! CGFloat, endRadiusFraction: v[2] as! CGFloat)
     }
     register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint, endRadiusFraction: v[2] as! CGFloat)
@@ -758,11 +755,14 @@ extension GeneratedConstructors {
     register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat)
     }
-    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
-        return EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat, endRadiusFraction: v[3] as! CGFloat)
+    register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
+        return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, startRadiusFraction: v[1] as! CGFloat, endRadiusFraction: v[2] as! CGFloat)
     }
     register(&t, "EllipticalGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat, endRadiusFraction: v[3] as! CGFloat)
+    }
+    register(&t, "EllipticalGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
+        return EllipticalGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat, endRadiusFraction: v[3] as! CGFloat)
     }
     register(&t, "EllipticalGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadiusFraction", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadiusFraction", .cgFloat, contextualType: "CGFloat")]) { v in
         return EllipticalGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint, startRadiusFraction: v[2] as! CGFloat, endRadiusFraction: v[3] as! CGFloat)
@@ -798,12 +798,12 @@ extension GeneratedConstructors {
     register(&t, "FocusInteractions", [ParamSpec("rawValue", .int, contextualType: "Int")]) { v in
         return FocusInteractions(rawValue: v[0] as! Int)
     }
+    register(&t, "Form", [ParamSpec(nil, .nativeSwiftUIValue("FormStyleConfiguration"), contextualType: "FormStyleConfiguration")]) { v in
+        return Form(v[0] as! FormStyleConfiguration)
+    }
     register(&t, "Form", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         return Form(content: { b0 })
-    }
-    register(&t, "Form", [ParamSpec(nil, .nativeSwiftUIValue("FormStyleConfiguration"), contextualType: "FormStyleConfiguration")]) { v in
-        return Form(v[0] as! FormStyleConfiguration)
     }
     register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -829,18 +829,18 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return Gauge(value: v[0] as! Double, label: { b1 }, currentValueLabel: { b2 }, markedValueLabels: { b3 })
     }
+    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("markedValueLabels", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        let b3 = try generatedBuilder(v[3])
+        let b4 = try generatedBuilder(v[4])
+        return Gauge(value: v[0] as! Double, in: v[1] as! ClosedRange<Double>, label: { b2 }, currentValueLabel: { b3 }, markedValueLabels: { b4 })
+    }
     register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return Gauge(value: v[0] as! Double, label: { b1 }, currentValueLabel: { b2 }, minimumValueLabel: { b3 }, maximumValueLabel: { b4 })
-    }
-    register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("markedValueLabels", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        let b3 = try generatedBuilder(v[3])
-        let b4 = try generatedBuilder(v[4])
-        return Gauge(value: v[0] as! Double, in: v[1] as! ClosedRange<Double>, label: { b2 }, currentValueLabel: { b3 }, markedValueLabels: { b4 })
     }
     register(&t, "Gauge", [ParamSpec("value", .double), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -880,39 +880,39 @@ extension GeneratedConstructors {
             return GlassEffectContainer(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
         }
     }
-    register(&t, "Gradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]")]) { v in
-        return Gradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop })
-    }
     register(&t, "Gradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]")]) { v in
         return Gradient(colors: (v[0] as! [Any]).map { element in element as! Color })
+    }
+    register(&t, "Gradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]")]) { v in
+        return Gradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop })
     }
     register(&t, "Grid", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         return Grid(content: { b0 })
     }
-    register(&t, "Grid", [ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return Grid(verticalSpacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
+        return Grid(alignment: v[0] as! Alignment, content: { b1 })
     }
     register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Grid(horizontalSpacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return Grid(alignment: v[0] as! Alignment, content: { b1 })
+        return Grid(verticalSpacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
-    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return Grid(horizontalSpacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, verticalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
+        return Grid(alignment: v[0] as! Alignment, horizontalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
     register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Grid(alignment: v[0] as! Alignment, verticalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
-    register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+    register(&t, "Grid", [ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
-        return Grid(alignment: v[0] as! Alignment, horizontalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
+        return Grid(horizontalSpacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, verticalSpacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
     register(&t, "Grid", [ParamSpec("alignment", .alignment, contextualType: "Alignment"), ParamSpec("horizontalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("verticalSpacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
@@ -937,11 +937,6 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return GroupBox(content: { b0 })
     }
-    register(&t, "GroupBox", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
-        let b0 = try generatedBuilder(v[0])
-        let b1 = try generatedBuilder(v[1])
-        return GroupBox(content: { b0 }, label: { b1 })
-    }
     register(&t, "GroupBox", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return GroupBox(LocalizedStringKey(v[0] as! String), content: { b1 })
@@ -949,6 +944,11 @@ extension GeneratedConstructors {
     register(&t, "GroupBox", [ParamSpec(nil, .string), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b1 = try generatedBuilder(v[1])
         return GroupBox(v[0] as! String, content: { b1 })
+    }
+    register(&t, "GroupBox", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+        let b0 = try generatedBuilder(v[0])
+        let b1 = try generatedBuilder(v[1])
+        return GroupBox(content: { b0 }, label: { b1 })
     }
     register(&t, "GroupBox", [ParamSpec("label", .anyView), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -964,13 +964,13 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return HStack(content: { b0 })
     }
-    register(&t, "HStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return HStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
-    }
     register(&t, "HStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return HStack(alignment: v[0] as! VerticalAlignment, content: { b1 })
+    }
+    register(&t, "HStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return HStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
     register(&t, "HStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -989,44 +989,44 @@ extension GeneratedConstructors {
     register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String")]) { v in
         return Image(v[0] as! String)
     }
-    register(&t, "Image", [ParamSpec("decorative", .string, contextualType: "String")]) { v in
-        return Image(decorative: v[0] as! String)
-    }
-    register(&t, "Image", [ParamSpec("systemName", .string, contextualType: "String")]) { v in
-        return Image(systemName: v[0] as! String)
-    }
     register(&t, "Image", [ParamSpec("_internalSystemName", .string, contextualType: "String")]) { v in
         return Image(_internalSystemName: v[0] as! String)
+    }
+    register(&t, "Image", [ParamSpec("decorative", .string, contextualType: "String")]) { v in
+        return Image(decorative: v[0] as! String)
     }
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "Image", [ParamSpec("nsImage", .platformValue("AppKit", "NSImage"), contextualType: "NSImage")]) { v in
         return Image(nsImage: v[0] as! NSImage)
     }
 #endif
+    register(&t, "Image", [ParamSpec("systemName", .string, contextualType: "String")]) { v in
+        return Image(systemName: v[0] as! String)
+    }
 #if canImport(UIKit)
     register(&t, "Image", [ParamSpec("uiImage", .platformValue("UIKit", "UIImage"), contextualType: "UIImage")]) { v in
         return Image(uiImage: v[0] as! UIImage)
     }
 #endif
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("label", .text, contextualType: "Text")]) { v in
+        return Image(v[0] as! String, label: v[1] as! Text)
+    }
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
+        return Image(v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
+    }
+    register(&t, "Image", [ParamSpec("_internalSystemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
+        return Image(_internalSystemName: v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
+    }
 #if canImport(CoreGraphics)
     register(&t, "Image", [ParamSpec("decorative", .platformValue("CoreGraphics", "CGImage"), contextualType: "CGImage"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat")]) { v in
         return Image(decorative: v[0] as! CGImage, scale: v[1] as! CGFloat)
     }
 #endif
-    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("label", .text, contextualType: "Text")]) { v in
-        return Image(v[0] as! String, label: v[1] as! Text)
+    register(&t, "Image", [ParamSpec("decorative", .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
+        return Image(decorative: v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
     }
     register(&t, "Image", [ParamSpec("systemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
         return Image(systemName: v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
-    }
-    register(&t, "Image", [ParamSpec("_internalSystemName", .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
-        return Image(_internalSystemName: v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
-    }
-    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
-        return Image(v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
-    }
-    register(&t, "Image", [ParamSpec("decorative", .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double")]) { v in
-        return Image(decorative: v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double })
     }
     }
 
@@ -1036,14 +1036,14 @@ extension GeneratedConstructors {
         return Image(v[0] as! CGImage, scale: v[1] as! CGFloat, label: v[2] as! Text)
     }
 #endif
+    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double"), ParamSpec("label", .text, contextualType: "Text")]) { v in
+        return Image(v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double }, label: v[2] as! Text)
+    }
 #if canImport(CoreGraphics)
     register(&t, "Image", [ParamSpec("decorative", .platformValue("CoreGraphics", "CGImage"), contextualType: "CGImage"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat"), ParamSpec("orientation", .sdkEnum("Image.Orientation"), contextualType: "Image.Orientation")]) { v in
         return Image(decorative: v[0] as! CGImage, scale: v[1] as! CGFloat, orientation: v[2] as! Image.Orientation)
     }
 #endif
-    register(&t, "Image", [ParamSpec(nil, .string, contextualType: "String"), ParamSpec("variableValue", .double, isOptional: true, contextualType: "Double"), ParamSpec("label", .text, contextualType: "Text")]) { v in
-        return Image(v[0] as! String, variableValue: generatedOptionalArgument(v[1]) { value in value as! Double }, label: v[2] as! Text)
-    }
 #if canImport(CoreGraphics)
     register(&t, "Image", [ParamSpec(nil, .platformValue("CoreGraphics", "CGImage"), contextualType: "CGImage"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat"), ParamSpec("orientation", .sdkEnum("Image.Orientation"), contextualType: "Image.Orientation"), ParamSpec("label", .text, contextualType: "Text")]) { v in
         return Image(v[0] as! CGImage, scale: v[1] as! CGFloat, orientation: v[2] as! Image.Orientation, label: v[3] as! Text)
@@ -1052,22 +1052,17 @@ extension GeneratedConstructors {
     register(&t, "KeyboardShortcut", [ParamSpec(nil, .sdkEnum("KeyEquivalent"), contextualType: "KeyEquivalent")]) { v in
         return KeyboardShortcut(v[0] as! KeyEquivalent)
     }
-    register(&t, "KeyboardShortcut", [ParamSpec(nil, .sdkEnum("KeyEquivalent"), contextualType: "KeyEquivalent"), ParamSpec("modifiers", .sdkEnum("EventModifiers"), contextualType: "EventModifiers")]) { v in
-        return KeyboardShortcut(v[0] as! KeyEquivalent, modifiers: v[1] as! EventModifiers)
-    }
     register(&t, "KeyboardShortcut", [ParamSpec(nil, .sdkEnum("KeyEquivalent"), contextualType: "KeyEquivalent"), ParamSpec("localization", .sdkEnum("KeyboardShortcut.Localization"), contextualType: "KeyboardShortcut.Localization")]) { v in
         return KeyboardShortcut(v[0] as! KeyEquivalent, localization: v[1] as! KeyboardShortcut.Localization)
+    }
+    register(&t, "KeyboardShortcut", [ParamSpec(nil, .sdkEnum("KeyEquivalent"), contextualType: "KeyEquivalent"), ParamSpec("modifiers", .sdkEnum("EventModifiers"), contextualType: "EventModifiers")]) { v in
+        return KeyboardShortcut(v[0] as! KeyEquivalent, modifiers: v[1] as! EventModifiers)
     }
     register(&t, "KeyboardShortcut", [ParamSpec(nil, .sdkEnum("KeyEquivalent"), contextualType: "KeyEquivalent"), ParamSpec("modifiers", .sdkEnum("EventModifiers"), contextualType: "EventModifiers"), ParamSpec("localization", .sdkEnum("KeyboardShortcut.Localization"), contextualType: "KeyboardShortcut.Localization")]) { v in
         return KeyboardShortcut(v[0] as! KeyEquivalent, modifiers: v[1] as! EventModifiers, localization: v[2] as! KeyboardShortcut.Localization)
     }
     register(&t, "Label", [ParamSpec(nil, .nativeSwiftUIValue("LabelStyleConfiguration"), contextualType: "LabelStyleConfiguration")]) { v in
         return Label(v[0] as! LabelStyleConfiguration)
-    }
-    register(&t, "Label", [ParamSpec("title", .builder), ParamSpec("icon", .builder)]) { v in
-        let b0 = try generatedBuilder(v[0])
-        let b1 = try generatedBuilder(v[1])
-        return Label(title: { b0 }, icon: { b1 })
     }
     register(&t, "Label", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "String")]) { v in
         return Label(LocalizedStringKey(v[0] as! String), image: v[1] as! String)
@@ -1081,30 +1076,32 @@ extension GeneratedConstructors {
     register(&t, "Label", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String")], isDisfavored: true) { v in
         return Label(v[0] as! String, systemImage: v[1] as! String)
     }
-    register(&t, "LabeledContent", [ParamSpec(nil, .nativeSwiftUIValue("LabeledContentStyleConfiguration"), contextualType: "LabeledContentStyleConfiguration")]) { v in
-        return LabeledContent(v[0] as! LabeledContentStyleConfiguration)
-    }
-    register(&t, "LabeledContent", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+    register(&t, "Label", [ParamSpec("title", .builder), ParamSpec("icon", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
-        return LabeledContent(content: { b0 }, label: { b1 })
+        return Label(title: { b0 }, icon: { b1 })
+    }
+    register(&t, "LabeledContent", [ParamSpec(nil, .nativeSwiftUIValue("LabeledContentStyleConfiguration"), contextualType: "LabeledContentStyleConfiguration")]) { v in
+        return LabeledContent(v[0] as! LabeledContentStyleConfiguration)
     }
     register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return LabeledContent(LocalizedStringKey(v[0] as! String), content: { b1 })
     }
+    register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .string)]) { v in
+        return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! String)
+    }
     register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b1 = try generatedBuilder(v[1])
         return LabeledContent(v[0] as! String, content: { b1 })
     }
-    register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .string)]) { v in
-        return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! String)
-    }
     register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .string)], isDisfavored: true) { v in
         return LabeledContent(v[0] as! String, value: v[1] as! String)
     }
-    register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .double, contextualType: "Double"), ParamSpec("format", .sdkEnum("FloatingPointFormatStyle<Double>"), contextualType: "FloatingPointFormatStyle<Double>")]) { v in
-        return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! Double, format: v[2] as! FloatingPointFormatStyle<Double>)
+    register(&t, "LabeledContent", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+        let b0 = try generatedBuilder(v[0])
+        let b1 = try generatedBuilder(v[1])
+        return LabeledContent(content: { b0 }, label: { b1 })
     }
     register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .date, contextualType: "Date"), ParamSpec("format", .sdkEnum("Date.FormatStyle"), contextualType: "Date.FormatStyle")]) { v in
         return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! Date, format: v[2] as! Date.FormatStyle)
@@ -1112,14 +1109,14 @@ extension GeneratedConstructors {
     register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .date, contextualType: "Date"), ParamSpec("format", .sdkEnum("Date.ISO8601FormatStyle"), contextualType: "Date.ISO8601FormatStyle")]) { v in
         return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! Date, format: v[2] as! Date.ISO8601FormatStyle)
     }
-    register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .url, contextualType: "URL"), ParamSpec("format", .sdkEnum("URL.FormatStyle"), contextualType: "URL.FormatStyle")]) { v in
-        return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! URL, format: v[2] as! URL.FormatStyle)
+    register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .double, contextualType: "Double"), ParamSpec("format", .sdkEnum("FloatingPointFormatStyle<Double>"), contextualType: "FloatingPointFormatStyle<Double>")]) { v in
+        return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! Double, format: v[2] as! FloatingPointFormatStyle<Double>)
     }
     register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .int, contextualType: "Int"), ParamSpec("format", .sdkEnum("IntegerFormatStyle<Int>"), contextualType: "IntegerFormatStyle<Int>")]) { v in
         return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! Int, format: v[2] as! IntegerFormatStyle<Int>)
     }
-    register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .double, contextualType: "Double"), ParamSpec("format", .sdkEnum("FloatingPointFormatStyle<Double>"), contextualType: "FloatingPointFormatStyle<Double>")], isDisfavored: true) { v in
-        return LabeledContent(v[0] as! String, value: v[1] as! Double, format: v[2] as! FloatingPointFormatStyle<Double>)
+    register(&t, "LabeledContent", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .url, contextualType: "URL"), ParamSpec("format", .sdkEnum("URL.FormatStyle"), contextualType: "URL.FormatStyle")]) { v in
+        return LabeledContent(LocalizedStringKey(v[0] as! String), value: v[1] as! URL, format: v[2] as! URL.FormatStyle)
     }
     register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .date, contextualType: "Date"), ParamSpec("format", .sdkEnum("Date.FormatStyle"), contextualType: "Date.FormatStyle")], isDisfavored: true) { v in
         return LabeledContent(v[0] as! String, value: v[1] as! Date, format: v[2] as! Date.FormatStyle)
@@ -1127,15 +1124,22 @@ extension GeneratedConstructors {
     register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .date, contextualType: "Date"), ParamSpec("format", .sdkEnum("Date.ISO8601FormatStyle"), contextualType: "Date.ISO8601FormatStyle")], isDisfavored: true) { v in
         return LabeledContent(v[0] as! String, value: v[1] as! Date, format: v[2] as! Date.ISO8601FormatStyle)
     }
-    register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .url, contextualType: "URL"), ParamSpec("format", .sdkEnum("URL.FormatStyle"), contextualType: "URL.FormatStyle")], isDisfavored: true) { v in
-        return LabeledContent(v[0] as! String, value: v[1] as! URL, format: v[2] as! URL.FormatStyle)
+    register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .double, contextualType: "Double"), ParamSpec("format", .sdkEnum("FloatingPointFormatStyle<Double>"), contextualType: "FloatingPointFormatStyle<Double>")], isDisfavored: true) { v in
+        return LabeledContent(v[0] as! String, value: v[1] as! Double, format: v[2] as! FloatingPointFormatStyle<Double>)
     }
     register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .int, contextualType: "Int"), ParamSpec("format", .sdkEnum("IntegerFormatStyle<Int>"), contextualType: "IntegerFormatStyle<Int>")], isDisfavored: true) { v in
         return LabeledContent(v[0] as! String, value: v[1] as! Int, format: v[2] as! IntegerFormatStyle<Int>)
     }
+    register(&t, "LabeledContent", [ParamSpec(nil, .string), ParamSpec("value", .url, contextualType: "URL"), ParamSpec("format", .sdkEnum("URL.FormatStyle"), contextualType: "URL.FormatStyle")], isDisfavored: true) { v in
+        return LabeledContent(v[0] as! String, value: v[1] as! URL, format: v[2] as! URL.FormatStyle)
+    }
     register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return LazyHGrid(rows: (v[0] as! [Any]).map { element in element as! GridItem }, content: { b1 })
+    }
+    register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return LazyHGrid(rows: (v[0] as! [Any]).map { element in element as! GridItem }, alignment: v[1] as! VerticalAlignment, content: { b2 })
     }
     register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -1145,14 +1149,6 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return LazyHGrid(rows: (v[0] as! [Any]).map { element in element as! GridItem }, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return LazyHGrid(rows: (v[0] as! [Any]).map { element in element as! GridItem }, alignment: v[1] as! VerticalAlignment, content: { b2 })
-    }
-    register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
-        let b3 = try generatedBuilder(v[3])
-        return LazyHGrid(rows: (v[0] as! [Any]).map { element in element as! GridItem }, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
-    }
     register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return LazyHGrid(rows: (v[0] as! [Any]).map { element in element as! GridItem }, alignment: v[1] as! VerticalAlignment, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
@@ -1160,6 +1156,10 @@ extension GeneratedConstructors {
     register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return LazyHGrid(rows: (v[0] as! [Any]).map { element in element as! GridItem }, alignment: v[1] as! VerticalAlignment, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, content: { b3 })
+    }
+    register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+        let b3 = try generatedBuilder(v[3])
+        return LazyHGrid(rows: (v[0] as! [Any]).map { element in element as! GridItem }, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
     register(&t, "LazyHGrid", [ParamSpec("rows", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b4 = try generatedBuilder(v[4])
@@ -1169,24 +1169,20 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return LazyHStack(content: { b0 })
     }
-    register(&t, "LazyHStack", [ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return LazyHStack(pinnedViews: v[0] as! PinnedScrollableViews, content: { b1 })
-    }
-    }
-
-    private static func build7(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return LazyHStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
-    }
     register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return LazyHStack(alignment: v[0] as! VerticalAlignment, content: { b1 })
     }
-    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return LazyHStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
+    }
+
+    private static func build7(_ t: inout [String: [GeneratedConstructor]]) {
+    register(&t, "LazyHStack", [ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return LazyHStack(pinnedViews: v[0] as! PinnedScrollableViews, content: { b1 })
+    }
+    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return LazyHStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
     register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -1196,6 +1192,10 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
+    register(&t, "LazyHStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return LazyHStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
+    }
     register(&t, "LazyHStack", [ParamSpec("alignment", .sdkEnum("VerticalAlignment"), contextualType: "VerticalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return LazyHStack(alignment: v[0] as! VerticalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
@@ -1203,6 +1203,10 @@ extension GeneratedConstructors {
     register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return LazyVGrid(columns: (v[0] as! [Any]).map { element in element as! GridItem }, content: { b1 })
+    }
+    register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return LazyVGrid(columns: (v[0] as! [Any]).map { element in element as! GridItem }, alignment: v[1] as! HorizontalAlignment, content: { b2 })
     }
     register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -1212,14 +1216,6 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return LazyVGrid(columns: (v[0] as! [Any]).map { element in element as! GridItem }, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return LazyVGrid(columns: (v[0] as! [Any]).map { element in element as! GridItem }, alignment: v[1] as! HorizontalAlignment, content: { b2 })
-    }
-    register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
-        let b3 = try generatedBuilder(v[3])
-        return LazyVGrid(columns: (v[0] as! [Any]).map { element in element as! GridItem }, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
-    }
     register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return LazyVGrid(columns: (v[0] as! [Any]).map { element in element as! GridItem }, alignment: v[1] as! HorizontalAlignment, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
@@ -1227,6 +1223,10 @@ extension GeneratedConstructors {
     register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return LazyVGrid(columns: (v[0] as! [Any]).map { element in element as! GridItem }, alignment: v[1] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[2]) { value in value as! CGFloat }, content: { b3 })
+    }
+    register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+        let b3 = try generatedBuilder(v[3])
+        return LazyVGrid(columns: (v[0] as! [Any]).map { element in element as! GridItem }, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
     register(&t, "LazyVGrid", [ParamSpec("columns", .array(.nativeSwiftUIValue("GridItem"), "GridItem"), contextualType: "[GridItem]"), ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b4 = try generatedBuilder(v[4])
@@ -1236,6 +1236,10 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return LazyVStack(content: { b0 })
     }
+    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return LazyVStack(alignment: v[0] as! HorizontalAlignment, content: { b1 })
+    }
     register(&t, "LazyVStack", [ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return LazyVStack(pinnedViews: v[0] as! PinnedScrollableViews, content: { b1 })
@@ -1243,14 +1247,6 @@ extension GeneratedConstructors {
     register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return LazyVStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
-    }
-    register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return LazyVStack(alignment: v[0] as! HorizontalAlignment, content: { b1 })
-    }
-    register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return LazyVStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
     }
     register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -1260,28 +1256,32 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, content: { b2 })
     }
+    register(&t, "LazyVStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return LazyVStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, pinnedViews: v[1] as! PinnedScrollableViews, content: { b2 })
+    }
     register(&t, "LazyVStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("pinnedViews", .sdkEnum("PinnedScrollableViews"), contextualType: "PinnedScrollableViews"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return LazyVStack(alignment: v[0] as! HorizontalAlignment, spacing: generatedOptionalArgument(v[1]) { value in value as! CGFloat }, pinnedViews: v[2] as! PinnedScrollableViews, content: { b3 })
     }
-    register(&t, "LinearGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startPoint", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endPoint", .unitPoint, contextualType: "UnitPoint")]) { v in
-        return LinearGradient(gradient: v[0] as! Gradient, startPoint: v[1] as! UnitPoint, endPoint: v[2] as! UnitPoint)
-    }
     register(&t, "LinearGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("startPoint", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endPoint", .unitPoint, contextualType: "UnitPoint")]) { v in
         return LinearGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, startPoint: v[1] as! UnitPoint, endPoint: v[2] as! UnitPoint)
     }
+    register(&t, "LinearGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("startPoint", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endPoint", .unitPoint, contextualType: "UnitPoint")]) { v in
+        return LinearGradient(gradient: v[0] as! Gradient, startPoint: v[1] as! UnitPoint, endPoint: v[2] as! UnitPoint)
+    }
     register(&t, "LinearGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("startPoint", .unitPoint, contextualType: "UnitPoint"), ParamSpec("endPoint", .unitPoint, contextualType: "UnitPoint")]) { v in
         return LinearGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, startPoint: v[1] as! UnitPoint, endPoint: v[2] as! UnitPoint)
-    }
-    register(&t, "Link", [ParamSpec("destination", .url, contextualType: "URL"), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return Link(destination: v[0] as! URL, label: { b1 })
     }
     register(&t, "Link", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("destination", .url, contextualType: "URL")]) { v in
         return Link(LocalizedStringKey(v[0] as! String), destination: v[1] as! URL)
     }
     register(&t, "Link", [ParamSpec(nil, .string), ParamSpec("destination", .url, contextualType: "URL")], isDisfavored: true) { v in
         return Link(v[0] as! String, destination: v[1] as! URL)
+    }
+    register(&t, "Link", [ParamSpec("destination", .url, contextualType: "URL"), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return Link(destination: v[0] as! URL, label: { b1 })
     }
     register(&t, "List", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
@@ -1296,19 +1296,14 @@ extension GeneratedConstructors {
     register(&t, "LocalizedStringKey", [ParamSpec(nil, .string, contextualType: "String")]) { v in
         return LocalizedStringKey(v[0] as! String)
     }
-    register(&t, "LocalizedStringKey", [ParamSpec("stringLiteral", .string, contextualType: "String")]) { v in
-        return LocalizedStringKey(stringLiteral: v[0] as! String)
-    }
     register(&t, "LocalizedStringKey", [ParamSpec("stringInterpolation", .nativeSwiftUIValue("LocalizedStringKey.StringInterpolation"), contextualType: "LocalizedStringKey.StringInterpolation")]) { v in
         return LocalizedStringKey(stringInterpolation: v[0] as! LocalizedStringKey.StringInterpolation)
     }
+    register(&t, "LocalizedStringKey", [ParamSpec("stringLiteral", .string, contextualType: "String")]) { v in
+        return LocalizedStringKey(stringLiteral: v[0] as! String)
+    }
     register(&t, "Menu", [ParamSpec(nil, .nativeSwiftUIValue("MenuStyleConfiguration"), contextualType: "MenuStyleConfiguration")]) { v in
         return Menu(v[0] as! MenuStyleConfiguration)
-    }
-    register(&t, "Menu", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
-        let b0 = try generatedBuilder(v[0])
-        let b1 = try generatedBuilder(v[1])
-        return Menu(content: { b0 }, label: { b1 })
     }
     register(&t, "Menu", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -1318,52 +1313,51 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return Menu(v[0] as! String, content: { b1 })
     }
-    register(&t, "Menu", [ParamSpec("content", .builder), ParamSpec("label", .builder), ParamSpec("primaryAction", .action)]) { v in
+    register(&t, "Menu", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
-        return Menu(content: { b0 }, label: { b1 }, primaryAction: generatedAction(v[2]))
+        return Menu(content: { b0 }, label: { b1 })
     }
     register(&t, "Menu", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Menu(LocalizedStringKey(v[0] as! String), content: { b1 }, primaryAction: generatedAction(v[2]))
     }
-    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)], isDisfavored: true) { v in
-        let b1 = try generatedBuilder(v[1])
-        return Menu(v[0] as! String, content: { b1 }, primaryAction: generatedAction(v[2]))
+    register(&t, "Menu", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return Menu(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 })
     }
-    }
-
-    private static func build8(_ t: inout [String: [GeneratedConstructor]]) {
     register(&t, "Menu", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Menu(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, content: { b2 })
     }
-    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)], isDisfavored: true) { v in
-        let b2 = try generatedBuilder(v[2])
-        return Menu(v[0] as! String, systemImage: v[1] as! String, content: { b2 })
     }
-    register(&t, "Menu", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return Menu(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 })
+
+    private static func build8(_ t: inout [String: [GeneratedConstructor]]) {
+    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)], isDisfavored: true) { v in
+        let b1 = try generatedBuilder(v[1])
+        return Menu(v[0] as! String, content: { b1 }, primaryAction: generatedAction(v[2]))
     }
     register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
         return Menu(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 })
     }
-    register(&t, "Menu", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
+    register(&t, "Menu", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
-        return Menu(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, content: { b2 }, primaryAction: generatedAction(v[3]))
+        return Menu(v[0] as! String, systemImage: v[1] as! String, content: { b2 })
+    }
+    register(&t, "Menu", [ParamSpec("content", .builder), ParamSpec("label", .builder), ParamSpec("primaryAction", .action)]) { v in
+        let b0 = try generatedBuilder(v[0])
+        let b1 = try generatedBuilder(v[1])
+        return Menu(content: { b0 }, label: { b1 }, primaryAction: generatedAction(v[2]))
     }
     register(&t, "Menu", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Menu(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 }, primaryAction: generatedAction(v[3]))
     }
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
-    register(&t, "MenuButton", [ParamSpec("label", .anyView), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return MenuButton(label: v[0] as! AnyView, content: { b1 })
+    register(&t, "Menu", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("content", .builder), ParamSpec("primaryAction", .action)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return Menu(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, content: { b2 }, primaryAction: generatedAction(v[3]))
     }
-#endif
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "MenuButton", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -1376,8 +1370,17 @@ extension GeneratedConstructors {
         return MenuButton(v[0] as! String, content: { b1 })
     }
 #endif
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    register(&t, "MenuButton", [ParamSpec("label", .anyView), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return MenuButton(label: v[0] as! AnyView, content: { b1 })
+    }
+#endif
     register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]")]) { v in
         return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color })
+    }
+    register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("background", .color, contextualType: "Color")]) { v in
+        return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, background: v[4] as! Color)
     }
     register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("colorSpace", .sdkEnum("Gradient.ColorSpace"), contextualType: "Gradient.ColorSpace")]) { v in
         return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, colorSpace: v[4] as! Gradient.ColorSpace)
@@ -1385,20 +1388,41 @@ extension GeneratedConstructors {
     register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("smoothsColors", .bool, contextualType: "Bool")]) { v in
         return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, smoothsColors: v[4] as! Bool)
     }
-    register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("background", .color, contextualType: "Color")]) { v in
-        return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, background: v[4] as! Color)
-    }
-    register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("smoothsColors", .bool, contextualType: "Bool"), ParamSpec("colorSpace", .sdkEnum("Gradient.ColorSpace"), contextualType: "Gradient.ColorSpace")]) { v in
-        return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, smoothsColors: v[4] as! Bool, colorSpace: v[5] as! Gradient.ColorSpace)
-    }
     register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("background", .color, contextualType: "Color"), ParamSpec("colorSpace", .sdkEnum("Gradient.ColorSpace"), contextualType: "Gradient.ColorSpace")]) { v in
         return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, background: v[4] as! Color, colorSpace: v[5] as! Gradient.ColorSpace)
     }
     register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("background", .color, contextualType: "Color"), ParamSpec("smoothsColors", .bool, contextualType: "Bool")]) { v in
         return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, background: v[4] as! Color, smoothsColors: v[5] as! Bool)
     }
+    register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("smoothsColors", .bool, contextualType: "Bool"), ParamSpec("colorSpace", .sdkEnum("Gradient.ColorSpace"), contextualType: "Gradient.ColorSpace")]) { v in
+        return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, smoothsColors: v[4] as! Bool, colorSpace: v[5] as! Gradient.ColorSpace)
+    }
     register(&t, "MeshGradient", [ParamSpec("width", .int, contextualType: "Int"), ParamSpec("height", .int, contextualType: "Int"), ParamSpec("bezierPoints", .array(.nativeSwiftUIValue("MeshGradient.BezierPoint"), "MeshGradient.BezierPoint"), contextualType: "[MeshGradient.BezierPoint]"), ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("background", .color, contextualType: "Color"), ParamSpec("smoothsColors", .bool, contextualType: "Bool"), ParamSpec("colorSpace", .sdkEnum("Gradient.ColorSpace"), contextualType: "Gradient.ColorSpace")]) { v in
         return MeshGradient(width: v[0] as! Int, height: v[1] as! Int, bezierPoints: (v[2] as! [Any]).map { element in element as! MeshGradient.BezierPoint }, colors: (v[3] as! [Any]).map { element in element as! Color }, background: v[4] as! Color, smoothsColors: v[5] as! Bool, colorSpace: v[6] as! Gradient.ColorSpace)
+    }
+    register(&t, "NavigationLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("destination", .anyView)]) { v in
+        return NavigationLink(LocalizedStringKey(v[0] as! String), destination: v[1] as! AnyView)
+    }
+    register(&t, "NavigationLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("destination", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return NavigationLink(LocalizedStringKey(v[0] as! String), destination: { b1 })
+    }
+    register(&t, "NavigationLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .hashable, isOptional: true)]) { v in
+        return NavigationLink(LocalizedStringKey(v[0] as! String), value: generatedOptionalArgument(v[1]) { value in value as! InterpretedHashableValue })
+    }
+    register(&t, "NavigationLink", [ParamSpec(nil, .string), ParamSpec("destination", .anyView)], isDisfavored: true) { v in
+        return NavigationLink(v[0] as! String, destination: v[1] as! AnyView)
+    }
+    register(&t, "NavigationLink", [ParamSpec(nil, .string), ParamSpec("destination", .builder)], isDisfavored: true) { v in
+        let b1 = try generatedBuilder(v[1])
+        return NavigationLink(v[0] as! String, destination: { b1 })
+    }
+    register(&t, "NavigationLink", [ParamSpec(nil, .string), ParamSpec("value", .hashable, isOptional: true)], isDisfavored: true) { v in
+        return NavigationLink(v[0] as! String, value: generatedOptionalArgument(v[1]) { value in value as! InterpretedHashableValue })
+    }
+    register(&t, "NavigationLink", [ParamSpec("destination", .anyView), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return NavigationLink(destination: v[0] as! AnyView, label: { b1 })
     }
     register(&t, "NavigationLink", [ParamSpec("destination", .builder), ParamSpec("label", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
@@ -1409,40 +1433,10 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return NavigationLink(value: generatedOptionalArgument(v[0]) { value in value as! InterpretedHashableValue }, label: { b1 })
     }
-    register(&t, "NavigationLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .hashable, isOptional: true)]) { v in
-        return NavigationLink(LocalizedStringKey(v[0] as! String), value: generatedOptionalArgument(v[1]) { value in value as! InterpretedHashableValue })
-    }
-    register(&t, "NavigationLink", [ParamSpec(nil, .string), ParamSpec("value", .hashable, isOptional: true)], isDisfavored: true) { v in
-        return NavigationLink(v[0] as! String, value: generatedOptionalArgument(v[1]) { value in value as! InterpretedHashableValue })
-    }
-    register(&t, "NavigationLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("destination", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return NavigationLink(LocalizedStringKey(v[0] as! String), destination: { b1 })
-    }
-    register(&t, "NavigationLink", [ParamSpec(nil, .string), ParamSpec("destination", .builder)], isDisfavored: true) { v in
-        let b1 = try generatedBuilder(v[1])
-        return NavigationLink(v[0] as! String, destination: { b1 })
-    }
-    register(&t, "NavigationLink", [ParamSpec("destination", .anyView), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return NavigationLink(destination: v[0] as! AnyView, label: { b1 })
-    }
-    register(&t, "NavigationLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("destination", .anyView)]) { v in
-        return NavigationLink(LocalizedStringKey(v[0] as! String), destination: v[1] as! AnyView)
-    }
-    register(&t, "NavigationLink", [ParamSpec(nil, .string), ParamSpec("destination", .anyView)], isDisfavored: true) { v in
-        return NavigationLink(v[0] as! String, destination: v[1] as! AnyView)
-    }
     register(&t, "NavigationSplitView", [ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
         return NavigationSplitView(sidebar: { b0 }, detail: { b1 })
-    }
-    register(&t, "NavigationSplitView", [ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
-        let b0 = try generatedBuilder(v[0])
-        let b1 = try generatedBuilder(v[1])
-        let b2 = try generatedBuilder(v[2])
-        return NavigationSplitView(sidebar: { b0 }, content: { b1 }, detail: { b2 })
     }
     register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -1453,6 +1447,17 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         return NavigationSplitView(preferredCompactColumn: v[0] as! Binding<NavigationSplitViewColumn>, sidebar: { b1 }, detail: { b2 })
+    }
+    register(&t, "NavigationSplitView", [ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
+        let b0 = try generatedBuilder(v[0])
+        let b1 = try generatedBuilder(v[1])
+        let b2 = try generatedBuilder(v[2])
+        return NavigationSplitView(sidebar: { b0 }, content: { b1 }, detail: { b2 })
+    }
+    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("preferredCompactColumn", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        let b3 = try generatedBuilder(v[3])
+        return NavigationSplitView(columnVisibility: v[0] as! Binding<NavigationSplitViewVisibility>, preferredCompactColumn: v[1] as! Binding<NavigationSplitViewColumn>, sidebar: { b2 }, detail: { b3 })
     }
     register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -1466,11 +1471,6 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return NavigationSplitView(preferredCompactColumn: v[0] as! Binding<NavigationSplitViewColumn>, sidebar: { b1 }, content: { b2 }, detail: { b3 })
     }
-    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("preferredCompactColumn", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        let b3 = try generatedBuilder(v[3])
-        return NavigationSplitView(columnVisibility: v[0] as! Binding<NavigationSplitViewVisibility>, preferredCompactColumn: v[1] as! Binding<NavigationSplitViewColumn>, sidebar: { b2 }, detail: { b3 })
-    }
     register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("preferredCompactColumn", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
@@ -1481,13 +1481,13 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return NavigationStack(root: { b0 })
     }
-    register(&t, "NavigationStack", [ParamSpec("path", .bindingValue(.nativeSwiftUIValue("NavigationPath"), "NavigationPath"), contextualType: "Binding<NavigationPath>"), ParamSpec("root", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return NavigationStack(path: v[0] as! Binding<NavigationPath>, root: { b1 })
-    }
     register(&t, "NavigationStack", [ParamSpec("path", .bindingValue(.data, "Data"), contextualType: "Binding<Data>"), ParamSpec("root", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return NavigationStack(path: v[0] as! Binding<Data>, root: { b1 })
+    }
+    register(&t, "NavigationStack", [ParamSpec("path", .bindingValue(.nativeSwiftUIValue("NavigationPath"), "NavigationPath"), contextualType: "Binding<NavigationPath>"), ParamSpec("root", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return NavigationStack(path: v[0] as! Binding<NavigationPath>, root: { b1 })
     }
     register(&t, "NavigationView", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
@@ -1496,17 +1496,17 @@ extension GeneratedConstructors {
     register(&t, "NewDocumentButton", []) { v in
         return NewDocumentButton()
     }
-    register(&t, "NewDocumentButton", [ParamSpec(nil, .text, isOptional: true, contextualType: "Text")]) { v in
-        return NewDocumentButton(generatedOptionalArgument(v[0]) { value in value as! Text })
+    register(&t, "NewDocumentButton", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")]) { v in
+        return NewDocumentButton(LocalizedStringKey(v[0] as! String))
     }
     }
 
     private static func build9(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "NewDocumentButton", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")]) { v in
-        return NewDocumentButton(LocalizedStringKey(v[0] as! String))
-    }
     register(&t, "NewDocumentButton", [ParamSpec(nil, .string, contextualType: "StringProtocol")], isDisfavored: true) { v in
         return NewDocumentButton(v[0] as! String)
+    }
+    register(&t, "NewDocumentButton", [ParamSpec(nil, .text, isOptional: true, contextualType: "Text")]) { v in
+        return NewDocumentButton(generatedOptionalArgument(v[0]) { value in value as! Text })
     }
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "PasteButton", [ParamSpec("supportedTypes", .array(.string, "String"), contextualType: "[String]"), ParamSpec("payloadAction", .syncVoidClosure)]) { v in
@@ -1516,11 +1516,6 @@ extension GeneratedConstructors {
     register(&t, "Path", []) { v in
         return Path()
     }
-    register(&t, "Picker", [ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        let b2 = try generatedBuilder(v[2])
-        return Picker(selection: v[0] as! Binding<InterpretedHashableValue>, content: { b1 }, label: { b2 })
-    }
     register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Picker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<InterpretedHashableValue>, content: { b2 })
@@ -1529,25 +1524,40 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return Picker(v[0] as! String, selection: v[1] as! Binding<InterpretedHashableValue>, content: { b2 })
     }
+    register(&t, "Picker", [ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        let b2 = try generatedBuilder(v[2])
+        return Picker(selection: v[0] as! Binding<InterpretedHashableValue>, content: { b1 }, label: { b2 })
+    }
     register(&t, "Picker", [ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("label", .anyView), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Picker(selection: v[0] as! Binding<InterpretedHashableValue>, label: v[1] as! AnyView, content: { b2 })
-    }
-    register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder)]) { v in
-        let b3 = try generatedBuilder(v[3])
-        return Picker(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 })
-    }
-    register(&t, "Picker", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder)], isDisfavored: true) { v in
-        let b3 = try generatedBuilder(v[3])
-        return Picker(v[0] as! String, systemImage: v[1] as! String, selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 })
     }
     register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return Picker(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 })
     }
+    register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        let b3 = try generatedBuilder(v[3])
+        return Picker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<InterpretedHashableValue>, content: { b2 }, currentValueLabel: { b3 })
+    }
+    register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder)]) { v in
+        let b3 = try generatedBuilder(v[3])
+        return Picker(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 })
+    }
     register(&t, "Picker", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder)], isDisfavored: true) { v in
         let b3 = try generatedBuilder(v[3])
         return Picker(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 })
+    }
+    register(&t, "Picker", [ParamSpec(nil, .string), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)], isDisfavored: true) { v in
+        let b2 = try generatedBuilder(v[2])
+        let b3 = try generatedBuilder(v[3])
+        return Picker(v[0] as! String, selection: v[1] as! Binding<InterpretedHashableValue>, content: { b2 }, currentValueLabel: { b3 })
+    }
+    register(&t, "Picker", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder)], isDisfavored: true) { v in
+        let b3 = try generatedBuilder(v[3])
+        return Picker(v[0] as! String, systemImage: v[1] as! String, selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 })
     }
     register(&t, "Picker", [ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -1555,35 +1565,25 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return Picker(selection: v[0] as! Binding<InterpretedHashableValue>, content: { b1 }, label: { b2 }, currentValueLabel: { b3 })
     }
-    register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
+    register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return Picker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<InterpretedHashableValue>, content: { b2 }, currentValueLabel: { b3 })
-    }
-    register(&t, "Picker", [ParamSpec(nil, .string), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)], isDisfavored: true) { v in
-        let b2 = try generatedBuilder(v[2])
-        let b3 = try generatedBuilder(v[3])
-        return Picker(v[0] as! String, selection: v[1] as! Binding<InterpretedHashableValue>, content: { b2 }, currentValueLabel: { b3 })
+        let b4 = try generatedBuilder(v[4])
+        return Picker(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 }, currentValueLabel: { b4 })
     }
     register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return Picker(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 }, currentValueLabel: { b4 })
     }
-    register(&t, "Picker", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)], isDisfavored: true) { v in
-        let b3 = try generatedBuilder(v[3])
-        let b4 = try generatedBuilder(v[4])
-        return Picker(v[0] as! String, systemImage: v[1] as! String, selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 }, currentValueLabel: { b4 })
-    }
-    register(&t, "Picker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
-        let b3 = try generatedBuilder(v[3])
-        let b4 = try generatedBuilder(v[4])
-        return Picker(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 }, currentValueLabel: { b4 })
-    }
     register(&t, "Picker", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)], isDisfavored: true) { v in
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return Picker(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 }, currentValueLabel: { b4 })
+    }
+    register(&t, "Picker", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("selection", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>"), ParamSpec("content", .builder), ParamSpec("currentValueLabel", .builder)], isDisfavored: true) { v in
+        let b3 = try generatedBuilder(v[3])
+        let b4 = try generatedBuilder(v[4])
+        return Picker(v[0] as! String, systemImage: v[1] as! String, selection: v[2] as! Binding<InterpretedHashableValue>, content: { b3 }, currentValueLabel: { b4 })
     }
     register(&t, "PreviewDevice", [ParamSpec("rawValue", .string, contextualType: "String")]) { v in
         return PreviewDevice(rawValue: v[0] as! String)
@@ -1594,28 +1594,21 @@ extension GeneratedConstructors {
     register(&t, "ProgressView", []) { v in
         return ProgressView()
     }
-    register(&t, "ProgressView", [ParamSpec("label", .builder)]) { v in
-        let b0 = try generatedBuilder(v[0])
-        return ProgressView(label: { b0 })
-    }
     register(&t, "ProgressView", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")]) { v in
         return ProgressView(LocalizedStringKey(v[0] as! String))
-    }
-    register(&t, "ProgressView", [ParamSpec(nil, .string)], isDisfavored: true) { v in
-        return ProgressView(v[0] as! String)
-    }
-    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true)]) { v in
-        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double })
     }
     register(&t, "ProgressView", [ParamSpec(nil, .nativeSwiftUIValue("ProgressViewStyleConfiguration"), contextualType: "ProgressViewStyleConfiguration")]) { v in
         return ProgressView(v[0] as! ProgressViewStyleConfiguration)
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double)]) { v in
-        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, total: v[1] as! Double)
+    register(&t, "ProgressView", [ParamSpec(nil, .string)], isDisfavored: true) { v in
+        return ProgressView(v[0] as! String)
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, label: { b1 })
+    register(&t, "ProgressView", [ParamSpec("label", .builder)]) { v in
+        let b0 = try generatedBuilder(v[0])
+        return ProgressView(label: { b0 })
+    }
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true)]) { v in
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double })
     }
     register(&t, "ProgressView", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .double, isOptional: true)]) { v in
         return ProgressView(LocalizedStringKey(v[0] as! String), value: generatedOptionalArgument(v[1]) { value in value as! Double })
@@ -1623,20 +1616,27 @@ extension GeneratedConstructors {
     register(&t, "ProgressView", [ParamSpec(nil, .string), ParamSpec("value", .double, isOptional: true)], isDisfavored: true) { v in
         return ProgressView(v[0] as! String, value: generatedOptionalArgument(v[1]) { value in value as! Double })
     }
-    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double), ParamSpec("label", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, total: v[1] as! Double, label: { b2 })
-    }
-    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        let b2 = try generatedBuilder(v[2])
-        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, label: { b1 }, currentValueLabel: { b2 })
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, label: { b1 })
+    }
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double)]) { v in
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, total: v[1] as! Double)
     }
     register(&t, "ProgressView", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double)]) { v in
         return ProgressView(LocalizedStringKey(v[0] as! String), value: generatedOptionalArgument(v[1]) { value in value as! Double }, total: v[2] as! Double)
     }
     register(&t, "ProgressView", [ParamSpec(nil, .string), ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double)], isDisfavored: true) { v in
         return ProgressView(v[0] as! String, value: generatedOptionalArgument(v[1]) { value in value as! Double }, total: v[2] as! Double)
+    }
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        let b2 = try generatedBuilder(v[2])
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, label: { b1 }, currentValueLabel: { b2 })
+    }
+    register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double), ParamSpec("label", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ProgressView(value: generatedOptionalArgument(v[0]) { value in value as! Double }, total: v[1] as! Double, label: { b2 })
     }
     register(&t, "ProgressView", [ParamSpec("value", .double, isOptional: true), ParamSpec("total", .double), ParamSpec("label", .builder), ParamSpec("currentValueLabel", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -1646,11 +1646,11 @@ extension GeneratedConstructors {
     register(&t, "ProjectionTransform", []) { v in
         return ProjectionTransform()
     }
-    register(&t, "RadialGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RadialGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadius: v[2] as! CGFloat, endRadius: v[3] as! CGFloat)
-    }
     register(&t, "RadialGradient", [ParamSpec("colors", .array(.color, "Color"), contextualType: "[Color]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return RadialGradient(colors: (v[0] as! [Any]).map { element in element as! Color }, center: v[1] as! UnitPoint, startRadius: v[2] as! CGFloat, endRadius: v[3] as! CGFloat)
+    }
+    register(&t, "RadialGradient", [ParamSpec("gradient", .gradient, contextualType: "Gradient"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RadialGradient(gradient: v[0] as! Gradient, center: v[1] as! UnitPoint, startRadius: v[2] as! CGFloat, endRadius: v[3] as! CGFloat)
     }
     register(&t, "RadialGradient", [ParamSpec("stops", .array(.nativeSwiftUIValue("Gradient.Stop"), "Gradient.Stop"), contextualType: "[Gradient.Stop]"), ParamSpec("center", .unitPoint, contextualType: "UnitPoint"), ParamSpec("startRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("endRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return RadialGradient(stops: (v[0] as! [Any]).map { element in element as! Gradient.Stop }, center: v[1] as! UnitPoint, startRadius: v[2] as! CGFloat, endRadius: v[3] as! CGFloat)
@@ -1664,47 +1664,47 @@ extension GeneratedConstructors {
     register(&t, "RectangleCornerRadii", []) { v in
         return RectangleCornerRadii()
     }
-    register(&t, "RectangleCornerRadii", [ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RectangleCornerRadii(topTrailing: v[0] as! CGFloat)
+    register(&t, "RectangleCornerRadii", [ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RectangleCornerRadii(bottomLeading: v[0] as! CGFloat)
     }
     register(&t, "RectangleCornerRadii", [ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
         return RectangleCornerRadii(bottomTrailing: v[0] as! CGFloat)
     }
-    register(&t, "RectangleCornerRadii", [ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RectangleCornerRadii(bottomLeading: v[0] as! CGFloat)
-    }
     register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat")]) { v in
         return RectangleCornerRadii(topLeading: v[0] as! CGFloat)
     }
-    register(&t, "RectangleCornerRadii", [ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RectangleCornerRadii(bottomTrailing: v[0] as! CGFloat, topTrailing: v[1] as! CGFloat)
-    }
-    register(&t, "RectangleCornerRadii", [ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RectangleCornerRadii(bottomLeading: v[0] as! CGFloat, topTrailing: v[1] as! CGFloat)
+    register(&t, "RectangleCornerRadii", [ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RectangleCornerRadii(topTrailing: v[0] as! CGFloat)
     }
     register(&t, "RectangleCornerRadii", [ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
         return RectangleCornerRadii(bottomLeading: v[0] as! CGFloat, bottomTrailing: v[1] as! CGFloat)
     }
-    register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RectangleCornerRadii(topLeading: v[0] as! CGFloat, topTrailing: v[1] as! CGFloat)
+    register(&t, "RectangleCornerRadii", [ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RectangleCornerRadii(bottomLeading: v[0] as! CGFloat, topTrailing: v[1] as! CGFloat)
     }
-    register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomTrailing: v[1] as! CGFloat)
+    register(&t, "RectangleCornerRadii", [ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RectangleCornerRadii(bottomTrailing: v[0] as! CGFloat, topTrailing: v[1] as! CGFloat)
     }
     register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat")]) { v in
         return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomLeading: v[1] as! CGFloat)
     }
+    register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomTrailing: v[1] as! CGFloat)
+    }
+    register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RectangleCornerRadii(topLeading: v[0] as! CGFloat, topTrailing: v[1] as! CGFloat)
+    }
     register(&t, "RectangleCornerRadii", [ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
         return RectangleCornerRadii(bottomLeading: v[0] as! CGFloat, bottomTrailing: v[1] as! CGFloat, topTrailing: v[2] as! CGFloat)
     }
-    register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomTrailing: v[1] as! CGFloat, topTrailing: v[2] as! CGFloat)
+    register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomLeading: v[1] as! CGFloat, bottomTrailing: v[2] as! CGFloat)
     }
     register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
         return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomLeading: v[1] as! CGFloat, topTrailing: v[2] as! CGFloat)
     }
-    register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
-        return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomLeading: v[1] as! CGFloat, bottomTrailing: v[2] as! CGFloat)
+    register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
+        return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomTrailing: v[1] as! CGFloat, topTrailing: v[2] as! CGFloat)
     }
     register(&t, "RectangleCornerRadii", [ParamSpec("topLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeading", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailing", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailing", .cgFloat, contextualType: "CGFloat")]) { v in
         return RectangleCornerRadii(topLeading: v[0] as! CGFloat, bottomLeading: v[1] as! CGFloat, bottomTrailing: v[2] as! CGFloat, topTrailing: v[3] as! CGFloat)
@@ -1743,20 +1743,20 @@ extension GeneratedConstructors {
             showsIndicators: true,
             builderValue: v[0])
     }
-    register(&t, "ScrollView", [ParamSpec("showsIndicators", .bool, contextualType: "Bool"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return TargetPlatformScrollBridge.applyGenerated(
-            to: AnyView(ScrollView(showsIndicators: v[0] as! Bool, content: { b1 })),
-            axes: Axis.Set.vertical,
-            showsIndicators: v[0] as! Bool,
-            builderValue: v[1])
-    }
     register(&t, "ScrollView", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return TargetPlatformScrollBridge.applyGenerated(
             to: AnyView(ScrollView(v[0] as! Axis.Set, content: { b1 })),
             axes: v[0] as! Axis.Set,
             showsIndicators: true,
+            builderValue: v[1])
+    }
+    register(&t, "ScrollView", [ParamSpec("showsIndicators", .bool, contextualType: "Bool"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return TargetPlatformScrollBridge.applyGenerated(
+            to: AnyView(ScrollView(showsIndicators: v[0] as! Bool, content: { b1 })),
+            axes: Axis.Set.vertical,
+            showsIndicators: v[0] as! Bool,
             builderValue: v[1])
     }
     register(&t, "ScrollView", [ParamSpec(nil, .axisSet, contextualType: "Axis.Set"), ParamSpec("showsIndicators", .bool, contextualType: "Bool"), ParamSpec("content", .builder)]) { v in
@@ -1771,6 +1771,14 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return Section(content: { b0 })
     }
+    register(&t, "Section", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return Section(LocalizedStringKey(v[0] as! String), content: { b1 })
+    }
+    register(&t, "Section", [ParamSpec(nil, .string), ParamSpec("content", .builder)], isDisfavored: true) { v in
+        let b1 = try generatedBuilder(v[1])
+        return Section(v[0] as! String, content: { b1 })
+    }
     register(&t, "Section", [ParamSpec("content", .builder), ParamSpec("footer", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
@@ -1781,14 +1789,6 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return Section(content: { b0 }, header: { b1 })
     }
-    register(&t, "Section", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return Section(LocalizedStringKey(v[0] as! String), content: { b1 })
-    }
-    register(&t, "Section", [ParamSpec(nil, .string), ParamSpec("content", .builder)], isDisfavored: true) { v in
-        let b1 = try generatedBuilder(v[1])
-        return Section(v[0] as! String, content: { b1 })
-    }
     register(&t, "Section", [ParamSpec("footer", .anyView), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Section(footer: v[0] as! AnyView, content: { b1 })
@@ -1796,12 +1796,6 @@ extension GeneratedConstructors {
     register(&t, "Section", [ParamSpec("header", .anyView), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Section(header: v[0] as! AnyView, content: { b1 })
-    }
-    register(&t, "Section", [ParamSpec("content", .builder), ParamSpec("header", .builder), ParamSpec("footer", .builder)]) { v in
-        let b0 = try generatedBuilder(v[0])
-        let b1 = try generatedBuilder(v[1])
-        let b2 = try generatedBuilder(v[2])
-        return Section(content: { b0 }, header: { b1 }, footer: { b2 })
     }
     register(&t, "Section", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -1811,30 +1805,42 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return Section(v[0] as! String, isExpanded: v[1] as! Binding<Bool>, content: { b2 })
     }
-    register(&t, "Section", [ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("header", .builder)]) { v in
+    register(&t, "Section", [ParamSpec("content", .builder), ParamSpec("header", .builder), ParamSpec("footer", .builder)]) { v in
+        let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
-        return Section(isExpanded: v[0] as! Binding<Bool>, content: { b1 }, header: { b2 })
+        return Section(content: { b0 }, header: { b1 }, footer: { b2 })
     }
     register(&t, "Section", [ParamSpec("header", .anyView), ParamSpec("footer", .anyView), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Section(header: v[0] as! AnyView, footer: v[1] as! AnyView, content: { b2 })
     }
-    register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "Section", [ParamSpec("isExpanded", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("content", .builder), ParamSpec("header", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
-        return SecureField(text: v[0] as! Binding<String>, label: { b1 })
+        let b2 = try generatedBuilder(v[2])
+        return Section(isExpanded: v[0] as! Binding<Bool>, content: { b1 }, header: { b2 })
+    }
+    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
+        return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>)
     }
     }
 
     private static func build11(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
-        return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>)
-    }
     register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>")], isDisfavored: true) { v in
         return SecureField(v[0] as! String, text: v[1] as! Binding<String>)
     }
+    register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return SecureField(text: v[0] as! Binding<String>, label: { b1 })
+    }
+    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
+        return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
+    }
     register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
         return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
+        return SecureField(v[0] as! String, text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
     }
     register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
         return SecureField(v[0] as! String, text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
@@ -1842,12 +1848,6 @@ extension GeneratedConstructors {
     register(&t, "SecureField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return SecureField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
-    }
-    register(&t, "SecureField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
-        return SecureField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
-    }
-    register(&t, "SecureField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
-        return SecureField(v[0] as! String, text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
     }
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
     register(&t, "SettingsLink", []) { v in
@@ -1863,37 +1863,33 @@ extension GeneratedConstructors {
     register(&t, "Shader", [ParamSpec("function", .nativeSwiftUIValue("ShaderFunction"), contextualType: "ShaderFunction"), ParamSpec("arguments", .array(.sdkEnum("Shader.Argument"), "Shader.Argument"), contextualType: "[Shader.Argument]")]) { v in
         return Shader(function: v[0] as! ShaderFunction, arguments: (v[1] as! [Any]).map { element in element as! Shader.Argument })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL")]) { v in
-        return ShareLink(item: v[0] as! URL)
-    }
     register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String")]) { v in
         return ShareLink(item: v[0] as! String)
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return ShareLink(item: v[0] as! URL, label: { b1 })
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL")]) { v in
+        return ShareLink(item: v[0] as! URL)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string, contextualType: "String")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! String)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url, contextualType: "URL")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! URL)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! String)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! URL)
     }
     register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return ShareLink(item: v[0] as! String, label: { b1 })
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! URL, message: generatedOptionalArgument(v[1]) { value in value as! Text })
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text })
     }
     register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
         return ShareLink(item: v[0] as! String, message: generatedOptionalArgument(v[1]) { value in value as! Text })
@@ -1901,47 +1897,102 @@ extension GeneratedConstructors {
     register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
         return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL)
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String)
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<InterpretedTransferableValue, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url, contextualType: "URL")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! URL)
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<Never, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string, contextualType: "String")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! String)
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<Never, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! URL)
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return ShareLink(item: v[0] as! URL, label: { b1 })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! String)
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! URL, message: generatedOptionalArgument(v[1]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>, label: { b2 })
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<Never, InterpretedTransferableValue>, label: { b2 })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, message: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>"), ParamSpec("label", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<InterpretedTransferableValue, Never>, label: { b2 })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>"), ParamSpec("label", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<Never, Never>, label: { b2 })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! URL, message: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
-        let b2 = try generatedBuilder(v[2])
-        return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! String, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    }
+
+    private static func build12(_ t: inout [String: [GeneratedConstructor]]) {
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! URL, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! String, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! URL, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
     register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -1951,138 +2002,196 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
     register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
         return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
     }
     register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
         return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, Never>)
     }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>, label: { b2 })
     }
-
-    private static func build12(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>"), ParamSpec("label", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<InterpretedTransferableValue, Never>, label: { b2 })
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<Never, InterpretedTransferableValue>, label: { b2 })
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>"), ParamSpec("label", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, preview: v[1] as! SharePreview<Never, Never>, label: { b2 })
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
     register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
         return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, Never>)
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
     }
     register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
         return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ShareLink(item: v[0] as! URL, message: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, preview: v[2] as! SharePreview<Never, Never>)
+    register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+        let b2 = try generatedBuilder(v[2])
+        return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
     register(&t, "ShareLink", [ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
         return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! URL, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! String, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! URL, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! String, message: generatedOptionalArgument(v[2]) { value in value as! Text })
+
+    private static func build13(_ t: inout [String: [GeneratedConstructor]]) {
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text })
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
+        let b3 = try generatedBuilder(v[3])
+        return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, label: { b3 })
     }
     register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>, label: { b3 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>, label: { b3 })
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>, label: { b3 })
     }
     register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>, label: { b3 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>, label: { b3 })
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, Never>, label: { b3 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>, label: { b3 })
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>, label: { b3 })
     }
     register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<InterpretedTransferableValue, Never>, label: { b3 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, Never>, label: { b3 })
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, preview: v[2] as! SharePreview<Never, InterpretedTransferableValue>, label: { b3 })
     }
     register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>"), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
@@ -2092,142 +2201,14 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return ShareLink(item: v[0] as! URL, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, label: { b3 })
     }
-    register(&t, "ShareLink", [ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
-        let b3 = try generatedBuilder(v[3])
-        return ShareLink(item: v[0] as! String, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, label: { b3 })
-    }
-    }
-
-    private static func build13(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>)
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .url, contextualType: "URL"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! URL, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
-    }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .string, contextualType: "String"), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! String, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text })
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
-        let b4 = try generatedBuilder(v[4])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>, label: { b4 })
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
-        let b4 = try generatedBuilder(v[4])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>, label: { b4 })
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>"), ParamSpec("label", .builder)]) { v in
-        let b4 = try generatedBuilder(v[4])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>, label: { b4 })
-    }
-    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>"), ParamSpec("label", .builder)]) { v in
-        let b4 = try generatedBuilder(v[4])
-        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>, label: { b4 })
-    }
     register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
         return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
-    }
-
-    private static func build14(_ t: inout [String: [GeneratedConstructor]]) {
     register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
         return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, InterpretedTransferableValue>)
     }
     register(&t, "ShareLink", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
         return ShareLink(LocalizedStringKey(v[0] as! String), item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, Never>)
@@ -2235,11 +2216,14 @@ extension GeneratedConstructors {
     register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")], isDisfavored: true) { v in
         return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")], isDisfavored: true) { v in
-        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
     register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")], isDisfavored: true) { v in
         return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<InterpretedTransferableValue, Never>)
+    }
+    }
+
+    private static func build14(_ t: inout [String: [GeneratedConstructor]]) {
+    register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")], isDisfavored: true) { v in
+        return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, InterpretedTransferableValue>)
     }
     register(&t, "ShareLink", [ParamSpec(nil, .string), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")], isDisfavored: true) { v in
         return ShareLink(v[0] as! String, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, Never>)
@@ -2247,14 +2231,30 @@ extension GeneratedConstructors {
     register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>")]) { v in
         return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>)
     }
-    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
-        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, InterpretedTransferableValue>)
-    }
     register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>")]) { v in
         return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<InterpretedTransferableValue, Never>)
     }
+    register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>")]) { v in
+        return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, InterpretedTransferableValue>)
+    }
     register(&t, "ShareLink", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>")]) { v in
         return ShareLink(v[0] as! Text, item: v[1] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[2]) { value in value as! Text }, message: generatedOptionalArgument(v[3]) { value in value as! Text }, preview: v[4] as! SharePreview<Never, Never>)
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), contextualType: "SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
+        let b4 = try generatedBuilder(v[4])
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, InterpretedTransferableValue>, label: { b4 })
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<InterpretedTransferableValue, Never>"), contextualType: "SharePreview<InterpretedTransferableValue, Never>"), ParamSpec("label", .builder)]) { v in
+        let b4 = try generatedBuilder(v[4])
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<InterpretedTransferableValue, Never>, label: { b4 })
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, InterpretedTransferableValue>"), contextualType: "SharePreview<Never, InterpretedTransferableValue>"), ParamSpec("label", .builder)]) { v in
+        let b4 = try generatedBuilder(v[4])
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, InterpretedTransferableValue>, label: { b4 })
+    }
+    register(&t, "ShareLink", [ParamSpec("item", .transferable), ParamSpec("subject", .text, isOptional: true, contextualType: "Text"), ParamSpec("message", .text, isOptional: true, contextualType: "Text"), ParamSpec("preview", .nativeSwiftUIValue("SharePreview<Never, Never>"), contextualType: "SharePreview<Never, Never>"), ParamSpec("label", .builder)]) { v in
+        let b4 = try generatedBuilder(v[4])
+        return ShareLink(item: v[0] as! InterpretedTransferableValue, subject: generatedOptionalArgument(v[1]) { value in value as! Text }, message: generatedOptionalArgument(v[2]) { value in value as! Text }, preview: v[3] as! SharePreview<Never, Never>, label: { b4 })
     }
     register(&t, "SharePreview", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")]) { v in
         return SharePreview(LocalizedStringKey(v[0] as! String))
@@ -2268,17 +2268,17 @@ extension GeneratedConstructors {
     register(&t, "SharePreview", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("icon", .transferable)]) { v in
         return SharePreview(LocalizedStringKey(v[0] as! String), icon: v[1] as! InterpretedTransferableValue)
     }
-    register(&t, "SharePreview", [ParamSpec(nil, .string), ParamSpec("icon", .transferable)], isDisfavored: true) { v in
-        return SharePreview(v[0] as! String, icon: v[1] as! InterpretedTransferableValue)
-    }
-    register(&t, "SharePreview", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("icon", .transferable)]) { v in
-        return SharePreview(v[0] as! Text, icon: v[1] as! InterpretedTransferableValue)
-    }
     register(&t, "SharePreview", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .transferable)]) { v in
         return SharePreview(LocalizedStringKey(v[0] as! String), image: v[1] as! InterpretedTransferableValue)
     }
+    register(&t, "SharePreview", [ParamSpec(nil, .string), ParamSpec("icon", .transferable)], isDisfavored: true) { v in
+        return SharePreview(v[0] as! String, icon: v[1] as! InterpretedTransferableValue)
+    }
     register(&t, "SharePreview", [ParamSpec(nil, .string), ParamSpec("image", .transferable)], isDisfavored: true) { v in
         return SharePreview(v[0] as! String, image: v[1] as! InterpretedTransferableValue)
+    }
+    register(&t, "SharePreview", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("icon", .transferable)]) { v in
+        return SharePreview(v[0] as! Text, icon: v[1] as! InterpretedTransferableValue)
     }
     register(&t, "SharePreview", [ParamSpec(nil, .text, contextualType: "Text"), ParamSpec("image", .transferable)]) { v in
         return SharePreview(v[0] as! Text, image: v[1] as! InterpretedTransferableValue)
@@ -2295,19 +2295,15 @@ extension GeneratedConstructors {
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>")]) { v in
         return Slider(value: v[0] as! Binding<Double>)
     }
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>")]) { v in
+        return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>)
+    }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return Slider(value: v[0] as! Binding<Double>, label: { b1 })
     }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         return Slider(value: v[0] as! Binding<Double>, onEditingChanged: generatedSyncVoidClosure(v[1]))
-    }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>")]) { v in
-        return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>)
-    }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return Slider(value: v[0] as! Binding<Double>, label: { b1 }, onEditingChanged: generatedSyncVoidClosure(v[2]))
     }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -2319,19 +2315,21 @@ extension GeneratedConstructors {
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double)]) { v in
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double)
     }
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return Slider(value: v[0] as! Binding<Double>, label: { b1 }, onEditingChanged: generatedSyncVoidClosure(v[2]))
+    }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
         let b2 = try generatedBuilder(v[2])
         return Slider(value: v[0] as! Binding<Double>, onEditingChanged: generatedSyncVoidClosure(v[1]), label: { b2 })
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        let b2 = try generatedBuilder(v[2])
-        let b3 = try generatedBuilder(v[3])
-        return Slider(value: v[0] as! Binding<Double>, label: { b1 }, minimumValueLabel: { b2 }, maximumValueLabel: { b3 })
-    }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b2 = try generatedBuilder(v[2])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 }, onEditingChanged: generatedSyncVoidClosure(v[3]))
+    }
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
+        let b3 = try generatedBuilder(v[3])
+        return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, onEditingChanged: generatedSyncVoidClosure(v[2]), label: { b3 })
     }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
@@ -2340,25 +2338,25 @@ extension GeneratedConstructors {
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, onEditingChanged: generatedSyncVoidClosure(v[3]))
     }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
-        let b3 = try generatedBuilder(v[3])
-        return Slider(value: v[0] as! Binding<Double>, minimumValueLabel: v[1] as! AnyView, maximumValueLabel: v[2] as! AnyView, label: { b3 })
-    }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
-        let b3 = try generatedBuilder(v[3])
-        return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, onEditingChanged: generatedSyncVoidClosure(v[2]), label: { b3 })
-    }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
-        return Slider(value: v[0] as! Binding<Double>, label: { b1 }, minimumValueLabel: { b2 }, maximumValueLabel: { b3 }, onEditingChanged: generatedSyncVoidClosure(v[4]))
+        return Slider(value: v[0] as! Binding<Double>, label: { b1 }, minimumValueLabel: { b2 }, maximumValueLabel: { b3 })
+    }
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+        let b3 = try generatedBuilder(v[3])
+        return Slider(value: v[0] as! Binding<Double>, minimumValueLabel: v[1] as! AnyView, maximumValueLabel: v[2] as! AnyView, label: { b3 })
     }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 }, minimumValueLabel: { b3 }, maximumValueLabel: { b4 })
+    }
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+        let b4 = try generatedBuilder(v[4])
+        return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, minimumValueLabel: v[2] as! AnyView, maximumValueLabel: v[3] as! AnyView, label: { b4 })
     }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b3 = try generatedBuilder(v[3])
@@ -2367,17 +2365,19 @@ extension GeneratedConstructors {
     }
 
     private static func build15(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
-        let b4 = try generatedBuilder(v[4])
-        return Slider(value: v[0] as! Binding<Double>, onEditingChanged: generatedSyncVoidClosure(v[1]), minimumValueLabel: v[2] as! AnyView, maximumValueLabel: v[3] as! AnyView, label: { b4 })
-    }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
-        let b4 = try generatedBuilder(v[4])
-        return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, minimumValueLabel: v[2] as! AnyView, maximumValueLabel: v[3] as! AnyView, label: { b4 })
-    }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("label", .builder)], isDisfavored: true) { v in
         let b4 = try generatedBuilder(v[4])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, onEditingChanged: generatedSyncVoidClosure(v[3]), label: { b4 })
+    }
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        let b2 = try generatedBuilder(v[2])
+        let b3 = try generatedBuilder(v[3])
+        return Slider(value: v[0] as! Binding<Double>, label: { b1 }, minimumValueLabel: { b2 }, maximumValueLabel: { b3 }, onEditingChanged: generatedSyncVoidClosure(v[4]))
+    }
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+        let b4 = try generatedBuilder(v[4])
+        return Slider(value: v[0] as! Binding<Double>, onEditingChanged: generatedSyncVoidClosure(v[1]), minimumValueLabel: v[2] as! AnyView, maximumValueLabel: v[3] as! AnyView, label: { b4 })
     }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -2385,15 +2385,15 @@ extension GeneratedConstructors {
         let b4 = try generatedBuilder(v[4])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, label: { b2 }, minimumValueLabel: { b3 }, maximumValueLabel: { b4 }, onEditingChanged: generatedSyncVoidClosure(v[5]))
     }
+    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
+        let b5 = try generatedBuilder(v[5])
+        return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, onEditingChanged: generatedSyncVoidClosure(v[2]), minimumValueLabel: v[3] as! AnyView, maximumValueLabel: v[4] as! AnyView, label: { b5 })
+    }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("label", .builder), ParamSpec("minimumValueLabel", .builder), ParamSpec("maximumValueLabel", .builder)]) { v in
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
         let b5 = try generatedBuilder(v[5])
         return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, step: v[2] as! Double, label: { b3 }, minimumValueLabel: { b4 }, maximumValueLabel: { b5 })
-    }
-    register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
-        let b5 = try generatedBuilder(v[5])
-        return Slider(value: v[0] as! Binding<Double>, in: v[1] as! ClosedRange<Double>, onEditingChanged: generatedSyncVoidClosure(v[2]), minimumValueLabel: v[3] as! AnyView, maximumValueLabel: v[4] as! AnyView, label: { b5 })
     }
     register(&t, "Slider", [ParamSpec("value", .bindingDouble, contextualType: "Binding<Double>"), ParamSpec("in", .doubleRange, contextualType: "ClosedRange<Double>"), ParamSpec("step", .double), ParamSpec("minimumValueLabel", .anyView), ParamSpec("maximumValueLabel", .anyView), ParamSpec("label", .builder)]) { v in
         let b5 = try generatedBuilder(v[5])
@@ -2433,47 +2433,47 @@ extension GeneratedConstructors {
     register(&t, "StrokeStyle", []) { v in
         return StrokeStyle()
     }
-    register(&t, "StrokeStyle", [ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
-        return StrokeStyle(dashPhase: v[0] as! CGFloat)
-    }
     register(&t, "StrokeStyle", [ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]")]) { v in
         return StrokeStyle(dash: (v[0] as! [Any]).map { element in element as! CGFloat })
     }
-    register(&t, "StrokeStyle", [ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat")]) { v in
-        return StrokeStyle(miterLimit: v[0] as! CGFloat)
+    register(&t, "StrokeStyle", [ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
+        return StrokeStyle(dashPhase: v[0] as! CGFloat)
     }
     register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat")]) { v in
         return StrokeStyle(lineWidth: v[0] as! CGFloat)
     }
+    register(&t, "StrokeStyle", [ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat")]) { v in
+        return StrokeStyle(miterLimit: v[0] as! CGFloat)
+    }
     register(&t, "StrokeStyle", [ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
         return StrokeStyle(dash: (v[0] as! [Any]).map { element in element as! CGFloat }, dashPhase: v[1] as! CGFloat)
-    }
-    register(&t, "StrokeStyle", [ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
-        return StrokeStyle(miterLimit: v[0] as! CGFloat, dashPhase: v[1] as! CGFloat)
-    }
-    register(&t, "StrokeStyle", [ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]")]) { v in
-        return StrokeStyle(miterLimit: v[0] as! CGFloat, dash: (v[1] as! [Any]).map { element in element as! CGFloat })
-    }
-    register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
-        return StrokeStyle(lineWidth: v[0] as! CGFloat, dashPhase: v[1] as! CGFloat)
     }
     register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]")]) { v in
         return StrokeStyle(lineWidth: v[0] as! CGFloat, dash: (v[1] as! [Any]).map { element in element as! CGFloat })
     }
+    register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
+        return StrokeStyle(lineWidth: v[0] as! CGFloat, dashPhase: v[1] as! CGFloat)
+    }
     register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat")]) { v in
         return StrokeStyle(lineWidth: v[0] as! CGFloat, miterLimit: v[1] as! CGFloat)
     }
-    register(&t, "StrokeStyle", [ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
-        return StrokeStyle(miterLimit: v[0] as! CGFloat, dash: (v[1] as! [Any]).map { element in element as! CGFloat }, dashPhase: v[2] as! CGFloat)
+    register(&t, "StrokeStyle", [ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]")]) { v in
+        return StrokeStyle(miterLimit: v[0] as! CGFloat, dash: (v[1] as! [Any]).map { element in element as! CGFloat })
+    }
+    register(&t, "StrokeStyle", [ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
+        return StrokeStyle(miterLimit: v[0] as! CGFloat, dashPhase: v[1] as! CGFloat)
     }
     register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
         return StrokeStyle(lineWidth: v[0] as! CGFloat, dash: (v[1] as! [Any]).map { element in element as! CGFloat }, dashPhase: v[2] as! CGFloat)
     }
+    register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]")]) { v in
+        return StrokeStyle(lineWidth: v[0] as! CGFloat, miterLimit: v[1] as! CGFloat, dash: (v[2] as! [Any]).map { element in element as! CGFloat })
+    }
     register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
         return StrokeStyle(lineWidth: v[0] as! CGFloat, miterLimit: v[1] as! CGFloat, dashPhase: v[2] as! CGFloat)
     }
-    register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]")]) { v in
-        return StrokeStyle(lineWidth: v[0] as! CGFloat, miterLimit: v[1] as! CGFloat, dash: (v[2] as! [Any]).map { element in element as! CGFloat })
+    register(&t, "StrokeStyle", [ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
+        return StrokeStyle(miterLimit: v[0] as! CGFloat, dash: (v[1] as! [Any]).map { element in element as! CGFloat }, dashPhase: v[2] as! CGFloat)
     }
     register(&t, "StrokeStyle", [ParamSpec("lineWidth", .cgFloat, contextualType: "CGFloat"), ParamSpec("miterLimit", .cgFloat, contextualType: "CGFloat"), ParamSpec("dash", .array(.cgFloat, "CGFloat"), contextualType: "[CGFloat]"), ParamSpec("dashPhase", .cgFloat, contextualType: "CGFloat")]) { v in
         return StrokeStyle(lineWidth: v[0] as! CGFloat, miterLimit: v[1] as! CGFloat, dash: (v[2] as! [Any]).map { element in element as! CGFloat }, dashPhase: v[3] as! CGFloat)
@@ -2486,23 +2486,17 @@ extension GeneratedConstructors {
         let b1 = try generatedBuilder(v[1])
         return TabView(selection: generatedOptionalArgument(v[0]) { value in value as! Binding<InterpretedHashableValue> }, content: { b1 })
     }
-    register(&t, "Text", [ParamSpec("verbatim", .string, contextualType: "String")]) { v in
-        return Text(verbatim: v[0] as! String)
-    }
-    register(&t, "Text", [ParamSpec(nil, .string)], isDisfavored: true) { v in
-        return Text(v[0] as! String)
-    }
     register(&t, "Text", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey")]) { v in
         return Text(LocalizedStringKey(v[0] as! String))
     }
     register(&t, "Text", [ParamSpec(nil, .nativeSwiftUIValue("Image"), contextualType: "Image")]) { v in
         return Text(v[0] as! Image)
     }
-    register(&t, "Text", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("tableName", .string, isOptional: true, contextualType: "String")]) { v in
-        return Text(LocalizedStringKey(v[0] as! String), tableName: generatedOptionalArgument(v[1]) { value in value as! String })
+    register(&t, "Text", [ParamSpec(nil, .string)], isDisfavored: true) { v in
+        return Text(v[0] as! String)
     }
-    register(&t, "Text", [ParamSpec(nil, .double, contextualType: "Double"), ParamSpec("format", .sdkEnum("FloatingPointFormatStyle<Double>"), contextualType: "FloatingPointFormatStyle<Double>")]) { v in
-        return Text(v[0] as! Double, format: v[1] as! FloatingPointFormatStyle<Double>)
+    register(&t, "Text", [ParamSpec("verbatim", .string, contextualType: "String")]) { v in
+        return Text(verbatim: v[0] as! String)
     }
     register(&t, "Text", [ParamSpec(nil, .date, contextualType: "Date"), ParamSpec("format", .sdkEnum("Date.FormatStyle"), contextualType: "Date.FormatStyle")]) { v in
         return Text(v[0] as! Date, format: v[1] as! Date.FormatStyle)
@@ -2510,24 +2504,26 @@ extension GeneratedConstructors {
     register(&t, "Text", [ParamSpec(nil, .date, contextualType: "Date"), ParamSpec("format", .sdkEnum("Date.ISO8601FormatStyle"), contextualType: "Date.ISO8601FormatStyle")]) { v in
         return Text(v[0] as! Date, format: v[1] as! Date.ISO8601FormatStyle)
     }
-    register(&t, "Text", [ParamSpec(nil, .url, contextualType: "URL"), ParamSpec("format", .sdkEnum("URL.FormatStyle"), contextualType: "URL.FormatStyle")]) { v in
-        return Text(v[0] as! URL, format: v[1] as! URL.FormatStyle)
+    register(&t, "Text", [ParamSpec(nil, .date, contextualType: "Date"), ParamSpec("style", .sdkEnum("Text.DateStyle"), contextualType: "Text.DateStyle")]) { v in
+        return Text(v[0] as! Date, style: v[1] as! Text.DateStyle)
+    }
+    register(&t, "Text", [ParamSpec(nil, .double, contextualType: "Double"), ParamSpec("format", .sdkEnum("FloatingPointFormatStyle<Double>"), contextualType: "FloatingPointFormatStyle<Double>")]) { v in
+        return Text(v[0] as! Double, format: v[1] as! FloatingPointFormatStyle<Double>)
+    }
+    register(&t, "Text", [ParamSpec(nil, .int, contextualType: "Int"), ParamSpec("format", .sdkEnum("IntegerFormatStyle<Int>"), contextualType: "IntegerFormatStyle<Int>")]) { v in
+        return Text(v[0] as! Int, format: v[1] as! IntegerFormatStyle<Int>)
     }
     }
 
     private static func build16(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "Text", [ParamSpec(nil, .int, contextualType: "Int"), ParamSpec("format", .sdkEnum("IntegerFormatStyle<Int>"), contextualType: "IntegerFormatStyle<Int>")]) { v in
-        return Text(v[0] as! Int, format: v[1] as! IntegerFormatStyle<Int>)
+    register(&t, "Text", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("tableName", .string, isOptional: true, contextualType: "String")]) { v in
+        return Text(LocalizedStringKey(v[0] as! String), tableName: generatedOptionalArgument(v[1]) { value in value as! String })
     }
-    register(&t, "Text", [ParamSpec(nil, .date, contextualType: "Date"), ParamSpec("style", .sdkEnum("Text.DateStyle"), contextualType: "Text.DateStyle")]) { v in
-        return Text(v[0] as! Date, style: v[1] as! Text.DateStyle)
+    register(&t, "Text", [ParamSpec(nil, .url, contextualType: "URL"), ParamSpec("format", .sdkEnum("URL.FormatStyle"), contextualType: "URL.FormatStyle")]) { v in
+        return Text(v[0] as! URL, format: v[1] as! URL.FormatStyle)
     }
     register(&t, "TextEditor", [ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
         return TextEditor(text: v[0] as! Binding<String>)
-    }
-    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return TextField(text: v[0] as! Binding<String>, label: { b1 })
     }
     register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>")]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>)
@@ -2535,40 +2531,50 @@ extension GeneratedConstructors {
     register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>")], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>)
     }
+    register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return TextField(text: v[0] as! Binding<String>, label: { b1 })
+    }
     register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, axis: v[2] as! Axis)
     }
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
+        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
+    }
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
+        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]))
+    }
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
+        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
+    }
     register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis")], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>, axis: v[2] as! Axis)
+    }
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
+        return TextField(v[0] as! String, text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
+    }
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)], isDisfavored: true) { v in
+        return TextField(v[0] as! String, text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]))
+    }
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
+        return TextField(v[0] as! String, text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
     }
     register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("axis", .axis, contextualType: "Axis"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return TextField(text: v[0] as! Binding<String>, axis: v[1] as! Axis, label: { b2 })
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")]) { v in
-        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
-    }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text")], isDisfavored: true) { v in
-        return TextField(v[0] as! String, text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text })
-    }
     register(&t, "TextField", [ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return TextField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, label: { b2 })
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)]) { v in
-        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]))
-    }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)]) { v in
-        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
-    }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure)], isDisfavored: true) { v in
-        return TextField(v[0] as! String, text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]))
-    }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
-        return TextField(v[0] as! String, text: v[1] as! Binding<String>, onCommit: generatedAction(v[2]))
+    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)]) { v in
+        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]), onCommit: generatedAction(v[3]))
     }
     register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")]) { v in
         return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text }, axis: v[3] as! Axis)
+    }
+    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
+        return TextField(v[0] as! String, text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]), onCommit: generatedAction(v[3]))
     }
     register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("prompt", .text, isOptional: true, contextualType: "Text"), ParamSpec("axis", .axis, contextualType: "Axis")], isDisfavored: true) { v in
         return TextField(v[0] as! String, text: v[1] as! Binding<String>, prompt: generatedOptionalArgument(v[2]) { value in value as! Text }, axis: v[3] as! Axis)
@@ -2577,18 +2583,8 @@ extension GeneratedConstructors {
         let b3 = try generatedBuilder(v[3])
         return TextField(text: v[0] as! Binding<String>, prompt: generatedOptionalArgument(v[1]) { value in value as! Text }, axis: v[2] as! Axis, label: { b3 })
     }
-    register(&t, "TextField", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)]) { v in
-        return TextField(LocalizedStringKey(v[0] as! String), text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]), onCommit: generatedAction(v[3]))
-    }
-    register(&t, "TextField", [ParamSpec(nil, .string), ParamSpec("text", .bindingString, contextualType: "Binding<String>"), ParamSpec("onEditingChanged", .syncVoidClosure), ParamSpec("onCommit", .action)], isDisfavored: true) { v in
-        return TextField(v[0] as! String, text: v[1] as! Binding<String>, onEditingChanged: generatedSyncVoidClosure(v[2]), onCommit: generatedAction(v[3]))
-    }
     register(&t, "Toggle", [ParamSpec(nil, .nativeSwiftUIValue("ToggleStyleConfiguration"), contextualType: "ToggleStyleConfiguration")]) { v in
         return Toggle(v[0] as! ToggleStyleConfiguration)
-    }
-    register(&t, "Toggle", [ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("label", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return Toggle(isOn: v[0] as! Binding<Bool>, label: { b1 })
     }
     register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
         return Toggle(LocalizedStringKey(v[0] as! String), isOn: v[1] as! Binding<Bool>)
@@ -2596,29 +2592,33 @@ extension GeneratedConstructors {
     register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")], isDisfavored: true) { v in
         return Toggle(v[0] as! String, isOn: v[1] as! Binding<Bool>)
     }
-    register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
-        return Toggle(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, isOn: v[2] as! Binding<Bool>)
-    }
-    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")], isDisfavored: true) { v in
-        return Toggle(v[0] as! String, systemImage: v[1] as! String, isOn: v[2] as! Binding<Bool>)
+    register(&t, "Toggle", [ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>"), ParamSpec("label", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return Toggle(isOn: v[0] as! Binding<Bool>, label: { b1 })
     }
     register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
         return Toggle(LocalizedStringKey(v[0] as! String), image: ImageResource(name: v[1] as! String, bundle: .main), isOn: v[2] as! Binding<Bool>)
     }
+    register(&t, "Toggle", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")]) { v in
+        return Toggle(LocalizedStringKey(v[0] as! String), systemImage: v[1] as! String, isOn: v[2] as! Binding<Bool>)
+    }
     register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("image", .string, contextualType: "ImageResource"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")], isDisfavored: true) { v in
         return Toggle(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), isOn: v[2] as! Binding<Bool>)
+    }
+    register(&t, "Toggle", [ParamSpec(nil, .string), ParamSpec("systemImage", .string, contextualType: "String"), ParamSpec("isOn", .bindingBool, contextualType: "Binding<Bool>")], isDisfavored: true) { v in
+        return Toggle(v[0] as! String, systemImage: v[1] as! String, isOn: v[2] as! Binding<Bool>)
     }
     register(&t, "ToolbarItem", [ParamSpec("content", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         return ToolbarItem(content: { b0 })
     }
-    register(&t, "ToolbarItem", [ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return ToolbarItem(placement: v[0] as! ToolbarItemPlacement, content: { b1 })
-    }
     register(&t, "ToolbarItem", [ParamSpec("id", .string, contextualType: "String"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return ToolbarItem(id: v[0] as! String, content: { b1 })
+    }
+    register(&t, "ToolbarItem", [ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return ToolbarItem(placement: v[0] as! ToolbarItemPlacement, content: { b1 })
     }
     register(&t, "ToolbarItem", [ParamSpec("id", .string, contextualType: "String"), ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
@@ -2636,14 +2636,14 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return ToolbarItemGroup(content: { b0 })
     }
-    register(&t, "ToolbarItemGroup", [ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return ToolbarItemGroup(placement: v[0] as! ToolbarItemPlacement, content: { b1 })
-    }
     register(&t, "ToolbarItemGroup", [ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
         let b0 = try generatedBuilder(v[0])
         let b1 = try generatedBuilder(v[1])
         return ToolbarItemGroup(content: { b0 }, label: { b1 })
+    }
+    register(&t, "ToolbarItemGroup", [ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return ToolbarItemGroup(placement: v[0] as! ToolbarItemPlacement, content: { b1 })
     }
     register(&t, "ToolbarItemGroup", [ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement"), ParamSpec("content", .builder), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
@@ -2658,11 +2658,6 @@ extension GeneratedConstructors {
     }
 
     private static func build17(_ t: inout [String: [GeneratedConstructor]]) {
-    if #available(iOS 26.0, macOS 26.0, *) {
-        register(&t, "ToolbarSpacer", [ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement")]) { v in
-            return ToolbarSpacer(placement: v[0] as! ToolbarItemPlacement)
-        }
-    }
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ToolbarSpacer", [ParamSpec(nil, .sdkEnum("SpacerSizing"), contextualType: "SpacerSizing")]) { v in
@@ -2670,6 +2665,11 @@ extension GeneratedConstructors {
         }
     }
 #endif
+    if #available(iOS 26.0, macOS 26.0, *) {
+        register(&t, "ToolbarSpacer", [ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement")]) { v in
+            return ToolbarSpacer(placement: v[0] as! ToolbarItemPlacement)
+        }
+    }
 #if canImport(UIKit)
     if #available(iOS 26.0, macOS 26.0, *) {
         register(&t, "ToolbarSpacer", [ParamSpec(nil, .sdkEnum("SpacerSizing"), contextualType: "SpacerSizing"), ParamSpec("placement", .sdkEnum("ToolbarItemPlacement"), contextualType: "ToolbarItemPlacement")]) { v in
@@ -2687,35 +2687,26 @@ extension GeneratedConstructors {
     register(&t, "UnevenRoundedRectangle", []) { v in
         return UnevenRoundedRectangle()
     }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(bottomTrailingRadius: v[0] as! CGFloat)
+    }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("cornerRadii", .nativeSwiftUIValue("RectangleCornerRadii"), contextualType: "RectangleCornerRadii")]) { v in
         return UnevenRoundedRectangle(cornerRadii: v[0] as! RectangleCornerRadii)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
         return UnevenRoundedRectangle(style: v[0] as! RoundedCornerStyle)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(topTrailingRadius: v[0] as! CGFloat)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(bottomTrailingRadius: v[0] as! CGFloat)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat)
-    }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("cornerRadii", .nativeSwiftUIValue("RectangleCornerRadii"), contextualType: "RectangleCornerRadii"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(cornerRadii: v[0] as! RectangleCornerRadii, style: v[1] as! RoundedCornerStyle)
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(topTrailingRadius: v[0] as! CGFloat)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(topTrailingRadius: v[0] as! CGFloat, style: v[1] as! RoundedCornerStyle)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(bottomTrailingRadius: v[0] as! CGFloat, style: v[1] as! RoundedCornerStyle)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(bottomTrailingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat)
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
         return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, style: v[1] as! RoundedCornerStyle)
@@ -2723,8 +2714,20 @@ extension GeneratedConstructors {
     register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat)
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(bottomTrailingRadius: v[0] as! CGFloat, style: v[1] as! RoundedCornerStyle)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(bottomTrailingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("cornerRadii", .nativeSwiftUIValue("RectangleCornerRadii"), contextualType: "RectangleCornerRadii"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(cornerRadii: v[0] as! RectangleCornerRadii, style: v[1] as! RoundedCornerStyle)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
         return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, style: v[1] as! RoundedCornerStyle)
@@ -2732,17 +2735,8 @@ extension GeneratedConstructors {
     register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(bottomTrailingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(topTrailingRadius: v[0] as! CGFloat, style: v[1] as! RoundedCornerStyle)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
         return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
@@ -2750,14 +2744,14 @@ extension GeneratedConstructors {
     register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(bottomTrailingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat)
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, bottomTrailingRadius: v[2] as! CGFloat)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
         return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
@@ -2765,23 +2759,29 @@ extension GeneratedConstructors {
     register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat)
     }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
-        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, bottomTrailingRadius: v[2] as! CGFloat)
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
+        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, topTrailingRadius: v[1] as! CGFloat, style: v[2] as! RoundedCornerStyle)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
         return UnevenRoundedRectangle(bottomLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat, style: v[3] as! RoundedCornerStyle)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat, style: v[3] as! RoundedCornerStyle)
-    }
-    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
-        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat, style: v[3] as! RoundedCornerStyle)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
         return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, bottomTrailingRadius: v[2] as! CGFloat, style: v[3] as! RoundedCornerStyle)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat")]) { v in
         return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, bottomTrailingRadius: v[2] as! CGFloat, topTrailingRadius: v[3] as! CGFloat)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat, style: v[3] as! RoundedCornerStyle)
+    }
+    register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
+        return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomTrailingRadius: v[1] as! CGFloat, topTrailingRadius: v[2] as! CGFloat, style: v[3] as! RoundedCornerStyle)
     }
     register(&t, "UnevenRoundedRectangle", [ParamSpec("topLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomLeadingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("bottomTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("topTrailingRadius", .cgFloat, contextualType: "CGFloat"), ParamSpec("style", .sdkEnum("RoundedCornerStyle"), contextualType: "RoundedCornerStyle")]) { v in
         return UnevenRoundedRectangle(topLeadingRadius: v[0] as! CGFloat, bottomLeadingRadius: v[1] as! CGFloat, bottomTrailingRadius: v[2] as! CGFloat, topTrailingRadius: v[3] as! CGFloat, style: v[4] as! RoundedCornerStyle)
@@ -2805,13 +2805,13 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return VStack(content: { b0 })
     }
-    register(&t, "VStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
-        let b1 = try generatedBuilder(v[1])
-        return VStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
-    }
     register(&t, "VStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("content", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return VStack(alignment: v[0] as! HorizontalAlignment, content: { b1 })
+    }
+    register(&t, "VStack", [ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
+        let b1 = try generatedBuilder(v[1])
+        return VStack(spacing: generatedOptionalArgument(v[0]) { value in value as! CGFloat }, content: { b1 })
     }
     register(&t, "VStack", [ParamSpec("alignment", .sdkEnum("HorizontalAlignment"), contextualType: "HorizontalAlignment"), ParamSpec("spacing", .cgFloat, isOptional: true, contextualType: "CGFloat"), ParamSpec("content", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
