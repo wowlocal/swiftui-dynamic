@@ -4089,4 +4089,24 @@ enum GeneratedSDKEnumCoercions {
             throw RuntimeError(message: "unknown generated SDK contextual type '\(typeName)'")
         }
     }
+    /// Every emitted contextual type the interface declares as a `FormatStyle`,
+    /// sorted so candidate order cannot vary between runs.
+    ///
+    /// Which of these a given leading dot denotes is NOT decided here: a
+    /// caller coerces against each in turn and the style's own `FormatInput`
+    /// rules out the ones that cannot accept the value, exactly as the
+    /// constraint solver would. So a style family added to the SDK is picked
+    /// up by regenerating, with no table to keep in step.
+    static let formatStyleTypeNames: [String] = [
+        "ByteCountFormatStyle",
+        "Date.ComponentsFormatStyle",
+        "Date.FormatStyle",
+        "Date.ISO8601FormatStyle",
+        "Date.RelativeFormatStyle",
+        "Decimal.FormatStyle.Currency",
+        "Duration.TimeFormatStyle",
+        "Duration.UnitsFormatStyle",
+        "PersonNameComponents.FormatStyle",
+        "URL.FormatStyle",
+    ]
 }

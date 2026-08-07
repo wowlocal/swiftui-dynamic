@@ -14,20 +14,27 @@ import SwiftUI
 /// the governing constraint is `F.FormatInput == the value's type`.
 ///
 /// That correspondence is therefore NOT restated as a table here. The candidate
-/// style types are read out of the generated `format:` parameters — the same
-/// interface facts that make `Text(n, format: .number)` work as a call — and
-/// `FormatInput` selects among them exactly as the constraint solver would, so
-/// a style family added to the interface is picked up without edits here.
+/// style types are read from the interface — the generated `FormatStyle`
+/// conformances, plus the contextual types generated `format:` parameters
+/// declare — and `FormatInput` selects among them exactly as the constraint
+/// solver would, so a style family added to the interface is picked up without
+/// edits here.
 enum LocalizedFormatStyleRendering {
-    /// Every contextual type the interface declares for a `format:` parameter,
-    /// sorted so candidate order cannot vary between runs.
+    /// Every style type the interface declares, sorted so candidate order
+    /// cannot vary between runs.
     ///
-    /// Both generated tables are scanned, not just the constructors that
-    /// happen to declare all of them today. A candidate that is not a
-    /// `FormatStyle` rules itself out below, so widening the scan can only
-    /// admit styles the interface actually spells.
+    /// TWO interface facts feed this, because neither alone is the family.
+    /// The generated conformance list is what a `FormatStyle` IS, and it is
+    /// the only one that can see a style no parameter names — `Duration`'s
+    /// `formatted<S>(_ v: S)` declares its style unlabeled, so scraping
+    /// `format:` never reaches `Duration.UnitsFormatStyle`. The `format:`
+    /// scrape stays because it reaches the GENERIC INSTANTIATIONS a
+    /// parameter pins (`IntegerFormatStyle<Int>`) which the conformance is
+    /// declared on the unbound type for. A candidate that is not a
+    /// `FormatStyle`, or whose `FormatInput` refuses the value, rules itself
+    /// out below — so a wider scan can only admit styles, never mis-apply one.
     static let candidateStyleTypes: [String] = {
-        var types = Set<String>()
+        var types = Set(GeneratedSDKEnumCoercions.formatStyleTypeNames)
         func collect(_ overloads: [[ParamSpec]]) {
             for params in overloads {
                 for param in params where param.label == "format" {
