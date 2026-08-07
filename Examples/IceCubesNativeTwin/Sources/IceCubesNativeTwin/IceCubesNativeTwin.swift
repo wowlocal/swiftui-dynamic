@@ -5,6 +5,7 @@ import DesignSystem
 import Env
 import Explore
 import Foundation
+import IceCubesAppTarget
 import MediaUI
 import Models
 import NetworkClient
@@ -63,6 +64,7 @@ private enum FixtureName {
     static let trendingTags = "api_v1_trends_tags.json"
     static let boostStatus = "api_v1_statuses_116954929935729788.json"
     static let trendingLinks = "api_v1_trends_links.json"
+    static let instance = "api_v2_instance.json"
 }
 
 private enum TwinCaptureScreen: String {
@@ -89,6 +91,15 @@ private enum TwinCaptureScreen: String {
     /// `RouterDestination.trendingLinks` is the route, `Trends.links` is public
     /// and unauthenticated, and the recorded response carries ten cards.
     case trendingLinks = "trending-links"
+    /// The first scored screen declared in the app TARGET rather than in one
+    /// of its packages. Every other screen on this board comes from
+    /// `Packages/*`, because that is all the twin could compile; the app's own
+    /// 36 files were unreachable to it and so unscorable forever. `Settings`
+    /// pushes `InstanceInfoView` for the current instance, and the screen is a
+    /// pure function of the `Instance` it is handed — no fetch, no clock, no
+    /// namespace — so the recorded `/api/v2/instance` response drives every
+    /// branch of it identically on both sides.
+    case instanceInfo = "instance-info"
 }
 
 @MainActor
@@ -311,6 +322,10 @@ private struct TwinDriverView: View {
         /// already-fetched `[Card]`, so the driver hands them in rather than
         /// letting the view fetch its own first page.
         case trendingLinks([Card])
+        /// Carries the decoded `/api/v2/instance` response the way
+        /// `SettingsTab` hands it over: an already-fetched `Instance`. The
+        /// view itself never fetches.
+        case instanceInfo(Instance)
     }
 
     @State private var statuses: [Status] = []
@@ -374,6 +389,20 @@ private struct TwinDriverView: View {
                         // `\.isCompact` environment it reads come from the
                         // merged Explore and StatusKit packages.
                         TrendingLinksListView(cards: cards)
+                    }
+                    .id(capturedScreenIdentity)
+                case .instanceInfo(let instance):
+                    TwinNavigationScreen(
+                        client: client, routerPath: routerPath
+                    ) {
+                        // The app's own `InstanceInfoView`, compiled from
+                        // `IceCubesApp/App/Tabs/Settings/InstanceInfoView.swift`
+                        // itself. It is `internal` to the app, so it arrives
+                        // through the one public accessor in
+                        // `IceCubesAppTarget` rather than being restated here
+                        // — the Form, the section layout and the rules list
+                        // are the app's, not the harness's.
+                        AppTargetScreen.instanceInfo(instance: instance)
                     }
                     .id(capturedScreenIdentity)
                 case .trendingTimeline:
@@ -525,6 +554,19 @@ private struct TwinDriverView: View {
                     userInfo: [NSLocalizedDescriptionKey:
                         "recorded trending-links fixture has no cards"])
             }
+            let instanceData = try Data(contentsOf: URL(
+                fileURLWithPath: TwinConfiguration.fixtureDirectory)
+                .appendingPathComponent(FixtureName.instance))
+            let instance = try detailDecoder.decode(
+                Instance.self, from: instanceData)
+            guard let instanceRules = instance.rules, !instanceRules.isEmpty,
+                  instance.contact.account != nil else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 9,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "recorded instance fixture has no rules or contact "
+                        + "account, so the screen would score empty sections"])
+            }
             let replayStatuses = decoded + [boostStatus]
             let screenFixtures = try prepareScreenFixtures(
                 detailStatus: detailStatus)
@@ -557,6 +599,8 @@ private struct TwinDriverView: View {
                 try await captureTrendingTimeline()
             case .trendingLinks:
                 try await captureTrendingLinks(trendingLinks)
+            case .instanceInfo:
+                try await captureInstanceInfo(instance)
             case nil:
                 try await captureTimeline(statuses: replayStatuses)
                 try await captureStatusDetail(
@@ -571,6 +615,7 @@ private struct TwinDriverView: View {
                     attachments: [imageAttachment])
                 try await captureTrendingTimeline()
                 try await captureTrendingLinks(trendingLinks)
+                try await captureInstanceInfo(instance)
                 try captureMetadata(
                     statuses: replayStatuses,
                     detailStatus: detailStatus,
@@ -661,6 +706,26 @@ private struct TwinDriverView: View {
         capturedScreenIdentity = UUID()
         try await waitForScreenTransition()
         try await capturePNG(named: TwinCaptureScreen.trendingLinks.rawValue)
+    }
+
+    /// The app's instance-info screen, and the first scored screen whose code
+    /// lives in the app TARGET rather than in one of its packages. What it
+    /// measures that no package screen could is the app's own `Form` — its
+    /// `LabeledContent` rows, its section headers, its monospaced version
+    /// fields and its numbered rules list — plus one `AccountsListRow` for the
+    /// contact account, whose avatar resolves to the replay protocol's
+    /// deterministic PNG.
+    ///
+    /// It is the most trivially deterministic screen on the board: no fetch,
+    /// no clock, no namespace and no animation. The `Instance` is decoded from
+    /// the recorded `/api/v2/instance` response and handed in, exactly as
+    /// `SettingsTab` hands over the instance it already holds.
+    private func captureInstanceInfo(_ instance: Instance) async throws {
+        statuses = []
+        capturedScreen = .instanceInfo(instance)
+        capturedScreenIdentity = UUID()
+        try await waitForScreenTransition()
+        try await capturePNG(named: TwinCaptureScreen.instanceInfo.rawValue)
     }
 
     /// The media preview surface, scored as its own screen. Every attachment

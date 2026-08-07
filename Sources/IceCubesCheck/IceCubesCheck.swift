@@ -76,6 +76,30 @@ private enum IceCubesCaptureScreen: String {
     /// `StatusRowCardView` — a link preview with its own image frame, title,
     /// description and provider line — which had no pixels on the board.
     case trendingLinks = "trending-links"
+    /// The app's `InstanceInfoView`, and the first scored screen whose code
+    /// lives in the app TARGET rather than in one of its packages. The twin
+    /// could not compile a single one of the app's own 36 files, so every
+    /// screen before this one came from `Packages/*`; see
+    /// `Examples/IceCubesNativeTwin/Sources/IceCubesAppTarget`.
+    case instanceInfo = "instance-info"
+
+    /// Whether this screen's own code lives in the app TARGET, and so needs
+    /// the `IceCubesAppTarget` module merged on top of the packages.
+    ///
+    /// Which FILES that module holds is never restated here: it is read from
+    /// the twin's own SwiftPM build plan, the same `[source: module]` map that
+    /// already tells the merge which module every package file belongs to.
+    /// Both sides therefore compile exactly the same app sources by
+    /// construction rather than by two lists agreeing — the interpreted screen
+    /// cannot be built from an app file the twin never compiled, which is the
+    /// one way this measurement could quietly stop being a comparison.
+    var usesAppTarget: Bool {
+        switch self {
+        case .instanceInfo: true
+        case .timeline, .statusDetail, .accountHeader, .media, .tagsList,
+             .mediaBrowser, .trendingTimeline, .trendingLinks: false
+        }
+    }
 
     /// `status-detail` and `account-header` are driven from a status the TWIN
     /// picked and the endpoints it prepared, so they read the twin's output
@@ -94,6 +118,9 @@ private enum IceCubesCaptureScreen: String {
         // the checked-in recording answers it, so nothing about this screen
         // depends on what the twin prepared.
         case .trendingTimeline: false
+        // A pure function of the recorded `/api/v2/instance` response, which
+        // is checked in; the screen never fetches.
+        case .instanceInfo: false
         case .statusDetail, .accountHeader: true
         }
     }
@@ -1110,6 +1137,12 @@ struct IceCubesCheckMain {
 #endif
 
     private struct Paths {
+        /// The twin target that compiles IceCubes' own app-target sources.
+        /// The twin's Package.swift reaches them through per-file symlinks
+        /// (SwiftPM refuses a target path outside the package root), and its
+        /// build plan is what tells this side which files those are.
+        static let appTargetModule = "IceCubesAppTarget"
+
         let root: String
         let app: String
         let fixtures: String
@@ -1358,6 +1391,10 @@ struct IceCubesCheckMain {
         /// app's `TrendingLinksListView` over the recorded cards, whose rows
         /// are `StatusRowCardView` rather than any status row.
         case nativeTrendingLinks
+        /// The app's own `InstanceInfoView`, merged from the app TARGET rather
+        /// than from a package — the first presentation on this board whose
+        /// view type the twin reaches through `IceCubesAppTarget`.
+        case nativeInstanceInfo
         /// The real navigation shape every IceCubes tab is built from:
         /// `NavigationStack(path: $routerPath.path) { content.withAppRouter() }`
         /// (NavigationTab.swift:25 + AppRegistry.swift:65). Nothing about the
@@ -2031,6 +2068,16 @@ struct IceCubesCheckMain {
         let __iceTrendingLinks = try! __iceDecoder.decode(
             [Card].self, from: __fixtureData("api_v1_trends_links"))
         """ : "",
+            // The same recorded `/api/v2/instance` bytes the twin decodes,
+            // through the same `.convertFromSnakeCase` decoder. This recording
+            // has no `short_description`, so the view takes its `description`
+            // branch; it carries `api_versions`, `usage.users.active_month`,
+            // a `contact.account` and six `rules`, so every optional branch of
+            // the screen is exercised rather than skipped.
+            presentation == .nativeInstanceInfo ? """
+        let __iceInstance = try! __iceDecoder.decode(
+            Instance.self, from: __fixtureData("api_v2_instance"))
+        """ : "",
             // The twin browses `boostStatus.reblog?.mediaAttachments.first`;
             // this is that same attachment, reached through the same optional
             // chain rather than restated by index from the other side.
@@ -2148,6 +2195,21 @@ struct IceCubesCheckMain {
                         TrendingLinksListView(cards: __iceTrendingLinks)
                     }
             """
+        case .nativeInstanceInfo:
+            // The app's own `InstanceInfoView`, in the twin's own shape.
+            // Nothing about the screen is restated here — the Form, its
+            // `LabeledContent` rows, the monospaced version fields and the
+            // numbered rules list all come from the merged app-target file,
+            // and the contact row is the Account package's `AccountsListRow`.
+            // `InstanceInfoView` is `internal` to the app, so BOTH sides reach
+            // it through the one public accessor compiled into the app-target
+            // module — the interpreter is handed the same two files the twin
+            // compiles, and calls the same entry point.
+            """
+                    NavigationStack {
+                        AppTargetScreen.instanceInfo(instance: __iceInstance)
+                    }
+            """
         case .nativeTagsList:
             // The screen `RouterDestination.tagsList` pushes, in the twin's own
             // shape: the app's public `TagsListView` inside a NavigationStack.
@@ -2215,6 +2277,12 @@ struct IceCubesCheckMain {
             }
         }
         """ : ""
+        // Imported only for the screens whose code lives in the app target,
+        // so the eight package screens' merged programs are byte-identical to
+        // what they were before this module existed.
+        let appTargetImport = presentation == .nativeInstanceInfo
+            ? "\n        import \(Paths.appTargetModule)"
+            : ""
         return """
 
         import Account
@@ -2222,7 +2290,7 @@ struct IceCubesCheckMain {
         import DesignSystem
         import Env
         import Explore
-        import Foundation
+        import Foundation\(appTargetImport)
         import MediaUI
         import Models
         import NetworkClient
@@ -2657,6 +2725,9 @@ struct IceCubesCheckMain {
         case .trendingLinks:
             presentation = .nativeTrendingLinks
             screenStatusFixture = nil
+        case .instanceInfo:
+            presentation = .nativeInstanceInfo
+            screenStatusFixture = nil
         case .statusDetail, .accountHeader:
             let metadata = try JSONDecoder().decode(
                 NativeTwinScreenMetadata.self,
@@ -2670,8 +2741,27 @@ struct IceCubesCheckMain {
                 fileURLWithPath: metadata.screenFixtures.status)
                 .deletingPathExtension().lastPathComponent
         }
+        // App-target sources are merged SELECTIVELY, unlike package sources,
+        // and the selection is the TWIN's own build plan rather than a list
+        // kept here. `paths.sourceModules` maps every compiler input the twin
+        // package builds to its module, so the app files the twin can actually
+        // compile are exactly those it files under `IceCubesAppTarget` —
+        // including `AppTargetScreens.swift`, the accessor that makes the
+        // app's `internal` screens namable. Merging the whole app target
+        // instead would score interpreted code with no native counterpart.
+        let appTargetFiles = screen.usesAppTarget
+            ? paths.sourceModules
+                .filter { $0.value == Paths.appTargetModule }
+                .keys.sorted()
+            : []
+        guard !screen.usesAppTarget || !appTargetFiles.isEmpty else {
+            throw RuntimeError(
+                message: "\(screen.rawValue) needs the "
+                    + "\(Paths.appTargetModule) module, but the twin build "
+                    + "plan lists no sources for it — build the twin first")
+        }
         let source = ProjectMaterial.mergedSource(
-            at: paths.app, files: paths.packageFiles,
+            at: paths.app, files: paths.packageFiles + appTargetFiles,
             sourceModules: paths.sourceModules)
             + ProjectMaterial.mergedSource(
                 source: renderProbeSource(

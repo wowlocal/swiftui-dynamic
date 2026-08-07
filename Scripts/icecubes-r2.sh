@@ -30,7 +30,7 @@ INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 # is how a screen ends up captured but never scored, which reads exactly like
 # a screen that converged.
 R2_SCREENS=(timeline status-detail account-header media tags-list media-browser
-  trending-timeline trending-links)
+  trending-timeline trending-links instance-info)
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
@@ -383,6 +383,61 @@ R2_FLOORS=(
   # is why this screen is reproducible rather than merely lucky — verified
   # twin-vs-twin and interp-vs-interp at AE 0 before being scored.
   trending-links 0
+  # NEW SCREEN, entering at its first measured value — a measurement that did
+  # not exist before, not a regression of one that did. The eight screens
+  # above are unchanged (2 AE, all of it tags-list).
+  #
+  # It is the first scored screen declared in the app TARGET rather than in a
+  # package, and admitting it is the point of the iteration: the twin
+  # depended only on `Packages/*`, so all 36 of the app's own files — 30 of
+  # them declaring View types — were uncompilable by it and therefore
+  # unscorable FOREVER, no matter how many package screens were admitted.
+  # Eight screens at ~0 AE read as a converged app while an entire region of
+  # the codebase had never been compared at all: `scored-subset-reads-as-
+  # converged` one level up, a subset of the CODEBASE rather than of screens.
+  #
+  # IT ENTERS AT 143467, and that number is the honest first measurement of
+  # that region, not a regression. Both sides are proven reproducible at AE 0
+  # before scoring (twin-vs-twin and interp-vs-interp), so this is interpreter
+  # debt and not capture noise.
+  #
+  # WHAT THE 143467 IS MADE OF, characterized rather than left as a number.
+  # Two independent classes, one dominant:
+  #
+  # (1) Section structure does not survive an interpreted view boundary. The
+  #     `Form` gateway rebuilds `SectionSpec`s un-erased so grouped styling
+  #     boxes them separately with headers OUTSIDE — but it inspects only its
+  #     OWN direct builder output. Here the app writes
+  #     `Form { InstanceInfoSection(instance:) }`, and the two Sections are
+  #     vended by that interpreted view's body, one level down. The Form sees
+  #     a single non-SectionSpec value, batches it as anonymous rows, and
+  #     wraps it in one implicit Section — so the inner Sections nest, and
+  #     their headers render as ordinary rows inside a single box instead of
+  #     as gray headers above two. Everything below then shifts, which is what
+  #     makes the number large: one structural defect plus its displacement.
+  #     Not IceCubes-specific; `Form { MyView() }` is the general shape.
+  #
+  # (2) `.number.notation(.compactName)` is not applied. The contact row's
+  #     follower count reads "874,788 875K" natively and "874,788 874,788"
+  #     interpreted — the format style falls back to plain decimal. Small in
+  #     pixels, independent of (1), and its own class.
+  #
+  # Neither is fixed here, and this screen buys no progress by itself; what it
+  # buys is that both are now MEASURED instead of invisible. (1) is the
+  # decomposition target: it wants a distilled repro of a Form over a
+  # user-defined view that vends Sections, driven RED first, and the
+  # preserve-vs-collapse question it raises belongs in the central
+  # opaque-boundary answer (LOOP-ICECUBES §6) rather than in a local
+  # heuristic at the Form gateway.
+  #
+  # One harness property to keep in mind when reading the capture: the app
+  # target's own `.xcstrings` is not in either side's bundle, so app-declared
+  # LocalizedStringKeys render as raw keys ("instance.info.name") on BOTH
+  # sides. That is a substitution shared by the two sides, exactly like the
+  # deterministic placeholder PNG standing in for remote images — it does not
+  # affect the diff, but it does mean this screen measures the app's Form
+  # layout and typography rather than its localized copy.
+  instance-info 143467
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
