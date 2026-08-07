@@ -30,7 +30,7 @@ INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 # is how a screen ends up captured but never scored, which reads exactly like
 # a screen that converged.
 R2_SCREENS=(timeline status-detail account-header media tags-list media-browser
-  trending-timeline trending-links instance-info)
+  trending-timeline trending-links instance-info display-settings)
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
@@ -496,6 +496,40 @@ R2_FLOORS=(
   # affect the diff, but it does mean this screen measures the app's Form
   # layout and typography rather than its localized copy.
   instance-info 0
+  # ENTERING THE BOARD at its MEASURED value, never at a placeholder. The app's
+  # own `DisplaySettingsView`, and the first scored screen built from the
+  # ENVIRONMENT rather than from recorded bytes — it reads no fixture at all.
+  #
+  # What it actually puts pixels on, stated from the capture rather than from
+  # the file: the viewport holds the `ZStack`'s example-post card over the top
+  # of a grouped `Form`, then the theme section — a `Toggle`, a `NavigationLink`
+  # row with a trailing value, and four `ColorPicker`s in their disabled and
+  # dimmed state — its conditional FOOTER, and the next section's header. The
+  # `Slider`s and nine `Picker`s below the fold are built but not drawn, so this
+  # screen scores section chrome, control rendering and a gradient-masked
+  # overlay; it does not yet score a picker's selected case or a slider's knob.
+  #
+  # It is the screen that found both structural classes landed alongside it, and
+  # both were invisible everywhere else on the board: a `Section` footer that
+  # was never read (its section is the only one on the board written with one),
+  # and a sectioned collection whose content opened on a loose row. 82806 -> 439.
+  #
+  # THE RESIDUE IS LOCALIZED, so the next iteration does not start by hunting:
+  # one 51x17 box at x 808...858 y 200...216, 100% channel-neutral, entirely the
+  # relative timestamp in the example post's corner — the twin draws "2m" and
+  # the interpreter draws nothing after the separator dot. The card, the Form,
+  # the sections and every control around it are byte-identical. That is a
+  # `ServerDate()` relative-format class, not a layout one.
+  #
+  # Admitting it also forced the board's third determinism input, after the
+  # frozen clock and the frozen network: `Theme` and `UserPreferences` are
+  # `@AppStorage`, and this screen WRITES them back from six `.task(id:)`
+  # blocks. Before both processes pinned the persistent domain, capture 1
+  # differed from capture 2 by 232148 AE and captures 2, 3 and 4 then agreed —
+  # a screen that was a pure function of run history and that this script's
+  # own reproducibility gate would have certified, since that gate compares
+  # each side only against itself.
+  display-settings 439
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

@@ -82,6 +82,14 @@ private enum IceCubesCaptureScreen: String {
     /// screen before this one came from `Packages/*`; see
     /// `Examples/IceCubesNativeTwin/Sources/IceCubesAppTarget`.
     case instanceInfo = "instance-info"
+    /// The app's `DisplaySettingsView`, and the first scored screen built from
+    /// the ENVIRONMENT rather than from recorded bytes: it reads no fixture at
+    /// all. The captured viewport holds the example-post card its `ZStack`
+    /// overlays plus the theme section of a grouped `Form` — a `Toggle`, a
+    /// navigation row, four `ColorPicker` swatches and a conditional footer.
+    /// Every screen above it draws DATA, so none of them has a pixel on a
+    /// `ColorPicker` swatch or on a section footer.
+    case displaySettings = "display-settings"
 
     /// Whether this screen's own code lives in the app TARGET, and so needs
     /// the `IceCubesAppTarget` module merged on top of the packages.
@@ -95,7 +103,7 @@ private enum IceCubesCaptureScreen: String {
     /// one way this measurement could quietly stop being a comparison.
     var usesAppTarget: Bool {
         switch self {
-        case .instanceInfo: true
+        case .instanceInfo, .displaySettings: true
         case .timeline, .statusDetail, .accountHeader, .media, .tagsList,
              .mediaBrowser, .trendingTimeline, .trendingLinks: false
         }
@@ -121,6 +129,10 @@ private enum IceCubesCaptureScreen: String {
         // A pure function of the recorded `/api/v2/instance` response, which
         // is checked in; the screen never fetches.
         case .instanceInfo: false
+        // A pure function of the `Theme` and `UserPreferences` singletons the
+        // probe already seeds. It reads NO fixture at all — the one status it
+        // shows is `Status.placeholder`, built in Models.
+        case .displaySettings: false
         case .statusDetail, .accountHeader: true
         }
     }
@@ -1432,11 +1444,36 @@ struct IceCubesCheckMain {
         /// than from a package — the first presentation on this board whose
         /// view type the twin reaches through `IceCubesAppTarget`.
         case nativeInstanceInfo
+        /// The app's own `DisplaySettingsView`, also merged from the app
+        /// TARGET. It is the board's only presentation that renders CONTROLS
+        /// bound to the environment — `ColorPicker`, `Toggle` and a navigation
+        /// row — rather than rows built from recorded bytes.
+        case nativeDisplaySettings
         /// The real navigation shape every IceCubes tab is built from:
         /// `NavigationStack(path: $routerPath.path) { content.withAppRouter() }`
         /// (NavigationTab.swift:25 + AppRegistry.swift:65). Nothing about the
         /// screen is restated here — the rung taps the app's own rows.
         case rowTapNavigation
+
+        /// Whether the emitted program must `import` the app-target module.
+        ///
+        /// An EXHAUSTIVE switch rather than an `==` against the one
+        /// presentation that needed it first: this answer has to stay in step
+        /// with `IceCubesCaptureScreen.usesAppTarget`, and the way that goes
+        /// wrong is silent. A presentation whose view type lives in the app
+        /// target but that never imports the module fails to resolve the
+        /// accessor — the screen's merged program stops compiling, or worse
+        /// renders an error placeholder the board scores as pixels. Spelled
+        /// this way a new case cannot be added without deciding.
+        var importsAppTarget: Bool {
+            switch self {
+            case .nativeInstanceInfo, .nativeDisplaySettings: true
+            case .diagnostics, .nativeTimeline, .nativeStatusDetail,
+                 .nativeAccountHeader, .nativeMedia, .nativeTagsList,
+                 .nativeMediaBrowser, .nativeTrendingTimeline,
+                 .nativeTrendingLinks, .rowTapNavigation: false
+            }
+        }
     }
 
 #if !targetEnvironment(macCatalyst)
@@ -2247,6 +2284,20 @@ struct IceCubesCheckMain {
                         AppTargetScreen.instanceInfo(instance: __iceInstance)
                     }
             """
+        case .nativeDisplaySettings:
+            // The app's own `DisplaySettingsView`, in the twin's own shape,
+            // and reached through the same public accessor for the same reason
+            // — the view is `internal` to the app. It takes no argument on
+            // either side: its sections read `Theme.shared` and
+            // `UserPreferences.shared` out of the environment the probe root
+            // already seeds, exactly as `SettingsTab` pushes it. Nothing about
+            // the Form, its five sections or the controls in them is restated
+            // here; all of it comes from the merged app-target file.
+            """
+                    NavigationStack {
+                        AppTargetScreen.displaySettings()
+                    }
+            """
         case .nativeTagsList:
             // The screen `RouterDestination.tagsList` pushes, in the twin's own
             // shape: the app's public `TagsListView` inside a NavigationStack.
@@ -2315,9 +2366,9 @@ struct IceCubesCheckMain {
         }
         """ : ""
         // Imported only for the screens whose code lives in the app target,
-        // so the eight package screens' merged programs are byte-identical to
-        // what they were before this module existed.
-        let appTargetImport = presentation == .nativeInstanceInfo
+        // so the package screens' merged programs are byte-identical to what
+        // they were before this module existed.
+        let appTargetImport = presentation.importsAppTarget
             ? "\n        import \(Paths.appTargetModule)"
             : ""
         return """
@@ -2765,6 +2816,9 @@ struct IceCubesCheckMain {
             screenStatusFixture = nil
         case .instanceInfo:
             presentation = .nativeInstanceInfo
+            screenStatusFixture = nil
+        case .displaySettings:
+            presentation = .nativeDisplaySettings
             screenStatusFixture = nil
         case .statusDetail, .accountHeader:
             let metadata = try JSONDecoder().decode(

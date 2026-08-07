@@ -42,4 +42,23 @@ public enum AppTargetScreen {
     public static func instanceInfo(instance: Instance) -> some View {
         InstanceInfoView(instance: instance)
     }
+
+    /// The app's `DisplaySettingsView`
+    /// (`App/Tabs/Settings/DisplaySettingsView.swift`), the screen
+    /// `SettingsTab` pushes for appearance and the densest pure-SwiftUI
+    /// surface the app owns: one `Form` of five sections carrying `Toggle`,
+    /// `ColorPicker`, `Slider`, and nine `Picker`s over the app's own enums,
+    /// every label a localization key, and every binding a projection off an
+    /// `@Observable` seeded through `@Environment` rather than owned state.
+    ///
+    /// It takes no argument because it is a pure function of the environment
+    /// the harness already seeds for every other screen — `Theme.shared` and
+    /// `UserPreferences.shared` — so the two sides drive it from the same
+    /// singletons, and it needs no fetch and no clock. `Status.placeholder`
+    /// supplies its example row from Models, so nothing recorded is involved
+    /// either.
+    @MainActor
+    public static func displaySettings() -> some View {
+        DisplaySettingsView()
+    }
 }

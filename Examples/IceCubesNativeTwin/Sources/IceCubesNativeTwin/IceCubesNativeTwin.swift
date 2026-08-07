@@ -110,6 +110,15 @@ private enum TwinCaptureScreen: String {
     /// namespace — so the recorded `/api/v2/instance` response drives every
     /// branch of it identically on both sides.
     case instanceInfo = "instance-info"
+    /// The app's own `DisplaySettingsView`, the second screen scored out of the
+    /// app TARGET and the first built from the ENVIRONMENT rather than from
+    /// recorded bytes — it reads no fixture at all. What lands in the viewport
+    /// is the example-post card the screen's `ZStack` overlays, a grouped
+    /// `Form`, and the theme section's `Toggle`, navigation row, four
+    /// `ColorPicker` swatches and conditional footer. The `Slider`s and nine
+    /// `Picker`s below the fold are built but not drawn, so what this screen
+    /// scores is section chrome and control rendering, not picker selection.
+    case displaySettings = "display-settings"
 }
 
 @MainActor
@@ -173,6 +182,38 @@ private enum TwinConfiguration {
         "--small-bordered-control-probe")
     static let capturesPagination = CommandLine.arguments.contains(
         "--pagination-probe")
+
+    /// A DETERMINISM INPUT, in the same class as the frozen clock and the
+    /// frozen network, and the one this board could not previously have.
+    ///
+    /// Every `Theme` and `UserPreferences` property is `@AppStorage`, i.e.
+    /// persisted in this process's `UserDefaults`. That was harmless while the
+    /// board scored only fixture-driven screens: nothing ever WROTE a
+    /// preference, so both sides read the declared defaults forever. The app's
+    /// settings screens write — `DisplaySettingsView` mirrors its local colour
+    /// values back onto the theme from six `.task(id:)` blocks — so the first
+    /// capture leaves the domain in a state the next capture reads back.
+    ///
+    /// Measured on this screen before this pin existed: capture 1 against
+    /// capture 2 diverged by 232148 AE, and captures 2, 3 and 4 then agreed at
+    /// AE 0. The screen was a pure function of RUN HISTORY, converging after
+    /// the first write — which is the worst possible shape for the board's
+    /// reproducibility gate, because that gate captures each side TWICE and
+    /// would have certified captures 2 and 3 as deterministic while a fresh
+    /// machine, a cleared domain or a newly-admitted screen silently drew
+    /// something else.
+    ///
+    /// Clearing the persistent domain before the app's first `@AppStorage`
+    /// read makes every run start from the defaults DECLARED IN THE APP'S OWN
+    /// SOURCE — a property of the code under test rather than of this
+    /// machine's history. Both processes on the board do it, so both sides
+    /// start from the same state by construction. It runs before any Theme
+    /// access: `Theme.shared` is a lazy `static let` first touched from a view
+    /// body, and this is the App's `init()`.
+    static func pinPersistedDefaults() {
+        guard let identifier = Bundle.main.bundleIdentifier else { return }
+        UserDefaults.standard.removePersistentDomain(forName: identifier)
+    }
 }
 
 @MainActor
@@ -336,6 +377,10 @@ private struct TwinDriverView: View {
         /// `SettingsTab` hands it over: an already-fetched `Instance`. The
         /// view itself never fetches.
         case instanceInfo(Instance)
+        /// Carries nothing: the screen is a pure function of the `Theme` and
+        /// `UserPreferences` singletons the harness already seeds for every
+        /// other screen, exactly as `SettingsTab` pushes it with no argument.
+        case displaySettings
     }
 
     @State private var statuses: [Status] = []
@@ -413,6 +458,21 @@ private struct TwinDriverView: View {
                         // — the Form, the section layout and the rules list
                         // are the app's, not the harness's.
                         AppTargetScreen.instanceInfo(instance: instance)
+                    }
+                    .id(capturedScreenIdentity)
+                case .displaySettings:
+                    TwinNavigationScreen(
+                        client: client, routerPath: routerPath
+                    ) {
+                        // The app's own `DisplaySettingsView`, compiled from
+                        // `IceCubesApp/App/Tabs/Settings/DisplaySettingsView.swift`
+                        // itself and reached through the one public accessor
+                        // in `IceCubesAppTarget` because it is `internal` to
+                        // the app. It takes no argument on purpose: its
+                        // sections read `Theme.shared` and
+                        // `UserPreferences.shared` out of the environment this
+                        // harness already seeds, so neither side configures it.
+                        AppTargetScreen.displaySettings()
                     }
                     .id(capturedScreenIdentity)
                 case .trendingTimeline:
@@ -611,6 +671,8 @@ private struct TwinDriverView: View {
                 try await captureTrendingLinks(trendingLinks)
             case .instanceInfo:
                 try await captureInstanceInfo(instance)
+            case .displaySettings:
+                try await captureDisplaySettings()
             case nil:
                 try await captureTimeline(statuses: replayStatuses)
                 try await captureStatusDetail(
@@ -626,6 +688,7 @@ private struct TwinDriverView: View {
                 try await captureTrendingTimeline()
                 try await captureTrendingLinks(trendingLinks)
                 try await captureInstanceInfo(instance)
+                try await captureDisplaySettings()
                 try captureMetadata(
                     statuses: replayStatuses,
                     detailStatus: detailStatus,
@@ -736,6 +799,25 @@ private struct TwinDriverView: View {
         capturedScreenIdentity = UUID()
         try await waitForScreenTransition()
         try await capturePNG(named: TwinCaptureScreen.instanceInfo.rawValue)
+    }
+
+    /// The app's appearance settings, scored as its own screen. What is new
+    /// here is not the data — there is none — but the CONTROLS and the section
+    /// chrome: this is the board's only screen where a `ColorPicker` must draw
+    /// its swatch, a `Toggle` its state and a `Section` its FOOTER, all off
+    /// `@Observable` singletons rather than off a fixture.
+    ///
+    /// It takes no argument for the same reason `SettingsTab` passes none:
+    /// `Theme.shared` and `UserPreferences.shared` already back it on both
+    /// sides. That also makes those singletons a determinism input, which is
+    /// why the harness pins them rather than letting a persisted user default
+    /// decide what the two sides draw.
+    private func captureDisplaySettings() async throws {
+        statuses = []
+        capturedScreen = .displaySettings
+        capturedScreenIdentity = UUID()
+        try await waitForScreenTransition()
+        try await capturePNG(named: TwinCaptureScreen.displaySettings.rawValue)
     }
 
     /// The media preview surface, scored as its own screen. Every attachment
@@ -1294,6 +1376,7 @@ private struct IceCubesNativeTwinApp: App {
     @UIApplicationDelegateAdaptor(TwinAppDelegate.self) private var appDelegate
 
     init() {
+        TwinConfiguration.pinPersistedDefaults()
         ReplayURLProtocol.configure(fixtures: TwinConfiguration.fixtureDirectory)
         guard URLProtocol.registerClass(ReplayURLProtocol.self) else {
             fatalError("could not register frozen replay URLProtocol")
