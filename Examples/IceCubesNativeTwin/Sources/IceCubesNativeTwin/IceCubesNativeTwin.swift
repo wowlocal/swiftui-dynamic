@@ -62,6 +62,7 @@ private enum FixtureName {
     static let trendingStatuses = "api_v1_trends_statuses.json"
     static let trendingTags = "api_v1_trends_tags.json"
     static let boostStatus = "api_v1_statuses_116954929935729788.json"
+    static let trendingLinks = "api_v1_trends_links.json"
 }
 
 private enum TwinCaptureScreen: String {
@@ -81,6 +82,13 @@ private enum TwinCaptureScreen: String {
     /// its `isCacheEnabled` is false on all three of its terms, so the screen
     /// reaches the network exactly once and keeps nothing on disk.
     case trendingTimeline = "trending-timeline"
+    /// The one scored screen whose rows are not statuses. Every other row on
+    /// this board is a `StatusRowView` or an account/tag row; this is the app's
+    /// `StatusRowCardView` — a link preview with its own image, title,
+    /// description and provider line — which had no pixels on the board at all.
+    /// `RouterDestination.trendingLinks` is the route, `Trends.links` is public
+    /// and unauthenticated, and the recorded response carries ten cards.
+    case trendingLinks = "trending-links"
 }
 
 @MainActor
@@ -298,6 +306,11 @@ private struct TwinDriverView: View {
         /// the screen is defined by the filter alone and its statuses arrive
         /// through the replayed endpoint rather than from this driver.
         case trendingTimeline
+        /// Carries its cards the way the app's own route does:
+        /// `RouterDestination.trendingLinks(cards:)` is pushed with an
+        /// already-fetched `[Card]`, so the driver hands them in rather than
+        /// letting the view fetch its own first page.
+        case trendingLinks([Card])
     }
 
     @State private var statuses: [Status] = []
@@ -349,6 +362,18 @@ private struct TwinDriverView: View {
                         client: client, routerPath: routerPath
                     ) {
                         TagsListView(tags: tags)
+                    }
+                    .id(capturedScreenIdentity)
+                case .trendingLinks(let cards):
+                    TwinNavigationScreen(
+                        client: client, routerPath: routerPath
+                    ) {
+                        // Exactly what `RouterDestination.trendingLinks`
+                        // builds (AppRegistry.swift:124). Nothing about the
+                        // rows is restated here — `StatusRowCardView` and the
+                        // `\.isCompact` environment it reads come from the
+                        // merged Explore and StatusKit packages.
+                        TrendingLinksListView(cards: cards)
                     }
                     .id(capturedScreenIdentity)
                 case .trendingTimeline:
@@ -489,6 +514,17 @@ private struct TwinDriverView: View {
                     userInfo: [NSLocalizedDescriptionKey:
                         "recorded trending-tags fixture has no tags"])
             }
+            let linksData = try Data(contentsOf: URL(
+                fileURLWithPath: TwinConfiguration.fixtureDirectory)
+                .appendingPathComponent(FixtureName.trendingLinks))
+            let trendingLinks = try detailDecoder.decode(
+                [Card].self, from: linksData)
+            guard !trendingLinks.isEmpty else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 8,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "recorded trending-links fixture has no cards"])
+            }
             let replayStatuses = decoded + [boostStatus]
             let screenFixtures = try prepareScreenFixtures(
                 detailStatus: detailStatus)
@@ -519,6 +555,8 @@ private struct TwinDriverView: View {
                     attachments: [imageAttachment])
             case .trendingTimeline:
                 try await captureTrendingTimeline()
+            case .trendingLinks:
+                try await captureTrendingLinks(trendingLinks)
             case nil:
                 try await captureTimeline(statuses: replayStatuses)
                 try await captureStatusDetail(
@@ -532,6 +570,7 @@ private struct TwinDriverView: View {
                     selected: imageAttachment,
                     attachments: [imageAttachment])
                 try await captureTrendingTimeline()
+                try await captureTrendingLinks(trendingLinks)
                 try captureMetadata(
                     statuses: replayStatuses,
                     detailStatus: detailStatus,
@@ -605,6 +644,23 @@ private struct TwinDriverView: View {
         capturedScreenIdentity = UUID()
         try await waitForScreenTransition()
         try await capturePNG(named: TwinCaptureScreen.tagsList.rawValue)
+    }
+
+    /// The trending-links list, scored as its own screen. Its rows are the
+    /// app's `StatusRowCardView` — the only row type on this board that is not
+    /// a status, an account or a tag. Each card's `image` is a remote URL the
+    /// replay protocol answers with its one deterministic solid PNG, so what
+    /// this screen measures is the app's own CARD layout — the image frame it
+    /// reserves, the title/description line breaking, and the provider line —
+    /// rather than image bytes. The cards are handed in exactly as
+    /// `RouterDestination.trendingLinks(cards:)` receives them, so the view's
+    /// own `NextPageView` footer is the only request this screen makes.
+    private func captureTrendingLinks(_ cards: [Card]) async throws {
+        statuses = []
+        capturedScreen = .trendingLinks(cards)
+        capturedScreenIdentity = UUID()
+        try await waitForScreenTransition()
+        try await capturePNG(named: TwinCaptureScreen.trendingLinks.rawValue)
     }
 
     /// The media preview surface, scored as its own screen. Every attachment

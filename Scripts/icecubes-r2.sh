@@ -30,7 +30,7 @@ INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 # is how a screen ends up captured but never scored, which reads exactly like
 # a screen that converged.
 R2_SCREENS=(timeline status-detail account-header media tags-list media-browser
-  trending-timeline)
+  trending-timeline trending-links)
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
@@ -356,6 +356,33 @@ R2_FLOORS=(
   # views rendering only the first — was REFUTED by the repro rather than
   # argued away: its headline expectation passes with the fix stashed.
   trending-timeline 0
+  # NEW SCREEN, entering at its first measured value — a measurement that did
+  # not exist before, not a regression of one that did. The seven screens above
+  # are unchanged (2 AE, all of it tags-list).
+  #
+  # Why it is worth scoring: every row this board has ever compared is a
+  # status, an account or a tag. `StatusRowCardView` — the app's link preview,
+  # with its own reserved image frame, provider line, title, author byline and
+  # people-talking chip — had no pixels on the board at all, on either side.
+  # `RouterDestination.trendingLinks` is the route, and `Trends.links` is
+  # public and unauthenticated, so the screen is drivable end to end from a
+  # recording (10 cards).
+  #
+  # IT ENTERS AT 0, and that is stated plainly rather than dressed up: this
+  # screen decomposes nothing and discharges no debt. It is regression
+  # coverage for a row type that had none, not a repair. What it does buy is
+  # an answer to a question the board could not previously ask — whether the
+  # card row's reserved image frame, its title/description line breaking and
+  # its provider byline match the compiled app — and the answer is that they
+  # already did. A screen admitted at 0 is only worth its capture time because
+  # it can go RED later; it is not evidence of progress this iteration.
+  #
+  # It also costs no requests: ten cards overflow the 900x700 canvas, so the
+  # view's own `NextPageView` footer never appears and never fetches. That is
+  # what keeps the pulse animation on that footer out of the capture, and it
+  # is why this screen is reproducible rather than merely lucky — verified
+  # twin-vs-twin and interp-vs-interp at AE 0 before being scored.
+  trending-links 0
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

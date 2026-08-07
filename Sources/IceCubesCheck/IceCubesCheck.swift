@@ -70,6 +70,12 @@ private enum IceCubesCaptureScreen: String {
     /// datasource path had no pixels on this board; `.trending` is the filter
     /// the unauthenticated app can drive end to end.
     case trendingTimeline = "trending-timeline"
+    /// The app's `TrendingLinksListView`, the screen
+    /// `RouterDestination.trendingLinks` pushes. Every other row this board
+    /// scores is a status, an account or a tag; this one is
+    /// `StatusRowCardView` — a link preview with its own image frame, title,
+    /// description and provider line — which had no pixels on the board.
+    case trendingLinks = "trending-links"
 
     /// `status-detail` and `account-header` are driven from a status the TWIN
     /// picked and the endpoints it prepared, so they read the twin's output
@@ -81,6 +87,9 @@ private enum IceCubesCaptureScreen: String {
     var needsNativeFixtures: Bool {
         switch self {
         case .timeline, .media, .tagsList, .mediaBrowser: false
+        // The cards come from the checked-in `/api/v1/trends/links` recording
+        // on both sides, exactly as the app's route receives them.
+        case .trendingLinks: false
         // The app's view model chooses the endpoint (`Trends.statuses`) and
         // the checked-in recording answers it, so nothing about this screen
         // depends on what the twin prepared.
@@ -1345,6 +1354,10 @@ struct IceCubesCheckMain {
         /// app's `TimelineView` driving its own `TimelineViewModel`, which
         /// fetches, decodes and installs its datasource itself.
         case nativeTrendingTimeline
+        /// `RouterDestination.trendingLinks` (AppRegistry.swift:124): the
+        /// app's `TrendingLinksListView` over the recorded cards, whose rows
+        /// are `StatusRowCardView` rather than any status row.
+        case nativeTrendingLinks
         /// The real navigation shape every IceCubes tab is built from:
         /// `NavigationStack(path: $routerPath.path) { content.withAppRouter() }`
         /// (NavigationTab.swift:25 + AppRegistry.swift:65). Nothing about the
@@ -2008,6 +2021,16 @@ struct IceCubesCheckMain {
         let __iceTrendingTags = try! __iceDecoder.decode(
             [Models.Tag].self, from: __fixtureData("api_v1_trends_tags"))
         """ : "",
+            // The same recorded bytes the twin decodes, through the same
+            // `.convertFromSnakeCase` decoder: `Card`'s `authorName`,
+            // `providerName` and `authors` all arrive from snake_case keys,
+            // and `authors[].account` is null in this recording, so the
+            // nested optional `Account?` decodes as absent rather than
+            // missing.
+            presentation == .nativeTrendingLinks ? """
+        let __iceTrendingLinks = try! __iceDecoder.decode(
+            [Card].self, from: __fixtureData("api_v1_trends_links"))
+        """ : "",
             // The twin browses `boostStatus.reblog?.mediaAttachments.first`;
             // this is that same attachment, reached through the same optional
             // chain rather than restated by index from the other side.
@@ -2113,6 +2136,17 @@ struct IceCubesCheckMain {
                             ?? __iceBoostStatus.mediaAttachments)
                     .frame(width: 420, height: 560)
                     .background(Color.white)
+            """
+        case .nativeTrendingLinks:
+            // The screen `RouterDestination.trendingLinks` pushes, in the
+            // twin's own shape: the app's public `TrendingLinksListView`
+            // inside a NavigationStack. Nothing about the rows is restated
+            // here — `StatusRowCardView` and the `\\.isCompact` environment it
+            // reads come from the merged Explore and StatusKit packages.
+            """
+                    NavigationStack {
+                        TrendingLinksListView(cards: __iceTrendingLinks)
+                    }
             """
         case .nativeTagsList:
             // The screen `RouterDestination.tagsList` pushes, in the twin's own
@@ -2619,6 +2653,9 @@ struct IceCubesCheckMain {
             screenStatusFixture = nil
         case .trendingTimeline:
             presentation = .nativeTrendingTimeline
+            screenStatusFixture = nil
+        case .trendingLinks:
+            presentation = .nativeTrendingLinks
             screenStatusFixture = nil
         case .statusDetail, .accountHeader:
             let metadata = try JSONDecoder().decode(
