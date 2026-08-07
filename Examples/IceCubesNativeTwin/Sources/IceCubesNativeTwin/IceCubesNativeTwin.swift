@@ -27,6 +27,16 @@ private struct TwinMetadata: Codable {
     let screenFixtures: ScreenFixtureNames
     let requests: [String]
     let clockEpoch: Double
+    /// `Date().timeIntervalSinceNow`, which the board requires to be exactly 0.
+    ///
+    /// `clockEpoch` alone cannot see this: it reads `Date()`, and `Date()` was
+    /// frozen while `timeIntervalSinceNow` — which computes its own "now"
+    /// inside Foundation — still read the real clock, so the epoch check was
+    /// green for weeks over a screen that drew an hourly-ticking timestamp.
+    /// One frozen source of wall time is not a frozen clock; every source the
+    /// app reaches has to be pinned, and the ones that are not have to be
+    /// visible to an exit code rather than to a reviewer.
+    let relativeClockDrift: Double
     let width: Int
     let height: Int
 }
@@ -1255,6 +1265,7 @@ private struct TwinDriverView: View {
             screenFixtures: screenFixtures,
             requests: ReplayURLProtocol.requests,
             clockEpoch: Date().timeIntervalSince1970,
+            relativeClockDrift: Date().timeIntervalSinceNow,
             width: Int(TwinConfiguration.size.width),
             height: Int(TwinConfiguration.size.height))
         let metadataURL = URL(fileURLWithPath: TwinConfiguration.outputDirectory)

@@ -123,11 +123,35 @@ if (( twin_reproducible == 0 )); then
   exit 2
 fi
 
+# ONE FROZEN SOURCE OF WALL TIME IS NOT A FROZEN CLOCK, and the epoch check
+# below cannot tell the difference. `Date()` is pinned by a dyld interposer, so
+# `clockEpoch` reads the frozen instant and passes — while
+# `Date.timeIntervalSinceNow` computes its own "now" INSIDE Foundation, never
+# crossing an image boundary, and so kept reading the real clock. IceCubes
+# renders exactly that on the settings screens (`ServerDate()` is newer than a
+# day, so `relativeFormatted` takes the `Duration.seconds(-…timeIntervalSinceNow)`
+# branch): the example post drew "527h" and ticked once an HOUR, with this
+# script green the whole time because it only ever asked about `Date()`.
+#
+# Both sides now report that reading and the board refuses anything but an
+# exact zero. The next unpinned wall-clock source fails an exit code here
+# instead of waiting for a reviewer to notice a timestamp that looks plausible.
+assert_frozen_relative_clock() {
+  local label="$1" metadata="$2" key="$3"
+  if ! jq -e --arg k "$key" '.[$k] == 0' "$metadata" >/dev/null; then
+    echo "$label relative clock is not frozen: $key is" \
+      "$(jq -r --arg k "$key" '.[$k]' "$metadata"), wanted exactly 0 — a" \
+      "wall-clock source is leaking past the frozen instant" >&2
+    exit 2
+  fi
+}
+
 OBSERVED_CLOCK="$(jq -r '.clockEpoch' "$TWIN_DIR/timeline.json")"
 if [[ "$OBSERVED_CLOCK" != "$FROZEN_NOW" ]]; then
   echo "native frozen clock mismatch: wanted $FROZEN_NOW, got $OBSERVED_CLOCK" >&2
   exit 2
 fi
+assert_frozen_relative_clock native "$TWIN_DIR/timeline.json" relativeClockDrift
 if ! jq -e '
   .screenFixtures
   | [
@@ -258,6 +282,8 @@ if [[ "$INTERP_OBSERVED_CLOCK" != "$FROZEN_NOW" ]]; then
   echo "interpreted frozen clock mismatch: wanted $FROZEN_NOW, got $INTERP_OBSERVED_CLOCK" >&2
   exit 2
 fi
+assert_frozen_relative_clock interpreted "$INTERP_DIR/timeline.json" \
+  interpretedRelativeClockDrift
 
 echo "── R2 AE board ──"
 # Ratchet floors — enforced, committed baselines (AUDIT-2026-07-23-R2-stall.md

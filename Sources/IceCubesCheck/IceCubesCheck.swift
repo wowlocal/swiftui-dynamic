@@ -444,7 +444,9 @@ private struct IceCubesCatalystCaptureRoot: View {
                 exit(0)
             }
             guard let interpretedClockEpoch = session.interpreter.globals
-                .lookup("__iceInterpretedClockEpoch")?.doubleValue
+                .lookup("__iceInterpretedClockEpoch")?.doubleValue,
+                let interpretedRelativeDrift = session.interpreter.globals
+                    .lookup("__iceInterpretedRelativeClockDrift")?.doubleValue
             else {
                 throw RuntimeError(
                     message:
@@ -452,7 +454,8 @@ private struct IceCubesCatalystCaptureRoot: View {
             }
             let metadata = CaptureMetadata(
                 hostClockEpoch: Date().timeIntervalSince1970,
-                interpretedClockEpoch: interpretedClockEpoch)
+                interpretedClockEpoch: interpretedClockEpoch,
+                interpretedRelativeClockDrift: interpretedRelativeDrift)
             let metadataOutput = URL(fileURLWithPath: directory)
                 .appendingPathComponent("timeline.json")
             try JSONEncoder().encode(metadata).write(
@@ -747,6 +750,14 @@ private struct IceCubesCheckCatalystApp: App {
 private struct CaptureMetadata: Codable {
     let hostClockEpoch: TimeInterval
     let interpretedClockEpoch: TimeInterval
+    /// `Date().timeIntervalSinceNow` evaluated by the INTERPRETER, which the
+    /// board requires to be exactly 0 — the twin writes the same reading under
+    /// `relativeClockDrift`, and the reason is written out there. Measuring it
+    /// through the interpreted program rather than from this host process is
+    /// the whole point: it is the app's own call path, so it also proves the
+    /// interpreter's host bridge reaches the same frozen source the compiled
+    /// twin does.
+    let interpretedRelativeClockDrift: TimeInterval
 }
 
 private struct FixtureAccount: Decodable {
@@ -2300,6 +2311,7 @@ struct IceCubesCheckMain {
         import Timeline
 
         let __iceInterpretedClockEpoch = Date().timeIntervalSince1970
+        let __iceInterpretedRelativeClockDrift = Date().timeIntervalSinceNow
         let __iceDecoder = JSONDecoder()
         __iceDecoder.keyDecodingStrategy = .convertFromSnakeCase
         \(fixtureDecodes)
@@ -2972,14 +2984,17 @@ struct IceCubesCheckMain {
 
         guard screen == .timeline else { return }
         guard let interpretedClockEpoch = session.interpreter.globals
-            .lookup("__iceInterpretedClockEpoch")?.doubleValue
+            .lookup("__iceInterpretedClockEpoch")?.doubleValue,
+            let interpretedRelativeDrift = session.interpreter.globals
+                .lookup("__iceInterpretedRelativeClockDrift")?.doubleValue
         else {
             throw RuntimeError(
                 message: "interpreted capture clock did not materialize")
         }
         let metadata = CaptureMetadata(
             hostClockEpoch: Date().timeIntervalSince1970,
-            interpretedClockEpoch: interpretedClockEpoch)
+            interpretedClockEpoch: interpretedClockEpoch,
+            interpretedRelativeClockDrift: interpretedRelativeDrift)
         let metadataOutput = URL(fileURLWithPath: directory)
             .appendingPathComponent("timeline.json")
         try JSONEncoder().encode(metadata).write(
