@@ -405,11 +405,20 @@ extension ViewRegistry {
 
         constructors["Section"] = HostFunction(name: "Section") { args, ctx in
             let content = try Self.builderContent(args, ctx)
-            var header: AnyView?
-            if let headerClosure = args.closure(labeled: "header") {
-                let views = try ctx.callBuilderClosure(headerClosure, arguments: []).map(Self.anyView)
-                header = views.first
-            } else if let title = args.positional(0)?.stringValue {
+            // Both accessory closures the interface declares, read the same
+            // way. `header:` alone was read before, so a section written
+            // `Section { } header: { } footer: { }` — one of the four
+            // initializers the swiftinterface spells — silently lost its
+            // footer, and every row below it moved up by the footer's height.
+            @MainActor func accessory(_ label: String) throws -> AnyView? {
+                guard let closure = args.closure(labeled: label) else {
+                    return nil
+                }
+                return try ctx.callBuilderClosure(closure, arguments: [])
+                    .map(Self.anyView).first
+            }
+            var header = try accessory("header")
+            if header == nil, let title = args.positional(0)?.stringValue {
                 header = AnyView(Text(title))
             }
             // A spec rather than an eager `AnyView`, but no longer because a
@@ -417,7 +426,8 @@ extension ViewRegistry {
             // erasure is known not to hide them. It is a deferral — `anyView`
             // is the single place a section becomes a real `Section`, so the
             // header lands in header position exactly once, on every route.
-            return .native(SectionSpec(header: header, rows: content))
+            return .native(SectionSpec(
+                header: header, footer: try accessory("footer"), rows: content))
         }
 
         constructors["LazyVGrid"] = HostFunction(name: "LazyVGrid") { args, ctx in
@@ -843,6 +853,7 @@ private final class GeometryContentCarrier: @unchecked Sendable {
 /// inline rows in the donut editor).
 struct SectionSpec {
     let header: AnyView?
+    let footer: AnyView?
     let rows: [AnyView]
 }
 

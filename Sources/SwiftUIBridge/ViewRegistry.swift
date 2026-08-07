@@ -408,10 +408,27 @@ public final class ViewRegistry: HostRegistry {
                 return AnyView(EmptyView())
             }
             if let spec = any as? SectionSpec {
-                if let header = spec.header {
-                    return AnyView(Section { Self.indexed(spec.rows) } header: { header })
+                // All four initializer shapes the interface declares, because
+                // a `Section` is a different TYPE per accessory it carries and
+                // the accessories are not optional parameters: passing an
+                // `EmptyView` footer is not the same as passing none — it
+                // reserves footer space the no-footer overload never lays out.
+                switch (spec.header, spec.footer) {
+                case (let header?, let footer?):
+                    return AnyView(Section {
+                        Self.indexed(spec.rows)
+                    } header: { header } footer: { footer })
+                case (let header?, nil):
+                    return AnyView(Section {
+                        Self.indexed(spec.rows)
+                    } header: { header })
+                case (nil, let footer?):
+                    return AnyView(Section {
+                        Self.indexed(spec.rows)
+                    } footer: { footer })
+                case (nil, nil):
+                    return AnyView(Section { Self.indexed(spec.rows) })
                 }
-                return AnyView(Section { Self.indexed(spec.rows) })
             }
             if let box = any as? TextBox { return AnyView(box.text) }
             if let box = any as? ImageBox { return AnyView(box.image) }
