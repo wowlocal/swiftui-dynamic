@@ -97,7 +97,16 @@ public struct CallArguments {
     /// guessing. An argument that was not spelled as a literal carries no
     /// reading and is returned untouched, so a `String`-typed expression keeps
     /// rendering verbatim exactly as the compiler's overload choice does.
-    public func readingLocalizationKeys(at positions: Set<Int>) -> CallArguments {
+    ///
+    /// `resolveStyle` renders an interpolation that carried an SDK format
+    /// style (`\(n, format: .number.notation(.compactName))`). Only the host
+    /// can build such a style, so the reading is parameterised rather than
+    /// re-derived per API — every generated `LocalizedStringKey` position gets
+    /// the same reading `Text` does, instead of `Text` alone knowing the rule.
+    public func readingLocalizationKeys(
+        at positions: Set<Int>,
+        resolveStyle: (RuntimeValue, RuntimeValue) -> String? = { _, _ in nil }
+    ) -> CallArguments {
         guard !positions.isEmpty else { return self }
         var rewritten = self
         for index in positions where index >= 0 && index < arguments.count {
@@ -105,7 +114,8 @@ public struct CallArguments {
             guard let literal = argument.localizedLiteral else { continue }
             rewritten.arguments[index] = Argument(
                 label: argument.label,
-                value: .string(literal.localizedText),
+                value: .string(
+                    literal.localizedText(resolveStyle: resolveStyle)),
                 isTrailing: argument.isTrailing,
                 sourceProvenance: argument.sourceProvenance,
                 localizedLiteral: literal)

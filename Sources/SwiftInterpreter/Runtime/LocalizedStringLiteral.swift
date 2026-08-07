@@ -27,6 +27,16 @@ public final class RuntimeLocalizedStringLiteral {
         /// `appendInterpolation<T>(_:) where T: _FormatSpecifiable`, which
         /// forwards to `appendInterpolation(value, specifier: formatSpecifier(T.self))`.
         case formatted(RuntimeValue, specifier: String)
+        /// An interpolation carrying an SDK format style —
+        /// `appendInterpolation<F: FormatStyle>(_ value: F.FormatInput, format: F)`.
+        ///
+        /// The style stays UNRESOLVED here. It arrives as an implicit-member
+        /// chain (`.number.notation(.compactName)`) whose concrete type is an
+        /// SDK generic the generated coercions own, so resolving it is the
+        /// host bridge's job, not the interpreter's. `verbatim` is the same
+        /// value's specifier-free reading, used when no host resolves the
+        /// style so a styled segment can never render as nothing.
+        case styled(RuntimeValue, style: RuntimeValue, verbatim: String)
     }
 
     public let segments: [Segment]
@@ -48,6 +58,19 @@ public final class RuntimeLocalizedStringLiteral {
     /// `String(format: "%lld", 4097)` is `4097`, and with `locale: .current` in
     /// en_US it is `4,097`.
     public var localizedText: String {
+        localizedText { _, _ in nil }
+    }
+
+    /// The same reading, with SDK format styles resolved by the host.
+    ///
+    /// `resolveStyle` receives the interpolated value and its unresolved style
+    /// and returns the formatted text, or nil when it cannot build the style.
+    /// The interpreter has no way to construct an SDK `FormatStyle`, so this is
+    /// the one seam where the bridge contributes: rendering stays defined once,
+    /// here, rather than being re-implemented on the host side.
+    public func localizedText(
+        resolveStyle: (RuntimeValue, RuntimeValue) -> String?
+    ) -> String {
         var out = ""
         for segment in segments {
             switch segment {
@@ -56,6 +79,8 @@ public final class RuntimeLocalizedStringLiteral {
             case .formatted(let value, let specifier):
                 out += Interpreter.cFormattedString(
                     specifier, values: [value], locale: .current)
+            case .styled(let value, let style, let verbatim):
+                out += resolveStyle(value, style) ?? verbatim
             }
         }
         return out

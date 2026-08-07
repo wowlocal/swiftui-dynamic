@@ -208,7 +208,7 @@ public final class ViewRegistry: HostRegistry {
             // gateway that stays handwritten for interface-inexpressible
             // reasons inherits it without naming the rule.
             let args = GeneratedDispatch.readingLocalizationKeys(
-                rawArgs, constructor: generated)
+                rawArgs, constructor: generated, ctx: ctx)
             if let hand {
                 do {
                     return try hand.invoke(args, ctx)
@@ -263,7 +263,7 @@ public final class ViewRegistry: HostRegistry {
                 return .native(try GeneratedDispatch.dispatch(
                     name: name, overloads: overloads, view: view,
                     args: GeneratedDispatch.readingLocalizationKeys(
-                        rawArgs, modifier: name),
+                        rawArgs, modifier: name, ctx: ctx),
                     ctx: ctx
                 ))
             })
