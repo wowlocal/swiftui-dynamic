@@ -297,11 +297,27 @@ struct SDKProtocolContextualFactoryDecl {
     let function: FunctionDeclSyntax
 }
 
+/// A method that CONSUMES a protocol value passed as a bare generic argument:
+/// `func formatted<S>(_ v: S) -> S.FormatOutput where S: FormatStyle`.
+///
+/// The receiver decides nothing here — what makes the call recognizable is the
+/// PARAMETER's constraint, so the method name is recorded against the protocol
+/// it is constrained to and the interesting protocols are selected later, when
+/// the refinement closure is known. Only the name is kept: the receiver types
+/// are exactly the types some style already accepts, which the style's own
+/// `FormatInput` answers at the call, so recording them would restate a
+/// constraint the value already carries.
+struct SDKProtocolConsumingMethod: Hashable {
+    let name: String
+    let constraintProtocol: String
+}
+
 var sdkProtocols: Set<String> = []
 var sdkProtocolRefinements: [String: Set<String>] = [:]
 var sdkNominalConformances: [String: Set<String>] = [:]
 var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
 var sdkProtocolContextualFactoryDecls: [SDKProtocolContextualFactoryDecl] = []
+var sdkProtocolConsumingMethods: Set<SDKProtocolConsumingMethod> = []
 
 /// Interface metadata for specializing public associated-type relationships.
 struct SDKAssociatedConformance {
@@ -2168,6 +2184,71 @@ func sameTypeConcrete(
     return unique.count == 1 ? unique.first : nil
 }
 
+/// Records a method whose SOLE argument is a bare generic constrained to a
+/// protocol — the shape that makes a leading-dot value the whole call:
+/// `formatted(.units(width: .narrow))` names its style and nothing else.
+///
+/// Such a call cannot be dispatched by argument TYPE, because the argument is
+/// written as a leading dot and has no type until the protocol picks one. The
+/// method NAME is therefore the only thing that identifies the position, and
+/// the interface is what states it — 12 declarations spell `formatted` across
+/// Date, URL, Decimal, Duration, Measurement, PersonNameComponents and the
+/// numeric protocols, under three different parameter names (`format`,
+/// `style`, `v`). The parameter LABEL is not usable and the parameter NAME is
+/// not stable, so neither is matched; the constraint is.
+func recordSDKProtocolConsumingMethod(
+    _ function: FunctionDeclSyntax,
+    module: String,
+    localTopLevelNames: Set<String>,
+    guarded: Bool
+) {
+    guard isPublicSDKDecl(function.modifiers),
+          !hasModifier(function.modifiers, "static"),
+          isUniversallyUsable(function.attributes),
+          !guarded,
+          !needsAvailabilityGuard(function.attributes),
+          let first = function.name.text.first, first.isLetter,
+          !function.name.text.hasPrefix("_"),
+          let generics = function.genericParameterClause?.parameters,
+          function.signature.parameterClause.parameters.count == 1,
+          let parameter = function.signature.parameterClause.parameters.first,
+          parameter.firstName.text == "_" else { return }
+
+    // The argument is written as the generic itself, not as something
+    // containing it: `_ v: S` consumes a style, `_ v: Array<S>` does not.
+    let parameterType = parameter.type.trimmedDescription
+    guard generics.contains(where: { $0.name.text == parameterType }) else {
+        return
+    }
+
+    // The constraint may be spelled inline (`<S: FormatStyle>`) or in the
+    // where clause; both are the same fact and both are read.
+    var constraints = Set<String>()
+    for generic in generics where generic.name.text == parameterType {
+        if let inherited = generic.inheritedType?.trimmedDescription {
+            constraints.insert(canonicalSDKType(
+                inherited, module: module,
+                localTopLevelNames: localTopLevelNames))
+        }
+    }
+    for requirement in function.genericWhereClause?.requirements ?? [] {
+        guard let conformance = requirement.requirement.as(
+            ConformanceRequirementSyntax.self),
+            canonicalSDKType(
+                conformance.leftType.trimmedDescription, module: module,
+                localTopLevelNames: localTopLevelNames) == parameterType
+        else { continue }
+        constraints.insert(canonicalSDKType(
+            conformance.rightType.trimmedDescription, module: module,
+            localTopLevelNames: localTopLevelNames))
+    }
+
+    for constraint in constraints where sdkProtocols.contains(constraint) {
+        sdkProtocolConsumingMethods.insert(.init(
+            name: function.name.text, constraintProtocol: constraint))
+    }
+}
+
 func recordSDKNominalConformances(
     type: String,
     inheritanceClause: InheritanceClauseSyntax?,
@@ -2229,6 +2310,13 @@ func collectSDKProtocolMetadata(
         collectSDKProtocolMetadata(
             in: nominal.members, module: module, path: childPath,
             localTopLevelNames: localTopLevelNames, guarded: false)
+        return
+    }
+
+    if let function = decl.as(FunctionDeclSyntax.self) {
+        recordSDKProtocolConsumingMethod(
+            function, module: module,
+            localTopLevelNames: localTopLevelNames, guarded: inheritedGuarded)
         return
     }
 
@@ -7286,13 +7374,40 @@ enumsOutput += """
     /// up by regenerating, with no table to keep in step.
     static let formatStyleTypeNames: [String] = [
 \(emittedFormatStyleTypes.map { "        \"\($0)\",\n" }.joined())    ]
+
+"""
+
+// The call POSITION that consumes one of those styles, read from the same
+// interface rather than spelled. `formatted(.units(width: .narrow))` carries
+// its style as a leading dot, so the argument has no type until a style is
+// chosen and the call cannot be recognized by its argument. The method name
+// is what identifies it, and the interface states the name — under three
+// different parameter names across a dozen declarations, which is exactly why
+// the collector matches the CONSTRAINT and not the spelling.
+let formatStyleConsumingMethods = sdkProtocolConsumingMethods
+    .filter {
+        !protocolClosure(of: $0.constraintProtocol)
+            .isDisjoint(with: formatStyleProtocolNames)
+    }
+    .map(\.name)
+let sortedFormatStyleConsumingMethods = Set(formatStyleConsumingMethods).sorted()
+enumsOutput += """
+    /// Every method name the interface declares as taking a bare `FormatStyle`
+    /// generic as its only argument, sorted so order cannot vary between runs.
+    ///
+    /// A caller matches the name and then lets the style select itself against
+    /// the receiver, so this never says which types may be formatted — the
+    /// style's own `FormatInput` does, at the call.
+    static let formatStyleConsumingMethodNames: [String] = [
+\(sortedFormatStyleConsumingMethods.map { "        \"\($0)\",\n" }.joined())    ]
 }
 """
 
 let enumsPath = "Sources/SwiftUIBridge/Generated/GeneratedSDKEnums.swift"
 try enumsOutput.write(toFile: enumsPath, atomically: true, encoding: .utf8)
 print("wrote \(enumsPath) (\(emittedSDKEnumTypes.count) enum types, "
-    + "\(emittedFormatStyleTypes.count) format styles)")
+    + "\(emittedFormatStyleTypes.count) format styles, "
+    + "\(sortedFormatStyleConsumingMethods.count) style-consuming methods)")
 
 var protocolValuesOutput = """
 // GENERATED by BridgeGen from interface-declared protocol shapes,

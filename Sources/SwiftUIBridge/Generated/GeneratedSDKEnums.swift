@@ -4109,4 +4109,13 @@ enum GeneratedSDKEnumCoercions {
         "PersonNameComponents.FormatStyle",
         "URL.FormatStyle",
     ]
+    /// Every method name the interface declares as taking a bare `FormatStyle`
+    /// generic as its only argument, sorted so order cannot vary between runs.
+    ///
+    /// A caller matches the name and then lets the style select itself against
+    /// the receiver, so this never says which types may be formatted — the
+    /// style's own `FormatInput` does, at the call.
+    static let formatStyleConsumingMethodNames: [String] = [
+        "formatted",
+    ]
 }

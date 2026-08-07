@@ -971,6 +971,9 @@ public final class TraceRegistry: HostRegistry {
         return GeneratedMembers.method(name, on: value)
             ?? bridgeHostStaticFactoryMethod(name, on: value)
             ?? objcTrampolineMethod(name, on: value)
+            // Same last-resort arm as the render registry: a format style is
+            // text, so the trace and the pixels must read one table.
+            ?? bridgeFormatStyleFormattingMethod(name, on: value)
     }
 
     /// `Text("a") + Text("b")` — concatenation records a combined node.

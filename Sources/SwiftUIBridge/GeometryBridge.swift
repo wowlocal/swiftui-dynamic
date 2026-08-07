@@ -925,6 +925,42 @@ func bridgeHostStaticFactoryMethod(
     return .hostFunction(method)
 }
 
+/// `value.formatted(.units(width: .narrow))` — the SECOND position the SDK
+/// accepts a format style, after a localization key's interpolation.
+///
+/// Both positions carry the style as a leading dot with no spelled type, so
+/// both need the same thing: coerce the chain against each declared style and
+/// let `FormatInput` reject the ones that cannot accept this receiver. That is
+/// `LocalizedFormatStyleRendering`, so this routes to it rather than growing a
+/// second selection with its own idea of the candidate set.
+///
+/// The method NAME comes from the interface (`formatStyleConsumingMethodNames`
+/// — the methods whose only argument is a bare `FormatStyle` generic), and the
+/// receiver is not checked at all: a value no style accepts falls through to
+/// nil below, which is the same answer a type test would give and one fewer
+/// place for the two to disagree.
+func bridgeFormatStyleFormattingMethod(
+    _ name: String, on value: Any
+) -> RuntimeValue? {
+    guard GeneratedSDKEnumCoercions.formatStyleConsumingMethodNames
+        .contains(name) else { return nil }
+    return .hostFunction(HostFunction(name: name) { args, ctx in
+        guard args.arguments.count == 1,
+              let style = args.positional(0) else {
+            throw RuntimeError(message:
+                "\(name)(_:) takes one format style")
+        }
+        guard let text = LocalizedFormatStyleRendering.text(
+            .native(value), style: style, ctx) else {
+            throw RuntimeError(message:
+                "no declared format style both builds from this "
+                    + "\(name)(_:) argument and accepts a "
+                    + "\(type(of: value))")
+        }
+        return .native(text)
+    })
+}
+
 private enum HandNormalizedGeneratedPropertyCache {
     static let properties: [String: HostProperty] = {
         var result: [String: HostProperty] = [:]
@@ -1084,6 +1120,10 @@ extension ViewRegistry {
         return GeneratedMembers.method(name, on: value)
             ?? bridgeHostStaticFactoryMethod(name, on: value)
             ?? objcTrampolineMethod(name, on: value)
+            // Last: a generated arm for this exact receiver is always the
+            // better answer, so the style search only sees calls no typed
+            // member claimed.
+            ?? bridgeFormatStyleFormattingMethod(name, on: value)
     }
 
     public func hostProtocolCandidates(of value: Any) -> [String] {
