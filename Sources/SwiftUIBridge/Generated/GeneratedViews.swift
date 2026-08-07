@@ -133,46 +133,46 @@ extension GeneratedConstructors {
     register(&t, "AsyncImage", [ParamSpec("url", .url, isOptional: true, contextualType: "URL"), ParamSpec("scale", .cgFloat, contextualType: "CGFloat")]) { v in
         return AsyncImage(url: generatedOptionalArgument(v[0]) { value in value as! URL }, scale: v[1] as! CGFloat)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<NavigationSplitViewVisibility>"), contextualType: "Binding<NavigationSplitViewVisibility>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<NavigationSplitViewVisibility>)
-    }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingHashableOptional, contextualType: "Binding<InterpretedHashableValue?>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<InterpretedHashableValue?>)
-    }
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<Date>"), contextualType: "Binding<Date>")]) { v in
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.date, "Date"), contextualType: "Binding<Date>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<Date>)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<NavigationPath>"), contextualType: "Binding<NavigationPath>")]) { v in
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.nativeSwiftUIValue("NavigationPath"), "NavigationPath"), contextualType: "Binding<NavigationPath>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<NavigationPath>)
     }
     register(&t, "Binding", [ParamSpec("projectedValue", .bindingString, contextualType: "Binding<String>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<String>)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<TabViewCustomization>"), contextualType: "Binding<TabViewCustomization>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<TabViewCustomization>)
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingDouble, contextualType: "Binding<Double>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<Double>)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<NavigationSplitViewColumn>"), contextualType: "Binding<NavigationSplitViewColumn>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<NavigationSplitViewColumn>)
-    }
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<Color>"), contextualType: "Binding<Color>")]) { v in
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.color, "Color"), contextualType: "Binding<Color>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<Color>)
+    }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.data, "Data"), contextualType: "Binding<Data>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<Data>)
+    }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.nativeSwiftUIValue("TabViewCustomization"), "TabViewCustomization"), contextualType: "Binding<TabViewCustomization>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<TabViewCustomization>)
     }
     register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<InterpretedHashableValue>)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .bindingDouble, contextualType: "Binding<Double>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<Double>)
-    }
     register(&t, "Binding", [ParamSpec("projectedValue", .bindingBool, contextualType: "Binding<Bool>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<Bool>)
+    }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingHashableOptional, contextualType: "Binding<InterpretedHashableValue?>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<InterpretedHashableValue?>)
+    }
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<NavigationSplitViewVisibility>)
     }
     }
 
     private static func build1(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<Data>"), contextualType: "Binding<Data>")]) { v in
-        return Binding(projectedValue: v[0] as! Binding<Data>)
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>")]) { v in
+        return Binding(projectedValue: v[0] as! Binding<NavigationSplitViewColumn>)
     }
-    register(&t, "Binding", [ParamSpec("projectedValue", .nativeSwiftUIValue("Binding<ScrollPosition>"), contextualType: "Binding<ScrollPosition>")]) { v in
+    register(&t, "Binding", [ParamSpec("projectedValue", .bindingValue(.nativeSwiftUIValue("ScrollPosition"), "ScrollPosition"), contextualType: "Binding<ScrollPosition>")]) { v in
         return Binding(projectedValue: v[0] as! Binding<ScrollPosition>)
     }
     register(&t, "Binding", [ParamSpec(nil, .nativeSwiftUIValue("Binding<InterpretedHashableValue>"), contextualType: "Binding<InterpretedHashableValue>")]) { v in
@@ -287,27 +287,27 @@ extension GeneratedConstructors {
     register(&t, "Color", [ParamSpec(nil, .sdkEnum("Color.RGBColorSpace"), contextualType: "Color.RGBColorSpace"), ParamSpec("red", .double, contextualType: "Double"), ParamSpec("green", .double, contextualType: "Double"), ParamSpec("blue", .double, contextualType: "Double"), ParamSpec("opacity", .double, contextualType: "Double")]) { v in
         return Color(v[0] as! Color.RGBColorSpace, red: v[1] as! Double, green: v[2] as! Double, blue: v[3] as! Double, opacity: v[4] as! Double)
     }
-    register(&t, "ColorPicker", [ParamSpec("selection", .nativeSwiftUIValue("Binding<Color>"), contextualType: "Binding<Color>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ColorPicker", [ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return ColorPicker(selection: v[0] as! Binding<Color>, label: { b1 })
     }
-    register(&t, "ColorPicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .nativeSwiftUIValue("Binding<Color>"), contextualType: "Binding<Color>")]) { v in
+    register(&t, "ColorPicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>")]) { v in
         return ColorPicker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<Color>)
     }
-    register(&t, "ColorPicker", [ParamSpec(nil, .string), ParamSpec("selection", .nativeSwiftUIValue("Binding<Color>"), contextualType: "Binding<Color>")], isDisfavored: true) { v in
+    register(&t, "ColorPicker", [ParamSpec(nil, .string), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>")], isDisfavored: true) { v in
         return ColorPicker(v[0] as! String, selection: v[1] as! Binding<Color>)
     }
-    register(&t, "ColorPicker", [ParamSpec("selection", .nativeSwiftUIValue("Binding<Color>"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool"), ParamSpec("label", .builder)]) { v in
+    register(&t, "ColorPicker", [ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool"), ParamSpec("label", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         return ColorPicker(selection: v[0] as! Binding<Color>, supportsOpacity: v[1] as! Bool, label: { b2 })
     }
     }
 
     private static func build2(_ t: inout [String: [GeneratedConstructor]]) {
-    register(&t, "ColorPicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .nativeSwiftUIValue("Binding<Color>"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool")]) { v in
+    register(&t, "ColorPicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool")]) { v in
         return ColorPicker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<Color>, supportsOpacity: v[2] as! Bool)
     }
-    register(&t, "ColorPicker", [ParamSpec(nil, .string), ParamSpec("selection", .nativeSwiftUIValue("Binding<Color>"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool")], isDisfavored: true) { v in
+    register(&t, "ColorPicker", [ParamSpec(nil, .string), ParamSpec("selection", .bindingValue(.color, "Color"), contextualType: "Binding<Color>"), ParamSpec("supportsOpacity", .bool, contextualType: "Bool")], isDisfavored: true) { v in
         return ColorPicker(v[0] as! String, selection: v[1] as! Binding<Color>, supportsOpacity: v[2] as! Bool)
     }
     if #available(iOS 26.0, macOS 26.0, *) {
@@ -621,14 +621,14 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return ControlGroup(v[0] as! String, image: ImageResource(name: v[1] as! String, bundle: .main), content: { b2 })
     }
-    register(&t, "DatePicker", [ParamSpec("selection", .nativeSwiftUIValue("Binding<Date>"), contextualType: "Binding<Date>"), ParamSpec("label", .builder)]) { v in
+    register(&t, "DatePicker", [ParamSpec("selection", .bindingValue(.date, "Date"), contextualType: "Binding<Date>"), ParamSpec("label", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return DatePicker(selection: v[0] as! Binding<Date>, label: { b1 })
     }
-    register(&t, "DatePicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .nativeSwiftUIValue("Binding<Date>"), contextualType: "Binding<Date>")]) { v in
+    register(&t, "DatePicker", [ParamSpec(nil, .localizationKey, contextualType: "LocalizedStringKey"), ParamSpec("selection", .bindingValue(.date, "Date"), contextualType: "Binding<Date>")]) { v in
         return DatePicker(LocalizedStringKey(v[0] as! String), selection: v[1] as! Binding<Date>)
     }
-    register(&t, "DatePicker", [ParamSpec(nil, .string), ParamSpec("selection", .nativeSwiftUIValue("Binding<Date>"), contextualType: "Binding<Date>")], isDisfavored: true) { v in
+    register(&t, "DatePicker", [ParamSpec(nil, .string), ParamSpec("selection", .bindingValue(.date, "Date"), contextualType: "Binding<Date>")], isDisfavored: true) { v in
         return DatePicker(v[0] as! String, selection: v[1] as! Binding<Date>)
     }
     if #available(iOS 26.0, macOS 26.0, *) {
@@ -1444,34 +1444,34 @@ extension GeneratedConstructors {
         let b2 = try generatedBuilder(v[2])
         return NavigationSplitView(sidebar: { b0 }, content: { b1 }, detail: { b2 })
     }
-    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .nativeSwiftUIValue("Binding<NavigationSplitViewVisibility>"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
+    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         return NavigationSplitView(columnVisibility: v[0] as! Binding<NavigationSplitViewVisibility>, sidebar: { b1 }, detail: { b2 })
     }
-    register(&t, "NavigationSplitView", [ParamSpec("preferredCompactColumn", .nativeSwiftUIValue("Binding<NavigationSplitViewColumn>"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
+    register(&t, "NavigationSplitView", [ParamSpec("preferredCompactColumn", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         return NavigationSplitView(preferredCompactColumn: v[0] as! Binding<NavigationSplitViewColumn>, sidebar: { b1 }, detail: { b2 })
     }
-    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .nativeSwiftUIValue("Binding<NavigationSplitViewVisibility>"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
+    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return NavigationSplitView(columnVisibility: v[0] as! Binding<NavigationSplitViewVisibility>, sidebar: { b1 }, content: { b2 }, detail: { b3 })
     }
-    register(&t, "NavigationSplitView", [ParamSpec("preferredCompactColumn", .nativeSwiftUIValue("Binding<NavigationSplitViewColumn>"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
+    register(&t, "NavigationSplitView", [ParamSpec("preferredCompactColumn", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return NavigationSplitView(preferredCompactColumn: v[0] as! Binding<NavigationSplitViewColumn>, sidebar: { b1 }, content: { b2 }, detail: { b3 })
     }
-    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .nativeSwiftUIValue("Binding<NavigationSplitViewVisibility>"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("preferredCompactColumn", .nativeSwiftUIValue("Binding<NavigationSplitViewColumn>"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
+    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("preferredCompactColumn", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("detail", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         return NavigationSplitView(columnVisibility: v[0] as! Binding<NavigationSplitViewVisibility>, preferredCompactColumn: v[1] as! Binding<NavigationSplitViewColumn>, sidebar: { b2 }, detail: { b3 })
     }
-    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .nativeSwiftUIValue("Binding<NavigationSplitViewVisibility>"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("preferredCompactColumn", .nativeSwiftUIValue("Binding<NavigationSplitViewColumn>"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
+    register(&t, "NavigationSplitView", [ParamSpec("columnVisibility", .bindingValue(.sdkEnum("NavigationSplitViewVisibility"), "NavigationSplitViewVisibility"), contextualType: "Binding<NavigationSplitViewVisibility>"), ParamSpec("preferredCompactColumn", .bindingValue(.sdkEnum("NavigationSplitViewColumn"), "NavigationSplitViewColumn"), contextualType: "Binding<NavigationSplitViewColumn>"), ParamSpec("sidebar", .builder), ParamSpec("content", .builder), ParamSpec("detail", .builder)]) { v in
         let b2 = try generatedBuilder(v[2])
         let b3 = try generatedBuilder(v[3])
         let b4 = try generatedBuilder(v[4])
@@ -1481,11 +1481,11 @@ extension GeneratedConstructors {
         let b0 = try generatedBuilder(v[0])
         return NavigationStack(root: { b0 })
     }
-    register(&t, "NavigationStack", [ParamSpec("path", .nativeSwiftUIValue("Binding<NavigationPath>"), contextualType: "Binding<NavigationPath>"), ParamSpec("root", .builder)]) { v in
+    register(&t, "NavigationStack", [ParamSpec("path", .bindingValue(.nativeSwiftUIValue("NavigationPath"), "NavigationPath"), contextualType: "Binding<NavigationPath>"), ParamSpec("root", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return NavigationStack(path: v[0] as! Binding<NavigationPath>, root: { b1 })
     }
-    register(&t, "NavigationStack", [ParamSpec("path", .nativeSwiftUIValue("Binding<Data>"), contextualType: "Binding<Data>"), ParamSpec("root", .builder)]) { v in
+    register(&t, "NavigationStack", [ParamSpec("path", .bindingValue(.data, "Data"), contextualType: "Binding<Data>"), ParamSpec("root", .builder)]) { v in
         let b1 = try generatedBuilder(v[1])
         return NavigationStack(path: v[0] as! Binding<Data>, root: { b1 })
     }

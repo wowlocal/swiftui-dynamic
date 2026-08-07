@@ -4272,13 +4272,13 @@ register(&t, "scrollEdgeEffectStyle", [ParamSpec(nil, .sdkEnum("ScrollEdgeEffect
     register(&t, "scrollInputBehavior", [ParamSpec(nil, .sdkEnum("ScrollInputBehavior"), contextualType: "ScrollInputBehavior"), ParamSpec("for", .nativeSwiftUIValue("ScrollInputKind"), contextualType: "ScrollInputKind")]) { view, v in
         return AnyView(view.scrollInputBehavior(v[0] as! ScrollInputBehavior, for: v[1] as! ScrollInputKind))
     }
-    register(&t, "scrollPosition", [ParamSpec(nil, .nativeSwiftUIValue("Binding<ScrollPosition>"), contextualType: "Binding<ScrollPosition>")]) { view, v in
+    register(&t, "scrollPosition", [ParamSpec(nil, .bindingValue(.nativeSwiftUIValue("ScrollPosition"), "ScrollPosition"), contextualType: "Binding<ScrollPosition>")]) { view, v in
         return AnyView(view.scrollPosition(v[0] as! Binding<ScrollPosition>))
     }
     register(&t, "scrollPosition", [ParamSpec("id", .bindingHashableOptional, contextualType: "Binding<InterpretedHashableValue?>")]) { view, v in
         return AnyView(view.scrollPosition(id: v[0] as! Binding<InterpretedHashableValue?>))
     }
-    register(&t, "scrollPosition", [ParamSpec(nil, .nativeSwiftUIValue("Binding<ScrollPosition>"), contextualType: "Binding<ScrollPosition>"), ParamSpec("anchor", .unitPoint, isOptional: true, contextualType: "UnitPoint")]) { view, v in
+    register(&t, "scrollPosition", [ParamSpec(nil, .bindingValue(.nativeSwiftUIValue("ScrollPosition"), "ScrollPosition"), contextualType: "Binding<ScrollPosition>"), ParamSpec("anchor", .unitPoint, isOptional: true, contextualType: "UnitPoint")]) { view, v in
         return AnyView(view.scrollPosition(v[0] as! Binding<ScrollPosition>, anchor: generatedOptionalArgument(v[1]) { value in value as! UnitPoint }))
     }
     register(&t, "scrollPosition", [ParamSpec("id", .bindingHashableOptional, contextualType: "Binding<InterpretedHashableValue?>"), ParamSpec("anchor", .unitPoint, isOptional: true, contextualType: "UnitPoint")]) { view, v in
@@ -4828,7 +4828,7 @@ register(&t, "tabViewBottomAccessory", [ParamSpec("isEnabled", .bool, contextual
     return AnyView(view)
 }
 #endif
-    register(&t, "tabViewCustomization", [ParamSpec(nil, .nativeSwiftUIValue("Binding<TabViewCustomization>"), isOptional: true, contextualType: "Binding<TabViewCustomization>")]) { view, v in
+    register(&t, "tabViewCustomization", [ParamSpec(nil, .bindingValue(.nativeSwiftUIValue("TabViewCustomization"), "TabViewCustomization"), isOptional: true, contextualType: "Binding<TabViewCustomization>")]) { view, v in
         return AnyView(view.tabViewCustomization(generatedOptionalArgument(v[0]) { value in value as! Binding<TabViewCustomization> }))
     }
 #if canImport(UIKit)

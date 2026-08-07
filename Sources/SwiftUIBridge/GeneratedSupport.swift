@@ -32,6 +32,18 @@ enum ParamTag: Hashable {
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
     case symbolRenderingMode
     case bindingBool, bindingString, bindingDouble
+    /// `Binding<Value>` for any other `Value` the interface declares and this
+    /// table already maps. The associated values are the coercion the VALUE
+    /// resolves through and that value type's normalized name, which selects
+    /// the generated adapter able to spell `Binding<Value>` concretely.
+    ///
+    /// The three cases above stay hand-written because each carries a value
+    /// CONVERSION rather than a value: an `Int` state drives a `Double`
+    /// slider, and a tagged selection reads back as the runtime value its
+    /// `.tag(_:)` registered. This case converts nothing — it carries the
+    /// value type's own coercion in both directions, which is why one case
+    /// covers every remaining instantiation instead of one case per type.
+    indirect case bindingValue(ParamTag, String)
     /// `Binding<(some Hashable)?>` — the selection-shaped binding a modifier
     /// declares when the value it tracks is "one of the identified items, or
     /// none". Carried by the same `InterpretedHashableValue` the wrapper
@@ -701,6 +713,27 @@ enum GeneratedDispatch {
             return try Coerce.stringBinding(value, context: ctx)
         case .bindingDouble:
             return try Coerce.doubleBinding(value, context: ctx)
+        case .bindingValue(let valueTag, let valueTypeName):
+            let box = try Coerce.bindingBox(value, context: ctx)
+            // The storage's CURRENT value has to coerce, and that is what
+            // makes the parameter matchable-or-not by exactly the rule an
+            // ordinary argument is matched by: a binding over a `Date` does
+            // not satisfy `Binding<Color>`, so the overload it belongs to is
+            // not selected. Nothing here inspects the value's identity — the
+            // value type's own coercion answers, whatever it is.
+            let seed = try coerce(valueTag, box.value, ctx)
+            guard let adapter =
+                    GeneratedBindingValues.adapters[valueTypeName],
+                  let binding = adapter(
+                    seed,
+                    InterpretedBindingStorage(
+                        read: { try? coerce(valueTag, box.value, ctx) },
+                        write: { box.value = .native($0) }))
+            else {
+                throw RuntimeError(message:
+                    "expected a binding to a \(valueTypeName)")
+            }
+            return binding
         case .shapeStyle:
             return try Coerce.shapeStyle(value)
         case .genericShapeStyle:
@@ -1629,6 +1662,53 @@ extension GeneratedDispatch {
     ) throws -> RuntimeValue {
         try memberFunction(name: name, overloads: overloads, base: base)
             .invoke(args, ctx)
+    }
+}
+
+/// The interpreted storage a `$x` projection names, seen without knowing what
+/// it holds: read it already coerced to the host value type, write a host
+/// value back. Both directions are the VALUE type's own coercion, supplied by
+/// the caller, so this carries no knowledge of any particular type.
+struct InterpretedBindingStorage {
+    let read: () -> Any?
+    let write: (Any) -> Void
+}
+
+/// The one primitive every generated `Binding<Value>` adapter is built from.
+///
+/// A `Binding<Value>` cannot be produced by converting an argument the way an
+/// ordinary parameter is: an interpreted `$model.tint` is a projection onto
+/// interpreted storage, so it is never a `Binding` SwiftUI itself built, and
+/// asking whether it already IS one can only ever answer no. What it can be is
+/// DRIVEN — which needs the concrete `Value` spelled somewhere real, and that
+/// is what the generated table supplies.
+enum GeneratedBindingValueSupport {
+    /// Retains the last value that coerced, so the getter is total without
+    /// inventing a default for `Value` — there is no interface fact that would
+    /// say what a `Color`'s or a `ScrollPosition`'s stand-in should be. The
+    /// seed is the value the storage held when the argument was matched, so a
+    /// binding that matched always reads something the interpreted program
+    /// actually wrote.
+    private final class LastValue<Value> {
+        var value: Value
+        init(_ value: Value) { self.value = value }
+    }
+
+    static func binding<Value>(
+        _ seed: Any,
+        _ storage: InterpretedBindingStorage,
+        as _: Value.Type
+    ) -> Any? {
+        guard let seed = seed as? Value else { return nil }
+        let last = LastValue(seed)
+        return Binding<Value>(
+            get: {
+                if let current = storage.read() as? Value {
+                    last.value = current
+                }
+                return last.value
+            },
+            set: { storage.write($0) })
     }
 }
 

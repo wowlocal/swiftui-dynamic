@@ -49,12 +49,24 @@ struct ScrollPositionSelectionBindingTests {
     /// The sibling that widening reached, pinned so it is recorded rather than
     /// silently absorbed: `scrollPosition(_ position: Binding<ScrollPosition>)`
     /// is a real SDK overload that no longer blocks on its own parameter type.
+    ///
+    /// It was pinned at `.nativeSwiftUIValue("Binding<ScrollPosition>")` while
+    /// that was the strongest thing true of it — the overload GENERATED. It
+    /// was not, however, callable: that tag asks whether the argument already
+    /// IS the native value, and an interpreted `$position` is a projection
+    /// onto interpreted storage, so the answer was permanently no and the
+    /// parameter was unmatchable. The tag now says the parameter is a binding
+    /// DRIVEN over a `ScrollPosition`, which is what makes the registration
+    /// mean something. Both halves stay asserted, because "reachable" was
+    /// always this test's subject and the tag is how it is observed.
     @MainActor
     @Test func theConcreteScrollPositionOverloadIsAlsoReachable() {
         let positional = GeneratedModifiers.table["scrollPosition"]?
             .byArity[1]?.first { $0.params.first?.label == nil }
+        #expect(positional != nil, "scrollPosition(_:) is generatable")
         #expect(positional?.params.first?.tag
-            == .nativeSwiftUIValue("Binding<ScrollPosition>"))
+            == .bindingValue(
+                .nativeSwiftUIValue("ScrollPosition"), "ScrollPosition"))
     }
 
     /// The tag has to reach the carrier that actually round-trips, or the
