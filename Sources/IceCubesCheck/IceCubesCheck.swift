@@ -90,6 +90,23 @@ private enum IceCubesCaptureScreen: String {
     /// Every screen above it draws DATA, so none of them has a pixel on a
     /// `ColorPicker` swatch or on a section footer.
     case displaySettings = "display-settings"
+    /// `RouterDestination.hashTag` (AppRegistry.swift:84): the app's
+    /// `TimelineView` under its `.hashtag` filter. `trending-timeline` already
+    /// scores that view's fetch/decode/datasource path, so what this screen
+    /// adds is the PINNED HEADER only the hashtag filter installs —
+    /// `TimelineTagHeaderView`: a `TimelineHeaderView` band over a
+    /// `TagChartView` sparkline, a headline, a participants line and a
+    /// `.bordered` follow `Button`, none of which any other scored screen
+    /// draws.
+    ///
+    /// Its recorded page POSTDATES the frozen clock (`ICECUBES_FROZEN_NOW` is
+    /// 2026-07-16; these bytes were recorded 2026-08-07), so every row's
+    /// relative timestamp renders NEGATIVE — "-533h". That is the compiled
+    /// twin's own output from the same bytes, not a defect to fix: it is what
+    /// this screen's native baseline says, and it puts the board's first
+    /// pixels on the negative branch of the same relative-duration formatter
+    /// the positive branch already covers.
+    case hashtagTimeline = "hashtag-timeline"
 
     /// Whether this screen's own code lives in the app TARGET, and so needs
     /// the `IceCubesAppTarget` module merged on top of the packages.
@@ -105,7 +122,8 @@ private enum IceCubesCaptureScreen: String {
         switch self {
         case .instanceInfo, .displaySettings: true
         case .timeline, .statusDetail, .accountHeader, .media, .tagsList,
-             .mediaBrowser, .trendingTimeline, .trendingLinks: false
+             .mediaBrowser, .trendingTimeline, .trendingLinks,
+             .hashtagTimeline: false
         }
     }
 
@@ -133,6 +151,11 @@ private enum IceCubesCaptureScreen: String {
         // probe already seeds. It reads NO fixture at all — the one status it
         // shows is `Status.placeholder`, built in Models.
         case .displaySettings: false
+        // Both of this screen's responses are checked-in public recordings
+        // (`/api/v1/timelines/tag/:tag` and `/api/v1/tags/:id`), and the app's
+        // own view model issues both requests itself, so nothing here depends
+        // on what the twin prepared.
+        case .hashtagTimeline: false
         case .statusDetail, .accountHeader: true
         }
     }
@@ -1440,6 +1463,10 @@ struct IceCubesCheckMain {
         /// app's `TrendingLinksListView` over the recorded cards, whose rows
         /// are `StatusRowCardView` rather than any status row.
         case nativeTrendingLinks
+        /// `RouterDestination.hashTag` (AppRegistry.swift:84): the same
+        /// `TimelineView` `.nativeTrendingTimeline` drives, under the filter
+        /// that installs `TimelineTagHeaderView` above the rows.
+        case nativeHashtagTimeline
         /// The app's own `InstanceInfoView`, merged from the app TARGET rather
         /// than from a package — the first presentation on this board whose
         /// view type the twin reaches through `IceCubesAppTarget`.
@@ -1471,7 +1498,8 @@ struct IceCubesCheckMain {
             case .diagnostics, .nativeTimeline, .nativeStatusDetail,
                  .nativeAccountHeader, .nativeMedia, .nativeTagsList,
                  .nativeMediaBrowser, .nativeTrendingTimeline,
-                 .nativeTrendingLinks, .rowTapNavigation: false
+                 .nativeTrendingLinks, .nativeHashtagTimeline,
+                 .rowTapNavigation: false
             }
         }
     }
@@ -2142,6 +2170,24 @@ struct IceCubesCheckMain {
         let __iceTrendingLinks = try! __iceDecoder.decode(
             [Card].self, from: __fixtureData("api_v1_trends_links"))
         """ : "",
+            // Only the tag NAME is taken from here, and it is taken rather
+            // than written: the recorded `/api/v1/tags/:id` response states
+            // the name it is a recording of, so the filter this screen drives
+            // and the timeline fixture the filter's request resolves to cannot
+            // drift apart into a request no recording answers. The twin reads
+            // the same field out of the same file. Everything the header draws
+            // — the sparkline's history, the use and participant counts — is
+            // fetched by the app's own view model through replay, not handed
+            // in from here.
+            //
+            // `Models.Tag` is module-qualified for the same reason
+            // `__iceTrendingTags` is: this probe imports both Models and
+            // SwiftSoup and BOTH declare a top-level `Tag`, so bare `Tag` is
+            // ambiguous to the real compiler too.
+            presentation == .nativeHashtagTimeline ? """
+        let __iceHashtag = try! __iceDecoder.decode(
+            Models.Tag.self, from: __fixtureData("api_v1_tags_swift")).name
+        """ : "",
             // The same recorded `/api/v2/instance` bytes the twin decodes,
             // through the same `.convertFromSnakeCase` decoder. This recording
             // has no `short_description`, so the view takes its `description`
@@ -2328,6 +2374,24 @@ struct IceCubesCheckMain {
                     NavigationStack {
                         TimelineView(
                             timeline: .constant(.trending),
+                            pinnedFilters: .constant([]),
+                            selectedTagGroup: .constant(nil),
+                            canFilterTimeline: false)
+                    }
+            """
+        case .nativeHashtagTimeline:
+            // The app's own arguments for `RouterDestination.hashTag`,
+            // verbatim (AppRegistry.swift:84). `accountId` is nil because that
+            // route forwards whatever the tapped tag carried and a recorded
+            // PUBLIC tag timeline carries none. No fetcher and no tag object
+            // are supplied: `TimelineViewModel` picks `Timelines.hashtag` from
+            // the filter, and then fetches `Tags.tag` for the header itself,
+            // both through the replayed client.
+            """
+                    NavigationStack {
+                        TimelineView(
+                            timeline: .constant(
+                                .hashtag(tag: __iceHashtag, accountId: nil)),
                             pinnedFilters: .constant([]),
                             selectedTagGroup: .constant(nil),
                             canFilterTimeline: false)
@@ -2819,6 +2883,9 @@ struct IceCubesCheckMain {
             screenStatusFixture = nil
         case .displaySettings:
             presentation = .nativeDisplaySettings
+            screenStatusFixture = nil
+        case .hashtagTimeline:
+            presentation = .nativeHashtagTimeline
             screenStatusFixture = nil
         case .statusDetail, .accountHeader:
             let metadata = try JSONDecoder().decode(

@@ -30,7 +30,8 @@ INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 # is how a screen ends up captured but never scored, which reads exactly like
 # a screen that converged.
 R2_SCREENS=(timeline status-detail account-header media tags-list media-browser
-  trending-timeline trending-links instance-info display-settings)
+  trending-timeline trending-links instance-info display-settings
+  hashtag-timeline)
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
@@ -547,6 +548,20 @@ R2_FLOORS=(
   # own reproducibility gate would have certified, since that gate compares
   # each side only against itself.
   display-settings 0
+  # Measured on the tree that admits it, never guessed. The screen first
+  # captured at 104326 against this same twin; the two commits below it in
+  # this lane (a scalar's type identity, then an array annotation's element
+  # deciding the overload) took it to 4073 before it was ever scored, so the
+  # floor it enters at is the post-fix number.
+  #
+  # What is left is TWO divergences at the row-1/row-2 boundary, and
+  # `Scripts/pixel-diff-map.swift` splits them: the inter-row separator, which
+  # the interpreter truncates at x=120 where the twin runs to the edge
+  # (EDGE-GEOMETRY, 2340 AE), and the `status.row.is-thread` label, which the
+  # interpreter draws ~10px to the left of the twin (REGION, 1733 AE). Both
+  # are leading-inset questions on the same row, and neither is a text or
+  # decode defect — the row's content now matches the twin byte for byte.
+  hashtag-timeline 4073
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
