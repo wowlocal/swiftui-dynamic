@@ -44,7 +44,9 @@ extension ViewRegistry {
             // The interface cannot express that distinction because both
             // overloads take the same runtime String.
             if let localized = args.localizedLiteral(positional: 0) {
-                return .native(TextBox(Text(localized.localizedText)))
+                return .native(TextBox(Text(
+                    localized.localizedText(
+                        resolveStyle: GeneratedDispatch.styleResolver(ctx)))))
             }
             if case .host(let any) = value,
                let interpolation = any as? RuntimeInterpolatedString {

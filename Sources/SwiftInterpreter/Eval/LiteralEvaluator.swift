@@ -146,6 +146,36 @@ extension Interpreter {
                         .formatted(value, specifier: specifier))
                     continue
                 }
+                if let styleArgument = arguments.first(where: {
+                    $0.label == "format"
+                }) {
+                    // `appendInterpolation(_:format:)`, the sibling of
+                    // `specifier:` above and equally a localization-key
+                    // interpolation, so this segment is always a
+                    // localization-key segment. The style is an SDK generic
+                    // this layer cannot build, so it rides unresolved to the
+                    // host beside the value; the specifier-free reading stays
+                    // in `out` as the plain reading.
+                    let text = interpolationText(value) ?? ""
+                    out += text
+                    segments.append(.text(text))
+                    hasFormatSpecifier = true
+                    // The fallback, for when no host resolves the style, is
+                    // the reading this same interpolation would have had with
+                    // no `format:` label at all — so an unresolved style
+                    // degrades to the localized `874,788` that dropping the
+                    // label produces, never to a grouping-free `874788` that
+                    // no overload of this interpolation ever yields.
+                    let fallback = value.localizedFormatSpecifier.map {
+                        Self.cFormattedString(
+                            $0, values: [value], locale: .current)
+                    } ?? text
+                    localizedSegments.append(
+                        .styled(
+                            value, style: styleArgument.value,
+                            verbatim: fallback))
+                    continue
+                }
                 appendInterpolation(value)
             }
         }

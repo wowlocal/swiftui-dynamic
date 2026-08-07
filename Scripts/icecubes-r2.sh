@@ -428,11 +428,24 @@ R2_FLOORS=(
   #     RED at ~30602 AE with the fix stashed, plus two counter-direction pins
   #     that keep loose rows grouped now that nothing wraps them implicitly.
   #
-  # (2) 385 AE, OPEN — and it is the whole remaining number. A single 41x15
-  #     cluster at x 343...383 y 660...674: `.number.notation(.compactName)` is
-  #     not applied, so the contact row's follower count reads "875K" natively
-  #     and "874,788" interpreted. Independent of (1), its own class, and the
-  #     obvious next decomposition on this screen.
+  # (2) Was 385 — a single 41x15 cluster at x 343...383 y 660...674, where the
+  #     contact row's follower count read "874,788" against native's "875K".
+  #     An interpolation segment carrying a `format:` argument lost its style:
+  #     `LiteralEvaluator` recognised exactly one labeled interpolation,
+  #     `specifier:`, so `.number.notation(.compactName)` was evaluated and
+  #     discarded and the value fell back to its `_FormatSpecifiable` reading.
+  #     The style is an SDK generic the interpreter cannot build, so it now
+  #     rides UNRESOLVED to the host and renders at the one seam every
+  #     generated localization-key position already flows through
+  #     (`CallArguments.readingLocalizationKeys`) — fixing `Text` alone would
+  #     have been a per-API special case. Which style a leading-dot chain
+  #     denotes is not tabulated: candidates are read out of the generated
+  #     `format:` parameter types and `FormatInput` selects among them, the
+  #     same constraint the SDK's own `appendInterpolation` declares.
+  #     Pinned by `Tests/SwiftUIBridgeTests/LocalizedInterpolationTests.swift`,
+  #     five interpreted-vs-native observables driven RED with Sources/ stashed
+  #     (954, 769, 937, 1421, 1558 AE) plus four native-vs-native controls, so
+  #     none can pass by drawing nothing.
   #
   # One harness property to keep in mind when reading the capture: the app
   # target's own `.xcstrings` is not in either side's bundle, so app-declared
@@ -441,7 +454,7 @@ R2_FLOORS=(
   # deterministic placeholder PNG standing in for remote images — it does not
   # affect the diff, but it does mean this screen measures the app's Form
   # layout and typography rather than its localized copy.
-  instance-info 385
+  instance-info 0
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

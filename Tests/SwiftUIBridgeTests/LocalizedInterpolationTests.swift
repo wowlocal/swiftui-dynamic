@@ -215,4 +215,140 @@ import Testing
             Self.rasterize(native, size: Self.size))
         #expect(error == 0, "String interpolation differs by \(error) px")
     }
+
+    /// IceCubes `AccountsListRow` class (Account/AccountsList/AccountsListRow.swift:70):
+    /// `Text("account.label.followers \(count) \(count, format: .number.notation(.compactName))")`
+    /// carries a FormatStyle as a LABELED interpolation argument.
+    /// `LiteralEvaluator` recognised the sibling `specifier:` label and nothing
+    /// else, so the style was evaluated, discarded, and the value fell back to
+    /// its `_FormatSpecifiable` reading — `874,788` where native draws `875K`.
+    /// That is the last open AE on the `instance-info` R2 screen, which embeds
+    /// this row for the instance administrator.
+    @MainActor
+    @Test func localizedKeyInterpolationAppliesAFormatStyle() throws {
+        let interpreted = try Self.interpreted("""
+                    Text("followers \\(874788, format: .number.notation(.compactName))")
+        """)
+        let native = Text("followers \(874788, format: .number.notation(.compactName))")
+        let error = Self.absoluteError(
+            Self.rasterize(interpreted, size: Self.size),
+            Self.rasterize(native, size: Self.size))
+        #expect(error == 0, "format-styled interpolation differs by \(error) px")
+    }
+
+    /// The control that makes the test above non-degenerate. If the fix were to
+    /// drop the interpolation entirely, or if the interpreter drew nothing, both
+    /// halves could agree at 0. The styled and unstyled readings of the SAME
+    /// number must be visibly different glyph runs, both natively compiled.
+    @MainActor
+    @Test func compactNameAndPlainReadingActuallyDiffer() throws {
+        let styled = Text("followers \(874788, format: .number.notation(.compactName))")
+        let plain = Text("followers \(874788)")
+        let error = Self.absoluteError(
+            Self.rasterize(styled, size: Self.size),
+            Self.rasterize(plain, size: Self.size))
+        #expect(error > 100, "control drift only \(error) px; the two readings must differ")
+    }
+
+    /// The style type is chosen by the INTERPOLATED VALUE, not fixed to the one
+    /// IceCubes happens to use. A `Double` resolves `.number` to
+    /// `FloatingPointFormatStyle<Double>` — `4,097.5`, visibly unlike the `%lf`
+    /// specifier reading `4,097.500000` that the same value gets unstyled.
+    @MainActor
+    @Test func formatStyleResolvesAgainstTheInterpolatedValueType() throws {
+        let interpreted = try Self.interpreted("""
+                    Text("\\(4097.5, format: .number)")
+        """)
+        let native = Text("\(4097.5, format: .number)")
+        let error = Self.absoluteError(
+            Self.rasterize(interpreted, size: Self.size),
+            Self.rasterize(native, size: Self.size))
+        #expect(error == 0, "Double format style differs by \(error) px")
+    }
+
+    /// Over-application guard in the other direction: the fix must apply the
+    /// style the chain actually builds, not `compactName` wherever it sees a
+    /// `format:` label. `.grouping(.never)` drops the separator the unstyled
+    /// reading adds, so a fix that ignored the chain would draw `874,788` here.
+    @MainActor
+    @Test func aDifferentChainMemberBuildsADifferentStyle() throws {
+        let interpreted = try Self.interpreted("""
+                    Text("followers \\(874788, format: .number.grouping(.never))")
+        """)
+        let native = Text("followers \(874788, format: .number.grouping(.never))")
+        let error = Self.absoluteError(
+            Self.rasterize(interpreted, size: Self.size),
+            Self.rasterize(native, size: Self.size))
+        #expect(error == 0, "grouping(.never) style differs by \(error) px")
+    }
+
+    /// The rule belongs to LocalizedStringKey, not to `Text`. Every generated
+    /// SDK position declared as a localization key reads through the SAME seam
+    /// (`CallArguments.readingLocalizationKeys`), so a constructor the
+    /// interface spells — `Button(_ titleKey:action:)` — must apply the style
+    /// exactly as the handwritten `Text` gateway does. Fixing only `Text`
+    /// would be the per-API special case AGENTS.md forbids, and this is the
+    /// observable that tells the two apart.
+    @MainActor
+    @Test func aGeneratedLocalizationKeyPositionAppliesTheStyleToo() throws {
+        let interpreted = try Self.interpreted("""
+                    Button("followers \\(874788, format: .number.notation(.compactName))") {}
+        """)
+        let native = Button("followers \(874788, format: .number.notation(.compactName))") {}
+        let error = Self.absoluteError(
+            Self.rasterize(interpreted, size: Self.size),
+            Self.rasterize(native, size: Self.size))
+        #expect(error == 0, "generated localization key differs by \(error) px")
+    }
+
+    /// The control for the test above: a Button whose title keeps the unstyled
+    /// reading is a visibly different glyph run, so that test cannot pass by
+    /// both sides drawing empty button chrome.
+    @MainActor
+    @Test func styledAndUnstyledButtonTitlesActuallyDiffer() throws {
+        let styled = Button("followers \(874788, format: .number.notation(.compactName))") {}
+        let plain = Button("followers \(874788)") {}
+        let error = Self.absoluteError(
+            Self.rasterize(styled, size: Self.size),
+            Self.rasterize(plain, size: Self.size))
+        #expect(error > 100, "control drift only \(error) px; the two readings must differ")
+    }
+
+    /// The ADJACENCY the app actually writes, which none of the tests above
+    /// exercise: `AccountsListRow` interpolates the same count TWICE — once
+    /// plain, as the plural selector, then again through the style. The app's
+    /// own comment says so ("First parameter is the number for the plural /
+    /// Second parameter is the formatted string to show").
+    ///
+    /// This is the shape that can go wrong in a way a lone styled
+    /// interpolation cannot: the style must attach to the segment that
+    /// carried the `format:` label and to that one only, so the two readings
+    /// of one number stay different — `874,788` then `875K`. A fix that let
+    /// the style leak across segments, or that consumed the wrong one, draws
+    /// two identical numbers here and still passes every test above.
+    @MainActor
+    @Test func aPlainInterpolationBesideAStyledOneKeepsBothReadings() throws {
+        let interpreted = try Self.interpreted("""
+                    Text("followers \\(874788) \\(874788, format: .number.notation(.compactName))")
+        """)
+        let native = Text("followers \(874788) \(874788, format: .number.notation(.compactName))")
+        let error = Self.absoluteError(
+            Self.rasterize(interpreted, size: Self.size),
+            Self.rasterize(native, size: Self.size))
+        #expect(error == 0, "adjacent plain+styled differs by \(error) px")
+    }
+
+    /// The control that keeps the adjacency test honest: natively, the two
+    /// interpolations of the SAME number must render as different glyph runs.
+    /// If they did not, a fix that dropped the style entirely would satisfy
+    /// the test above.
+    @MainActor
+    @Test func theTwoAdjacentReadingsOfOneNumberDiffer() throws {
+        let both = Text("followers \(874788) \(874788, format: .number.notation(.compactName))")
+        let twicePlain = Text("followers \(874788) \(874788)")
+        let error = Self.absoluteError(
+            Self.rasterize(both, size: Self.size),
+            Self.rasterize(twicePlain, size: Self.size))
+        #expect(error > 100, "control drift only \(error) px; the two readings must differ")
+    }
 }

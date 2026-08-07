@@ -511,7 +511,8 @@ enum GeneratedDispatch {
             apply: { value, rawArgs, ctx in
                 // Both branches below see the interface's reading of the call,
                 // so a handwritten body inherits it without naming the rule.
-                let args = readingLocalizationKeys(rawArgs, modifier: name)
+                let args = readingLocalizationKeys(
+                    rawArgs, modifier: name, ctx: ctx)
                 // An adapter that covers a SUBSET of the name hands the rest
                 // back: those overloads are ordinary interface API and the
                 // generated tier already spells them. Without this the
@@ -1089,21 +1090,46 @@ enum GeneratedDispatch {
     /// (`accessibilityInputLabels`) has no per-element reading and stays
     /// verbatim.
     static func readingLocalizationKeys(
-        _ args: CallArguments, modifier name: String
+        _ args: CallArguments, modifier name: String, ctx: EvalContext
     ) -> CallArguments {
         guard let overloads = GeneratedModifiers.table[name] else { return args }
-        return args.readingLocalizationKeys(at: localizationKeyPositions(
-            (overloads.byArity[args.arguments.count] ?? []).map(\.params),
-            args))
+        return args.readingLocalizationKeys(
+            at: localizationKeyPositions(
+                (overloads.byArity[args.arguments.count] ?? []).map(\.params),
+                args),
+            resolveStyle: styleResolver(ctx))
     }
 
     static func readingLocalizationKeys(
-        _ args: CallArguments, constructor overloads: GeneratedConstructorSet?
+        _ args: CallArguments, constructor overloads: GeneratedConstructorSet?,
+        ctx: EvalContext
     ) -> CallArguments {
         guard let overloads else { return args }
-        return args.readingLocalizationKeys(at: localizationKeyPositions(
-            (overloads.byArity[args.arguments.count] ?? []).map(\.params),
-            args))
+        return args.readingLocalizationKeys(
+            at: localizationKeyPositions(
+                (overloads.byArity[args.arguments.count] ?? []).map(\.params),
+                args),
+            resolveStyle: styleResolver(ctx))
+    }
+
+    /// The one place a format style carried by a localization key becomes
+    /// text, shared by every reading above so a modifier, a constructor and
+    /// the handwritten `Text` gateway cannot disagree about the same literal.
+    ///
+    /// The resolver crosses into SwiftInterpreter, which is deliberately
+    /// executor-neutral, so it cannot carry this module's MainActor default
+    /// in its type. The isolation is real rather than assumed away: `ctx` is
+    /// an `EvalContext`, a `@MainActor` protocol, so holding one already
+    /// means running on the main actor and the resolver is only ever called
+    /// synchronously beneath that call.
+    static func styleResolver(
+        _ ctx: EvalContext
+    ) -> (RuntimeValue, RuntimeValue) -> String? {
+        { value, style in
+            MainActor.assumeIsolated {
+                LocalizedFormatStyleRendering.text(value, style: style, ctx)
+            }
+        }
     }
 
     static func isAvailable(
