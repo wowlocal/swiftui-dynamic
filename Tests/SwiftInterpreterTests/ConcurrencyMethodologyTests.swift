@@ -3148,6 +3148,51 @@ struct ConcurrencyMethodologyTests {
             "@@icecubes-close-policy-self-test passed"))
     }
 
+    /// AGENTS.md's generality safeguards were binding PROSE for three weeks and
+    /// never fired once — the §5 leverage ratchet was crossed inside the
+    /// 2026-08-04..08-07 window and nothing noticed, the third recurrence of the
+    /// execution gap AUDIT-2026-07-24 already named. They now have an exit code.
+    /// This test exists so the stage cannot be quietly dropped back into prose:
+    /// a rule that stops being executed stops being a rule.
+    @Test func closingGateExecutesAntiDriftRatchets() throws {
+        let gate = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+        for required in [
+            "Scripts/validate-anti-drift.sh",
+            "current_stage=\"anti-drift\"",
+            "current_stage=\"disk-preflight\"",
+            "source.antiDrift",
+        ] {
+            #expect(gate.contains(required),
+                Comment(rawValue:
+                    "closing gate lost executable anti-drift enforcement: "
+                        + required))
+        }
+
+        let validator = Self.packageRoot.appendingPathComponent(
+            "Scripts/validate-anti-drift.sh")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.standardInput = FileHandle.nullDevice
+        process.arguments = [validator.path, "--self-test"]
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+        let output = String(
+            decoding: stdout.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self)
+        let error = String(
+            decoding: stderr.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self)
+        #expect(process.terminationStatus == 0, Comment(rawValue: error))
+        #expect(output.contains("@@anti-drift-self-test passed"))
+    }
+
     /// `Scripts/pixel-diff-map.swift` does not gate anything — it decides which
     /// investigation a pixel divergence gets, which is worse to get silently
     /// wrong than a red board. A flat-region divergence means the two sides drew

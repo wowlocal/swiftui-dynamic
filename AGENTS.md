@@ -30,6 +30,15 @@ magic rule above.
 
 ## Generality safeguards (anti-drift, binding)
 
+**Executed by `Scripts/validate-anti-drift.sh`, a closing-gate stage that exits 1.** These
+safeguards were prose from 2026-07-19 to 2026-08-07 and fired zero times: the §5 leverage ratchet
+was crossed inside the 2026-08-04..08-07 window and nothing noticed. Each threshold in that script
+commits **the command that produces it**, not only the number — the 2026-08-07 audit could not
+reproduce a single figure from the three prior audits (1092, 270, 7) because each committed a
+number and no command, and three different file selections give three different answers for the
+same tree. A violation is not a request to move the threshold; move it only with a measurement, in
+its own commit, saying why.
+
 The bridge rule above is enforced by *tooling* for the value-type tier
 (BridgeGen generates coverage from swiftinterfaces; the 587-project corpus and
 ParityCheck cannot be passed by special-casing). It is NOT enforced for

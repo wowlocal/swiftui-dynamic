@@ -165,6 +165,7 @@ typeset r2_summary="" icecubes_summary=""
 typeset parity_shard_validation="not-run"
 typeset parity_shard_receipt_json='{"version":1,"status":"not-run"}'
 typeset close_policy_json='{"version":1,"status":"not-run","errors":[]}'
+typeset anti_drift_json='{"version":1,"status":"not-run","violations":-1}'
 typeset gate_diagnostics="" test_worker_statuses=""
 typeset current_stage="initialization"
 typeset source_end_captured=false source_drift_detected=false
@@ -594,6 +595,8 @@ write_receipt() {
         "$capability_accounting_json" "$plist" >/dev/null
     /usr/bin/plutil -insert source.iceCubesClosePolicy -json \
         "$close_policy_json" "$plist" >/dev/null
+    /usr/bin/plutil -insert source.antiDrift -json \
+        "$anti_drift_json" "$plist" >/dev/null
     receipt_string source.commitAtStart "$git_commit"
     receipt_string source.commitAtEnd "$git_commit_at_end"
     receipt_bool source.dirtyAtEnd "$git_dirty_at_end"
@@ -900,6 +903,26 @@ if (( gate_lock_status != 0 )); then
     exit 75
 fi
 
+current_stage="disk-preflight"
+# A gate needs its clean-detached checkout plus a full .build. When the volume is nearly full the
+# failures do not say "disk": they arrive as a linker error, a truncated capture, or a corpus shard
+# that dies with no log — hours of confusing RED. Fail here instead, with the reason and the fix.
+# The scratch is created BY THE ITERATION (git worktree add), not by this script, so gate.sh cannot
+# reap it; .claude/run-foodtruck-loop.sh reaps between iterations.
+integer disk_free_gib=$(df -g . 2>/dev/null | tail -1 | awk '{print $4}')
+integer disk_floor_gib=${GATE_DISK_FLOOR_GIB:-15}
+if (( disk_free_gib < disk_floor_gib )); then
+    build_stage_status="blocked-disk"
+    append_gate_diagnostic \
+        "only ${disk_free_gib}Gi free, below the ${disk_floor_gib}Gi floor a gate needs"
+    print -u2 "GATE DISK RED — ${disk_free_gib}Gi free, floor ${disk_floor_gib}Gi."
+    print -u2 "Stale clean-detached checkouts accumulate in /tmp/lane-gate-*; each is ~2.4G and" \
+        "most are still REGISTERED git worktrees, so plain rm leaves the registration behind."
+    print -u2 "Reap them with: Scripts/reap-gate-scratch.sh"
+    exit 1
+fi
+echo "disk preflight GREEN (${disk_free_gib}Gi free, floor ${disk_floor_gib}Gi)"
+
 current_stage="close-policy"
 close_policy_status=0
 /usr/bin/ruby Scripts/validate-icecubes-close-policy.rb \
@@ -919,6 +942,27 @@ if (( close_policy_status != 0 )); then
     exit 1
 fi
 echo "IceCubes close policy GREEN"
+
+current_stage="anti-drift"
+# AGENTS.md's generality safeguards were binding prose for three weeks and did not fire once — the
+# §5 ratchet was crossed inside the 2026-08-04..08-07 window and nothing noticed. Same treatment as
+# the close policy: an exit code, before the expensive stages, so a drifting candidate is refused in
+# seconds rather than after a 45-minute build.
+anti_drift_status=0
+./Scripts/validate-anti-drift.sh > "$out/anti-drift.log" 2>&1 || anti_drift_status=$?
+anti_drift_marker=$(grep '^@@anti-drift ' "$out/anti-drift.log" | tail -1 || true)
+if [[ -n "$anti_drift_marker" ]]; then
+    anti_drift_json="${anti_drift_marker#@@anti-drift }"
+fi
+if (( anti_drift_status != 0 )); then
+    build_stage_status="blocked-anti-drift"
+    append_gate_diagnostic \
+        "anti-drift rejected the candidate: $(bounded_log_tail "$out/anti-drift.log" 20)"
+    /bin/cat "$out/anti-drift.log" >&2
+    echo "ANTI-DRIFT RED" >&2
+    exit 1
+fi
+/bin/cat "$out/anti-drift.log"
 
 current_stage="build"
 echo "── build (once) ──"

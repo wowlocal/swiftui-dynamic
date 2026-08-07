@@ -13,7 +13,8 @@ set -u
 # session, a login-but-not-interactive `zsh -lc`, launchd or cron all start
 # without it. Put it back here so the runner works whoever launched it.
 export PATH="$HOME/.local/bin:$PATH"
-LANE=/Users/mike/src/tries/2026-07-08-swiftui-dynamic/.claude/worktrees/lane-foodtruck-run
+REPO=/Users/mike/src/tries/2026-07-08-swiftui-dynamic
+LANE="$REPO/.claude/worktrees/lane-foodtruck-run"
 LOG_DIR=/tmp/lane-foodtruck-loop
 STOP_FLAG="$LOG_DIR/stop"
 MODEL="${LOOP_MODEL:-claude-opus-5}"
@@ -39,6 +40,13 @@ while true; do
     echo "=== paused at the iteration boundary: $STOP_FLAG present ==="
     exit 0
   fi
+  # Reap finished clean-detached gate checkouts. gate.sh cannot do this itself
+  # - it runs INSIDE the directory being removed - and the iteration that made
+  # it has usually exited by the time its gate finishes, so nothing ever did.
+  # By 2026-08-07 that had left 26 checkouts and 23 live worktree
+  # registrations. The reaper protects anything with a live process, anything
+  # younger than 6h, and itself.
+  "$REPO/Scripts/reap-gate-scratch.sh" 2>&1 | grep -vE '^keep ' || true
   # A crashed CLI in a tight loop would spin; a healthy iteration takes
   # 30+ minutes, so a fixed pause costs nothing and absorbs API hiccups.
   sleep 60
