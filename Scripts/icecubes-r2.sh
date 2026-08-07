@@ -514,12 +514,29 @@ R2_FLOORS=(
   # was never read (its section is the only one on the board written with one),
   # and a sectioned collection whose content opened on a loose row. 82806 -> 439.
   #
-  # THE RESIDUE IS LOCALIZED, so the next iteration does not start by hunting:
-  # one 51x17 box at x 808...858 y 200...216, 100% channel-neutral, entirely the
-  # relative timestamp in the example post's corner — the twin draws "2m" and
-  # the interpreter draws nothing after the separator dot. The card, the Form,
-  # the sections and every control around it are byte-identical. That is a
-  # `ServerDate()` relative-format class, not a layout one.
+  # Was 439 — one 51x17 box at x 808...858 y 200...216, 100% channel-neutral,
+  # entirely the relative timestamp in the example post's corner: the twin drew
+  # "2m" and the interpreter drew nothing after the separator dot, with the
+  # card, the Form, the sections and every control around it byte-identical. A
+  # `ServerDate()` relative-format class, not a layout one, and the localized
+  # residue read correctly — the fix was exactly where the box said it was.
+  #
+  # `ServerDate.relativeFormatted` is
+  # `Duration.seconds(-date.timeIntervalSinceNow).formatted(.units(...))`, and
+  # the receiver could not be BUILT: the interface sweep collected a type's
+  # static STORAGE but not its static FUNCS, so `Duration.zero` existed and
+  # `Duration.seconds(100)` did not. The value stayed an unresolved leading-dot
+  # marker and `.formatted(...)` absorbed into a chain that renders as nothing.
+  #
+  # Three layers, each with its own repro: the generator collects the
+  # call-shaped statics (bounded by the format family's own declared
+  # `FormatInput`, not a name list); the bridge builds a real `Duration` where
+  # it served a marker, with both clock readers taking the named spelling
+  # counter-directionally; and member access consults the argument-selected
+  # host bridge before absorbing, since `formatted` is generic over its style
+  # and no per-receiver table declares it. Decomposed away from this
+  # whole-screen AE by `namedDurationTimestampDrawsItsFormattedText`, which
+  # measures the timestamp alone at AE 112 -> 0.
   #
   # Admitting it also forced the board's third determinism input, after the
   # frozen clock and the frozen network: `Theme` and `UserPreferences` are
@@ -529,7 +546,7 @@ R2_FLOORS=(
   # a screen that was a pure function of run history and that this script's
   # own reproducibility gate would have certified, since that gate compares
   # each side only against itself.
-  display-settings 439
+  display-settings 0
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
