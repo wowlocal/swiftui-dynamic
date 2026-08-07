@@ -75,6 +75,13 @@ private enum FixtureName {
     static let boostStatus = "api_v1_statuses_116954929935729788.json"
     static let trendingLinks = "api_v1_trends_links.json"
     static let instance = "api_v2_instance.json"
+    /// The two recordings behind the hashtag screen. Which TAG they are for is
+    /// never spelled as a constant anywhere: the tag fixture states its own
+    /// `name`, and both sides drive the screen with that, so the timeline
+    /// fixture's path and the screen's filter cannot drift apart into a
+    /// request no recording answers.
+    static let hashtagTag = "api_v1_tags_swift.json"
+    static let hashtagTimeline = "api_v1_timelines_tag_swift.json"
 }
 
 private enum TwinCaptureScreen: String {
@@ -119,6 +126,31 @@ private enum TwinCaptureScreen: String {
     /// `Picker`s below the fold are built but not drawn, so what this screen
     /// scores is section chrome and control rendering, not picker selection.
     case displaySettings = "display-settings"
+    /// `RouterDestination.hashTag` (AppRegistry.swift:84): the app's
+    /// `TimelineView` under the `.hashtag` filter. `trending-timeline` already
+    /// scores that view's fetch/decode/datasource path, so what is new here is
+    /// the PINNED HEADER the hashtag filter alone installs —
+    /// `TimelineTagHeaderView`, which no other scored screen renders: a
+    /// `TimelineHeaderView` band carrying a `TagChartView` sparkline, a
+    /// headline, a participants line and a `.bordered` follow `Button`.
+    ///
+    /// What that participants line actually measures, read off the capture
+    /// rather than assumed from the source: the Timeline package's
+    /// `.xcstrings` is in neither side's bundle, so
+    /// `timeline.n-recent-from-n-participants \(totalUses) \(totalAccounts)`
+    /// draws as the raw key with its two numbers appended — "…-participants
+    /// 77 67". No plural rule is selected on either side. It is still the
+    /// board's first pixels on a key that INTERPOLATES, and both `Int`s are
+    /// computed by the app from the recorded history rather than handed in,
+    /// but it does not score localized copy — the same shared substitution
+    /// `instance-info` already documents for the app target's own keys.
+    ///
+    /// Both of its endpoints are public and unauthenticated
+    /// (`/api/v1/timelines/tag/:tag` and `/api/v1/tags/:id`), and its
+    /// `isCacheEnabled` is false — `canFilterTimeline` is false on this route
+    /// and the replayed client is unauthenticated — so the screen reaches the
+    /// network exactly twice and keeps nothing on disk.
+    case hashtagTimeline = "hashtag-timeline"
 }
 
 @MainActor
@@ -381,6 +413,11 @@ private struct TwinDriverView: View {
         /// `UserPreferences` singletons the harness already seeds for every
         /// other screen, exactly as `SettingsTab` pushes it with no argument.
         case displaySettings
+        /// Carries the tag NAME the recorded `/api/v1/tags/:id` response
+        /// states for itself, exactly as `RouterDestination.hashTag(tag:)`
+        /// carries the name a tapped `#hashtag` resolved to. The view fetches
+        /// both its timeline page and its header tag itself.
+        case hashtagTimeline(String)
     }
 
     @State private var statuses: [Status] = []
@@ -485,6 +522,26 @@ private struct TwinDriverView: View {
                         // arguments, not a harness simplification.
                         TimelineView(
                             timeline: .constant(.trending),
+                            pinnedFilters: .constant([]),
+                            selectedTagGroup: .constant(nil),
+                            canFilterTimeline: false)
+                    }
+                    .id(capturedScreenIdentity)
+                case .hashtagTimeline(let tag):
+                    TwinNavigationScreen(
+                        client: client, routerPath: routerPath
+                    ) {
+                        // Exactly what `RouterDestination.hashTag` builds
+                        // (AppRegistry.swift:84). `accountId` is nil because
+                        // that route passes through whatever the tapped tag
+                        // carried, and a recorded PUBLIC tag timeline carries
+                        // none; the header, the sparkline and the follow
+                        // button all come from the app's own
+                        // `TimelineTagHeaderView`, which the `.hashtag` filter
+                        // installs on its own.
+                        TimelineView(
+                            timeline: .constant(
+                                .hashtag(tag: tag, accountId: nil)),
                             pinnedFilters: .constant([]),
                             selectedTagGroup: .constant(nil),
                             canFilterTimeline: false)
@@ -637,6 +694,30 @@ private struct TwinDriverView: View {
                         "recorded instance fixture has no rules or contact "
                         + "account, so the screen would score empty sections"])
             }
+            // The hashtag screen fetches BOTH of its responses itself, so
+            // nothing decoded here is handed to the view. It is read to fail
+            // loudly instead of quietly: a tag whose `history` is empty draws
+            // no sparkline and a timeline page with no statuses draws no rows,
+            // and either would capture as a near-blank screen that matches its
+            // twin at AE 0 — a converged screen that measured nothing.
+            let hashtagTagData = try Data(contentsOf: URL(
+                fileURLWithPath: TwinConfiguration.fixtureDirectory)
+                .appendingPathComponent(FixtureName.hashtagTag))
+            let hashtagTag = try detailDecoder.decode(
+                Tag.self, from: hashtagTagData)
+            let hashtagStatusesData = try Data(contentsOf: URL(
+                fileURLWithPath: TwinConfiguration.fixtureDirectory)
+                .appendingPathComponent(FixtureName.hashtagTimeline))
+            let hashtagStatuses = try detailDecoder.decode(
+                [Status].self, from: hashtagStatusesData)
+            guard !hashtagTag.history.isEmpty, !hashtagStatuses.isEmpty else {
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 13,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "recorded hashtag fixtures have no history or no "
+                        + "statuses, so the screen would score a blank header "
+                        + "over an empty list"])
+            }
             let replayStatuses = decoded + [boostStatus]
             let screenFixtures = try prepareScreenFixtures(
                 detailStatus: detailStatus)
@@ -673,6 +754,8 @@ private struct TwinDriverView: View {
                 try await captureInstanceInfo(instance)
             case .displaySettings:
                 try await captureDisplaySettings()
+            case .hashtagTimeline:
+                try await captureHashtagTimeline(tag: hashtagTag.name)
             case nil:
                 try await captureTimeline(statuses: replayStatuses)
                 try await captureStatusDetail(
@@ -689,6 +772,7 @@ private struct TwinDriverView: View {
                 try await captureTrendingLinks(trendingLinks)
                 try await captureInstanceInfo(instance)
                 try await captureDisplaySettings()
+                try await captureHashtagTimeline(tag: hashtagTag.name)
                 try captureMetadata(
                     statuses: replayStatuses,
                     detailStatus: detailStatus,
@@ -754,6 +838,30 @@ private struct TwinDriverView: View {
         try await waitForScreenTransition()
         try await capturePNG(
             named: TwinCaptureScreen.trendingTimeline.rawValue)
+    }
+
+    /// The hashtag timeline, scored as its own screen. Its rows come from the
+    /// same `TimelineView`/`TimelineViewModel` path `trending-timeline`
+    /// already scores; what it adds to the board is the pinned
+    /// `TimelineTagHeaderView` that only the `.hashtag` filter installs.
+    ///
+    /// BOTH endpoints are waited on, not just the timeline page. The header is
+    /// gated on `viewModel.tag`, which `fetchTag` fills from a SECOND request
+    /// the view model makes after the page lands — so a run where that request
+    /// never happened would render the timeline with no header, on both sides,
+    /// and score AE 0 while measuring none of what this screen was added for.
+    private func captureHashtagTimeline(tag: String) async throws {
+        statuses = []
+        capturedScreen = .hashtagTimeline(tag)
+        capturedScreenIdentity = UUID()
+        try await waitForRequests([
+            Timelines.hashtag(
+                tag: tag, additional: nil, maxId: nil, minId: nil),
+            Tags.tag(id: tag),
+        ])
+        try await waitForScreenTransition()
+        try await capturePNG(
+            named: TwinCaptureScreen.hashtagTimeline.rawValue)
     }
 
     private func captureTagsList(_ tags: [Tag]) async throws {
@@ -1067,9 +1175,27 @@ private struct TwinDriverView: View {
     private func waitForRequests(
         _ endpoints: [any Endpoint]
     ) async throws {
-        let expected = Set(endpoints.map {
-            "/api/\(MastodonClient.Version.v1.rawValue)/\($0.path())"
+        // Normalized through `URL.path`, exactly as the replay protocol
+        // observes the request it records — NOT string-concatenated. An
+        // endpoint's `path()` is a template the client pastes into a URL, and
+        // it is free to spell a trailing slash: `Tags.tag(id:)` returns
+        // "tags/\(id)/". Foundation strips that slash when the request is
+        // built, so a concatenated expectation asks for a path no recorded
+        // request can ever equal, and the screen is reported as having omitted
+        // a fetch it actually made.
+        let expected = Set(endpoints.compactMap { endpoint in
+            URL(string:
+                "https://replay.invalid/api/"
+                + "\(MastodonClient.Version.v1.rawValue)/\(endpoint.path())")?
+                .path
         })
+        guard expected.count == endpoints.count else {
+            throw NSError(
+                domain: "IceCubesNativeTwin", code: 14,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "an awaited endpoint has no representable URL path, so "
+                    + "this wait would pass without observing it"])
+        }
         let deadline = ContinuousClock.now.advanced(by: .seconds(10))
         while !expected.isSubset(of: Set(ReplayURLProtocol.requests)),
               ContinuousClock.now < deadline
@@ -1078,10 +1204,16 @@ private struct TwinDriverView: View {
         }
         let missing = expected.subtracting(ReplayURLProtocol.requests)
         guard missing.isEmpty else {
+            // Say what WAS requested beside what is missing. The two causes of
+            // this red — the screen never made the request, and the screen
+            // made it under a path this expectation spells differently — are
+            // indistinguishable from the missing list alone, and the second
+            // reads exactly like a screen that failed to fetch.
             throw NSError(
                 domain: "IceCubesNativeTwin", code: 12,
                 userInfo: [NSLocalizedDescriptionKey:
-                    "native screen omitted requests \(missing.sorted())"])
+                    "native screen omitted requests \(missing.sorted());"
+                    + " observed \(Set(ReplayURLProtocol.requests).sorted())"])
         }
         try await Task.sleep(for: .milliseconds(100))
     }
