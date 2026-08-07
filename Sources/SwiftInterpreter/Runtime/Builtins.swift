@@ -510,6 +510,15 @@ public enum Builtins {
             // Clock idioms: time ANCHORS read the fresh epoch (0), DURATION
             // statics read their seconds — `.now + .milliseconds(500)` is
             // 0.5, exactly like the DispatchTime `.now() + 0.5` rule.
+            //
+            // A REAL `Duration` reads as the same seconds. `Duration.seconds(3)`
+            // names its type and so now builds an actual value, while the
+            // leading-dot `.seconds(3)` still arrives as the marker below; both
+            // spellings mean 3.0 in arithmetic and must keep agreeing.
+            if case .host(let any) = value, let duration = any as? Duration {
+                let (seconds, attoseconds) = duration.components
+                return Double(seconds) + Double(attoseconds) / 1e18
+            }
             if case .host(let any) = value, let call = any as? ImplicitMemberCall {
                 if call.name == "now", call.arguments.arguments.isEmpty { return 0 }
                 if call.name == "random" {

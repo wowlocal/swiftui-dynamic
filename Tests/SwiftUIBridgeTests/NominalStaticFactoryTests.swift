@@ -57,4 +57,48 @@ import Testing
                 context: Interpreter(registry: ViewRegistry()))
         }
     }
+
+    /// COUNTER-DIRECTION on the clock readers. A named-type duration now
+    /// arrives as a real `Duration` where it used to arrive as a marker, and
+    /// the two places that destructure durations must read both spellings the
+    /// same. `.milliseconds(1500)` is 1.5 seconds either way.
+    @MainActor
+    @Test func namedAndLeadingDotDurationsAgreeInArithmetic() async throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    Text("named \\(Duration.seconds(3) + 0.0)")
+                    Text("dotted \\(0.0 + Duration.milliseconds(1500))")
+                }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains { $0.contains("named 3.0") })
+        #expect(strings.contains { $0.contains("dotted 1.5") })
+    }
+
+    /// COUNTER-DIRECTION on the sleep path: `Task.sleep(for:)` accepts the
+    /// named-type spelling as well as the leading dot it already took. The
+    /// suspension is what the assertion observes — the text only renders after
+    /// the sleep resumes.
+    @MainActor
+    @Test func taskSleepAcceptsANamedDuration() async throws {
+        let source = """
+        struct ContentView: View {
+            @State private var phase = "waiting"
+
+            var body: some View {
+                Text(phase)
+                    .task {
+                        try? await Task.sleep(for: Duration.milliseconds(1))
+                        phase = "resumed"
+                    }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("resumed"))
+    }
 }

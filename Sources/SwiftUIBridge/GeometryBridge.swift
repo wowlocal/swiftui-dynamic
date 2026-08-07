@@ -567,10 +567,27 @@ func bridgeHostMember(
         case ("Duration", "seconds"), ("Duration", "milliseconds"),
              ("Duration", "microseconds"), ("Duration", "nanoseconds"):
             // Stdlib Duration statics reached through an app enum SHADOWING
-            // the bare name (IceCubes' Env.Duration): the typed clock marker
-            // Builtins already reads (.seconds(3) → 3.0 in arithmetic).
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(ImplicitMemberCall(name: name, arguments: args))
+            // the bare name (IceCubes' Env.Duration).
+            //
+            // The REAL value, built by the generated contextual coercion, not
+            // a marker standing in for one. A marker reads as a duration only
+            // to the two places that destructure it by case name; every other
+            // receiver saw an unresolved leading dot, so
+            // `Duration.seconds(-date.timeIntervalSinceNow).formatted(…)` —
+            // IceCubes' `ServerDate.relativeFormatted` — absorbed into a chain
+            // and rendered nothing where the compiler prints "2m".
+            //
+            // Falling back to the marker keeps arithmetic-only spellings alive
+            // if the SDK ever stops declaring one of these statics, rather
+            // than turning a formatting gap into a crash.
+            return .hostFunction(HostFunction(name: name) { args, context in
+                if let duration = try? GeneratedSDKEnumCoercions.coerce(
+                    "Duration",
+                    .native(ImplicitMemberCall(name: name, arguments: args)),
+                    context: context) as? Duration {
+                    return .native(duration)
+                }
+                return .native(ImplicitMemberCall(name: name, arguments: args))
             })
         case ("Alignment", _):
             // `let alignment: Alignment = .center` — annotation-resolved

@@ -127,6 +127,19 @@ extension Interpreter {
     private static func sourceDuration(
         from value: RuntimeValue
     ) -> RuntimeDuration? {
+        // `Task.sleep(for: Duration.seconds(3))` names the type, so it now
+        // arrives as a REAL `Duration` rather than the marker the leading-dot
+        // spelling still produces. Both are the same request.
+        //
+        // `Duration` keeps attoseconds in a 128-bit pair; the nanoseconds this
+        // runtime schedules in are the high component scaled plus the low one
+        // reduced, which is exact for every value a sleep can express.
+        if case .host(let payload) = value, let duration = payload as? Duration {
+            let (seconds, attoseconds) = duration.components
+            let nanoseconds = seconds.multipliedClamping(by: 1_000_000_000)
+                .addingClamping(attoseconds / 1_000_000_000)
+            return .nanoseconds(nanoseconds)
+        }
         guard case .host(let payload) = value,
               let call = payload as? ImplicitMemberCall,
               let amount = call.arguments.positional(0)?.doubleValue,

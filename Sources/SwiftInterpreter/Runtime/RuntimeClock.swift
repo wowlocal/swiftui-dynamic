@@ -154,7 +154,10 @@ public final class ManualRuntimeClock: RuntimeClock {
     }
 }
 
-private extension Int64 {
+// Saturating arithmetic shared with the sleep path, which converts a host
+// `Duration`'s 128-bit components into the nanoseconds this runtime schedules
+// in and must not trap on a value the clock can simply pin at its extreme.
+extension Int64 {
     func addingClamping(_ other: Int64) -> Int64 {
         let (value, overflow) = addingReportingOverflow(other)
         guard overflow else { return value }
