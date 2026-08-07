@@ -122,7 +122,18 @@ extension Interpreter {
                 || ["Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
         case .double: return ["Double", "CGFloat", "TimeInterval", "Float", "NSNumber"].contains(typeName)
         case .bool: return typeName == "Bool" || typeName == "NSNumber"
-        case .string: return ["String", "NSString"].contains(typeName)
+        case .string(let string):
+            if ["String", "NSString"].contains(typeName) { return true }
+            // A `Unicode.Scalar` is carried as its one-scalar string, so
+            // until here the scalar type had no runtime identity of its own:
+            // a value SwiftSoup's entity decoder produces as `UnicodeScalar`
+            // could not answer to the annotation written for it. The shared
+            // host type system already reads a one-scalar string this way;
+            // the spelling set that names the scalar type is interface-
+            // derived, so `Character` and the integer families stay distinct.
+            return string.unicodeScalars.count == 1
+                && GeneratedUnicodeScalarSurface.representsScalarType(
+                    named: typeName)
         case .array: return ["Array", "NSArray"].contains(typeName) || typeName.hasPrefix("[")
         case .set: return typeName == "Set"
         case .dictionary:

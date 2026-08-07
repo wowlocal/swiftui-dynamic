@@ -1165,6 +1165,42 @@ import Testing
             .contains("⭕Des familles ont été prises") == true)
     }
 
+    /// IceCubes `HTMLString.init(from:)` class, first half (Models/Alias/
+    /// HTMLString.swift:57): a `Unicode.Scalar` is carried as its one-scalar
+    /// string, and that carrier answered only to `String`. SwiftSoup's
+    /// entity decoder hands the tokeniser `[UnicodeScalar]`, so a scalar with
+    /// no type identity of its own cannot select the overload written for it.
+    ///
+    /// The expectation is `xcrun swiftc -O` output over this same snippet, not
+    /// a written literal: native prints `isScalar=true isUInt8=false`.
+    @Test func singleScalarAnswersToItsScalarTypeName() throws {
+        let value = try Interpreter(registry: TraceRegistry()).run(source: """
+            let scalar = UnicodeScalar(39)!
+            let value: Any = scalar
+            "isScalar=\\(value is UnicodeScalar) isUInt8=\\(value is UInt8)"
+            """)
+        #expect(value.stringValue == "isScalar=true isUInt8=false")
+    }
+
+    /// The same class read through `Character`, which the interface does NOT
+    /// name as a scalar type. Without this control the fix above could be a
+    /// blanket "a one-scalar string is whatever you ask", which would make
+    /// every overload in the family fit and select by declaration order
+    /// again — the exact failure it repairs. `xcrun swiftc -O` over this
+    /// snippet prints `isCharacter=false`.
+    ///
+    /// The same native run prints `isString=false`, which the interpreter
+    /// still answers `true`: a scalar IS a one-scalar string here, and every
+    /// seam that reads one as text depends on that. This control deliberately
+    /// does not pin that divergence — it is the carrier's, not this fix's.
+    @Test func singleScalarDoesNotAnswerToUnrelatedCharacterType() throws {
+        let value = try Interpreter(registry: TraceRegistry()).run(source: """
+            let value: Any = UnicodeScalar(39)!
+            "isCharacter=\\(value is Character)"
+            """)
+        #expect(value.stringValue == "isCharacter=false")
+    }
+
     private func swiftSoupText(_ html: String) throws -> String? {
         try swiftSoupEvaluation(
             html, suffix: "try document.text()\n").stringValue
