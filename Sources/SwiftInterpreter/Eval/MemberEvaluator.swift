@@ -188,6 +188,27 @@ extension Interpreter {
         return registry?.constructor(named: name).map(RuntimeValue.hostFunction)
     }
 
+    /// Read a top-level global BY NAME the way the PROGRAM would read it.
+    ///
+    /// Swift globals are lazy, and this interpreter models that faithfully: a
+    /// top-level binding holds a `LazyGlobal` thunk until something forces it.
+    /// Source-level references force it on the way through, so a global the
+    /// program itself mentions is already a value by the time a host looks —
+    /// but `globals.lookup(_:)` is a RAW read of the box, so a global the
+    /// program never mentions comes back as the unforced thunk. To a host that
+    /// asked for a number that reads as "present, but not a number", which is
+    /// indistinguishable from a genuine type error and depends on whether some
+    /// unrelated part of the program happened to reference the same name.
+    ///
+    /// Hosts inspecting a program's globals — capture harnesses, benchmarks,
+    /// tests — want the language-level read, so this forces the binding
+    /// exactly as a source-level reference would and memoizes it the same way.
+    /// Returns nil only when no such global is declared.
+    public func globalValue(named name: String) throws -> RuntimeValue? {
+        guard let box = globals.box(for: name) else { return nil }
+        return try force(box)
+    }
+
     /// Lazy globals evaluate their initializer on first read (memoized).
     func force(_ box: Box) throws -> RuntimeValue {
         if case .host(let any) = box.value, let computed = any as? ComputedGlobal {

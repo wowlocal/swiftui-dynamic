@@ -443,14 +443,18 @@ private struct IceCubesCatalystCaptureRoot: View {
             guard screen == .timeline else {
                 exit(0)
             }
-            guard let interpretedClockEpoch = session.interpreter.globals
-                .lookup("__iceInterpretedClockEpoch")?.doubleValue,
-                let interpretedRelativeDrift = session.interpreter.globals
-                    .lookup("__iceInterpretedRelativeClockDrift")?.doubleValue
+            // Forced through `globalValue(named:)`, not read raw off
+            // `globals`: a global no view references is still an unforced
+            // lazy thunk, and the drift reading is referenced nowhere.
+            let epochValue = try session.interpreter
+                .globalValue(named: "__iceInterpretedClockEpoch")
+            let driftValue = try session.interpreter
+                .globalValue(named: "__iceInterpretedRelativeClockDrift")
+            guard let interpretedClockEpoch = epochValue?.doubleValue,
+                let interpretedRelativeDrift = driftValue?.doubleValue
             else {
-                throw RuntimeError(
-                    message:
-                        "interpreted capture clock did not materialize")
+                throw interpretedClockFailure(
+                    epoch: epochValue, drift: driftValue)
             }
             let metadata = CaptureMetadata(
                 hostClockEpoch: Date().timeIntervalSince1970,
@@ -758,6 +762,28 @@ private struct CaptureMetadata: Codable {
     /// interpreter's host bridge reaches the same frozen source the compiled
     /// twin does.
     let interpretedRelativeClockDrift: TimeInterval
+}
+
+/// Both clock readings are looked up by name out of the interpreted program's
+/// globals, and the two can fail for unrelated reasons — a binding that never
+/// evaluated reads the same as one that evaluated to a non-numeric value. One
+/// shared message that names WHICH global is missing and what it held keeps
+/// the two apart, so a red says what to go look at instead of only that
+/// something about the clock did not work.
+private func interpretedClockFailure(
+    epoch: RuntimeValue?, drift: RuntimeValue?
+) -> RuntimeError {
+    func describe(_ name: String, _ value: RuntimeValue?) -> String {
+        guard let value else { return "\(name)=absent" }
+        guard let double = value.doubleValue else {
+            return "\(name)=present-but-not-a-number(\(value))"
+        }
+        return "\(name)=\(double)"
+    }
+    return RuntimeError(
+        message: "interpreted capture clock did not materialize: "
+            + describe("__iceInterpretedClockEpoch", epoch) + " "
+            + describe("__iceInterpretedRelativeClockDrift", drift))
 }
 
 private struct FixtureAccount: Decodable {
@@ -2983,13 +3009,18 @@ struct IceCubesCheckMain {
                 + "\(Int(screenSize.width))x\(Int(screenSize.height))")
 
         guard screen == .timeline else { return }
-        guard let interpretedClockEpoch = session.interpreter.globals
-            .lookup("__iceInterpretedClockEpoch")?.doubleValue,
-            let interpretedRelativeDrift = session.interpreter.globals
-                .lookup("__iceInterpretedRelativeClockDrift")?.doubleValue
+        // Forced through `globalValue(named:)`, not read raw off `globals`:
+        // a global no view references is still an unforced lazy thunk, and
+        // the drift reading is referenced nowhere.
+        let epochValue = try session.interpreter
+            .globalValue(named: "__iceInterpretedClockEpoch")
+        let driftValue = try session.interpreter
+            .globalValue(named: "__iceInterpretedRelativeClockDrift")
+        guard let interpretedClockEpoch = epochValue?.doubleValue,
+            let interpretedRelativeDrift = driftValue?.doubleValue
         else {
-            throw RuntimeError(
-                message: "interpreted capture clock did not materialize")
+            throw interpretedClockFailure(
+                epoch: epochValue, drift: driftValue)
         }
         let metadata = CaptureMetadata(
             hostClockEpoch: Date().timeIntervalSince1970,
