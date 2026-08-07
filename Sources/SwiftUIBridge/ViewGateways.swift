@@ -351,11 +351,11 @@ extension ViewRegistry {
                     }
                 )
                 let list = AnyView(
-                    List(selection: binding) { Self.indexed(content) })
+                    List(selection: binding) { Self.spliced(content) })
                 return .native(TargetPlatformCollectionBridge.apply(
                     to: list, context: ctx))
             }
-            let list = AnyView(List { Self.indexed(content) })
+            let list = AnyView(List { Self.spliced(content) })
             return .native(TargetPlatformCollectionBridge.apply(
                 to: list, context: ctx))
         }
@@ -378,7 +378,7 @@ extension ViewRegistry {
             // wrapping a section in another Section diverges. Not rebuilding
             // is therefore not a degrade; it is the shape that matches.
             let content = try Self.builderContent(args, ctx)
-            return .native(AnyView(Form { Self.indexed(content) }))
+            return .native(AnyView(Form { Self.spliced(content) }))
         }
 
         constructors["Grid"] = HostFunction(name: "Grid") { args, ctx in

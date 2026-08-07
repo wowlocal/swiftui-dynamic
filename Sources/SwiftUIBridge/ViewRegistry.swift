@@ -488,6 +488,33 @@ public final class ViewRegistry: HostRegistry {
         ForEach(views.indices, id: \.self) { views[$0] }
     }
 
+    /// Builder output as STATIC siblings, which is what native multi-statement
+    /// builder output is: a `TupleView` whose members splice into the
+    /// enclosing container and are classified one by one.
+    ///
+    /// `indexed` is the other spelling and it is a DYNAMIC fan. A collection
+    /// that groups by section reads a dynamic fan's kind once, from its first
+    /// element, so `Form { row; Section; Section }` — where the fan opens on a
+    /// row — degraded every section in it to a plain row. Splicing removes the
+    /// fan instead of teaching the container to look past it, so no value has
+    /// to be classified as section-like on the way in and every route into the
+    /// container keeps whatever it already was.
+    ///
+    /// Halving keeps the nesting depth logarithmic; `Group` is transparent to
+    /// the enclosing container, so the tree flattens back to the same sibling
+    /// sequence whatever shape it is built in.
+    static func spliced(_ views: [AnyView]) -> AnyView {
+        guard let first = views.first else { return AnyView(EmptyView()) }
+        guard views.count > 1 else { return first }
+        let middle = views.count / 2
+        let leading = Self.spliced(Array(views[..<middle]))
+        let trailing = Self.spliced(Array(views[middle...]))
+        return AnyView(Group {
+            leading
+            trailing
+        })
+    }
+
     static func builderContent(_ args: CallArguments, _ ctx: EvalContext) throws -> [AnyView] {
         guard let closure = args.closure(labeled: "content") ?? args.lastUnlabeledClosure else {
             throw RuntimeError(message: "missing content closure")
