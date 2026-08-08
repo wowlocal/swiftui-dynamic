@@ -647,31 +647,19 @@ echo "── R3 AE board ──"
 #    cannot see. Ratchets like any other floor.
 #
 # THE FOUR RATCHETABLE FLOORS BELOW (two scenarios × two ratcheting
-# quantities) ARE ALL `unmeasured`, AND THAT IS DELIBERATE.
-# Nothing in this tree has ever been run: this board was written under an
-# explicit prohibition on building, running or capturing (a close gate was
-# running on the machine, and competing load had already produced two false
-# reds that day). A number here would therefore be a constant chosen to make
-# the board green rather than a measurement — the AGENTS.md §4 payload
-# violation exactly: "a constant calibrated by measuring the compiled target is
-# the same violation as `case \"someAPI\"`", and a constant calibrated by
-# measuring NOTHING is worse, because it also cannot be reproduced. The board
-# refuses to score an `unmeasured` pair and exits 2 printing the measurement it
-# just took, so the only way a floor can appear here is by pasting a number the
-# board itself produced.
+# quantities) were admitted from the board's first clean-detached measurement
+# on 2026-08-08 at 76af05a4. Every within-side repeat was byte-identical before
+# scoring. Both cross-side post-mutation captures measured AE 0; the display
+# mutation changed 17,328 pixels on each side and the timeline mutation changed
+# 96,207 on each side, so both `|twinΔ-interpΔ|` quantities also measured 0.
 #
-# TO ADMIT THESE SCENARIOS, on an otherwise IDLE machine (no gate running —
-# check `ps ax | grep lane-gate` first, and see the in-flight-gate trap: a
-# concurrent R2 stage races these captures through the window server):
+# Reproduce on an otherwise idle machine (no gate running — a concurrent R2
+# stage races these captures through the window server):
 #
 #     Scripts/icecubes-r3.sh
 #
-# then paste each printed "first measurement is N" into the table below, in ONE
-# commit, with a comment saying what the number is made of — the way every
-# screen in `R2_FLOORS` was admitted. A scenario entering at a large number is
-# not a failure to hide; it is the honest first measurement of a surface that
-# had none, and the comment is where its decomposition goes. The `-base` rows
-# are NOT part of that admission: they are pinned at 0 and enforced below.
+# The `-base` rows are not part of the admission: they are premises pinned at
+# 0 because R2 already holds the corresponding first renders at AE 0.
 typeset -A R3_FLOORS
 R3_FLOORS=(
   # `DisplaySettingsView`'s own theme toggle, driven as
@@ -693,12 +681,15 @@ R3_FLOORS=(
   # TWO independent regions is also why this scenario needs the
   # `-changed-delta` floor: an interpreter that shifts the footer and never
   # undims the pickers produces a nonzero `interpΔ` and passes a zero test.
-  display-settings-system-color-off unmeasured
+  # First measurement: post-mutation cross-side AE 0. The compiled and
+  # interpreted screens each changed by 17,328 pixels from their own base.
+  display-settings-system-color-off 0
   # PINNED TO 0, NOT RATCHETABLE. The base capture is the `display-settings`
   # screen, which the R2 board holds at AE 0. Anything else is a base
   # regression to fix.
   display-settings-system-color-off-base 0
-  display-settings-system-color-off-changed-delta unmeasured
+  # First measurement: |17,328 - 17,328| = 0.
+  display-settings-system-color-off-changed-delta 0
   # The display-settings action-buttons picker, driven as
   # `Theme.shared.statusActionsDisplay = Theme.StatusActionsDisplay.none` — the
   # model write `Picker("settings.display.status.action-buttons", selection:
@@ -712,11 +703,14 @@ R3_FLOORS=(
   # so selecting `.none` drops the action bar out of every non-focused row and
   # the whole list re-lays out — a large, unambiguous pixel change on the
   # highest-value base screen the board has.
-  timeline-status-actions-hidden unmeasured
+  # First measurement: post-mutation cross-side AE 0. The compiled and
+  # interpreted timelines each changed by 96,207 pixels from their own base.
+  timeline-status-actions-hidden 0
   # PINNED TO 0, NOT RATCHETABLE. The base capture is the `timeline` screen,
   # the LOOP's headline R2 metric, which sits at AE 0. Same reading as above.
   timeline-status-actions-hidden-base 0
-  timeline-status-actions-hidden-changed-delta unmeasured
+  # First measurement: |96,207 - 96,207| = 0.
+  timeline-status-actions-hidden-changed-delta 0
 )
 # A pair captured but unscored is indistinguishable from a pair that converged,
 # so the two tables must name exactly the same quantities — in both directions.
