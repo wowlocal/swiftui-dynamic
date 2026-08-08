@@ -159,6 +159,37 @@ private enum IceCubesCaptureScreen: String {
         case .statusDetail, .accountHeader: true
         }
     }
+
+    /// Replay paths this screen's own view models must have been SERVED before
+    /// its pixels mean anything — the interpreted mirror of the twin's
+    /// `waitForRequests`, which has always had one.
+    ///
+    /// Readiness is otherwise "the session stopped making progress, and a body
+    /// evaluated after it did". That cannot see a fetch the app has not ISSUED
+    /// yet: between one response landing and the next request going out, the
+    /// runtime is quiescent and the tree is stable, so a screen whose content
+    /// is gated on a SECOND request can capture complete and be missing it.
+    /// Measured 2026-08-08 — the same tree that scores 4073 AE in a lane
+    /// worktree scored 205570 in the close gate, because there the hashtag
+    /// header's `Tags.tag` fetch had not started when the rows settled. Both
+    /// interpreted captures agreed, so the reproducibility gate certified it:
+    /// a self-vs-self comparison cannot see a request neither run made.
+    ///
+    /// Only screens with a SECOND fetch need naming; a screen whose whole
+    /// content arrives in one response is already covered by the progress
+    /// rule. The paths are the app's own, and a screen that never serves them
+    /// fails loudly rather than capturing early.
+    var requiredReplayPaths: [String] {
+        switch self {
+        // `TimelineViewModel` fetches the page from the filter, and then
+        // `fetchTag` separately for the pinned `TimelineTagHeaderView`. The
+        // header is gated on that second response.
+        case .hashtagTimeline: ["/api/v1/timelines/tag/swift", "/api/v1/tags/swift"]
+        case .timeline, .statusDetail, .accountHeader, .media, .tagsList,
+             .mediaBrowser, .trendingTimeline, .trendingLinks, .instanceInfo,
+             .displaySettings: []
+        }
+    }
 }
 
 private struct NativeScreenFixtureNames: Codable {
@@ -225,6 +256,23 @@ private struct IceCubesCatalystCaptureRoot: View {
         }
     }
 
+    /// The replay resources served so far, keyed by path. `NetworkBridge`
+    /// records `"<path>[?query] hit|MISS"`; only the path identifies the
+    /// endpoint, since the app appends its own paging query.
+    private static func servedReplayPaths() -> Set<String> {
+        Set(NetworkBridge.requestLog.map { entry in
+            let resource = entry.split(separator: " ").first.map(String.init)
+                ?? entry
+            return resource.split(separator: "?").first.map(String.init)
+                ?? resource
+        })
+    }
+
+    private static func hasServed(_ paths: [String]) -> Bool {
+        let served = servedReplayPaths()
+        return paths.allSatisfy(served.contains)
+    }
+
     private func capture() async {
         defer { NetworkBridge.policy = .absorbed }
         do {
@@ -263,18 +311,44 @@ private struct IceCubesCatalystCaptureRoot: View {
             var previousRevision =
                 session.renderActivity.bodyEvaluationCount
             var nextSample = ContinuousClock.now
-            while !readiness.isReadyForCapture && readinessExpiry == nil {
+            var previousServed = Self.servedReplayPaths()
+            // Once the tree is otherwise ready, a fetch the screen still owes
+            // gets the SAME no-progress window everything else here is bounded
+            // by — not a new constant, and not the 900s total limit, which an
+            // oscillating session would take in full before saying anything.
+            var readyAt: ContinuousClock.Instant?
+            var requestsOverdue = false
+            while (!readiness.isReadyForCapture
+                    || !Self.hasServed(screen.requiredReplayPaths))
+                && readinessExpiry == nil && !requestsOverdue {
                 try await Task.sleep(for: .milliseconds(50))
                 readiness.observe(
                     runtimeActivity: session.interpreter.runtimeActivity,
                     renderActivity: session.renderActivity)
                 let activity = session.interpreter.runtimeActivity
                 let revision = session.renderActivity.bodyEvaluationCount
+                // A newly SERVED request is progress in its own right. Between
+                // one response landing and the app issuing the next, the task
+                // counters and the body revision can both sit still, and
+                // without this the budget would expire on a fetch that was
+                // about to happen.
+                let served = Self.servedReplayPaths()
                 let progressed =
                     activity != previousActivity
                         || revision != previousRevision
+                        || served != previousServed
                 previousActivity = activity
                 previousRevision = revision
+                previousServed = served
+                if readiness.isReadyForCapture, readyAt == nil {
+                    readyAt = ContinuousClock.now
+                }
+                if let readyAt,
+                   !Self.hasServed(screen.requiredReplayPaths),
+                   readyAt.duration(to: ContinuousClock.now)
+                       >= budget.noProgressLimit {
+                    requestsOverdue = true
+                }
                 readinessExpiry = budget.observe(
                     progressed: progressed, at: ContinuousClock.now)
                 if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1",
@@ -294,6 +368,19 @@ private struct IceCubesCatalystCaptureRoot: View {
                             + " pending=\(session.interpreter.pendingTaskDescriptions)"
                             + " blocked=\(session.interpreter.pendingContinuationDescriptions)")
                 }
+            }
+            let missingRequests = screen.requiredReplayPaths.filter {
+                !Self.hasServed([$0])
+            }
+            guard missingRequests.isEmpty else {
+                // A screen that never made its own fetch must RED, not capture
+                // what it happens to have. This is the one readiness failure
+                // whose evidence is not in the runtime counters at all, so it
+                // names the paths and what WAS served instead.
+                throw RuntimeError(message:
+                    "interpreted \(screen.rawValue) never served "
+                    + "\(missingRequests.sorted()); observed "
+                    + "\(Self.servedReplayPaths().sorted())")
             }
             guard readiness.isReadyForCapture else {
                 // Say WHICH half of readiness is missing. "Not ready" has two
