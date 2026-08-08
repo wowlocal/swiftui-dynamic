@@ -1754,18 +1754,28 @@ struct IceCubesCheckMain {
         // Module.freeGlobal references and verifies each member against that
         // module's compiled source inventory; no package/API identity lives
         // in this instrument.
-        let externalPackageFiles: [String]
-        let sourceModules: [String: String]
-        if FileManager.default.fileExists(atPath: buildDescription) {
-            externalPackageFiles = try ProjectMaterial.swiftFiles(
-                inSwiftPMBuildDescriptionAt: buildDescription,
-                requiredBy: localPackageFiles)
-            sourceModules = try ProjectMaterial.sourceModuleNames(
-                inSwiftPMBuildDescriptionAt: buildDescription)
-        } else {
-            externalPackageFiles = []
-            sourceModules = [:]
+        // A MISSING build description is a missing precondition, not an empty
+        // answer. Degrading to no external sources drops SwiftSoup and every
+        // other remote dependency out of the merge, and the program then fails
+        // far from here with something that names none of this — `decode:
+        // unsupported type value (function Tag)` is what it cost on
+        // 2026-08-08, from a build of this instrument made without the twin.
+        // The two guards above already throw for a missing app or fixture
+        // directory; this one was the odd one out.
+        guard FileManager.default.fileExists(atPath: buildDescription) else {
+            throw RuntimeError(message:
+                "the native twin has not been built: no SwiftPM build "
+                + "description at \(buildDescription). Every screen "
+                + "interprets the app's remote dependencies out of it, so "
+                + "there is nothing to fall back to. Build it with "
+                + "`Scripts/icecubes-r2.sh`, or point --root at a tree that "
+                + "has (currently \(root))")
         }
+        let externalPackageFiles = try ProjectMaterial.swiftFiles(
+            inSwiftPMBuildDescriptionAt: buildDescription,
+            requiredBy: localPackageFiles)
+        let sourceModules = try ProjectMaterial.sourceModuleNames(
+            inSwiftPMBuildDescriptionAt: buildDescription)
         let packageFiles = Array(Set(
             localPackageFiles + externalPackageFiles)).sorted()
         // A native build compiles the app and AppIntents extension as separate
