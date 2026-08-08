@@ -3671,11 +3671,19 @@ struct ConcurrencyMethodologyTests {
             status.semanticCapabilities,
             by: { $0.verificationStatus.rawValue }).mapValues(\.count)
         #expect(receipt["result"] as? String == "RED")
-        #expect(receipt["schemaVersion"] as? Int == 4)
-        // Schema 4 carries the north-star rung ladder beside the pixel board,
-        // so a receipt that reports R2 alone is no longer a complete receipt.
+        #expect(receipt["schemaVersion"] as? Int == 5)
+        // Schema 5 carries the R3 interaction board beside the pixel and rung
+        // boards. Pin every addition here so a version bump cannot describe a
+        // receipt whose advertised fields are absent.
         let stages = try #require(receipt["stages"] as? [String: Any])
         let boards = try #require(receipt["boards"] as? [String: Any])
+        let exitStatuses = try #require(
+            diagnostics["exitStatuses"] as? [String: Any])
+        #expect(stages["iceCubesR3"] is [String: Any])
+        #expect(boards["iceCubesR3"] is String)
+        #expect(diagnostics["iceCubesR3LogTail"] is String)
+        #expect(exitStatuses["iceCubesR3"] is Int)
+        #expect(configuration["r3TimeoutSeconds"] is Int)
         #expect(stages["iceCubesBoard"] is [String: Any])
         #expect(boards["iceCubesBoard"] is String)
         #expect(source["commitAtStart"] is String)
@@ -3747,7 +3755,6 @@ struct ConcurrencyMethodologyTests {
             == expectedSemanticVerificationCounts)
         #expect((diagnostics["messages"] as? String)?.contains(
             "toolchain fingerprint mismatch") == true)
-        #expect(diagnostics["exitStatuses"] is [String: Any])
         #expect(diagnostics["timeouts"] is [String: Any])
         #expect(configuration["gateLockPolicy"] as? String
             == "exclusive-git-common-dir")
