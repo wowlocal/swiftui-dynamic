@@ -59,6 +59,26 @@ R2_COMMENT_PATTERN = /#[^\n]*/
 # measurement-calibrated constant §4 polices. Historical shas carry no marker,
 # so every past landing keeps the figure it was scored with.
 R2_ACKNOWLEDGED_PATTERN = /^\s*#\s*ACKNOWLEDGED\s+([A-Za-z][\w-]*)\s*:/
+# ── The INTERACTION half of the same board ────────────────────────────────────
+# `Scripts/icecubes-r3.sh` scores POST-INTERACTION pixels, and until this landed
+# it carried a comment naming this file as one of its two blind spots: "NEITHER
+# KNOWS THIS FILE EXISTS. Until they parse `R3_FLOORS`/`R3_SCENARIOS` the same
+# way — treating `unmeasured` as UNREADABLE-AND-FAIL rather than as zero, which
+# is the one way this table can lie to a stall detector — an R3 floor can sit
+# still or be pasted without either instrument noticing."
+#
+# `unmeasured` is the reason this cannot reuse `R2_FLOOR_ENTRY_PATTERN`. It is a
+# real value in that table, written where a number will go once the quantity has
+# been captured, and a parser that simply fails to match it would drop the entry
+# and report the board as LESS debt than it carries — the `media-browser 367681`
+# failure exactly, arrived at from the other direction. So the word is matched
+# explicitly and answered with a refusal.
+R3_BOARD_PATH = "Scripts/icecubes-r3.sh"
+R3_FLOORS_PATTERN = /R3_FLOORS=\((.*?)^\s*\)/m
+R3_SCENARIOS_PATTERN = /R3_SCENARIOS=\(([^)]*)\)/
+R3_SUFFIXES_PATTERN = /R3_SUFFIXES=\(([^)]*)\)/
+R3_FLOOR_ENTRY_PATTERN = /^\s*([A-Za-z][\w-]*)\s+(\d+|unmeasured)\s*$/
+R3_UNMEASURED = "unmeasured"
 # Four MERGE-DONE spellings are in the ledger (`MERGE-DONE <sha>`,
 # `MERGE-DONE <lane> <sha>`, a steward form, and 7-hex shorthand), so the sha is
 # found by candidate rather than by position. `git show` is the arbiter: a
@@ -208,6 +228,42 @@ end
 # it does. The floors themselves are untouched: `icecubes-r2.sh` still enforces
 # an acknowledged screen's floor, so it cannot regress, and the headline still
 # prints its debt. Only the STALL predicate stops counting it.
+# The interaction half's floors, on the same terms as `parse_r2_floors` — with
+# one deliberate difference stated by the board it reads.
+#
+# Returns nil when the table cannot be found or is empty, `:unmeasured` when any
+# quantity still carries the placeholder, and the floors otherwise. The two
+# failures are kept apart because they call for opposite actions: an unreadable
+# table means this parser is pointed at a file that was respelled, and an
+# unmeasured one means the board has quantities nobody has captured yet. Reading
+# either as zero debt is the specific lie the R3 board asked this file not to
+# tell.
+def parse_r3_floors(source)
+  body = source[R3_FLOORS_PATTERN, 1]
+  return nil unless body
+
+  entries = body.gsub(R2_COMMENT_PATTERN, "").scan(R3_FLOOR_ENTRY_PATTERN)
+  return nil if entries.empty?
+  return :unmeasured if entries.any? { |_name, value| value == R3_UNMEASURED }
+
+  floors = entries.to_h { |name, value| [name, Integer(value, 10)] }
+  # The same static agreement `parse_r2_floors` asserts between R2_FLOORS and
+  # R2_SCREENS, over the product this board actually scores: every scenario is
+  # captured at every suffix, so the scored ids are that cross product and
+  # nothing else. `icecubes-r3.sh` enforces this at RUNTIME in both directions
+  # ("captured but carries no floor" / "carries a floor but is never
+  # captured"); asserting it here is what makes a quantity the parser cannot see
+  # read as UNREADABLE rather than as zero.
+  scenarios = source[R3_SCENARIOS_PATTERN, 1]&.split
+  suffixes = source[R3_SUFFIXES_PATTERN, 1]&.scan(/"([^"]*)"/)&.flatten
+  if scenarios && suffixes
+    expected = scenarios.product(suffixes).map { |scenario, suffix| scenario + suffix }
+    return nil if expected.sort != floors.keys.sort
+  end
+
+  floors
+end
+
 def r2_floors_at(sha)
   source, _error, ok = git("show", "#{sha}:#{R2_BOARD_PATH}")
   return nil unless ok
@@ -817,7 +873,8 @@ end
 def policy_payload(
   integration_base:, commits:, metrics:, stall_active:, decomposition:, errors:,
   open_by_screen: nil, escalation: nil, landings: [], series_landings: 0,
-  series_available: true, ledger_available: true, warnings: []
+  series_available: true, ledger_available: true, warnings: [],
+  r3_open_by_quantity: nil
 )
   payload = {
     # 3 adds the landing-series provenance below. The receipt reads `version`,
@@ -879,6 +936,13 @@ def policy_payload(
     payload["r2Open"] = open_by_screen.values.sum
     payload["r2OpenByScreen"] = open_by_screen
   end
+  # Only a PARSED board reaches the receipt as a number. `:unmeasured` and
+  # unreadable are already errors above, and writing either as a total would put
+  # a figure in the retained record that no capture stands behind.
+  if r3_open_by_quantity.is_a?(Hash)
+    payload["r3Open"] = r3_open_by_quantity.values.sum
+    payload["r3OpenByQuantity"] = r3_open_by_quantity
+  end
   payload["decomposition"] = decomposition if decomposition
   payload["escalation"] = escalation if escalation
   payload
@@ -924,6 +988,74 @@ def self_test
     { "timeline" => 0, "status-detail" => 50_184, "account-header" => 35_241 }
   raise "a board without floors must not parse" if
     parse_r2_floors("typeset -A R2_AE_LINES\n")
+
+  # ── The interaction half ────────────────────────────────────────────────────
+  # The case the R3 board asked for by name: `unmeasured` must be a REFUSAL, not
+  # a zero. Every other assertion here exists to stop that refusal being
+  # satisfied the cheap way — by a parser that reads nothing and calls it clean.
+  r3_measured = <<~BOARD
+    R3_SCENARIOS=(alpha beta)
+    R3_SUFFIXES=("-base" "" "-changed-delta")
+    typeset -A R3_FLOORS
+    R3_FLOORS=(
+      alpha-base 0
+      alpha 12
+      alpha-changed-delta 3
+      beta-base 0
+      beta 0
+      beta-changed-delta 0
+    )
+  BOARD
+  raise "R3 floor parsing failed" unless parse_r3_floors(r3_measured) ==
+    { "alpha-base" => 0, "alpha" => 12, "alpha-changed-delta" => 3,
+      "beta-base" => 0, "beta" => 0, "beta-changed-delta" => 0 }
+  raise "R3 open debt must sum every quantity" unless
+    parse_r3_floors(r3_measured).values.sum == 15
+
+  # THE CASE THIS WAS WRITTEN FOR. Reading `unmeasured` as zero would report
+  # this board as 12 AE of debt — strictly less than the measured board above —
+  # while two of its six quantities have never been scored at all.
+  r3_unmeasured = r3_measured.sub("alpha-changed-delta 3", "alpha-changed-delta unmeasured")
+    .sub("beta 0\n", "beta unmeasured\n")
+  raise "an unmeasured quantity must not parse as debt" unless
+    parse_r3_floors(r3_unmeasured) == :unmeasured
+  raise "a single unmeasured quantity must refuse the whole table" unless
+    parse_r3_floors(r3_measured.sub("beta-base 0", "beta-base unmeasured")) ==
+      :unmeasured
+
+  raise "a board without an R3 floor table must not parse" if
+    parse_r3_floors("R3_SCENARIOS=(alpha)\n")
+  # A quantity the parser cannot see must read as UNREADABLE, never as a
+  # smaller board that happens to agree with itself — the `media-browser
+  # 367681` failure, reached from the other direction.
+  raise "a floor table missing a scored quantity must not parse" if
+    parse_r3_floors(r3_measured.sub("  beta-changed-delta 0\n", ""))
+  raise "a floor with no scenario to score it must not parse" if
+    parse_r3_floors(r3_measured.sub("R3_SCENARIOS=(alpha beta)", "R3_SCENARIOS=(alpha)"))
+  # Comments carry prose about what each number is, exactly as R2_FLOORS does.
+  raise "commented R3 floors must still parse" unless
+    parse_r3_floors(r3_measured.sub("  alpha 12", "  # was 400, see below\n  alpha 12")) ==
+      parse_r3_floors(r3_measured)
+
+  # The REAL board, so a parser that passes every fixture above and cannot read
+  # the file it was written for still fails. It is allowed to be `:unmeasured` —
+  # that is a state of the board, not of the parser — but never nil.
+  real_r3 = repo_file(R3_BOARD_PATH)
+  if File.file?(real_r3)
+    real_source = File.read(real_r3)
+    parsed = parse_r3_floors(real_source)
+    raise "the real R3 board does not parse" if parsed.nil?
+    # While ANY quantity is `unmeasured` the refusal short-circuits before the
+    # scenario/suffix cross-check, so the part of the parser that has to agree
+    # with the real R3_SCENARIOS and R3_SUFFIXES would go unexercised for as
+    # long as the board is unmeasured — a check that is green because it never
+    # ran. Substituting a number for the placeholder runs it against the real
+    # arrays, including the empty `""` suffix that makes a scored id equal to
+    # its scenario name.
+    measured = real_source.gsub(/^(\s*[A-Za-z][\w-]*\s+)#{R3_UNMEASURED}\s*$/, '\10')
+    raise "the real R3 board's scored ids do not agree with its scenarios " \
+      "and suffixes" unless parse_r3_floors(measured).is_a?(Hash)
+  end
 
   # The converged-with-an-acknowledged-residue case, which `positive?` alone
   # could not tell from a stall.
@@ -1633,6 +1765,49 @@ else
     "half of the north star cannot be measured"
 end
 
+# The same headline for the interaction half. It is stated on the same terms and
+# in the same breath for the §15 reason the R2 line exists: a board that prints
+# only the converged half of what it measures reads as done.
+#
+# WHAT THIS DOES NOT DO YET, and why that is not an oversight. There is no R3
+# STALL SERIES here. Folding these quantities into the R2 series would fire the
+# detector on the very landing that admits the board: every sha that predates
+# `Scripts/icecubes-r3.sh` carries no R3 debt, so the window reads
+# [0, 0, 0, 0, X] — non-decreasing, last positive, i.e. `stalled?` — and the
+# work being punished is the act of starting to measure something. That is the
+# board-widening defect this project has already recorded once, on the R2 side.
+# A correct R3 series scores only landings whose tree HAS the board, which by
+# construction cannot reach STALL_WINDOW entries until five such landings exist.
+# It lands when it can first be true, in its own commit, with its window stated
+# — not as a threshold written before anything can satisfy it.
+r3_board_file = repo_file(R3_BOARD_PATH)
+r3_board_source = File.file?(r3_board_file) ? File.read(r3_board_file) : nil
+r3_open_by_quantity = parse_r3_floors(r3_board_source) if r3_board_source
+case r3_open_by_quantity
+when nil
+  # An ABSENT board is not a finding: this file is older than the R3 board and
+  # must keep working on a tree that does not carry it. An unreadable one is.
+  if r3_board_source
+    errors << "R3 board floors are unreadable at #{R3_BOARD_PATH}: the " \
+      "interaction half of the north star cannot be measured"
+  end
+when :unmeasured
+  errors << "R3 board floors at #{R3_BOARD_PATH} carry '#{R3_UNMEASURED}': a " \
+    "quantity the board captures but has never scored reads as zero debt to " \
+    "every instrument that sums this table. Admit each one at the " \
+    "measurement `Scripts/icecubes-r3.sh` prints when it refuses it, in one " \
+    "commit"
+else
+  r3_open_total = r3_open_by_quantity.values.sum
+  r3_breakdown = r3_open_by_quantity
+    .sort_by { |_quantity, value| -value }
+    .map { |quantity, value| "#{quantity} #{value}" }
+    .join(", ")
+  r3_open_quantities = r3_open_by_quantity.count { |_q, value| value.positive? }
+  puts "R3 open #{r3_open_total} AE across #{r3_open_quantities} " \
+    "of #{r3_open_by_quantity.length} quantities (#{r3_breakdown})"
+end
+
 # The window ends at the TIP BEING GATED, not at the last landing. Scoring only
 # landed iterations made the stall unclearable by the thing that actually clears
 # it: a tip that drives a floor down cannot land while the stall is active, and
@@ -1708,7 +1883,8 @@ payload = policy_payload(
   series_landings: series_entries.length,
   series_available: series_available,
   ledger_available: ledger_available,
-  warnings: warnings
+  warnings: warnings,
+  r3_open_by_quantity: r3_open_by_quantity
 )
 puts "@@icecubes-close-policy #{JSON.generate(payload)}"
 # On STDOUT as well as in the receipt: `gate.sh` cats this log to stderr only

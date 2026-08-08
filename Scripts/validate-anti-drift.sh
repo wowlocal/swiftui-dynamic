@@ -125,8 +125,25 @@ CEIL_BOARD_GAP=2
 # is "nobody admitted a new screen for N landings", so the board's WIDTH gets a floor of its own:
 # both counts hold or rise, and a commit that silently drops a screen fails the gate whatever it
 # does to the lead.
-#   (screen command as above)                                                       -> 10 today
-FLOOR_SCORED_SCREENS=10
+#   (screen command as above)                                                       -> 11 today
+#
+# Was 10, ratcheted to 11 when the hashtag-timeline screen the comment above calls "already gated
+# and pushed" actually landed. A width floor that trails the board it measures permits silently
+# dropping back to the width it was written at, which is the one thing it exists to stop.
+FLOOR_SCORED_SCREENS=11
+
+# THE SAME FLOOR FOR THE FUNCTION HALF. `Scripts/icecubes-r3.sh` scores post-interaction pixels —
+# the half of the north star that is NOT converged — and until this landed it stated its own blind
+# spot: "NEITHER KNOWS THIS FILE EXISTS ... an R3 floor can sit still or be pasted without either
+# instrument noticing. Do not read a green R3 stage as an R3 floor that anything is watching."
+#
+# This is the half of that gap this script owns: the board's WIDTH. A scenario deleted rather than
+# fixed retires its debt while every remaining quantity still reads green, and the R3 stage cannot
+# catch it — the stage validates R3_FLOORS against R3_SCENARIOS, so removing BOTH sides of a
+# scenario is internally consistent and silent. Only a floor outside that file sees it.
+#   scenarios  awk '/^R3_SCENARIOS=\(/{f=1} f{print} f&&/\)/{exit}' Scripts/icecubes-r3.sh \
+#                | tr '\n' ' ' | sed -e 's/^R3_SCENARIOS=(//' -e 's/).*$//' | wc -w   -> 2 today
+FLOOR_SCORED_SCENARIOS=2
 
 # The one-row-per-family surface the audit found growing monotonically (3 -> 13 rows in 24 days)
 # and invisible to every existing metric. Its defence is strong today — d8c33e9d bought 2,214
@@ -222,6 +239,16 @@ measure() {
     scored_screens=$(awk '/^R2_SCREENS=\(/{f=1} f{print} f&&/\)/{exit}' \
         Scripts/icecubes-r2.sh 2>/dev/null \
         | tr '\n' ' ' | sed -e 's/^R2_SCREENS=(//' -e 's/).*$//' | wc -w)
+    # The FUNCTION half's width, counted exactly as the screen half above. Until
+    # this landed, `Scripts/icecubes-r3.sh` said of itself that neither this
+    # script nor the close policy "knows this file exists", so a scenario could
+    # be deleted — retiring its debt without fixing anything — with no
+    # instrument anywhere reporting it. The R2 lesson applies unchanged: ONE
+    # list is the board, so counting that array counts the interaction half
+    # exactly as the R3 stage scores it.
+    scored_scenarios=$(awk '/^R3_SCENARIOS=\(/{f=1} f{print} f&&/\)/{exit}' \
+        Scripts/icecubes-r3.sh 2>/dev/null \
+        | tr '\n' ' ' | sed -e 's/^R3_SCENARIOS=(//' -e 's/).*$//' | wc -w)
     platform_specs=$(sed -n '/^private let platformFrameworkSpecs/,/^]/p' \
         Sources/BridgeGen/PlatformGeneration.swift 2>/dev/null \
         | grep -cE '^[[:space:]]*(\.init|PlatformFrameworkSpec)')
@@ -267,6 +294,7 @@ measure() {
     identity_branches=${identity_branches// /}
     rung_count=${rung_count// /}
     scored_screens=${scored_screens// /}
+    scored_scenarios=${scored_scenarios// /}
     platform_specs=${platform_specs// /}
     payload_constants=${payload_constants// /}
     layout_constants=${layout_constants// /}
@@ -295,6 +323,16 @@ measure() {
     if (( scored_screens == 0 )); then
         print -u2 "anti-drift: no 'R2_SCREENS=(' array found in Scripts/icecubes-r2.sh —" \
             "the scored-screen list was renamed or respelled; re-point this measurement"
+        exit 2
+    fi
+
+    # The same reasoning for the interaction half, and the same refusal to guess. Scoring 0 here
+    # would red FLOOR_SCORED_SCENARIOS with a message about scenarios nobody deleted — which is
+    # precisely the way a board-width floor lies, and the failure mode this whole measurement was
+    # added to end.
+    if (( scored_scenarios == 0 )); then
+        print -u2 "anti-drift: no 'R3_SCENARIOS=(' array found in Scripts/icecubes-r3.sh —" \
+            "the scored-scenario list was renamed or respelled; re-point this measurement"
         exit 2
     fi
 
@@ -387,18 +425,37 @@ if [[ "${1:-}" == "--self-test" ]]; then
     (( violations == 5 )) \
         || { print -u2 "screen floor fired on the 11-screen board already gated in flight"; exit 1 }
 
+    # The interaction half's width floor, on the same three cases. 2 is FLOOR_SCORED_SCENARIOS as
+    # calibrated against the two scenarios R3_SCENARIOS carries today.
+    check_floor probe 1 2 "self-test"           # a scenario dropped from R3_SCENARIOS: must count
+    (( violations == 6 )) \
+        || { print -u2 "scenario floor failed to fire on a scenario dropped from R3_SCENARIOS"
+             exit 1 }
+    check_floor probe 2 2 "self-test"           # today's board: must not count
+    (( violations == 6 )) \
+        || { print -u2 "scenario floor fired on the board it was calibrated to"; exit 1 }
+    check_floor probe 3 2 "self-test"           # a scenario admitted: must not count
+    (( violations == 6 )) \
+        || { print -u2 "scenario floor fired on a newly admitted scenario"; exit 1 }
+    # The measurement itself, against the real file rather than a literal — a floor calibrated to a
+    # number the parser cannot actually read is the failure mode this whole block exists to catch.
+    (( $(awk '/^R3_SCENARIOS=\(/{f=1} f{print} f&&/\)/{exit}' Scripts/icecubes-r3.sh 2>/dev/null \
+        | tr '\n' ' ' | sed -e 's/^R3_SCENARIOS=(//' -e 's/).*$//' | wc -w) \
+        == FLOOR_SCORED_SCENARIOS )) \
+        || { print -u2 "the R3_SCENARIOS reading disagrees with FLOOR_SCORED_SCENARIOS"; exit 1 }
+
     # The narrow §5 series (2026-08-08). Literals again: 6.50 is FLOOR_NARROW_LEVERAGE as
     # calibrated against the 6.8781 this tree reads, and 6.8781 is that reading. The point of the
     # pair is that a fractional fall of 0.38 must be caught while today's value must not fire —
     # the wide series could not do either, since it stood a full point above its floor throughout
     # the 08-04..08-08 fall these numbers come from.
     check_floor probe 6.8781 6.50 "self-test"   # today's narrow reading: must not count
-    (( violations == 5 )) || { print -u2 "narrow leverage floor fired on today's 6.8781"; exit 1 }
+    (( violations == 6 )) || { print -u2 "narrow leverage floor fired on today's 6.8781"; exit 1 }
     check_floor probe 6.4999 6.50 "self-test"   # one ten-thousandth under: must count
-    (( violations == 6 )) \
+    (( violations == 7 )) \
         || { print -u2 "narrow leverage floor failed to fire just below its floor"; exit 1 }
     check_floor probe 6.50 6.50 "self-test"     # exactly at the floor: a floor is inclusive
-    (( violations == 6 )) || { print -u2 "narrow leverage floor fired at exactly its floor"; exit 1 }
+    (( violations == 7 )) || { print -u2 "narrow leverage floor fired at exactly its floor"; exit 1 }
 
     print "@@anti-drift-self-test passed"
     exit 0
@@ -416,6 +473,8 @@ printf '  §3 identity density    %8s   ceil  %s   (%s branches per 1000 generat
 printf '  rung ladder            %8s   floor %s\n' "$rung_count" "$FLOOR_RUNGS"
 printf '  scored screens         %8s   floor %s   (R2_SCREENS in Scripts/icecubes-r2.sh)\n' \
     "$scored_screens" "$FLOOR_SCORED_SCREENS"
+printf '  scored scenarios       %8s   floor %s   (R3_SCENARIOS in Scripts/icecubes-r3.sh)\n' \
+    "$scored_scenarios" "$FLOOR_SCORED_SCENARIOS"
 printf '  board coupling lead    %8s   ceil  %s   (screens the rung ladder has no rung for)\n' \
     "$board_gap" "$CEIL_BOARD_GAP"
 printf '  platformFrameworkSpecs %8s   ceil  %s   (one-row-per-family watch)\n' \
@@ -443,6 +502,8 @@ check_floor   "rungs"               "$rung_count"        "$FLOOR_RUNGS" \
     "a rung was removed; the function half may not regress"
 check_floor   "scored-screens"      "$scored_screens"    "$FLOOR_SCORED_SCREENS" \
     "a screen was dropped from R2_SCREENS; the pixel half may not narrow, and a narrowed board retires debt without fixing anything"
+check_floor   "scored-scenarios"   "$scored_scenarios"  "$FLOOR_SCORED_SCENARIOS" \
+    "a scenario was dropped from R3_SCENARIOS; the interaction half may not narrow either, and the R3 stage cannot catch this — deleting a scenario and its floors together is internally consistent and silent inside that file"
 check_ceiling "board-coupling"      "$board_gap"         "$CEIL_BOARD_GAP" \
     "the pixel board is running ahead of the rung ladder — admit the screen together with the rung that exercises it, or the function half freezes again while the pixel half triples (LOOP-ICECUBES.md: BOTH halves)"
 check_ceiling "platform-specs"      "$platform_specs"    "$CEIL_PLATFORM_SPECS" \
@@ -464,7 +525,10 @@ fi
 # would make it the kind of number that describes nothing, which is the whole subject of this file.
 # All six new keys are additions — no key from version 1 was renamed or dropped, so a consumer that
 # reads only the version-1 set keeps working.
-print "@@anti-drift {\"version\":2,\"leverage\":$leverage,\"leverageFloor\":$FLOOR_LEVERAGE,\"narrowLeverage\":$narrow_leverage,\"narrowLeverageFloor\":$FLOOR_NARROW_LEVERAGE,\"narrowGeneratedLines\":$narrow_generated_lines,\"narrowGeneratorLines\":$narrow_generator_lines,\"identityBranches\":$identity_branches,\"identityDensity\":$identity_density,\"identityDensityCeiling\":$CEIL_IDENTITY_DENSITY,\"generatedLines\":$generated_lines,\"generatorLines\":$generator_lines,\"rungs\":$rung_count,\"rungFloor\":$FLOOR_RUNGS,\"scoredScreens\":$scored_screens,\"scoredScreenFloor\":$FLOOR_SCORED_SCREENS,\"boardGap\":$board_gap,\"boardGapCeiling\":$CEIL_BOARD_GAP,\"platformSpecs\":$platform_specs,\"payloadConstants\":$payload_constants,\"layoutConstants\":$layout_constants,\"acknowledgedScreens\":$acknowledged_screens,\"unrecordedStranded\":$unrecorded_stranded,\"violations\":$violations}"
+#
+# version 3 (2026-08-08): scoredScenarios/scoredScenarioFloor, the interaction half's width. Same
+# rule as above — both are additions, nothing renamed or dropped.
+print "@@anti-drift {\"version\":3,\"leverage\":$leverage,\"leverageFloor\":$FLOOR_LEVERAGE,\"narrowLeverage\":$narrow_leverage,\"narrowLeverageFloor\":$FLOOR_NARROW_LEVERAGE,\"narrowGeneratedLines\":$narrow_generated_lines,\"narrowGeneratorLines\":$narrow_generator_lines,\"identityBranches\":$identity_branches,\"identityDensity\":$identity_density,\"identityDensityCeiling\":$CEIL_IDENTITY_DENSITY,\"generatedLines\":$generated_lines,\"generatorLines\":$generator_lines,\"rungs\":$rung_count,\"rungFloor\":$FLOOR_RUNGS,\"scoredScreens\":$scored_screens,\"scoredScreenFloor\":$FLOOR_SCORED_SCREENS,\"scoredScenarios\":$scored_scenarios,\"scoredScenarioFloor\":$FLOOR_SCORED_SCENARIOS,\"boardGap\":$board_gap,\"boardGapCeiling\":$CEIL_BOARD_GAP,\"platformSpecs\":$platform_specs,\"payloadConstants\":$payload_constants,\"layoutConstants\":$layout_constants,\"acknowledgedScreens\":$acknowledged_screens,\"unrecordedStranded\":$unrecorded_stranded,\"violations\":$violations}"
 
 if [[ "${1:-}" == "--print" ]]; then
     exit 0
