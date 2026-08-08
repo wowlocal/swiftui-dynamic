@@ -77,6 +77,21 @@ CEIL_LAYOUT_CONSTANTS=5
 # number is how that decision gets reviewed.
 CEIL_ACKNOWLEDGED_SCREENS=1
 
+# Work that is pushed, unlanded, and mentioned NOWHERE in the ledger is
+# invisible: nothing schedules it, nothing reviews it, and it is found only when
+# somebody goes looking. r3-row-tap (bf0c0407) sat that way for 140 hours
+# carrying two regression pins the landed rung has no repro for. Three such
+# branches exist today (r3-row-tap, backup-pre-rewrite, and the two old
+# overlay-integration refs, which share a name) — the ceiling is that baseline,
+# so history is not punished. All four are now named in the ledger, so the line
+# is ZERO: every pushed branch carrying unlanded work must be mentioned there,
+# and a new one fails the close gate the first time it is gated after being
+# forgotten. The branch under gate is exempt -- it posts its MERGE-READY only
+# after this check passes. A branch is "recorded" when the ledger mentions its
+# name at all; parking it deliberately, as frontier-duration-units-format does,
+# satisfies this.
+CEIL_UNRECORDED_STRANDED=0
+
 # ── Measurement ───────────────────────────────────────────────────────────────────────────────
 # Each metric names the exact command below it. Change the command and you change the number: bump
 # the threshold in the same commit and say so, or the ratchet silently means something else.
@@ -111,6 +126,31 @@ measure() {
     acknowledged_screens=$(grep -cE '^[[:space:]]*#[[:space:]]*ACKNOWLEDGED[[:space:]]' \
         Scripts/icecubes-r2.sh 2>/dev/null || echo 0)
 
+    # The ledger is gitignored, so it is ABSENT from the gate's clean-detached
+    # checkout unless the gate passes its path. Counting zero mentions against a
+    # ledger that is not there would report every branch as stranded; -1 means
+    # "not measurable here" and is skipped rather than guessed.
+    local claims="${ANTI_DRIFT_CLAIMS_PATH:-.claude/claims.md}"
+    local head_sha=$(git rev-parse HEAD 2>/dev/null)
+    if [[ -f "$claims" ]]; then
+        unrecorded_stranded=$(
+            git for-each-ref --format='%(refname:short)%09%(objectname)' \
+                refs/heads refs/remotes/origin 2>/dev/null \
+            | while IFS=$'\t' read -r ref sha; do
+                [[ "$ref" == *main* || "$ref" == *HEAD* ]] && continue
+                # The candidate under gate has not posted its MERGE-READY yet --
+                # that happens after this check passes -- so counting it would
+                # red every first gate of a new topic branch.
+                [[ "$sha" == "$head_sha" ]] && continue
+                git merge-base --is-ancestor "$sha" origin/main 2>/dev/null && continue
+                short=${ref#origin/}
+                grep -q -- "$short" "$claims" 2>/dev/null || print -r -- "$short"
+            done | sort -u | wc -l
+        )
+    else
+        unrecorded_stranded=-1
+    fi
+
     generated_lines=${generated_lines// /}
     generator_lines=${generator_lines// /}
     identity_branches=${identity_branches// /}
@@ -119,6 +159,7 @@ measure() {
     payload_constants=${payload_constants// /}
     layout_constants=${layout_constants// /}
     acknowledged_screens=${acknowledged_screens// /}
+    unrecorded_stranded=${unrecorded_stranded// /}
 
     if (( generator_lines == 0 || generated_lines == 0 )); then
         print -u2 "anti-drift: the generated/generator file selection matched nothing —" \
@@ -179,6 +220,12 @@ printf '  §4 layout constants    %8s   ceil  %s   (whole handwritten bridge, by
     "$layout_constants" "$CEIL_LAYOUT_CONSTANTS"
 printf '  acknowledged screens   %8s   ceil  %s   (STALL-series exemptions)\n' \
     "$acknowledged_screens" "$CEIL_ACKNOWLEDGED_SCREENS"
+if (( unrecorded_stranded >= 0 )); then
+    printf '  unrecorded stranded    %8s   ceil  %s   (pushed, unlanded, unmentioned)\n' \
+        "$unrecorded_stranded" "$CEIL_UNRECORDED_STRANDED"
+else
+    print '  unrecorded stranded         n/a             (ledger not readable here)'
+fi
 
 check_floor   "leverage"            "$leverage"          "$FLOOR_LEVERAGE" \
     "the hand tier is outgrowing generated coverage (§5)"
@@ -194,8 +241,12 @@ check_ceiling "layout-constants"    "$layout_constants"  "$CEIL_LAYOUT_CONSTANTS
     "a number was written beside a layout word in the handwritten bridge — derive it, or say why this case is irreducibly specific (§4)"
 check_ceiling "acknowledged"        "$acknowledged_screens" "$CEIL_ACKNOWLEDGED_SCREENS" \
     "another screen was exempted from the STALL series; an exemption is a decision, not a reflex"
+if (( unrecorded_stranded >= 0 )); then
+    check_ceiling "unrecorded-stranded" "$unrecorded_stranded" "$CEIL_UNRECORDED_STRANDED" \
+        "a pushed branch carries unlanded work the ledger never mentions — post it, or land it"
+fi
 
-print "@@anti-drift {\"version\":1,\"leverage\":$leverage,\"leverageFloor\":$FLOOR_LEVERAGE,\"identityBranches\":$identity_branches,\"identityDensity\":$identity_density,\"identityDensityCeiling\":$CEIL_IDENTITY_DENSITY,\"generatedLines\":$generated_lines,\"generatorLines\":$generator_lines,\"rungs\":$rung_count,\"rungFloor\":$FLOOR_RUNGS,\"platformSpecs\":$platform_specs,\"payloadConstants\":$payload_constants,\"layoutConstants\":$layout_constants,\"acknowledgedScreens\":$acknowledged_screens,\"violations\":$violations}"
+print "@@anti-drift {\"version\":1,\"leverage\":$leverage,\"leverageFloor\":$FLOOR_LEVERAGE,\"identityBranches\":$identity_branches,\"identityDensity\":$identity_density,\"identityDensityCeiling\":$CEIL_IDENTITY_DENSITY,\"generatedLines\":$generated_lines,\"generatorLines\":$generator_lines,\"rungs\":$rung_count,\"rungFloor\":$FLOOR_RUNGS,\"platformSpecs\":$platform_specs,\"payloadConstants\":$payload_constants,\"layoutConstants\":$layout_constants,\"acknowledgedScreens\":$acknowledged_screens,\"unrecordedStranded\":$unrecorded_stranded,\"violations\":$violations}"
 
 if [[ "${1:-}" == "--print" ]]; then
     exit 0
