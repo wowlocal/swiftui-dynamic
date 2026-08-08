@@ -469,4 +469,86 @@ struct SwiftPMBuildDescriptionMaterialTests {
         #expect(render.strings.contains("scene-visible-host"),
                 "detached scene lost its source imports: \(render.strings), root \(render.rootSymbol)")
     }
+
+    /// One directory reached by two names must merge to one program.
+    ///
+    /// A merge has two halves that arrive spelled differently: files WALKED
+    /// off the filesystem keep whatever spelling the caller passed, while
+    /// files read from a SwiftPM build description are already resolved. The
+    /// halves are then unioned and SORTED BY ABSOLUTE PATH, so a caller who
+    /// names the root through a symlink does not merely get cosmetically
+    /// different strings — it gets a different merge ORDER, and later
+    /// declarations win.
+    ///
+    /// This is not hypothetical on macOS, where `/tmp` and `/var` are
+    /// symlinks into `/private` and `getcwd()` returns the physical spelling.
+    /// Measured 2026-08-08: IceCubes' `hashtag-timeline` rendered its pinned
+    /// tag header as an empty 20pt cell instead of an 84pt one — every row
+    /// below shifted up, ~205.5k AE — purely because a gate checkout under
+    /// `/tmp/lane-gate-<sha>` reached the interpreter as `/private/tmp/...`
+    /// while its own build description canonicalised to `/tmp/...`. The same
+    /// binary on the same bytes named the other way rendered it correctly.
+    ///
+    /// The fixture picks names that make the sort INVERT rather than merely
+    /// differ: `walked` sorts before `described` under the real directory,
+    /// and after it through the alias.
+    @Test
+    func mergeIsIndependentOfHowTheRootIsSpelled() throws {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiftpm-root-alias-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: base) }
+        // "aaa-real" / "zzz-alias" are load-bearing: they put the alias on the
+        // far side of the described half in a lexicographic sort.
+        let real = base.appendingPathComponent("aaa-real")
+        let alias = base.appendingPathComponent("zzz-alias")
+
+        let walked = real.appendingPathComponent("Aaa/Sources/Aaa/Walked.swift")
+        let described = real.appendingPathComponent("Zzz/Sources/Zzz/Described.swift")
+        for file in [walked, described] {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+        }
+        try "struct Walked { static let origin = \"walked\" }\n"
+            .write(to: walked, atomically: true, encoding: .utf8)
+        try "struct Described { static let origin = \"described\" }\n"
+            .write(to: described, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(
+            at: alias, withDestinationURL: real)
+
+        let description = real.appendingPathComponent("description.json")
+        try JSONSerialization.data(withJSONObject: [
+            "swiftCommands": [
+                "C.Zzz.module": [
+                    "moduleName": "Zzz",
+                    "sources": [described.path],
+                ],
+            ],
+        ]).write(to: description, options: .atomic)
+
+        let sourceModules = try ProjectMaterial.sourceModuleNames(
+            inSwiftPMBuildDescriptionAt: description.path)
+
+        func merge(under root: URL) throws -> (files: [String], source: String) {
+            let local = ProjectMaterial.swiftFiles(
+                under: root.appendingPathComponent("Aaa/Sources").path)
+            let dependencies = try ProjectMaterial.swiftFiles(
+                inSwiftPMBuildDescriptionAt:
+                    root.appendingPathComponent("description.json").path)
+            let files = Array(Set(local + dependencies)).sorted()
+            return (files, ProjectMaterial.mergedSource(
+                files: files, sourceModules: sourceModules))
+        }
+
+        let viaReal = try merge(under: real)
+        let viaAlias = try merge(under: alias)
+
+        // The walked half must not carry the alias into the merge at all.
+        #expect(!viaAlias.files.contains { $0.contains("zzz-alias") },
+                "alias spelling reached the merge: \(viaAlias.files)")
+        #expect(viaAlias.files == viaReal.files,
+                "same directory, two names, two file lists: real \(viaReal.files) alias \(viaAlias.files)")
+        #expect(viaAlias.source == viaReal.source,
+                "same directory, two names, two merged programs")
+    }
 }

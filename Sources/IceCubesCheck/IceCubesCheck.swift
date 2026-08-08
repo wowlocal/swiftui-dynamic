@@ -1349,9 +1349,27 @@ struct IceCubesCheckMain {
         // `--root` frees the interactive run from cwd: a Catalyst app must
         // launch through LaunchServices (`open`) to get an on-screen render
         // connection, and `open` does not preserve the caller's directory.
-        let root = option(
+        // CANONICAL, because this root is mixed with paths that already are.
+        // Everything walked off the filesystem below keeps whatever spelling
+        // of the root it was handed, while every path read out of SwiftPM's
+        // build description goes through `resolvingSymlinksInPath()` — which
+        // on macOS also STRIPS a leading `/private`. Give the two halves
+        // different spellings of the SAME directory and they stop comparing
+        // and sorting against each other.
+        //
+        // Measured 2026-08-08 on hashtag-timeline: a checkout at
+        // `/tmp/lane-gate-<sha>` reached `paths()` as `/private/tmp/...`
+        // (getcwd() returns the physical path) while its build description
+        // canonicalised to `/tmp/...`, and the pinned tag header rendered as
+        // an EMPTY h=20 cell instead of h=84 — every row below shifted up
+        // 84pt, ~205.5k AE. The same binary on the same bytes named `/tmp`
+        // rendered it correctly. Gate checkouts live under `/tmp`; lane
+        // worktrees live under `/Users` and alias nothing, which is why only
+        // the gate ever saw it.
+        let suppliedRoot = option(
             "--root", in: Array(CommandLine.arguments.dropFirst()))
             ?? FileManager.default.currentDirectoryPath
+        let root = ProjectMaterial.canonicalPath(suppliedRoot)
         let app = root + "/External/oss/IceCubesApp"
         let fixtures = root + "/Fixtures/mastodon-public-timeline"
         let packages = app + "/Packages"

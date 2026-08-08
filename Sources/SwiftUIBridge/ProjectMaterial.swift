@@ -161,13 +161,33 @@ public enum ProjectMaterial {
         "scripts/", "Scripts/",
     ]
 
+    /// A compiler input's identity is its CANONICAL path, never the spelling
+    /// the caller happened to reach it by. Every path this type reads out of
+    /// a SwiftPM build description is already resolved this way, so a path
+    /// walked off the filesystem has to be resolved too or the two halves of
+    /// one merge stop comparing — and stop SORTING — against each other.
+    ///
+    /// macOS makes this unavoidable rather than theoretical: `/tmp` and
+    /// `/var` are symlinks into `/private`, `getcwd()` hands back the
+    /// physical spelling, and Foundation's `resolvingSymlinksInPath()` maps
+    /// both to the `/private`-STRIPPED form. A checkout under `/tmp` is
+    /// therefore routinely named two ways inside one process.
+    public static func canonicalPath(_ path: String) -> String {
+        URL(fileURLWithPath: path)
+            .standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
     public static func swiftFiles(under directory: String) -> [String] {
         guard let enumerator = FileManager.default.enumerator(atPath: directory) else { return [] }
+        // Resolved ONCE for the whole walk, not per file: the enumerator
+        // yields directory-relative paths, so the spelling can only enter
+        // through this prefix.
+        let root = canonicalPath(directory)
         var files: [String] = []
         for case let path as String in enumerator {
             guard path.hasSuffix(".swift") else { continue }
             guard !excludedPathComponents.contains(where: { path.contains($0) }) else { continue }
-            files.append(directory + "/" + path)
+            files.append(root + "/" + path)
         }
         return files.sorted()
     }
