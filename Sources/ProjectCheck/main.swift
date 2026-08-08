@@ -41,7 +41,16 @@ do {
     exit(2)
 }
 let arguments = ParallelCheckOptions.strippingParallelOptions(from: rawArguments)
-var root = "/Users/mike/Documents/sample-projects"
+// The corpus root is a path inside one person's home directory, and 586 of the
+// gate's 680 census units come out of it — so every corpus verdict is a claim
+// about whatever happens to be in that directory, on a subject the gate could
+// neither name nor relocate. Naming it is the point: `PROJECTCHECK_CORPUS_ROOT`
+// makes the root reportable (Scripts/verify-subject-revisions.sh puts the
+// effective root in the gate receipt) and movable on a machine that is not this
+// one. The default is unchanged, so this machine's census is byte-for-byte what
+// it was; a positional argument still wins over both, as before.
+var root = ProcessInfo.processInfo.environment["PROJECTCHECK_CORPUS_ROOT"]
+    ?? "/Users/mike/Documents/sample-projects"
 var limit = 25
 var filter: String?
 /// Pollution bisect: `--window lo:hi --then <name>` runs the size-ordered
