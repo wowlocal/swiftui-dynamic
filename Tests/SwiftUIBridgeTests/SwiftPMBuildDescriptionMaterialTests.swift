@@ -468,19 +468,14 @@ struct SwiftPMBuildDescriptionMaterialTests {
     /// back through this generic decode. If it binds `SwiftSoup.Tag`, the
     /// assignment yields nil, `if let tag` renders nothing, and the header
     /// block vanishes without a single diagnostic.
-    /// RED AT THIS COMMIT, deliberately, and recorded as a known issue rather
-    /// than left failing: the fix is generic-binding machinery that has not
-    /// been written yet, and a plain red test would block every other lane
-    /// landing behind a bug none of them introduced. `withKnownIssue` also
-    /// FAILS once the issue stops occurring, so this cannot be silently
-    /// forgotten the way a `.disabled` test can — the commit that fixes the
-    /// binding is forced to unwrap it in the same breath.
-    ///
-    /// Observed failure today: `23:9: missing argument for parameter 'tagName'`
-    /// — `Entity` bound to `SwiftSoup.Tag` and its `init(_:)`, inside a module
-    /// that imports neither Models nor SwiftSoup.
+    /// Was RED when first pinned, under `withKnownIssue`, with `23:9: missing
+    /// argument for parameter 'tagName'` — `Entity` had bound `SwiftSoup.Tag`
+    /// and its `init(_:)` inside a module importing neither Models nor
+    /// SwiftSoup. Fixed by carrying the lexical scope that SPELLED the
+    /// annotation, so the generic binds what the caller can see instead of
+    /// what the merge flattened last.
     @Test
-    func genericDecodeBindsCallerModulesNominalNotTheLastFlattenedOne() {
+    func genericDecodeBindsCallerModulesNominalNotTheLastFlattenedOne() async throws {
         let models = ProjectMaterial.mergedSource(source: """
         public protocol Fixture {
             init(fixture: String)
@@ -499,12 +494,78 @@ struct SwiftPMBuildDescriptionMaterialTests {
         let network = ProjectMaterial.mergedSource(source: """
         public struct Client {
             public init() {}
-            public func get<Entity: Fixture>(endpoint: String) -> Entity {
+            public func get<Entity: Fixture>(endpoint: String) async throws -> Entity {
                 Entity(fixture: endpoint)
             }
         }
         """, moduleName: "NetworkClient")
         // Declared LAST, as the close-gate checkout orders it.
+        let soup = ProjectMaterial.mergedSource(source: """
+        open class Tag: Hashable, @unchecked Sendable {
+            public let tagName: String
+            public init(_ tagName: String) { self.tagName = tagName }
+            public static func == (lhs: Tag, rhs: Tag) -> Bool {
+                lhs.tagName == rhs.tagName
+            }
+            public func hash(into hasher: inout Hasher) {
+                hasher.combine(tagName)
+            }
+        }
+        """, moduleName: "SwiftSoup")
+        let timeline = ProjectMaterial.mergedSource(source: """
+        import Models
+        import NetworkClient
+        struct TagHeader {
+            var tag: Tag?
+            static func fetch() async throws -> TagHeader {
+                let client = Client()
+                let tag: Tag = try await client.get(endpoint: "swift")
+                return TagHeader(tag: tag)
+            }
+            func headline() -> String {
+                if let tag {
+                    return "#\\(tag.name) \\(tag.totalUses)"
+                }
+                return "<no header>"
+            }
+        }
+        let header = try await TagHeader.fetch()
+        header.headline()
+        """, moduleName: "Timeline")
+
+        let result = try await Interpreter().runAsync(
+            source: models + network + soup + timeline)
+        #expect(result.stringValue == "#swift 77")
+    }
+
+    /// The same binding under the DECLARATION ORDER that used to pass by
+    /// accident: SwiftSoup ahead of Models is what a lane worktree produces,
+    /// and it scored 0 for weeks while clean checkouts lost the header. Both
+    /// orders must now give the same answer, because the answer comes from
+    /// module visibility rather than from which declaration landed last.
+    @Test
+    func genericDecodeIsIndependentOfFlattenedDeclarationOrder() throws {
+        let models = ProjectMaterial.mergedSource(source: """
+        public protocol Fixture {
+            init(fixture: String)
+        }
+        public struct Tag: Fixture, Equatable {
+            public let name: String
+            public let totalUses: Int
+            public init(fixture: String) {
+                self.name = fixture
+                self.totalUses = 77
+            }
+        }
+        """, moduleName: "Models")
+        let network = ProjectMaterial.mergedSource(source: """
+        public struct Client {
+            public init() {}
+            public func get<Entity: Fixture>(endpoint: String) -> Entity {
+                Entity(fixture: endpoint)
+            }
+        }
+        """, moduleName: "NetworkClient")
         let soup = ProjectMaterial.mergedSource(source: """
         open class Tag: Hashable, @unchecked Sendable {
             public let tagName: String
@@ -537,16 +598,14 @@ struct SwiftPMBuildDescriptionMaterialTests {
         TagHeader.fetch().headline()
         """, moduleName: "Timeline")
 
-        withKnownIssue(Comment(rawValue:
-            "generic parameters carry a bare type NAME, resolved in the "
-            + "callee's module scope; the caller's imports are lost, so the "
-            + "winner is whichever same-named declaration the merge flattened "
-            + "last — which inverts with the checkout's location on disk"
-        )) {
-            let result = try Interpreter().run(
-                source: models + network + soup + timeline)
-            #expect(result.stringValue == "#swift 77")
-        }
+        // SwiftSoup FIRST — the order the lane worktree flattens.
+        let soupFirst = try Interpreter().run(
+            source: soup + models + network + timeline)
+        #expect(soupFirst.stringValue == "#swift 77")
+        // SwiftSoup LAST — the order the close-gate checkout flattens.
+        let soupLast = try Interpreter().run(
+            source: models + network + soup + timeline)
+        #expect(soupLast.stringValue == "#swift 77")
     }
 
     @Test

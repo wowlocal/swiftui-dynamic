@@ -79,7 +79,10 @@ final class EvaluationTaskContext {
     /// dynamically on MainActor without making closures formed in its body
     /// MainActor-isolated.
     var lexicalExecutorFrames: [RuntimeExecutorKind?] = []
-    var expectedAnnotationStack: [String] = []
+    /// Call-site annotations with the lexical scope each was written in — a
+    /// bare nominal in a merged program means what the SPELLING site can see,
+    /// not what the consuming frame can.
+    var expectedAnnotationStack: [ExpectedTypeAnnotation] = []
     var enclosingReturnAnnotations: [String?] = []
     var viewIdentitySalts: [String] = []
     var structuredScopeFrames: [RuntimeStructuredScopeFrame] = []

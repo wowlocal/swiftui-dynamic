@@ -776,7 +776,9 @@ extension Interpreter {
         _ body: () async throws -> T
     ) async rethrows -> T {
         guard let annotation, !annotation.isEmpty else { return try await body() }
-        expectedAnnotationStack.append(annotation)
+        expectedAnnotationStack.append(
+            ExpectedTypeAnnotation(
+                text: annotation, scope: currentLexicalTypeScope))
         defer { expectedAnnotationStack.removeLast() }
         return try await body()
     }

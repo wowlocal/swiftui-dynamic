@@ -201,7 +201,7 @@ extension Interpreter {
     private func contextualStringLiteral(
         _ value: String, environment: Environment
     ) throws -> RuntimeValue? {
-        guard var typeName = expectedAnnotationStack.last?
+        guard var typeName = expectedAnnotationText?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !typeName.isEmpty else {
             return nil

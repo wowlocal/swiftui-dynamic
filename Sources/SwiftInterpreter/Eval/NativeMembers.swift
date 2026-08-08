@@ -954,7 +954,7 @@ extension Interpreter {
                     // annotation, exactly where native inference reads it.
                     if case .implicitMember = into,
                        let interpreter = ctx as? Interpreter,
-                       let hint = interpreter.expectedAnnotationStack.last {
+                       let hint = interpreter.expectedAnnotationText {
                         into = try interpreter.resolveAnnotated(into, typeName: hint)
                     }
                     let closure = try Self.requiredClosure(args, name)

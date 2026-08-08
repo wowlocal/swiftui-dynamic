@@ -2016,7 +2016,7 @@ extension Interpreter {
                 lexicalOwner: symbol)
         }
         guard fitting.count > 1,
-              var expectedResultType = expectedAnnotationStack.last
+              var expectedResultType = expectedAnnotationText
         else {
             return fitting.first
         }

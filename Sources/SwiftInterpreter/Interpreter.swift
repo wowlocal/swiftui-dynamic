@@ -1086,10 +1086,13 @@ public final class Interpreter {
     /// pushes "[Status]" around its initializer): return-position generic
     /// parameters bind to the top, so `Entity.self` reaches decode with a
     /// REAL type value. Textual, innermost last.
-    var expectedAnnotationStack: [String] {
+    var expectedAnnotationStack: [ExpectedTypeAnnotation] {
         get { evaluationTaskContext.expectedAnnotationStack }
         set { evaluationTaskContext.expectedAnnotationStack = newValue }
     }
+    /// The innermost annotation's TEXT, for consumers that only need the
+    /// spelling and resolve it in their own scope.
+    var expectedAnnotationText: String? { expectedAnnotationStack.last?.text }
     var pendingDottedExtensions: [ExtensionDeclSyntax] {
         _read { yield activeProgramState.pendingDottedExtensions }
         _modify { yield &activeProgramState.pendingDottedExtensions }
@@ -1205,9 +1208,21 @@ public final class Interpreter {
         set { evaluationTaskContext.enclosingReturnAnnotations = newValue }
     }
 
+    /// The scope the currently executing source spells names in. Captured when
+    /// an annotation is pushed, so the annotation still resolves against the
+    /// site that WROTE it after control moves into another module's frame.
+    var currentLexicalTypeScope: LexicalTypeScope {
+        LexicalTypeScope(
+            sourceModuleName: currentLexicalSourceModuleName,
+            sourceImportedModuleNames: currentLexicalSourceImportedModuleNames,
+            owner: lexicalOwnerFrames.last)
+    }
+
     func withExpectedAnnotation<T>(_ annotation: String?, _ body: () throws -> T) rethrows -> T {
         guard let annotation, !annotation.isEmpty else { return try body() }
-        expectedAnnotationStack.append(annotation)
+        expectedAnnotationStack.append(
+            ExpectedTypeAnnotation(
+                text: annotation, scope: currentLexicalTypeScope))
         defer { expectedAnnotationStack.removeLast() }
         return try body()
     }

@@ -1485,9 +1485,16 @@ extension Interpreter {
     func bindGenericReturnParameter(_ closure: ClosureValue, into env: Environment) {
         guard let returnName = closure.returnTypeName,
               let hint = expectedAnnotationStack.last else { return }
-        let hintText = strippedAnnotation(hint)
+        let hintText = strippedAnnotation(hint.text)
+        // The annotation is resolved in the scope that SPELLED it, not the
+        // callee's. `let tag: Tag = client.get(…)` names the `Tag` module
+        // Timeline imports; the frame that binds `Entity` is NetworkClient's,
+        // which imports neither that module nor the one declaring its homonym.
+        // Resolving here would otherwise fall back to whichever same-named
+        // declaration the merge flattened last.
+        let scope = hint.scope
         if closure.genericParameters.contains(returnName) {
-            if let descriptor = typeDescriptor(named: hintText) {
+            if let descriptor = typeDescriptor(named: hintText, in: scope) {
                 env.define(returnName, descriptor)
             }
             return
@@ -1498,7 +1505,7 @@ extension Interpreter {
             let element = strippedAnnotation(String(returnName.dropFirst().dropLast()))
             guard closure.genericParameters.contains(element) else { return }
             let hintElement = String(hintText.dropFirst().dropLast())
-            if let descriptor = typeDescriptor(named: hintElement) {
+            if let descriptor = typeDescriptor(named: hintElement, in: scope) {
                 env.define(element, descriptor)
             }
         }
@@ -1506,21 +1513,40 @@ extension Interpreter {
 
     /// `[Status]` → the decode bridge's array-literal-of-type shape;
     /// `Status` → the declared `.type`/`.enumType`. Unknown names: nil.
-    private func typeDescriptor(named text: String) -> RuntimeValue? {
+    ///
+    /// `scope` is the site that WROTE the name. With source provenance the
+    /// nominal resolves by module visibility; without it (snippets, shims,
+    /// host probes) `lexicallyVisibleType` itself falls back to the merged
+    /// global environment, which is the only scope such a program has.
+    private func typeDescriptor(
+        named text: String, in scope: LexicalTypeScope = .unscoped
+    ) -> RuntimeValue? {
         let name = strippedAnnotation(text)
         if name.hasPrefix("["), name.hasSuffix("]") {
             let inner = String(name.dropFirst().dropLast())
             guard !inner.contains(":") else { return nil } // dictionaries later
-            return typeDescriptor(named: inner).map { .native([$0]) }
+            return typeDescriptor(named: inner, in: scope).map { .native([$0]) }
         }
         // A generic APPLICATION (`PaginatedResponse<Movie>`) rides textually
         // when its head is a declared type — decode re-parses it to bind
         // the struct's own generics.
         if let angle = name.firstIndex(of: "<"), name.hasSuffix(">"),
-           typeValue(named: String(name[..<angle])) != nil {
+           visibleTypeValue(named: String(name[..<angle]), in: scope) != nil {
             return .native(GenericApplication(text: name))
         }
-        return typeValue(named: name)
+        return visibleTypeValue(named: name, in: scope)
+    }
+
+    /// A declared type by name, decided by what `scope` can see. Provenance-
+    /// free scopes keep the flat merged lookup they have always had.
+    private func visibleTypeValue(
+        named name: String, in scope: LexicalTypeScope
+    ) -> RuntimeValue? {
+        guard scope.hasSourceProvenance else { return typeValue(named: name) }
+        return lexicallyVisibleType(
+            named: name, from: scope.owner,
+            sourceModuleName: scope.sourceModuleName,
+            sourceImportedModuleNames: scope.sourceImportedModuleNames)
     }
 
     private func strippedAnnotation(_ text: String) -> String {
