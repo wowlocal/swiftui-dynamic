@@ -31,6 +31,18 @@ R2_FLOORS_PATTERN = /R2_FLOORS=\((.*?)^\s*\)/m
 R2_SCREENS_PATTERN = /R2_SCREENS=\(([^)]*)\)/
 R2_FLOOR_ENTRY_PATTERN = /^\s*([A-Za-z][\w-]*)\s+(\d+)\s*$/
 R2_COMMENT_PATTERN = /#[^\n]*/
+# A screen whose residue owes no renderer fix, declared BY THE BOARD:
+#   # ACKNOWLEDGED <screen>: <reason>
+# `stalled?` exempts only an EXACT zero, so a board that converged to a residue
+# it had already characterised as un-owed — `tags-list 2`, an anti-aliased pair
+# on one edge — read as stalled forever, and the only escape (§16 STALL-ACK)
+# demands a screen with POSITIVE debt: it would have forced a certificate for
+# the very residue that owes nothing, which is the empty certificate §16 exists
+# to refuse. The exemption is a reviewable line in the board's own diff, not a
+# threshold here: a number in this file would itself be the
+# measurement-calibrated constant §4 polices. Historical shas carry no marker,
+# so every past landing keeps the figure it was scored with.
+R2_ACKNOWLEDGED_PATTERN = /^\s*#\s*ACKNOWLEDGED\s+([A-Za-z][\w-]*)\s*:/
 # Four MERGE-DONE spellings are in the ledger (`MERGE-DONE <sha>`,
 # `MERGE-DONE <lane> <sha>`, a steward form, and 7-hex shorthand), so the sha is
 # found by candidate rather than by position. `git show` is the arbiter: a
@@ -83,11 +95,28 @@ end
 # candidate IS a landing whose board would not parse. Collapsing the two let a
 # window silently shrink past the truncation that caused it — the window would
 # just walk further back and report five numbers as though nothing were missing.
+def parse_r2_acknowledged(source)
+  body = source[R2_FLOORS_PATTERN, 1]
+  return [] unless body
+
+  body.scan(R2_ACKNOWLEDGED_PATTERN).flatten
+end
+
+# The stall series measures debt that is still OWED. A screen the board has
+# ACKNOWLEDGED owes no renderer fix, so leaving it in the series asks the loop
+# to drive a number nobody intends to move — and then refuses every close until
+# it does. The floors themselves are untouched: `icecubes-r2.sh` still enforces
+# an acknowledged screen's floor, so it cannot regress, and the headline still
+# prints its debt. Only the STALL predicate stops counting it.
 def r2_floors_at(sha)
   source, _error, ok = git("show", "#{sha}:#{R2_BOARD_PATH}")
   return nil unless ok
 
-  parse_r2_floors(source) || :unreadable
+  floors = parse_r2_floors(source)
+  return :unreadable unless floors
+
+  acknowledged = parse_r2_acknowledged(source)
+  floors.reject { |screen, _value| acknowledged.include?(screen) }
 end
 
 # A marker is POSTED, not MENTIONED. Every real landing carries the sha it
@@ -224,7 +253,9 @@ def latest_disposition(lines, last_landing_index, open_by_screen)
   candidates.max_by { |candidate| candidate.fetch("entry").fetch("index") }
 end
 
-def verify_decomposition(acknowledgement, errors, open_by_screen, stall_epoch)
+def verify_decomposition(
+  acknowledgement, errors, open_by_screen, stall_epoch, acknowledged = []
+)
   screen = acknowledgement.fetch("screen")
   branch = acknowledgement.fetch("branch")
   microtwin = acknowledgement.fetch("microtwin")
@@ -235,6 +266,13 @@ def verify_decomposition(acknowledgement, errors, open_by_screen, stall_epoch)
     if !open_by_screen.key?(screen)
       errors << "STALL-ACK names screen '#{screen}', which the R2 board does " \
         "not measure (#{open_by_screen.keys.join(", ")})"
+    elsif acknowledged.include?(screen)
+      # Without this the exemption becomes a trap: an acknowledged screen is
+      # the only one left carrying positive debt, so the grammar would steer
+      # every ack straight at the residue that owes nothing — §16's empty
+      # certificate, arrived at by following the rules.
+      errors << "STALL-ACK names screen '#{screen}', which the board " \
+        "ACKNOWLEDGED as owing no renderer fix; it cannot discharge a stall"
     elsif !open_by_screen.fetch(screen).positive?
       errors << "STALL-ACK names screen '#{screen}', already converged at " \
         "AE 0; decompose a screen that still carries open debt"
@@ -380,6 +418,32 @@ def self_test
     { "timeline" => 0, "status-detail" => 50_184, "account-header" => 35_241 }
   raise "a board without floors must not parse" if
     parse_r2_floors("typeset -A R2_AE_LINES\n")
+
+  # The converged-with-an-acknowledged-residue case, which `positive?` alone
+  # could not tell from a stall.
+  acked_board = <<~BOARD
+    typeset -A R2_FLOORS
+    R2_FLOORS=(
+      timeline 0
+      tags-list 2
+      # ACKNOWLEDGED tags-list: an anti-aliased pair on one edge, no fix owed.
+    )
+    R2_SCREENS=(timeline tags-list)
+  BOARD
+  raise "acknowledged marker not parsed" unless
+    parse_r2_acknowledged(acked_board) == ["tags-list"]
+  raise "an unmarked board must acknowledge nothing" unless
+    parse_r2_acknowledged(board).empty?
+  raise "acknowledgement must not remove the screen from the board" unless
+    parse_r2_floors(acked_board) == { "timeline" => 0, "tags-list" => 2 }
+  owed = parse_r2_floors(acked_board)
+    .reject { |screen, _v| parse_r2_acknowledged(acked_board).include?(screen) }
+  raise "owed debt must exclude the acknowledged screen" unless
+    owed.values.sum.zero?
+  raise "a board converged to an acknowledged residue must not stall" if
+    stalled?(Array.new(STALL_WINDOW, owed.values.sum))
+  raise "the same residue UNacknowledged must still stall" unless
+    stalled?(Array.new(STALL_WINDOW, parse_r2_floors(acked_board).values.sum))
 
   # The shape that actually shipped: floors annotated with prose, one comment
   # naming `.draggable(_:)`. Terminating the array at the first `)` ended it
@@ -646,17 +710,30 @@ entries = landed_entries(claim_lines)
 # the one screen that already converged read as "done"; the open debt is the
 # number the remaining mission is measured by, so it is stated unconditionally,
 # green or red.
-open_by_screen = parse_r2_floors(File.read(R2_BOARD_PATH)) if
-  File.file?(R2_BOARD_PATH)
+board_source = File.file?(R2_BOARD_PATH) ? File.read(R2_BOARD_PATH) : nil
+open_by_screen = parse_r2_floors(board_source) if board_source
+acknowledged_screens = board_source ? parse_r2_acknowledged(board_source) : []
 if open_by_screen
   open_total = open_by_screen.values.sum
+  # Owed is what the stall detector measures; total is what the mission is
+  # measured by. Printing only one of them is how a board hides from one of the
+  # two readers, so both go out, and an acknowledged screen is named as such.
+  owed_total = open_by_screen
+    .reject { |screen, _value| acknowledged_screens.include?(screen) }
+    .values.sum
   breakdown = open_by_screen
     .sort_by { |_screen, value| -value }
-    .map { |screen, value| "#{screen} #{value}" }
+    .map do |screen, value|
+      acknowledged_screens.include?(screen) ? "#{screen} #{value} (acknowledged)" : "#{screen} #{value}"
+    end
     .join(", ")
   open_screens = open_by_screen.count { |_screen, value| value.positive? }
   puts "R2 open #{open_total} AE across #{open_screens} " \
     "of #{open_by_screen.length} screens (#{breakdown})"
+  if owed_total != open_total
+    puts "R2 owed #{owed_total} AE — #{open_total - owed_total} AE acknowledged " \
+      "as owing no renderer fix (#{acknowledged_screens.join(", ")})"
+  end
 else
   errors << "R2 board floors are unreadable at #{R2_BOARD_PATH}: the pixel " \
     "half of the north star cannot be measured"
@@ -702,7 +779,8 @@ if stall_active
   case disposition && disposition.fetch("kind")
   when "decomposition"
     decomposition = verify_decomposition(
-      disposition.fetch("entry"), errors, open_by_screen, stall_epoch
+      disposition.fetch("entry"), errors, open_by_screen, stall_epoch,
+      acknowledged_screens
     )
   when "escalation"
     escalation = disposition.fetch("entry")
