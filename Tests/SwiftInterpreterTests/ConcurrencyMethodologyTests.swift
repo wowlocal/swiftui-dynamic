@@ -3193,6 +3193,107 @@ struct ConcurrencyMethodologyTests {
         #expect(output.contains("@@anti-drift-self-test passed"))
     }
 
+    /// Runs a script's `--self-test` and returns its stdout, failing the test
+    /// with the script's own stderr when it exits non-zero. Every validator in
+    /// `Scripts/` carries this mode precisely so its comparison logic can be
+    /// exercised without a build or a capture, and the 2026-08-08 audit found
+    /// three of them were never executed by anything — a self-test nobody runs
+    /// is the same dead rule as a ratchet written in prose.
+    private static func runSelfTest(
+        _ relativePath: String
+    ) throws -> String {
+        let script = Self.packageRoot.appendingPathComponent(relativePath)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.standardInput = FileHandle.nullDevice
+        process.arguments = [script.path, "--self-test"]
+        // The loop runner resolves its own repository from `$0`, and
+        // verify-subject-revisions.sh reads a manifest by a path relative to
+        // the checkout root, so both must run FROM the package root rather
+        // than from wherever the test bundle happens to be executing.
+        process.currentDirectoryURL = Self.packageRoot
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        let outputData = stdout.fileHandleForReading.readDataToEndOfFile()
+        let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let output = String(decoding: outputData, as: UTF8.self)
+        let error = String(decoding: errorData, as: UTF8.self)
+        #expect(process.terminationStatus == 0,
+            Comment(rawValue: relativePath + " --self-test: " + error))
+        return output
+    }
+
+    /// The three instruments the 2026-08-08 trajectory audit added, pinned the
+    /// same way the anti-drift stage above is pinned.
+    ///
+    /// Each closes a hole the audit MEASURED rather than suspected. LATENCY:
+    /// every board in this repository scored fidelity and none scored time, so
+    /// the interpreter reaching ~34x the twin's capture cost (1843 s against
+    /// 54 s over 21 captures) was invisible to every gate — and it is the one
+    /// axis on which every floor can read 0 while the north star is false.
+    /// SUBJECT REVISIONS: `External/` is gitignored and the app under test sat
+    /// at an unrecorded sha, so each R2 floor was a claim about a tree whose
+    /// version was written down nowhere. LOOP RUNNER: its two waiting
+    /// decisions only execute during the outage they answer, so they were
+    /// wrong for days without a single failing signal.
+    ///
+    /// The stage ORDER is asserted, not just the presence: all three are cheap
+    /// refusals and must precede `build`, or a candidate that is already known
+    /// to be unmergeable still costs a 45-minute build first.
+    @Test func closingGateExecutesTheAuditInstruments() throws {
+        let gate = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+        for required in [
+            "current_stage=\"subject-revisions\"",
+            "Scripts/verify-subject-revisions.sh",
+            "source.subjectRevisions",
+            "current_stage=\"loop-runner\"",
+            ".claude/run-foodtruck-loop.sh --self-test",
+            "source.loopRunner",
+            "@@icecubes-latency ",
+            "boards.iceCubesR2Latency",
+        ] {
+            #expect(gate.contains(required),
+                Comment(rawValue:
+                    "closing gate lost an audit instrument: " + required))
+        }
+
+        // Both new stages are pre-build refusals. Compare offsets rather than
+        // trusting the order the file happens to be written in today.
+        guard let build = gate.range(of: "current_stage=\"build\""),
+              let subject = gate.range(of: "current_stage=\"subject-revisions\""),
+              let runner = gate.range(of: "current_stage=\"loop-runner\"")
+        else {
+            Issue.record("closing gate lost one of the audit stages")
+            return
+        }
+        #expect(subject.lowerBound < build.lowerBound,
+            "subject-revisions must refuse a mis-pinned subject before the build")
+        #expect(runner.lowerBound < build.lowerBound,
+            "loop-runner must refuse a broken runner before the build")
+
+        // SHAPE, never the value: the board contract may not pin the ratio,
+        // because a latency IMPROVEMENT would then red the gate. The ceiling is
+        // enforced by Scripts/icecubes-r2.sh's own exit code.
+        #expect(gate.contains("r2latency:\"aggregate\""),
+            "the latency board must be shape-checked by the gate contract")
+        #expect(!gate.contains("R2_LATENCY_RATIO_CEILING"),
+            "the gate must not restate the latency ceiling; it belongs to the board script")
+
+        let latency = try Self.runSelfTest("Scripts/icecubes-r2.sh")
+        #expect(latency.contains("@@icecubes-latency-self-test passed"))
+        let subjects = try Self.runSelfTest("Scripts/verify-subject-revisions.sh")
+        #expect(subjects.contains("@@subject-revisions-self-test passed"))
+        let loop = try Self.runSelfTest(".claude/run-foodtruck-loop.sh")
+        #expect(loop.contains("@@foodtruck-loop-self-test "))
+    }
+
     /// `Scripts/pixel-diff-map.swift` does not gate anything — it decides which
     /// investigation a pixel divergence gets, which is worse to get silently
     /// wrong than a red board. A flat-region divergence means the two sides drew

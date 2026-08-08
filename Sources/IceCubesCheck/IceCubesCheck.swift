@@ -192,6 +192,83 @@ private enum IceCubesCaptureScreen: String {
     }
 }
 
+/// The R3 INTERACTION scenarios (`Scripts/icecubes-r3.sh`) — the interpreted
+/// half of the first board that compares POST-INTERACTION pixels rather than a
+/// first render.
+///
+/// This enum must stay in step with `TwinCaptureScenario` in
+/// `Examples/IceCubesNativeTwin/…/IceCubesNativeTwin.swift`, and the way that
+/// goes wrong is silent: two sides driving different mutations still produce
+/// two captures and still score an AE. So the statement is not merely mirrored
+/// here — it is the SOURCE the interpreted program executes, both sides record
+/// it in their scenario metadata, and the board refuses a pair whose recorded
+/// statements disagree.
+private enum IceCubesCaptureScenario: String, CaseIterable {
+    /// `DisplaySettingsView`'s own theme `Toggle`, whose section footer is
+    /// conditional on this property and whose four `ColorPicker`s are dimmed
+    /// and disabled by it.
+    case displaySettingsSystemColorOff = "display-settings-system-color-off"
+    /// The display-settings action-buttons `Picker`, observed on the TIMELINE:
+    /// `StatusRowView` reads `theme.statusActionsDisplay` directly, so this is
+    /// one `@Observable` singleton invalidating a `List` of rows that never
+    /// name the screen the control lives on.
+    case timelineStatusActionsHidden = "timeline-status-actions-hidden"
+
+    /// The one function the host calls to drive the mutation. Named ONCE
+    /// because the emitter and the caller have to agree and a typo between
+    /// them is silent — the lookup would simply fail, and a capture written
+    /// anyway would be the base screen a second time, which reads exactly like
+    /// a mutation the interpreter absorbed.
+    static let mutationFunctionName = "__iceScenarioMutate"
+
+    /// The R2 screen this scenario's base capture is. Reusing a screen already
+    /// proven at AE 0 on both sides is what makes a red here about the
+    /// INTERACTION rather than about the base screen.
+    var baseScreen: IceCubesCaptureScreen {
+        switch self {
+        case .displaySettingsSystemColorOff: .displaySettings
+        case .timelineStatusActionsHidden: .timeline
+        }
+    }
+
+    /// The pre-mutation capture the board's changed-guard diffs against.
+    var baseCaptureName: String { rawValue + "-base" }
+
+    /// The app-model statement, character for character what the twin's
+    /// `driveScenario` executes natively.
+    var mutationStatement: String {
+        switch self {
+        case .displaySettingsSystemColorOff:
+            "Theme.shared.followSystemColorScheme = false"
+        case .timelineStatusActionsHidden:
+            "Theme.shared.statusActionsDisplay = Theme.StatusActionsDisplay.none"
+        }
+    }
+}
+
+/// What an interpreted scenario run records beside its two PNGs. The clock
+/// readings are the same pair `CaptureMetadata` carries and are asserted the
+/// same way, so the R3 stage answers the frozen-clock question itself rather
+/// than inheriting it from whether the R2 stage happened to run.
+private struct ScenarioCaptureMetadata: Codable {
+    let scenario: String
+    let baseScreen: String
+    let mutation: String
+    /// The interpreted body-evaluation revision immediately BEFORE the
+    /// mutation was driven, and the one the post-mutation capture was taken
+    /// at. `Scripts/icecubes-r3.sh` refuses to SCORE a scenario whose
+    /// revision did not strictly advance, because a post-mutation frame the
+    /// interpreter never re-rendered into cannot distinguish an absorbed
+    /// mutation from a frame read too early — and the board's headline
+    /// changed-guard verdict is exactly that distinction. See
+    /// `awaitRenderRevisionAdvance`.
+    let preMutationRenderRevision: UInt64
+    let postMutationRenderRevision: UInt64
+    let hostClockEpoch: TimeInterval
+    let interpretedClockEpoch: TimeInterval
+    let interpretedRelativeClockDrift: TimeInterval
+}
+
 private struct NativeScreenFixtureNames: Codable {
     let status: String
     let statusContext: String
@@ -229,7 +306,15 @@ private struct IceCubesCatalystCaptureRoot: View {
     static let requiredStableGeometrySamples = 3
 
     let directory: String
-    let screen: IceCubesCaptureScreen
+    let requestedScreen: IceCubesCaptureScreen
+    /// The RAW `--scenario` value, resolved inside `capture()` rather than at
+    /// the call site: an unknown id has to fail with an exit code, and the
+    /// call site is a `ViewBuilder` closure that cannot throw. Parsing it to
+    /// nil and falling through to the screen capture would write the base
+    /// screen under the scenario's name — indistinguishable from a mutation
+    /// the interpreter absorbed, which is the exact defect this board exists
+    /// to catch.
+    let scenarioArgument: String?
     let nativeFixtureDirectory: String?
 
     @State private var session: InterpreterRenderSession?
@@ -276,6 +361,12 @@ private struct IceCubesCatalystCaptureRoot: View {
     private func capture() async {
         defer { NetworkBridge.policy = .absorbed }
         do {
+            let scenario = try Self.resolvedScenario(scenarioArgument)
+            // A scenario NEVER chooses its own screen: it names the R2 screen
+            // it starts from, so the base capture is a screen already proven
+            // reproducible at AE 0 on both sides and a red belongs to the
+            // interaction rather than to the base.
+            let screen = scenario?.baseScreen ?? requestedScreen
             try FileManager.default.createDirectory(
                 atPath: directory, withIntermediateDirectories: true)
             // Pin the geometry BEFORE the content settles so the screen lays
@@ -283,350 +374,601 @@ private struct IceCubesCatalystCaptureRoot: View {
             _ = try await Self.captureRootView()
             let session = try IceCubesCheckMain.renderSession(
                 for: screen,
-                nativeFixtureDirectory: nativeFixtureDirectory)
+                nativeFixtureDirectory: nativeFixtureDirectory,
+                scenarioMutation: scenario?.mutationStatement)
             self.session = session
 
-            let initialRenderRevision =
-                session.renderActivity.bodyEvaluationCount
-            var readiness = InterpreterCaptureReadiness(
-                initialRenderRevision: initialRenderRevision)
-            let settleDeadline =
-                ContinuousClock.now.advanced(by: .seconds(1))
-            repeat {
-                try await Task.sleep(for: .milliseconds(50))
-                readiness.observe(
-                    runtimeActivity: session.interpreter.runtimeActivity,
-                    renderActivity: session.renderActivity)
-            } while ContinuousClock.now < settleDeadline
-
-            // Still deliberately NOT a "wait longer" knob — it is not a
-            // duration at all. The wait ends when the session STOPS MAKING
-            // PROGRESS, which fails a wedged capture sooner than the 30s total
-            // budget this replaces while letting a capture that is genuinely
-            // still working finish. See `CaptureReadinessBudget`.
-            var budget = CaptureReadinessBudget.captureHarness(
-                startedAt: ContinuousClock.now)
-            var readinessExpiry: CaptureReadinessBudget.Expiry?
-            var previousActivity = session.interpreter.runtimeActivity
-            var previousRevision =
-                session.renderActivity.bodyEvaluationCount
-            var nextSample = ContinuousClock.now
-            var previousServed = Self.servedReplayPaths()
-            // Seeded from what was ALREADY served before the wait: a response
-            // that landed during the settle above has had that whole settle to
-            // reach the tree, and re-arming on it would demand a body
-            // evaluation that may never come. The window this closes is a
-            // required response arriving DURING the wait.
-            var previousRequiredServed = Set(
-                screen.requiredReplayPaths.filter(previousServed.contains))
-            // Once the tree is otherwise ready, a fetch the screen still owes
-            // gets the SAME no-progress window everything else here is bounded
-            // by — not a new constant, and not the 900s total limit, which an
-            // oscillating session would take in full before saying anything.
-            var readyAt: ContinuousClock.Instant?
-            var requestsOverdue = false
-            while (!readiness.isReadyForCapture
-                    || !Self.hasServed(screen.requiredReplayPaths))
-                && readinessExpiry == nil && !requestsOverdue {
-                try await Task.sleep(for: .milliseconds(50))
-                readiness.observe(
-                    runtimeActivity: session.interpreter.runtimeActivity,
-                    renderActivity: session.renderActivity)
-                let activity = session.interpreter.runtimeActivity
-                let revision = session.renderActivity.bodyEvaluationCount
-                // A newly SERVED request is progress in its own right. Between
-                // one response landing and the app issuing the next, the task
-                // counters and the body revision can both sit still, and
-                // without this the budget would expire on a fetch that was
-                // about to happen.
-                let served = Self.servedReplayPaths()
-                let progressed =
-                    activity != previousActivity
-                        || revision != previousRevision
-                        || served != previousServed
-                previousActivity = activity
-                previousRevision = revision
-                previousServed = served
-                // A response the SCREEN'S CONTENT is gated on was just handed
-                // to the app. Readiness standing from an earlier settle
-                // describes a tree that has not seen it, and ANDing the two
-                // conditions lets the wait exit in exactly that window — so
-                // re-arm and require a body evaluation after it.
-                let requiredServed = Set(
-                    screen.requiredReplayPaths.filter(served.contains))
-                if !requiredServed.isSubset(of: previousRequiredServed) {
-                    readiness.noteAwaitedResponse(atRenderRevision: revision)
-                }
-                previousRequiredServed = requiredServed
-                if readiness.isReadyForCapture, readyAt == nil {
-                    readyAt = ContinuousClock.now
-                }
-                if let readyAt,
-                   !Self.hasServed(screen.requiredReplayPaths),
-                   readyAt.duration(to: ContinuousClock.now)
-                       >= budget.noProgressLimit {
-                    requestsOverdue = true
-                }
-                readinessExpiry = budget.observe(
-                    progressed: progressed, at: ContinuousClock.now)
-                if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1",
-                   ContinuousClock.now >= nextSample {
-                    nextSample = ContinuousClock.now.advanced(by: .seconds(1))
-                    let a = session.interpreter.runtimeActivity
-                    // Sampled, not just reported at the deadline: a count that
-                    // OSCILLATES (work respawning) and one that is FLAT (work
-                    // stuck) look identical in a single end-of-wait snapshot.
-                    print(
-                        "@@icecubes-readiness-sample"
-                            + " tasks=\(a.activeTaskCount)"
-                            + " scheduled=\(a.scheduledTaskCount)"
-                            + " host=\(a.activeHostOperationCount)"
-                            + " continuations=\(a.activeContinuationCount)"
-                            + " revision=\(session.renderActivity.bodyEvaluationCount)"
-                            + " pending=\(session.interpreter.pendingTaskDescriptions)"
-                            + " blocked=\(session.interpreter.pendingContinuationDescriptions)")
-                }
-            }
-            let missingRequests = screen.requiredReplayPaths.filter {
-                !Self.hasServed([$0])
-            }
-            guard missingRequests.isEmpty else {
-                // A screen that never made its own fetch must RED, not capture
-                // what it happens to have. This is the one readiness failure
-                // whose evidence is not in the runtime counters at all, so it
-                // names the paths and what WAS served instead.
-                throw RuntimeError(message:
-                    "interpreted \(screen.rawValue) never served "
-                    + "\(missingRequests.sorted()); observed "
-                    + "\(Self.servedReplayPaths().sorted())")
-            }
-            guard readiness.isReadyForCapture else {
-                // Say WHICH half of readiness is missing. "Not ready" has two
-                // very different causes — work that never quiesces, and work
-                // that quiesced without a later body evaluation — and the bare
-                // message sent the 2026-08-06 trending-timeline investigation
-                // looking for a render bug when the runtime simply still had
-                // tasks in flight.
-                let activity = session.interpreter.runtimeActivity
-                // The network log and the render diagnostics printed BELOW
-                // are the evidence a stalled capture most needs, and the
-                // success-only placement withheld them exactly when they
-                // matter: a capture that never quiesces says which tasks are
-                // waiting but not which requests were served or which views
-                // failed. Print both here too, so the failing path is at
-                // least as legible as the passing one.
-                if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
-                    for request in NetworkBridge.requestLog {
-                        print("@@icecubes-network \(request)")
-                    }
-                    for entry in RenderDiagnostics.errors.prefix(20) {
-                        print("diagnostic\t\(entry.view)\t\(entry.error.message)")
-                    }
-                }
-                throw RuntimeError(
-                    message:
-                        "Catalyst capture did not reach presentation readiness"
-                        + " (quiescent=\(activity.isQuiescent)"
-                        + " activeTasks=\(activity.activeTaskCount)"
-                        + " scheduledTasks=\(activity.scheduledTaskCount)"
-                        + " hostOperations=\(activity.activeHostOperationCount)"
-                        + " continuations=\(activity.activeContinuationCount)"
-                        + " observedActive="
-                        + "\(readiness.firstActiveRenderRevision != nil)"
-                        + " initialRevision=\(initialRenderRevision)"
-                        + " revision="
-                        + "\(session.renderActivity.bodyEvaluationCount)"
-                        // WHICH bound ended the wait, and the stall that
-                        // calibrates it. `noProgress` means the session stopped;
-                        // `oscillating` means it never stopped — opposite
-                        // conditions that the old total budget reported
-                        // identically.
-                        + " expiry=\(readinessExpiry?.rawValue ?? "none")"
-                        + " longestStall=\(budget.longestObservedStall)"
-                        + " progressObservations=\(budget.progressCount))")
-            }
-            // The calibration read, and it has to be on the SUCCESS path: the
-            // constant `noProgressLimit` must clear is the longest stall a
-            // HEALTHY capture shows, so reporting the stall only when the
-            // capture fails measures the one population that cannot calibrate
-            // it. Gated exactly like the non-Catalyst loop's equivalent line
-            // (`ICECUBES_TRACE_READINESS=1`) so one env var answers the
-            // question on whichever path built the binary — and this is the
-            // path the macabi R2 board runs.
-            if ProcessInfo.processInfo.environment["ICECUBES_TRACE_READINESS"]
-                == "1"
-            {
-                print(
-                    "@@icecubes-capture-readiness"
-                        + " screen=\(screen.rawValue)"
-                        + " ready=\(readiness.isReadyForCapture)"
-                        + " expiry=\(readinessExpiry?.rawValue ?? "none")"
-                        + " longestStall=\(budget.longestObservedStall)"
-                        + " progressObservations=\(budget.progressCount)"
-                        + " elapsed="
-                        + "\(budget.startedAt.duration(to: .now))")
-            }
-            if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
-                let activity = session.interpreter.runtimeActivity
-                print(
-                    "@@icecubes-capture-activity"
-                        + " observedActive="
-                        + "\(readiness.firstActiveRenderRevision != nil)"
-                        + " initialRevision=\(initialRenderRevision)"
-                        + " firstActiveRevision="
-                        + "\(readiness.firstActiveRenderRevision.map(String.init) ?? "none")"
-                        + " lastActiveRevision="
-                        + "\(readiness.lastActiveRenderRevision.map(String.init) ?? "none")"
-                        + " finalRevision="
-                        + "\(session.renderActivity.bodyEvaluationCount)"
-                        + " finalQuiescent=\(activity.isQuiescent)"
-                        + " activeTasks=\(activity.activeTaskCount)"
-                        + " scheduledTasks=\(activity.scheduledTaskCount)"
-                        + " hostOperations="
-                        + "\(activity.activeHostOperationCount)"
-                        + " continuations="
-                        + "\(activity.activeContinuationCount)")
-                for request in NetworkBridge.requestLog {
-                    print("@@icecubes-network \(request)")
-                }
-            }
-            for entry in RenderDiagnostics.errors.prefix(20) {
-                print("diagnostic\t\(entry.view)\t\(entry.error.message)")
-            }
-
-            let rootView = try await Self.captureRootView()
-            guard let captureView = fixedSizeDescendant(in: rootView) else {
-                throw RuntimeError(
-                    message: "\(screen.rawValue) has no view at the scored"
-                        + " size \(IceCubesCheckMain.screenSize); the window"
-                        + " root is \(rootView.bounds.size). Capturing"
-                        + " anything else rescales the screen — fix the"
-                        + " capture, not the floor.")
-            }
-            // Interpreter quiescence is not layout quiescence. A SwiftUI
-            // transition keeps re-laying out for several frames AFTER the work
-            // that triggered it finished, so the readiness above can be
-            // satisfied while the tree is still moving — and the pixels then
-            // record wherever the animation happened to be. Require the
-            // geometry to repeat before believing it.
-            let geometryDeadline =
-                ContinuousClock.now.advanced(by: .seconds(5))
-            var previousFingerprint =
-                CaptureGeometryDump.fingerprint(captureView: captureView)
-            var stableSamples = 0
-            while stableSamples < Self.requiredStableGeometrySamples
-                && ContinuousClock.now < geometryDeadline
-            {
-                try await Task.sleep(for: .milliseconds(50))
-                let fingerprint =
-                    CaptureGeometryDump.fingerprint(captureView: captureView)
-                stableSamples =
-                    fingerprint == previousFingerprint ? stableSamples + 1 : 0
-                previousFingerprint = fingerprint
-            }
-            if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
-                print(
-                    "@@icecubes-geometry-settle"
-                        + " stableSamples=\(stableSamples)"
-                        + " settled="
-                        + "\(stableSamples >= Self.requiredStableGeometrySamples)")
-            }
-            if stableSamples < Self.requiredStableGeometrySamples {
-                // NOT gated behind a trace flag, and deliberately not an error
-                // either. The deadline expiring means the pixels below record a
-                // tree that was still moving — exactly the condition this loop
-                // exists to prevent — and reporting it only under
-                // `ICECUBES_TRACE` made a capture that gave up look identical
-                // to one that settled. No screen has yet been shown to need a
-                // hard failure here, so this states what was dropped instead of
-                // guessing a new deadline; a board run that prints this line is
-                // evidence for making it one.
-                print(
-                    "@@icecubes-geometry-unsettled"
-                        + " screen=\(screen.rawValue)"
-                        + " stableSamples=\(stableSamples)"
-                        + " required=\(Self.requiredStableGeometrySamples)")
-            }
-            removeAnimations(from: captureView.layer)
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = 1
-            format.opaque = false
-            // The renderer's colour range resolves from the PROCESS's ambient
-            // display association when it is left `.automatic`, so the twin and
-            // this harness — same capture code, different Info.plist — resolved
-            // to Display P3 16-bit and sRGB 8-bit respectively. Comparing those
-            // scores the format difference as fidelity: the 8-bit side dithers
-            // a flat near-white fill that the 16-bit side represents exactly,
-            // which cost media-browser 77,274 AE of pure ±1 noise. Pin it on
-            // BOTH sides. `.standard` is the comparator's own space
-            // (Scripts/pixel-ae.swift loads into sRGB 8-bit), so capturing here
-            // removes a lossy conversion rather than adding one.
-            format.preferredRange = .standard
-            let renderer = UIGraphicsImageRenderer(
-                size: IceCubesCheckMain.screenSize, format: format)
-            // `drawHierarchy` is the only capture that materializes Catalyst
-            // hosting-layer contents (an in-process `layer.render(in:)` draws
-            // hosted SwiftUI content blank); serialization and animation
-            // stripping keep its window-server round trip reproducible.
-            let image = renderer.image { _ in
-                captureView.drawHierarchy(
-                    in: CGRect(
-                        origin: .zero,
-                        size: IceCubesCheckMain.screenSize),
-                    afterScreenUpdates: true)
-            }
-            CaptureGeometryDump.record(format: format, product: image)
-            // Dumped from the hierarchy the accepted PNG came from, matching
-            // the twin: `drawHierarchy(afterScreenUpdates: true)` forces a
-            // screen update, so geometry read before it is not necessarily
-            // the geometry that was rasterized.
-            CaptureGeometryDump.write(
-                captureView: captureView,
-                screen: screen.rawValue,
-                directory: directory)
-            guard let png = image.pngData() else {
-                throw RuntimeError(
-                    message: "Catalyst hierarchy produced no PNG")
-            }
-            let output = URL(fileURLWithPath: directory)
-                .appendingPathComponent("\(screen.rawValue).png")
-            try png.write(to: output, options: .atomic)
-            print(
-                "\(screen.rawValue)\t\(output.path)\t"
-                    + "\(Int(IceCubesCheckMain.screenSize.width))x"
-                    + "\(Int(IceCubesCheckMain.screenSize.height))")
-
-            guard screen == .timeline else {
+            // The FIRST wait is the one that has to prove the screen's own
+            // fetches went out; by the time a scenario mutation is driven they
+            // are long served, so the post-mutation wait below requires none.
+            try await awaitCaptureReadiness(
+                session: session, label: screen.rawValue,
+                requiringReplayPaths: screen.requiredReplayPaths)
+            guard let scenario else {
+                try await writeCapture(named: screen.rawValue)
+                guard screen == .timeline else { exit(0) }
+                try writeTimelineMetadata(session: session)
                 exit(0)
             }
-            // Forced through `globalValue(named:)`, not read raw off
-            // `globals`: a global no view references is still an unforced
-            // lazy thunk, and the drift reading is referenced nowhere.
-            let epochValue = try session.interpreter
-                .globalValue(named: "__iceInterpretedClockEpoch")
-            let driftValue = try session.interpreter
-                .globalValue(named: "__iceInterpretedRelativeClockDrift")
-            guard let interpretedClockEpoch = epochValue?.doubleValue,
-                let interpretedRelativeDrift = driftValue?.doubleValue
-            else {
-                throw interpretedClockFailure(
-                    epoch: epochValue, drift: driftValue)
-            }
-            let metadata = CaptureMetadata(
-                hostClockEpoch: Date().timeIntervalSince1970,
-                interpretedClockEpoch: interpretedClockEpoch,
-                interpretedRelativeClockDrift: interpretedRelativeDrift)
-            let metadataOutput = URL(fileURLWithPath: directory)
-                .appendingPathComponent("timeline.json")
-            try JSONEncoder().encode(metadata).write(
-                to: metadataOutput, options: .atomic)
-            print("metadata\t\(metadataOutput.path)")
+            try await writeCapture(named: scenario.baseCaptureName)
+            // The mutation is driven FROM THE HOST, never from an interpreted
+            // `.task`. A pin that waits for an interpreted task to mutate
+            // something is a SCHEDULING assertion wearing an invalidation
+            // assertion's clothes: it passes alone and fails under load,
+            // because another `@MainActor` workload can hold the executor for
+            // the whole window and the cooperative thread never gets there —
+            // and that red is indistinguishable from the absorbed mutation
+            // this board exists to catch. `callClosure` is the same fresh
+            // entry a Button action takes from the UI, which is exactly what
+            // the app's own control is.
+            //
+            // Read the body-evaluation revision BEFORE driving anything. The
+            // post-mutation wait is then a POSITIVE assertion — some body was
+            // evaluated after this number — rather than a settle period that
+            // happens to end after the mutation. See
+            // `awaitRenderRevisionAdvance` for why the readiness object alone
+            // cannot make that assertion.
+            let preMutationRenderRevision =
+                session.renderActivity.bodyEvaluationCount
+            try driveScenarioMutation(session: session, scenario: scenario)
+            let postMutationRenderRevision = try await awaitCaptureReadiness(
+                session: session, label: scenario.rawValue,
+                advancingBeyondRenderRevision: preMutationRenderRevision)
+            try await writeCapture(named: scenario.rawValue)
+            try writeScenarioMetadata(
+                session: session, scenario: scenario,
+                preMutationRenderRevision: preMutationRenderRevision,
+                postMutationRenderRevision: postMutationRenderRevision)
             exit(0)
         } catch {
             FileHandle.standardError.write(
                 Data("IceCubesCheck Catalyst: \(error)\n".utf8))
             exit(2)
         }
+    }
+
+    private static func resolvedScenario(
+        _ argument: String?
+    ) throws -> IceCubesCaptureScenario? {
+        guard let argument else { return nil }
+        guard let scenario = IceCubesCaptureScenario(rawValue: argument) else {
+            throw RuntimeError(
+                message: "unknown --scenario '\(argument)'; known scenarios: "
+                    + IceCubesCaptureScenario.allCases.map(\.rawValue)
+                        .joined(separator: ", ")
+                    + ". 'all' is refused on purpose, on both sides: scenarios "
+                    + "mutate process-global @AppStorage-backed singletons, so "
+                    + "running two in one process makes their captures a "
+                    + "function of scenario order. Scripts/icecubes-r3.sh runs "
+                    + "one process per scenario.")
+        }
+        return scenario
+    }
+
+    /// Wait until this session has reached a capture-safe presentation
+    /// boundary, or fail loudly saying which half of readiness is missing.
+    ///
+    /// Extracted so the R2 path and each half of an R3 scenario run the SAME
+    /// wait. Two copies of a settle rule is how one path silently keeps a
+    /// different one than the other, and a post-mutation capture taken under a
+    /// weaker rule than its base would score a transition frame against a
+    /// settled one.
+    ///
+    /// `advancingBeyondRenderRevision` is the R3 half. Passing it makes the
+    /// wait REQUIRE a body evaluation strictly later than the supplied
+    /// revision before the ordinary readiness condition is even started, and
+    /// then initializes that condition at the revision actually reached — so
+    /// `InterpreterCaptureReadiness`'s `revision >= initialRenderRevision`,
+    /// which is satisfiable by EQUALITY, can no longer be satisfied by the
+    /// frame that drew the base screen. Returns the revision reached, which
+    /// the caller records beside the capture.
+    @discardableResult
+    private func awaitCaptureReadiness(
+        session: InterpreterRenderSession,
+        label: String,
+        advancingBeyondRenderRevision minimumRenderRevision: UInt64? = nil,
+        requiringReplayPaths requiredReplayPaths: [String] = []
+    ) async throws -> UInt64 {
+        if let minimumRenderRevision {
+            _ = try await awaitRenderRevisionAdvance(
+                session: session,
+                beyond: minimumRenderRevision,
+                label: label)
+        }
+        let initialRenderRevision =
+            session.renderActivity.bodyEvaluationCount
+        var readiness = InterpreterCaptureReadiness(
+            initialRenderRevision: initialRenderRevision)
+        let settleDeadline =
+            ContinuousClock.now.advanced(by: .seconds(1))
+        repeat {
+            try await Task.sleep(for: .milliseconds(50))
+            readiness.observe(
+                runtimeActivity: session.interpreter.runtimeActivity,
+                renderActivity: session.renderActivity)
+        } while ContinuousClock.now < settleDeadline
+
+        // Still deliberately NOT a "wait longer" knob — it is not a
+        // duration at all. The wait ends when the session STOPS MAKING
+        // PROGRESS, which fails a wedged capture sooner than the 30s total
+        // budget this replaces while letting a capture that is genuinely
+        // still working finish. See `CaptureReadinessBudget`.
+        var budget = CaptureReadinessBudget.captureHarness(
+            startedAt: ContinuousClock.now)
+        var readinessExpiry: CaptureReadinessBudget.Expiry?
+        var previousActivity = session.interpreter.runtimeActivity
+        var previousRevision =
+            session.renderActivity.bodyEvaluationCount
+        var nextSample = ContinuousClock.now
+        var previousServed = Self.servedReplayPaths()
+        // Seeded from what was ALREADY served before the wait: a response
+        // that landed during the settle above has had that whole settle to
+        // reach the tree, and re-arming on it would demand a body
+        // evaluation that may never come. The window this closes is a
+        // required response arriving DURING the wait.
+        var previousRequiredServed = Set(
+            requiredReplayPaths.filter(previousServed.contains))
+        // Once the tree is otherwise ready, a fetch the screen still owes
+        // gets the SAME no-progress window everything else here is bounded
+        // by — not a new constant, and not the 900s total limit, which an
+        // oscillating session would take in full before saying anything.
+        var readyAt: ContinuousClock.Instant?
+        var requestsOverdue = false
+        while (!readiness.isReadyForCapture
+                || !Self.hasServed(requiredReplayPaths))
+            && readinessExpiry == nil && !requestsOverdue {
+            try await Task.sleep(for: .milliseconds(50))
+            readiness.observe(
+                runtimeActivity: session.interpreter.runtimeActivity,
+                renderActivity: session.renderActivity)
+            let activity = session.interpreter.runtimeActivity
+            let revision = session.renderActivity.bodyEvaluationCount
+            // A newly SERVED request is progress in its own right. Between
+            // one response landing and the app issuing the next, the task
+            // counters and the body revision can both sit still, and
+            // without this the budget would expire on a fetch that was
+            // about to happen.
+            let served = Self.servedReplayPaths()
+            let progressed =
+                activity != previousActivity
+                    || revision != previousRevision
+                    || served != previousServed
+            previousActivity = activity
+            previousRevision = revision
+            previousServed = served
+            // A response the SCREEN'S CONTENT is gated on was just handed
+            // to the app. Readiness standing from an earlier settle
+            // describes a tree that has not seen it, and ANDing the two
+            // conditions lets the wait exit in exactly that window — so
+            // re-arm and require a body evaluation after it.
+            let requiredServed = Set(
+                requiredReplayPaths.filter(served.contains))
+            if !requiredServed.isSubset(of: previousRequiredServed) {
+                readiness.noteAwaitedResponse(atRenderRevision: revision)
+            }
+            previousRequiredServed = requiredServed
+            if readiness.isReadyForCapture, readyAt == nil {
+                readyAt = ContinuousClock.now
+            }
+            if let readyAt,
+               !Self.hasServed(requiredReplayPaths),
+               readyAt.duration(to: ContinuousClock.now)
+                   >= budget.noProgressLimit {
+                requestsOverdue = true
+            }
+            readinessExpiry = budget.observe(
+                progressed: progressed, at: ContinuousClock.now)
+            if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1",
+               ContinuousClock.now >= nextSample {
+                nextSample = ContinuousClock.now.advanced(by: .seconds(1))
+                let a = session.interpreter.runtimeActivity
+                // Sampled, not just reported at the deadline: a count that
+                // OSCILLATES (work respawning) and one that is FLAT (work
+                // stuck) look identical in a single end-of-wait snapshot.
+                print(
+                    "@@icecubes-readiness-sample"
+                        + " tasks=\(a.activeTaskCount)"
+                        + " scheduled=\(a.scheduledTaskCount)"
+                        + " host=\(a.activeHostOperationCount)"
+                        + " continuations=\(a.activeContinuationCount)"
+                        + " revision=\(session.renderActivity.bodyEvaluationCount)"
+                        + " pending=\(session.interpreter.pendingTaskDescriptions)"
+                        + " blocked=\(session.interpreter.pendingContinuationDescriptions)")
+            }
+        }
+        let missingRequests = requiredReplayPaths.filter {
+            !Self.hasServed([$0])
+        }
+        guard missingRequests.isEmpty else {
+            // A screen that never made its own fetch must RED, not capture
+            // what it happens to have. This is the one readiness failure
+            // whose evidence is not in the runtime counters at all, so it
+            // names the paths and what WAS served instead.
+            throw RuntimeError(message:
+                "interpreted \(label) never served "
+                + "\(missingRequests.sorted()); observed "
+                + "\(Self.servedReplayPaths().sorted())")
+        }
+        guard readiness.isReadyForCapture else {
+            // Say WHICH half of readiness is missing. "Not ready" has two
+            // very different causes — work that never quiesces, and work
+            // that quiesced without a later body evaluation — and the bare
+            // message sent the 2026-08-06 trending-timeline investigation
+            // looking for a render bug when the runtime simply still had
+            // tasks in flight.
+            let activity = session.interpreter.runtimeActivity
+            // The network log and the render diagnostics printed BELOW
+            // are the evidence a stalled capture most needs, and the
+            // success-only placement withheld them exactly when they
+            // matter: a capture that never quiesces says which tasks are
+            // waiting but not which requests were served or which views
+            // failed. Print both here too, so the failing path is at
+            // least as legible as the passing one.
+            if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+                for request in NetworkBridge.requestLog {
+                    print("@@icecubes-network \(request)")
+                }
+                for entry in RenderDiagnostics.errors.prefix(20) {
+                    print("diagnostic\t\(entry.view)\t\(entry.error.message)")
+                }
+            }
+            throw RuntimeError(
+                message:
+                    "Catalyst capture did not reach presentation readiness"
+                    + " (quiescent=\(activity.isQuiescent)"
+                    + " activeTasks=\(activity.activeTaskCount)"
+                    + " scheduledTasks=\(activity.scheduledTaskCount)"
+                    + " hostOperations=\(activity.activeHostOperationCount)"
+                    + " continuations=\(activity.activeContinuationCount)"
+                    + " observedActive="
+                    + "\(readiness.firstActiveRenderRevision != nil)"
+                    + " initialRevision=\(initialRenderRevision)"
+                    + " revision="
+                    + "\(session.renderActivity.bodyEvaluationCount)"
+                    // WHICH bound ended the wait, and the stall that
+                    // calibrates it. `noProgress` means the session stopped;
+                    // `oscillating` means it never stopped — opposite
+                    // conditions that the old total budget reported
+                    // identically.
+                    + " expiry=\(readinessExpiry?.rawValue ?? "none")"
+                    + " longestStall=\(budget.longestObservedStall)"
+                    + " progressObservations=\(budget.progressCount))")
+        }
+        // The calibration read, and it has to be on the SUCCESS path: the
+        // constant `noProgressLimit` must clear is the longest stall a
+        // HEALTHY capture shows, so reporting the stall only when the
+        // capture fails measures the one population that cannot calibrate
+        // it. Gated exactly like the non-Catalyst loop's equivalent line
+        // (`ICECUBES_TRACE_READINESS=1`) so one env var answers the
+        // question on whichever path built the binary — and this is the
+        // path the macabi R2 board runs.
+        if ProcessInfo.processInfo.environment["ICECUBES_TRACE_READINESS"]
+            == "1"
+        {
+            print(
+                "@@icecubes-capture-readiness"
+                    + " screen=\(label)"
+                    + " ready=\(readiness.isReadyForCapture)"
+                    + " expiry=\(readinessExpiry?.rawValue ?? "none")"
+                    + " longestStall=\(budget.longestObservedStall)"
+                    + " progressObservations=\(budget.progressCount)"
+                    + " elapsed="
+                    + "\(budget.startedAt.duration(to: .now))")
+        }
+        if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+            let activity = session.interpreter.runtimeActivity
+            print(
+                "@@icecubes-capture-activity"
+                    + " observedActive="
+                    + "\(readiness.firstActiveRenderRevision != nil)"
+                    + " initialRevision=\(initialRenderRevision)"
+                    + " firstActiveRevision="
+                    + "\(readiness.firstActiveRenderRevision.map(String.init) ?? "none")"
+                    + " lastActiveRevision="
+                    + "\(readiness.lastActiveRenderRevision.map(String.init) ?? "none")"
+                    + " finalRevision="
+                    + "\(session.renderActivity.bodyEvaluationCount)"
+                    + " finalQuiescent=\(activity.isQuiescent)"
+                    + " activeTasks=\(activity.activeTaskCount)"
+                    + " scheduledTasks=\(activity.scheduledTaskCount)"
+                    + " hostOperations="
+                    + "\(activity.activeHostOperationCount)"
+                    + " continuations="
+                    + "\(activity.activeContinuationCount)")
+            for request in NetworkBridge.requestLog {
+                print("@@icecubes-network \(request)")
+            }
+        }
+        for entry in RenderDiagnostics.errors.prefix(20) {
+            print("diagnostic\t\(entry.view)\t\(entry.error.message)")
+        }
+        return session.renderActivity.bodyEvaluationCount
+    }
+
+    /// Wait, BOUNDED, for the interpreted program to evaluate at least one
+    /// body AFTER `revision` — read by the caller immediately before it drove
+    /// the mutation — and report the revision reached.
+    ///
+    /// WHY THIS EXISTS, because its absence is invisible and the comment it
+    /// replaces asserted the opposite.
+    /// `InterpreterCaptureReadiness.observe`
+    /// (Sources/SwiftUIBridge/InterpreterRenderActivity.swift) admits a
+    /// revision EQUAL to the one it was initialized with, and when its very
+    /// first sample already finds the runtime quiescent — no active work ever
+    /// observed — it sets `readyRenderRevision` on that sample. A synchronous
+    /// `callClosure` leaves exactly that state behind. So a post-mutation wait
+    /// built only out of `InterpreterCaptureReadiness(initialRenderRevision:)`
+    /// degenerates into a fixed ~1s settle that asserts NOTHING about the
+    /// interpreter having re-rendered.
+    ///
+    /// That is fatal to the R3 board rather than merely sloppy: both of its
+    /// interpreted capture processes run the same race under the same load, so
+    /// they AGREE, the reproducibility gate certifies the pair, and the
+    /// changed-guard then reports "the mutation was ABSORBED" for a timing
+    /// reason — the board printing its headline defect when nothing is wrong.
+    /// Same shape as the recorded quiescence-is-not-layout-settled and
+    /// hosted-render-fixed-pump traps.
+    ///
+    /// It deliberately does NOT throw when the revision never advances. "The
+    /// interpreter absorbed the mutation" and "the harness read the frame
+    /// before the interpreter got to it" are different findings with different
+    /// fixes, and only the recorded revisions separate them — so both numbers
+    /// go into the scenario metadata and `Scripts/icecubes-r3.sh` REFUSES to
+    /// score a scenario whose revision did not advance, rather than scoring it
+    /// and charging the difference to the interpreter.
+    ///
+    /// Bounded by the SAME `CaptureReadinessBudget` the readiness wait uses,
+    /// not a second constant: that type documents why a shared main actor
+    /// makes a no-progress bound safe here (a busy session starves this poll
+    /// loop and so cannot be failed by it), and a fresh duration invented for
+    /// this wait would be a number nothing measured.
+    private func awaitRenderRevisionAdvance(
+        session: InterpreterRenderSession,
+        beyond revision: UInt64,
+        label: String
+    ) async throws -> UInt64 {
+        var budget = CaptureReadinessBudget.captureHarness(
+            startedAt: ContinuousClock.now)
+        var previousActivity = session.interpreter.runtimeActivity
+        var currentRevision = session.renderActivity.bodyEvaluationCount
+        var expiry: CaptureReadinessBudget.Expiry?
+        while currentRevision <= revision && expiry == nil {
+            try await Task.sleep(for: .milliseconds(50))
+            let activity = session.interpreter.runtimeActivity
+            let observed = session.renderActivity.bodyEvaluationCount
+            let progressed =
+                activity != previousActivity || observed != currentRevision
+            previousActivity = activity
+            currentRevision = observed
+            expiry = budget.observe(
+                progressed: progressed, at: ContinuousClock.now)
+        }
+        if currentRevision <= revision {
+            // Printed unconditionally, not behind a trace flag: this is the
+            // one line that tells the reader of a red board which of the two
+            // findings they are looking at, and it is worthless if it only
+            // appears when someone already suspected it.
+            print(
+                "@@icecubes-r3-revision-stalled"
+                    + " scenario=\(label)"
+                    + " pre=\(revision)"
+                    + " post=\(currentRevision)"
+                    + " expiry=\(expiry?.rawValue ?? "none")"
+                    + " longestStall=\(budget.longestObservedStall)"
+                    + " progressObservations=\(budget.progressCount)")
+        }
+        return currentRevision
+    }
+
+    /// Wait for the LAYOUT to stop moving, then rasterize and write one PNG.
+    ///
+    /// Extracted alongside `awaitCaptureReadiness` for the same reason: a
+    /// scenario writes two PNGs from one process, and both have to be produced
+    /// by exactly the rules the R2 board already trusts — same capture view,
+    /// same geometry-stability requirement, same pinned colour range, same
+    /// geometry dump.
+    private func writeCapture(named name: String) async throws {
+        let rootView = try await Self.captureRootView()
+        guard let captureView = fixedSizeDescendant(in: rootView) else {
+            throw RuntimeError(
+                message: "\(name) has no view at the scored"
+                    + " size \(IceCubesCheckMain.screenSize); the window"
+                    + " root is \(rootView.bounds.size). Capturing"
+                    + " anything else rescales the screen — fix the"
+                    + " capture, not the floor.")
+        }
+        // Interpreter quiescence is not layout quiescence. A SwiftUI
+        // transition keeps re-laying out for several frames AFTER the work
+        // that triggered it finished, so the readiness above can be
+        // satisfied while the tree is still moving — and the pixels then
+        // record wherever the animation happened to be. Require the
+        // geometry to repeat before believing it.
+        let geometryDeadline =
+            ContinuousClock.now.advanced(by: .seconds(5))
+        var previousFingerprint =
+            CaptureGeometryDump.fingerprint(captureView: captureView)
+        var stableSamples = 0
+        while stableSamples < Self.requiredStableGeometrySamples
+            && ContinuousClock.now < geometryDeadline
+        {
+            try await Task.sleep(for: .milliseconds(50))
+            let fingerprint =
+                CaptureGeometryDump.fingerprint(captureView: captureView)
+            stableSamples =
+                fingerprint == previousFingerprint ? stableSamples + 1 : 0
+            previousFingerprint = fingerprint
+        }
+        if ProcessInfo.processInfo.environment["ICECUBES_TRACE"] == "1" {
+            print(
+                "@@icecubes-geometry-settle"
+                    + " stableSamples=\(stableSamples)"
+                    + " settled="
+                    + "\(stableSamples >= Self.requiredStableGeometrySamples)")
+        }
+        if stableSamples < Self.requiredStableGeometrySamples {
+            // NOT gated behind a trace flag, and deliberately not an error
+            // either. The deadline expiring means the pixels below record a
+            // tree that was still moving — exactly the condition this loop
+            // exists to prevent — and reporting it only under
+            // `ICECUBES_TRACE` made a capture that gave up look identical
+            // to one that settled. No screen has yet been shown to need a
+            // hard failure here, so this states what was dropped instead of
+            // guessing a new deadline; a board run that prints this line is
+            // evidence for making it one.
+            print(
+                "@@icecubes-geometry-unsettled"
+                    + " screen=\(name)"
+                    + " stableSamples=\(stableSamples)"
+                    + " required=\(Self.requiredStableGeometrySamples)")
+        }
+        removeAnimations(from: captureView.layer)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        // The renderer's colour range resolves from the PROCESS's ambient
+        // display association when it is left `.automatic`, so the twin and
+        // this harness — same capture code, different Info.plist — resolved
+        // to Display P3 16-bit and sRGB 8-bit respectively. Comparing those
+        // scores the format difference as fidelity: the 8-bit side dithers
+        // a flat near-white fill that the 16-bit side represents exactly,
+        // which cost media-browser 77,274 AE of pure ±1 noise. Pin it on
+        // BOTH sides. `.standard` is the comparator's own space
+        // (Scripts/pixel-ae.swift loads into sRGB 8-bit), so capturing here
+        // removes a lossy conversion rather than adding one.
+        format.preferredRange = .standard
+        let renderer = UIGraphicsImageRenderer(
+            size: IceCubesCheckMain.screenSize, format: format)
+        // `drawHierarchy` is the only capture that materializes Catalyst
+        // hosting-layer contents (an in-process `layer.render(in:)` draws
+        // hosted SwiftUI content blank); serialization and animation
+        // stripping keep its window-server round trip reproducible.
+        let image = renderer.image { _ in
+            captureView.drawHierarchy(
+                in: CGRect(
+                    origin: .zero,
+                    size: IceCubesCheckMain.screenSize),
+                afterScreenUpdates: true)
+        }
+        CaptureGeometryDump.record(format: format, product: image)
+        // Dumped from the hierarchy the accepted PNG came from, matching
+        // the twin: `drawHierarchy(afterScreenUpdates: true)` forces a
+        // screen update, so geometry read before it is not necessarily
+        // the geometry that was rasterized.
+        CaptureGeometryDump.write(
+            captureView: captureView,
+            screen: name,
+            directory: directory)
+        guard let png = image.pngData() else {
+            throw RuntimeError(
+                message: "Catalyst hierarchy produced no PNG")
+        }
+        let output = URL(fileURLWithPath: directory)
+            .appendingPathComponent("\(name).png")
+        try png.write(to: output, options: .atomic)
+        print(
+            "\(name)\t\(output.path)\t"
+                + "\(Int(IceCubesCheckMain.screenSize.width))x"
+                + "\(Int(IceCubesCheckMain.screenSize.height))")
+    }
+
+    /// Read both interpreted clock readings out of the program's globals.
+    ///
+    /// Forced through `globalValue(named:)`, not read raw off `globals`: a
+    /// global no view references is still an unforced lazy thunk, and the
+    /// drift reading is referenced nowhere.
+    private func interpretedClockReadings(
+        session: InterpreterRenderSession
+    ) throws -> (epoch: TimeInterval, drift: TimeInterval) {
+        let epochValue = try session.interpreter
+            .globalValue(named: "__iceInterpretedClockEpoch")
+        let driftValue = try session.interpreter
+            .globalValue(named: "__iceInterpretedRelativeClockDrift")
+        guard let interpretedClockEpoch = epochValue?.doubleValue,
+            let interpretedRelativeDrift = driftValue?.doubleValue
+        else {
+            throw interpretedClockFailure(
+                epoch: epochValue, drift: driftValue)
+        }
+        return (interpretedClockEpoch, interpretedRelativeDrift)
+    }
+
+    private func writeTimelineMetadata(
+        session: InterpreterRenderSession
+    ) throws {
+        let readings = try interpretedClockReadings(session: session)
+        let metadata = CaptureMetadata(
+            hostClockEpoch: Date().timeIntervalSince1970,
+            interpretedClockEpoch: readings.epoch,
+            interpretedRelativeClockDrift: readings.drift)
+        let metadataOutput = URL(fileURLWithPath: directory)
+            .appendingPathComponent("timeline.json")
+        try JSONEncoder().encode(metadata).write(
+            to: metadataOutput, options: .atomic)
+        print("metadata\t\(metadataOutput.path)")
+    }
+
+    /// Drive the scenario's app-model mutation on the interpreted program.
+    ///
+    /// A missing function is FATAL rather than skipped. Skipping it would
+    /// write the base screen a second time under the post-mutation name, and
+    /// the board would then read a perfectly reproducible pair of identical
+    /// captures — which is exactly the fingerprint of the absorbed mutation
+    /// this whole board exists to detect.
+    private func driveScenarioMutation(
+        session: InterpreterRenderSession,
+        scenario: IceCubesCaptureScenario
+    ) throws {
+        let name = IceCubesCaptureScenario.mutationFunctionName
+        let value = try session.interpreter.globalValue(named: name)
+        // "Absent" and "present but not callable" are different failures with
+        // different fixes — the first is an emitter gap, the second means the
+        // name resolved to something the program declared for another reason
+        // — and one shared message that says which is what keeps a red from
+        // sending the reader to the wrong file.
+        let found: String
+        if let value {
+            found = "\(value)"
+        } else {
+            found = "no such global"
+        }
+        guard let mutation = value?.closureValue else {
+            throw RuntimeError(
+                message: "\(scenario.rawValue): the merged program declares no"
+                    + " callable \(name)() — found \(found). The scenario's"
+                    + " mutation (\(scenario.mutationStatement)) was never"
+                    + " emitted, so the post-mutation capture would be the"
+                    + " base screen again.")
+        }
+        _ = try session.interpreter.callClosure(mutation, arguments: [])
+    }
+
+    private func writeScenarioMetadata(
+        session: InterpreterRenderSession,
+        scenario: IceCubesCaptureScenario,
+        preMutationRenderRevision: UInt64,
+        postMutationRenderRevision: UInt64
+    ) throws {
+        let readings = try interpretedClockReadings(session: session)
+        let metadata = ScenarioCaptureMetadata(
+            scenario: scenario.rawValue,
+            baseScreen: scenario.baseScreen.rawValue,
+            // The statement this process EMITTED, so the board comparing it
+            // against the twin's recorded statement compares what actually
+            // ran on each side rather than two copies of one constant.
+            mutation: scenario.mutationStatement,
+            preMutationRenderRevision: preMutationRenderRevision,
+            postMutationRenderRevision: postMutationRenderRevision,
+            hostClockEpoch: Date().timeIntervalSince1970,
+            interpretedClockEpoch: readings.epoch,
+            interpretedRelativeClockDrift: readings.drift)
+        let metadataOutput = URL(fileURLWithPath: directory)
+            .appendingPathComponent("\(scenario.rawValue).json")
+        try JSONEncoder().encode(metadata).write(
+            to: metadataOutput, options: .atomic)
+        print(
+            "scenario\t\(metadataOutput.path)\t\(scenario.rawValue)"
+                + "\trevision \(preMutationRenderRevision)"
+                + "→\(postMutationRenderRevision)")
     }
 
     /// `drawHierarchy(in:)` SCALES whatever view it is handed into the
@@ -898,7 +1240,13 @@ private struct IceCubesCheckCatalystApp: App {
                     directory: IceCubesCheckMain.option(
                         "--capture", in: arguments)
                         ?? "/tmp/icecubes-interpreted",
-                    screen: IceCubesCheckMain.captureScreen(in: arguments),
+                    requestedScreen: IceCubesCheckMain.captureScreen(
+                        in: arguments),
+                    // Passed RAW. Resolving it here would have to swallow an
+                    // unknown id inside a `ViewBuilder`; the capture path
+                    // turns it into an exit code instead.
+                    scenarioArgument: IceCubesCheckMain.option(
+                        "--scenario", in: arguments),
                     nativeFixtureDirectory: IceCubesCheckMain.option(
                         "--native-fixtures", in: arguments))
             }
@@ -1058,6 +1406,22 @@ struct IceCubesCheckMain {
 
         let arguments = Array(CommandLine.arguments.dropFirst())
         if let captureDirectory = option("--capture", in: arguments) {
+            // R3 scenarios are macabi-only, and that is a property of the
+            // MEASUREMENT rather than a packaging convenience. This path hosts
+            // through `NSHostingView`, i.e. AppKit's separator, control and
+            // scroll implementations; the twin rasterizes Catalyst UIKit. A
+            // scenario captured here would be compared against a different
+            // framework's pixels and the board would report interaction debt
+            // that is really a platform gap. Refuse rather than produce it.
+            if let requestedScenario = option("--scenario", in: arguments) {
+                throw RuntimeError(
+                    message: "--scenario '\(requestedScenario)' is not"
+                        + " available on the macOS capture path; R3 scenarios"
+                        + " are captured by the macabi build, because the twin"
+                        + " they are scored against rasterizes Catalyst UIKit."
+                        + " Build with --triple arm64-apple-ios18.0-macabi"
+                        + " (Scripts/icecubes-r3.sh does).")
+            }
             try capture(
                 captureScreen(in: arguments),
                 to: captureDirectory,
@@ -2260,7 +2624,8 @@ struct IceCubesCheckMain {
         includeDetailAndAccount: Bool,
         includePagination: Bool = false,
         presentation: RenderProbePresentation,
-        screenStatusFixture: String? = nil
+        screenStatusFixture: String? = nil,
+        scenarioMutation: String? = nil
     ) -> String {
         let fixtureDecodes = [
             includeTimeline ? """
@@ -2568,6 +2933,30 @@ struct IceCubesCheckMain {
             }
         }
         """ : ""
+        // The R3 interaction, emitted as a callable the HOST drives rather
+        // than as an interpreted `.task` the harness waits for. It is the
+        // twin's statement verbatim, so the two sides cannot drift into
+        // driving different calls.
+        //
+        // Deliberately NOT annotated `@MainActor`, even though every model it
+        // touches is (`Theme` is `@MainActor @Observable`). The collector
+        // turns that attribute into an `executorPreference` on the closure,
+        // and what has to be true here is that the mutation happens INLINE,
+        // before `callClosure` returns — a scheduled body would leave the
+        // post-mutation capture showing the base screen, which is exactly the
+        // absorbed-mutation fingerprint the board would then report as a
+        // fidelity red. The caller is already main-actor isolated (the capture
+        // root, and `Interpreter` itself), so nothing is lost, and this is the
+        // spelling the 2026-08-06 hosted-render pin proved works. No compiler
+        // ever sees this source — the probe renders with preflight disabled —
+        // so the annotation buys no checking either.
+        let scenarioMutationFunction = scenarioMutation.map { statement in """
+
+
+        func \(IceCubesCaptureScenario.mutationFunctionName)() {
+            \(statement)
+        }
+        """ } ?? ""
         // Imported only for the screens whose code lives in the app target,
         // so the package screens' merged programs are byte-identical to what
         // they were before this module existed.
@@ -2746,7 +3135,7 @@ struct IceCubesCheckMain {
                     attachments: attachments, sensitive: false)
             }
         }
-        \(rowTapProbe)
+        \(rowTapProbe)\(scenarioMutationFunction)
 
         @\u{6D}ain
         struct __IceCubesR1Probe: App {
@@ -2976,9 +3365,16 @@ struct IceCubesCheckMain {
         ).get()
     }
 
+    /// `scenarioMutation` is the R3 interaction's app-model statement, emitted
+    /// into the merged program as a callable the HOST drives. It defaults to
+    /// nil, so every R2 screen's merged program is byte-identical to what it
+    /// was before scenarios existed — a board that changed what it renders
+    /// while claiming to measure the same screens would make its own floors
+    /// meaningless.
     fileprivate static func renderSession(
         for screen: IceCubesCaptureScreen,
-        nativeFixtureDirectory: String?
+        nativeFixtureDirectory: String?,
+        scenarioMutation: String? = nil
     ) throws -> InterpreterRenderSession {
         let paths = try paths()
         Interpreter.interpretsAsPlatform = "iOS"
@@ -3066,7 +3462,8 @@ struct IceCubesCheckMain {
                     includeTimeline: screen == .timeline,
                     includeDetailAndAccount: false,
                     presentation: presentation,
-                    screenStatusFixture: screenStatusFixture),
+                    screenStatusFixture: screenStatusFixture,
+                    scenarioMutation: scenarioMutation),
                 moduleName: "IceCubesCheckProbe")
         if let dumpPath = ProcessInfo.processInfo.environment[
             "ICECUBES_DUMP_MERGE"

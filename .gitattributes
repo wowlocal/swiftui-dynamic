@@ -1,0 +1,19 @@
+# Merge attributes.
+#
+# `Docs/icecubes-landing-series.tsv` is the tracked, append-only landing series the close gate's
+# stall detector reads (see the header of that file). It exists because the merge verdict used to be
+# reproducible ONLY from `.claude/claims.md`, which is gitignored on purpose — several lanes append
+# to it concurrently, so tracking the prose ledger itself would make every lane conflict on every
+# landing.
+#
+# `merge=union` is what makes tracking the SERIES safe where tracking the prose is not: git's
+# built-in union driver keeps both sides' lines when two lanes land in parallel, so an append never
+# produces a conflict. It is only ever correct for a file whose lines are independent facts and
+# whose ORDER carries no meaning — both true here by construction, and enforced:
+# `Scripts/validate-icecubes-close-policy.rb` sorts the series by its recorded UTC stamp rather than
+# by file position, refuses two disagreeing lines for one sha (the one shape union merge can hide),
+# and refuses a candidate whose series drops or rewrites a line its merge base already carried.
+#
+# Do NOT extend `merge=union` to a file where a lost or duplicated line changes behaviour — union
+# merge resolves by concatenation, never by understanding the content.
+Docs/icecubes-landing-series.tsv merge=union

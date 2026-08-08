@@ -1,0 +1,169 @@
+# subject-revisions.tsv — the REQUIRED revision of every out-of-tree subject the close gate scores.
+#
+# WHY THIS FILE EXISTS. `External/` is gitignored (.gitignore:5), and until 2026-08-08 the revision
+# of everything under it was written down NOWHERE: grepping every .md/.sh/.rb/.json in the repo for
+# `9c05a72` — the sha External/oss/IceCubesApp has actually been sitting at since 2026-06-09 — found
+# zero hits. Every R2 pixel floor in Scripts/icecubes-r2.sh, every rung in IceCubesCheck, and every
+# corpus verdict in ProjectCheck is therefore a number ABOUT A TREE NOBODY NAMED. If a subject
+# checkout moved (a `git pull` in External/oss/IceCubesApp, a re-clone of a corpus project), each of
+# those numbers would silently become a claim about a different program and nothing in the gate
+# would notice: the floors would just start reading wrong, and the first suspicion would fall on the
+# interpreter. A floor is only a measurement if the thing measured is pinned.
+#
+# FORMAT: tab-separated, three columns, `#` comments and blank lines ignored.
+#
+#   <subject path, relative to the checkout root> <TAB> <expected git sha> <TAB> <gate consumers>
+#
+# TSV, not JSON, on purpose: the enforcing reader is zsh inside a close-gate stage that must run
+# before `build`, and `jq` is not guaranteed present on this machine (nothing else in Scripts/
+# depends on it). `while IFS=$'\t' read -r ...` parses this with a shell builtin and no parser at
+# all; the fields are a filesystem path, a 40-hex sha and a comma list, none of which can contain a
+# tab. The three JSON manifests this repo already tracks (Tests/ConcurrencyParity/Manifests/*.json)
+# are all read by ruby or Swift, which have parsers; this one is not.
+#
+# CONSUMERS column — which close-gate stage reads the subject, so a drift report says what breaks:
+#   evaluation     `.build/debug/ProjectCheck --all` walks every directory under External/oss and
+#                  scores it as `oss:<name>`; all 94 oss checkouts are gate-scored, and they are 94
+#                  of the 680 census units the gate pins by exact match (`678/680`).
+#                  `grep -n 'let ossRoot = extractionRoot' Sources/ProjectCheck/main.swift`
+#                  `grep -n 'projects pass' Scripts/gate.sh`
+#   live           `.build/debug/LiveCheck`; `grep -n 'ossRoot\|depsRoot' Sources/LiveCheck/main.swift`
+#   icecubes-r2    Scripts/icecubes-r2.sh, through the twin's package dependency paths
+#                  `grep -n 'External/oss/IceCubesApp' Examples/IceCubesNativeTwin/Package.swift`
+#   icecubes-board `.build/debug/IceCubesCheck`
+#                  `grep -n '/External/oss/IceCubesApp' Sources/IceCubesCheck/IceCubesCheck.swift`
+#
+# Those consumers are cited as GREPS, not as line numbers, and that is not fastidiousness: the
+# gate.sh census contract this file leaned on moved ~250 lines (1210 → 1463) within a day of being
+# written because two stages were inserted above it, the IceCubesCheck line number quoted in the
+# first draft pointed at unrelated code the moment it was written, and its real anchor moved again
+# (1450 → 1476) while these very lines were being edited. An out-of-date citation is exactly the
+# failure this file exists to end: a claim that outlives the evidence for it.
+#
+# HOW TO REGENERATE THE FIRST TWO COLUMNS (the command that produced every sha below, run
+# 2026-08-08 from the checkout root; the consumers column is maintained by hand from the four
+# references above, because no command derives it):
+#
+#   for d in External/oss/*/ External/deps/*/; do p=${d%/}
+#       printf '%s\t%s\n' "$p" "$(git -C "$p" rev-parse HEAD)"
+#   done | LC_ALL=C sort
+#
+# There is deliberately NO `--freeze`/`--update` flag on Scripts/verify-subject-revisions.sh. A pin
+# that a script can refresh for you is not a pin — it is a log of whatever happened. Moving a sha
+# here is an edit, in its own commit, saying which subject moved and what it does to the boards that
+# scored the old one (AGENTS.md: "A violation is not a request to move the threshold").
+#
+# ABSENCE IS NOT DRIFT. A subject that is not on disk reports `n/a` and scores nothing. The gate
+# builds a clean detached worktree and symlinks `External` in, and its board contract sanctions a
+# SECOND census — `586/586`, lane-concurrency's environment with External/oss NOT checked out at
+# all (`grep -n 'projects pass' Scripts/gate.sh`) — so an environment legitimately missing every
+# row below must still be able to close.
+#
+# THE REVERSE IS REPORTED, NOT ENFORCED. A directory that is on disk under one of the roots named
+# below but has NO row here is scored by ProjectCheck and pinned by nobody; the validator counts it
+# as `unpinned` with ceiling n/a and prints it. It cannot be a violation, because adding a checkout
+# under External/oss is precisely how a new corpus project is proposed, and this stage runs BEFORE
+# the census that would admit it — a validator that red-lit the first step of its own intended
+# workflow would be routed around. The count is in the receipt so the coupling between these rows
+# and the 94-of-680 census above is visible rather than asserted in a comment.
+#
+# LOCAL EDITS. The pin is a HEAD comparison, so a subject with uncommitted TRACKED changes still
+# matches its row. Those are reported as `dirty` and, like `unpinned`, score nothing — see the
+# hazard note beside `probe_dirty` in Scripts/verify-subject-revisions.sh before making them fatal.
+#
+# 95 rows: 94 checkouts under External/oss + 1 under External/deps.
+External/deps/SwiftUIFlux	39b885558fdee277f7ca2a8c81900123e9bc436f	live
+External/oss/ACHNBrowserUI	7bcb4e383a740fd81ae3ef6498a3f1757de24460	live,evaluation
+External/oss/Aidoku	bc3cdc37fca56b308dc489df256ce11cf9dd4a81	evaluation
+External/oss/AlDente-Charge-Limiter	9136e85d111d73d7c8680d379a91780dabb906e2	evaluation
+External/oss/Applite	8d9cc71373049d7e1f005fc627b4c8e3f88a797c	evaluation
+External/oss/Bark	d8766ea6b95c121625d8dc2a7dda47401b427be3	evaluation
+External/oss/Basic-Car-Maintenance	7d2f1909cdce5800f44eb62544fd502a9877de4a	evaluation
+External/oss/Clop	e269b888895eacd9270c39343312eacf49ce20da	evaluation
+External/oss/CodeEdit	cec6287a49a0a460cd7cab17f254eebc3ada828e	evaluation
+External/oss/ControlRoom	c8c7d4cfd4013e0a36466ed44c179522387ff437	evaluation
+External/oss/Cookbook	c37d41daedf161b47315b7ae24b07f41213b73be	evaluation
+External/oss/CopilotForXcode	a98f1f2b0435d71fee2edddcaf4df4b031847cce	evaluation
+External/oss/Cork	7c3418bdfc31b30aaabbbc839dd4c65c4276d354	evaluation
+External/oss/CotEditor	df937adacc6a02369bc8f41c17f9c85bffe8fdbc	evaluation
+External/oss/DockDoor	3d68f19b63a7b878a6b002013cf43ae53a885f4f	evaluation
+External/oss/EhPanda	b40a2eb3d3613bd8cee1a610bfb8e33a18b47fdd	evaluation
+External/oss/FreeChat	110ec9c7d4315d418249e1d413b3de8dcbd5f53a	evaluation
+External/oss/Gifski	1e814f3f20668bfafb44f572cf147257d6342021	evaluation
+External/oss/Harbour	e56c10cb376baaa3ada49b29b8396e1ab9293942	evaluation
+External/oss/Ice	11edd39115f3f43a83ae114b5348df6a0e1741cf	evaluation
+External/oss/IceCubesApp	9c05a720597b3ff13de2e241bf58d3fba0863c09	icecubes-r2,icecubes-board,live,evaluation
+External/oss/KeyboardCowboy	6fb5fc64971f0eb36dbc4edfa8329b90a658f2cb	evaluation
+External/oss/Loop	4c30c7b5d8536ccb635aeed645b1f8348f7f64e7	evaluation
+External/oss/Lunar	3e5024189914502d95c991f2d8d4c265b3a5add1	evaluation
+External/oss/Maccy	3fe63ec3a0eabf6605d40c48b3c85b7bf555c86a	evaluation
+External/oss/MakeItSo	1e089b47b52adc33551eac948bd8c4ff55298632	evaluation
+External/oss/Meshtastic-Apple	76da0129a44b25ef1b2fe2c6c4c6cf5127f0c929	evaluation
+External/oss/Milestones	55f12be2879b398588af3a462146d048f572e5cb	evaluation
+External/oss/MochiDiffusion	e686551ee06cf0d9fc788d59f9282f9dea5e6dbd	evaluation
+External/oss/MonitorControl	3cfc40598abbe3d36f5235b9535234a2ab525459	evaluation
+External/oss/MortyUI	76fe6db750bf20392e293e977d4edbf7c420c71e	evaluation
+External/oss/MovieSwiftUI	72eb4ae7117fbf893be533c9a277c47a7287d87e	live,evaluation
+External/oss/Mythic	754223978e61fb6efcff1e3152ae426bad0020b7	evaluation
+External/oss/NetNewsWire	08d10f50167954821a161df877de9fd785e33557	evaluation
+External/oss/Ollamac	7c6bc45238838a7b80c785335203efceef95e4f2	evaluation
+External/oss/OnlineStoreTCA	89a5e4eaab96803e039a3805466cb87769532e55	evaluation
+External/oss/OnlySwitch	a7c969416bb4354d123261b63962d3e34ecd966f	evaluation
+External/oss/OpenArtemis	9b548d954a05124d532cdce02f281fa624710e9d	evaluation
+External/oss/Pearcleaner	7724df7111bff82ae243301cf701992ef05ecf19	evaluation
+External/oss/Planet	90fe4dd156a4ba300b057c847749e0afdd1a4ead	evaluation
+External/oss/PlayCover	7190cc9ce57c8dee0e222918468f2579acc95e1b	evaluation
+External/oss/Provenance	c3d001a12c8788aeb8e2e8246d1d3b6262bbce62	evaluation
+External/oss/Pulse	00ea2b0f7b619f4cf3c268d190aa549f9df85ef7	evaluation
+External/oss/Rayon	4c90ab2e7e404691d01b55df8e01d80d21438876	evaluation
+External/oss/RedditOS	525cd2417db7b99ce506b6bfc2684d6311cb2c4b	evaluation
+External/oss/Secretive	b00328674542c42c35058069122fd6e63ce2ffb4	evaluation
+External/oss/Sidekick	487898c83b7c04b5ce022717d45381bf1c322d4b	evaluation
+External/oss/Signal-iOS	265ee50012da456001a111444a800f1ae6548728	evaluation
+External/oss/Solstice	4198e61147a6689fcb755d96d6ce61c91f8f2d4f	evaluation
+External/oss/SwiftBar	613e037f799a0a083b2b22bae2d0785478b47229	evaluation
+External/oss/SwiftUI	d8192c12098f80f8a4bd2387a969f010c38c5773	evaluation
+External/oss/SwiftUI-2048	34f315a4103527eac366403b9e4632326cc2f257	evaluation
+External/oss/SwiftUI-Kit	1211aa6b1aee07a3860e4f45d5cd5efcfec64509	evaluation
+External/oss/Swiftfin	1dfbb7a1f80f14382e45bf78dc08374e936505f0	evaluation
+External/oss/UTM	fb61bfe86a2cc39bb3bc884636fa55414f317acb	evaluation
+External/oss/Unwatched	191cc6c333c23a8831c7edf0e8f1a94057e55908	evaluation
+External/oss/VirtualBuddy	8bee61220b4b501be0a1d3488dc84d99af50eb02	evaluation
+External/oss/WWDC	67266753e15992ff57e9358d7953c854032582ce	evaluation
+External/oss/Weather	d43e6545491a16d893942971d7826f017ef6a902	evaluation
+External/oss/Whisky	fd5480a76b3ebfe3419a1ab86ca3695f5cc328f8	evaluation
+External/oss/WordPress-iOS	85f7309db56396a0ae6951a79869f36cc5435222	evaluation
+External/oss/amperfy	c165a7a8df7bbf4f593dd75b2e34719d74c7851f	evaluation
+External/oss/anytype-swift	991b35960786cd68cb86572cba0be05117a7ecb4	evaluation
+External/oss/apple-browsers	0b0e62ff25e23f92b6dc4d41293ade23df964e08	evaluation
+External/oss/bitwarden-ios	e9514dc0f85092ef3cf2a2ccbe07dc5a4f661b0c	evaluation
+External/oss/blink	a90b4423c8b7a86770c24a7eaa6c13b0a5904b18	evaluation
+External/oss/boring.notch	9b3403b559c813cf401212edb0615ce380d2834d	evaluation
+External/oss/clean-architecture-swiftui	9eca97b8cfff96a14084b564b1fefd949c93d232	evaluation
+External/oss/damus	e462dbd53c47eadfd2535af4c56acf25973a48fc	evaluation
+External/oss/dimeapp	0463cb8caba237de781ae02e70a2ec82ae900c67	evaluation
+External/oss/element-x-ios	5743f263b6ddd6ff2eb1ade58c7d09bc74a1f935	evaluation
+External/oss/eul	b5c3bd0a5be2679ca7e22da676be5ac73e300f4a	evaluation
+External/oss/firefox-ios	061cb7347e04b36c276c2049c7f7128f5fefbced	evaluation
+External/oss/home-assistant-ios	a403fff2eb05692a61b14269e8020d6af62d10dc	evaluation
+External/oss/iTorrent	a65ff47145787175c0672567add51e45ad138544	evaluation
+External/oss/iina	c5dccbc8554aafa01efda91cd3f28ae2c3c51a98	evaluation
+External/oss/ios-mail	701463fe4542945c49ac5d326b0c27e91441e02f	evaluation
+External/oss/isowords	c727d3a7c49cf0c98f2fa4f24c562f81e30165f7	evaluation
+External/oss/kiwix-apple	932fddc321d6093c48f9f543fcd094909fb89120	evaluation
+External/oss/linearmouse	23660f4b211695a86be21cb2e220296f2c30c7fa	evaluation
+External/oss/mastodon-ios	a65350192118d3a148b0a471bd9f9e17975eb083	evaluation
+External/oss/mlem	b0fb6bab3c4ddffae224ed51b07f93d5bf8abc38	evaluation
+External/oss/mlx-swift-examples	378f2449c257788c5067b9f8b086731d76b39b33	evaluation
+External/oss/nextcloud-ios	b159dd9affe4ddb9e867dedbbadd4f9db679a8bf	evaluation
+External/oss/nos	0ea8218450de1000e75bf12e21dccbfbbbdb4913	evaluation
+External/oss/pocket-casts-ios	dd71cc6a7544fd5fae73a2e1e56335f5d8e0461f	evaluation
+External/oss/reddit-swiftui	cc71ae8b677c835d098ec0e0dfa293ec5e76b55c	evaluation
+External/oss/reminders-menubar	20dd6548c29ca1f40c92678ce7ee4c0346e65615	evaluation
+External/oss/sample-backyard-birds	1843d5655bf884b501e2889ad9862ec58978fdbe	evaluation
+External/oss/sample-food-truck	3954a769e99f3cc53297d94f2b960ceb2665b3d6	evaluation
+External/oss/session-ios	1c6f27ac9839ca9a9165d6177f6608a5a1d83165	evaluation
+External/oss/swift-chat	7e9c33255f9801e8d59cf5ebbb5793a23c9d136e	evaluation
+External/oss/swift-composable-architecture	05ec494be51969bda435e813e3f1a0f91b2f80c1	evaluation
+External/oss/winston	3de4a170ba487d0edb6cf68cbb0b0ecafe43a1bd	evaluation
+External/oss/yattee	c0815353d7c8025a376c855159d64eefe16a7a2b	evaluation

@@ -153,6 +153,88 @@ private enum TwinCaptureScreen: String {
     case hashtagTimeline = "hashtag-timeline"
 }
 
+/// The R3 INTERACTION scenarios (`Scripts/icecubes-r3.sh`) — the first
+/// expectation this twin can produce for a screen AFTER the app's own model
+/// changed, rather than for a first render.
+///
+/// Every scenario names three things and nothing else:
+///
+/// - the R2 screen it starts from, which must already be proven reproducible
+///   at AE 0 on both sides, so a red is about the INTERACTION and not about
+///   the base screen;
+/// - the app-model statement the mutation IS, executed here natively and
+///   emitted verbatim into the interpreted program, so the two sides cannot
+///   drift into driving different calls (both write it into their scenario
+///   metadata and the board refuses a pair whose statements disagree);
+/// - nothing about the expectation, which is this twin's own post-mutation
+///   capture and never a hand-written number.
+private enum TwinCaptureScenario: String, CaseIterable {
+    /// `DisplaySettingsView`'s own theme `Toggle`. Its section's FOOTER is
+    /// conditional on this exact property and the four `ColorPicker`s below it
+    /// are `.disabled(_:)`/`.opacity(_:)` on it, so flipping it removes a row
+    /// from a grouped `Form` and re-dims four controls — the section chrome the
+    /// `display-settings` screen was admitted to score, now in motion.
+    case displaySettingsSystemColorOff = "display-settings-system-color-off"
+    /// The display-settings action-buttons `Picker`, observed on the TIMELINE.
+    /// `StatusRowView` reads `theme.statusActionsDisplay` directly, so
+    /// selecting `.none` drops the action bar out of every non-focused row and
+    /// the whole list re-lays out. It is the settings-to-timeline data flow —
+    /// one `@Observable` singleton invalidating a `List` of rows that never
+    /// mention it — which no first-render screen on this board can exercise.
+    case timelineStatusActionsHidden = "timeline-status-actions-hidden"
+
+    /// The R2 screen this scenario's base capture is.
+    var baseScreen: TwinCaptureScreen {
+        switch self {
+        case .displaySettingsSystemColorOff: .displaySettings
+        case .timelineStatusActionsHidden: .timeline
+        }
+    }
+
+    /// The pre-mutation capture the board's changed-guard diffs against.
+    var baseCaptureName: String { rawValue + "-base" }
+
+    /// The statement below, as text, recorded in the scenario metadata so the
+    /// board can require both sides to have driven the same one. It is the
+    /// interpreted side's SOURCE — that side executes this exact text — so a
+    /// change here that is not mirrored in `driveScenario` would otherwise
+    /// quietly measure two different interactions.
+    ///
+    /// "Otherwise", because the runtime check compares the two RECORDED
+    /// strings and this side's record is only a DESCRIPTION: it would agree
+    /// with the interpreter perfectly while `driveScenario` executed something
+    /// else entirely. `Scripts/icecubes-r3.sh --check-scenarios` closes that
+    /// half STATICALLY — it extracts the last statement of each
+    /// `driveScenario` case body out of this file and requires it to equal the
+    /// string below, before any build. The convention that check enforces:
+    /// **the mutation is the LAST statement of its case body and occupies one
+    /// line.** Keep it that way, or the check fails loudly (it will not read a
+    /// split statement and must not pretend to).
+    var mutationDescription: String {
+        switch self {
+        case .displaySettingsSystemColorOff:
+            "Theme.shared.followSystemColorScheme = false"
+        case .timelineStatusActionsHidden:
+            "Theme.shared.statusActionsDisplay = Theme.StatusActionsDisplay.none"
+        }
+    }
+}
+
+/// What a scenario run records beside its two PNGs.
+///
+/// `relativeClockDrift` is the same reading, for the same reason, as
+/// `TwinMetadata.relativeClockDrift`: one frozen source of wall time is not a
+/// frozen clock, and `display-settings` draws a relative timestamp. Repeating
+/// it here keeps the R3 stage answerable on its own instead of inheriting the
+/// assertion from whether the R2 stage happened to run.
+private struct ScenarioMetadata: Codable {
+    let scenario: String
+    let baseScreen: String
+    let mutation: String
+    let clockEpoch: Double
+    let relativeClockDrift: Double
+}
+
 @MainActor
 private struct FocusedMediaScreen: View {
     let attachments: [MediaAttachment]
@@ -200,6 +282,13 @@ private enum TwinConfiguration {
     static let fixtureDirectory = option("--fixtures")
         ?? "../../Fixtures/mastodon-public-timeline"
     static let captureScreen = option("--screen").flatMap(TwinCaptureScreen.init)
+    /// The RAW `--scenario` value, kept alongside the parsed one so an id this
+    /// twin does not know can FAIL rather than parse to nil and fall through
+    /// to the screen capture — which would write the base screen under a
+    /// scenario's name, indistinguishable from a mutation that changed nothing.
+    static let scenarioArgument = option("--scenario")
+    static let captureScenario = scenarioArgument
+        .flatMap(TwinCaptureScenario.init(rawValue:))
     static let capturesNavigationChrome = CommandLine.arguments.contains(
         "--navigation-chrome-probe")
     static let capturesListRowGeometry = CommandLine.arguments.contains(
@@ -584,6 +673,38 @@ private struct TwinDriverView: View {
 
     private func driveCapture() async {
         do {
+            // An unrecognised `--scenario` must fail with an exit code before
+            // anything is captured. `all` is the one spelling worth naming: it
+            // is deliberately NOT accepted, because scenarios mutate
+            // process-global `@AppStorage`-backed singletons, so a second
+            // scenario in the same process starts from the first one's writes
+            // and its captures become a function of scenario ORDER — the same
+            // class of run-history dependence that cost `display-settings`
+            // 232148 AE before the persistent domain was pinned, and one that
+            // the board's own reproducibility gate cannot see because it
+            // compares each side only against itself.
+            if let requested = TwinConfiguration.scenarioArgument,
+               TwinConfiguration.captureScenario == nil {
+                // Hoisted to an explicitly typed `let` rather than written
+                // inline. A six-operand `+` chain in the VALUE position of a
+                // `[NSLocalizedDescriptionKey: …]` literal types as `Any`, so
+                // the solver gets no contextual type for the concatenation and
+                // has to consider every `+` overload at every operand — the
+                // classic "unable to type-check this expression in reasonable
+                // time" shape. `String` here collapses it.
+                let message: String =
+                    "unknown --scenario '\(requested)'; known scenarios: "
+                    + TwinCaptureScenario.allCases.map(\.rawValue)
+                        .joined(separator: ", ")
+                    + ". 'all' is refused on purpose: scenarios mutate "
+                    + "process-global @AppStorage-backed singletons, so "
+                    + "running two in one process makes their captures a "
+                    + "function of scenario order. Scripts/icecubes-r3.sh "
+                    + "runs one process per scenario."
+                throw NSError(
+                    domain: "IceCubesNativeTwin", code: 16,
+                    userInfo: [NSLocalizedDescriptionKey: message])
+            }
             // What `IceCubesApp.init()` installs before any scene exists
             // (IceCubesApp.swift:94). `TimelineViewModel` signals telemetry
             // from its own datasource path, and TelemetryDeck traps on an
@@ -723,6 +844,11 @@ private struct TwinDriverView: View {
                 detailStatus: detailStatus)
             ReplayURLProtocol.prependFixtures(
                 TwinConfiguration.outputDirectory)
+            if let scenario = TwinConfiguration.captureScenario {
+                try await driveScenario(
+                    scenario, replayStatuses: replayStatuses)
+                exit(0)
+            }
             switch TwinConfiguration.captureScreen {
             case .timeline:
                 try await captureTimeline(statuses: replayStatuses)
@@ -786,14 +912,18 @@ private struct TwinDriverView: View {
         }
     }
 
+    /// `named:` exists only so an R3 scenario can capture this exact screen
+    /// under its own base name. It defaults to the screen's own id, so every
+    /// R2 call site is byte-identical to what it was.
     private func captureTimeline(
-        statuses replayStatuses: [Status]
+        statuses replayStatuses: [Status],
+        named name: String = TwinCaptureScreen.timeline.rawValue
     ) async throws {
         statuses = replayStatuses
         // Let SwiftUI install the List hierarchy and let deterministic replay
         // image requests settle before rasterizing the live view.
         try await Task.sleep(for: .seconds(1))
-        try await capturePNG(named: TwinCaptureScreen.timeline.rawValue)
+        try await capturePNG(named: name)
     }
 
     private func captureStatusDetail(
@@ -920,12 +1050,82 @@ private struct TwinDriverView: View {
     /// sides. That also makes those singletons a determinism input, which is
     /// why the harness pins them rather than letting a persisted user default
     /// decide what the two sides draw.
-    private func captureDisplaySettings() async throws {
+    ///
+    /// `named:` exists only so an R3 scenario can capture this exact screen
+    /// under its own base name; it defaults to the screen's own id.
+    private func captureDisplaySettings(
+        named name: String = TwinCaptureScreen.displaySettings.rawValue
+    ) async throws {
         statuses = []
         capturedScreen = .displaySettings
         capturedScreenIdentity = UUID()
         try await waitForScreenTransition()
-        try await capturePNG(named: TwinCaptureScreen.displaySettings.rawValue)
+        try await capturePNG(named: name)
+    }
+
+    /// One R3 interaction scenario: install the scenario's BASE screen, capture
+    /// it, drive the app's own model mutation, capture the settled result, and
+    /// record what was driven.
+    ///
+    /// The post-mutation capture deliberately does NOT rebuild the screen —
+    /// `capturedScreen` and `capturedScreenIdentity` are left exactly as the
+    /// base capture left them — because what is being measured is whether the
+    /// LIVE tree updates. Re-identifying the screen would rebuild it from the
+    /// new model state, which passes by construction on both sides and
+    /// measures nothing at all.
+    ///
+    /// EACH CASE BODY ENDS WITH ITS MUTATION, ON ONE LINE. That is not style:
+    /// `Scripts/icecubes-r3.sh --check-scenarios` extracts the last statement
+    /// of each case body from this source and requires it to equal that case's
+    /// `mutationDescription` — the only thing that makes "both sides drove the
+    /// same call" an assertion about what RAN here rather than about a string
+    /// this file merely reports.
+    private func driveScenario(
+        _ scenario: TwinCaptureScenario,
+        replayStatuses: [Status]
+    ) async throws {
+        switch scenario {
+        case .displaySettingsSystemColorOff:
+            try await captureDisplaySettings(
+                named: scenario.baseCaptureName)
+            // Exactly what the screen's own control writes:
+            // `Toggle("settings.display.theme.systemColor",
+            //         isOn: $theme.followSystemColorScheme)`
+            // (IceCubesAppTarget/DisplaySettingsView.swift:111). Writing the
+            // model property IS driving that toggle — no harness shortcut —
+            // and the interpreted side runs this statement as source text.
+            Theme.shared.followSystemColorScheme = false
+        case .timelineStatusActionsHidden:
+            try await captureTimeline(
+                statuses: replayStatuses, named: scenario.baseCaptureName)
+            // Exactly what the display-settings action-buttons control writes:
+            // `Picker("settings.display.status.action-buttons",
+            //         selection: $theme.statusActionsDisplay)`
+            // (DisplaySettingsView.swift:220) selecting its `.none` case.
+            // Spelled through the nested type rather than as a leading dot so
+            // it cannot be read as `Optional.none` on either side.
+            Theme.shared.statusActionsDisplay = Theme.StatusActionsDisplay.none
+        }
+        try await waitForScreenTransition()
+        try await capturePNG(named: scenario.rawValue)
+        try writeScenarioMetadata(scenario)
+    }
+
+    private func writeScenarioMetadata(
+        _ scenario: TwinCaptureScenario
+    ) throws {
+        let metadata = ScenarioMetadata(
+            scenario: scenario.rawValue,
+            baseScreen: scenario.baseScreen.rawValue,
+            mutation: scenario.mutationDescription,
+            clockEpoch: Date().timeIntervalSince1970,
+            relativeClockDrift: Date().timeIntervalSinceNow)
+        let metadataURL = URL(
+            fileURLWithPath: TwinConfiguration.outputDirectory)
+            .appendingPathComponent("\(scenario.rawValue).json")
+        try JSONEncoder().encode(metadata).write(
+            to: metadataURL, options: .atomic)
+        print("scenario\t\(metadataURL.path)\t\(scenario.rawValue)")
     }
 
     /// The media preview surface, scored as its own screen. Every attachment

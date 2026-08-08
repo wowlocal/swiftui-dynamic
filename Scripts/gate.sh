@@ -194,6 +194,14 @@ typeset parity_shard_validation="not-run"
 typeset parity_shard_receipt_json='{"version":1,"status":"not-run"}'
 typeset close_policy_json='{"version":1,"status":"not-run","errors":[]}'
 typeset anti_drift_json='{"version":1,"status":"not-run","violations":-1}'
+typeset subject_revisions_json='{"version":1,"status":"not-run","violations":-1}'
+typeset loop_runner_json='{"version":1,"status":"not-run","failures":-1}'
+# Declared HERE and not at the icecubes-r2 stage on purpose: gate.sh runs with `set -u`, and
+# gateReceiptContractIsSourceBoundAndActionable forces an early-exit gate that still writes and
+# validates a receipt, so a variable first assigned inside a stage that never ran is an unbound
+# error rather than a missing key.
+typeset r2_latency_summary=""
+typeset icecubes_latency_json='{"version":1,"status":"not-run","aggregateRatio":-1}'
 typeset gate_diagnostics="" test_worker_statuses=""
 typeset current_stage="initialization"
 typeset source_end_captured=false source_drift_detected=false
@@ -625,6 +633,10 @@ write_receipt() {
         "$close_policy_json" "$plist" >/dev/null
     /usr/bin/plutil -insert source.antiDrift -json \
         "$anti_drift_json" "$plist" >/dev/null
+    /usr/bin/plutil -insert source.subjectRevisions -json \
+        "$subject_revisions_json" "$plist" >/dev/null
+    /usr/bin/plutil -insert source.loopRunner -json \
+        "$loop_runner_json" "$plist" >/dev/null
     receipt_string source.commitAtStart "$git_commit"
     receipt_string source.commitAtEnd "$git_commit_at_end"
     receipt_bool source.dirtyAtEnd "$git_dirty_at_end"
@@ -708,6 +720,9 @@ write_receipt() {
     receipt_string boards.apiParity "$parity_summary"
     receipt_string boards.live "$live_summary"
     receipt_string boards.iceCubesR2 "$r2_summary"
+    receipt_string boards.iceCubesR2Latency "$r2_latency_summary"
+    /usr/bin/plutil -insert boards.iceCubesR2LatencyDetail -json \
+        "$icecubes_latency_json" "$plist" >/dev/null
     receipt_string boards.iceCubesBoard "$icecubes_summary"
     receipt_string boards.concurrencyParityShards "$parity_shard_validation"
     receipt_string evidenceLogsSHA256 "$logs_sha256"
@@ -951,6 +966,36 @@ if (( disk_free_gib < disk_floor_gib )); then
 fi
 echo "disk preflight GREEN (${disk_free_gib}Gi free, floor ${disk_floor_gib}Gi)"
 
+current_stage="subject-revisions"
+# Every R2 floor, every IceCubesCheck rung and the 680-unit corpus census are measurements of source
+# trees that live under a gitignored `External/`, and until 2026-08-08 their revisions were recorded
+# NOWHERE: a grep for IceCubesApp's own sha (9c05a72, unchanged since 2026-06-09) across every
+# tracked .md/.sh/.rb/.json returned zero hits. If a subject checkout moved, every one of those
+# numbers would silently become a claim about a different program and no stage would notice.
+# Preconditions run in widening order — disk-preflight is about the MACHINE, this is about the
+# INPUTS, close-policy and anti-drift are about the CANDIDATE — and all four precede the build so a
+# candidate scored against the wrong tree is refused in a second rather than after 45 minutes.
+# An ABSENT subject reports n/a and scores nothing: the gate symlinks a gitignored External, and the
+# 586/586 corpus census this file already sanctions is exactly the environment with External/oss not
+# checked out. Only DRIFT, an unpinnable-but-present subject, or an unreadable manifest are red.
+subject_revisions_status=0
+./Scripts/verify-subject-revisions.sh \
+    > "$out/subject-revisions.log" 2>&1 || subject_revisions_status=$?
+subject_revisions_marker=$(grep '^@@subject-revisions ' \
+    "$out/subject-revisions.log" | tail -1 || true)
+if [[ -n "$subject_revisions_marker" ]]; then
+    subject_revisions_json="${subject_revisions_marker#@@subject-revisions }"
+fi
+if (( subject_revisions_status != 0 )); then
+    build_stage_status="blocked-subject-revisions"
+    append_gate_diagnostic \
+        "subject revisions rejected the candidate: $(bounded_log_tail "$out/subject-revisions.log" 20)"
+    /bin/cat "$out/subject-revisions.log" >&2
+    echo "SUBJECT REVISIONS RED" >&2
+    exit 1
+fi
+/bin/cat "$out/subject-revisions.log"
+
 current_stage="close-policy"
 close_policy_status=0
 /usr/bin/ruby Scripts/validate-icecubes-close-policy.rb \
@@ -994,6 +1039,31 @@ if (( anti_drift_status != 0 )); then
     exit 1
 fi
 /bin/cat "$out/anti-drift.log"
+
+current_stage="loop-runner"
+# The ralph runner's two waiting decisions — "is this a session limit?" and "is a gate already
+# live?" — only execute during the outage they answer, so they are untestable in normal operation
+# and both were wrong for days: 23 launches in 31 minutes against a session limit that had already
+# been announced, and 44 of 141 iterations spent rediscovering a gate an earlier iteration started.
+# `--self-test` is hermetic: it builds its fixtures under TMPDIR, never launches claude, never
+# builds, never captures, and never touches the live lock or the live log directory. Cheap enough
+# (~4 s) to sit in the pre-build refusal band with close-policy and anti-drift.
+loop_runner_status=0
+./.claude/run-foodtruck-loop.sh --self-test > "$out/loop-runner.log" 2>&1 \
+    || loop_runner_status=$?
+loop_runner_marker=$(grep '^@@foodtruck-loop-self-test ' "$out/loop-runner.log" | tail -1 || true)
+if [[ -n "$loop_runner_marker" ]]; then
+    loop_runner_json="${loop_runner_marker#@@foodtruck-loop-self-test }"
+fi
+if (( loop_runner_status != 0 )); then
+    build_stage_status="blocked-loop-runner"
+    append_gate_diagnostic \
+        "loop runner self-test rejected the candidate: $(bounded_log_tail "$out/loop-runner.log" 20)"
+    /bin/cat "$out/loop-runner.log" >&2
+    echo "LOOP RUNNER RED" >&2
+    exit 1
+fi
+/bin/cat "$out/loop-runner.log"
 
 current_stage="build"
 echo "── build (once) ──"
@@ -1304,6 +1374,18 @@ stop_stage_watchdog "$r2_watchdog_pid" "$r2_timeout_marker"
 r2_stage_seconds=$(( SECONDS - stage_started ))
 grep '^AE [0-9][0-9]* of 630000 ' "$out/icecubes-r2.log" \
     | tail -1 > "$out/r2" || true
+# The latency board rides this stage's exit code rather than earning its own: it is measured by the
+# same script, from the same two capture passes, and a run that fails to produce it has already
+# failed to capture. Matched whitespace-agnostically ON PURPOSE — the script prints the field
+# separator with printf '\t', and a literal tab inside a grep pattern here does not survive being
+# copied through a spec, an editor or a patch, whereupon the grep silently matches nothing and the
+# board contract below reads an empty line as a shape failure it cannot explain.
+grep -E '^aggregate[[:space:]]+interpreted ' "$out/icecubes-r2.log" \
+    | tail -1 > "$out/r2latency" || true
+latency_marker=$(grep '^@@icecubes-latency ' "$out/icecubes-r2.log" | tail -1 || true)
+if [[ -n "$latency_marker" ]]; then
+    icecubes_latency_json="${latency_marker#@@icecubes-latency }"
+fi
 if [[ -f "$r2_timeout_marker" ]]; then
     r2_stage_status="timeout"
     append_gate_diagnostic "$(timeout_message "$r2_timeout_marker")"
@@ -1357,7 +1439,7 @@ fi
 echo "IceCubes board completed in ${icecubes_stage_seconds}s"
 
 red=$test_red
-for board in suite corpus live parity r2 icecubes; do
+for board in suite corpus live parity r2 r2latency icecubes; do
     line=$(cat "$out/$board" 2>/dev/null)
     case "$board" in
         suite) suite_summary="$line" ;;
@@ -1365,6 +1447,7 @@ for board in suite corpus live parity r2 icecubes; do
         live) live_summary="$line" ;;
         parity) parity_summary="$line" ;;
         r2) r2_summary="$line" ;;
+        r2latency) r2_latency_summary="$line" ;;
         icecubes) icecubes_summary="$line" ;;
     esac
     echo "$board: $line"
@@ -1382,6 +1465,13 @@ for board in suite corpus live parity r2 icecubes; do
         live:*"5/5 live-data scenarios pass"*) ;;
         parity:*"0 diverge / 0 interp-error"*) ;;
         r2:"AE "*" of 630000 "*) ;;
+        # SHAPE only, never the value. The ceiling lives in Scripts/icecubes-r2.sh
+        # and is enforced by that script's exit code; pinning the ratio here would
+        # make a latency IMPROVEMENT red the gate, which is the
+        # ratchet-value-pinned-in-tests trap this repo has already paid for once.
+        # A MISSING line still falls through to `*)` and reds, so a latency board
+        # that did not run cannot read as green.
+        r2latency:"aggregate"*"ratio "*"x"*"ceiling "*"x"*) ;;
         # The RUNG COUNT is the north star, so match the exact denominator:
         # a rung that is deleted rather than fixed must not read as green.
         # Raise both numbers in the commit that adds a rung.
