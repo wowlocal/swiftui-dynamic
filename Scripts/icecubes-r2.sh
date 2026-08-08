@@ -467,6 +467,29 @@ if (( $# > 0 )); then
   exit 2
 fi
 
+# ── THE SHARED-STATE LOCK ─────────────────────────────────────────────────────
+# Taken HERE: after `--self-test` and the argument refusal above, which touch
+# nothing shared and so must not queue behind a running capture, and before the
+# first line that writes any of the three paths this stage shares with
+# Scripts/icecubes-r3.sh — the macabi scratch path (rebuilt and re-codesigned
+# below), Examples/IceCubesNativeTwin/.build, and the frozen clock dylib both
+# stages inject into every capture process.
+#
+# Until this landed the exclusion was one-sided: R3 took the lock and R2 did
+# not, so R3's own comment conceded that "a concurrent R2 stage is still
+# invisible here." Both boards now take the same lock at the same path, so
+# whichever starts second waits or refuses instead of rebuilding a product the
+# other is executing — and two capture processes can no longer race through the
+# window server, which is the measured 141k-AE nondeterminism the
+# reproducibility gate below exists to reject.
+source "$ROOT/Scripts/icecubes-capture-lock.zsh"
+# The trap is installed at TOP LEVEL, never inside the function: in zsh a `trap`
+# set inside a function is scoped to it and fires on RETURN, which would release
+# the lock immediately and silently.
+take_shared_capture_lock "IceCubes R2" \
+  "$INTERP_SCRATCH_PATH and $CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib"
+trap 'release_shared_capture_lock' EXIT INT TERM
+
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do

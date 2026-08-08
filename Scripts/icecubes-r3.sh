@@ -144,62 +144,18 @@ R3_SCENARIOS=(display-settings-system-color-off timeline-status-actions-hidden)
 R3_SUFFIXES=("-base" "" "-changed-delta")
 
 # ── THE SHARED-STATE LOCK ─────────────────────────────────────────────────────
-# This stage shares three mutable paths with Scripts/icecubes-r2.sh: the macabi
-# scratch path above (`INTERP_SCRATCH_PATH`, and the `.app` bundle rebuilt and
-# re-codesigned inside it), `Examples/IceCubesNativeTwin/.build`, and the frozen
-# clock dylib in `$CLOCK_DIR` that both stages inject into every capture
-# process. Two of those are being WRITTEN while the other stage may be
-# EXECUTING them, which is the rebuild-during-a-prebuilt-test-run trap; and
-# even where nothing is rewritten, two capture processes racing through the
-# window server is the measured 141k-AE nondeterminism this board's
-# reproducibility gate exists to reject.
+# Defined in Scripts/icecubes-capture-lock.zsh and sourced by BOTH capture
+# boards, which is what makes the exclusion mutual. It used to live here, and
+# said so: "this only excludes another R3 run, because Scripts/icecubes-r2.sh
+# does not take the lock yet." That sentence is deleted rather than restated —
+# Scripts/icecubes-r2.sh now takes the same lock, at the same path, so a
+# concurrent R2 stage is no longer invisible to this one.
 #
-# So the precondition is enforced rather than documented. HONEST LIMIT: this
-# only excludes another R3 run, because Scripts/icecubes-r2.sh does not take
-# the lock yet — that is a one-line addition on that side, and until it lands a
-# concurrent R2 stage is still invisible here. Check `ps ax | grep lane-gate`
-# before running standalone.
-#
-# Taken AFTER the source-only check below, never before it: that check reads two
-# `.swift` files and touches nothing shared, so making it queue behind a running
-# capture would be pure obstruction — and worse, it would hold the lock against
-# a capture that has real work to do.
-SHARED_LOCK="${ICECUBES_CAPTURE_LOCK:-$ROOT/.build/icecubes-capture.lock}"
-take_shared_capture_lock() {
-  local lock_owner lock_pid
-  mkdir -p "$(dirname "$SHARED_LOCK")"
-  if mkdir "$SHARED_LOCK" 2>/dev/null; then
-    print -r -- "pid=$$ started=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-      > "$SHARED_LOCK/owner"
-    return 0
-  fi
-  lock_owner="$(cat "$SHARED_LOCK/owner" 2>/dev/null)"
-  lock_pid="${lock_owner%% *}"
-  lock_pid="${lock_pid#pid=}"
-  # A lock whose owner is gone is a crash residue, not a running stage, and
-  # leaving it would wedge every later run behind a process that no longer
-  # exists. Reclaiming it is safe precisely because the owner is dead.
-  if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-    echo "IceCubes R3: SHARED-CAPTURE-LOCK-HELD — $SHARED_LOCK is owned by" \
-      "$lock_owner, which is still running. This stage rebuilds and" \
-      "re-codesigns $INTERP_SCRATCH_PATH and injects" \
-      "$CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib, both of which the" \
-      "holder may be executing; running anyway fakes a regression nobody can" \
-      "reproduce. Wait for it, or point ICECUBES_R3_SCRATCH_PATH and" \
-      "ICECUBES_CAPTURE_LOCK somewhere private." >&2
-    exit 2
-  fi
-  echo "IceCubes R3: reclaiming stale $SHARED_LOCK (owner '$lock_owner' is" \
-    "not running)" >&2
-  rm -rf "$SHARED_LOCK"
-  if ! mkdir "$SHARED_LOCK" 2>/dev/null; then
-    echo "IceCubes R3: SHARED-CAPTURE-LOCK-HELD — could not take" \
-      "$SHARED_LOCK after reclaiming it" >&2
-    exit 2
-  fi
-  print -r -- "pid=$$ started=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-    > "$SHARED_LOCK/owner"
-}
+# The lock is taken AFTER the source-only check below, never before it: that
+# check reads two `.swift` files and touches nothing shared, so making it queue
+# behind a running capture would be pure obstruction — and worse, it would hold
+# the lock against a capture that has real work to do.
+source "$ROOT/Scripts/icecubes-capture-lock.zsh"
 
 # ── THE TWO SIDES MUST DRIVE THE SAME CALL, CHECKED WITHOUT RUNNING ANYTHING ──
 # The runtime check further down compares the two RECORDED statements, and that
@@ -398,8 +354,9 @@ check_scenario_statements || exit 2
 # `take_shared_capture_lock`: in zsh a `trap` set inside a function is scoped to
 # that function and fires when it RETURNS, which would delete the lock
 # immediately and silently.
-take_shared_capture_lock
-trap 'rm -rf "$SHARED_LOCK"' EXIT INT TERM
+take_shared_capture_lock "IceCubes R3" \
+  "$INTERP_SCRATCH_PATH and $CLOCK_DIR/libIceCubesFrozenClock-macabi.dylib"
+trap 'release_shared_capture_lock' EXIT INT TERM
 
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
