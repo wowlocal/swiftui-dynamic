@@ -977,7 +977,10 @@ current_stage="anti-drift"
 # the close policy: an exit code, before the expensive stages, so a drifting candidate is refused in
 # seconds rather than after a 45-minute build.
 anti_drift_status=0
-./Scripts/validate-anti-drift.sh > "$out/anti-drift.log" 2>&1 || anti_drift_status=$?
+# The ledger is gitignored, so it does not exist in this clean-detached
+# checkout; without its path the stranded-work ratchet cannot measure and skips.
+ANTI_DRIFT_CLAIMS_PATH="$claims_path" \
+    ./Scripts/validate-anti-drift.sh > "$out/anti-drift.log" 2>&1 || anti_drift_status=$?
 anti_drift_marker=$(grep '^@@anti-drift ' "$out/anti-drift.log" | tail -1 || true)
 if [[ -n "$anti_drift_marker" ]]; then
     anti_drift_json="${anti_drift_marker#@@anti-drift }"
