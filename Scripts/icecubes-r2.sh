@@ -7,6 +7,21 @@
 # anything. A floor delta can then only mean interpreter fidelity moved —
 # never spinner phase, settle timing, or machine load (the 2026-07-30 noise
 # band was ~17-33k AE, larger than several committed ratchet ticks).
+#
+# TWO BOARDS, TWO QUESTIONS. The AE board asks whether the interpreter draws the
+# same pixels; the latency board asks what those pixels cost. Both are committed
+# ratchets and either one exits non-zero.
+#
+#   Scripts/icecubes-r2.sh              build, capture, score both boards
+#   Scripts/icecubes-r2.sh --self-test  verify the latency arithmetic, the
+#                                       ceiling comparison and the marker on
+#                                       synthetic numbers; builds nothing,
+#                                       captures nothing, exit 0
+#
+# There is deliberately no --print mode. Both boards always report and only the
+# committed thresholds enforce, so a "report but do not enforce" run would mean
+# paying half an hour of capture in order to ignore the answer — which is what
+# having no ratchet at all already was.
 set -u
 cd "$(dirname "$0")/.." || exit 2
 
@@ -31,6 +46,426 @@ INTERP_EXECUTABLE="$INTERP_APP/Contents/MacOS/IceCubesCheck"
 # a screen that converged.
 R2_SCREENS=(timeline status-detail account-header media tags-list media-browser
   trending-timeline trending-links instance-info display-settings)
+
+# ── Latency board: the interpreted/native TIME ratio ─────────────────────────
+# Every other number this script prints is FIDELITY. Until 2026-08-08 no metric,
+# ratchet, gate stage or doctrine line anywhere in this repository measured TIME,
+# so an interpreter that draws the timeline pixel-identically in 190 seconds
+# passed every floor below, all nine function rungs and the whole close gate —
+# while this stage grew into 49% of gate wall clock (2114s of the 2026-08-08
+# gate) and ~85-90s more per screen admitted.
+#
+# WHAT IS ENFORCED IS THE AGGREGATE RATIO, NEVER ABSOLUTE SECONDS. Absolute
+# seconds are load-sensitive, this machine runs many lanes at once, and load has
+# already cost this project gate-hours in false reds.
+#
+# THE TWO SIDES DO NOT OVERLAP IN TIME, so the load term does NOT algebraically
+# cancel — an earlier version of this comment claimed it did and that claim was
+# simply false. The twin loop captures every pair and finishes (~50s of capture)
+# before the interpreted loop starts, and the interpreted loop then runs 23-34
+# minutes: the ratio divides two DISJOINT windows differing ~40x in length. What
+# the denominator actually buys is weaker than cancellation, and is still the
+# best instrument available here: a same-machine, same-stage, same-hour
+# REFERENCE WORKLOAD — the compiled twin drawing the same screens through the
+# same window server — so the number is anchored to this hardware under roughly
+# this load rather than to a wall-clock constant that would red on a busy
+# afternoon.
+#
+# The empirical case for it is stability, not algebra: the three full-board runs
+# calibrated below read 42.12, 41.79 and 40.08 (a 5% spread), with twin
+# per-screen sums of 24s, 24s and 25s — and the 40.08 run is the one whose own
+# denominator says it was the most loaded of the three (25s, the slowest native
+# side). The committed headroom is 42%, eight times that spread.
+#
+# THE RESIDUAL ERROR HAS A DIRECTION and only one direction is dangerous. The
+# denominator is a ~50s sample while the numerator averages ~30 minutes, so a
+# transient — another lane's build, a window-server stall — lands
+# disproportionately on the denominator. Load INSIDE the twin window inflates
+# the denominator and DEFLATES the ratio: a false GREEN, which no threshold can
+# catch. A quiet twin window followed by a loaded interpreted window reads high:
+# a false RED, which is what the headroom absorbs. So when this board reads
+# suspiciously green, distrust the DENOMINATOR first — the marker's
+# `twinSeconds` is the field to compare against the 24-25s series above.
+#
+# Per-screen ratios are REPORTED but deliberately NOT enforced: a twin capture
+# pass is 2-3s, so one second of perturbation — one process launch landing
+# behind another lane's build — is ±25-50% on that screen's ratio.
+# trending-timeline reads 110.0x (220s/2s) in one of the runs calibrated below
+# and 71.7x (215s/3s) in another, same tree, same day, same board: the whole
+# 35% is one second on the denominator.
+#
+# CALIBRATION, WITH THE COMMAND THAT PRODUCES IT. Three independent full-board
+# runs were still on disk on 2026-08-08, each an 11-screen gate on a machine
+# under a 9-agent audit. Run from the repository root:
+#
+#   for c in /private/tmp/lane-gate-2f5715bc/.build/icecubes-r2-captures \
+#            /private/tmp/lane-gate-755a599d/.build/icecubes-r2-captures \
+#            .claude/worktrees/lane-foodtruck-run/.build/icecubes-r2-captures; do
+#     (cd $c && for p in native-twin/*.png; do s=${p:t:r}
+#        print -r -- "$s $(( $(stat -f %m interpreted-repeat/$s.png) \
+#          - $(stat -f %m interpreted/$s.png) )) $(( \
+#          $(stat -f %m native-twin-repeat/$s.png) \
+#          - $(stat -f %m native-twin/$s.png) ))"
+#      done | awk '{i+=$2; t+=$3} \
+#        END {printf "interp %ds twin %ds ratio %.2f\n", i*2, t*2, i/t}')
+#   done
+#
+# It reports 2022s/48s = 42.12, 2004s/50s = 40.08 and 2006s/48s = 41.79.
+#
+# THAT COMMAND IS A LOWER-BOUND PROXY, NOT THE INSTRUMENT THAT ENFORCES. The
+# board below prices a screen with float `SECONDS` bracketing the WHOLE pair,
+# from before pass 1 launches to after pass 2 exits. The command above reads
+# twice the INTEGER mtime gap between a screen's two PNGs — one pass's
+# write-to-write time, doubled — which excludes pass 1's launch-to-first-write
+# and truncates every per-screen term to a whole second. On the numerator that
+# truncation is ~1% of a 19-301s interpreted pass; on the DENOMINATOR it is ±1s
+# of a 2-3s twin pass, so the proxy's error sits exactly where the ratio is most
+# sensitive and a `SECONDS` reading of the same run can land tens of percent
+# either side of 42.12. The proxy is what existed before any marker did.
+# THEREFORE: 60.00 is deliberately loose, and IT IS TO BE RE-DERIVED FROM THE
+# ENFORCING INSTRUMENT — the first real `@@icecubes-latency` marker in a gate
+# receipt, whose `aggregateRatio` is the number this ceiling is actually
+# compared against — in its own commit, downward only, carrying that marker.
+#
+# RUN-TO-RUN NOISE IS NOT WHY THIS CEILING IS LOOSE: 5% across three runs is
+# nothing. The SCREEN MIX is. The same command with `[[ $s == hashtag-timeline
+# ]] && continue` added — the ten screens this board scores today — reads 33.81,
+# 31.86 and 31.82, so admitting ONE screen of the trending class moves the
+# aggregate 25-31%. A ceiling with less headroom than that would turn admitting
+# a screen into a latency RED, which is the mistake the stall detector already
+# made once by summing R2_FLOORS per sha, where widening the board and
+# regressing became the same signal. Against the board AS COMMITTED (ten
+# screens, 31.8-33.8) the ceiling carries 1.8x; against the eleven-screen mix
+# calibrated above, 1.42x.
+#
+# Those capture directories are gate scratch and get reaped, so the command
+# above stops reproducing once they are gone. That is exactly why the board
+# below prints `@@icecubes-latency` with the per-screen seconds in it — and as
+# of 2026-08-08 gate.sh LIFTS BOTH LINES INTO THE RECEIPT, so the durable record
+# is the receipt rather than /private/tmp: the aggregate line becomes
+# `boards.iceCubesR2Latency` (matched `grep -E '^aggregate[[:space:]]+interpreted '`)
+# and the marker's JSON becomes `boards.iceCubesR2LatencyDetail`. Both printf
+# formats below are load-bearing for that lift: the aggregate line must begin at
+# column 0 with `aggregate`, whitespace, `interpreted `, and the marker line with
+# `@@icecubes-latency ` and one space before its JSON. Changing either without
+# changing gate.sh leaves the gate matching nothing and reporting an empty board
+# line as a shape failure that explains nothing.
+#
+# The bound from ABOVE is gate.sh's own deadline for this stage,
+# `900 + r2_screen_count * 240` (gate.sh:168, and `r2_screen_count` is read out
+# of R2_SCREENS in this file). A ceiling above that never speaks, because the
+# watchdog kills the stage first and reports "timeout" while naming no screen.
+# THE HONEST ARITHMETIC: 900 + 240*11 = 3540 over a 48s native side is 73.75,
+# and 900 + 240*10 = 3300 over today's 42-44s native side is 75.0-78.6. (This
+# comment said "~65" until 2026-08-08, which silently assumed ~400s of
+# non-capture time that no command here produces.) Even 73.75 is not a tight
+# bound in the useful direction: the same deadline also pays for the twin build,
+# the interpreted build, the twin captures and three `xcrun swift
+# Scripts/pixel-ae.swift` compiles per screen — all inside the deadline and all
+# outside the ratio — so the ratio at which the watchdog really fires is LOWER
+# than that quotient. 60.00 is therefore NOT derived from the deadline. It is
+# 1.42x the 42.12 measurement, sized by the 25-31% screen-mix swing, and it
+# happens to sit under the deadline quotient rather than being explained by it.
+#
+# IT RATCHETS DOWNWARD ONLY, exactly like R2_FLOORS. A faster run does not lower
+# it automatically; lowering it is its own commit carrying the measurement, and
+# it is never raised to excuse a regression. The one commit that may raise it is
+# the commit that ADMITS A SCREEN, because that changes what is being averaged
+# rather than how fast the interpreter is — and that commit states the new
+# screen's own ratio and the recomputed aggregate, exactly as a new screen enters
+# R2_FLOORS at its measured value.
+R2_LATENCY_RATIO_CEILING=60.00
+
+# Sub-second resolution is required, not a nicety: a twin capture pair is ~4s and
+# integer SECONDS would quantize the denominator of every ratio by 25%.
+typeset -F SECONDS
+typeset -A R2_TWIN_SECONDS R2_INTERP_SECONDS
+# WHAT THE PER-SCREEN SECONDS DO NOT BILL. A pair is priced by its LAST attempt,
+# so a screen that needed three attempts is billed one pair and the stage
+# actually spent up to three. The attempt index of the priced pair is therefore
+# carried alongside it and reported in the marker as `interpretedAttempts` /
+# `twinAttempts`, with `stageSeconds` (the whole script's wall clock, builds
+# included) as the outer bound: `stageSeconds` minus interpretedSeconds minus
+# twinSeconds is everything the ratio does not see. Without those fields a
+# marker reading 1420s can belong to a stage that consumed 2000s+, and a
+# retry-storm regression would be invisible to a board whose numbers all shrank.
+typeset -A R2_TWIN_ATTEMPTS R2_INTERP_ATTEMPTS
+typeset -F LATENCY_INTERP_TOTAL=0 LATENCY_TWIN_TOTAL=0 LATENCY_RATIO=0
+
+# Sums both sides over the screens named in $@ and divides ONCE. The aggregate is
+# total/total and deliberately NOT the mean of the per-screen ratios: an
+# unweighted mean lets a 4-second screen outvote the 600-second one that actually
+# costs the gate its wall clock, and the per-screen numbers are the noisy ones.
+latency_totals() {
+  local screen
+  LATENCY_INTERP_TOTAL=0
+  LATENCY_TWIN_TOTAL=0
+  LATENCY_RATIO=0
+  for screen in "$@"; do
+    # A screen captured but never timed is indistinguishable from a free one —
+    # the same trap the R2_SCREENS/R2_FLOORS cross-check closes for fidelity.
+    if [[ -z "${R2_INTERP_SECONDS[$screen]+set}" \
+      || -z "${R2_TWIN_SECONDS[$screen]+set}" ]]; then
+      print -u2 "R2 latency board: '$screen' was captured but never timed"
+      return 2
+    fi
+    (( LATENCY_INTERP_TOTAL += ${R2_INTERP_SECONDS[$screen]} ))
+    (( LATENCY_TWIN_TOTAL += ${R2_TWIN_SECONDS[$screen]} ))
+  done
+  if (( LATENCY_TWIN_TOTAL <= 0 )); then
+    print -u2 "R2 latency board: the native side totals" \
+      "${LATENCY_TWIN_TOTAL}s over $# screens — refusing to divide by it"
+    return 2
+  fi
+  (( LATENCY_RATIO = LATENCY_INTERP_TOTAL / LATENCY_TWIN_TOTAL ))
+  return 0
+}
+
+# STRICTLY greater fails; equal is green, matching an AE line that reads "AT
+# FLOOR" rather than red. Factored out so --self-test can exercise the
+# comparison without a capture: the anti-drift ratchet was crossed by 0.045% and
+# nothing noticed, so a fractional excess has to count as an excess.
+latency_over_ceiling() {
+  local value="$1" ceiling="$2"
+  (( value > ceiling ))
+}
+
+latency_board_lines() {
+  local screen interp twin
+  for screen in "$@"; do
+    interp="${R2_INTERP_SECONDS[$screen]}"
+    twin="${R2_TWIN_SECONDS[$screen]}"
+    if (( twin > 0 )); then
+      printf '%s\tinterpreted %.1fs\ttwin %.1fs\tratio %.1fx\n' \
+        "$screen" "$interp" "$twin" "$(( interp / twin ))"
+    else
+      printf '%s\tinterpreted %.1fs\ttwin %.1fs\tratio n/a\n' \
+        "$screen" "$interp" "$twin"
+    fi
+  done
+}
+
+# Prints the aggregate line and the verdict, and RETURNS 1 when the aggregate is
+# over the committed ceiling. Factored out of the board so --self-test can drive
+# all three branches — over, inside, and far enough inside to be worth a ratchet
+# — on synthetic totals, which is the only way to see the RED text without a
+# forty-minute capture that is by construction green.
+latency_verdict() {
+  printf 'aggregate\tinterpreted %.1fs\ttwin %.1fs\tratio %.2fx\tceiling %.2fx\n' \
+    "$LATENCY_INTERP_TOTAL" "$LATENCY_TWIN_TOTAL" "$LATENCY_RATIO" \
+    "$R2_LATENCY_RATIO_CEILING"
+  if latency_over_ceiling "$LATENCY_RATIO" "$R2_LATENCY_RATIO_CEILING"; then
+    printf '═══ R2 latency board: OVER CEILING — interpreted is %.2fx native > %.2fx ═══\n' \
+      "$LATENCY_RATIO" "$R2_LATENCY_RATIO_CEILING"
+    print -r -- "═══ Answer it by making the interpreter faster, or by naming" \
+      "the screen that grew — never by raising the ceiling, which moves DOWN" \
+      "only, or in the commit that admits a screen ═══"
+    return 1
+  fi
+  if (( LATENCY_RATIO * 2 < R2_LATENCY_RATIO_CEILING )); then
+    # Advisory, and quiet on purpose: it asks for a ratchet only at more than 2x
+    # inside the ceiling. The same-day mix swing measured 25-31% (ten screens
+    # against eleven), so anything smaller than a doubling cannot be told apart
+    # from the board changing shape, and a ratchet that nags every run is a
+    # ratchet that gets ignored.
+    printf '═══ R2 latency board: %.2fx native, more than 2x inside the %.2fx ceiling — lower it in its own commit with the measurement ═══\n' \
+      "$LATENCY_RATIO" "$R2_LATENCY_RATIO_CEILING"
+    return 0
+  fi
+  printf '═══ R2 latency board: interpreted is %.2fx native, ceiling %.2fx ═══\n' \
+    "$LATENCY_RATIO" "$R2_LATENCY_RATIO_CEILING"
+  return 0
+}
+
+# One machine-readable line the gate lifts into its receipt, in the shape
+# validate-anti-drift.sh's `@@anti-drift {...}` established. It carries the
+# PER-SCREEN numbers as well as the aggregate, because the aggregate alone
+# cannot answer "which screen got slower" a week later, and no other artifact
+# outlives the run: the captures are deleted with the gate's scratch directory.
+latency_marker() {
+  local screen sep="" per_screen="" interp twin ratio
+  local interp_s twin_s ratio_s interp_attempts twin_attempts
+  integer retried=0
+  for screen in "$@"; do
+    interp="${R2_INTERP_SECONDS[$screen]}"
+    twin="${R2_TWIN_SECONDS[$screen]}"
+    # The attempt the priced pair came from. A retried screen is billed ONE
+    # pair — the last one — so without this the marker cannot distinguish a
+    # stage that captured cleanly from one that paid for the same screen three
+    # times, and `stageSeconds` below is the only place that time appears.
+    interp_attempts="${R2_INTERP_ATTEMPTS[$screen]:-1}"
+    twin_attempts="${R2_TWIN_ATTEMPTS[$screen]:-1}"
+    if (( interp_attempts > 1 || twin_attempts > 1 )); then
+      (( retried += 1 ))
+    fi
+    ratio=0
+    if (( twin > 0 )); then
+      (( ratio = interp / twin ))
+    fi
+    printf -v interp_s '%.1f' "$interp"
+    printf -v twin_s '%.1f' "$twin"
+    printf -v ratio_s '%.2f' "$ratio"
+    per_screen+="$sep\"$screen\":{\"interpretedSeconds\":$interp_s"
+    per_screen+=",\"twinSeconds\":$twin_s,\"ratio\":$ratio_s"
+    per_screen+=",\"interpretedAttempts\":$interp_attempts"
+    per_screen+=",\"twinAttempts\":$twin_attempts}"
+    sep=","
+  done
+  printf '@@icecubes-latency {"version":2,"screens":%d,"capturesPerSide":%d' \
+    "$#" "$(( $# * 2 ))"
+  printf ',"interpretedSeconds":%.1f,"twinSeconds":%.1f' \
+    "$LATENCY_INTERP_TOTAL" "$LATENCY_TWIN_TOTAL"
+  printf ',"aggregateRatio":%.2f,"ratioCeiling":%.2f,"violation":%d' \
+    "$LATENCY_RATIO" "$R2_LATENCY_RATIO_CEILING" "${latency_red:-0}"
+  # `SECONDS` is elapsed since this script started, so stageSeconds prices
+  # EVERYTHING the ratio excludes: both builds, every retried attempt, and the
+  # three `xcrun swift Scripts/pixel-ae.swift` compiles each screen pays (twin
+  # repeat, interpreted repeat, and the cross comparison). It is
+  # reported, never enforced — it is the load-sensitive absolute this board
+  # exists to avoid ratcheting on — but it is what makes "the marker says 1420s
+  # and the stage took 2000s" answerable a week later instead of arguable.
+  printf ',"stageSeconds":%.1f,"retriedPairs":%d' "$SECONDS" "$retried"
+  printf ',"perScreen":{%s}}\n' "$per_screen"
+}
+
+# --self-test is the only mode of this script that builds nothing and captures
+# nothing, so it is the only one that is safe to run while a gate holds the
+# machine. It exercises the three things a capture could never reveal: that the
+# aggregate is total/total and not a mean of ratios, that the ceiling fires
+# strictly above and not at, and that the marker is one line of parseable JSON
+# carrying the per-screen numbers a later trend needs.
+if [[ "${1:-}" == "--self-test" ]]; then
+  latency_self_test_failed() { print -u2 "latency self-test: $1"; exit 1 }
+  probe_screens=(cheap dear)
+  R2_INTERP_SECONDS=(cheap 10.0 dear 200.0)
+  R2_TWIN_SECONDS=(cheap 5.0 dear 2.0)
+  latency_totals "${probe_screens[@]}" \
+    || latency_self_test_failed "totals rejected well-formed input"
+  (( LATENCY_INTERP_TOTAL > 209.999 && LATENCY_INTERP_TOTAL < 210.001 )) \
+    || latency_self_test_failed "interpreted total is $LATENCY_INTERP_TOTAL, wanted 210"
+  (( LATENCY_TWIN_TOTAL > 6.999 && LATENCY_TWIN_TOTAL < 7.001 )) \
+    || latency_self_test_failed "native total is $LATENCY_TWIN_TOTAL, wanted 7"
+  # 210/7 = 30. The mean of the per-screen ratios (10/5 = 2 and 200/2 = 100) is
+  # 51, so this single assertion is what discriminates the weighted aggregate
+  # from the unweighted one — the whole reason the board sums before dividing.
+  (( LATENCY_RATIO > 29.999 && LATENCY_RATIO < 30.001 )) \
+    || latency_self_test_failed "aggregate is $LATENCY_RATIO, wanted 30 (51 = mean of ratios)"
+  latency_over_ceiling 30.0 30.0 \
+    && latency_self_test_failed "ceiling fired on a value exactly at it"
+  latency_over_ceiling 29.99 30.0 \
+    && latency_self_test_failed "ceiling fired on a value below it"
+  latency_over_ceiling 30.01 30.0 \
+    || latency_self_test_failed "ceiling missed a 0.03% excess"
+  latency_over_ceiling 61.0 "$R2_LATENCY_RATIO_CEILING" \
+    || latency_self_test_failed "the committed ceiling does not reject 61.0x"
+  latency_over_ceiling 42.12 "$R2_LATENCY_RATIO_CEILING" \
+    && latency_self_test_failed "the committed ceiling rejects the 2026-08-08 measurement"
+  # An untimed screen must be fatal rather than free.
+  unset "R2_INTERP_SECONDS[dear]"
+  latency_totals "${probe_screens[@]}" 2>/dev/null \
+    && latency_self_test_failed "an untimed screen was scored anyway"
+  # So must a native side that did not advance: it is the divisor.
+  R2_INTERP_SECONDS=(stopped 5.0)
+  R2_TWIN_SECONDS=(stopped 0.0)
+  latency_totals stopped 2>/dev/null \
+    && latency_self_test_failed "a zero native total was divided by"
+  R2_INTERP_SECONDS=(cheap 10.0 dear 200.0)
+  R2_TWIN_SECONDS=(cheap 5.0 dear 2.0)
+  latency_totals "${probe_screens[@]}" \
+    || latency_self_test_failed "totals rejected well-formed input on retry"
+  latency_red=0
+  # One clean pair and one that took three attempts: the marker must say so,
+  # because the seconds it prints are the LAST attempt's only.
+  R2_INTERP_ATTEMPTS=(cheap 1 dear 3)
+  R2_TWIN_ATTEMPTS=(cheap 1 dear 1)
+  probe_marker="$(latency_marker "${probe_screens[@]}")"
+  [[ "$probe_marker" == '@@icecubes-latency '* ]] \
+    || latency_self_test_failed "marker lost its prefix: $probe_marker"
+  # Split into an array rather than measuring the scalar: `${#${(f)x}}` on a
+  # one-element result silently reports the string LENGTH, which passes any
+  # "== 1" test only by accident and fails this one for the wrong reason.
+  probe_marker_lines=( ${(f)probe_marker} )
+  (( ${#probe_marker_lines} == 1 )) \
+    || latency_self_test_failed "marker is not a single line: $probe_marker"
+  # `stageSeconds` is asserted only for SHAPE and sign: it is wall clock, so
+  # pinning a value here would make the self-test fail on a slow machine — the
+  # ratchet-value-pinned-in-tests trap, one level down.
+  print -r -- "${probe_marker#@@icecubes-latency }" | jq -e '
+    .version == 2 and .screens == 2 and .capturesPerSide == 4
+      and .interpretedSeconds == 210 and .twinSeconds == 7
+      and .aggregateRatio == 30 and .violation == 0
+      and .perScreen.cheap.ratio == 2 and .perScreen.dear.ratio == 100
+      and .perScreen.dear.interpretedAttempts == 3
+      and .perScreen.dear.twinAttempts == 1
+      and .perScreen.cheap.interpretedAttempts == 1
+      and .retriedPairs == 1
+      and (.stageSeconds | type) == "number" and .stageSeconds >= 0
+  ' >/dev/null || latency_self_test_failed "marker JSON is wrong: $probe_marker"
+  probe_board="$(latency_board_lines "${probe_screens[@]}")"
+  [[ "$probe_board" == *"dear	interpreted 200.0s	twin 2.0s	ratio 100.0x"* ]] \
+    || latency_self_test_failed "board line is wrong: $probe_board"
+  # All three verdict branches, against the COMMITTED ceiling rather than an
+  # invented one, so a future edit to that constant is exercised here too.
+  LATENCY_INTERP_TOTAL=2928.0
+  LATENCY_TWIN_TOTAL=48.0
+  LATENCY_RATIO=61.0
+  probe_verdict="$(latency_verdict)" \
+    && latency_self_test_failed "61.0x did not fail the verdict"
+  [[ "$probe_verdict" == *"OVER CEILING"* ]] \
+    || latency_self_test_failed "the red verdict does not say OVER CEILING: $probe_verdict"
+  # The 2026-08-08 measurement itself: it must read green, and it must NOT read
+  # as ratchet-ready, because the headroom it leaves is the screen-mix headroom.
+  LATENCY_INTERP_TOTAL=2022.0
+  LATENCY_TWIN_TOTAL=48.0
+  LATENCY_RATIO=42.12
+  probe_verdict="$(latency_verdict)" \
+    || latency_self_test_failed "the 2026-08-08 measurement fails its own ceiling"
+  [[ "$probe_verdict" == *"OVER CEILING"* ]] \
+    && latency_self_test_failed "42.12x read as over the ceiling: $probe_verdict"
+  [[ "$probe_verdict" == *"more than 2x inside"* ]] \
+    && latency_self_test_failed "42.12x asked for a ratchet: $probe_verdict"
+  [[ "$probe_verdict" == *"42.12x native, ceiling 60.00x"* ]] \
+    || latency_self_test_failed "the green verdict is wrong: $probe_verdict"
+  # THE LINE THE GATE ACTUALLY LIFTS, checked with the gate's own pattern
+  # (gate.sh: `grep -E '^aggregate[[:space:]]+interpreted '` into "$out/r2latency").
+  # A printf edit that breaks this leaves the gate reading an empty board line
+  # and reporting a shape failure that names nothing, so the pin lives here
+  # rather than in prose.
+  print -r -- "$probe_verdict" \
+    | grep -qE '^aggregate[[:space:]]+interpreted ' \
+    || latency_self_test_failed \
+      "the aggregate line no longer matches gate.sh's lift: $probe_verdict"
+  # The board AS COMMITTED — ten screens, 33.81 on 2026-08-08 (the calibration
+  # command above with hashtag-timeline skipped). It must read green and must
+  # NOT ask for a ratchet: 2x inside 60.00 is 30.00, and the same-day screen-mix
+  # swing between the ten- and eleven-screen boards is larger than the 3.81 that
+  # separates today's reading from it.
+  LATENCY_INTERP_TOTAL=1420.0
+  LATENCY_TWIN_TOTAL=42.0
+  LATENCY_RATIO=33.81
+  probe_verdict="$(latency_verdict)" \
+    || latency_self_test_failed "today's ten-screen board fails its own ceiling"
+  [[ "$probe_verdict" == *"more than 2x inside"* ]] \
+    && latency_self_test_failed \
+      "the ten-screen board asked for a ratchet: $probe_verdict"
+  # A real step change does ask for the ratchet.
+  LATENCY_INTERP_TOTAL=576.0
+  LATENCY_TWIN_TOTAL=48.0
+  LATENCY_RATIO=12.0
+  probe_verdict="$(latency_verdict)" \
+    || latency_self_test_failed "12.0x failed the verdict"
+  [[ "$probe_verdict" == *"more than 2x inside"* ]] \
+    || latency_self_test_failed "12.0x did not ask for a ratchet: $probe_verdict"
+  print "@@icecubes-latency-self-test passed"
+  exit 0
+fi
+if (( $# > 0 )); then
+  # A silently ignored flag is how a --self-test that never ran reads as a
+  # passing one, so an unknown argument is refused rather than dropped.
+  print -u2 "usage: Scripts/icecubes-r2.sh [--self-test]"
+  exit 2
+fi
+
 mkdir -p "$TWIN_DIR" "$INTERP_DIR" "$TWIN_REPEAT_DIR" "$INTERP_REPEAT_DIR"
 for capture_dir in \
   "$TWIN_DIR" "$TWIN_REPEAT_DIR" "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
@@ -85,12 +520,23 @@ twin_failure="diverged"
 for attempt in 1 2 3; do
   twin_diverged=0
   for screen in "${R2_SCREENS[@]}"; do
+    # Timing is two reads of the shell's own clock around the pair and nothing
+    # else: no `time`, no wrapper process, nothing sampling the machine while a
+    # capture window is open, because this board's determinism contract is that
+    # only interpreter fidelity may move the pixels. It prices the PAIR, and the
+    # LAST attempt wins, so a screen retried past a transient death is priced at
+    # what it costs when it works — which is deliberate for the ratio and
+    # dishonest for the stage, so the attempt index rides along and the marker
+    # reports it next to `stageSeconds`.
+    twin_pair_started=$SECONDS
     run_twin_screen "$screen" "$TWIN_DIR"
     twin_status=$?
     if (( twin_status == 0 )); then
       run_twin_screen "$screen" "$TWIN_REPEAT_DIR"
       twin_status=$?
     fi
+    R2_TWIN_SECONDS[$screen]=$(( SECONDS - twin_pair_started ))
+    R2_TWIN_ATTEMPTS[$screen]=$attempt
     if (( twin_status != 0 )); then
       echo "twin $screen capture failed with status $twin_status" \
         "(attempt $attempt)" >&2
@@ -239,6 +685,11 @@ capture_reproducible_interpreted_screen() {
   local failure="diverged"
   for attempt in 1 2 3; do
     local capture_died=0
+    # Same two clock reads as the twin side, closed BEFORE the comparison below:
+    # `xcrun swift Scripts/pixel-ae.swift` is a compile as well as a run, and
+    # charging the interpreter for the comparator would inflate exactly the side
+    # the ratio is asking about.
+    local pair_started=$SECONDS
     for interp_out in "$INTERP_DIR" "$INTERP_REPEAT_DIR"; do
       capture_interpreted_screen "$screen" "$interp_out"
       capture_status=$?
@@ -254,6 +705,11 @@ capture_reproducible_interpreted_screen() {
     if (( capture_died )); then
       continue
     fi
+    R2_INTERP_SECONDS[$screen]=$(( SECONDS - pair_started ))
+    # Same LAST-attempt-wins pricing as the twin side, and the same correction:
+    # a screen that died twice before this pair is billed one pair, so the
+    # attempt it was billed from is carried into the marker.
+    R2_INTERP_ATTEMPTS[$screen]=$attempt
     determinism_line="$(xcrun swift Scripts/pixel-ae.swift \
       "$INTERP_DIR/$screen.png" "$INTERP_REPEAT_DIR/$screen.png")"
     if (( $? == 0 )); then
@@ -600,10 +1056,46 @@ for screen in "${R2_SCREENS[@]}"; do
   fi
 done
 
-# gate.sh deliberately consumes the last unlabelled AE line as the official
-# timeline R2 metric.
+# PRINTED BEFORE THE LATENCY BOARD, and that order is load-bearing. gate.sh
+# lifts this stage's official metric with `grep '^AE [0-9]* of 630000 ' | tail -1`
+# into "$out/r2", and an empty "$out/r2" reds the gate as a BOARD CONTRACT
+# failure that names no screen and explains nothing. The latency board can exit 2
+# on its own integrity checks (an untimed screen, a native side that did not
+# advance), and while that stage-level failure is real, it must not also destroy
+# the AE half's answer on its way out: the pixels were already measured and the
+# gate should be told what they said. `tail -1` makes the position free — no
+# later line in this script starts with `AE `, so moving it up costs nothing.
 print -r -- "${R2_AE_LINES[timeline]}"
-if (( board_red != 0 )); then
+
+echo "── R2 latency board ──"
+# Reported per screen, ENFORCED only in aggregate — see R2_LATENCY_RATIO_CEILING
+# for why the per-screen numbers are too quantized to ratchet on.
+if ! latency_totals "${R2_SCREENS[@]}"; then
+  # Exit 2, not 1: this is the board failing to be SCORABLE, not the interpreter
+  # failing a ratchet — the same distinction the capture-death path draws.
+  echo "═══ R2 RED: the AE board above completed; the LATENCY board could not be" \
+    "scored at all (reason on the line above) — this is a board integrity" \
+    "failure, not a latency regression ═══" >&2
+  exit 2
+fi
+latency_board_lines "${R2_SCREENS[@]}"
+latency_red=0
+latency_verdict || latency_red=1
+# Emitted on red runs too: the captures die with the gate's scratch directory,
+# so this line is the only durable record of where the time went.
+latency_marker "${R2_SCREENS[@]}"
+
+if (( board_red != 0 || latency_red != 0 )); then
+  # Two boards now share one exit code, and a red whose cause is misread costs
+  # this project days, so the last line says which one failed rather than
+  # leaving it to be inferred from a tail.
+  if (( board_red != 0 && latency_red != 0 )); then
+    echo "═══ R2 RED: a screen is over its AE floor AND the board is over its" \
+      "latency ceiling ═══"
+  elif (( latency_red != 0 )); then
+    echo "═══ R2 RED: every AE floor holds — the LATENCY ceiling is what" \
+      "failed; the pixels are right and they cost too much ═══"
+  fi
   exit 1
 fi
 if (( board_below != 0 )); then
