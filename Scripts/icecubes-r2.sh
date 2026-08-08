@@ -560,14 +560,29 @@ R2_FLOORS=(
   # deciding the overload) took it to 4073 before it was ever scored, so the
   # floor it enters at is the post-fix number.
   #
-  # What is left is TWO divergences at the row-1/row-2 boundary, and
-  # `Scripts/pixel-diff-map.swift` splits them: the inter-row separator, which
-  # the interpreter truncates at x=120 where the twin runs to the edge
-  # (EDGE-GEOMETRY, 2340 AE), and the `status.row.is-thread` label, which the
-  # interpreter draws ~10px to the left of the twin (REGION, 1733 AE). Both
-  # are leading-inset questions on the same row, and neither is a text or
-  # decode defect — the row's content now matches the twin byte for byte.
-  hashtag-timeline 4073
+  # It entered at 4073, which `Scripts/pixel-diff-map.swift` split into TWO
+  # divergences at the row-1/row-2 boundary. One is now DISCHARGED:
+  #
+  # Was 1733 — the `status.row.is-thread` label, drawn 8pt left of the twin on
+  # every scanline. `StatusRowView.swift:74` pads that group by
+  # `AvatarView.FrameConfig.status.width + .statusColumnsSpacing`, and the
+  # leading-dot operand absorbed, so the interpreter padded by the bare 48.
+  # The avatar (48 wide) and `HStack(spacing: .statusColumnsSpacing)` (8) were
+  # both already correct on the same rows, which is what said the defect was
+  # the OPERAND POSITION rather than the static, the constant or the
+  # `#if targetEnvironment(macCatalyst)` branch. Pinned by
+  # `Tests/SwiftInterpreterTests/OperandContextualImplicitMemberTests.swift`.
+  #
+  # What is LEFT is the inter-row separator, which the interpreter draws only
+  # 120px wide where the twin runs the full 900 (EDGE-GEOMETRY, 2340 AE). The
+  # two sides agree pixel for pixel through x=119 — same y, same 253/233/253
+  # antialiasing — so this is a width, not a colour, an inset or a missing
+  # decoration. It is NOT a general separator gap: the separator at y=199 on
+  # this same screen is 900/900 on BOTH sides, and every separator on the
+  # `timeline` screen is 880/900 on both. Only the boundary above the row
+  # carrying `.alignmentGuide(.listRowSeparatorLeading) { _ in -100 }` and the
+  # padded thread-label group diverges.
+  hashtag-timeline 2340
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.

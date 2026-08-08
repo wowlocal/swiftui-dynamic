@@ -271,12 +271,8 @@ extension Interpreter {
         default:
             unresolved = false
         }
-        guard unresolved, case .host(let otherAny) = other else { return value }
-        // Our CGFloat/TimeInterval model IS Double — statics declared on
-        // either name apply to Double operands.
-        var candidates = [String(describing: type(of: otherAny))]
-        if otherAny is Double { candidates += ["CGFloat", "TimeInterval"] }
-        for typeName in candidates {
+        guard unresolved else { return value }
+        for typeName in peerTypeNames(of: other) {
             let resolved = try resolveAnnotated(value, typeName: typeName)
             let stillUnresolved: Bool
             switch resolved {
@@ -289,6 +285,36 @@ extension Interpreter {
             if !stillUnresolved { return resolved }
         }
         return value
+    }
+
+    /// The type names a peer operand offers to an unresolved implicit member.
+    /// Swift types `a + .b` by giving `.b` its peer's contextual type, and that
+    /// peer is usually NOT a host box: the interpreter builds its own scalars
+    /// as `.double`/`.int`/`.string`, so reading only `.host` left this rule
+    /// unreachable for every value the interpreter computes itself.
+    private func peerTypeNames(of other: RuntimeValue) -> [String] {
+        // Our CGFloat/TimeInterval model IS Double — statics declared on any of
+        // those names apply to a Double operand.
+        let floatFamily = ["Double", "CGFloat", "TimeInterval"]
+        switch other {
+        case .host(let any):
+            var names = [String(describing: type(of: any))]
+            if any is Double { names += ["CGFloat", "TimeInterval"] }
+            return names
+        case .double:
+            return floatFamily
+        // An integer LITERAL takes its peer's contextual float type
+        // (`.layoutPadding + 4`), so the float family follows `Int` — AFTER it,
+        // never instead of it: when both names are declared, Swift picks `Int`.
+        case .int:
+            return ["Int"] + floatFamily
+        case .string:
+            return ["String"]
+        case .bool:
+            return ["Bool"]
+        default:
+            return []
+        }
     }
 
     private func containsOptionalChaining(_ expression: ExprSyntax) -> Bool {
