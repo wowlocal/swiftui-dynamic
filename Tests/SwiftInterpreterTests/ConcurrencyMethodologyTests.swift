@@ -3106,7 +3106,7 @@ struct ConcurrencyMethodologyTests {
         #expect(gate.contains("rm -rf \"$out\""))
     }
 
-    @Test func closingGateExecutesIceCubesPolicyAndR2Boards() throws {
+    @Test func closingGateExecutesIceCubesPolicyAndCaptureBoards() throws {
         let gate = try String(
             contentsOf: Self.packageRoot.appendingPathComponent(
                 "Scripts/gate.sh"),
@@ -3118,6 +3118,15 @@ struct ConcurrencyMethodologyTests {
             "receipt_string boards.iceCubesR2",
             "diagnostics.exitStatuses.closePolicy",
             "diagnostics.exitStatuses.iceCubesR2",
+            // The INTERACTION half. It is pinned on exactly the same four
+            // terms as the pixel half because it failed in the way the pixel
+            // half was protected from: the board existed, was complete, and
+            // no step of the gate ran it — so its floors could sit at
+            // `unmeasured` indefinitely while every close read green.
+            "Scripts/icecubes-r3.sh",
+            "receipt_stage iceCubesR3",
+            "receipt_string boards.iceCubesR3",
+            "diagnostics.exitStatuses.iceCubesR3",
         ] {
             #expect(gate.contains(required),
                 Comment(rawValue:

@@ -167,6 +167,23 @@ if (( r2_screen_count < 1 )); then
 fi
 integer r2_timeout_default=$(( 900 + r2_screen_count * 240 ))
 if ! r2_timeout=$(positive_integer_value GATE_R2_TIMEOUT_SECONDS "$r2_timeout_default"); then exit 2; fi
+# The R3 deadline grows with the SCENARIO list for the same reason, and grows
+# faster per item: `Scripts/icecubes-r3.sh` captures each scenario at THREE
+# scored quantities (base, post-interaction, and the changed-delta skew) across
+# both sides and both repeats, where R2 captures one screen four times. The
+# fixed part covers the shared macabi build — a no-op when the R2 stage above
+# already did it, since both stages deliberately build the same product into the
+# same scratch path.
+integer r3_scenario_count=$(
+    sed -n '/^R3_SCENARIOS=(/,/)/p' Scripts/icecubes-r3.sh \
+        | tr '\n' ' ' | sed 's/.*R3_SCENARIOS=(//; s/).*//' \
+        | tr -s ' ' '\n' | grep -cE '^[a-z][a-z-]*$' || true)
+if (( r3_scenario_count < 1 )); then
+    echo "could not read R3_SCENARIOS from Scripts/icecubes-r3.sh" >&2
+    exit 2
+fi
+integer r3_timeout_default=$(( 900 + r3_scenario_count * 480 ))
+if ! r3_timeout=$(positive_integer_value GATE_R3_TIMEOUT_SECONDS "$r3_timeout_default"); then exit 2; fi
 # The north-star rung ladder holds itself to a three-minute contract; the
 # deadline is that contract with room for a loaded gate machine.
 if ! icecubes_timeout=$(positive_integer_value \
@@ -185,11 +202,13 @@ receipt_path="${GATE_RECEIPT_PATH:-$PWD/.build/gate-receipt.json}"
 typeset build_stage_status="not-run" test_stage_status="not-run"
 typeset eval_stage_status="not-run" live_stage_status="not-run"
 typeset r2_stage_status="not-run" icecubes_stage_status="not-run"
+typeset r3_stage_status="not-run"
 integer build_stage_seconds=0 test_stage_seconds=0
 integer eval_stage_seconds=0 live_stage_seconds=0
 integer r2_stage_seconds=0 icecubes_stage_seconds=0
+integer r3_stage_seconds=0
 typeset suite_summary="" corpus_summary="" parity_summary="" live_summary=""
-typeset r2_summary="" icecubes_summary=""
+typeset r2_summary="" icecubes_summary="" r3_summary=""
 typeset parity_shard_validation="not-run"
 typeset parity_shard_receipt_json='{"version":1,"status":"not-run"}'
 typeset close_policy_json='{"version":1,"status":"not-run","errors":[]}'
@@ -210,7 +229,7 @@ typeset git_dirty_at_end=false worktree_fingerprint_at_end=""
 integer test_count=0
 integer build_status=-1 test_discovery_status=-1
 integer corpus_status=-1 parity_status=-1 live_status=-1
-integer close_policy_status=-1 r2_status=-1 icecubes_status=-1
+integer close_policy_status=-1 r2_status=-1 r3_status=-1 icecubes_status=-1
 
 claims_path="${GATE_CLAIMS_PATH:-${git_common_dir:h}/.claude/claims.md}"
 integration_base="${GATE_INTEGRATION_BASE:-origin/main}"
@@ -369,6 +388,9 @@ mark_current_stage_interrupted() {
         icecubes-r2)
             r2_stage_status="interrupted"
             r2_stage_seconds=$(( SECONDS - stage_started )) ;;
+        icecubes-r3)
+            r3_stage_status="interrupted"
+            r3_stage_seconds=$(( SECONDS - stage_started )) ;;
         icecubes-board)
             icecubes_stage_status="interrupted"
             icecubes_stage_seconds=$(( SECONDS - stage_started )) ;;
@@ -610,7 +632,12 @@ write_receipt() {
         receipt_integer "stages.$stage.durationSeconds" "$3"
     }
 
-    receipt_integer schemaVersion 4
+    # 5 (2026-08-08): the IceCubes R3 interaction stage. Additions only —
+    # stages.iceCubesR3, boards.iceCubesR3, diagnostics.iceCubesR3LogTail,
+    # diagnostics.exitStatuses.iceCubesR3 and configuration.r3TimeoutSeconds.
+    # No version-4 key was renamed or dropped, so a consumer reading only the
+    # version-4 set keeps working.
+    receipt_integer schemaVersion 5
     receipt_string result "$result"
     receipt_integer exitStatus "$exit_status"
     receipt_string startedAt "$gate_started_at"
@@ -681,6 +708,7 @@ write_receipt() {
     receipt_integer configuration.evalTimeoutSeconds "$eval_timeout"
     receipt_integer configuration.liveTimeoutSeconds "$live_timeout"
     receipt_integer configuration.r2TimeoutSeconds "$r2_timeout"
+    receipt_integer configuration.r3TimeoutSeconds "$r3_timeout"
     receipt_integer configuration.iceCubesTimeoutSeconds "$icecubes_timeout"
     receipt_integer configuration.childTimeoutSeconds "$child_timeout"
     receipt_integer configuration.terminationGraceSeconds "$termination_grace"
@@ -710,6 +738,7 @@ write_receipt() {
     receipt_stage evaluation "$eval_stage_status" "$eval_stage_seconds"
     receipt_stage live "$live_stage_status" "$live_stage_seconds"
     receipt_stage iceCubesR2 "$r2_stage_status" "$r2_stage_seconds"
+    receipt_stage iceCubesR3 "$r3_stage_status" "$r3_stage_seconds"
     receipt_stage iceCubesBoard "$icecubes_stage_status" \
         "$icecubes_stage_seconds"
 
@@ -720,6 +749,7 @@ write_receipt() {
     receipt_string boards.apiParity "$parity_summary"
     receipt_string boards.live "$live_summary"
     receipt_string boards.iceCubesR2 "$r2_summary"
+    receipt_string boards.iceCubesR3 "$r3_summary"
     receipt_string boards.iceCubesR2Latency "$r2_latency_summary"
     /usr/bin/plutil -insert boards.iceCubesR2LatencyDetail -json \
         "$icecubes_latency_json" "$plist" >/dev/null
@@ -729,7 +759,7 @@ write_receipt() {
 
     local build_log_tail="" test_logs_tail="" validator_log_tail=""
     local corpus_log_tail="" parity_log_tail="" live_log_tail=""
-    local close_policy_log_tail="" r2_log_tail="" icecubes_log_tail=""
+    local close_policy_log_tail="" r2_log_tail="" r3_log_tail="" icecubes_log_tail=""
     if (( exit_status != 0 )); then
         build_log_tail=$(bounded_log_tail "$out/build.log" 80)
         test_logs_tail=$(combined_test_log_tail)
@@ -740,6 +770,7 @@ write_receipt() {
         live_log_tail=$(bounded_log_tail "$out/live.log" 80)
         close_policy_log_tail=$(bounded_log_tail "$out/close-policy.log" 80)
         r2_log_tail=$(bounded_log_tail "$out/icecubes-r2.log" 80)
+        r3_log_tail=$(bounded_log_tail "$out/icecubes-r3.log" 80)
         icecubes_log_tail=$(bounded_log_tail "$out/icecubes-board.log" 80)
     fi
     /usr/bin/plutil -insert diagnostics -dictionary "$plist" >/dev/null
@@ -755,6 +786,7 @@ write_receipt() {
     receipt_string diagnostics.liveLogTail "$live_log_tail"
     receipt_string diagnostics.closePolicyLogTail "$close_policy_log_tail"
     receipt_string diagnostics.iceCubesR2LogTail "$r2_log_tail"
+    receipt_string diagnostics.iceCubesR3LogTail "$r3_log_tail"
     receipt_string diagnostics.iceCubesBoardLogTail "$icecubes_log_tail"
     /usr/bin/plutil -insert diagnostics.timeouts -dictionary "$plist" >/dev/null
     receipt_string diagnostics.timeouts.build \
@@ -780,6 +812,7 @@ write_receipt() {
     receipt_integer diagnostics.exitStatuses.closePolicy \
         "$close_policy_status"
     receipt_integer diagnostics.exitStatuses.iceCubesR2 "$r2_status"
+    receipt_integer diagnostics.exitStatuses.iceCubesR3 "$r3_status"
     receipt_integer diagnostics.exitStatuses.iceCubesBoard \
         "$icecubes_status"
 
@@ -843,6 +876,7 @@ write_receipt() {
               configuration.liveWorkers configuration.buildTimeoutSeconds
               configuration.testTimeoutSeconds configuration.evalTimeoutSeconds
               configuration.liveTimeoutSeconds configuration.r2TimeoutSeconds
+              configuration.r3TimeoutSeconds
               configuration.iceCubesTimeoutSeconds
               configuration.childTimeoutSeconds
               configuration.terminationGraceSeconds
@@ -852,10 +886,12 @@ write_receipt() {
               stages.evaluation.status stages.evaluation.durationSeconds
               stages.live.status stages.live.durationSeconds
               stages.iceCubesR2.status stages.iceCubesR2.durationSeconds
+              stages.iceCubesR3.status stages.iceCubesR3.durationSeconds
               stages.iceCubesBoard.status
               stages.iceCubesBoard.durationSeconds
               boards.discoveredTestCount boards.suite boards.corpus
               boards.apiParity boards.live boards.iceCubesR2
+              boards.iceCubesR3
               boards.iceCubesBoard
               boards.concurrencyParityShards
               evidenceLogsSHA256 diagnostics.exitStatus
@@ -865,6 +901,7 @@ write_receipt() {
               diagnostics.corpusLogTail diagnostics.apiParityLogTail
               diagnostics.liveLogTail diagnostics.closePolicyLogTail
               diagnostics.iceCubesR2LogTail
+              diagnostics.iceCubesR3LogTail
               diagnostics.iceCubesBoardLogTail diagnostics.timeouts
               diagnostics.exitStatuses
             ]
@@ -1401,6 +1438,50 @@ if (( r2_status != 0 )); then
 fi
 echo "IceCubes R2 completed in ${r2_stage_seconds}s"
 
+# The INTERACTION half of the same north star, and the reason it runs HERE.
+# `Scripts/icecubes-r3.sh` shares three mutable paths with the stage above — the
+# macabi scratch path, Examples/IceCubesNativeTwin/.build, and the frozen clock
+# dylib — so the two may never overlap; both now take the same capture lock, and
+# running them in sequence is what keeps that lock uncontended rather than
+# merely enforced. Sharing the scratch path also makes this stage's build step a
+# no-op: R2 built the same product with the same flags moments ago.
+#
+# Until this landed the board existed and NOTHING RAN IT. That is the failure
+# LOOP-ICECUBES.md §8 names for the pixel half — "MERGE-READY must be
+# structurally impossible without a green board" — and the R3 board had it
+# worse: it was not merely unenforced, it was never executed, so its floors
+# could not even be wrong.
+current_stage="icecubes-r3"
+echo "── IceCubes R3 ──"
+stage_started=$SECONDS
+r3_status=0
+Scripts/icecubes-r3.sh > "$out/icecubes-r3.log" 2>&1 &
+r3_pid=$!
+active_pids=($r3_pid)
+r3_timeout_marker="$out/icecubes-r3.timeout"
+start_stage_watchdog icecubes-r3 "$r3_timeout" "$r3_timeout_marker" \
+    "$r3_pid"
+r3_watchdog_pid=$stage_watchdog_pid
+wait "$r3_pid" || r3_status=$?
+remove_active_pid "$r3_pid"
+stop_stage_watchdog "$r3_watchdog_pid" "$r3_timeout_marker"
+r3_stage_seconds=$(( SECONDS - stage_started ))
+grep '^@@icecubes-r3 ' "$out/icecubes-r3.log" | tail -1 > "$out/r3" || true
+if [[ -f "$r3_timeout_marker" ]]; then
+    r3_stage_status="timeout"
+    append_gate_diagnostic "$(timeout_message "$r3_timeout_marker")"
+elif (( r3_status == 0 )); then
+    r3_stage_status="passed"
+else
+    r3_stage_status="failed"
+fi
+if (( r3_status != 0 )); then
+    append_gate_diagnostic "IceCubes R3 exited with status $r3_status"
+    echo "IceCubes R3 RED" >&2
+    tail -80 "$out/icecubes-r3.log" >&2
+fi
+echo "IceCubes R3 completed in ${r3_stage_seconds}s"
+
 # The north star itself. R2 measures pixels against the twin; this ladder
 # measures whether each screen and interaction reaches its rung at all, and
 # nothing else in the gate can see a rung go red.
@@ -1439,7 +1520,7 @@ fi
 echo "IceCubes board completed in ${icecubes_stage_seconds}s"
 
 red=$test_red
-for board in suite corpus live parity r2 r2latency icecubes; do
+for board in suite corpus live parity r2 r2latency r3 icecubes; do
     line=$(cat "$out/$board" 2>/dev/null)
     case "$board" in
         suite) suite_summary="$line" ;;
@@ -1448,6 +1529,7 @@ for board in suite corpus live parity r2 r2latency icecubes; do
         parity) parity_summary="$line" ;;
         r2) r2_summary="$line" ;;
         r2latency) r2_latency_summary="$line" ;;
+        r3) r3_summary="$line" ;;
         icecubes) icecubes_summary="$line" ;;
     esac
     echo "$board: $line"
@@ -1472,6 +1554,16 @@ for board in suite corpus live parity r2 r2latency icecubes; do
         # A MISSING line still falls through to `*)` and reds, so a latency board
         # that did not run cannot read as green.
         r2latency:"aggregate"*"ratio "*"x"*"ceiling "*"x"*) ;;
+        # The three must-be-zero counters, matched EXACTLY, and `below=` left
+        # unmatched on purpose. `Scripts/icecubes-r3.sh` prints them in this
+        # order and says why: `scenarios` is the denominator, so a scenario
+        # DELETED rather than fixed cannot read as green; `red`/`unmeasured`/
+        # `inert`/`guard` are the failures; and `below` floats last because
+        # pinning it would make the first genuine interpreter IMPROVEMENT red
+        # the gate — the ratchet-value-pinned-in-tests trap. A MISSING line
+        # falls through to `*)` and reds, so a board that did not run cannot
+        # read as green.
+        r3:"@@icecubes-r3 scenarios="*" red=0 unmeasured=0 inert=0 guard=0 below="*) ;;
         # The RUNG COUNT is the north star, so match the exact denominator:
         # a rung that is deleted rather than fixed must not read as green.
         # Raise both numbers in the commit that adds a rung.
@@ -1483,9 +1575,10 @@ for board in suite corpus live parity r2 r2latency icecubes; do
     esac
 done
 if (( corpus_status != 0 || parity_status != 0 || live_status != 0 \
-      || r2_status != 0 || icecubes_status != 0 )); then red=1; fi
+      || r2_status != 0 || r3_status != 0 || icecubes_status != 0 )); then red=1; fi
 if [[ -f "$eval_timeout_marker" || -f "$live_timeout_marker" \
-      || -f "$r2_timeout_marker" || -f "$icecubes_timeout_marker" ]]; then
+      || -f "$r2_timeout_marker" || -f "$r3_timeout_marker" \
+      || -f "$icecubes_timeout_marker" ]]; then
     red=1
 fi
 current_stage="completion"
