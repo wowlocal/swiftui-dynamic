@@ -1,0 +1,85 @@
+# IceCubes landing series — the tracked, machine-readable record of what landed.
+#
+# WHY THIS FILE EXISTS. The close gate's first policy stage decides whether a batch may land by
+# reading `.claude/claims.md`: ~990 KB of prose, 2160 lines, 214 MERGE-DONE entries, ZERO git
+# history — and `Scripts/gate.sh` deliberately walks OUT of the gated worktree to read the steward
+# checkout's single mutable copy (`${git_common_dir:h}/.claude/claims.md`). A fresh clone could
+# therefore not reproduce a single merge verdict, and an audit citation into that file
+# (claims.md:2418) was already past EOF within hours of being written.
+#
+# THE PROSE LEDGER STAYS UNTRACKED, DELIBERATELY. `.gitignore` calls it the "Multi-agent claims
+# lock — out-of-band, never merged": several lanes append to it concurrently and tracking it would
+# make every lane conflict on every landing. So what is committed here is not the prose — it is the
+# SERIES the stall detector actually consumes, one line per landing, nothing else.
+#
+# APPEND-ONLY, AND ORDERING IS NOT SIGNIFICANT. `.gitattributes` gives this file `merge=union`, so
+# two lanes that land in parallel each keep their line without a conflict — and the union driver may
+# interleave them in ANY order. `Scripts/validate-icecubes-close-policy.rb` therefore sorts by the
+# recorded UTC stamp (ties broken by sha, which is total and clone-independent) and never by file
+# position. Never rewrite, reorder, or delete a line: a landing that happened is a fact about
+# history, and the validator refuses a candidate whose series drops or rewrites a line its merge
+# base already carried.
+#
+# FORMAT — one landing per line, five TAB-separated fields, no trailing tab:
+#
+#   <sha40>\t<utcStamp>\t<scoredScreens>\t<owedR2AE>\t<rungs>
+#
+# `#` lines and blank lines are ignored. Any OTHER line is a hard parse error, because a field this
+# file cannot read is a verdict nobody can reproduce, which is the defect being fixed.
+#
+# EVERY FIELD IS DERIVED FROM GIT AT THAT SHA, NEVER TYPED. Append with
+#
+#   /usr/bin/ruby Scripts/validate-icecubes-close-policy.rb --record <gated-sha>
+#
+# which derives all five fields itself and is a no-op when the sha is already present. Run it AFTER
+# the gate, next to the `MERGE-DONE` post: appending before the gate would change the tree and
+# therefore change the very sha the line describes. Each close re-derives and COMPARES every field
+# it depends on, so a hand-typed number reds the gate instead of becoming history.
+#
+# The command behind each field, all reproducible from a fresh clone:
+#
+#   sha40          git rev-parse <sha>^{commit}
+#   utcStamp       git show -s --format=%ct <sha>, formatted %Y-%m-%dT%H:%M:%SZ in UTC
+#                  (the epoch is used rather than a `--date=` spelling so the value does not
+#                  depend on the TZ of whichever machine recorded it)
+#   scoredScreens  the number of R2_FLOORS entries in `git show <sha>:Scripts/icecubes-r2.sh`
+#   owedR2AE       their sum, EXCLUDING screens that board marked `# ACKNOWLEDGED <screen>:` at
+#                  that sha — the same figure the stall detector has measured since 2026-08-03
+#                  (LOOP-ICECUBES.md §13), so a screen at 0 cannot mask a screen at 50,184
+#   rungs          git show <sha>:Sources/IceCubesCheck/IceCubesCheck.swift \
+#                    | grep -ohE '"R[0-9][a-z-]*"' | sort -u | wc -l
+#                  (the same selection `Scripts/validate-anti-drift.sh` ratchets, so the function
+#                  half of the north star is recorded per landing rather than only at HEAD)
+#
+# A LINE'S VALIDITY IS ESTABLISHED BY ANCESTRY, NOT BY THE PROSE RECOGNISER. `--record` refuses to
+# append a sha that is not an ancestor of the integration base, because the fields alone cannot tell
+# a landing from an abandoned lane tip or a rebased predecessor — `git rev-parse` resolves all three:
+#
+#   git merge-base --is-ancestor <sha> origin/main
+#
+# That matters most for the backfill below, whose SELECTION came from the ledger's `MERGE-DONE`
+# prose. That recogniser matches the marker as a substring, and this repository has already recorded
+# a MERGE-LOCK/PROGRESS note that merely MENTIONED a landing being read as an entry for it. A line
+# that came out of prose is therefore only trustworthy because ancestry was checked afterwards —
+# never because a sentence contained the word.
+#
+# BACKFILL. The first ten lines were reconstructed on 2026-08-08 from the ten distinct MERGE-DONE
+# shas the ledger then carried — the detector window is five landings, so this is two windows of
+# depth. Nothing here was invented: every field was produced by the commands above, run against the
+# tree at that sha. Every one of the ten was then re-checked against the ancestry rule above and
+# all ten passed (origin/main at 1d7db92c, 2026-08-08); none was dropped or corrected:
+#
+#   for s in $(grep -v '^#' Docs/icecubes-landing-series.tsv | cut -f1); do \
+#     git merge-base --is-ancestor $s origin/main && echo "OK $s" || echo "FAIL $s"; done
+#
+# sha	utcStamp	scoredScreens	owedR2AE	rungs
+5bcb8babfea61f6aa701f22471fb54da867f5352	2026-08-07T00:14:49Z	8	2	9
+414aa9242f498b03eb016b7f1c7e67a3f02c750c	2026-08-07T01:27:50Z	9	143469	9
+bb1746b5aa8f05aa757726a7ad20d2787a3894ab	2026-08-07T05:42:28Z	9	387	9
+358d3ff3de085f673e5225a73ea30049f949ca60	2026-08-07T08:08:06Z	9	2	9
+f2fdf7477a6968f092d7d9425a4e93d4db21ccee	2026-08-07T09:02:53Z	9	2	9
+b07ae1e72e5bc1ef7079c9501c68a996b9fd1e13	2026-08-07T13:31:49Z	10	441	9
+935995298f3f2b29e182df9913939424d41d2442	2026-08-07T15:28:07Z	10	441	9
+9fd079e0a644a98ab62c9af68f7270b199b79163	2026-08-07T18:30:00Z	10	441	9
+1796291de236acb472c2d057ac3c2ae5a46e51a7	2026-08-07T19:21:57Z	10	2	9
+3a0a5197cc27be9d4dd655823d7de8e9bd90d089	2026-08-08T04:16:31Z	10	2	9
