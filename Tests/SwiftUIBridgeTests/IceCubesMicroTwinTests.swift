@@ -50,6 +50,25 @@ struct IceCubesMicroTwinTests {
         }
     }
 
+    /// `ViewDimensions.width` read from inside an alignment-guide closure —
+    /// the shape every IceCubes status row writes
+    /// (`.alignmentGuide(.listRowSeparatorTrailing) { $0.width + 100 }`).
+    /// Reading the dimension moves the blue block left by its own width, so a
+    /// bridge that yields 0 leaves it flush with the red one and the two
+    /// rasters diverge over the whole shifted block.
+    private struct NativeGuideWidthRow: View {
+        var body: some View {
+            VStack(alignment: .leading, spacing: 10) {
+                Color.red.frame(width: 40, height: 20)
+                Color.blue
+                    .frame(width: 80, height: 20)
+                    .alignmentGuide(.leading) { dimensions in
+                        dimensions.width
+                    }
+            }
+        }
+    }
+
     private struct NativeCompactAccountCountsTwin: View {
         var body: some View {
             HStack(spacing: 12) {
@@ -642,6 +661,52 @@ struct IceCubesMicroTwinTests {
             size: size)
         let ae = Self.pixelAE(actual, expected, size: size)
         print("@@icecubes-row-microtwin ae=\(ae)")
+        #expect(ae == 0)
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
+    /// Every IceCubes status row sets its separator's trailing guide to
+    /// `viewDimensions.width + 100` (StatusesListView.swift:128). The board's
+    /// hashtag screen resolves that guide at 100 where the twin resolves it at
+    /// 960 with a row 860 wide — i.e. the interpreted closure reads its width
+    /// as 0. `ViewDimensions`' bridge serves the alignment SUBSCRIPT and
+    /// nothing else, so the PROPERTY read has no route; the existing
+    /// AlignmentGuideClosure corpus program cannot see the gap because it only
+    /// ever reads `dimensions[.leading]`.
+    @MainActor
+    @Test
+    func alignmentGuideReadsItsViewDimensionsWidth() throws {
+        let source = """
+        struct GuideWidthRow: View {
+            var body: some View {
+                VStack(alignment: .leading, spacing: 10) {
+                    Color.red.frame(width: 40, height: 20)
+                    Color.blue
+                        .frame(width: 80, height: 20)
+                        .alignmentGuide(.leading) { dimensions in
+                            dimensions.width
+                        }
+                }
+            }
+        }
+
+        GuideWidthRow()
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let interpreted) = rendered else {
+            Issue.record("guide-width microtwin failed: \(rendered)")
+            return
+        }
+
+        let size = NSSize(width: 200, height: 80)
+        let actual = Self.bitmap(interpreted, size: size)
+        let expected = Self.bitmap(AnyView(NativeGuideWidthRow()), size: size)
+        let ae = Self.pixelAE(actual, expected, size: size)
+        print("@@icecubes-guide-width-microtwin ae=\(ae)")
         #expect(ae == 0)
         #expect(RenderDiagnostics.errors.isEmpty)
     }

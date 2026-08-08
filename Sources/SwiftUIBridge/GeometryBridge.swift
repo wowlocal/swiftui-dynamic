@@ -33,6 +33,11 @@ struct GraphicsContextStub {}
 /// independent of the concrete framework value that carries it. Host-member
 /// dispatch below keys on this capability rather than on an SDK type name.
 protocol GeneratedLayoutDimensionsCarrier {
+    /// A layout-time value's own extent. Alignment-indexed access answers
+    /// WHERE a guide sits; these answer HOW BIG the value being aligned is,
+    /// and a closure that reads one commonly reads the other.
+    var generatedWidth: CGFloat { get }
+    var generatedHeight: CGFloat { get }
     func generatedValue(at alignment: HorizontalAlignment) -> CGFloat
     func generatedValue(at alignment: VerticalAlignment) -> CGFloat
     func generatedExplicitValue(at alignment: HorizontalAlignment) -> CGFloat?
@@ -40,6 +45,10 @@ protocol GeneratedLayoutDimensionsCarrier {
 }
 
 extension ViewDimensions: GeneratedLayoutDimensionsCarrier {
+    var generatedWidth: CGFloat { width }
+
+    var generatedHeight: CGFloat { height }
+
     func generatedValue(at alignment: HorizontalAlignment) -> CGFloat {
         self[alignment]
     }
@@ -361,6 +370,17 @@ func bridgeHostMember(
     }
     let generatedReceiver = (value as? GeneratedMemberCarrier)?
         .generatedMemberValue ?? value
+    // The extent reads sit beside the alignment subscript rather than in the
+    // scalar geometry tables below: `ViewDimensions` is not a `CGSize`, so the
+    // size route never saw it and the property silently had no answer at all.
+    if let dimensions = generatedReceiver as?
+        any GeneratedLayoutDimensionsCarrier {
+        switch name {
+        case "width": return .native(Double(dimensions.generatedWidth))
+        case "height": return .native(Double(dimensions.generatedHeight))
+        default: break
+        }
+    }
     if name == "subscript",
        let dimensions = generatedReceiver as?
         any GeneratedLayoutDimensionsCarrier {

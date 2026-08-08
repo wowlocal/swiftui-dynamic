@@ -573,16 +573,24 @@ R2_FLOORS=(
   # `#if targetEnvironment(macCatalyst)` branch. Pinned by
   # `Tests/SwiftInterpreterTests/OperandContextualImplicitMemberTests.swift`.
   #
-  # What is LEFT is the inter-row separator, which the interpreter draws only
-  # 120px wide where the twin runs the full 900 (EDGE-GEOMETRY, 2340 AE). The
-  # two sides agree pixel for pixel through x=119 — same y, same 253/233/253
-  # antialiasing — so this is a width, not a colour, an inset or a missing
-  # decoration. It is NOT a general separator gap: the separator at y=199 on
-  # this same screen is 900/900 on BOTH sides, and every separator on the
-  # `timeline` screen is 880/900 on both. Only the boundary above the row
-  # carrying `.alignmentGuide(.listRowSeparatorLeading) { _ in -100 }` and the
-  # padded thread-label group diverges.
-  hashtag-timeline 2340
+  # The separator that was left (2340 AE) is GONE, and the cause was never the
+  # separator: `StatusesListView.swift:129` sets the trailing guide to
+  # `viewDimensions.width + 100`, and `ViewDimensions` exposed ONLY its
+  # alignment subscript to interpreted code, so the property read had no route
+  # at all. The guide resolved at 100 instead of 960 — the twin's own tree
+  # gives `w=1060` against the interpreter's `w=200`, a difference of exactly
+  # the 860pt row width.
+  #
+  # READING THAT AS A SEPARATOR BUG IS WHAT COST THE PREVIOUS THREE FRAMINGS.
+  # The same unresolved read is also why the operand-typing commit that landed
+  # just before this one drove this screen to 205,515 AE: with `.width`
+  # answering nothing, `viewDimensions.width + 100` became an unresolved
+  # operand, and the whole `TimelineTagHeaderView` band (900x85 at y=115) went
+  # missing, displacing every row under it. One capability gap, two very
+  # different-looking screens. Pinned by
+  # `IceCubesMicroTwinTests.alignmentGuideReadsItsViewDimensionsWidth`
+  # (RED 2400 -> GREEN 0).
+  hashtag-timeline 0
 )
 # A screen captured but unscored is indistinguishable from a screen that
 # converged, so the two lists must name exactly the same screens.
