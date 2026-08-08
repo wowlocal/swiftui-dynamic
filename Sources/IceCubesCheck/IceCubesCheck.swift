@@ -531,6 +531,22 @@ private struct IceCubesCatalystCaptureRoot: View {
                         + " settled="
                         + "\(stableSamples >= Self.requiredStableGeometrySamples)")
             }
+            if stableSamples < Self.requiredStableGeometrySamples {
+                // NOT gated behind a trace flag, and deliberately not an error
+                // either. The deadline expiring means the pixels below record a
+                // tree that was still moving — exactly the condition this loop
+                // exists to prevent — and reporting it only under
+                // `ICECUBES_TRACE` made a capture that gave up look identical
+                // to one that settled. No screen has yet been shown to need a
+                // hard failure here, so this states what was dropped instead of
+                // guessing a new deadline; a board run that prints this line is
+                // evidence for making it one.
+                print(
+                    "@@icecubes-geometry-unsettled"
+                        + " screen=\(screen.rawValue)"
+                        + " stableSamples=\(stableSamples)"
+                        + " required=\(Self.requiredStableGeometrySamples)")
+            }
             removeAnimations(from: captureView.layer)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
