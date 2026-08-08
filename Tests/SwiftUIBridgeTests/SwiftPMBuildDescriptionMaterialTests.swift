@@ -363,6 +363,192 @@ struct SwiftPMBuildDescriptionMaterialTests {
         #expect(result.stringValue == "module-owned-extension")
     }
 
+    /// A bare nominal reference resolves in the modules its own region can
+    /// SEE, not in whichever same-named declaration the merge happened to
+    /// flatten last.
+    ///
+    /// This is the `Models.Tag` / `SwiftSoup.Tag` collision, and it is the
+    /// sibling of `extensionTargetsOwningModuleAcrossNominalCollision` above:
+    /// that one pins an EXTENSION to its owning module, this one pins an
+    /// ordinary type reference in a stored property and a `Decodable`
+    /// memberwise initializer. IceCubes reaches it because
+    /// `Models/Alias/HTMLString.swift`
+    /// imports SwiftSoup for HTML->attributed text, so `SwiftSoup.Tag` (an
+    /// `open class`) joins the same merged program as `Models.Tag` (the
+    /// Mastodon hashtag `struct`), while `Timeline` — which declares
+    /// `@Binding var tag: Tag?` — imports Models and never imports SwiftSoup.
+    ///
+    /// ORDER IS THE POINT, so the collider is declared LAST here. The two
+    /// halves of a merged IceCubes program sort into different relative orders
+    /// depending on where the checkout lives: app sources reach the merge
+    /// through an absolute `External` symlink that points OUTSIDE the root,
+    /// while SwiftPM's dependency checkouts live UNDER it, and
+    /// `Array(Set(local + external)).sorted()` interleaves the two by absolute
+    /// path. A lane worktree under `/Users/...` sorts the dependency first and
+    /// `Models.Tag` last; a close-gate checkout under `/private/tmp/...` sorts
+    /// it the other way. Same commit, same bytes, opposite winner — which is
+    /// why this presented for weeks as "the capture differs by checkout path"
+    /// and could not be reproduced in the tree that was being used to debug it.
+    ///
+    /// The observable it cost: `TimelineTagHeaderView` is `if let tag { ... }`,
+    /// so a `tag` that decodes to the wrong `Tag` renders NOTHING, the whole
+    /// hashtag header block disappears, every row below shifts up by its
+    /// height, and the screen scores 206,522 AE against a floor of 0.
+    @Test
+    func bareNominalResolvesInImportedModuleNotTheLastFlattenedOne() throws {
+        let models = ProjectMaterial.mergedSource(source: """
+        public struct Tag: Codable, Equatable {
+            public let name: String
+            public let totalUses: Int
+            public init(name: String, totalUses: Int) {
+                self.name = name
+                self.totalUses = totalUses
+            }
+        }
+        """, moduleName: "Models")
+        // Declared AFTER Models, exactly as the close-gate checkout orders it.
+        // `open class` matches SwiftSoup's real shape: it is not `Decodable`,
+        // has no memberwise `init(name:totalUses:)`, and so cannot satisfy the
+        // use below — a wrong winner fails loudly rather than silently.
+        let soup = ProjectMaterial.mergedSource(source: """
+        open class Tag: Hashable, @unchecked Sendable {
+            public let tagName: String
+            public init(_ tagName: String) { self.tagName = tagName }
+            public static func == (lhs: Tag, rhs: Tag) -> Bool {
+                lhs.tagName == rhs.tagName
+            }
+            public func hash(into hasher: inout Hasher) {
+                hasher.combine(tagName)
+            }
+        }
+        """, moduleName: "SwiftSoup")
+        // Imports Models and never imports SwiftSoup — the visibility that has
+        // to decide this, since both declarations are in the same flat program.
+        // The reference sits INSIDE a type owned by the Timeline region, which
+        // is where IceCubes has it (`@Binding var tag: Tag?` on
+        // `TimelineTagHeaderView`) — not at top level, where a merged program
+        // has no owning declaration to carry module provenance.
+        let timeline = ProjectMaterial.mergedSource(source: """
+        import Models
+        struct TagHeader {
+            var tag: Tag?
+            static func make() -> TagHeader {
+                TagHeader(tag: Tag(name: "swift", totalUses: 77))
+            }
+            func headline() -> String {
+                if let tag {
+                    return "#\\(tag.name) \\(tag.totalUses)"
+                }
+                return "<no header>"
+            }
+        }
+        TagHeader.make().headline()
+        """, moduleName: "Timeline")
+
+        let result = try Interpreter().run(
+            source: models + soup + timeline)
+        #expect(result.stringValue == "#swift 77")
+    }
+
+    /// The same collision reached the way IceCubes actually reaches it: through
+    /// a GENERIC function that lives in a third module and is bound to the
+    /// concrete type by the CALLER's annotation.
+    ///
+    /// `TimelineViewModel.fetchTag` is `let tag: Tag = try await
+    /// client.get(endpoint: Tags.tag(id:))` — module Timeline names the type,
+    /// module NetworkClient runs the decode, and neither the generic parameter
+    /// nor the frame it executes in carries Timeline's imports. The sibling
+    /// test above pins the direct case, which already works; this pins the
+    /// indirect one, and the difference between them is the whole bug.
+    ///
+    /// Why this is the shape that matters for the hashtag header: the capture
+    /// harness hands the screen only the tag NAME, and gates readiness on
+    /// `/api/v1/tags/swift` being served, so the response provably arrives.
+    /// Everything the header draws — the use and participant counts — comes
+    /// back through this generic decode. If it binds `SwiftSoup.Tag`, the
+    /// assignment yields nil, `if let tag` renders nothing, and the header
+    /// block vanishes without a single diagnostic.
+    /// RED AT THIS COMMIT, deliberately, and recorded as a known issue rather
+    /// than left failing: the fix is generic-binding machinery that has not
+    /// been written yet, and a plain red test would block every other lane
+    /// landing behind a bug none of them introduced. `withKnownIssue` also
+    /// FAILS once the issue stops occurring, so this cannot be silently
+    /// forgotten the way a `.disabled` test can — the commit that fixes the
+    /// binding is forced to unwrap it in the same breath.
+    ///
+    /// Observed failure today: `23:9: missing argument for parameter 'tagName'`
+    /// — `Entity` bound to `SwiftSoup.Tag` and its `init(_:)`, inside a module
+    /// that imports neither Models nor SwiftSoup.
+    @Test
+    func genericDecodeBindsCallerModulesNominalNotTheLastFlattenedOne() {
+        let models = ProjectMaterial.mergedSource(source: """
+        public protocol Fixture {
+            init(fixture: String)
+        }
+        public struct Tag: Fixture, Equatable {
+            public let name: String
+            public let totalUses: Int
+            public init(fixture: String) {
+                self.name = fixture
+                self.totalUses = 77
+            }
+        }
+        """, moduleName: "Models")
+        // The decoding module never sees Models or SwiftSoup; it is generic
+        // over the caller's type exactly as `Client.get` is.
+        let network = ProjectMaterial.mergedSource(source: """
+        public struct Client {
+            public init() {}
+            public func get<Entity: Fixture>(endpoint: String) -> Entity {
+                Entity(fixture: endpoint)
+            }
+        }
+        """, moduleName: "NetworkClient")
+        // Declared LAST, as the close-gate checkout orders it.
+        let soup = ProjectMaterial.mergedSource(source: """
+        open class Tag: Hashable, @unchecked Sendable {
+            public let tagName: String
+            public init(_ tagName: String) { self.tagName = tagName }
+            public static func == (lhs: Tag, rhs: Tag) -> Bool {
+                lhs.tagName == rhs.tagName
+            }
+            public func hash(into hasher: inout Hasher) {
+                hasher.combine(tagName)
+            }
+        }
+        """, moduleName: "SwiftSoup")
+        let timeline = ProjectMaterial.mergedSource(source: """
+        import Models
+        import NetworkClient
+        struct TagHeader {
+            var tag: Tag?
+            static func fetch() -> TagHeader {
+                let client = Client()
+                let tag: Tag = client.get(endpoint: "swift")
+                return TagHeader(tag: tag)
+            }
+            func headline() -> String {
+                if let tag {
+                    return "#\\(tag.name) \\(tag.totalUses)"
+                }
+                return "<no header>"
+            }
+        }
+        TagHeader.fetch().headline()
+        """, moduleName: "Timeline")
+
+        withKnownIssue(Comment(rawValue:
+            "generic parameters carry a bare type NAME, resolved in the "
+            + "callee's module scope; the caller's imports are lost, so the "
+            + "winner is whichever same-named declaration the merge flattened "
+            + "last — which inverts with the checkout's location on disk"
+        )) {
+            let result = try Interpreter().run(
+                source: models + network + soup + timeline)
+            #expect(result.stringValue == "#swift 77")
+        }
+    }
+
     @Test
     func hostImportedNominalWinsOverUnimportedFlattenedSourceType() async throws {
         let root = FileManager.default.temporaryDirectory
