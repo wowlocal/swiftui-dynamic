@@ -112,8 +112,47 @@ concurrency). These safeguards close that gap and are binding:
    shape by hand; see §D/§prototype of the audit, where a 66-line
    signature-driven emitter covered 127/127 registered method overloads.
 
-   Ratchet (must hold or rise; **7** at 2026-07-28, down from 21 on 07-15):
+   Ratchet (must hold or rise) — **the authority is `Scripts/validate-anti-drift.sh`,
+   `FLOOR_LEVERAGE` (6.50)**, because it is the only thing here that exits non-zero. A reading
+   below that floor reds the close gate. Its selection is EVERY generated line
+   in the tree over EVERY line of `Sources/BridgeGen`: files under any `Generated/` directory
+   plus files named `Generated*.swift` sitting beside handwritten code. Both spellings exist,
+   they are disjoint, and no single-directory glob can see the second. It reads **7.3414**
+   (117469/16001) on 2026-08-08:
+   `awk -v g="$(find Sources -name '*.swift' \( -path '*/Generated/*' -o -name 'Generated*.swift' \) -exec cat {} + | wc -l)" -v b="$(find Sources/BridgeGen -name '*.swift' -exec cat {} + | wc -l)" 'BEGIN{printf "%.4f\n", g/b}'`
+
+   The original one-directory glob is KEPT as a second, narrower series so the 1:21.7 (07-15) →
+   1:7.8 (07-28) history above stays comparable — every prior figure, including the audit's
+   7.1987 → 6.9968, was measured with it. It reads **6.8781** on 2026-08-08 — 7413 lines narrower
+   because it cannot see `Sources/SwiftInterpreter/Generated/` (6 files, 1851 lines) or the
+   flat-name `Generated*.swift` spelling (5 files, 5562 lines). The verbatim form below is `$(( ))`
+   integer arithmetic, so it TRUNCATES and prints `6`; the second form is the same selection to
+   four places. It is REPORTED, not enforced, and has no floor of its own — a second prose ratchet
+   is the exact failure this section exists to prevent, so the only floor is the one in the script.
    `echo $(( $(cat Sources/SwiftUIBridge/Generated/*.swift | wc -l) / $(cat Sources/BridgeGen/*.swift | wc -l) ))`
+   `awk -v g="$(cat Sources/SwiftUIBridge/Generated/*.swift | wc -l)" -v b="$(cat Sources/BridgeGen/*.swift | wc -l)" 'BEGIN{printf "%.4f\n", g/b}'`
+   `find Sources -name '*.swift' -path '*/Generated/*' ! -path 'Sources/SwiftUIBridge/Generated/*' -exec cat {} + | wc -l; find Sources -name 'Generated*.swift' ! -path '*/Generated/*' -exec cat {} + | wc -l`
+
+   That narrow series crossed below 7 on **2026-08-06** (7f01f789, 7.0655 → 6.9977) and has not
+   recovered. The `7 at 2026-07-28` this line asserted until 2026-08-08 was the integer
+   truncation of 7.8044 at c16592c6 — the same measurement the `1:7.8` above reports, one rounded
+   and one truncated — so for two days the document stated a floor its own tree no longer met and
+   nothing fired, the same execution gap the preamble describes, one level up. The
+   2026-08-08 audit found the §5 collapse has **stopped**, and the residual fall is dilution
+   rather than drift: no single-family module has been added since 2026-07-25
+   (`CaseTransformGeneration`, 8d0c9ec6); the seven of them are 3165 of the 16001 denominator
+   lines yet return only 985 generated lines (**0.3112x**, so they are near-pure denominator);
+   `PlatformGeneration.swift` returns **28.6907x**; and core leverage — non-platform generated per
+   line of `BridgeGen/main.swift` — has been RISING, 2.4465 at c16592c6 (07-28) → 2.4940 at
+   7f01f789 (08-06) → **2.5868** today. Read the falling headline as PlatformGeneration's
+   89974-line output being diluted by seven modules that never paid for themselves, not as a
+   collapse still under way — and note that this does not retire the rule: the seven are why the
+   headline falls, and an eighth would push it further.
+   `for s in c16592c6 7f01f789^ 7f01f789; do awk -v g="$(git ls-tree --name-only $s Sources/SwiftUIBridge/Generated/ | grep '\.swift$' | while read p; do git cat-file blob $s:$p; done | wc -l)" -v b="$(git ls-tree --name-only $s Sources/BridgeGen/ | grep '\.swift$' | while read p; do git cat-file blob $s:$p; done | wc -l)" 'BEGIN{printf "%.4f\n", g/b}'; done`
+   `git log -1 --diff-filter=A --format='%ad %h' --date=short -- 'Sources/BridgeGen/*Generation.swift'`
+   `awk -v g="$(cat Sources/SwiftInterpreter/Generated/Generated{CaseTransform,CollectionDefault,RangeMutation,UnicodeDecoding,UnsafeMemory}Surface.swift Sources/SwiftUIBridge/Generated/GeneratedCMemoryBridge.swift Sources/SwiftUIBridge/GeneratedCMemorySupport.swift | wc -l)" -v b="$(find Sources/BridgeGen -name '*.swift' ! -name main.swift ! -name PlatformGeneration.swift -exec cat {} + | wc -l)" 'BEGIN{printf "%.4f  (%d / %d)\n", g/b, g, b}'`
+   `awk -v g="$(wc -l < Sources/SwiftUIBridge/Generated/GeneratedPlatformBridge.swift)" -v b="$(wc -l < Sources/BridgeGen/PlatformGeneration.swift)" 'BEGIN{printf "%.4f  (%d / %d)\n", g/b, g, b}'`
+   `for s in c16592c6 7f01f789 HEAD; do awk -v g="$(git ls-tree -r --name-only $s Sources | grep -E '(/Generated/|/Generated[A-Za-z]*\.swift$)' | grep -v GeneratedPlatform | while read p; do git cat-file blob $s:$p; done | wc -l)" -v b="$(git cat-file blob $s:Sources/BridgeGen/main.swift | wc -l)" 'BEGIN{printf "%.4f\n", g/b}'; done`
 
 Safeguards 4 and 5 carry a command because this repository has now twice shown
 that a rule left as prose does not fire — only exit codes do
