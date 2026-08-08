@@ -20,12 +20,14 @@ cheap pass plus whatever landed since the last one.
 """
 
 import calendar
+import errno
 import json
 import re
 import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -388,6 +390,50 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+class Server(HTTPServer):
+    # Without this a restart within the TIME_WAIT window fails to bind, which
+    # reads as "already running" when nothing is.
+    allow_reuse_address = True
+
+
+def dashboard_answers_on(port):
+    """Is the thing holding this port our own dashboard, or a stranger?"""
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/data.json", timeout=3
+        ) as response:
+            return "boardHistory" in json.loads(response.read())
+    except Exception:
+        return False
+
+
+def serve(port):
+    """Starting a second copy is the most likely way this is ever run twice, so
+    say so and hand over the URL instead of a traceback."""
+    for candidate in range(port, port + 10):
+        try:
+            server = Server(("127.0.0.1", candidate), Handler)
+        except OSError as exc:
+            if exc.errno != errno.EADDRINUSE:
+                raise
+            if dashboard_answers_on(candidate):
+                print(f"loop dashboard is already serving: http://127.0.0.1:{candidate}", flush=True)
+                print(f"stop it with: kill $(lsof -t -iTCP:{candidate} -sTCP:LISTEN)", flush=True)
+                return
+            print(f"port {candidate} is taken by something else, trying {candidate + 1}", flush=True)
+            continue
+        # flush: under nohup/redirect stdout is block-buffered, so without this
+        # the URL never reaches the log file of a server that then runs for days.
+        print(f"loop dashboard: http://127.0.0.1:{candidate}", flush=True)
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        return
+    print(f"no free port in {port}..{port + 9}", file=sys.stderr)
+    sys.exit(1)
+
+
 def main():
     if "--once" in sys.argv:
         print(json.dumps(collect(), indent=2))
@@ -396,12 +442,7 @@ def main():
     for i, arg in enumerate(sys.argv):
         if arg == "--port" and i + 1 < len(sys.argv):
             port = int(sys.argv[i + 1])
-    server = HTTPServer(("127.0.0.1", port), Handler)
-    print(f"loop dashboard: http://127.0.0.1:{port}")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+    serve(port)
 
 
 if __name__ == "__main__":
