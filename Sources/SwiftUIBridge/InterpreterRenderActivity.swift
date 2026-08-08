@@ -19,6 +19,10 @@ public struct InterpreterCaptureReadiness: Sendable, Equatable {
     public private(set) var lastActiveRenderRevision: UInt64?
     public private(set) var firstQuiescentRenderRevision: UInt64?
     public private(set) var readyRenderRevision: UInt64?
+    /// The render revision at which a response this session's content is GATED
+    /// ON was handed to the app. Readiness stays false until a body has been
+    /// evaluated strictly after it. `nil` when no such response is outstanding.
+    public private(set) var awaitedResponseRenderRevision: UInt64?
 
     public init(initialRenderRevision: UInt64) {
         self.initialRenderRevision = initialRenderRevision
@@ -26,6 +30,30 @@ public struct InterpreterCaptureReadiness: Sendable, Equatable {
 
     public var isReadyForCapture: Bool {
         readyRenderRevision != nil
+    }
+
+    /// Record that a response the session's content depends on has just been
+    /// DELIVERED, and that the tree has therefore not shown it yet.
+    ///
+    /// Delivering a response and presenting it are two different events, and a
+    /// wait that ANDs "ready" with "the response arrived" samples both in the
+    /// same instant, so it can exit between them. `NetworkBridge` records a
+    /// replayed resource in a `defer` on the call that RETURNS its bytes, so
+    /// the log entry lands before the app decodes them, assigns its model and
+    /// evaluates a body — and readiness earned by an EARLIER settle is still
+    /// standing at that moment. Measured 2026-08-08: `hashtag-timeline` drops
+    /// `TimelineTagHeaderView` entirely when the capture lands in that window,
+    /// because `TimelineViewModel.fetchTag` assigns `self.tag` only after the
+    /// bytes it was already handed decode.
+    ///
+    /// This is the ARRIVAL half of readiness, not a longer wait: the session
+    /// must still quiesce, and the caller's no-progress budget still bounds
+    /// how long it may take. A response that never reaches the tree therefore
+    /// fails the capture instead of freezing the frame before it.
+    public mutating func noteAwaitedResponse(atRenderRevision revision: UInt64) {
+        awaitedResponseRenderRevision =
+            max(awaitedResponseRenderRevision ?? revision, revision)
+        readyRenderRevision = nil
     }
 
     public mutating func observe(
@@ -48,6 +76,15 @@ public struct InterpreterCaptureReadiness: Sendable, Equatable {
 
         firstQuiescentRenderRevision =
             firstQuiescentRenderRevision ?? revision
+        // Quiescent, but a response the content is gated on landed at a
+        // revision the tree has not evaluated past — the app holds bytes it
+        // has not presented. See `noteAwaitedResponse`.
+        if let awaitedResponseRenderRevision,
+           revision <= awaitedResponseRenderRevision
+        {
+            readyRenderRevision = nil
+            return
+        }
         guard let firstActiveRenderRevision else {
             readyRenderRevision = revision
             return

@@ -312,6 +312,13 @@ private struct IceCubesCatalystCaptureRoot: View {
                 session.renderActivity.bodyEvaluationCount
             var nextSample = ContinuousClock.now
             var previousServed = Self.servedReplayPaths()
+            // Seeded from what was ALREADY served before the wait: a response
+            // that landed during the settle above has had that whole settle to
+            // reach the tree, and re-arming on it would demand a body
+            // evaluation that may never come. The window this closes is a
+            // required response arriving DURING the wait.
+            var previousRequiredServed = Set(
+                screen.requiredReplayPaths.filter(previousServed.contains))
             // Once the tree is otherwise ready, a fetch the screen still owes
             // gets the SAME no-progress window everything else here is bounded
             // by — not a new constant, and not the 900s total limit, which an
@@ -340,6 +347,17 @@ private struct IceCubesCatalystCaptureRoot: View {
                 previousActivity = activity
                 previousRevision = revision
                 previousServed = served
+                // A response the SCREEN'S CONTENT is gated on was just handed
+                // to the app. Readiness standing from an earlier settle
+                // describes a tree that has not seen it, and ANDing the two
+                // conditions lets the wait exit in exactly that window — so
+                // re-arm and require a body evaluation after it.
+                let requiredServed = Set(
+                    screen.requiredReplayPaths.filter(served.contains))
+                if !requiredServed.isSubset(of: previousRequiredServed) {
+                    readiness.noteAwaitedResponse(atRenderRevision: revision)
+                }
+                previousRequiredServed = requiredServed
                 if readiness.isReadyForCapture, readyAt == nil {
                     readyAt = ContinuousClock.now
                 }
