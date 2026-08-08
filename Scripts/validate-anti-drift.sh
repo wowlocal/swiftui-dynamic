@@ -58,6 +58,25 @@ CEIL_PLATFORM_SPECS=20
 # saying why.
 CEIL_PAYLOAD_CONSTANTS=11
 
+# §4, widened. The check above watches four FILENAMES, which is why it reads
+# "saturated at 11" while saying nothing about the rest of the bridge: a
+# constant tuned until pixels matched is a §4 violation wherever it lives, and
+# nothing stopped the next one landing in a file the glob does not name. This
+# counts the SHAPE instead — a number written next to a layout word
+# (padding/inset/offset/width/height/spacing/pointSize/cornerRadius) anywhere in
+# the handwritten bridge. Today that is five, and two of them are honest clamps
+# (`max(1, …)` against a zero-size surface) while one is `padding(.bottom, -1)`,
+# named by AUDIT-2026-07-28 §D. A sixth is the finding.
+CEIL_LAYOUT_CONSTANTS=5
+
+# Bounds the exemption added to the close policy in this same change. A screen
+# marked `# ACKNOWLEDGED <screen>:` in the R2 board stops counting toward the
+# STALL series, which is correct for a residue that owes no renderer fix and is
+# an escape hatch for everything else. One exists (tags-list, an anti-aliased
+# edge pair). Marking a second is a decision, not a reflex, and moving this
+# number is how that decision gets reviewed.
+CEIL_ACKNOWLEDGED_SCREENS=1
+
 # ── Measurement ───────────────────────────────────────────────────────────────────────────────
 # Each metric names the exact command below it. Change the command and you change the number: bump
 # the threshold in the same commit and say so, or the ratchet silently means something else.
@@ -84,6 +103,13 @@ measure() {
         | grep -cE '^[[:space:]]*(\.init|PlatformFrameworkSpec)')
     payload_constants=$(find Sources -name 'TargetPlatform*.swift' \
         -exec grep -hoE '[0-9]+\.[0-9]+|, -?[0-9]+\)' {} + 2>/dev/null | wc -l)
+    layout_constants=$(find Sources/SwiftUIBridge -name '*.swift' \
+        ! -path '*/Generated/*' ! -name 'Generated*.swift' \
+        -exec grep -hoiE \
+        '(padding|inset|offset|width|height|spacing|pointsize|cornerradius)[^,)]{0,20}[,(][[:space:]]*-?[0-9]+(\.[0-9]+)?' \
+        {} + 2>/dev/null | wc -l)
+    acknowledged_screens=$(grep -cE '^[[:space:]]*#[[:space:]]*ACKNOWLEDGED[[:space:]]' \
+        Scripts/icecubes-r2.sh 2>/dev/null || echo 0)
 
     generated_lines=${generated_lines// /}
     generator_lines=${generator_lines// /}
@@ -91,6 +117,8 @@ measure() {
     rung_count=${rung_count// /}
     platform_specs=${platform_specs// /}
     payload_constants=${payload_constants// /}
+    layout_constants=${layout_constants// /}
+    acknowledged_screens=${acknowledged_screens// /}
 
     if (( generator_lines == 0 || generated_lines == 0 )); then
         print -u2 "anti-drift: the generated/generator file selection matched nothing —" \
@@ -147,6 +175,10 @@ printf '  platformFrameworkSpecs %8s   ceil  %s   (one-row-per-family watch)\n' 
     "$platform_specs" "$CEIL_PLATFORM_SPECS"
 printf '  §4 payload constants   %8s   ceil  %s   (AUDIT-2026-07-28 §D surface)\n' \
     "$payload_constants" "$CEIL_PAYLOAD_CONSTANTS"
+printf '  §4 layout constants    %8s   ceil  %s   (whole handwritten bridge, by shape)\n' \
+    "$layout_constants" "$CEIL_LAYOUT_CONSTANTS"
+printf '  acknowledged screens   %8s   ceil  %s   (STALL-series exemptions)\n' \
+    "$acknowledged_screens" "$CEIL_ACKNOWLEDGED_SCREENS"
 
 check_floor   "leverage"            "$leverage"          "$FLOOR_LEVERAGE" \
     "the hand tier is outgrowing generated coverage (§5)"
@@ -158,8 +190,12 @@ check_ceiling "platform-specs"      "$platform_specs"    "$CEIL_PLATFORM_SPECS" 
     "the per-family config surface is galloping (§2 depth cap)"
 check_ceiling "payload-constants"   "$payload_constants" "$CEIL_PAYLOAD_CONSTANTS" \
     "a measurement-calibrated constant was added to a frozen surface (§4)"
+check_ceiling "layout-constants"    "$layout_constants"  "$CEIL_LAYOUT_CONSTANTS" \
+    "a number was written beside a layout word in the handwritten bridge — derive it, or say why this case is irreducibly specific (§4)"
+check_ceiling "acknowledged"        "$acknowledged_screens" "$CEIL_ACKNOWLEDGED_SCREENS" \
+    "another screen was exempted from the STALL series; an exemption is a decision, not a reflex"
 
-print "@@anti-drift {\"version\":1,\"leverage\":$leverage,\"leverageFloor\":$FLOOR_LEVERAGE,\"identityBranches\":$identity_branches,\"identityDensity\":$identity_density,\"identityDensityCeiling\":$CEIL_IDENTITY_DENSITY,\"generatedLines\":$generated_lines,\"generatorLines\":$generator_lines,\"rungs\":$rung_count,\"rungFloor\":$FLOOR_RUNGS,\"platformSpecs\":$platform_specs,\"payloadConstants\":$payload_constants,\"violations\":$violations}"
+print "@@anti-drift {\"version\":1,\"leverage\":$leverage,\"leverageFloor\":$FLOOR_LEVERAGE,\"identityBranches\":$identity_branches,\"identityDensity\":$identity_density,\"identityDensityCeiling\":$CEIL_IDENTITY_DENSITY,\"generatedLines\":$generated_lines,\"generatorLines\":$generator_lines,\"rungs\":$rung_count,\"rungFloor\":$FLOOR_RUNGS,\"platformSpecs\":$platform_specs,\"payloadConstants\":$payload_constants,\"layoutConstants\":$layout_constants,\"acknowledgedScreens\":$acknowledged_screens,\"violations\":$violations}"
 
 if [[ "${1:-}" == "--print" ]]; then
     exit 0

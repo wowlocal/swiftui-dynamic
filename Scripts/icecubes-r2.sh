@@ -321,6 +321,12 @@ R2_FLOORS=(
   # find. This floor stays at 2 until the comparator's rasterization question
   # is answered, and it is NOT evidence of an interpreter gap.
   tags-list 2
+  # ACKNOWLEDGED tags-list: two pixels of an anti-aliased edge blend, owing no
+  # renderer fix — both sides draw the same edge and differ only in how the
+  # compositor rounded one sub-pixel pair. The marker exempts this screen from
+  # the STALL series ONLY; the floor above is still enforced, so it cannot
+  # regress, and the headline still prints it. Delete this line to re-arm the
+  # detector on this screen.
   # Was 367681 — the whole image block, behind a UIKit hosting stack that
   # stopped at a different statement every iteration (representable
   # conformance, then the generic hosting controller, then `.view`'s
