@@ -138,7 +138,35 @@ if ! build_timeout=$(positive_integer_value GATE_BUILD_TIMEOUT_SECONDS 1800); th
 if ! test_timeout=$(positive_integer_value GATE_TEST_TIMEOUT_SECONDS 1800); then exit 2; fi
 if ! eval_timeout=$(positive_integer_value GATE_EVAL_TIMEOUT_SECONDS 1800); then exit 2; fi
 if ! live_timeout=$(positive_integer_value GATE_LIVE_TIMEOUT_SECONDS 1800); then exit 2; fi
-if ! r2_timeout=$(positive_integer_value GATE_R2_TIMEOUT_SECONDS 1800); then exit 2; fi
+# The R2 stage is the one deadline that GROWS with the board, so a fixed number
+# here turns admitting a screen into a gate RED that says "timeout" and names no
+# screen. `Scripts/icecubes-r2.sh` captures every screen FOUR times — twin,
+# twin-repeat, interpreted, interpreted-repeat — strictly serially, because
+# parallel capture windows perturb each other through the window server. Measured
+# 2026-08-08 on the 11-screen board: ~43s per capture, so ~172s per screen. The
+# per-screen budget below is that with a margin for a loaded machine, and the
+# fixed part covers the two product builds plus scoring. Admitting screen 12
+# raises the deadline by itself.
+integer r2_screen_count=$(
+    sed -n '/^R2_SCREENS=(/,/)/p' Scripts/icecubes-r2.sh \
+        | tr '\n' ' ' | sed 's/.*R2_SCREENS=(//; s/).*//' \
+        | tr -s ' ' '\n' | grep -cE '^[a-z][a-z-]*$' || true)
+# A miscount is silent and one-directional — it can only shorten the deadline —
+# so require it to agree with the floor table the board itself scores against.
+integer r2_floor_count=$(
+    sed -n '/^R2_FLOORS=(/,/^)/p' Scripts/icecubes-r2.sh \
+        | grep -cE '^ *[a-z][a-z-]+ [0-9]+ *$' || true)
+if (( r2_screen_count != r2_floor_count )); then
+    echo "R2 screen count $r2_screen_count disagrees with floor count" \
+        "$r2_floor_count in Scripts/icecubes-r2.sh" >&2
+    exit 2
+fi
+if (( r2_screen_count < 1 )); then
+    echo "could not read R2_SCREENS from Scripts/icecubes-r2.sh" >&2
+    exit 2
+fi
+integer r2_timeout_default=$(( 900 + r2_screen_count * 240 ))
+if ! r2_timeout=$(positive_integer_value GATE_R2_TIMEOUT_SECONDS "$r2_timeout_default"); then exit 2; fi
 # The north-star rung ladder holds itself to a three-minute contract; the
 # deadline is that contract with room for a loaded gate machine.
 if ! icecubes_timeout=$(positive_integer_value \
