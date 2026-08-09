@@ -253,10 +253,34 @@ struct TypeMapping {
     }
 }
 
+extension TypeMapping {
+    /// Concrete generic monomorphization is reserved for scalar kinds the
+    /// interpreter represents intrinsically, so overload matching can select
+    /// the specialization from the RuntimeValue shape itself. Contextual SDK
+    /// values such as `UInt16.max` may have a direct mapping too, but fanning
+    /// every such nominal through every multi-generic declaration creates a
+    /// Cartesian API mirror and still cannot infer that type from a literal.
+    /// Those values continue to cross ordinary concrete parameters; only this
+    /// compile-time generic specialization tier is narrower.
+    var supportsRuntimeScalarSpecialization: Bool {
+        switch tag {
+        case "string", "int", "double", "date":
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 /// Filled from the same platform symbol graphs that generate SDK gateways.
 /// SwiftUI initializers/modifiers can then accept any selected AppKit/UIKit
 /// nominal without maintaining a second type-name allowlist.
 var platformTypeFrameworks: [String: Set<String>] = [:]
+/// Filled by PlatformGeneration from the same contract classification emitted
+/// into GeneratedPlatformBridge. A native value accepted by AppKit/UIKit/
+/// CoreGraphics is therefore accepted by a SwiftUI declaration without a
+/// second imported-type allowlist.
+var platformDirectRuntimeTypeNames: Set<String> = []
 
 /// Public, deployment-compatible contextual SDK values. Enum cases and
 /// same-type static properties have the same leading-dot call semantics, so
@@ -325,6 +349,15 @@ struct SDKProtocolConsumingMethod: Hashable {
 }
 
 var sdkProtocols: Set<String> = []
+/// Public protocol erasers declared with `@_typeEraser`. They are the
+/// interface-provided way to preserve an opaque `some P` result across the
+/// interpreter boundary; generated member adapters never name a protocol or
+/// eraser themselves.
+var sdkProtocolErasers: [String: String] = [:]
+/// Protocols carrying the stdlib/compiler `@_marker` attribute. Swift forbids
+/// conditional casts to marker protocols, so their generated coercions retain
+/// the statically named concrete witnesses collected from the interface.
+var sdkMarkerProtocols: Set<String> = []
 var sdkProtocolRefinements: [String: Set<String>] = [:]
 var sdkNominalConformances: [String: Set<String>] = [:]
 var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
@@ -340,7 +373,20 @@ struct SDKAssociatedConformance {
 
 var sdkNominalGenericParameters: [String: [String]] = [:],
     sdkNominalTypealiases: [String: [String: String]] = [:]
+var sdkNominalGenericConstraints: [String: Generics] = [:]
 var sdkAssociatedConformances: [SDKAssociatedConformance] = []
+
+/// A generic nominal's conditional protocol conformance, including the
+/// generic requirements that make it valid. Runtime structural values such as
+/// arrays and ranges are materialized from these declarations, not from a
+/// handwritten list of element types or consuming APIs.
+struct SDKGenericConformance {
+    let nominal: String
+    let genericParameters: [String]
+    let requirements: Generics
+    let protocols: Set<String>
+}
+var sdkGenericConformances: [SDKGenericConformance] = []
 
 func genericTypeParts(_ raw: String) -> (base: String, arguments: [String])? {
     guard let open = raw.firstIndex(of: "<"), raw.last == ">" else { return nil }
@@ -366,12 +412,33 @@ func genericTypeParts(_ raw: String) -> (base: String, arguments: [String])? {
 func substitutingTypeIdentifiers(_ raw: String, _ substitutions: [String: String]) -> String {
     guard !substitutions.isEmpty else { return raw }
     var result = raw
-    for (token, replacement) in substitutions {
-        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: token))\\b"
+    var placeholders: [(marker: String, replacement: String)] = []
+    // Substitute simultaneously. A sequential rewrite can feed one concrete
+    // result back through another generic key, and dictionary iteration then
+    // makes the emitted type both wrong and nondeterministic. A bare generic
+    // identifier also must not match the member segment of an already concrete
+    // path (`Label` in `SearchUnavailableContent.Label`). Longest source paths
+    // claim their text first; opaque markers prevent replacement payloads
+    // from becoming new input.
+    for (index, entry) in substitutions.sorted(by: {
+        if $0.key.count != $1.key.count {
+            return $0.key.count > $1.key.count
+        }
+        return $0.key < $1.key
+    }).enumerated() {
+        let token = entry.key
+        let marker = "__BRIDGEGEN_TYPE_SUBSTITUTION_\(index)__"
+        let pattern = "(?<![A-Za-z0-9_\\.])"
+            + NSRegularExpression.escapedPattern(for: token) + "\\b"
         let expression = try! NSRegularExpression(pattern: pattern)
         result = expression.stringByReplacingMatches(
             in: result, range: NSRange(result.startIndex..., in: result),
-            withTemplate: replacement)
+            withTemplate: marker)
+        placeholders.append((marker, entry.value))
+    }
+    for placeholder in placeholders {
+        result = result.replacingOccurrences(
+            of: placeholder.marker, with: placeholder.replacement)
     }
     return result
 }
@@ -463,9 +530,10 @@ func nominal(_ type: String, satisfies required: Set<String>) -> Bool {
 
 /// Map an interface-declared protocol-constrained generic to an existential
 /// that Swift can open again at the native generic call boundary. Contextual
-/// members are admitted only when their declaring protocol is visible from
-/// the constraint set and exactly one satisfying concrete type owns that
-/// spelling, mirroring native ambiguity rather than picking by identity.
+/// members and factories are admitted only when their declaring protocol is
+/// visible from the constraint set and their concrete result satisfies the
+/// whole composition. Ambiguous concrete spellings are rejected later by
+/// call shape, mirroring native lookup rather than picking by identity.
 func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
     guard !constraints.isEmpty else {
         return nil
@@ -495,6 +563,10 @@ func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
         visibleProtocols.contains($0.declaringProtocol)
             && nominal($0.concreteType, satisfies: requiredProtocols)
     }
+    let factoryCandidates = sdkProtocolContextualFactoryDecls.filter {
+        visibleProtocols.contains($0.declaringProtocol)
+            && nominal($0.concreteType, satisfies: requiredProtocols)
+    }
     let byMember = Dictionary(grouping: candidates, by: \.member)
     let unambiguous = byMember.values.compactMap {
         values -> SDKProtocolContextualValue? in
@@ -513,6 +585,7 @@ func sdkProtocolMapping(for constraints: Set<String>) -> TypeMapping? {
             sdkFrameworkConfigurationProtocols[$0] != nil
         }
     guard !unambiguous.isEmpty
+            || !factoryCandidates.isEmpty
             || hasFrameworkConfigurationAdapter else {
         return nil
     }
@@ -585,6 +658,18 @@ var wrapperProjectionWrappers: [String: WrapperProjection] = [:]
 /// concrete `Value` spelled in real Swift somewhere.
 var bindingValueTypes: Set<String> = []
 
+/// Concrete Range/ClosedRange parameters use the same runtime range plane as
+/// protocol-constrained structural values. Each specialization is discovered
+/// by type structure and its bound's existing coercion; the generated table
+/// supplies the statically typed call that Swift needs to materialize it.
+struct RuntimeStructuralValueAdapter: Hashable {
+    let type: String
+    let elementType: String
+    let elementTag: String
+    let isClosed: Bool
+}
+var runtimeStructuralValueAdapters: Set<RuntimeStructuralValueAdapter> = []
+
 /// `Binding<Value>` for a `Value` this table already maps, which is every
 /// instantiation the interfaces declare beyond the four spelled by hand above.
 /// Those four each carry a value CONVERSION and so cannot come from here; the
@@ -618,6 +703,37 @@ func directMapping(for normalized: String) -> TypeMapping? {
             tag: "array(.\(element.tag), \"\(elementType)\")",
             cast: "(%@ as! [Any]).map { element in \(elementCast) }",
             requiredFramework: element.requiredFramework)
+    }
+    if let parts = genericTypeParts(normalized), parts.base == "Set",
+       parts.arguments.count == 1,
+       let element = directMapping(for: parts.arguments[0]),
+       !element.isOptional {
+        let elementType = parts.arguments[0]
+        let elementCast = element.cast.replacingOccurrences(
+            of: "%@", with: "element")
+        return .init(
+            tag: "array(.\(element.tag), \"\(elementType)\")",
+            cast: "Set((%@ as! [Any]).map { element in \(elementCast) })",
+            requiredFramework: element.requiredFramework)
+    }
+    // Keep the long-standing optimized Double range tag stable. Every other
+    // concrete range follows the structural rule below, so adding a new bound
+    // type requires no new ParamTag or API-specific gateway.
+    if normalized != "ClosedRange<Double>",
+       let parts = genericTypeParts(normalized),
+       ["Range", "ClosedRange"].contains(parts.base),
+       parts.arguments.count == 1,
+       let element = directMapping(for: parts.arguments[0]),
+       !element.isOptional,
+       element.requiredFramework == nil {
+        runtimeStructuralValueAdapters.insert(.init(
+            type: normalized,
+            elementType: parts.arguments[0],
+            elementTag: element.tag,
+            isClosed: parts.base == "ClosedRange"))
+        return .init(
+            tag: "nativeSwiftUIValue(\"\(normalized)\")",
+            cast: "%@ as! \(normalized)")
     }
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
@@ -661,7 +777,6 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "[GridItem]": return .init(tag: "gridItems", cast: "%@ as! [GridItem]")
     case "ButtonRole": return .init(tag: "buttonRole", cast: "%@ as! ButtonRole")
     case "Axis": return .init(tag: "axis", cast: "%@ as! Axis")
-    case "AnnotationPosition": return .init(tag: "annotationPosition", cast: "%@ as! AnnotationPosition")
     // The optional-of-a-constraint binding every selection-shaped modifier
     // declares (`scrollPosition(id:)`, and the same shape wherever a generic
     // is constrained to Hashable). The carrier is the one the wrapper
@@ -678,6 +793,14 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Date": return .init(tag: "date", cast: "%@ as! Date")
     case "Data": return .init(tag: "data", cast: "%@ as! Data")
     default:
+        // Imported direct values are classified once by PlatformGeneration.
+        // This covers every framework consumer of the same host payload and
+        // grows with that generated contract, rather than with API demand.
+        if platformDirectRuntimeTypeNames.contains(normalized) {
+            return .init(
+                tag: "nativeSwiftUIValue(\"\(normalized)\")",
+                cast: "%@ as! \(normalized)")
+        }
         // A projection of a wrapper the interface leaves uninitializable: the
         // carrier declares the wrapper, so what crosses is an ordinary binding.
         if let projection = wrapperProjectionMapping(for: normalized) {
@@ -737,6 +860,171 @@ func directMapping(for normalized: String) -> TypeMapping? {
             tag: "nativeSwiftUIValue(\"\(normalized)\")",
             cast: "%@ as! \(normalized)")
     }
+}
+
+/// Concrete host value types whose declared conformance closure satisfies all
+/// requested protocols and whose values the runtime can already coerce. The
+/// set is read from swiftinterfaces; adding a new conformer changes generated
+/// output without changing this function.
+var concreteSDKTypesCache: [String: [String]] = [:]
+func concreteSDKTypes(satisfying required: Set<String>) -> [String] {
+    guard !required.isEmpty else { return [] }
+    let key = required.sorted().joined(separator: "&")
+    if let cached = concreteSDKTypesCache[key] { return cached }
+    let result = Array(Set(sdkNominalConformances.compactMap {
+        declaredType, conformances -> String? in
+        let closure = conformances.reduce(into: Set<String>()) {
+            $0.formUnion(protocolClosure(of: $1))
+        }
+        guard required.isSubset(of: closure) else { return nil }
+        let type = normalize(declaredType)
+        guard genericTypeParts(type) == nil,
+              let mapping = directMapping(for: type),
+              mapping.supportsRuntimeScalarSpecialization else { return nil }
+        return type
+    })).sorted()
+    concreteSDKTypesCache[key] = result
+    return result
+}
+
+/// Fan a generic signature out only where the generic occurs inside a native
+/// compound value and the SDK publishes concrete conformers the interpreter
+/// can already represent. This is the missing general step for declarations
+/// such as `Wrapper<T>`: the wrapper and protocol identities are irrelevant;
+/// interface conformance plus an existing value mapping choose every emitted
+/// instantiation.
+func concreteConformanceSpecializations(
+    _ generics: Generics,
+    parameters: FunctionParameterListSyntax,
+    additionalTypes: [String] = []
+) -> [Generics] {
+    let participatingTypes = parameters.map {
+        normalize($0.type.trimmedDescription)
+    } + additionalTypes.map(normalize)
+    let dimensions = generics.compactMap {
+        name, facts -> (String, [String])? in
+        guard !name.contains("."),
+              case .constraints(let constraints) = facts,
+              !constraints.isEmpty,
+              // Existing constraint carriers are already the general runtime
+              // solution for bare and compound uses. Fanning those protocols
+              // out over every SDK conformer would duplicate that mechanism
+              // and create an unbounded Cartesian product.
+              constraints.allSatisfy({
+                  constraintMapping(for: normalize($0)) == nil
+                      && constraintConcreteType(for: normalize($0)) == nil
+              }),
+              participatingTypes.contains(where: {
+                  $0 != name
+                      && $0.split {
+                          !($0.isLetter || $0.isNumber || $0 == "_")
+                      }.map(String.init).contains(name)
+              }) else { return nil }
+        let canonical = Set(constraints.compactMap { constraint -> String? in
+            let matches = sdkProtocols.filter {
+                normalize($0) == normalize(constraint)
+            }
+            return matches.count == 1 ? matches.first : nil
+        })
+        guard canonical.count == constraints.count else { return nil }
+        let candidates = concreteSDKTypes(satisfying: canonical).filter {
+            concrete in
+            participatingTypes.contains { participating in
+                let specialized = substitutingTypeIdentifiers(
+                    participating, [name: concrete])
+                return directMapping(for: specialized) != nil
+            }
+        }
+        return candidates.isEmpty ? nil : (name, candidates)
+    }.sorted { $0.0 < $1.0 }
+    guard !dimensions.isEmpty else { return [generics] }
+    return dimensions.reduce([generics]) { partial, dimension in
+        partial.flatMap { current in
+            dimension.1.map { concrete in
+                var specialized = current
+                specialized[dimension.0] = .concrete(concrete)
+                return specialized
+            }
+        }
+    }
+}
+
+/// RuntimeValue has two structural collection planes. Mapping them back to
+/// the stdlib nominals that define those planes is language semantics, not an
+/// SDK allowlist; protocol eligibility and element types still come entirely
+/// from interface conformances.
+enum RuntimeStructuralNominal: String {
+    case array = "Array"
+    case arraySlice = "ArraySlice"
+    case range = "Range"
+    case closedRange = "ClosedRange"
+
+    init?(nominal: String) {
+        let base = normalize(nominal)
+        guard let value = Self(rawValue: base) else { return nil }
+        self = value
+    }
+}
+
+struct RuntimeStructuralProtocolSpecialization {
+    let nominal: RuntimeStructuralNominal
+    let elementType: String
+    let elementMapping: TypeMapping
+
+    var key: String {
+        "\(nominal.rawValue)<\(elementType)>"
+    }
+}
+
+var runtimeStructuralProtocolSpecializationCache:
+    [String: [RuntimeStructuralProtocolSpecialization]] = [:]
+
+func runtimeStructuralProtocolSpecializations(
+    satisfying required: Set<String>
+) -> [RuntimeStructuralProtocolSpecialization] {
+    let cacheKey = required.sorted().joined(separator: "&")
+    if let cached = runtimeStructuralProtocolSpecializationCache[cacheKey] {
+        return cached
+    }
+    var found: [String: RuntimeStructuralProtocolSpecialization] = [:]
+    for conformance in sdkGenericConformances {
+        guard let nominal = RuntimeStructuralNominal(
+                nominal: conformance.nominal) else { continue }
+        guard conformance.genericParameters.count == 1,
+              // Associated-type requirements need a full witness solver.
+              // Ignoring one turns conditional conformances into false ones
+              // (`Range<Double>` is not a Collection because its Stride is
+              // not SignedInteger), so this executable adapter fails closed.
+              conformance.requirements.keys.allSatisfy({
+                  !$0.contains(".")
+              }) else { continue }
+        let closure = conformance.protocols.reduce(into: Set<String>()) {
+            $0.formUnion(protocolClosure(of: $1))
+        }
+        guard required.isSubset(of: closure) else { continue }
+        let generic = conformance.genericParameters[0]
+        guard case .constraints(let constraints)? =
+                conformance.requirements[generic],
+              !constraints.isEmpty else { continue }
+        let canonical = Set(constraints.compactMap { constraint -> String? in
+            let matches = sdkProtocols.filter {
+                normalize($0) == normalize(constraint)
+            }
+            return matches.count == 1 ? matches.first : nil
+        })
+        guard canonical.count == constraints.count else { continue }
+        for type in concreteSDKTypes(satisfying: canonical) {
+            guard let mapping = directMapping(for: type),
+                  mapping.requiredFramework == nil else { continue }
+            let specialization = RuntimeStructuralProtocolSpecialization(
+                nominal: nominal, elementType: type,
+                elementMapping: mapping)
+            found[specialization.key] = specialization
+        }
+    }
+    let result = found.values.sorted { $0.key < $1.key }
+    runtimeStructuralProtocolSpecializationCache[cacheKey] = result
+    return result
 }
 
 /// Rewrite every opaque parameter written IN PLACE inside a compound type to
@@ -1013,15 +1301,10 @@ func sdkAssociatedType(_ name: String, of concreteType: String,
 /// extension, `Duration.UnitsFormatStyle` spells it inside the struct — so the
 /// sweep could never see the one style whose input is `Duration`.
 ///
-/// This is deliberately NOT folded into `sdkAssociatedType`, which the
-/// associated-generic constructor sweep calls. That sweep enforces a
-/// same-type requirement on an associated type but not a CONFORMANCE one, so
-/// widening what it resolves makes it emit constructors the compiler rejects:
-/// `Stepper(value:step:format:)` requires `F.FormatInput : BinaryFloatingPoint`
-/// and would take `Date.FormatStyle`. Fixing that needs conformance data this
-/// interface pass does not yet have — a nominal's cross-module conformances
-/// (`Foundation.Date : Swift.Equatable`) are dropped today — so the wider
-/// reading stays where its answer is used as a TYPE, not as a constraint.
+/// Generic body witnesses are resolved here as well as extension witnesses.
+/// Callers that use the answer as a conformance constraint must still verify
+/// that conformance through the global nominal graph; resolving a typealias is
+/// not itself proof that the requirement holds.
 func sdkDeclaredAssociatedType(_ name: String, of concreteType: String,
                                conformingTo protocolType: String) -> String? {
     if let resolved = sdkAssociatedType(
@@ -1099,7 +1382,7 @@ func associatedGenericSpecializations(_ generics: Generics,
         guard !name.contains("."),
               case .constraints(let constraints) = facts,
               parameterTypes.contains(where: { $0 == name }),
-              parameterTypes.contains(where: { $0.hasPrefix(name + ".") })
+              generics.keys.contains(where: { $0.hasPrefix(name + ".") })
         else { return nil }
         let protocols = Set(constraints.map(normalize))
         return protocols.isEmpty ? nil : (name, protocols)
@@ -1108,30 +1391,53 @@ func associatedGenericSpecializations(_ generics: Generics,
     guard relational.count == 1, let relation = relational.first else { return [generics] }
 
     let associatedFacts = generics.filter { $0.key.hasPrefix(relation.name + ".") }
-    let candidates = sdkProtocolContextualValues.filter {
+    let contextualValues = sdkProtocolContextualValues.filter {
         relation.protocols.contains(normalize($0.declaringProtocol)) }
+    let contextualFactories = sdkProtocolContextualFactoryDecls.filter {
+        relation.protocols.contains(normalize($0.declaringProtocol)) }
+    let candidateTypes = Set(
+        contextualValues.map(\.concreteType)
+            + contextualFactories.map(\.concreteType))
     var results: [Generics] = []
-    for concreteType in Set(candidates.map(\.concreteType)).sorted() {
+    for concreteType in candidateTypes.sorted() {
         let concrete = normalize(concreteType)
         var associated: [String: String] = [:]
         var matches = true
         for (path, facts) in associatedFacts {
             let associatedName = String(path.dropFirst(relation.name.count + 1))
             let values = relation.protocols.compactMap {
-                sdkAssociatedType(associatedName, of: concrete, conformingTo: $0)
+                sdkDeclaredAssociatedType(
+                    associatedName, of: concrete, conformingTo: $0)
             }
             guard Set(values).count == 1, let value = values.first
             else { matches = false; break }
-            if case .concrete(let required) = facts,
-               normalize(value) != normalize(required) {
-                matches = false; break
+            switch facts {
+            case .concrete(let required):
+                guard normalize(value) == normalize(required) else {
+                    matches = false; break
+                }
+            case .constraints(let constraints):
+                let canonical = Set(constraints.compactMap {
+                    constraint -> String? in
+                    if sdkProtocols.contains(constraint) { return constraint }
+                    let candidates = sdkProtocols.filter {
+                        normalize($0) == normalize(constraint)
+                    }
+                    return candidates.count == 1 ? candidates.first : nil
+                })
+                guard canonical.count == constraints.count,
+                      nominal(value, satisfies: canonical) else {
+                    matches = false; break
+                }
             }
             associated[path] = normalize(value)
         }
         guard matches, !associated.isEmpty, associated.values.allSatisfy({
             directMapping(for: $0) != nil
         }) else { continue }
-        let members = candidates.filter { normalize($0.concreteType) == concrete }.map(\.member)
+        let members = contextualValues.filter {
+            normalize($0.concreteType) == concrete
+        }.map(\.member)
         sdkEnumCases[concrete] = Array(Set(
             (sdkEnumCases[concrete] ?? []) + members)).sorted()
         associatedGenericConcreteTypes.insert(concrete)
@@ -1141,7 +1447,10 @@ func associatedGenericSpecializations(_ generics: Generics,
         associated.forEach { specialized[$0.key] = .concrete($0.value) }
         results.append(specialized)
     }
-    return results
+    // This solver is an enrichment pass. If no concrete contextual witness is
+    // reachable, preserve the unspecialized declaration for the downstream
+    // generic-shape adapters instead of turning discovery into a regression.
+    return results.isEmpty ? [generics] : results
 }
 
 // MARK: - Parameter analysis
@@ -1467,7 +1776,17 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             if set.count == 1, let mapping = constraintMapping(for: set.first!) {
                 return .init(label: label, mapping: preservingOptional(mapping), hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: constraintConcreteType(for: set.first!))
             }
-            if let mapping = sdkProtocolMapping(for: set) {
+            // An existential for the root protocol does not carry arbitrary
+            // same-type/conformance requirements on its associated types.
+            // Keep such signatures closed until the relationship is
+            // specialized as a whole; opening only `Data: Collection` while
+            // dropping `Data.Element: Transferable` emits an invalid native
+            // call and is semantically weaker than the interface.
+            let hasAssociatedRequirements = generics.keys.contains {
+                $0.hasPrefix(normalized + ".")
+            }
+            if !hasAssociatedRequirements,
+               let mapping = sdkProtocolMapping(for: set) {
                 return .init(
                     label: label, mapping: preservingOptional(mapping),
                     hasDefault: hasDefault, blocker: nil,
@@ -2007,10 +2326,39 @@ func recordSDKNominalShape(type canonicalType: String,
     let type = normalize(canonicalType)
     if let genericClause {
         sdkNominalGenericParameters[type] = genericClause.parameters.map(\.name.text)
+        var constraints: Generics = [:]
+        collectGenericClause(genericClause, into: &constraints)
+        sdkNominalGenericConstraints[type] = constraints
     }
     sdkNominalTypealiases[type, default: [:]].merge(
         publicSDKTypealiases(in: members, module: module,
             localTopLevelNames: localTopLevelNames)) { _, latest in latest }
+}
+
+/// Parse the argument of the compiler's public type-erasure attribute. The
+/// attribute grammar itself is the selection property; the returned spelling
+/// is canonicalized exactly like every inherited protocol/type reference.
+func sdkTypeEraser(
+    in attributes: AttributeListSyntax,
+    module: String,
+    localTopLevelNames: Set<String>
+) -> String? {
+    for element in attributes {
+        guard let attribute = element.as(AttributeSyntax.self),
+              normalize(attribute.attributeName.trimmedDescription)
+                == "_typeEraser" else { continue }
+        let text = attribute.trimmedDescription
+        guard let open = text.firstIndex(of: "("),
+              let close = text.lastIndex(of: ")"), open < close else {
+            continue
+        }
+        let name = String(text[text.index(after: open)..<close])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { continue }
+        return canonicalSDKType(
+            name, module: module, localTopLevelNames: localTopLevelNames)
+    }
+    return nil
 }
 
 struct SDKNominalParts {
@@ -2163,6 +2511,14 @@ func collectSDKProtocolDeclarations(
             guard !guarded, let protocolDecl = decl.as(ProtocolDeclSyntax.self)
             else { return }
             sdkProtocols.insert(type)
+            if let eraser = sdkTypeEraser(
+                in: nominal.attributes, module: module,
+                localTopLevelNames: localTopLevelNames) {
+                sdkProtocolErasers[type] = eraser
+            }
+            if nominal.attributes.trimmedDescription.contains("@_marker") {
+                sdkMarkerProtocols.insert(type)
+            }
             let refinements = nominal.inheritance?.inheritedTypes.map {
                 canonicalSDKType($0.type.trimmedDescription, module: module,
                     localTopLevelNames: localTopLevelNames)
@@ -2292,18 +2648,68 @@ func recordSDKProtocolConsumingMethod(
     }
 }
 
+/// Resolve a protocol spelling after every SDK declaration pass has run.
+/// `normalize` intentionally removes module qualifiers for code generation;
+/// metadata needs to recover the canonical identity when exactly one imported
+/// protocol owns that normalized name.
+func sdkProtocolIdentity(
+    _ raw: String,
+    module: String,
+    localTopLevelNames: Set<String>
+) -> String? {
+    let declared = canonicalSDKType(
+        raw, module: module, localTopLevelNames: localTopLevelNames)
+    if sdkProtocols.contains(declared) { return declared }
+    let matches = sdkProtocols.filter {
+        normalize($0) == normalize(declared)
+    }
+    return matches.count == 1 ? matches.first : nil
+}
+
 func recordSDKNominalConformances(
     type: String,
     inheritanceClause: InheritanceClauseSyntax?,
     module: String,
     localTopLevelNames: Set<String>
 ) {
-    let conformances = Set(inheritanceClause?.inheritedTypes.map {
-        canonicalSDKType(
+    // Imported protocol qualifiers are normalized out of ordinary type
+    // spellings. Recover only a unique identity; ambiguity stays fail-closed.
+    let conformances = Set(inheritanceClause?.inheritedTypes.compactMap {
+        sdkProtocolIdentity(
             $0.type.trimmedDescription, module: module,
             localTopLevelNames: localTopLevelNames)
-    } ?? []).intersection(sdkProtocols)
+    } ?? [])
     sdkNominalConformances[type, default: []].formUnion(conformances)
+}
+
+/// Retain conditional generic conformances as executable generation facts.
+/// `Array: ScaleDomain where Element: Plottable` and
+/// `ClosedRange: ScaleDomain where Bound: Plottable` are two instances of the
+/// same shape; the runtime container kind and the interface requirements are
+/// enough to materialize either for every representable element type.
+func recordSDKGenericConformance(
+    type: String,
+    inheritanceClause: InheritanceClauseSyntax?,
+    whereClause: GenericWhereClauseSyntax?,
+    module: String,
+    localTopLevelNames: Set<String>
+) {
+    let normalizedType = normalize(type)
+    guard let parameters = sdkNominalGenericParameters[normalizedType],
+          !parameters.isEmpty else { return }
+    let protocols = Set(inheritanceClause?.inheritedTypes.compactMap {
+        sdkProtocolIdentity(
+            $0.type.trimmedDescription, module: module,
+            localTopLevelNames: localTopLevelNames)
+    } ?? [])
+    guard !protocols.isEmpty else { return }
+    var requirements = sdkNominalGenericConstraints[normalizedType] ?? [:]
+    collectWhereClause(whereClause, into: &requirements)
+    sdkGenericConformances.append(.init(
+        nominal: normalizedType,
+        genericParameters: parameters,
+        requirements: requirements,
+        protocols: protocols))
 }
 
 func collectSDKProtocolMetadata(
@@ -2345,9 +2751,14 @@ func collectSDKProtocolMetadata(
         guard usable(nominal.modifiers, nominal.attributes) else { return }
         let childPath = path + [nominal.name]
         if !nominal.isProtocol {
+            let type = "\(module).\(childPath.joined(separator: "."))"
             recordSDKNominalConformances(
-                type: "\(module).\(childPath.joined(separator: "."))",
+                type: type,
                 inheritanceClause: nominal.inheritance, module: module,
+                localTopLevelNames: localTopLevelNames)
+            recordSDKGenericConformance(
+                type: type, inheritanceClause: nominal.inheritance,
+                whereClause: nil, module: module,
                 localTopLevelNames: localTopLevelNames)
         }
         collectSDKProtocolMetadata(
@@ -2372,6 +2783,11 @@ func collectSDKProtocolMetadata(
         module: module, localTopLevelNames: localTopLevelNames)
     recordSDKNominalConformances(
         type: extended, inheritanceClause: extensionDecl.inheritanceClause,
+        module: module, localTopLevelNames: localTopLevelNames)
+    recordSDKGenericConformance(
+        type: extended,
+        inheritanceClause: extensionDecl.inheritanceClause,
+        whereClause: extensionDecl.genericWhereClause,
         module: module, localTopLevelNames: localTopLevelNames)
 
     let associatedTypes = publicSDKTypealiases(
@@ -2575,6 +2991,12 @@ func collectSDKFrameworkConfigurationMembers(
 let protocolMetadataInterfaceFiles =
     primaryInterfaceFiles + supportingInterfaceFiles
     + [foundationInterfaceFile, stdlibInterfaceFile].compactMap { $0 }
+
+// These are GLOBAL passes, not three passes per module. A framework can add a
+// conditional conformance to a generic nominal declared by another module
+// (`ClosedRange: ScaleDomain` is one ordinary instance). Every nominal shape
+// must therefore exist before any extension conformance is interpreted;
+// interface file order is not a semantic dependency.
 for support in protocolMetadataInterfaceFiles {
     let localNames = topLevelSDKNames(in: support.file)
     for statement in support.file.statements {
@@ -2583,12 +3005,18 @@ for support in protocolMetadataInterfaceFiles {
             in: decl, module: support.module, path: [],
             localTopLevelNames: localNames, guarded: false)
     }
+}
+for support in protocolMetadataInterfaceFiles {
+    let localNames = topLevelSDKNames(in: support.file)
     for statement in support.file.statements {
         guard case .decl(let decl) = statement.item else { continue }
         collectSDKProtocolMetadata(
             in: decl, module: support.module, path: [],
             localTopLevelNames: localNames, guarded: false)
     }
+}
+for support in protocolMetadataInterfaceFiles {
+    let localNames = topLevelSDKNames(in: support.file)
     for statement in support.file.statements {
         guard case .decl(let decl) = statement.item else { continue }
         collectSDKFrameworkConfigurationMembers(
@@ -3020,6 +3448,7 @@ for file in targetOverlayFiles {
 // SwiftUI parameters reuse the exact same selected nominal set.
 let platformGeneration = try generatePlatformBridge()
 platformTypeFrameworks = platformGeneration.typeFrameworks
+platformDirectRuntimeTypeNames = platformGeneration.directRuntimeTypeNames
 let foundationReferencePropertyGeneration =
     try generateFoundationReferenceProperties()
 
@@ -3418,11 +3847,26 @@ func processInit(
     let availabilityClauses = interfaceAvailabilitiesByType[
         structName, default: []
     ].union(minimumTargetAvailabilities(initDecl.attributes))
-    for specialization in associatedGenericSpecializations(
+    let specializations = associatedGenericSpecializations(
         generics, parameters: parameters
     ).flatMap({
         uninhabitedGenericSpecializations($0, parameters: parameters)
-    }) {
+    }).flatMap({
+        concreteConformanceSpecializations($0, parameters: parameters)
+    })
+    if specializations.isEmpty {
+        let blocker = "<no concrete generic specialization>"
+        initBlockers[blocker, default: 0] += 1
+        if ProcessInfo.processInfo.environment[
+            "BRIDGEGEN_DUMP_BLOCKED"
+        ] != nil {
+            print(
+                "   blocked[\(blocker)] init \(structName)"
+                    + "\(initDecl.signature.parameterClause.trimmedDescription)"
+                    + " generics=\(generics)")
+        }
+    }
+    for specialization in specializations {
         let analyzed = parameters.map { analyzeParameter(
             $0, generics: specialization) }
         if requiresPlatformParameter,
@@ -3512,11 +3956,45 @@ func processInit(
 struct StaticFactoryVariant {
     let type: String
     let member: String
+    /// The concrete result after applying interface generic requirements.
+    /// Several specializations share the explicit `Base.member` spelling;
+    /// runtime contextual lookup uses this metadata to retain only the
+    /// specialization promised by its expected type.
+    let resultType: String
     /// A `static var`: emitted without a call, matched at arity zero.
     let isProperty: Bool
     let variant: Variant
 
-    var key: String { type + "." + member + "|" + variant.key }
+    var key: String {
+        type + "." + member + "|" + variant.key + "->" + resultType
+    }
+}
+
+func staticFactoryResultType(
+    _ declared: String, enclosing typeName: String,
+    specialization: Generics
+) -> String {
+    let substitutions = specialization.reduce(into: [String: String]()) {
+        result, entry in
+        if case .concrete(let concrete) = entry.value {
+            result[entry.key] = concrete
+        }
+    }
+    var result = normalize(substitutingTypeIdentifiers(
+        declared, substitutions))
+    // Some interfaces return the bare enclosing nominal and let its generic
+    // arguments be inferred from a constrained extension. Reconstruct that
+    // instantiation from the nominal's declared parameter order when every
+    // argument is concrete; otherwise the honest result remains the base.
+    if result == typeName,
+       let parameterNames = sdkNominalGenericParameters[typeName],
+       !parameterNames.isEmpty {
+        let arguments = parameterNames.compactMap { substitutions[$0] }
+        if arguments.count == parameterNames.count {
+            result += "<" + arguments.joined(separator: ", ") + ">"
+        }
+    }
+    return result
 }
 
 var staticFactoryVariants: [StaticFactoryVariant] = []
@@ -3569,36 +4047,56 @@ func processStaticFactory(
         staticFactoryBlockers["variadic", default: 0] += 1
         return
     }
-    let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
-    if let blocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
-        staticFactoryBlockers[blocked.blocker ?? "?", default: 0] += 1
-        return
-    }
-    for selection in parameterSelections(analyzed) {
-        let candidate = StaticFactoryVariant(
-            type: typeName,
-            member: function.name.text,
-            isProperty: false,
-            variant: Variant(
-                name: typeName + "." + function.name.text,
-                params: selection.params.map { .init(analyzed: $0) },
-                trailingClosureIndex: selection.trailingClosureIndex,
-                isDisfavoredOverload: false,
-                inheritedFrameworkRequirements: frameworkRequirements.union(
-                    platformFrameworkRequirements(function.attributes)),
-                targetImportRequirements: [],
-                unavailableTargetEnvironments: [],
-                minimumTargetAvailabilities: [],
-                preservesSemanticValue: preservesSemanticValue))
-        if staticFactorySeenKeys.insert(candidate.key).inserted {
-            staticFactoryVariants.append(candidate)
+    var generated = false
+    var firstBlocker: String?
+    for specialization in concreteConformanceSpecializations(
+        generics,
+        parameters: parameters,
+        additionalTypes: [returnType]
+    ) {
+        let analyzed = parameters.map {
+            analyzeParameter($0, generics: specialization)
         }
+        if let blocked = analyzed.first(where: {
+            $0.mapping == nil && !$0.hasDefault
+        }) {
+            firstBlocker = firstBlocker ?? blocked.blocker ?? "?"
+            continue
+        }
+        generated = true
+        for selection in parameterSelections(analyzed) {
+            let candidate = StaticFactoryVariant(
+                type: typeName,
+                member: function.name.text,
+                resultType: staticFactoryResultType(
+                    returnType, enclosing: typeName,
+                    specialization: specialization),
+                isProperty: false,
+                variant: Variant(
+                    name: typeName + "." + function.name.text,
+                    params: selection.params.map { .init(analyzed: $0) },
+                    trailingClosureIndex: selection.trailingClosureIndex,
+                    isDisfavoredOverload: false,
+                    inheritedFrameworkRequirements: frameworkRequirements.union(
+                        platformFrameworkRequirements(function.attributes)),
+                    targetImportRequirements: [],
+                    unavailableTargetEnvironments: [],
+                    minimumTargetAvailabilities: [],
+                    preservesSemanticValue: preservesSemanticValue))
+            if staticFactorySeenKeys.insert(candidate.key).inserted {
+                staticFactoryVariants.append(candidate)
+            }
+        }
+    }
+    if !generated, let firstBlocker {
+        staticFactoryBlockers[firstBlocker, default: 0] += 1
     }
 }
 
 func processStaticFactory(
     _ typeName: String, _ variable: VariableDeclSyntax,
-    guarded: Bool, frameworkRequirements: Set<String>,
+    generics: Generics, guarded: Bool,
+    frameworkRequirements: Set<String>,
     preservesSemanticValue: Bool
 ) {
     guard isPublicSDKDecl(variable.modifiers),
@@ -3615,6 +4113,9 @@ func processStaticFactory(
         let candidate = StaticFactoryVariant(
             type: typeName,
             member: identifier.identifier.text,
+            resultType: staticFactoryResultType(
+                annotation.type.trimmedDescription, enclosing: typeName,
+                specialization: generics),
             isProperty: true,
             variant: Variant(
                 name: typeName + "." + identifier.identifier.text,
@@ -3651,7 +4152,7 @@ func collectStaticFactories(
         }
         if let variable = member.decl.as(VariableDeclSyntax.self) {
             processStaticFactory(
-                typeName, variable, guarded: guarded,
+                typeName, variable, generics: generics, guarded: guarded,
                 frameworkRequirements: frameworkRequirements,
                 preservesSemanticValue: preservesSemanticValue)
         }
@@ -4089,6 +4590,317 @@ for file in interfaceFiles {
     }
 }
 
+/// Discover non-View result-builder protocols from every public declaration,
+/// including declarations whose outer constructor cannot itself be generated
+/// yet. A builder's closure result generic and its conformance are interface
+/// facts independent of whether that consuming API is currently reachable;
+/// using only already-generated consumers creates a coverage cycle (the
+/// builder's leaves can never become reachable because the leaves are what
+/// would make the consumer reachable).
+var ambiguousInterfaceResultBuilderProtocols: Set<String> = []
+
+func collectInterfaceResultBuilders(
+    in declaration: DeclSyntax,
+    inheritedGenerics: Generics = [:]
+) {
+    func inspect(
+        _ parameters: FunctionParameterListSyntax,
+        generics: Generics
+    ) {
+        for parameter in parameters {
+            var type = parameter.type
+            var builder: String?
+            func inspectAttributes(_ attributes: AttributeListSyntax) {
+                for element in attributes {
+                    guard let attribute = element.as(AttributeSyntax.self)
+                    else { continue }
+                    let name = normalize(
+                        attribute.attributeName.trimmedDescription)
+                    if name.hasSuffix("Builder") { builder = name }
+                }
+            }
+            inspectAttributes(parameter.attributes)
+            while let attributed = type.as(AttributedTypeSyntax.self) {
+                inspectAttributes(attributed.attributes)
+                type = attributed.baseType
+            }
+            guard let builder,
+                  let closure = type.as(FunctionTypeSyntax.self) else {
+                continue
+            }
+            let result = normalize(
+                closure.returnClause.type.trimmedDescription)
+            guard case .constraints(let constraints)? = generics[result]
+            else { continue }
+            let resultProtocols = constraints.filter { constraint in
+                let erasers = sdkProtocolErasers.filter {
+                    normalize($0.key) == normalize(constraint)
+                }
+                guard erasers.count == 1,
+                      let protocolType = erasers.first?.key else {
+                    return false
+                }
+                // View builders already have their own generated modifier and
+                // constructor plane. This pass is for protocol-valued builder
+                // output that must retain a non-View conformance.
+                return !protocolClosure(of: protocolType).contains(where: {
+                    normalize($0) == "View"
+                })
+            }
+            guard resultProtocols.count == 1,
+                  let resultProtocol = resultProtocols.first else { continue }
+            if let existing = interfaceResultBuilders[resultProtocol],
+               existing != builder {
+                ambiguousInterfaceResultBuilderProtocols.insert(
+                    resultProtocol)
+                interfaceResultBuilders.removeValue(forKey: resultProtocol)
+            } else if !ambiguousInterfaceResultBuilderProtocols.contains(
+                resultProtocol) {
+                interfaceResultBuilders[resultProtocol] = builder
+            }
+        }
+    }
+
+    if let structure = declaration.as(StructDeclSyntax.self) {
+        var generics = inheritedGenerics
+        collectGenericClause(structure.genericParameterClause, into: &generics)
+        collectWhereClause(structure.genericWhereClause, into: &generics)
+        for member in structure.memberBlock.members {
+            collectInterfaceResultBuilders(
+                in: member.decl, inheritedGenerics: generics)
+        }
+        return
+    }
+    if let enumeration = declaration.as(EnumDeclSyntax.self) {
+        var generics = inheritedGenerics
+        collectGenericClause(enumeration.genericParameterClause, into: &generics)
+        collectWhereClause(enumeration.genericWhereClause, into: &generics)
+        for member in enumeration.memberBlock.members {
+            collectInterfaceResultBuilders(
+                in: member.decl, inheritedGenerics: generics)
+        }
+        return
+    }
+    if let protocolDeclaration = declaration.as(ProtocolDeclSyntax.self) {
+        for member in protocolDeclaration.memberBlock.members {
+            collectInterfaceResultBuilders(
+                in: member.decl, inheritedGenerics: inheritedGenerics)
+        }
+        return
+    }
+    if let extensionDeclaration = declaration.as(ExtensionDeclSyntax.self) {
+        var generics = inheritedGenerics
+        collectWhereClause(
+            extensionDeclaration.genericWhereClause, into: &generics)
+        for member in extensionDeclaration.memberBlock.members {
+            collectInterfaceResultBuilders(
+                in: member.decl, inheritedGenerics: generics)
+        }
+        return
+    }
+    if let function = declaration.as(FunctionDeclSyntax.self) {
+        var generics = inheritedGenerics
+        collectGenericClause(function.genericParameterClause, into: &generics)
+        collectWhereClause(function.genericWhereClause, into: &generics)
+        inspect(function.signature.parameterClause.parameters,
+                generics: generics)
+        return
+    }
+    if let initializer = declaration.as(InitializerDeclSyntax.self) {
+        var generics = inheritedGenerics
+        collectGenericClause(initializer.genericParameterClause, into: &generics)
+        collectWhereClause(initializer.genericWhereClause, into: &generics)
+        inspect(initializer.signature.parameterClause.parameters,
+                generics: generics)
+    }
+}
+
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item else { continue }
+        collectInterfaceResultBuilders(in: declaration)
+    }
+}
+
+/// The interface can expose existential-safe result-builder composition in
+/// two independent ways. `@_typeEraser` preserves opaque protocol results,
+/// while a builder's `buildLimitedAvailability(any P) -> some P` accepts an
+/// already-concrete `P` leaf after it has crossed `Any`. Discover the latter
+/// capability from the builder surface before selecting leaf constructors so
+/// no result protocol needs a handwritten exception.
+struct GeneratedResultBuilderCarrierDescriptor {
+    let builder: String
+    let resultProtocol: String
+    let maximumArity: Int
+    let availabilityAttributes: [String]
+    let invocationAvailabilityAttributes: [String]
+
+    var availabilityCondition: String? {
+        let clauses = invocationAvailabilityAttributes.compactMap {
+            attribute -> String? in
+            guard attribute.hasPrefix("@available("),
+                  attribute.hasSuffix(")"),
+                  !attribute.contains("unavailable"),
+                  !attribute.contains("deprecated"),
+                  !attribute.contains("obsoleted") else {
+                return nil
+            }
+            return String(attribute.dropFirst("@available(".count).dropLast())
+        }
+        return clauses.isEmpty ? nil : clauses.joined(separator: ", ")
+    }
+}
+
+let generatedResultBuilderCarriers: [
+    String: GeneratedResultBuilderCarrierDescriptor
+] = Dictionary(uniqueKeysWithValues: interfaceResultBuilders.compactMap {
+    resultProtocol, builder
+        -> (String, GeneratedResultBuilderCarrierDescriptor)? in
+    var eraser: FunctionDeclSyntax?
+    var eraserAcceptsExistentialDirectly = false
+    var maximumArity = 0
+    var hasVariadicBuildBlock = false
+    var builderAvailabilityAttributes: [String] = []
+
+    @MainActor
+    func availabilityAttributes(
+        from attributes: AttributeListSyntax
+    ) -> [String] {
+        attributes.compactMap { attribute -> String? in
+            guard let syntax = attribute.as(AttributeSyntax.self),
+                  syntax.attributeName.trimmedDescription == "available" else {
+                return nil
+            }
+            return syntax.trimmedDescription
+        }
+    }
+
+    @MainActor
+    func inspectBuilderMembers(
+        _ members: MemberBlockItemListSyntax,
+        declarationAttributes: AttributeListSyntax
+    ) {
+        let functions = members.compactMap {
+            $0.decl.as(FunctionDeclSyntax.self)
+        }
+        guard functions.contains(where: {
+            $0.name.text == "buildLimitedAvailability"
+                || $0.name.text == "buildBlock"
+        }) else {
+            return
+        }
+        builderAvailabilityAttributes.append(contentsOf:
+            availabilityAttributes(from: declarationAttributes))
+        for function in functions {
+            if function.name.text == "buildLimitedAvailability",
+               let parameter = function.signature.parameterClause
+                .parameters.first {
+                let parameterType = normalize(
+                    parameter.type.trimmedDescription)
+                    .replacingOccurrences(of: " ", with: "")
+                let returnType = normalize(
+                    function.signature.returnClause?.type
+                        .trimmedDescription ?? "")
+                    .replacingOccurrences(of: " ", with: "")
+                let constraints = genericConstraints(of: function)
+                let genericInput = constraints[parameterType].map {
+                    facts -> Bool in
+                    guard case .constraints(let protocols) = facts else {
+                        return false
+                    }
+                    return protocols.contains(resultProtocol)
+                } ?? false
+                let directExistential =
+                    parameterType == "any\(resultProtocol)"
+                let opaqueInput =
+                    parameterType == "some\(resultProtocol)"
+                if returnType.contains(resultProtocol),
+                   directExistential
+                    || opaqueInput
+                    || (genericInput
+                        && !eraserAcceptsExistentialDirectly) {
+                    eraser = function
+                    eraserAcceptsExistentialDirectly = directExistential
+                }
+            }
+            if function.name.text == "buildBlock" {
+                if function.signature.parameterClause.parameters.contains(
+                    where: {
+                        normalize($0.type.trimmedDescription)
+                            .contains("repeat each")
+                    }) {
+                    hasVariadicBuildBlock = true
+                }
+                let constraints = genericConstraints(of: function)
+                let servesProtocol = constraints.values.contains {
+                    facts in
+                    guard case .constraints(let protocols) = facts else {
+                        return false
+                    }
+                    return protocols.contains(resultProtocol)
+                }
+                if servesProtocol {
+                    maximumArity = max(
+                        maximumArity,
+                        function.signature.parameterClause.parameters
+                            .count)
+                }
+            }
+        }
+    }
+
+    for file in interfaceFiles {
+        for statement in file.statements {
+            guard case .decl(let declaration) = statement.item else {
+                continue
+            }
+            if let ext = declaration.as(ExtensionDeclSyntax.self),
+               normalize(ext.extendedType.trimmedDescription) == builder {
+                inspectBuilderMembers(
+                    ext.memberBlock.members,
+                    declarationAttributes: ext.attributes)
+            } else if let structure = declaration.as(StructDeclSyntax.self),
+                      normalize(structure.name.text) == builder {
+                inspectBuilderMembers(
+                    structure.memberBlock.members,
+                    declarationAttributes: structure.attributes)
+            }
+        }
+    }
+    guard let eraser, maximumArity > 0,
+          !hasVariadicBuildBlock || maximumArity > 1 else {
+        return nil
+    }
+    let eraserAvailability = availabilityAttributes(
+        from: eraser.attributes)
+    let availability = Array(Set(
+        builderAvailabilityAttributes
+            + eraserAvailability
+    )).sorted()
+    return (
+        resultProtocol,
+        GeneratedResultBuilderCarrierDescriptor(
+            builder: builder,
+            resultProtocol: resultProtocol,
+            maximumArity: maximumArity,
+            availabilityAttributes: availability,
+            invocationAvailabilityAttributes: eraserAvailability)
+    )
+})
+
+let supportedResultBuilderProtocols = Set(
+    generatedResultBuilderCarriers.keys)
+
+let erasableResultBuilderProtocols = Set(
+    interfaceResultBuilders.keys.filter { resultProtocol in
+        sdkProtocolErasers.filter {
+            normalize($0.key) == normalize(resultProtocol)
+        }.count == 1
+    })
+
+let constructibleResultBuilderProtocols =
+    erasableResultBuilderProtocols.union(supportedResultBuilderProtocols)
+
 // Pass RB: concrete leaves of interface-declared non-View result builders.
 // Their native values must retain protocol conformance until the generated
 // typed carrier composes them. Eligibility comes from the demanded builder
@@ -4101,7 +4913,6 @@ var extensionResultBuilderConformances: [
         frameworkRequirements: Set<String>
     )
 ] = [:]
-let demandedResultBuilderProtocols = Set(interfaceResultBuilders.keys)
 
 for file in interfaceFiles {
     for statement in file.statements {
@@ -4114,7 +4925,7 @@ for file in interfaceFiles {
             ext.inheritanceClause?.inheritedTypes.map {
                 normalize($0.type.trimmedDescription)
             } ?? []
-        ).intersection(demandedResultBuilderProtocols)
+        ).intersection(constructibleResultBuilderProtocols)
         guard !protocols.isEmpty else { continue }
         let type = normalize(ext.extendedType.trimmedDescription)
         var generics = extensionResultBuilderConformances[type]?.generics
@@ -4155,7 +4966,7 @@ for file in interfaceFiles {
             structure.inheritanceClause?.inheritedTypes.map {
                 normalize($0.type.trimmedDescription)
             } ?? []
-        ).intersection(demandedResultBuilderProtocols)
+        ).intersection(constructibleResultBuilderProtocols)
         let extensionInfo = extensionResultBuilderConformances[name]
         guard !direct.isEmpty || extensionInfo != nil,
               !viewStructs.contains(name) else {
@@ -4174,6 +4985,81 @@ for file in interfaceFiles {
         resultBuilderContentInfo[name] = (
             direct.union(extensionInfo?.protocols ?? []),
             generics, guarded, frameworks)
+    }
+}
+
+// A concrete protocol-conforming leaf retains its conformance across `Any`;
+// the interface mechanisms above prove that the runtime can preserve or
+// compose it again. Generate those leaves before the demanded-value pass so
+// their wrapper parameters participate in the same demand graph as every View
+// constructor parameter. Opaque results remain separately gated by
+// `@_typeEraser` at the invocation site.
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item,
+              let structure = declaration.as(StructDeclSyntax.self),
+              let info = resultBuilderContentInfo[structure.name.text],
+              !info.protocols.isDisjoint(
+                with: constructibleResultBuilderProtocols) else {
+            continue
+        }
+        collectStaticFactories(
+            in: structure.memberBlock.members,
+            type: structure.name.text,
+            generics: info.generics,
+            guarded: info.guarded,
+            frameworkRequirements: info.frameworkRequirements,
+            preservesSemanticValue: true)
+        for member in structure.memberBlock.members {
+            guard let initializer = member.decl.as(
+                InitializerDeclSyntax.self),
+                  isUsable(initializer.attributes) else { continue }
+            processInit(
+                structure.name.text, initializer,
+                generics: info.generics,
+                guarded: info.guarded,
+                frameworkRequirements: info.frameworkRequirements,
+                preservesSemanticValue: true)
+        }
+    }
+}
+
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let declaration) = statement.item,
+              let extensionDeclaration = declaration.as(
+                ExtensionDeclSyntax.self),
+              isUsable(extensionDeclaration.attributes) else { continue }
+        let type = normalize(
+            extensionDeclaration.extendedType.trimmedDescription)
+        guard let info = resultBuilderContentInfo[type],
+              !info.protocols.isDisjoint(
+                with: constructibleResultBuilderProtocols) else { continue }
+        var generics = info.generics
+        collectWhereClause(
+            extensionDeclaration.genericWhereClause, into: &generics)
+        let guarded = info.guarded
+            || needsAvailabilityGuard(extensionDeclaration.attributes)
+        let frameworks = info.frameworkRequirements.union(
+            platformFrameworkRequirements(
+                extensionDeclaration.attributes))
+        collectStaticFactories(
+            in: extensionDeclaration.memberBlock.members,
+            type: type,
+            generics: generics,
+            guarded: guarded,
+            frameworkRequirements: frameworks,
+            preservesSemanticValue: true)
+        for member in extensionDeclaration.memberBlock.members {
+            guard let initializer = member.decl.as(
+                InitializerDeclSyntax.self),
+                  isUsable(initializer.attributes) else { continue }
+            processInit(
+                type, initializer, generics: generics,
+                guarded: guarded,
+                frameworkRequirements: frameworks,
+                preservesSemanticValue: true)
+        }
     }
 }
 
@@ -4199,7 +5085,10 @@ for overlay in swiftUICrossImportFiles {
                 guarded: extGuarded,
                 frameworkRequirements:
                     platformFrameworkRequirements(ext.attributes).union(
-                        [overlay.triggeringModule]),
+                        [
+                            overlay.triggeringModule,
+                            overlay.overlayModule,
+                        ]),
                 targetImportRequirements: [overlay.triggeringModule],
                 inheritedTargetEnvironmentExclusions:
                     unavailableTargetEnvironments(ext.attributes),
@@ -4358,6 +5247,15 @@ for file in interfaceFiles {
                 specializedValueStructGenerics(
                     generics, parameterNames: parameterNames, arguments: $0)
             }
+        for specialization in specializations {
+            collectStaticFactories(
+                in: structure.memberBlock.members,
+                type: name,
+                generics: specialization,
+                guarded: guarded,
+                frameworkRequirements: frameworkRequirements,
+                preservesSemanticValue: true)
+        }
         for member in structure.memberBlock.members {
             guard let initializer = member.decl.as(
                 InitializerDeclSyntax.self),
@@ -4411,6 +5309,15 @@ for file in interfaceFiles {
                         extendedName] ?? [],
                     arguments: $0)
             }
+        for specialization in specializations {
+            collectStaticFactories(
+                in: extensionDeclaration.memberBlock.members,
+                type: extendedName,
+                generics: specialization,
+                guarded: guarded,
+                frameworkRequirements: frameworkRequirements,
+                preservesSemanticValue: true)
+        }
         for member in extensionDeclaration.memberBlock.members {
             guard let initializer = member.decl.as(
                 InitializerDeclSyntax.self),
@@ -4480,8 +5387,7 @@ let platformSemanticAdapterVariants: [PlatformSemanticAdapterVariant] = {
 
 // MARK: - SDK member sweep
 
-/// Foundation value types whose instance surface the generated-members tier
-/// serves.
+/// SDK value types whose instance surface the generated-members tier serves.
 /// Receiver downcasts run against the host's dynamic type, so only types a
 /// `.host` value actually carries belong here (boxes like URLComponentsBox
 /// keep their own dynamic type and never reach this table).
@@ -4497,11 +5403,43 @@ let foundationMemberTypes: Set<String> = [
     // Generic value carrier (genericStructCarriers): swept with UnitType
     // substituted to Dimension, constructed/cast as Measurement<Dimension>.
     "Measurement",
-    // Charts value-plane carrier (swept from the Charts swiftinterface):
-    // interpreted axis builders hand its thresholds straight back to real
-    // AxisMarks. NumberBins stays out — it is generic over Value.
-    "DateBins",
 ]
+
+/// A concrete collection declared by an imported UI framework is a native
+/// value-plane carrier: framework APIs can return it, while its elements and
+/// bounds can cross the interpreter through the structural collection tier.
+/// Derive these receivers from protocol conformance and nominal genericity.
+/// This admits DateBins today and automatically admits the next non-generic
+/// SDK collection without adding a framework or type-name branch.
+let primaryConcreteCollectionMemberTypes: Set<String> = Set(
+    sdkNominalConformances.compactMap {
+        canonicalType, conformances -> String? in
+        guard let module = canonicalType.split(separator: ".").first.map(
+            String.init),
+            primaryInterfaceFrameworks.contains(module),
+            // A nested nominal can implicitly capture generic parameters from
+            // its enclosing type even when its own declaration has no generic
+            // clause. Until that enclosing substitution is concrete it is not
+            // a native carrier type. Top-level nominals have no such hidden
+            // context.
+            canonicalType.split(separator: ".").count == 2,
+            (sdkNominalGenericParameters[normalize(canonicalType)] ?? []).isEmpty
+        else { return nil }
+        let normalized = normalize(canonicalType)
+        guard !normalized.split(separator: ".").contains(where: {
+            $0.hasPrefix("_")
+        }) else { return nil }
+        let closure = conformances.reduce(into: Set<String>()) {
+            $0.formUnion(protocolClosure(of: $1))
+        }
+        let collectionProtocols: Set<String> = [
+            "Sequence", "Collection", "BidirectionalCollection",
+            "RandomAccessCollection",
+        ]
+        guard !Set(closure.map(normalize)).isDisjoint(
+            with: collectionProtocols) else { return nil }
+        return normalized
+    })
 
 /// A non-generic SDK View can cross the runtime as its real native value.
 /// Sweep only members whose result preserves that receiver type; this is the
@@ -4566,6 +5504,7 @@ let associatedMemberTypeKeys = associatedPlainMemberTypes.union(
     Set(genericStructCarriers.keys).subtracting(
         foundationalGenericStructCarrierKeys))
 let memberTypes = foundationMemberTypes
+    .union(primaryConcreteCollectionMemberTypes)
     .union(concreteViewMemberTypes).union(associatedMemberTypeKeys)
 
 var currentGenericSubstitution: (from: String, to: String)?
@@ -4613,11 +5552,14 @@ func memberMapping(for normalized: String) -> TypeMapping? {
         return .init(tag: "dimension", cast: "%@ as! Dimension")
     case "Measurement<Dimension>":
         return .init(tag: "measurement", cast: "%@ as! Measurement<Dimension>")
-    case "Calendar.Component":
-        return .init(tag: "calendarComponent", cast: "%@ as! Calendar.Component")
-    case "Set<Calendar.Component>":
-        return .init(tag: "calendarComponentSet", cast: "%@ as! Set<Calendar.Component>")
     default:
+        // Contextual SDK values and their homogeneous Set compositions carry
+        // the same generated coercion in every member tier. The declaration's
+        // type structure selects this path; no Foundation nominal is named.
+        if contextualSDKTypeName(matching: normalized) != nil
+            || genericTypeParts(normalized)?.base == "Set" {
+            return directMapping(for: normalized)
+        }
         // Concrete View members reuse the complete SwiftUI coercion model.
         // Foundation stays on its deliberately narrower value-plane mapping,
         // so growing this tier cannot silently widen unrelated SDK methods.
@@ -4735,9 +5677,10 @@ struct CarrierInit {
 var carrierInits: [CarrierInit] = []
 
 /// Concrete SDK value types reached as parameters of an interface-declared
-/// throwing initializer. Their own public, mechanically coercible initializers
-/// are generated below so overload validation receives the real native value
-/// instead of an interpreted storage-shaped surrogate.
+/// throwing initializer or an emitted SwiftUI/Charts gateway. Their own public,
+/// mechanically coercible initializers are generated below so overload
+/// validation receives the real native value instead of an interpreted
+/// storage-shaped surrogate.
 var throwingConstructorValueParameterTypes: Set<String> = []
 
 struct NativeValueInit {
@@ -5122,7 +6065,8 @@ for file in interfaceFiles {
 func processNativeValueInitializer(
     typeName: String,
     _ initDecl: InitializerDeclSyntax,
-    guarded: Bool
+    guarded: Bool,
+    generics: Generics = [:]
 ) {
     guard hasModifier(initDecl.modifiers, "public"),
           initDecl.optionalMark == nil,
@@ -5137,7 +6081,7 @@ func processNativeValueInitializer(
     else { return }
 
     let analyzed = initDecl.signature.parameterClause.parameters.map {
-        analyzeParameter($0, generics: [:])
+        analyzeParameter($0, generics: generics)
     }
     guard analyzed.allSatisfy({ $0.mapping != nil }) else { return }
 
@@ -5151,9 +6095,9 @@ func processNativeValueInitializer(
     }
 }
 
-/// Walk nominal nesting and extensions from the Foundation swiftinterface.
-/// Selection is demand-derived from throwing-constructor parameter types;
-/// traversal never keys on an SDK nominal or initializer label.
+/// Walk nominal nesting and extensions from an SDK swiftinterface. Selection
+/// is demand-derived from generated parameter and carrier types; traversal
+/// never keys on an SDK module, nominal, or initializer label.
 func collectNativeValueInitializers(
     in declaration: DeclSyntax,
     path inheritedPath: [String],
@@ -5167,13 +6111,25 @@ func collectNativeValueInitializers(
     ) {
         let typeName = path.joined(separator: ".")
         for member in members {
-            if candidates.contains(typeName),
-               let initializer = member.decl.as(
-                InitializerDeclSyntax.self
-               ),
+            if let initializer = member.decl.as(InitializerDeclSyntax.self),
                memberIsUsable(initializer.attributes) {
-                processNativeValueInitializer(
-                    typeName: typeName, initializer, guarded: guarded)
+                let demandedTypes = candidates.filter { candidate in
+                    candidate == typeName
+                        || genericTypeParts(candidate)?.base == typeName
+                }.sorted()
+                for demandedType in demandedTypes {
+                    var generics: Generics = [:]
+                    if let parts = genericTypeParts(demandedType),
+                       let names = sdkNominalGenericParameters[typeName],
+                       names.count == parts.arguments.count {
+                        for (name, concrete) in zip(names, parts.arguments) {
+                            generics[name] = .concrete(concrete)
+                        }
+                    }
+                    processNativeValueInitializer(
+                        typeName: demandedType, initializer,
+                        guarded: guarded, generics: generics)
+                }
             } else {
                 collectNativeValueInitializers(
                     in: member.decl,
@@ -5236,20 +6192,43 @@ func collectNativeValueInitializers(
     }
 }
 
-if let foundationFile {
-    let candidates = Set(
-        throwingConstructorValueParameterTypes.filter {
-            directMapping(for: $0) == nil
-        })
-    for statement in foundationFile.statements {
+let throwingCandidates = Set(
+    throwingConstructorValueParameterTypes.filter {
+        directMapping(for: $0) == nil
+    })
+let generatedValueCandidates = Set(
+    (variants + initVariants).flatMap(\.params).compactMap {
+        parameter -> String? in
+        guard parameter.tag.hasPrefix("sdkEnum(\"") else { return nil }
+        return parameter.contextualType
+    })
+let nativeValueCandidates = throwingCandidates
+    .union(generatedValueCandidates)
+    .union(primaryConcreteCollectionMemberTypes)
+    .filter { candidate in
+        guard let parts = genericTypeParts(candidate) else {
+            return candidate != "Self"
+        }
+        // A generic spelling copied from another generic declaration
+        // (`IntegerFormatStyle<Self>`) is not an instantiation. Only arguments
+        // already carried by the runtime, plus the uninhabited shape marker,
+        // can produce a concrete native constructor.
+        return parts.arguments.allSatisfy {
+            directMapping(for: $0) != nil || normalize($0) == "Never"
+        }
+    }
+let nativeValueInterfaceFiles = primaryInterfaceFiles
+    + [foundationInterfaceFile].compactMap { $0 }
+for interface in nativeValueInterfaceFiles {
+    for statement in interface.file.statements {
         guard case .decl(let declaration) = statement.item else { continue }
         collectNativeValueInitializers(
             in: declaration, path: [], guarded: false,
-            candidates: candidates)
+            candidates: nativeValueCandidates)
     }
 }
 print(
-    "Foundation native constructor parameters: "
+    "SDK native constructor parameters: "
         + "\(Set(nativeValueInits.map(\.type)).count) value types, "
         + "\(nativeValueInits.count) call shapes")
 
@@ -5624,248 +6603,167 @@ let generatedRangeRemovalMutations =
 let generatedCaseTransformOperations =
     caseTransformOperations(in: stdlibFile)
 
-// Charts owns the axis value-plane carriers (DateBins/NumberBins) —
-// interpreted axis builders read `.thresholds` and hand the dates back
-// to real AxisMarks. Same sweep, same receiver gates.
-let chartsFile: SourceFileSyntax? = {
-    guard let path = interfacePath(framework: "Charts"),
-          let source = try? String(contentsOfFile: path, encoding: .utf8) else {
-        print("warning: no swiftinterface for Charts")
-        return nil
-    }
-    print("parsing Charts (\(source.count) chars)…")
-    return Parser.parse(source: source)
-}()
+// MARK: - Opaque protocol member sweep
 
-if let chartsFile {
-    sweepMemberFile(chartsFile)
-}
+/// An instance method declared on a protocol and returning `some` of that
+/// same protocol can cross a dynamic boundary exactly when the interface also
+/// declares `@_typeEraser`. This is the protocol-shaped sibling of generated
+/// View modifiers: the receiver differs, while parameter analysis, overload
+/// selection, result builders, availability, and native invocation are the
+/// same shared machinery.
+struct OpaqueProtocolMemberVariant {
+    let protocolType: String
+    let eraserType: String
+    let variant: Variant
 
-struct GeneratedResultBuilderCarrierDescriptor {
-    let builder: String
-    let resultProtocol: String
-    let maximumArity: Int
-    let availabilityAttributes: [String]
-    let invocationAvailabilityAttributes: [String]
-
-    var availabilityCondition: String? {
-        let clauses = invocationAvailabilityAttributes.compactMap {
-            attribute -> String? in
-            guard attribute.hasPrefix("@available("),
-                  attribute.hasSuffix(")"),
-                  !attribute.contains("unavailable"),
-                  !attribute.contains("deprecated"),
-                  !attribute.contains("obsoleted") else {
-                return nil
-            }
-            return String(attribute.dropFirst("@available(".count).dropLast())
-        }
-        return clauses.isEmpty ? nil : clauses.joined(separator: ", ")
+    var key: String {
+        protocolType + "." + variant.key
     }
 }
 
-let generatedResultBuilderCarriers: [
-    String: GeneratedResultBuilderCarrierDescriptor
-] = Dictionary(uniqueKeysWithValues: interfaceResultBuilders.compactMap {
-    resultProtocol, builder
-        -> (String, GeneratedResultBuilderCarrierDescriptor)? in
-    var eraser: FunctionDeclSyntax?
-    var eraserAcceptsExistentialDirectly = false
-    var maximumArity = 0
-    var hasVariadicBuildBlock = false
-    var builderAvailabilityAttributes: [String] = []
+var opaqueProtocolMemberVariants: [OpaqueProtocolMemberVariant] = []
+var opaqueProtocolMemberSeenKeys: Set<String> = []
+var opaqueProtocolMemberBlockers: [String: Int] = [:]
 
-    @MainActor
-    func availabilityAttributes(
-        from attributes: AttributeListSyntax
-    ) -> [String] {
-        attributes.compactMap { attribute -> String? in
-            guard let syntax = attribute.as(AttributeSyntax.self),
-                  syntax.attributeName.trimmedDescription == "available" else {
-                return nil
-            }
-            return syntax.trimmedDescription
-        }
+func opaqueProtocolDescriptor(
+    for extendedType: String
+) -> (protocolType: String, eraserType: String)? {
+    let matches = sdkProtocolErasers.filter {
+        normalize($0.key) == normalize(extendedType)
     }
+    guard matches.count == 1, let match = matches.first else { return nil }
+    return (match.key, match.value)
+}
 
-    @MainActor
-    func inspectBuilderMembers(
-        _ members: MemberBlockItemListSyntax,
-        declarationAttributes: AttributeListSyntax
-    ) {
-        let functions = members.compactMap {
-            $0.decl.as(FunctionDeclSyntax.self)
-        }
-        guard functions.contains(where: {
-            $0.name.text == "buildLimitedAvailability"
-                || $0.name.text == "buildBlock"
-        }) else {
-            return
-        }
-        builderAvailabilityAttributes.append(contentsOf:
-            availabilityAttributes(from: declarationAttributes))
-        for function in functions {
-            if function.name.text == "buildLimitedAvailability",
-               let parameter = function.signature.parameterClause
-                .parameters.first {
-                let parameterType = normalize(
-                    parameter.type.trimmedDescription)
-                    .replacingOccurrences(of: " ", with: "")
-                let returnType = normalize(
-                    function.signature.returnClause?.type
-                        .trimmedDescription ?? "")
-                    .replacingOccurrences(of: " ", with: "")
-                let constraints = genericConstraints(of: function)
-                let genericInput = constraints[parameterType].map {
-                    facts -> Bool in
-                    guard case .constraints(let protocols) = facts else {
-                        return false
-                    }
-                    return protocols.contains(resultProtocol)
-                } ?? false
-                let directExistential =
-                    parameterType == "any\(resultProtocol)"
-                let opaqueInput =
-                    parameterType == "some\(resultProtocol)"
-                if returnType.contains(resultProtocol),
-                   directExistential
-                    || opaqueInput
-                    || (genericInput
-                        && !eraserAcceptsExistentialDirectly) {
-                    eraser = function
-                    eraserAcceptsExistentialDirectly = directExistential
-                }
-            }
-            if function.name.text == "buildBlock" {
-                if function.signature.parameterClause.parameters.contains(
-                    where: {
-                        normalize($0.type.trimmedDescription)
-                            .contains("repeat each")
-                    }) {
-                    hasVariadicBuildBlock = true
-                }
-                let constraints = genericConstraints(of: function)
-                let servesProtocol = constraints.values.contains {
-                    facts in
-                    guard case .constraints(let protocols) = facts else {
-                        return false
-                    }
-                    return protocols.contains(resultProtocol)
-                }
-                if servesProtocol {
-                    maximumArity = max(
-                        maximumArity,
-                        function.signature.parameterClause.parameters
-                            .count)
-                }
-            }
-        }
-    }
-
-    for file in interfaceFiles {
-        for statement in file.statements {
-            guard case .decl(let declaration) = statement.item else {
-                continue
-            }
-            if let ext = declaration.as(ExtensionDeclSyntax.self),
-               normalize(ext.extendedType.trimmedDescription) == builder {
-                inspectBuilderMembers(
-                    ext.memberBlock.members,
-                    declarationAttributes: ext.attributes)
-            } else if let structure = declaration.as(StructDeclSyntax.self),
-                      normalize(structure.name.text) == builder {
-                inspectBuilderMembers(
-                    structure.memberBlock.members,
-                    declarationAttributes: structure.attributes)
-            }
-        }
-    }
-    guard let eraser, maximumArity > 0,
-          !hasVariadicBuildBlock || maximumArity > 1 else {
-        return nil
-    }
-    let eraserAvailability = availabilityAttributes(
-        from: eraser.attributes)
-    let availability = Array(Set(
-        builderAvailabilityAttributes
-            + eraserAvailability
-    )).sorted()
-    return (
-        resultProtocol,
-        GeneratedResultBuilderCarrierDescriptor(
-            builder: builder,
-            resultProtocol: resultProtocol,
-            maximumArity: maximumArity,
-            availabilityAttributes: availability,
-            invocationAvailabilityAttributes: eraserAvailability)
-    )
-})
-
-let supportedResultBuilderProtocols = Set(
-    generatedResultBuilderCarriers.keys)
-
-// Only generate native leaves after proving that the interface also exposes
-// a carrier shape capable of composing every result. Candidate builders with
-// no existential eraser or only an unbounded parameter-pack block remain
-// blocked instead of leaking partial constructors into generated output.
-for file in interfaceFiles {
-    for statement in file.statements {
-        guard case .decl(let declaration) = statement.item,
-              let structure = declaration.as(StructDeclSyntax.self),
-              let info = resultBuilderContentInfo[structure.name.text],
-              !info.protocols.isDisjoint(
-                with: supportedResultBuilderProtocols) else {
-            continue
-        }
-        for member in structure.memberBlock.members {
-            guard let initializer = member.decl.as(
-                InitializerDeclSyntax.self),
-                  isUsable(initializer.attributes) else {
-                continue
-            }
-            processInit(
-                structure.name.text,
-                initializer,
-                generics: info.generics,
-                guarded: info.guarded,
-                frameworkRequirements: info.frameworkRequirements,
-                preservesSemanticValue: true)
-        }
-    }
+func returnsOpaqueReceiverProtocol(
+    _ returnType: String, protocolType: String
+) -> Bool {
+    normalize(returnType).filter { !$0.isWhitespace }
+        == "some" + normalize(protocolType).filter { !$0.isWhitespace }
 }
 
 for file in interfaceFiles {
     for statement in file.statements {
         guard case .decl(let declaration) = statement.item,
-              let ext = declaration.as(ExtensionDeclSyntax.self),
-              isUsable(ext.attributes) else {
-            continue
-        }
-        let type = normalize(ext.extendedType.trimmedDescription)
-        guard let info = resultBuilderContentInfo[type],
-              !info.protocols.isDisjoint(
-                with: supportedResultBuilderProtocols) else {
-            continue
-        }
-        var generics = info.generics
-        collectWhereClause(ext.genericWhereClause, into: &generics)
-        let guarded = info.guarded
-            || needsAvailabilityGuard(ext.attributes)
-        let frameworks = info.frameworkRequirements.union(
-            platformFrameworkRequirements(ext.attributes))
-        for member in ext.memberBlock.members {
-            guard let initializer = member.decl.as(
-                InitializerDeclSyntax.self),
-                  isUsable(initializer.attributes) else {
+              let extensionDeclaration = declaration.as(
+                ExtensionDeclSyntax.self),
+              isUsable(extensionDeclaration.attributes),
+              let descriptor = opaqueProtocolDescriptor(
+                for: extensionDeclaration.extendedType.trimmedDescription),
+              erasableResultBuilderProtocols.contains(where: {
+                normalize($0) == normalize(descriptor.protocolType)
+              })
+        else { continue }
+
+        var extensionGenerics: Generics = [:]
+        collectWhereClause(
+            extensionDeclaration.genericWhereClause,
+            into: &extensionGenerics)
+        let extensionAvailability = minimumTargetAvailabilities(
+            extensionDeclaration.attributes)
+        let extensionFrameworks = platformFrameworkRequirements(
+            extensionDeclaration.attributes)
+
+        for member in extensionDeclaration.memberBlock.members {
+            guard let function = member.decl.as(FunctionDeclSyntax.self),
+                  isPublicSDKDecl(function.modifiers),
+                  !hasModifier(function.modifiers, "static"),
+                  !hasModifier(function.modifiers, "class"),
+                  !hasModifier(function.modifiers, "mutating"),
+                  isUsable(function.attributes),
+                  function.signature.effectSpecifiers == nil,
+                  let returnType = function.signature.returnClause?.type
+                    .trimmedDescription,
+                  returnsOpaqueReceiverProtocol(
+                    returnType, protocolType: descriptor.protocolType),
+                  let first = function.name.text.first,
+                  first.isLetter,
+                  !function.name.text.hasPrefix("_") else {
                 continue
             }
-            processInit(
-                type,
-                initializer,
-                generics: generics,
-                guarded: guarded,
-                frameworkRequirements: frameworks,
-                preservesSemanticValue: true)
+
+            var generics = extensionGenerics
+            collectGenericClause(
+                function.genericParameterClause, into: &generics)
+            collectWhereClause(function.genericWhereClause, into: &generics)
+            let parameters = function.signature.parameterClause.parameters
+            guard !parameters.contains(where: { $0.ellipsis != nil }) else {
+                opaqueProtocolMemberBlockers["variadic", default: 0] += 1
+                continue
+            }
+
+            var generated = false
+            var firstBlocker: String?
+            for specialization in concreteConformanceSpecializations(
+                generics, parameters: parameters
+            ) {
+                let analyzed = parameters.map {
+                    analyzeParameter($0, generics: specialization)
+                }
+                let sharedGenericBlocked = Dictionary(
+                    grouping: analyzed.filter { $0.usesGeneric != nil },
+                    by: { $0.usesGeneric! }).values.contains { uses in
+                    let concretes = Set(uses.map(\.genericConcrete))
+                    let actionAnchored = !uses.contains {
+                        $0.mapping?.tag.hasPrefix("equatableAction") == true
+                    } || uses.contains { $0.mapping?.tag == "equatable" }
+                    return !actionAnchored || (uses.count > 1
+                        && (concretes.count != 1
+                            || concretes.first == nil))
+                }
+                if sharedGenericBlocked {
+                    firstBlocker = firstBlocker ?? "<shared generic>"
+                    continue
+                }
+                if let blocked = analyzed.first(where: {
+                    $0.mapping == nil && !$0.hasDefault
+                }) {
+                    firstBlocker = firstBlocker ?? blocked.blocker ?? "?"
+                    continue
+                }
+                generated = true
+                for selection in parameterSelections(analyzed) {
+                    let variant = Variant(
+                        name: function.name.text,
+                        params: selection.params.map {
+                            .init(analyzed: $0)
+                        },
+                        trailingClosureIndex:
+                            selection.trailingClosureIndex,
+                        isDisfavoredOverload: function.attributes.contains {
+                            $0.as(AttributeSyntax.self)?
+                                .attributeName.trimmedDescription
+                                == "_disfavoredOverload"
+                        },
+                        inheritedFrameworkRequirements:
+                            extensionFrameworks.union(
+                                platformFrameworkRequirements(
+                                    function.attributes)),
+                        targetImportRequirements: [],
+                        unavailableTargetEnvironments:
+                            unavailableTargetEnvironments(
+                                extensionDeclaration.attributes).union(
+                                    unavailableTargetEnvironments(
+                                        function.attributes)),
+                        minimumTargetAvailabilities:
+                            extensionAvailability.union(
+                                minimumTargetAvailabilities(
+                                    function.attributes)),
+                        preservesSemanticValue: true)
+                    let candidate = OpaqueProtocolMemberVariant(
+                        protocolType: descriptor.protocolType,
+                        eraserType: descriptor.eraserType,
+                        variant: variant)
+                    if opaqueProtocolMemberSeenKeys.insert(
+                        candidate.key).inserted {
+                        opaqueProtocolMemberVariants.append(candidate)
+                    }
+                }
+            }
+            if !generated, let firstBlocker {
+                opaqueProtocolMemberBlockers[
+                    firstBlocker, default: 0] += 1
+            }
         }
     }
 }
@@ -5894,6 +6792,8 @@ func supportsResultBuilders(_ variant: Variant) -> Bool {
 }
 
 let emittedModifierVariants = variants.filter(supportsResultBuilders)
+let emittedOpaqueProtocolMemberVariants = opaqueProtocolMemberVariants
+    .filter { supportsResultBuilders($0.variant) }
 
 /// A selection that drops defaulted parameters is only emitted when the
 /// remaining labels still name ONE initializer of that nominal. This is judged
@@ -5956,9 +6856,17 @@ newer-OS (guarded):     \(initRuntimeGuarded)
 ambiguous selections:   \(initAmbiguous)
 emitted variants:       \(emittedInitVariants.count)
 
+═══ Type-erased result-protocol members ═══
+emitted variants:       \(emittedOpaqueProtocolMemberVariants.count)
+receiver protocols:     \(Set(emittedOpaqueProtocolMemberVariants.map(\.protocolType)).count)
+
 ═══ Top blocking types ═══
 """)
-for (type, count) in parameterBlockers.sorted(by: { $0.value > $1.value }).prefix(25) {
+let allParameterBlockers = parameterBlockers.merging(
+    opaqueProtocolMemberBlockers, uniquingKeysWith: +)
+for (type, count) in allParameterBlockers.sorted(
+    by: { $0.value > $1.value }
+).prefix(25) {
     print(String(format: "%5d  %@", count, type))
 }
 
@@ -6088,11 +6996,34 @@ func contextualFactoryVariants(
     }
 }
 
-/// Factories whose concrete type a leading dot is the ONLY way to name.
-let sdkProtocolContextualFactoryVariants = contextualFactoryVariants(
-    sdkProtocolContextualFactoryDecls.map {
-        (concreteType: $0.concreteType, function: $0.function)
-    })
+/// Factories whose concrete type a leading dot is the ONLY way to name. Keep
+/// the declaring protocol beside every analyzed overload: a protocol-typed
+/// parameter must expose only factories visible through its own refinement
+/// closure, even when the concrete result also conforms to other protocols.
+struct SDKProtocolContextualFactoryVariantRecord {
+    let concreteType: String
+    let declaringProtocol: String
+    let variant: SDKContextualMethodVariant
+}
+
+let sdkProtocolContextualFactoryVariantRecords =
+    sdkProtocolContextualFactoryDecls.flatMap { declaration in
+        contextualFactoryVariants([(
+            concreteType: declaration.concreteType,
+            function: declaration.function
+        )]).map {
+            SDKProtocolContextualFactoryVariantRecord(
+                concreteType: declaration.concreteType,
+                declaringProtocol: declaration.declaringProtocol,
+                variant: $0)
+        }
+    }
+let sdkProtocolContextualFactoryVariants: [SDKContextualMethodVariant] = {
+    var seen: Set<String> = []
+    return sdkProtocolContextualFactoryVariantRecords
+        .map(\.variant)
+        .filter { seen.insert($0.key).inserted }
+}()
 
 /// Factories declared on a nominal, which ENRICH a type without admitting one.
 ///
@@ -6129,6 +7060,8 @@ let emittedSDKEnumTypes: Set<String> = { @MainActor in
 
     reach((emittedModifierVariants + emittedInitVariants)
         .flatMap(\.params).map(\.tag))
+    reach(emittedOpaqueProtocolMemberVariants
+        .flatMap { $0.variant.params }.map(\.tag))
     // A PROTOCOL-extension factory's own concrete type is reachable BY the
     // factory: the leading dot is the only spelling a caller ever writes for
     // it. A nominal factory carries no such argument — see
@@ -6311,7 +7244,61 @@ let sdkContextualMethodsByType = Dictionary(
 let emittedSDKProtocolCompositions = Set(
     (emittedModifierVariants + emittedInitVariants)
         .flatMap(\.params)
-        .compactMap { sdkProtocolComposition(from: $0.tag) })
+        .compactMap { sdkProtocolComposition(from: $0.tag) }
+        + emittedOpaqueProtocolMemberVariants
+            .flatMap { $0.variant.params }
+            .compactMap { sdkProtocolComposition(from: $0.tag) })
+
+/// Resolve call-shaped protocol statics against the protocol composition that
+/// supplies their contextual type. The property is the full interface shape:
+/// visibility through protocol refinement, concrete-result conformance, and
+/// argument labels/types. If two concrete results expose the same shape, the
+/// native spelling is ambiguous too, so generation fails closed for that
+/// shape instead of choosing an SDK identity by ordering.
+func protocolContextualFactoryRecords(
+    for composition: String
+) -> [SDKProtocolContextualFactoryVariantRecord] {
+    let required = Set(composition.split(separator: "&").map(String.init))
+    let visible = required.reduce(into: Set<String>()) {
+        $0.formUnion(protocolClosure(of: $1))
+    }
+    let candidates = sdkProtocolContextualFactoryVariantRecords.filter {
+        visible.contains($0.declaringProtocol)
+            && nominal($0.concreteType, satisfies: required)
+    }
+    let byCallShape = Dictionary(grouping: candidates) { record in
+        record.variant.name + "|" + record.variant.params.map {
+            "\($0.label ?? "_"):\($0.tag):\($0.isOptional)"
+        }.joined(separator: ",")
+    }
+    var seen: Set<String> = []
+    return byCallShape.keys.sorted().flatMap {
+        shape -> [SDKProtocolContextualFactoryVariantRecord] in
+        let records = byCallShape[shape]!.sorted {
+            ($0.concreteType, $0.declaringProtocol, $0.variant.key)
+                < ($1.concreteType, $1.declaringProtocol, $1.variant.key)
+        }
+        guard Set(records.map(\.concreteType)).count == 1 else { return [] }
+        return records.compactMap { record in
+            let availability = targetAvailabilityClauses(
+                record.variant.minimumTargetAvailabilities
+            ).joined(separator: "&")
+            let key = record.variant.key + "|" + availability
+            return seen.insert(key).inserted ? record : nil
+        }
+    }.sorted {
+        ($0.variant.name, $0.variant.params.count, $0.variant.key)
+            < ($1.variant.name, $1.variant.params.count, $1.variant.key)
+    }
+}
+
+let emittedSDKProtocolFactoryRecords = Dictionary(uniqueKeysWithValues:
+    emittedSDKProtocolCompositions.sorted().map {
+        ($0, protocolContextualFactoryRecords(for: $0))
+    })
+let emittedSDKProtocolFactories = emittedSDKProtocolFactoryRecords.mapValues {
+    $0.map(\.variant)
+}
 let emittedSDKFrameworkConfigurationProtocols =
     sdkFrameworkConfigurationProtocols
         .filter { emittedSDKProtocolCompositions.contains($0.key) }
@@ -6335,12 +7322,21 @@ let emittedSupportingImportBlock = emittedSupportingImports.isEmpty
 let contextualImportModules = Dictionary(
     uniqueKeysWithValues: (primaryInterfaceFiles + supportingInterfaceFiles)
         .map { ($0.module, $0.importModule) })
-let emittedSDKProtocolModules = Set(
+let emittedSDKProtocolCompositionModules =
     emittedSDKProtocolCompositions.flatMap {
         $0.split(separator: "&").compactMap {
             $0.split(separator: ".").first.map(String.init)
         }
-    }.map { contextualImportModules[$0] ?? $0 })
+    }
+let emittedSDKProtocolFactoryModules =
+    emittedSDKProtocolFactoryRecords.values.flatMap { records in
+        records.compactMap {
+            $0.concreteType.split(separator: ".").first.map(String.init)
+        }
+    }
+let emittedSDKProtocolModules = Set(
+    (emittedSDKProtocolCompositionModules + emittedSDKProtocolFactoryModules)
+        .map { contextualImportModules[$0] ?? $0 })
 let emittedSDKProtocolImports = emittedSDKProtocolModules.sorted()
     .map { "import \($0)" }
     .joined(separator: "\n")
@@ -6632,6 +7628,7 @@ func generatedProtocolOpeningCall(
         "p\($0.index)"
     }.joined(separator: ", ")
     return [
+        "        @MainActor",
         "        func generatedInvoke<\(genericParameters)>(\(parameters)) -> \(resultType) {",
         "            return \(returnedExpression)",
         "        }",
@@ -6850,14 +7847,22 @@ let chunks = stride(from: 0, to: sorted.count, by: chunkSize).map {
     Array(sorted[$0..<min($0 + chunkSize, sorted.count)])
 }
 
-let generatedCrossImportTriggers = Set(
-    swiftUICrossImportFiles.map(\.triggeringModule)
-)
 let emittedCrossImportTriggers = Set(
     emittedModifierVariants.flatMap(\.targetImportRequirements)
-).intersection(generatedCrossImportTriggers)
-let generatedCrossImportImports = emittedCrossImportTriggers.sorted().map {
-    "#if canImport(\($0))\nimport \($0)\n#endif"
+)
+let emittedCrossImportOverlays = swiftUICrossImportFiles.filter {
+    emittedCrossImportTriggers.contains($0.triggeringModule)
+}.sorted {
+    ($0.triggeringModule, $0.overlayModule)
+        < ($1.triggeringModule, $1.overlayModule)
+}
+let generatedCrossImportImports = emittedCrossImportOverlays.map {
+    let condition = [
+        $0.triggeringModule,
+        $0.overlayModule,
+    ].map(platformNativeImportCondition).joined(separator: " && ")
+    return "#if \(condition)\nimport \($0.triggeringModule)\n"
+        + "import \($0.overlayModule)\n#endif"
 }.joined(separator: "\n")
 let generatedCrossImportImportBlock = generatedCrossImportImports.isEmpty
     ? "" : "\(generatedCrossImportImports)\n"
@@ -7010,6 +8015,27 @@ func swiftUIMagicConstructorAdapterCall(
     }
 }
 
+/// The protocol itself declares how an opaque native result crosses an
+/// existential boundary (`@_typeEraser(AnyChartContent)`, and the same shape
+/// for any future result-builder protocol). A generated leaf constructor must
+/// apply that eraser before returning through `Any`; otherwise Swift's opaque
+/// conformance is lost and handwritten code has to reconstruct each leaf.
+func resultBuilderProtocolEraser(for variant: Variant) -> String? {
+    guard let info = resultBuilderContentInfo[variant.name] else {
+        return nil
+    }
+    let candidates = info.protocols.intersection(
+        erasableResultBuilderProtocols
+    ).compactMap { resultProtocol -> String? in
+        let matches = sdkProtocolErasers.filter {
+            normalize($0.key) == normalize(resultProtocol)
+        }.map(\.value)
+        return Set(matches).count == 1 ? matches.first : nil
+    }
+    let unique = Set(candidates)
+    return unique.count == 1 ? unique.first : nil
+}
+
 func initEntryCode(_ variant: Variant) -> String {
     let specs = variant.params
         .map(paramSpecCode)
@@ -7027,6 +8053,8 @@ func initEntryCode(_ variant: Variant) -> String {
         lines.append(
             "        return " + adapted.replacingOccurrences(
                 of: "\n", with: "\n        "))
+    } else if let eraser = resultBuilderProtocolEraser(for: variant) {
+        lines.append("        return \(eraser)(erasing: \(constructed))")
     } else {
         // Generated View initializers retain their concrete native result.
         // ViewRegistry erases only when rendering; interface-generated
@@ -7089,7 +8117,7 @@ func staticFactoryEntryCode(_ factory: StaticFactoryVariant) -> String {
     let variant = factory.variant
     let specs = variant.params.map(paramSpecCode).joined(separator: ", ")
     var lines = [
-        "    register(&t, \"\(variant.name)\", [\(specs)]) { v in"
+        "    register(&t, \"\(variant.name)\", [\(specs)], resultType: \(String(reflecting: factory.resultType))) { v in"
     ]
     lines.append(contentsOf: generatedCallPreamble(variant))
     // A `static var` is read, never called; a `static func` takes the same
@@ -7257,7 +8285,7 @@ extension GeneratedResultBuilderCarriers {
 let generatedResultBuilderNominals = resultBuilderContentInfo.compactMap {
     name, info -> (String, [String])? in
     let protocols = info.protocols.intersection(
-        supportedResultBuilderProtocols).sorted()
+        constructibleResultBuilderProtocols).sorted()
     return protocols.isEmpty ? nil : (name, protocols)
 }.sorted { $0.0 < $1.0 }
 
@@ -7297,6 +8325,206 @@ print(
     "wrote \(resultBuildersPath) "
         + "(\(generatedResultBuilderCarriers.count) carriers)")
 
+// MARK: - Emit type-erased opaque protocol members
+
+func generatedResultBuilderCarrierTypeName(
+    _ resultProtocol: String
+) -> String {
+    resultProtocol.split {
+        !($0.isLetter || $0.isNumber)
+    }.map(String.init).joined() + "GeneratedCarrier"
+}
+
+let sortedOpaqueProtocolMembers = emittedOpaqueProtocolMemberVariants.sorted {
+    ($0.protocolType, $0.variant.name,
+     $0.variant.isDisfavoredOverload ? 1 : 0,
+     $0.variant.params.count, $0.key)
+        < ($1.protocolType, $1.variant.name,
+           $1.variant.isDisfavoredOverload ? 1 : 0,
+           $1.variant.params.count, $1.key)
+}
+let opaqueProtocolMembersByProtocol: [
+    String: [OpaqueProtocolMemberVariant]
+] = Dictionary(
+    grouping: sortedOpaqueProtocolMembers, by: { $0.protocolType })
+
+func generatedOpaqueProtocolInvocation(
+    _ member: OpaqueProtocolMemberVariant
+) -> String {
+    let variant = member.variant
+    let specs = variant.params.map(paramSpecCode).joined(separator: ", ")
+    var lines = [variant.params.isEmpty
+        ? "if GeneratedDispatch.contextualMethodArguments([], args, context) != nil {"
+        : "if let v = GeneratedDispatch.contextualMethodArguments([\(specs)], args, context) {"]
+    lines.append(contentsOf: generatedCallPreamble(variant).map {
+        String($0.dropFirst(min(8, $0.prefix { $0 == " " }.count)))
+    })
+    let call = generatedCall(
+        "receiver.`\(variant.name)`", variant)
+    let erased = "\(member.eraserType)(erasing: \(call))"
+    if let opened = generatedProtocolOpeningCall(
+        variant, resultType: "RuntimeValue",
+        returnedExpression: ".native(\(erased))"
+    ) {
+        lines.append(contentsOf: opened.map {
+            String($0.dropFirst(min(8, $0.prefix { $0 == " " }.count)))
+        })
+    } else {
+        lines.append("    return .native(\(erased))")
+    }
+    lines.append("}")
+    var source = lines.joined(separator: "\n")
+
+    var availabilityConditions: [String] = []
+    let target = targetAvailabilityClauses(
+        variant.minimumTargetAvailabilities)
+    if !target.isEmpty {
+        availabilityConditions.append(target.joined(separator: ", "))
+    }
+    let carrierConditions = Set(variant.params.compactMap {
+        parameter -> String? in
+        guard let descriptor = resultBuilderDescriptor(
+            from: parameter.tag) else { return nil }
+        return generatedResultBuilderCarriers[
+            descriptor.resultProtocol
+        ]?.availabilityCondition
+    })
+    if carrierConditions.count > 1 {
+        fatalError(
+            "\(member.key) combines incompatible result-builder carriers")
+    }
+    if let carrier = carrierConditions.first {
+        availabilityConditions.append(carrier)
+    }
+    for condition in availabilityConditions.reversed() {
+        source = "if #available(\(condition)) {\n"
+            + indentGeneratedSource(source) + "\n}"
+    }
+    return compileGuarded(source, for: variant)
+}
+
+var opaqueProtocolMembersOutput = """
+// GENERATED by BridgeGen from protocol methods returning `some Self` and
+// their interface-declared @_typeEraser contracts.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+// \(sortedOpaqueProtocolMembers.count) variants across
+// \(opaqueProtocolMembersByProtocol.count) erased result protocols.
+import Charts
+import Foundation
+import SwiftUI
+\(emittedSupportingImportBlock)import SwiftInterpreter
+
+extension GeneratedOpaqueProtocolMembers {
+    @MainActor
+    static func member(_ name: String, on value: Any) -> RuntimeValue? {
+
+"""
+
+for (protocolType, members) in opaqueProtocolMembersByProtocol.sorted(
+    by: { $0.key < $1.key }
+) {
+    guard let eraserType = Set(members.map { $0.eraserType }).first,
+          Set(members.map { $0.eraserType }).count == 1 else {
+        fatalError("opaque protocol \(protocolType) has ambiguous erasers")
+    }
+    opaqueProtocolMembersOutput += """
+        if let receiver = value as? \(eraserType),
+           let result = member(name, on: receiver) {
+            return result
+        }
+
+"""
+    let resultBuilder = generatedResultBuilderCarriers.first {
+        normalize($0.key) == normalize(protocolType)
+    }
+    if let (resultProtocol, descriptor) = resultBuilder {
+        let carrier = generatedResultBuilderCarrierTypeName(resultProtocol)
+        let composition = """
+        if let values = value as? [\(eraserType)],
+           values.count <= \(descriptor.maximumArity) {
+            let receiver = \(eraserType)(erasing: \(carrier)(
+                values: values.map { $0 as any \(protocolType) }))
+            if let result = member(name, on: receiver) {
+                return result
+            }
+        }
+"""
+        if let condition = descriptor.availabilityCondition {
+            opaqueProtocolMembersOutput += "        if #available(\(condition)) {\n"
+            opaqueProtocolMembersOutput += indentGeneratedSource(
+                composition).split(separator: "\n", omittingEmptySubsequences: false)
+                .map { "        " + $0 }.joined(separator: "\n")
+            opaqueProtocolMembersOutput += "\n        }\n\n"
+        } else {
+            opaqueProtocolMembersOutput += composition + "\n"
+        }
+    }
+}
+opaqueProtocolMembersOutput += """
+        return nil
+    }
+
+"""
+
+for (protocolType, members) in opaqueProtocolMembersByProtocol.sorted(
+    by: { $0.key < $1.key }
+) {
+    let eraserType = members[0].eraserType
+    let byName = Dictionary(grouping: members, by: { $0.variant.name })
+    opaqueProtocolMembersOutput += """
+    @MainActor
+    private static func member(
+        _ name: String, on receiver: \(eraserType)
+    ) -> RuntimeValue? {
+        switch name {
+
+"""
+    for (name, overloads) in byName.sorted(by: { $0.key < $1.key }) {
+        opaqueProtocolMembersOutput += """
+        case \(String(reflecting: name)):
+            return .hostFunction(HostFunction(name: name) { args, context in
+
+"""
+        for overload in overloads.sorted(by: {
+            ($0.variant.isDisfavoredOverload ? 1 : 0,
+             $0.variant.params.count, $0.key)
+                < ($1.variant.isDisfavoredOverload ? 1 : 0,
+                   $1.variant.params.count, $1.key)
+        }) {
+            let invocation = generatedOpaqueProtocolInvocation(overload)
+            opaqueProtocolMembersOutput += invocation
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map { "                " + $0 }
+                .joined(separator: "\n") + "\n"
+        }
+        opaqueProtocolMembersOutput += """
+                let labels = args.arguments.map {
+                    $0.label ?? "_"
+                }.joined(separator: ":")
+                throw RuntimeError(message:
+                    "no matching generated \(protocolType).\(name)(\\(labels):)")
+            })
+
+"""
+    }
+    opaqueProtocolMembersOutput += """
+        default:
+            return nil
+        }
+    }
+
+"""
+}
+opaqueProtocolMembersOutput += "}\n"
+
+let opaqueProtocolMembersPath =
+    "Sources/SwiftUIBridge/Generated/GeneratedOpaqueProtocolMembers.swift"
+try opaqueProtocolMembersOutput.write(
+    toFile: opaqueProtocolMembersPath, atomically: true, encoding: .utf8)
+print(
+    "wrote \(opaqueProtocolMembersPath) "
+        + "(\(sortedOpaqueProtocolMembers.count) variants)")
+
 // MARK: - Emit contextual SDK value coercions
 
 var enumsOutput = """
@@ -7321,12 +8549,10 @@ enum GeneratedSDKEnumCoercions {
 /// contextual type a bare `.implicitMember` would — through the factory the
 /// interface declares rather than through storage.
 func contextualFactoryDispatchCode(
-    type: String, validationOnly: Bool
+    factories: [SDKContextualMethodVariant], expectedType: String,
+    validationOnly: Bool, existential: String? = nil
 ) -> String {
-    guard let factories = sdkContextualFactoriesByType[type],
-          !factories.isEmpty else {
-        return ""
-    }
+    guard !factories.isEmpty else { return "" }
     var output = ""
     output += "            if case .host(let any) = value,\n"
     output += "               let call = any as? ImplicitMemberCall,\n"
@@ -7349,20 +8575,37 @@ func contextualFactoryDispatchCode(
         let indent = !validationOnly && !availability.isEmpty
             ? "                    " : "                "
         output += "\(indent)if call.name == \(String(reflecting: factory.name)),\n"
-        output += "\(indent)   let arguments = GeneratedDispatch.contextualMethodArguments([\(specs)], call.arguments, context) {\n"
+        if factory.params.isEmpty {
+            output += "\(indent)   GeneratedDispatch.contextualMethodArguments([], call.arguments, context) != nil {\n"
+        } else {
+            output += "\(indent)   let arguments = GeneratedDispatch.contextualMethodArguments([\(specs)], call.arguments, context) {\n"
+        }
         if validationOnly {
             output += "\(indent)    return call\n"
         } else {
-            output += "\(indent)    return \(type).`\(factory.name)`(\(arguments))\n"
+            let invocation =
+                "\(factory.type).`\(factory.name)`(\(arguments))"
+            let result = existential.map {
+                "\(invocation) as any \($0)"
+            } ?? invocation
+            output += "\(indent)    return \(result)\n"
         }
         output += "\(indent)}\n"
         if !validationOnly, !availability.isEmpty {
             output += "                }\n"
         }
     }
-    output += "                throw RuntimeError(message: \"unknown \(type) contextual factory '.\\(call.name)'\")\n"
+    output += "                throw RuntimeError(message: \"unknown \(expectedType) contextual factory '.\\(call.name)'\")\n"
     output += "            }\n"
     return output
+}
+
+func contextualFactoryDispatchCode(
+    type: String, validationOnly: Bool
+) -> String {
+    contextualFactoryDispatchCode(
+        factories: sdkContextualFactoriesByType[type] ?? [],
+        expectedType: type, validationOnly: validationOnly)
 }
 
 func contextualMethodDispatchCode(
@@ -7399,7 +8642,11 @@ func contextualMethodDispatchCode(
         let indent = !validationOnly && !availability.isEmpty
             ? "                    " : "                "
         output += "\(indent)if chain.member == \(String(reflecting: method.name)),\n"
-        output += "\(indent)   let arguments = GeneratedDispatch.contextualMethodArguments([\(specs)], chain.arguments, context) {\n"
+        if method.params.isEmpty {
+            output += "\(indent)   GeneratedDispatch.contextualMethodArguments([], chain.arguments, context) != nil {\n"
+        } else {
+            output += "\(indent)   let arguments = GeneratedDispatch.contextualMethodArguments([\(specs)], chain.arguments, context) {\n"
+        }
         if validationOnly {
             output += "\(indent)    return chain\n"
         } else {
@@ -7618,7 +8865,8 @@ var protocolValuesOutput = """
 // conformances, and public protocol-extension `Self == Concrete` values.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(emittedSDKProtocolCompositions.count) protocol compositions.
-\(emittedSDKProtocolImportBlock)import SwiftInterpreter
+\(emittedSDKProtocolImportBlock)import Foundation
+import SwiftInterpreter
 
 struct GeneratedSDKFrameworkConfigurationProtocol {
     let configurationType: String
@@ -7795,14 +9043,57 @@ protocolValuesOutput += """
 """
 
 for composition in emittedSDKProtocolCompositions.sorted() {
-    guard let values = sdkProtocolCompositionValues[composition],
-          !values.isEmpty else { continue }
-    protocolValuesOutput += "        case \"\(composition)\":\n"
-    protocolValuesOutput += "            if case .host(let any) = value {\n"
-    for concreteType in Set(values.map(\.concreteType)).sorted() {
-        protocolValuesOutput += "                if let typed = any as? \(concreteType) { return typed }\n"
+    guard let values = sdkProtocolCompositionValues[composition] else {
+        continue
     }
-    protocolValuesOutput += "            }\n"
+    let requiredProtocols = Set(composition.split(separator: "&").map(
+        String.init))
+    let structural = runtimeStructuralProtocolSpecializations(
+        satisfying: requiredProtocols)
+    let factories = emittedSDKProtocolFactories[composition] ?? []
+    guard !values.isEmpty || !structural.isEmpty || !factories.isEmpty else {
+        continue
+    }
+    let existential = composition.replacingOccurrences(
+        of: "&", with: " & ")
+    let supportsConditionalCast = composition.split(separator: "&")
+        .map(String.init)
+        .allSatisfy { !sdkMarkerProtocols.contains($0) }
+    protocolValuesOutput += "        case \"\(composition)\":\n"
+    // Host payloads carry their real Swift conformance. Runtime-owned
+    // collections are emitted below from conditional-conformance metadata,
+    // with statically typed values so marker protocols remain legal too.
+    if supportsConditionalCast {
+        protocolValuesOutput += "            if case .host(let any) = value {\n"
+        protocolValuesOutput += "                let candidate = (any as? GeneratedMemberCarrier)?.generatedMemberValue ?? any\n"
+        protocolValuesOutput += "                if let typed = candidate as? any \(existential) { return typed }\n"
+        protocolValuesOutput += "            }\n"
+    } else {
+        protocolValuesOutput += "            if case .host(let any) = value {\n"
+        for concreteType in Set(values.map(\.concreteType)).sorted() {
+            protocolValuesOutput += "                if let typed = any as? \(concreteType) { return typed }\n"
+        }
+        protocolValuesOutput += "            }\n"
+    }
+    protocolValuesOutput += contextualFactoryDispatchCode(
+        factories: factories, expectedType: composition,
+        validationOnly: false, existential: existential)
+    for specialization in structural {
+        let function = switch specialization.nominal {
+        case .array: "generatedStructuralArray"
+        case .arraySlice: "generatedStructuralArraySlice"
+        case .range: "generatedStructuralRange"
+        case .closedRange: "generatedStructuralClosedRange"
+        }
+        protocolValuesOutput += "            if let context,\n"
+        protocolValuesOutput += "               let candidate = try? \(function)(\n"
+        protocolValuesOutput += "                value, elementTag: .\(specialization.elementMapping.tag),\n"
+        protocolValuesOutput += "                elementType: \(String(reflecting: specialization.elementType)),\n"
+        protocolValuesOutput += "                as: \(specialization.elementType).self, context: context\n"
+        protocolValuesOutput += "               ) {\n"
+        protocolValuesOutput += "                return candidate as any \(existential)\n"
+        protocolValuesOutput += "            }\n"
+    }
     protocolValuesOutput += "            guard case .implicitMember(let member) = value else {\n"
     protocolValuesOutput += "                throw RuntimeError(message: \"expected a \(composition) implicit member\")\n"
     protocolValuesOutput += "            }\n"
@@ -7879,7 +9170,11 @@ func memberMethodCode(_ variant: MemberVariant) -> String {
     let receiver = foundationalGenericStructCarrierKeys.contains(variant.type) ? variant.type : memberReceiverCast(for: variant.type)
     let declaration = "func \(receiver).\(variant.name)(\(parameters)) -> \(variant.returnType)"
     let specs = variant.params
-        .map { "ParamSpec(\($0.label.map { "\"\($0)\"" } ?? "nil"), .\($0.tag))" }
+        .map { parameter in
+            let label = parameter.label.map(String.init(reflecting:)) ?? "nil"
+            return "ParamSpec(\(label), .\(parameter.tag), contextualType: "
+                + "\(String(reflecting: parameter.contractType!)))"
+        }
         .joined(separator: ", ")
     let argList = variant.params.enumerated()
         .map { index, param in
@@ -7959,6 +9254,14 @@ let propertyChunks = stride(from: 0, to: sortedProperties.count, by: chunkSize).
 let methodChunks = stride(from: 0, to: sortedMembers.count, by: chunkSize).map {
     Array(sortedMembers[$0..<min($0 + chunkSize, sortedMembers.count)])
 }
+let generatedReceiverTypeNamesLiteral = Set(
+    sortedProperties.map(\.type) + sortedMembers.map(\.type)
+).sorted().map(String.init(reflecting:)).joined(separator: ",\n        ")
+let frameworkSuppliedReceiverTypeNamesLiteral =
+    primaryConcreteCollectionMemberTypes
+        .subtracting(Set(nativeValueInits.map(\.type)))
+        .sorted().map(String.init(reflecting:))
+        .joined(separator: ",\n        ")
 
 var membersOutput = """
 // GENERATED by BridgeGen from SDK swiftinterfaces.
@@ -7970,6 +9273,20 @@ import SwiftUI
 import SwiftInterpreter
 
 extension GeneratedMembers {
+    /// Canonical native receiver identities admitted by this generated table.
+    /// Runtime source-extension dispatch uses the same interface-derived set,
+    /// so replacing a compatibility carrier with its native value cannot
+    /// detach user extensions from the imported nominal.
+    static let generatedReceiverTypeNames: Set<String> = [
+        \(generatedReceiverTypeNamesLiteral)
+    ]
+    /// Concrete SDK collections whose interface exposes no initializer the
+    /// runtime can call. Their instances arrive only as framework-supplied
+    /// closure inputs/results; tests and semantic adapters can distinguish
+    /// that property without maintaining a nominal allowlist.
+    static let frameworkSuppliedReceiverTypeNames: Set<String> = [
+        \(frameworkSuppliedReceiverTypeNamesLiteral)
+    ]
     static let concreteViewMethodKeys: Set<String> = [
         \(concreteViewMethodKeysLiteral)
     ]
@@ -8071,8 +9388,8 @@ if throwingConstructorContracts.isEmpty {
 if nativeValueInits.isEmpty {
     membersOutput += "    static let nativeValueConstructors: [String: GeneratedConstructorSet] = [:]\n\n"
 } else {
-    membersOutput += "    /// Concrete value constructors selected transitively from throwing\n"
-    membersOutput += "    /// initializer parameter types in Foundation.swiftinterface.\n"
+    membersOutput += "    /// Concrete value constructors selected transitively from emitted\n"
+    membersOutput += "    /// gateways, value-plane carriers, and throwing initializer parameters.\n"
     membersOutput += "    static let nativeValueConstructors: [String: GeneratedConstructorSet] = [\n"
     for (type, entries) in Dictionary(
         grouping: nativeValueInits, by: \.type
@@ -8097,6 +9414,30 @@ if nativeValueInits.isEmpty {
             membersOutput += "            },\n"
         }
         membersOutput += "        ]),\n"
+    }
+    membersOutput += "    ]\n\n"
+}
+
+if runtimeStructuralValueAdapters.isEmpty {
+    membersOutput += "    static let structuralValueCoercions: [String: StructuralValueCoercion] = [:]\n\n"
+} else {
+    membersOutput += "    /// Concrete range adapters discovered from parameter type structure.\n"
+    membersOutput += "    static let structuralValueCoercions: [String: StructuralValueCoercion] = [\n"
+    for adapter in runtimeStructuralValueAdapters.sorted(by: {
+        $0.type < $1.type
+    }) {
+        let function = adapter.isClosed
+            ? "generatedStructuralClosedRange" : "generatedStructuralRange"
+        membersOutput += "        \(String(reflecting: adapter.type)): { value, context in\n"
+        membersOutput += "            guard let result = try \(function)(\n"
+        membersOutput += "                value, elementTag: .\(adapter.elementTag),\n"
+        membersOutput += "                elementType: \(String(reflecting: adapter.elementType)),\n"
+        membersOutput += "                as: \(adapter.elementType).self, context: context\n"
+        membersOutput += "            ) else {\n"
+        membersOutput += "                throw RuntimeError(message: \"expected a \(adapter.type) value\")\n"
+        membersOutput += "            }\n"
+        membersOutput += "            return result\n"
+        membersOutput += "        },\n"
     }
     membersOutput += "    ]\n\n"
 }
@@ -9633,8 +10974,6 @@ func probeArgument(for tag: String) -> String? {
     case "intArray": return "[1, 2]"
     case "intRange": return "2..<5"
     case "doubleRange": return "0.0...10.0"
-    case "calendarComponent": return ".month"
-    case "calendarComponentSet": return "[.year, .month]"
     default: return nil
     }
 }

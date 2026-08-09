@@ -1820,6 +1820,14 @@ extension Interpreter {
                 node: nil)
         }
 
+        // Source-declared generic symbols are looked up by their nominal
+        // head (`Loadable<Value>` -> `Loadable`), while an imported static
+        // factory needs the complete expected type to select its concrete
+        // specialization (`PlottableValue<Double>.value`). Keep both facts:
+        // erasing generic arguments for lexical lookup must not erase the
+        // contextual contract handed to a generated host adapter.
+        let contextualTypeName = typeName
+
         // `Loadable<V>` — generic applications resolve by their HEAD
         // (generics drop everywhere): a generic enum method's return
         // annotation must still turn `.loaded(x)` markers into cases.
@@ -1851,6 +1859,8 @@ extension Interpreter {
             visibleDeclaredType = lexicallyVisibleType(
                 named: typeName, from: lexicalOwnerFrames.last)
         }
+        let importedTypeName = contextualTypeName.contains("<")
+            ? contextualTypeName : typeName
         // Annotation names resolve in the LEXICAL scope of the declaration
         // they annotate: the running function's declaring type sees its own
         // nested types AND member typealiases first (WebRepositoryTests'
@@ -1967,6 +1977,7 @@ extension Interpreter {
         // generated member gateway in accessMember.
         if case .host(let any) = value,
            let call = any as? ImplicitMemberCall,
+           call.name != "init",
            let annotatedType = globals.lookup(typeName),
            case .hostFunction = annotatedType {
             let anchor = DeclReferenceExprSyntax(
@@ -1990,34 +2001,41 @@ extension Interpreter {
         // `.now`-style statics served by the bridge.
         if case .host(let any) = value, let call = any as? ImplicitMemberCall {
             if call.name == "init" {
-                if let ctor = registry?.hostObjectConstructor(named: typeName) {
+                if let ctor = registry?.hostObjectConstructor(
+                    named: importedTypeName
+                ) {
                     return try ctor.invoke(call.arguments, self)
                 }
                 if case .hostFunction(let builtin)? = globals.lookup(typeName) {
                     return try builtin.invoke(call.arguments, self)
                 }
             }
+            let marker = HostTypeMarker(name: importedTypeName)
             if let member = try readHostMember(
-                call.name, on: HostTypeMarker(name: typeName)) {
+                call.name, on: marker) {
                 if case .hostFunction(let function) = member {
                     return try function.invoke(call.arguments, self)
                 }
-                return member
+                // A bare member lookup may deliberately return the unresolved
+                // marker used by imported APIs. At a call site, give the
+                // methods-only registry its ordinary collision-rescue turn;
+                // generated same-result statics live there and can use the
+                // full expected generic type to filter their overload set.
+                if !member.carriesUnresolvedContextualMember {
+                    return member
+                }
+            }
+            if let method = registry?.hostMethod(call.name, on: marker) {
+                let anchor = DeclReferenceExprSyntax(
+                    baseName: .identifier(call.name))
+                return try invoke(
+                    method, with: call.arguments, node: anchor)
             }
         }
         if case .implicitMember(let memberName) = value,
            let member = try readHostMember(
-            memberName, on: HostTypeMarker(name: typeName)) {
+            memberName, on: HostTypeMarker(name: importedTypeName)) {
             return member
-        }
-        // `.success(x)` against a host-typed annotation (`Result<T, Error>`):
-        // the marker's static FUNCTION constructs the value (the bridge's
-        // Result carrier; head-only names — generics dropped above).
-        if case .host(let any) = value, let call = any as? ImplicitMemberCall,
-           case .hostFunction(let factory)? =
-               try readHostMember(
-                call.name, on: HostTypeMarker(name: typeName)) {
-            return try factory.invoke(call.arguments, self)
         }
         // A generic imported enum can remain fully semantic without a host
         // registry when BridgeGen proves its case-selective transform shape
@@ -2036,7 +2054,8 @@ extension Interpreter {
         // `.now.startOfMonth` — chained markers resolve their base against
         // the type, then the member (host natives and user extensions both).
         if case .host(let any) = value, let chained = any as? ChainedImplicitCall {
-            let resolvedBase = try resolveAnnotated(chained.base, typeName: typeName)
+            let resolvedBase = try resolveAnnotated(
+                chained.base, typeName: importedTypeName)
             let stillMarker: Bool = {
                 if case .implicitMember = resolvedBase { return true }
                 if case .host(let inner) = resolvedBase,
@@ -2091,7 +2110,7 @@ extension Interpreter {
         if case .host(let opaque) = value,
            opaque is ChainedImplicitCall || opaque is ImplicitMemberCall,
            let contextualized = registry?.contextualizeOpaqueHostValue(
-               value, as: typeName
+               value, as: importedTypeName
            ) {
             return contextualized
         }

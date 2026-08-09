@@ -953,15 +953,6 @@ public final class FileManagerBox {
     }
 }
 
-/// `Calendar.current` — backed by the real Foundation calendar.
-struct CalendarBox {
-    var calendar: Calendar
-
-    init(_ calendar: Calendar = .current) {
-        self.calendar = calendar
-    }
-}
-
 /// `calendar.dateComponents([.hour, .minute], from:to:)` results and
 /// `DateComponents()` builders — member reads AND writes hit real values.
 final class DateComponentsBox {
@@ -1027,79 +1018,6 @@ func modelFetchTypeName(from descriptor: RuntimeValue) -> String? {
         $0.trimmingCharacters(in: .whitespaces)
     }
     return (name?.isEmpty == false) ? name : nil
-}
-
-private func dateArg(
-    _ value: RuntimeValue?, context: EvalContext
-) -> Date? {
-    if case .host(let any)? = value, let date = any as? Date { return date }
-    if case .implicitMember("now")? = value {
-        if let resolved = try? context.sourceStaticMember(
-            named: "now", ofType: "Date"),
-           case .host(let any) = resolved,
-           let date = any as? Date {
-            return date
-        }
-        return Date()
-    }
-    // `to: .init()` — a bare Date construction in date position.
-    if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
-        if let interval = call.arguments.labeled("timeIntervalSince1970")?.doubleValue {
-            return Date(timeIntervalSince1970: interval)
-        }
-        if let interval = call.arguments.labeled("timeIntervalSinceNow")?.doubleValue {
-            return Date(timeIntervalSinceNow: interval)
-        }
-        if call.arguments.arguments.isEmpty { return Date() }
-    }
-    return nil
-}
-
-private func intArg(_ value: RuntimeValue?) -> Int? {
-    if let i = value?.intValue { return i }
-    // `.random(in: 1...100)` arriving without type context.
-    if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "random" {
-        let argument = call.arguments.labeled("in") ?? call.arguments.positional(0)
-        if let range = argument?.rangeValue?.halfOpenIntRange { return Int.random(in: range) }
-        if let range = argument?.rangeValue?.closedIntRange { return Int.random(in: range) }
-    }
-    return nil
-}
-
-/// DateComponents from a box OR an `.init(month: 1, minute: -1)` marker.
-private func dateComponentsArg(_ value: RuntimeValue?) -> DateComponents? {
-    if case .host(let any)? = value, let box = any as? DateComponentsBox {
-        return box.components
-    }
-    if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
-        var components = DateComponents()
-        components.year = call.arguments.labeled("year")?.intValue
-        components.month = call.arguments.labeled("month")?.intValue
-        components.day = call.arguments.labeled("day")?.intValue
-        components.hour = call.arguments.labeled("hour")?.intValue
-        components.minute = call.arguments.labeled("minute")?.intValue
-        components.second = call.arguments.labeled("second")?.intValue
-        components.weekday = call.arguments.labeled("weekday")?.intValue
-        return components
-    }
-    return nil
-}
-
-private func calendarComponent(_ value: RuntimeValue?) -> Calendar.Component? {
-    guard case .implicitMember(let name)? = value else { return nil }
-    switch name {
-    case "day": return .day
-    case "month": return .month
-    case "year": return .year
-    case "hour": return .hour
-    case "minute": return .minute
-    case "second": return .second
-    case "weekday": return .weekday
-    case "weekOfMonth": return .weekOfMonth
-    case "weekOfYear": return .weekOfYear
-    case "quarter": return .quarter
-    default: return nil
-    }
 }
 
 /// `calendar.dateInterval(of:for:)` results — start/end/duration reads.
@@ -1207,7 +1125,11 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         return configuration
     }
     if let column = tableColumnSpecMember(name, on: value) { return column }
-    if let chart = chartContentMember(name, on: value) { return chart }
+    if let generated = GeneratedOpaqueProtocolMembers.member(
+        name, on: value
+    ) {
+        return generated
+    }
     if let axis = axisValueMember(name, on: value) { return axis }
     if let container = value as? ModelContainerBox {
         if name == "mainContext" { return .native(container.context) }
@@ -1522,9 +1444,6 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             break
         }
     }
-    if let marker = value as? HostTypeMarker, marker.name == "Calendar", name == "current" {
-        return .native(CalendarBox())
-    }
     if let box = value as? FileManagerBox {
         switch name {
         case "urls":
@@ -1562,11 +1481,6 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return FileServiceOperations.hostFunction(named: name, on: box)
                 .map { .hostFunction($0) }
         }
-    }
-    // `Locale.current` — the real host locale (a device runs with one too).
-    if let marker = value as? HostTypeMarker, marker.name == "Locale",
-       name == "current" || name == "autoupdatingCurrent" {
-        return .native(Locale.current)
     }
     if let language = value as? Locale.Language {
         switch name {
@@ -1622,157 +1536,6 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .none(wrappedTypeName: "String")
             })
         default: return nil
-        }
-    }
-    if let box = value as? CalendarBox {
-        // Hand members own only the shapes they implement — anything else
-        // retries the generated table before erroring, so the box never
-        // shadows swept overloads (Calendar.date(bySetting:value:of:) …).
-        func generatedFallback(
-            _ member: String, _ args: CallArguments, _ ctx: EvalContext, or message: String
-        ) throws -> RuntimeValue {
-            if let set = GeneratedMembers.methods["Calendar.\(member)"] {
-                return try GeneratedDispatch.member(
-                    name: member, overloads: set, base: box.calendar, args: args, ctx: ctx)
-            }
-            throw RuntimeError(message: message)
-        }
-        switch name {
-        case "date":
-            return .hostFunction(HostFunction(name: "date") { args, ctx in
-                // `date(from: components)` — reconstitute from parts.
-                if let components = dateComponentsArg(args.labeled("from")) {
-                    return .native(box.calendar.date(from: components))
-                }
-                // `date(byAdding: .init(month: 1, minute: -1), to: d)` —
-                // components as a box or an .init marker.
-                if let components = dateComponentsArg(args.labeled("byAdding")),
-                   let to = dateArg(args.labeled("to"), context: ctx) {
-                    return .native(box.calendar.date(byAdding: components, to: to))
-                }
-                // `date(bySettingHour:minute:second:of:)`.
-                if let hour = args.labeled("bySettingHour")?.intValue,
-                   let of = dateArg(args.labeled("of"), context: ctx) {
-                    return .native(box.calendar.date(
-                        bySettingHour: hour,
-                        minute: args.labeled("minute")?.intValue ?? 0,
-                        second: args.labeled("second")?.intValue ?? 0,
-                        of: of
-                    ))
-                }
-                guard let component = calendarComponent(args.labeled("byAdding")),
-                      let amount = intArg(args.labeled("value")),
-                      let to = dateArg(args.labeled("to"), context: ctx) else {
-                    return try generatedFallback(
-                        "date", args, ctx,
-                        or: "date(byAdding:value:to:) needs a component, value, and Date")
-                }
-                return .native(box.calendar.date(
-                    byAdding: component, value: amount, to: to))
-            })
-        case "startOfDay":
-            return .hostFunction(HostFunction(name: "startOfDay") { args, ctx in
-                guard let date = dateArg(
-                    args.labeled("for"), context: ctx) else {
-                    throw RuntimeError(message: "startOfDay(for:) needs a Date")
-                }
-                return .native(box.calendar.startOfDay(for: date))
-            })
-        case "component":
-            return .hostFunction(HostFunction(name: "component") { args, ctx in
-                guard let component = calendarComponent(args.positional(0)),
-                      let date = dateArg(
-                        args.labeled("from"), context: ctx) else {
-                    throw RuntimeError(message: "component(_:from:) needs a component and Date")
-                }
-                return .native(box.calendar.component(component, from: date))
-            })
-        case "dateComponents":
-            return .hostFunction(HostFunction(name: "dateComponents") { args, ctx in
-                let set = Set((args.positional(0)?.collectionElements ?? [])
-                    .compactMap { calendarComponent($0) })
-                guard !set.isEmpty,
-                      let from = dateArg(
-                        args.labeled("from"), context: ctx) else {
-                    return try generatedFallback(
-                        "dateComponents", args, ctx,
-                        or: "dateComponents needs components and a from: Date")
-                }
-                if let to = dateArg(args.labeled("to"), context: ctx) {
-                    return .native(DateComponentsBox(components: box.calendar.dateComponents(set, from: from, to: to)))
-                }
-                return .native(DateComponentsBox(components: box.calendar.dateComponents(set, from: from)))
-            })
-        case "range":
-            return .hostFunction(HostFunction(name: "range") { args, ctx in
-                guard let smaller = calendarComponent(args.labeled("of") ?? args.positional(0)),
-                      let larger = calendarComponent(args.labeled("in")),
-                      let date = dateArg(
-                        args.labeled("for"), context: ctx) else {
-                    throw RuntimeError(message: "range(of:in:for:) needs two components and a Date")
-                }
-                return .native(box.calendar.range(
-                    of: smaller, in: larger, for: date))
-            })
-        case "monthSymbols":
-            return .native(box.calendar.monthSymbols.map { RuntimeValue.native($0) })
-        case "shortMonthSymbols":
-            return .native(box.calendar.shortMonthSymbols.map { RuntimeValue.native($0) })
-        case "weekdaySymbols":
-            return .native(box.calendar.weekdaySymbols.map { RuntimeValue.native($0) })
-        case "shortWeekdaySymbols":
-            return .native(box.calendar.shortWeekdaySymbols.map { RuntimeValue.native($0) })
-        case "isDateInToday", "isDateInTomorrow", "isDateInYesterday", "isDateInWeekend":
-            return .hostFunction(HostFunction(name: name) { args, ctx in
-                guard let date = dateArg(
-                    args.positional(0), context: ctx) else {
-                    throw RuntimeError(message: "\(name) needs a Date")
-                }
-                switch name {
-                case "isDateInTomorrow": return .native(box.calendar.isDateInTomorrow(date))
-                case "isDateInYesterday": return .native(box.calendar.isDateInYesterday(date))
-                case "isDateInWeekend": return .native(box.calendar.isDateInWeekend(date))
-                default: return .native(box.calendar.isDateInToday(date))
-                }
-            })
-        case "compare":
-            return .hostFunction(HostFunction(name: "compare") { args, ctx in
-                guard let lhs = dateArg(args.positional(0), context: ctx),
-                      let rhs = dateArg(args.labeled("to"), context: ctx),
-                      let granularity = calendarComponent(args.labeled("toGranularity")) else {
-                    return try generatedFallback(
-                        "compare", args, ctx,
-                        or: "compare(_:to:toGranularity:) needs two Dates and a component")
-                }
-                // The REAL ComparisonResult (prints as the twin does);
-                // `== .orderedSame` bridges by case name in Builtins.areEqual.
-                return .native(box.calendar.compare(lhs, to: rhs, toGranularity: granularity))
-            })
-        case "dateInterval":
-            return .hostFunction(HostFunction(name: "dateInterval") { args, ctx in
-                guard let component = calendarComponent(args.labeled("of")),
-                      let date = dateArg(
-                        args.labeled("for"), context: ctx) else {
-                    return try generatedFallback(
-                        "dateInterval", args, ctx,
-                        or: "dateInterval(of:for:) needs a component and a Date")
-                }
-                // Real DateInterval: the generated table serves its members,
-                // and it prints exactly what the compiled twin prints.
-                return .native(box.calendar.dateInterval(of: component, for: date))
-            })
-        case "isDate":
-            return .hostFunction(HostFunction(name: "isDate") { args, ctx in
-                guard let lhs = dateArg(args.positional(0), context: ctx),
-                      let rhs = dateArg(
-                        args.labeled("inSameDayAs"), context: ctx) else {
-                    return try generatedFallback(
-                        "isDate", args, ctx, or: "isDate(_:inSameDayAs:) needs two Dates")
-                }
-                return .native(box.calendar.isDate(lhs, inSameDayAs: rhs))
-            })
-        default:
-            return nil
         }
     }
     if let box = value as? DateIntervalBox {
@@ -1921,13 +1684,14 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         return .native(box.formatter.dateFormat ?? "")
     case "string":
         return .hostFunction(HostFunction(name: "string") { args, ctx in
-            guard let date = dateArg(
-                args.labeled("from") ?? args.positional(0),
-                context: ctx) else {
+            let operand = args.labeled("from") ?? args.positional(0)
+            let date = operand.flatMap {
+                ctx.resolveForBridge($0, typeName: "Date").hostPayload as? Date
+            }
+            guard let date else {
                 // An UNKNOWABLE operand (a date the merge couldn't produce)
                 // formats as the fresh string — "" — like every string
                 // context; genuinely wrong values still throw.
-                let operand = args.labeled("from") ?? args.positional(0)
                 if let operand, Coerce.isUnknowable(operand) || operand.isNil {
                     return .native("")
                 }
@@ -2110,8 +1874,8 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
         }
         return true // unknown locale markers keep the default — accepted
     case "calendar":
-        if case .host(let any) = newValue, let calendarBox = any as? CalendarBox {
-            box.formatter.calendar = calendarBox.calendar
+        if case .host(let any) = newValue, let calendar = any as? Calendar {
+            box.formatter.calendar = calendar
         }
         return true
     case "timeZone":
@@ -2141,14 +1905,6 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
     }
 }
 
-
-extension CalendarBox: GeneratedMemberCarrier, CustomStringConvertible {
-    var generatedMemberValue: Any { calendar }
-    func replacingGeneratedMemberValue(_ value: Any) -> Any? {
-        (value as? Calendar).map(CalendarBox.init)
-    }
-    public var description: String { String(describing: calendar) }
-}
 
 extension DateComponentsBox: GeneratedMemberCarrier, HostValueSemantic,
     CustomStringConvertible {

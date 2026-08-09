@@ -19,6 +19,20 @@ import SwiftInterpreter
         }
     }
 
+    /// `View.position(_:)` is declared over CGPoint in SwiftUICore. The
+    /// CoreGraphics mapping is type-shaped, so this assertion pins the
+    /// generated overload without adding a handwritten modifier gateway.
+    @Test func coreGraphicsPointOverloadComesFromGeneration() {
+        let pointVariants = GeneratedModifiers.table["position"]?
+            .byArity[1] ?? []
+        #expect(pointVariants.contains {
+            $0.params.map(\.label) == [nil]
+                && $0.params.map(\.tag)
+                    == [.nativeSwiftUIValue("CGPoint")]
+        })
+        #expect(ViewRegistry().modifiers["position"] == nil)
+    }
+
     /// The interface relates `onChange`'s observed Equatable generic to the
     /// old/new values supplied by its callback. BridgeGen must preserve that
     /// relationship so the callback receives source values, not display

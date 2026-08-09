@@ -384,6 +384,17 @@ public protocol EvalContext: AnyObject {
     func sourceStaticMember(
         named member: String, ofType typeName: String
     ) throws -> RuntimeValue?
+    /// Apply the interpreter's ordinary annotation semantics to a gateway
+    /// argument. Generated adapters use this single boundary for source
+    /// statics, imported contextual values, initializers, and same-type
+    /// factories instead of maintaining a second constructor dispatcher.
+    /// A live interpreter may pass along an unresolved intermediate marker;
+    /// it substitutes a concrete result only when its runtime type is proven
+    /// to satisfy `typeName`. Otherwise it preserves the original expression
+    /// for an interface-derived consumer to validate at the call boundary.
+    func resolveForBridge(
+        _ value: RuntimeValue, typeName: String
+    ) -> RuntimeValue
     /// Compare values with source-declared and synthesized equality when the
     /// context owns interpreted declarations. Native collection storage uses
     /// this witness for Set elements and Dictionary keys.
@@ -471,6 +482,12 @@ extension EvalContext {
         named member: String, ofType typeName: String
     ) throws -> RuntimeValue? {
         nil
+    }
+
+    public func resolveForBridge(
+        _ value: RuntimeValue, typeName: String
+    ) -> RuntimeValue {
+        value
     }
 
     public func collectionStorageValuesAreEqual(

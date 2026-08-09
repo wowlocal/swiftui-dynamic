@@ -19,9 +19,11 @@ enum GeneratedBindingValues {
     /// Keyed by the binding's VALUE type as the interfaces normalize it.
     static let adapters:
         [String: (Any, InterpretedBindingStorage) -> Any?] = [
+        "CGColor": { GeneratedBindingValueSupport.binding($0, $1, as: CGColor.self) },
         "Color": { GeneratedBindingValueSupport.binding($0, $1, as: Color.self) },
         "Data": { GeneratedBindingValueSupport.binding($0, $1, as: Data.self) },
         "Date": { GeneratedBindingValueSupport.binding($0, $1, as: Date.self) },
+        "Int": { GeneratedBindingValueSupport.binding($0, $1, as: Int.self) },
         "NavigationPath": { GeneratedBindingValueSupport.binding($0, $1, as: NavigationPath.self) },
         "NavigationSplitViewColumn": { GeneratedBindingValueSupport.binding($0, $1, as: NavigationSplitViewColumn.self) },
         "NavigationSplitViewVisibility": { GeneratedBindingValueSupport.binding($0, $1, as: NavigationSplitViewVisibility.self) },

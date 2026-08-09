@@ -61,7 +61,7 @@ enum ParamTag: Hashable {
     /// A public, non-generic native value declared by SwiftUI's interfaces.
     case nativeSwiftUIValue(String)
     case visibility, axisSet, edgeInsets, gradient, gridItems
-    case axis, annotationPosition
+    case axis
     case dimension, measurement
     case builder
     /// Interface-declared non-View result builder and the protocol its
@@ -89,7 +89,6 @@ enum ParamTag: Hashable {
     case date, url, data, stringArray
     case decimal, characterSet, indexSet, dateComponents, dateInterval
     case indexPath, intArray, intRange, doubleRange
-    case calendarComponent, calendarComponentSet
     /// A concrete contextual value family collected from the SDK interface:
     /// payload-free enum cases or same-type static properties on value types.
     /// The associated value is its normalized Swift type name.
@@ -123,6 +122,104 @@ extension ParamTag {
             return false
         }
     }
+}
+
+/// Reify interpreter collection syntax as the concrete stdlib shape selected
+/// by a generated conditional-conformance witness. BridgeGen supplies the
+/// element coercion and type from swiftinterface metadata; these helpers know
+/// only the runtime's structural array/range planes.
+@MainActor
+func generatedStructuralArray<Element>(
+    _ value: RuntimeValue,
+    elementTag: ParamTag,
+    elementType: String,
+    as: Element.Type,
+    context: EvalContext
+) throws -> [Element]? {
+    guard let elements = value.arrayValue else { return nil }
+    return try elements.map { element in
+        guard let typed = try GeneratedDispatch.coerce(
+            elementTag, element, context, contextualType: elementType
+        ) as? Element else {
+            throw RuntimeError(message: "generated structural element type mismatch")
+        }
+        return typed
+    }
+}
+
+@MainActor
+func generatedStructuralArraySlice<Element>(
+    _ value: RuntimeValue,
+    elementTag: ParamTag,
+    elementType: String,
+    as: Element.Type,
+    context: EvalContext
+) throws -> ArraySlice<Element>? {
+    try generatedStructuralArray(
+        value, elementTag: elementTag, elementType: elementType,
+        as: Element.self, context: context
+    ).map(ArraySlice.init)
+}
+
+@MainActor
+func generatedStructuralRange<Bound: Comparable>(
+    _ value: RuntimeValue,
+    elementTag: ParamTag,
+    elementType: String,
+    as: Bound.Type,
+    context: EvalContext
+) throws -> Range<Bound>? {
+    if case .host(let payload) = value {
+        if let direct = payload as? Range<Bound> { return direct }
+        if let carrier = payload as? GeneratedMemberCarrier,
+           let unwrapped = carrier.generatedMemberValue as? Range<Bound> {
+            return unwrapped
+        }
+    }
+    guard let range = value.rangeValue,
+          !range.includesUpperBound,
+          let lowerValue = range.lowerBound,
+          let upperValue = range.upperBound,
+          let lower = try GeneratedDispatch.coerce(
+            elementTag, lowerValue, context,
+            contextualType: elementType) as? Bound,
+          let upper = try GeneratedDispatch.coerce(
+            elementTag, upperValue, context,
+            contextualType: elementType) as? Bound else {
+        return nil
+    }
+    return lower..<upper
+}
+
+@MainActor
+func generatedStructuralClosedRange<Bound: Comparable>(
+    _ value: RuntimeValue,
+    elementTag: ParamTag,
+    elementType: String,
+    as: Bound.Type,
+    context: EvalContext
+) throws -> ClosedRange<Bound>? {
+    if case .host(let payload) = value {
+        if let direct = payload as? ClosedRange<Bound> { return direct }
+        if let carrier = payload as? GeneratedMemberCarrier,
+           let unwrapped = carrier.generatedMemberValue
+                as? ClosedRange<Bound> {
+            return unwrapped
+        }
+    }
+    guard let range = value.rangeValue,
+          range.includesUpperBound,
+          let lowerValue = range.lowerBound,
+          let upperValue = range.upperBound,
+          let lower = try GeneratedDispatch.coerce(
+            elementTag, lowerValue, context,
+            contextualType: elementType) as? Bound,
+          let upper = try GeneratedDispatch.coerce(
+            elementTag, upperValue, context,
+            contextualType: elementType) as? Bound else {
+        return nil
+    }
+    return lower...upper
 }
 
 struct ParamSpec {
@@ -442,15 +539,22 @@ struct GeneratedOverload {
 struct GeneratedConstructor {
     let params: [ParamSpec]
     let isDisfavored: Bool
+    /// Concrete result promised by an interface-declared static factory.
+    /// Initializers may leave this nil because their lookup key already names
+    /// the nominal; factories on a generic nominal share a base key and need
+    /// the specialized result to preserve contextual generic inference.
+    let declaredResultType: String?
     let invoke: @MainActor ([Any]) throws -> Any
 
     init(
         params: [ParamSpec],
         isDisfavored: Bool = false,
+        declaredResultType: String? = nil,
         invoke: @escaping @MainActor ([Any]) throws -> Any
     ) {
         self.params = params
         self.isDisfavored = isDisfavored
+        self.declaredResultType = declaredResultType
         self.invoke = invoke
     }
 }
@@ -489,6 +593,24 @@ struct GeneratedConstructorSet {
         self.byArity = byArity
         self.count = overloads.count
     }
+
+    /// A generic nominal's same-type statics are registered under its base
+    /// name (`Wrapper.member`) because that is the explicit source spelling.
+    /// When the call is contextual, however, `Wrapper<Int>` must see only
+    /// factories whose interface result is `Wrapper<Int>`. Filtering on the
+    /// declared result restores that language rule without knowing any SDK
+    /// type or member identity.
+    func constrained(toResultType expected: String) -> GeneratedConstructorSet? {
+        let matching = byArity.values.flatMap { overloads in
+            overloads.filter { overload in
+                guard let declared = overload.declaredResultType else {
+                    return false
+                }
+                return HostSignature.equivalentTypeName(declared, expected)
+            }
+        }
+        return matching.isEmpty ? nil : GeneratedConstructorSet(matching)
+    }
 }
 
 private extension RuntimeValue {
@@ -500,6 +622,26 @@ private extension RuntimeValue {
 }
 
 enum GeneratedDispatch {
+    /// A generated contextual factory has already produced the exact native
+    /// type promised by the parameter's interface contract. Accept that value
+    /// before tag-specific source coercions inspect literal syntax (for
+    /// example `.degrees(45)` becomes a real Angle, not an implicit call).
+    private static func nativeValue(
+        _ value: RuntimeValue, matching typeName: String
+    ) -> Any? {
+        guard let payload = value.hostPayload else { return nil }
+        let native = (payload as? GeneratedMemberCarrier)?
+            .generatedMemberValue ?? payload
+        guard GeneratedMembers.keyTypeName(of: native) == typeName
+                || GeneratedMembers.declarationPath(of: native) == typeName
+                || GeneratedPlatformBridge.directRuntimeTypeName(
+                    of: native
+                ).map(GeneratedPlatformBridge.canonicalTypeName)
+                    == GeneratedPlatformBridge.canonicalTypeName(typeName)
+        else { return nil }
+        return native
+    }
+
     /// Retain narrowly handwritten SwiftUI-magic execution while exposing
     /// the overload shapes BridgeGen read from the swiftinterface. Both real
     /// and trace registries use this composition, so a semantic gateway
@@ -545,70 +687,24 @@ enum GeneratedDispatch {
             })
     }
 
-    /// A leading-dot initializer is contextual syntax: `.init(...)` names
-    /// the constructor of the parameter type supplied by the interface.
-    /// Keep the original arguments and evaluation context so nested source
-    /// statics are resolved by the generated constructor just as they are in
-    /// an explicit `Type(...)` call.
-    private static func generatedContextualInitializer(
-        _ value: RuntimeValue,
-        contextualType: String,
-        context: EvalContext
-    ) throws -> RuntimeValue? {
-        guard case .host(let payload) = value,
-              let call = payload as? ImplicitMemberCall,
-              call.name == "init" else {
-            return nil
-        }
-        var typeName = GeneratedPlatformBridge.canonicalTypeName(
-            contextualType)
-        // A parameter typed as a generic INSTANTIATION names its constructors
-        // under the base nominal: `preview: SharePreview<…, Never>` is built
-        // by the `SharePreview` table, because a Swift initializer belongs to
-        // the generic type and the arguments choose the instantiation. The
-        // instantiation still governs what is ACCEPTED — the tag consuming
-        // this value checks the full spelling — so widening the lookup here
-        // cannot admit a value the parameter would not have taken.
-        if GeneratedConstructors.table[typeName] == nil,
-           GeneratedMembers.nativeValueConstructors[typeName] == nil,
-           let base = typeName.firstIndex(of: "<") {
-            typeName = String(typeName[..<base])
-        }
-        guard GeneratedConstructors.table[typeName] != nil
-                || GeneratedMembers.nativeValueConstructors[typeName] != nil
-        else {
-            return nil
-        }
-        return try context.invokeHostConstructor(
-            named: typeName, arguments: call.arguments)
-    }
-
     static func coerce(
         _ tag: ParamTag, _ unresolvedValue: RuntimeValue,
         _ ctx: EvalContext, contextualType: String? = nil
     ) throws -> Any {
-        let value: RuntimeValue
-        if case .implicitMember(let member) = unresolvedValue,
-           let contextualType,
-           let resolved = try ctx.sourceStaticMember(
-            named: member, ofType: contextualType) {
-            value = resolved
-        } else if let contextualType,
-                  let initialized = try generatedContextualInitializer(
-                    unresolvedValue,
-                    contextualType: contextualType,
-                    context: ctx) {
-            value = initialized
-        } else {
-            value = unresolvedValue
+        let value = contextualType.map {
+            ctx.resolveForBridge(unresolvedValue, typeName: $0)
+        } ?? unresolvedValue
+        if let contextualType,
+           let native = nativeValue(value, matching: contextualType) {
+            return native
         }
         switch tag {
         case .string, .localizationKey:
             guard let s = value.stringValue else { throw RuntimeError(message: "expected a String") }
             return s
         case .array(let elementTag, let elementType):
-            guard let elements = value.arrayValue else {
-                throw RuntimeError(message: "expected an array")
+            guard let elements = value.collectionElements else {
+                throw RuntimeError(message: "expected a collection")
             }
             return try elements.map {
                 try coerce(
@@ -741,19 +837,15 @@ enum GeneratedDispatch {
         case .anyView:
             return try ViewRegistry.anyView(value, resolving: ctx)
         case .nativeSwiftUIValue(let typeName):
-            guard let payload = value.hostPayload else {
-                throw RuntimeError(message:
-                    "expected a native SwiftUI \(typeName) value")
+            if let native = nativeValue(value, matching: typeName) {
+                return native
             }
-            let native = (payload as? GeneratedMemberCarrier)?
-                .generatedMemberValue ?? payload
-            guard GeneratedMembers.keyTypeName(of: native) == typeName
-                    || GeneratedMembers.declarationPath(of: native) == typeName
-            else {
-                throw RuntimeError(message:
-                    "expected a native SwiftUI \(typeName) value")
+            if let structural =
+                    GeneratedMembers.structuralValueCoercions[typeName] {
+                return try structural(value, ctx)
             }
-            return native
+            throw RuntimeError(message:
+                "expected a native SwiftUI \(typeName) value")
         case .shape:
             return try Coerce.shape(value)
         case .visibility:
@@ -870,8 +962,6 @@ enum GeneratedDispatch {
             }
             if let closed: ClosedRange<Double> = hostValue(value) { return closed }
             throw RuntimeError(message: "expected a closed range (ClosedRange<Double>) like 0...1")
-        case .annotationPosition:
-            return Coerce.annotationPosition(value)
         case .dimension:
             return try Coerce.dimension(value)
         case .measurement:
@@ -880,15 +970,6 @@ enum GeneratedDispatch {
             }
             if let carrier = value.hostPayload as? Measurement<Dimension> { return carrier }
             throw RuntimeError(message: "expected a Measurement value")
-        case .calendarComponent:
-            return try Coerce.calendarComponent(value)
-        case .calendarComponentSet:
-            // Native code writes `[.year, .month]` — Set's array-literal
-            // conformance; the interpreted array coerces element-wise.
-            guard let array = value.collectionElements else {
-                throw RuntimeError(message: "expected a set of calendar components")
-            }
-            return Set(try array.map(Coerce.calendarComponent))
         case .sdkEnum(let typeName):
             return try GeneratedSDKEnumCoercions.coerce(
                 typeName, value, context: ctx)
@@ -1308,6 +1389,10 @@ struct GeneratedMemberProperty {
 /// logical SDK type, so hand boxes can expose their wrapped value without
 /// weakening receiver validation.
 enum GeneratedMembers {
+    typealias StructuralValueCoercion = @MainActor (
+        RuntimeValue, EvalContext
+    ) throws -> Any
+
     static let properties: [String: GeneratedMemberProperty] = buildProperties()
 
     static let methods: [String: GeneratedMemberSet] = {
@@ -1550,15 +1635,53 @@ protocol GeneratedMetatypeSubscriptCarrier {
 func generatedNativeValueConstructor(
     named name: String
 ) -> HostFunction? {
-    guard let overloads =
-            GeneratedMembers.nativeValueConstructors[name] else {
+    let direct = GeneratedMembers.nativeValueConstructors[name]
+    // The interpreter resolves `Generic<Value>` in two language steps: the
+    // base nominal asks the registry for its constructor, then generic
+    // specialization supplies `Value` as a hidden argument. Generated native
+    // value constructors are intentionally keyed by the concrete interface
+    // type, so let any base with concrete generated instantiations claim that
+    // first step. Invocation below resolves the second one exactly.
+    let genericInstantiations = GeneratedMembers.nativeValueConstructors.keys
+        .filter { typeName in
+            guard let open = typeName.firstIndex(of: "<") else { return false }
+            return String(typeName[..<open]) == name
+        }
+        .sorted()
+    guard direct != nil || !genericInstantiations.isEmpty else {
         return nil
     }
     return HostFunction(name: name) { arguments, context in
-        .native(try GeneratedDispatch.construct(
+        let overloads: GeneratedConstructorSet
+        if let genericArguments = arguments
+            .labeled("__genericArguments")?.stringValue {
+            let expected = "\(name)<\(genericArguments)>"
+            let candidates = genericInstantiations.filter {
+                HostSignature.equivalentTypeName($0, expected)
+            }
+            guard candidates.count == 1,
+                  let specialized = candidates.first.flatMap({
+                      GeneratedMembers.nativeValueConstructors[$0]
+                  }) else {
+                throw RuntimeError(message:
+                    "no unique generated native constructor for \(expected)")
+            }
+            overloads = specialized
+        } else if let direct {
+            overloads = direct
+        } else {
+            throw RuntimeError(message:
+                "generic native constructor '\(name)' needs concrete type arguments")
+        }
+        let sourceArguments = CallArguments(
+            arguments: arguments.arguments.filter {
+                $0.label != "__genericArguments"
+            },
+            sourceSiteID: arguments.sourceSiteID)
+        return .native(try GeneratedDispatch.construct(
             name: name,
             overloads: overloads,
-            args: arguments,
+            args: sourceArguments,
             ctx: context))
     }
 }
@@ -1624,7 +1747,9 @@ extension GeneratedDispatch {
                     }
                     let values = try zip(overload.params, args.arguments).map {
                         param, argument in
-                        try coerce(param.tag, argument.value, ctx)
+                        try coerce(
+                            param.tag, argument.value, ctx,
+                            contextualType: param.contextualType)
                     }
                     // EXPERIMENT (opt-in via BOUNDARY_JIT=1): service the call
                     // from a shim compiled off `overload.signature` instead of
@@ -2003,16 +2128,36 @@ enum GeneratedStaticFactories {
         _ name: String,
         _ params: [ParamSpec],
         isDisfavored: Bool = false,
+        resultType: String? = nil,
         _ invoke: @escaping @MainActor ([Any]) throws -> Any
     ) {
         table[name, default: []].append(GeneratedConstructor(
             params: params,
             isDisfavored: isDisfavored,
+            declaredResultType: resultType,
             invoke: invoke))
     }
 
     static func key(_ member: String, onTypeNamed typeName: String) -> String {
         typeName + "." + member
+    }
+
+    /// Explicit source spells a generic static on the base nominal, while a
+    /// leading-dot call arrives with the parameter's concrete instantiation.
+    /// Look up the shared base table in the latter case and retain only the
+    /// overloads whose interface-declared result is that instantiation.
+    private static func overloads(
+        _ member: String, onTypeNamed typeName: String
+    ) -> GeneratedConstructorSet? {
+        if let exact = table[key(member, onTypeNamed: typeName)] {
+            return exact
+        }
+        guard let genericStart = typeName.firstIndex(of: "<") else {
+            return nil
+        }
+        let base = String(typeName[..<genericStart])
+        return table[key(member, onTypeNamed: base)]?
+            .constrained(toResultType: typeName)
     }
 
     /// The VALUE spelling: `ContentUnavailableView.search`. Only the swept
@@ -2021,7 +2166,7 @@ enum GeneratedStaticFactories {
     static func value(
         _ member: String, onTypeNamed typeName: String
     ) throws -> Any? {
-        guard let overload = table[key(member, onTypeNamed: typeName)]?
+        guard let overload = overloads(member, onTypeNamed: typeName)?
             .byArity[0]?.first else { return nil }
         return try overload.invoke([])
     }
@@ -2033,7 +2178,7 @@ enum GeneratedStaticFactories {
         _ member: String, onTypeNamed typeName: String
     ) -> HostFunction? {
         let name = key(member, onTypeNamed: typeName)
-        guard let overloads = table[name],
+        guard let overloads = overloads(member, onTypeNamed: typeName),
               overloads.byArity.keys.contains(where: { $0 > 0 }) else {
             return nil
         }
@@ -2048,6 +2193,11 @@ enum GeneratedStaticFactories {
 /// carriers. The generated implementations retain native protocol values
 /// without teaching handwritten dispatch about any SDK builder identity.
 enum GeneratedResultBuilderCarriers {}
+
+/// Namespace extended by methods whose protocol declares both an opaque
+/// `some P` result and its native `@_typeEraser`. Generated dispatch applies
+/// those methods to the erased receiver and immediately re-erases the result.
+enum GeneratedOpaqueProtocolMembers {}
 
 /// A target-specific platform color has no native payload on the opposite
 /// host. The target overlay nevertheless proves that it initializes a value

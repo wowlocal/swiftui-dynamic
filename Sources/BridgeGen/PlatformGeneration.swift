@@ -46,6 +46,10 @@ struct PlatformGenerationResult {
     let coverage: [String: PlatformCoverageSection]
     let summaries: [String]
     let typeFrameworks: [String: Set<String>]
+    /// The value types whose platform contracts already cross as their real
+    /// Swift payload. Other generators consume this same classification
+    /// instead of restating imported type names at each framework boundary.
+    let directRuntimeTypeNames: Set<String>
 }
 
 struct FoundationReferencePropertyGenerationResult {
@@ -723,7 +727,8 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
     }
     return PlatformGenerationResult(
         output: output, coverage: coverage, summaries: summaries,
-        typeFrameworks: typeFrameworks)
+        typeFrameworks: typeFrameworks,
+        directRuntimeTypeNames: platformDirectTypes)
 }
 
 /// Foundation's Objective-C reference declarations are imported from Clang

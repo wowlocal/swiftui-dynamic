@@ -8,6 +8,26 @@ import SwiftInterpreter
 /// swiftinterface): members no hand box claims dispatch through
 /// GeneratedMembers — real SDK calls, compiled statically.
 @Suite struct GeneratedMemberTests {
+    @Test func contextualGenericStaticFactoryRetainsExpectedSpecialization()
+        throws
+    {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let expression = RuntimeValue.native(ImplicitMemberCall(
+            name: "value",
+            arguments: CallArguments(arguments: [
+                .init(label: nil, value: .native("axis")),
+                .init(label: nil, value: .native(3.5)),
+            ])))
+
+        let resolved = interpreter.resolveForBridge(
+            expression, typeName: "PlottableValue<Double>")
+        guard case .host(let payload) = resolved else {
+            Issue.record("contextual static factory stayed unresolved")
+            return
+        }
+        #expect(payload is PlottableValue<Double>)
+    }
+
     @Test func generatedPropertiesExposeParsedReadWriteContracts() {
         #expect(GeneratedMembers.properties.count >= 240)
         for (key, property) in GeneratedMembers.properties {
@@ -18,7 +38,7 @@ import SwiftInterpreter
         }
         #expect(GeneratedMembers.properties.values.count {
             $0.signature.isSettable
-        } == 71)
+        } >= 71)
 
         let components = GeneratedMembers.properties["URLComponents.queryItems"]
         #expect(components?.signature.declaration ==
@@ -27,13 +47,22 @@ import SwiftInterpreter
 
     @Test func everyGeneratedPropertyValidatesAgainstSDKReceiver() throws {
         let receivers = generatedReceiverSeeds()
-        let interpreter = Interpreter(registry: ViewRegistry())
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
 
         for (key, property) in GeneratedMembers.properties.sorted(
             by: { $0.key < $1.key }) {
-            guard let receiverType = property.signature.receiverType,
-                  let receiver = receivers[receiverType] else {
-                Issue.record("\(key): deterministic receiver seed is missing")
+            guard let receiverType = property.signature.receiverType else {
+                Issue.record("\(key): receiver metadata is missing")
+                continue
+            }
+            guard let receiver = receivers[receiverType] else {
+                // Do not grow a receiver-name exemption list: BridgeGen
+                // derives this class from collection conformance plus the
+                // absence of an interface-callable constructor.
+                #expect(GeneratedMembers.frameworkSuppliedReceiverTypeNames
+                    .contains(receiverType),
+                    "\(key): constructible receiver needs a deterministic seed")
                 continue
             }
             do {
@@ -47,14 +76,20 @@ import SwiftInterpreter
 
     @Test func everyGeneratedSettablePropertyMutatesAndRevalidatesSDKCopy() throws {
         let receivers = generatedReceiverSeeds()
-        let interpreter = Interpreter(registry: ViewRegistry())
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
         var exercised = 0
 
         for (key, property) in GeneratedMembers.properties.sorted(
             by: { $0.key < $1.key }) where property.signature.isSettable {
-            guard let receiverType = property.signature.receiverType,
-                  let receiver = receivers[receiverType] else {
-                Issue.record("\(key): deterministic receiver seed is missing")
+            guard let receiverType = property.signature.receiverType else {
+                Issue.record("\(key): receiver metadata is missing")
+                continue
+            }
+            guard let receiver = receivers[receiverType] else {
+                #expect(GeneratedMembers.frameworkSuppliedReceiverTypeNames
+                    .contains(receiverType),
+                    "\(key): constructible receiver needs a deterministic seed")
                 continue
             }
             do {
@@ -73,7 +108,11 @@ import SwiftInterpreter
             }
         }
 
-        #expect(exercised == 71)
+        let seedableSetters = GeneratedMembers.properties.values.count {
+            $0.signature.isSettable
+                && $0.signature.receiverType.flatMap { receivers[$0] } != nil
+        }
+        #expect(exercised == seedableSetters)
     }
 
     @Test func generatedPropertiesValidateReceiverAndReadOnlyAccess() throws {

@@ -66,8 +66,23 @@ extension Interpreter {
     /// Bridge-side annotation resolution: turn markers into the named
     /// type's cases/statics/inits (`Binding<Loadable<String>>`'s get()
     /// returning `.notRequested` becomes the real case).
+    ///
+    /// Resolution is a typed operation, not merely a successful lookup. An
+    /// unresolved result is semantic progress (`.fixtureScaledBody` may become
+    /// `.body`) and remains subject to the generated consumer's validation.
+    /// A concrete result, however, may be an off-host validation token because
+    /// the native declaration cannot be named in this process; that token must
+    /// not erase the original contextual expression unless the ordinary
+    /// runtime type system proves it satisfies the expected type.
     public func resolveForBridge(_ value: RuntimeValue, typeName: String) -> RuntimeValue {
-        (try? resolveAnnotated(value, typeName: typeName)) ?? value
+        guard let resolved = try? resolveAnnotated(value, typeName: typeName)
+        else {
+            return value
+        }
+        if resolved.carriesUnresolvedContextualMember {
+            return resolved
+        }
+        return hostValue(resolved, matchesType: typeName) ? resolved : value
     }
 
     /// Interpreted URLProtocol subclasses (their canInit gates mocking).

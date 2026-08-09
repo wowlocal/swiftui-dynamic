@@ -4,12 +4,32 @@ import Testing
 @testable import SwiftUIBridge
 
 /// FoodTruck donuts-gallery drift: `startOfDay(for: .now)` — the bare
-/// `.now` marker in a Date ARGUMENT position resolved through the
-/// bridge's dateArg to the WALL CLOCK, bypassing the program's
-/// `extension Date { static var now }` shadow (the frozen clock). The
-/// task-bound evaluation context routes every dateArg-style coercion through
-/// the exact program entry that supplied the host call.
+/// `.now` marker in a Date ARGUMENT position once resolved to the wall clock,
+/// bypassing the program's `extension Date { static var now }` shadow (the
+/// frozen clock). The task-bound evaluation context now routes every typed
+/// bridge argument through the exact program entry that supplied the host
+/// call.
 @Suite struct AmbientDateNowTests {
+    @MainActor
+    @Test func dateFormatterUsesOrdinaryContextForMembersAndInitializers() throws {
+        let source = """
+        extension Date {
+            static var reference: Date {
+                Date(timeIntervalSince1970: 962409600)
+            }
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy"
+        let member = formatter.string(from: .reference)
+        let initialized = formatter.string(
+            from: .init(timeIntervalSince1970: 962409600))
+        "\\(member)|\\(initialized)"
+        """
+        let interpreter = Interpreter(registry: ViewRegistry())
+
+        #expect(try interpreter.run(source: source).stringValue == "2000|2000")
+    }
+
     @MainActor
     @Test func dateByAddingComponentsAndWeekend() throws {
         setenv("FOODTRUCK_FROZEN_NOW", "1784228400", 1)

@@ -412,6 +412,8 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
 
     @Test func chartSurfaceSurvivesChartModifiersAndFrame() throws {
         let registry = ViewRegistry()
+        #expect(registry.modifiers["chartYScale"] == nil)
+        #expect((GeneratedModifiers.table["chartYScale"]?.count ?? 0) > 0)
         let interpreter = Interpreter(registry: registry)
         let result = try interpreter.run(source: """
         Chart {

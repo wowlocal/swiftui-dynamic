@@ -370,9 +370,9 @@ extension ViewRegistry {
         // accept its presentation/configuration modifiers inertly.
         // chartLegend graduated to the generated tier (Charts joined the
         // BridgeGen modifier sweep; AnnotationPosition coerces).
-        // chartXAxis/chartYAxis/chartYScale are NOT listed: `registerChartViews`
-        // runs after this and registers all three, so an inert entry here was
-        // only ever a dead shadow of the adapter that actually serves them.
+        // chartXAxis/chartYAxis are NOT listed: `registerChartViews` owns only
+        // their result-builder spellings. Ordinary overloads — including every
+        // chartYScale spelling — are generated from the SDK interface.
         for name in ["chartOverlay", "chartPlotStyle"] {
             register(name) { view, _, _ in view }
         }

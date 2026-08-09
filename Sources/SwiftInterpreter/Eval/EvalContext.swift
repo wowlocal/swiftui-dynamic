@@ -332,6 +332,14 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func resolveForBridge(
+        _ value: RuntimeValue, typeName: String
+    ) -> RuntimeValue {
+        bound {
+            interpreter.resolveForBridge(value, typeName: typeName)
+        }
+    }
+
     func collectionStorageValuesAreEqual(
         _ lhs: RuntimeValue, _ rhs: RuntimeValue
     ) throws -> Bool {

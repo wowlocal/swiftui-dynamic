@@ -6,10 +6,11 @@ import Testing
 @testable import SwiftUIBridge
 
 /// FoodTruck truck/forecast class: Swift Charts executes through the
-/// interpreter — the Chart/ChartContent result builders and `.value`
-/// plottables are the documented magic-tier gateway; marks are REAL
-/// Charts marks (AnyChartContent), so layout, scales, and axes are the
-/// framework's own.
+/// interpreter. Only result-builder execution and framework-supplied closure
+/// inputs remain magic-tier primitives. BridgeGen derives marks, `.value`
+/// factories, fluent members, protocol erasure, and scale domains from SDK
+/// interfaces; the resulting marks are real Charts values, so layout, scales,
+/// and axes remain the framework's own.
 @Suite struct InterpretedChartTests {
     @MainActor
     @Test func chartBuilderMethodRendersRealAreaChart() throws {
@@ -397,21 +398,26 @@ extension InterpretedChartTests {
 }
 
 extension InterpretedChartTests {
-    // The topfive live class: AxisValueLabel(format: IntegerFormatStyle<Int>())
-    // reached the bridge as an inert stub (thrown), the content-closure form
-    // rendered empty, and the closure content's .frame(idealWidth:) had no
-    // gateway arm. The integer look bridges through a fraction-0 floating
-    // format (bridged plottables are Double-backed — same label strings),
-    // closure labels evaluate their interpreted builders, and frame gains
-    // ideal dimensions.
+    // The topfive live class: associated-type constraints specialize the
+    // interface's generic AxisValueLabel initializer to the real
+    // IntegerFormatStyle<Int>. Its demanded Foundation constructor is also
+    // generated from interface metadata. Closure labels still use the one
+    // irreducible primitive here: executing an interpreted result builder.
     @MainActor
     @Test func integerAxisAndClosureLabelsMatchNative() throws {
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        #expect((GeneratedConstructors.table["AxisValueLabel"]?.count ?? 0) > 0)
+        #expect(ViewRegistry().constructors["AxisValueLabel"] == nil)
+        #expect((GeneratedMembers.nativeValueConstructors[
+            "IntegerFormatStyle<Int>"
+        ]?.count ?? 0) > 0)
         let source = """
         struct P2: View {
             var body: some View {
                 Chart {
-                    BarMark(x: .value(String("X"), String("A")), y: .value(String("Y"), 250.0))
-                    BarMark(x: .value(String("X"), String("B")), y: .value(String("Y"), 500.0))
+                    BarMark(x: .value(String("X"), String("A")), y: .value(String("Y"), 250))
+                    BarMark(x: .value(String("X"), String("B")), y: .value(String("Y"), 500))
                 }
                 .chartYAxis {
                     AxisMarks { value in
@@ -448,6 +454,7 @@ extension InterpretedChartTests {
         }
         let size = NSSize(width: 300, height: 200)
         let interp = Self.chartBitmap(view, size: size)
+        #expect(RenderDiagnostics.errors.isEmpty)
         let native = Self.chartBitmap(AnyView(
             Chart {
                 BarMark(x: .value("X", "A"), y: .value("Y", 250))
@@ -733,16 +740,13 @@ extension InterpretedChartTests {
         #expect(mismatched == 0)
     }
 
-    /// The other side of the same fallthrough: a declined call that the
-    /// generated tier ALSO cannot serve must keep the behaviour it had, not
-    /// start throwing. IceCubes' `AccountMetricsComponents.swift:63` is the
-    /// live instance — `.chartYScale(domain: 0...max(value, 1))` carries a
-    /// range domain, and `Charts.ScaleDomain` coerces only from `.automatic`,
-    /// so no generated overload fits. Routing it out of the handwritten
-    /// adapter unconditionally would turn a rendered screen into a runtime
-    /// error, which is why the fallthrough is conditioned on a real match.
+    /// Runtime ranges remain interpreter-owned structural values until the
+    /// generated ScaleDomain coercion materializes the interface-declared
+    /// ClosedRange conformance.
     @MainActor
-    @Test func declinedCallNoTierServesKeepsItsExistingAdapter() throws {
+    @Test func generatedRangeScaleDomainsMatchNative() throws {
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
         let source = """
         struct P2: View {
             var body: some View {
@@ -750,6 +754,7 @@ extension InterpretedChartTests {
                     AreaMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 5.0))
                     AreaMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 9.0))
                 }
+                .chartXScale(domain: 0...3)
                 .chartYScale(domain: 0...12)
             }
         }
@@ -766,24 +771,169 @@ extension InterpretedChartTests {
         let rendered = InterpreterHost().render(
             source: source, lazyTopLevelGlobals: true)
         guard case .success(let view) = rendered else {
-            Issue.record("render failed — an unserveable domain must absorb, not throw")
+            Issue.record("render failed")
             return
         }
-        // Absorbing the domain still has to leave a drawn chart behind.
         let size = NSSize(width: 300, height: 200)
-        let rep = Self.chartBitmap(view, size: size)
-        var painted = 0
-        for x in stride(from: 40, to: 290, by: 4) {
-            for y in stride(from: 10, to: 190, by: 4) {
-                if let color = rep.colorAt(x: x, y: y),
-                   color.redComponent + color.greenComponent
-                       + color.blueComponent < 2.7 {
-                    painted += 1
+        let interpreted = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                AreaMark(
+                    x: .value("X", 1.0), y: .value("Y", 5.0))
+                AreaMark(
+                    x: .value("X", 2.0), y: .value("Y", 9.0))
+            }
+            .chartXScale(domain: 0...3)
+            .chartYScale(domain: 0...12)
+        ), size: size)
+
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height) {
+                guard let lhs = interpreted.colorAt(x: x, y: y),
+                      let rhs = native.colorAt(x: x, y: y) else { continue }
+                if abs(lhs.redComponent - rhs.redComponent) > 0.02
+                    || abs(lhs.greenComponent - rhs.greenComponent) > 0.02
+                    || abs(lhs.blueComponent - rhs.blueComponent) > 0.02 {
+                    mismatched += 1
                 }
             }
         }
-        #expect(
-            painted > 10,
-            "chart painted \(painted) samples; an unserveable scale domain took the whole chart with it")
+        #expect(mismatched == 0)
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
+    /// Constructors constrained by Plottable are monomorphized from protocol
+    /// conformances and erased through ChartContent's interface-declared
+    /// type eraser. No mark name is registered by hand.
+    @MainActor
+    @Test func generatedRuleMarkMatchesNative() throws {
+        #expect((GeneratedConstructors.table["RuleMark"]?.count ?? 0) > 0)
+        #expect(ViewRegistry().constructors["RuleMark"] == nil)
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    AreaMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 5.0))
+                    AreaMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 9.0))
+                    RuleMark(x: .value(String("cursor"), 1.5))
+                }
+                .chartXScale(domain: 0...3)
+                .chartYScale(domain: 0...12)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup { P2() }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("generated RuleMark failed to render")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interpreted = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                AreaMark(
+                    x: .value("X", 1.0), y: .value("Y", 5.0))
+                AreaMark(
+                    x: .value("X", 2.0), y: .value("Y", 9.0))
+                RuleMark(x: .value("cursor", 1.5))
+            }
+            .chartXScale(domain: 0...3)
+            .chartYScale(domain: 0...12)
+        ), size: size)
+
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height) {
+                guard let lhs = interpreted.colorAt(x: x, y: y),
+                      let rhs = native.colorAt(x: x, y: y) else { continue }
+                if abs(lhs.redComponent - rhs.redComponent) > 0.02
+                    || abs(lhs.greenComponent - rhs.greenComponent) > 0.02
+                    || abs(lhs.blueComponent - rhs.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        #expect(mismatched == 0)
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
+
+    /// AxisMark fluent members return opaque AxisMark values. BridgeGen reads
+    /// that protocol shape and @_typeEraser, opens each generated overload,
+    /// invokes it, and re-erases the result without an AxisGridLine switch.
+    @MainActor
+    @Test func generatedAxisMarkMemberMatchesNative() throws {
+        #expect((GeneratedConstructors.table["AxisGridLine"]?.count ?? 0) > 0)
+        #expect(ViewRegistry().constructors["AxisGridLine"] == nil)
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    AreaMark(x: .value(String("X"), 1.0), y: .value(String("Y"), 5.0))
+                    AreaMark(x: .value(String("X"), 2.0), y: .value(String("Y"), 9.0))
+                }
+                .chartXAxis {
+                    AxisMarks { _ in
+                        AxisGridLine().foregroundStyle(Color.red)
+                    }
+                }
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup { P2() }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("generated AxisMark member failed to render")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interpreted = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                AreaMark(
+                    x: .value("X", 1.0), y: .value("Y", 5.0))
+                AreaMark(
+                    x: .value("X", 2.0), y: .value("Y", 9.0))
+            }
+            .chartXAxis {
+                AxisMarks { _ in
+                    AxisGridLine().foregroundStyle(Color.red)
+                }
+            }
+        ), size: size)
+
+        var mismatched = 0
+        for x in 0..<Int(size.width) {
+            for y in 0..<Int(size.height) {
+                guard let lhs = interpreted.colorAt(x: x, y: y),
+                      let rhs = native.colorAt(x: x, y: y) else { continue }
+                if abs(lhs.redComponent - rhs.redComponent) > 0.02
+                    || abs(lhs.greenComponent - rhs.greenComponent) > 0.02
+                    || abs(lhs.blueComponent - rhs.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        #expect(mismatched == 0)
+        #expect(RenderDiagnostics.errors.isEmpty)
     }
 }

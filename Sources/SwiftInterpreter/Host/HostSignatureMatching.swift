@@ -21,6 +21,33 @@ extension HostSignature {
         isCallable && !shapeMatches(arguments).isEmpty
     }
 
+    /// Expected types for a call's actual arguments when every legal
+    /// default/variadic mapping agrees. This is deliberately shape-only:
+    /// overload sets can apply contextual typing once when all surviving
+    /// declarations name the same type, before asking the ordinary matcher to
+    /// rank the resulting concrete values.
+    func unambiguousContextualParameterTypes(
+        for arguments: CallArguments
+    ) -> [String?]? {
+        let shapes = shapeMatches(arguments)
+        guard !shapes.isEmpty else { return nil }
+        return arguments.arguments.indices.map { argumentIndex in
+            let types = Set(shapes.map {
+                parameters[$0.parameterIndices[argumentIndex]].type
+            })
+            return types.count == 1 ? types.first : nil
+        }
+    }
+
+    func resolvingContextualArguments(
+        _ arguments: CallArguments, in context: EvalContext
+    ) -> CallArguments {
+        guard let parameterTypes = unambiguousContextualParameterTypes(
+            for: arguments) else { return arguments }
+        return arguments.resolvingContextualValues(
+            parameterTypes: parameterTypes, in: context)
+    }
+
     /// Validates labels, arity, runtime argument types, generic consistency,
     /// and generic constraints. The returned bindings must be supplied to
     /// `validateReturn`.
@@ -93,6 +120,31 @@ extension HostSignature {
             throw RuntimeError(message:
                 "host contract violation: property '\(declaration)' \(operation) '\(context.hostTypeName(of: value))', expected '\(expected)'")
         }
+    }
+}
+
+@MainActor
+extension CallArguments {
+    func resolvingContextualValues(
+        parameterTypes: [String?], in context: EvalContext
+    ) -> CallArguments {
+        guard parameterTypes.count == arguments.count else { return self }
+        var resolved = self
+        for index in arguments.indices {
+            let argument = arguments[index]
+            guard let typeName = parameterTypes[index],
+                  argument.value.containsUnresolvedContextualMember else {
+                continue
+            }
+            resolved.arguments[index] = Argument(
+                label: argument.label,
+                value: context.resolveForBridge(
+                    argument.value, typeName: typeName),
+                isTrailing: argument.isTrailing,
+                sourceProvenance: argument.sourceProvenance,
+                localizedLiteral: argument.localizedLiteral)
+        }
+        return resolved
     }
 }
 

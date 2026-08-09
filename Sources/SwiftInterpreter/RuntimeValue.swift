@@ -184,6 +184,36 @@ extension RuntimeValue {
         }
     }
 
+    /// Whether this value or one of its structural elements still needs an
+    /// expected type. Typed host calls use this as the cheap guard before
+    /// applying annotation semantics to arguments; arrays, sets, tuples,
+    /// dictionaries, ranges, and optionals can all contain leading-dot values.
+    var containsUnresolvedContextualMember: Bool {
+        if carriesUnresolvedContextualMember { return true }
+        switch self {
+        case .array(let values):
+            return values.contains(where: \.containsUnresolvedContextualMember)
+        case .set(let value):
+            return value.elements.contains(
+                where: \.containsUnresolvedContextualMember)
+        case .dictionary(let value):
+            return value.keys.contains(
+                where: \.containsUnresolvedContextualMember)
+                || value.values.contains(
+                    where: \.containsUnresolvedContextualMember)
+        case .tuple(let value):
+            return value.values.contains(
+                where: \.containsUnresolvedContextualMember)
+        case .range(let value):
+            return value.lowerBound?.containsUnresolvedContextualMember == true
+                || value.upperBound?.containsUnresolvedContextualMember == true
+        case .optional(let value):
+            return value.wrapped?.containsUnresolvedContextualMember == true
+        default:
+            return false
+        }
+    }
+
     /// Generated native storage owned by an interpreter-defined subclass of
     /// an imported SDK class. Host adapters may recursively coerce this value
     /// when a compiled API accepts the superclass; source member dispatch

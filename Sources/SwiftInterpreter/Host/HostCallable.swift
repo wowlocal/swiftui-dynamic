@@ -182,6 +182,8 @@ public final class HostFunction {
         self.hasWorkerOperation = false
         let checked: @MainActor
             (CallArguments, EvalContext) throws -> RuntimeValue = { arguments, context in
+            let arguments = signature.resolvingContextualArguments(
+                arguments, in: context)
             let match = try signature.validate(arguments: arguments, in: context)
             let result: RuntimeValue
             do {
@@ -229,6 +231,8 @@ public final class HostFunction {
         let checked: @MainActor
             (CallArguments, EvalContext) throws -> RuntimeValue = {
                 arguments, context in
+            let arguments = signature.resolvingContextualArguments(
+                arguments, in: context)
             let match = try signature.validate(
                 arguments: arguments, in: context)
             let result: RuntimeValue
@@ -242,6 +246,8 @@ public final class HostFunction {
         }
         self.invoke = checked
         self.suspendingInvoke = { arguments, context in
+            let arguments = signature.resolvingContextualArguments(
+                arguments, in: context)
             let match = try signature.validate(
                 arguments: arguments, in: context)
             let result: RuntimeValue
@@ -290,6 +296,8 @@ public final class HostFunction {
                 "async host function '\(signature.callableName)' requires runAsync and await")
         }
         self.suspendingInvoke = { arguments, context in
+            let arguments = signature.resolvingContextualArguments(
+                arguments, in: context)
             let match = try signature.validate(arguments: arguments, in: context)
             let result = try await context.withHostOperation {
                 do {
@@ -330,6 +338,8 @@ public final class HostFunction {
         self.canSuspend = true
         self.hasWorkerOperation = false
         self.invoke = { arguments, context in
+            let arguments = signature.resolvingContextualArguments(
+                arguments, in: context)
             let match = try signature.validate(arguments: arguments, in: context)
             let result: RuntimeValue
             do {
@@ -341,6 +351,8 @@ public final class HostFunction {
             return result
         }
         self.suspendingInvoke = { arguments, context in
+            let arguments = signature.resolvingContextualArguments(
+                arguments, in: context)
             let match = try signature.validate(arguments: arguments, in: context)
             let result = try await context.withHostOperation {
                 do {
@@ -387,11 +399,15 @@ public final class HostFunction {
         self.hasWorkerOperation = overloads.contains(
             where: \.hasWorkerOperation)
         self.invoke = { arguments, context in
+            let arguments = Self.resolvingContextualArguments(
+                arguments, for: overloads, in: context)
             let selected = try Self.select(
                 from: overloads, arguments: arguments, context: context)
             return try selected.invoke(arguments, context)
         }
         self.suspendingInvoke = { arguments, context in
+            let arguments = Self.resolvingContextualArguments(
+                arguments, for: overloads, in: context)
             let selected = try Self.select(
                 from: overloads, arguments: arguments, context: context)
             return try await selected.invokeSuspending(arguments, context)
@@ -430,6 +446,30 @@ public final class HostFunction {
                 declaration: signature.declaration,
                 reason: "this implementation requires \(expected)")
         }
+    }
+
+    /// Apply expected-type semantics before overload ranking only where every
+    /// declaration that fits the call's label/default shape agrees on the
+    /// parameter type. This mirrors the compiler's contextual phase without
+    /// speculatively executing a static factory once per overload.
+    private static func resolvingContextualArguments(
+        _ arguments: CallArguments,
+        for overloads: [HostFunction],
+        in context: EvalContext
+    ) -> CallArguments {
+        let candidates = overloads.flatMap(\.signatures).compactMap {
+            $0.unambiguousContextualParameterTypes(for: arguments)
+        }
+        guard !candidates.isEmpty else { return arguments }
+        let parameterTypes: [String?] = arguments.arguments.indices.map {
+            index in
+            let types = candidates.map { $0[index] }
+            guard types.allSatisfy({ $0 != nil }) else { return nil }
+            let concrete = Set(types.compactMap { $0 })
+            return concrete.count == 1 ? concrete.first : nil
+        }
+        return arguments.resolvingContextualValues(
+            parameterTypes: parameterTypes, in: context)
     }
 
     private static func checkedImplementationError(

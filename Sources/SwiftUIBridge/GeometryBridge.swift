@@ -512,6 +512,17 @@ func bridgeHostMember(
         }
     }
     if let marker = value as? HostTypeMarker {
+        // An explicitly qualified SDK value (`Calendar.current`,
+        // `HorizontalAlignment.leading`, …) is the same interface-declared
+        // contextual member as its leading-dot spelling. Route every such
+        // value through the generated coercion table before considering the
+        // small runtime-semantics allowlist below; the expected nominal type,
+        // not a handwritten member identity, selects the native value.
+        if let contextualValue = try? GeneratedSDKEnumCoercions.coerce(
+            marker.name, .implicitMember(name)
+        ) {
+            return .native(contextualValue)
+        }
         // Framework application singletons are launch-environment objects,
         // not ordinary native calls: running or terminating the real process
         // would destroy the verifier. The per-registry shell still exposes
@@ -551,8 +562,6 @@ func bridgeHostMember(
                 if views.count == 1 { return views[0] }
                 return .native(views) // builder-content shape ([views])
             })
-        case ("TimeZone", "current"), ("TimeZone", "autoupdatingCurrent"):
-            return .native(TimeZone.current)
         case ("Bundle", "module"):
             // SPM resource bundles resolve against the merge's project
             // root — the committed files ARE what Bundle.module ships.
@@ -582,8 +591,6 @@ func bridgeHostMember(
             // Stdlib statics through a SHADOWING app enum (the Duration
             // pattern): the real host value.
             return .native(Locale.preferredLanguages.map { RuntimeValue.native($0) })
-        case ("Locale", "current"):
-            return .native(Locale.current)
         case ("Duration", "seconds"), ("Duration", "milliseconds"),
              ("Duration", "microseconds"), ("Duration", "nanoseconds"):
             // Stdlib Duration statics reached through an app enum SHADOWING
@@ -615,22 +622,6 @@ func bridgeHostMember(
             // (`alignment.horizontal.percent`, the FlowLayout math) run
             // instead of absorbing into marker arithmetic.
             return (try? Coerce.alignment(.implicitMember(name))).map { .native($0) }
-        case ("HorizontalAlignment", _):
-            switch name {
-            case "leading": return .native(HorizontalAlignment.leading)
-            case "center": return .native(HorizontalAlignment.center)
-            case "trailing": return .native(HorizontalAlignment.trailing)
-            default: return nil
-            }
-        case ("VerticalAlignment", _):
-            switch name {
-            case "top": return .native(VerticalAlignment.top)
-            case "center": return .native(VerticalAlignment.center)
-            case "bottom": return .native(VerticalAlignment.bottom)
-            case "firstTextBaseline": return .native(VerticalAlignment.firstTextBaseline)
-            case "lastTextBaseline": return .native(VerticalAlignment.lastTextBaseline)
-            default: return nil
-            }
         case ("Double", "zero"), ("CGFloat", "zero"), ("TimeInterval", "zero"):
             return .native(0.0)
         case ("Int", "zero"):
@@ -1403,6 +1394,10 @@ func bridgeHostTypeName(of value: Any) -> String? {
     if let direct = GeneratedPlatformBridge.directRuntimeTypeName(of: value) {
         return direct
     }
+    let generatedTypeName = GeneratedMembers.keyTypeName(of: value)
+    if GeneratedMembers.generatedReceiverTypeNames.contains(generatedTypeName) {
+        return generatedTypeName
+    }
     switch value {
     case is RuntimeTaskHandle: return "Task"
     case is ResultBox: return "Result"
@@ -1414,7 +1409,6 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is Alignment: return "Alignment"
     case is HorizontalAlignment: return "HorizontalAlignment"
     case is VerticalAlignment: return "VerticalAlignment"
-    case is CalendarBox: return "Calendar"
     case is ProcessInfoBox: return "ProcessInfo"
     case is UIImageBox: return "UIImage"
     case is FileManagerBox: return "FileManager"

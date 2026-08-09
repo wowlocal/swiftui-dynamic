@@ -207,6 +207,37 @@ struct HostSignatureTests {
         #expect(result.boolValue == true)
     }
 
+    @Test func typedHostCallsResolveContextualCallsAndChainsBeforeMatching() throws {
+        let interpreter = Interpreter()
+        let function = try HostFunction(
+            declaration: "func accepts(_ value: Date) -> Bool"
+        ) { arguments, _ in
+            .native(arguments.positional(0)?.hostPayload is Date)
+        }
+        let call = RuntimeValue.native(ImplicitMemberCall(
+            name: "init",
+            arguments: CallArguments(arguments: [
+                .init(
+                    label: "timeIntervalSince1970",
+                    value: .native(1_234.0)),
+            ])))
+        let chain = RuntimeValue.native(ChainedImplicitCall(
+            base: call,
+            member: "addingTimeInterval",
+            arguments: CallArguments(arguments: [
+                .init(label: nil, value: .native(5.0)),
+            ])))
+
+        for value in [call, chain] {
+            let result = try function.invoke(
+                CallArguments(arguments: [
+                    .init(label: nil, value: value),
+                ]),
+                interpreter)
+            #expect(result.boolValue == true)
+        }
+    }
+
     @Test func validationRunsBeforeGatewayAndChecksReturnType() throws {
         let interpreter = Interpreter()
         var calls = 0
