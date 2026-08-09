@@ -21,7 +21,8 @@ struct ContentView: View {
                     Text(sample.name).tag(sample.id)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
+            .frame(minWidth: 150)
         }
         .onChange(of: selectedSampleID) {
             if let sample = SamplePrograms.all.first(where: { $0.id == selectedSampleID }) {

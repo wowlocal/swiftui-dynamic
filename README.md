@@ -21,9 +21,9 @@ This is not a WebView, a JSON UI schema, or a reimplementation of SwiftUI.
 Generated, statically compiled gateways call the platform's actual SwiftUI,
 Foundation, AppKit, and UIKit APIs.
 
-![Apple's Food Truck sample running through Dynamic SwiftUI](Docs/evidence-foodtruck-live-window-2026-07-17.png)
+![Perihelion exoplanet observation desk running through Dynamic SwiftUI](Docs/perihelion-interpreted-demo.png)
 
-<p align="center"><em>Apple's multi-file Food Truck sample running through the interpreter on macOS, with the real SwiftUI and Charts rendering stack.</em></p>
+<p align="center"><em>Perihelion running from interpreted multi-file Swift source: Observation state, custom orbital geometry, materials, controls, and the real Swift Charts renderer.</em></p>
 
 ## Why it is interesting
 
@@ -70,8 +70,14 @@ Or launch a larger multi-file project directly:
 ```bash
 xcrun swift run DynamicSwiftUIDemo \
   --platform macOS \
-  --project Examples/FoodTruckBuildingASwiftUIMultiplatformApp
+  --project Examples/Perihelion/Sources/Perihelion
 ```
+
+**Perihelion** is an original exoplanet observation desk designed as a normal,
+native SwiftUI product rather than around a curated interpreter subset. Its
+animated orbital map, searchable catalog, Observation model, asynchronous scan,
+Charts spectrum, instrument controls, event stream, and field notes all come
+from the same multi-file source that also builds as a standalone Swift package.
 
 You can also render a sample to a deterministic PNG without opening the editor:
 
@@ -82,8 +88,187 @@ xcrun swift run DynamicSwiftUIDemo \
   --render-png /tmp/calculator.png
 ```
 
-The built-in picker includes Atmosphere, Counter, Calculator, Tic-Tac-Toe,
-Todo, Form, Weather, Layout, List, Segments, Material, Popup, and Albums.
+The built-in picker includes Perihelion, Atmosphere, Counter, Calculator,
+Tic-Tac-Toe, Todo, Form, Weather, Layout, List, Segments, Material, Popup, and
+Albums.
+
+## Example gallery
+
+The repository includes examples at very different levels of difficulty. The
+same runner that displays a counter also loads apps with native platform views,
+network clients, structured concurrency, Charts, and GPU compute.
+
+Run any source-only example with:
+
+```bash
+xcrun swift run DynamicSwiftUIDemo --project <example-directory>
+```
+
+| Example | What the interpreter executes | Executable evidence |
+| --- | --- | --- |
+| [Perihelion](Examples/Perihelion) | An original multi-file exoplanet observation desk with an interactive orbital field, custom shapes, Observation state, async scan lifecycle, searchable and pinnable data, Swift Charts spectra, sheets, sliders, filters, and a reactive event log. | The directory is also a standalone Swift package. It builds natively, then the same files are merged into the built-in picker and whole-project interpreter runner; the README screenshot is captured from that interpreted run. |
+| [Atmosphere](Examples/Atmosphere) | Six Swift files; an actor-based generic API client, three-stage Open-Meteo request flow, nested Codable models, observable state, debounced search, animations, and interpreted custom `Shape` geometry. | Live HTTP and a checked-in Lisbon replay exercise the same source. Focused tests assert the typed query, all three requests, decoded models, and rendered values. |
+| [Task Observatory](Examples/TaskObservatory) | `async let`, task groups, priorities, cancellation handlers, `Task.sleep`, `Task.yield`, shared `Task.value`, `@MainActor`, and `@concurrent` methods in one interactive dashboard. | Its checklist observes joined children, completion-order reduction to `orbit-10`, cancellation delivery, two waiters receiving one result, and runtime cleanup. |
+| [Circuit Garden](Examples/CircuitGarden) | A mutable 4×4 puzzle model, nested collection views, array-subscript writes, button actions, conditional styling, disabled state, and state-driven re-rendering. | The same puzzle tests run natively with SwiftPM and through `TestCheck` over interpreted source. |
+| [Synth Lab](Examples/SynthLab) | A three-voice control surface with nested models, `ForEach`, gradients, shapes, progress, sliders, toggles, bindings, and adaptive colors. | The CLI can drive the live UI or render a deterministic dark snapshot. |
+| [Apple Food Truck](Examples/FoodTruckBuildingASwiftUIMultiplatformApp) | The 82-file Apple sample: its `@main App`, `NavigationSplitView`, model graph, Charts, resources, sidebar navigation, order workflow, and donut editing. | A compiled native twin and the interpreter agree on all 18 scored screens at pixel AE 0; mutation and live-navigation boards are green. |
+| [AppKit Metal Signal](Examples/AppKitMetalSignal) | Real AppKit and Metal calls: runtime MSL compilation, compute dispatch, shared-buffer readback, bitmap creation, telemetry, and PNG export. | Native and interpreted runs produce the same GPU bytes and Aurora checksum; the 480×300 preview crop is pixel-identical. |
+| [AppKit Pixel Relay](Examples/AppKitPixelRelay) | URLSession download, `NSBitmapImageRep` decode, nested pixel loops, `NSColor` transforms, histogram calculation, `NSImage`, pasteboard, and PNG export. | The end-to-end interpreter pipeline reproduces the native 2,067-byte PNG, checksum `328447`, and average color `#233427`. |
+| [IceCubes native twin](Examples/IceCubesNativeTwin) | A networked, multi-package Mastodon client with app-owned view models, HTML/AttributedString content, pagination, navigation, media, Observation, and UIKit-hosted lists. | Eleven deterministic screens, nine functional rungs, live HTTP invariants, and two post-mutation scenarios are compared against the compiled Catalyst app. |
+
+The AppKit examples use a source directory inside their package and an explicit
+platform identity. For example:
+
+```bash
+METAL_SIGNAL_AUTORENDER=1 \
+  xcrun swift run DynamicSwiftUIDemo \
+  --platform macOS \
+  --project Examples/AppKitMetalSignal/Sources/AppKitMetalSignal
+```
+
+## What interpreted Swift looks like
+
+These are ordinary Swift declarations consumed by the runtime. They are not a
+parallel DSL or a serialized view format.
+
+<details>
+<summary><strong>Observation + SwiftUI task lifecycle + structured concurrency</strong></summary>
+
+```swift
+@Observable
+final class Loader {
+    var phase = "pending"
+
+    func load() async {
+        phase = await withTaskGroup(of: String.self) { group in
+            group.addTask { "loaded" }
+            return await group.next() ?? "missing"
+        }
+    }
+}
+
+struct ContentView: View {
+    @State private var loader = Loader()
+
+    var body: some View {
+        Text(loader.phase)
+            .task { await loader.load() }
+    }
+}
+
+ContentView()
+```
+
+The integration test in
+[`InterpreterHostSchedulingTests.swift`](Tests/SwiftUIBridgeTests/InterpreterHostSchedulingTests.swift)
+hosts this source, lets real SwiftUI start `.task`, and requires the rendered
+tree to change from `pending` to `loaded`.
+
+</details>
+
+<details>
+<summary><strong>Actor identity, isolated mutation, and awaited calls</strong></summary>
+
+```swift
+actor Counter {
+    var value = 0
+
+    func bump() async -> Int {
+        value += 1
+        return value
+    }
+}
+
+let counter = Counter()
+var seen: [Int] = []
+
+func drive() async {
+    seen.append(await counter.bump())
+    seen.append(await counter.bump())
+}
+
+await drive()
+seen
+```
+
+This exact program is pinned by
+[`ActorExecutionTests.swift`](Tests/SwiftUIBridgeTests/ActorExecutionTests.swift):
+the interpreter must produce `[1, 2]`. The broader concurrency suite additionally
+checks mailbox ownership, suspension/re-entry, cross-actor failure and
+cancellation, task-local preservation, and actor cleanup against native Swift.
+
+</details>
+
+<details>
+<summary><strong>Generic Codable networking inside a source actor</strong></summary>
+
+```swift
+actor AtmosphereClient {
+    private let decoder = JSONDecoder()
+
+    private func request<T: Decodable>(
+        _ type: T.Type,
+        from url: URL
+    ) async throws -> T {
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard response.statusCode >= 200 && response.statusCode < 300 else {
+            throw AtmosphereError.server(response.statusCode)
+        }
+        return try decoder.decode(T.self, from: data)
+    }
+
+    func snapshotForPlace(_ place: Place) async throws -> AtmosphereSnapshot {
+        let forecast = try await request(Forecast.self, from: weatherURL(place))
+        let air = try await request(AirQuality.self, from: airURL(place))
+        return AtmosphereSnapshot(place: place, forecast: forecast, air: air)
+    }
+}
+```
+
+The complete implementation is
+[`AtmosphereClient.swift`](Examples/Atmosphere/AtmosphereClient.swift). The
+runtime preserves the generic `T` selected at each call, executes URLComponents
+and URLSession through host contracts, synthesizes nested Codable values, and
+returns across the actor boundary before the observable store updates SwiftUI.
+
+</details>
+
+<details>
+<summary><strong>A source-defined Shape drawing through real SwiftUI</strong></summary>
+
+```swift
+struct TemperatureCurve: Shape {
+    var values: [Double]
+
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            let low = values.min() ?? 0
+            let high = values.max() ?? 1
+            let spread = max(1.0, high - low)
+
+            for index in values.indices {
+                let x = rect.minX
+                    + rect.width * CGFloat(index) / CGFloat(values.count - 1)
+                let ratio = (values[index] - low) / spread
+                let y = rect.maxY - rect.height * CGFloat(ratio)
+
+                if index == 0 {
+                    path.move(to: CGPoint(x: x, y: y))
+                } else {
+                    path.addLine(to: CGPoint(x: x, y: y))
+                }
+            }
+        }
+    }
+}
+```
+
+SwiftUI supplies the `CGRect`; the interpreted `path(in:)` performs the
+geometry; the returned real `Path` continues through native `.fill`, `.stroke`,
+`.trim`, animation, and compositing. See the complete component in
+[`Components.swift`](Examples/Atmosphere/Components.swift).
+
+</details>
 
 ## Embed the runtime
 
@@ -144,6 +329,10 @@ The project treats native Swift as the oracle. Expectations come from code
 compiled with the same Xcode toolchain, not from values copied into interpreter
 tests.
 
+![Apple's Food Truck sample running through Dynamic SwiftUI](Docs/evidence-foodtruck-live-window-2026-07-17.png)
+
+<p align="center"><em>Apple's 82-file Food Truck sample running through the interpreter on macOS.</em></p>
+
 | Board | Current committed result |
 | --- | --- |
 | Apple Food Truck | 18/18 deterministic screen captures at pixel AE 0; model mutation and live navigation boards green. |
@@ -167,11 +356,11 @@ gateways.
 
 The checked-in generated surface currently includes:
 
-- **1,063 modifier overload variants** across **388 names**;
-- **731 initializer variants** across **110 SwiftUI structs**;
-- **272 value-type properties** and **230 method variants**;
+- **1,076 modifier overload variants** across **392 names**;
+- **746 initializer variants** across **115 SwiftUI structs**;
+- **272 value-type properties** and **232 method variants**;
 - **1,020 Foundation reference-type property contracts**;
-- **220 contextual SDK value types** and **60 environment writers**; and
+- **221 contextual SDK value types** and **60 environment writers**; and
 - generated platform constructors, properties, methods, globals, and
   contextual values across AppKit, UIKit, and Metal.
 

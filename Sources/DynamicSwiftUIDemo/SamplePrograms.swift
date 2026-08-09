@@ -1,11 +1,46 @@
+import SwiftUIBridge
+
 struct SampleProgram: Identifiable, Hashable {
     let name: String
-    let source: String
+    private let material: Material
+
     var id: String { name }
+
+    var source: String {
+        switch material {
+        case .inline(let source):
+            return source
+        case .project(let directory):
+            return ProjectMaterial.mergedSource(at: directory)
+        }
+    }
+
+    init(name: String, source: String) {
+        self.name = name
+        material = .inline(source)
+    }
+
+    init(name: String, projectDirectory: String) {
+        self.name = name
+        material = .project(projectDirectory)
+    }
+
+    private enum Material: Hashable {
+        case inline(String)
+        case project(String)
+    }
 }
 
 enum SamplePrograms {
-    static let all = [atmosphere, counter, calculator, tictactoe, todoMVVM, form, weather, staticLayout, list, segments, material, popup, albums]
+    static let all = [perihelion, atmosphere, counter, calculator, tictactoe, todoMVVM, form, weather, staticLayout, list, segments, material, popup, albums]
+
+    /// A complete multi-file SwiftUI product demo. Its source is merged from
+    /// disk with the same reusable project loader used by `--project`, so the
+    /// editor picker never carries a second, drifting copy of the app.
+    static let perihelion = SampleProgram(
+        name: "Perihelion",
+        projectDirectory: "Examples/Perihelion/Sources/Perihelion"
+    )
 
     /// A three-request, real-network app: city geocoding feeds weather and
     /// air-quality endpoints. It exercises actors, async/await, generic
