@@ -7,6 +7,9 @@ import Combine
 import Foundation
 import SwiftUI
 import SwiftInterpreter
+#if canImport(SwiftData)
+import SwiftData
+#endif
 
 /// Entitlement-gated service types that fail closed (documented
 /// allowlist — see the quarantine comment at the dispatch site).
@@ -973,7 +976,33 @@ struct ModelContextStub {}
 /// FetchDescriptor predicates genuinely filtering.
 public final class ModelContainerBox {
     let context = ModelContextBox()
+#if canImport(SwiftData)
+    /// Execute SwiftData for the native value SwiftUI's generated modifier
+    /// requires. Interpreted models remain in LiveModelStore because runtime
+    /// source types cannot conform to the compiled PersistentModel protocol;
+    /// the native empty container supplies framework environment semantics.
+    let nativeContainer: SwiftData.ModelContainer
+
+    init() {
+        let schema = SwiftData.Schema([])
+        let configuration = SwiftData.ModelConfiguration(
+            isStoredInMemoryOnly: true)
+        do {
+            nativeContainer = try SwiftData.ModelContainer(
+                for: schema, configurations: [configuration])
+        } catch {
+            preconditionFailure(
+                "failed to create the in-memory SwiftData carrier: \(error)")
+        }
+    }
+#endif
 }
+
+#if canImport(SwiftData)
+extension ModelContainerBox: GeneratedMemberCarrier {
+    var generatedMemberValue: Any { nativeContainer }
+}
+#endif
 
 public final class ModelContextBox {
     var stored: [RuntimeValue] = []
@@ -1010,6 +1039,10 @@ public final class PredicateBox {
 /// `FetchDescriptor<Item>()` arrives as an absorbed marker/stub — its
 /// stringified form carries the generic argument naming the model type.
 func modelFetchTypeName(from descriptor: RuntimeValue) -> String? {
+    if case .host(let any) = descriptor,
+       let descriptor = any as? FetchDescriptorBox {
+        return descriptor.typeName
+    }
     let text = descriptor.stringified
     guard let open = text.firstIndex(of: "<"),
           let close = text[open...].firstIndex(of: ">") else { return nil }

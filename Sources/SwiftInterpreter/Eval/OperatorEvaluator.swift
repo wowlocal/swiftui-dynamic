@@ -1061,10 +1061,23 @@ extension Interpreter {
             if case .host(let any) = value, any is ImplicitMemberCall { return true }
             return false
         }
-        if case .enumCase(let l) = lhs, looksLikeMarker(rhs) {
-            rhs = try resolveAnnotated(rhs, typeName: l.symbol.name)
-        } else if case .enumCase(let r) = rhs, looksLikeMarker(lhs) {
-            lhs = try resolveAnnotated(lhs, typeName: r.symbol.name)
+        func sourceNominalTypeName(_ value: RuntimeValue) -> String? {
+            switch value {
+            case .enumCase(let enumCase): return enumCase.symbol.name
+            case .instance(let instance): return instance.symbol.name
+            default: return nil
+            }
+        }
+        // Leading-dot static members take their peer operand's nominal
+        // context for every source value, not only enum cases. This is the
+        // ordinary `value == .staticMember` rule used by RawRepresentable
+        // structs and other namespace-style value types; resolving it here
+        // also lets synthesized memberwise Equatable see two concrete values.
+        if let typeName = sourceNominalTypeName(lhs), looksLikeMarker(rhs) {
+            rhs = try resolveAnnotated(rhs, typeName: typeName)
+        } else if let typeName = sourceNominalTypeName(rhs),
+                  looksLikeMarker(lhs) {
+            lhs = try resolveAnnotated(lhs, typeName: typeName)
         }
         if let declared = declaredEqualsOperator(lhs) ?? declaredEqualsOperator(rhs) {
             do {

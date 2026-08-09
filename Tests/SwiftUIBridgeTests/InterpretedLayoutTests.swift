@@ -13,6 +13,101 @@ import Testing
 /// AnyView does NOT block expansion, `AnyView(ForEach(0..<3))` presents 3
 /// subviews to a Layout).
 @Suite struct InterpretedLayoutTests {
+    /// LayoutValueKey is framework-supplied child metadata: the source key's
+    /// identity and default value are not encoded in a View's ordinary
+    /// modifier result. The bridge stores every key in one native trait,
+    /// preserves it through later modifiers, and projects defaults and
+    /// explicit values through every interpreted LayoutSubview subscript.
+    @MainActor
+    @Test func sourceLayoutValueKeyControlsSubviewPlacement() throws {
+        let source = """
+        enum Lane {
+            case near
+            case far
+        }
+
+        struct LaneKey: LayoutValueKey {
+            static let defaultValue: Lane = .near
+        }
+
+        struct RaisedKey: LayoutValueKey {
+            static let defaultValue = false
+        }
+
+        struct LaneLayout: Layout {
+            func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+                proposal.replacingUnspecifiedDimensions(by: CGSize(width: 140, height: 60))
+            }
+
+            func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+                for subview in subviews {
+                    let lane = subview[LaneKey.self]
+                    let x = lane == .near ? bounds.minX : bounds.minX + 60
+                    let y = subview[RaisedKey.self]
+                        ? bounds.minY : bounds.minY + 30
+                    subview.place(
+                        at: CGPoint(x: x, y: y),
+                        anchor: UnitPoint(x: 0, y: 0),
+                        proposal: ProposedViewSize(width: 20, height: 20)
+                    )
+                }
+            }
+        }
+
+        LaneLayout {
+            Rectangle()
+                .fill(Color.black)
+                .layoutValue(key: RaisedKey.self, value: true)
+            Rectangle()
+                .fill(Color.black)
+                .layoutValue(key: LaneKey.self, value: .far)
+                .opacity(1)
+                .layoutValue(key: RaisedKey.self, value: true)
+        }
+        """
+
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("layout-value render failed: \(rendered)")
+            return
+        }
+        #expect(RenderDiagnostics.errors.isEmpty)
+
+        let size = NSSize(width: 140, height: 60)
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        let rep = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0))
+        rep.size = size
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+
+        func luminance(_ x: Int, _ y: Int) -> CGFloat {
+            guard let color = rep.colorAt(x: x, y: y) else { return -1 }
+            return (color.redComponent + color.greenComponent
+                    + color.blueComponent) / 3
+        }
+        #expect(luminance(10, 10) < 0.3)
+        #expect(luminance(70, 10) < 0.3)
+        #expect(luminance(40, 10) > 0.9)
+        #expect(luminance(70, 40) > 0.9)
+    }
+
     @MainActor
     @Test func directSpellingLayoutPlacesForEachChildrenDiagonally() throws {
         let source = """

@@ -924,6 +924,8 @@ extension Interpreter {
             // read off them renders empty.
             try injectEnvironmentObjects(
                 into: instance, models: ambientEnvironmentModels)
+            injectEnvironmentValues(
+                into: instance, values: ambientEnvironmentValues)
             values += try evaluateComputedResultBuilderBody(
                 body,
                 selfValue: value,

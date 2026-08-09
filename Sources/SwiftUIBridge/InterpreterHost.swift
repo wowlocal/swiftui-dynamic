@@ -239,7 +239,20 @@ public struct InterpreterHost {
                     }
                     app = instance
                 }
-                let root = try interpreter.evaluateAppRootExpression(declared.expression, app: app)
+                // App/Scene composition is lazy in native SwiftUI, so a
+                // source ViewModifier created there receives environment only
+                // when hosted. The interpreter executes its source body while
+                // materializing that composition; scope the host defaults
+                // across that semantic boundary so the eager execution sees
+                // the same values the eventual native node will inherit.
+                let rootEnvironment = InterpretedEnvironment.defaults(
+                    platformName: interpreter.buildConfiguration.platformName)
+                let root = try interpreter.withAmbientEnvironmentValues(
+                    rootEnvironment
+                ) {
+                    try interpreter.evaluateAppRootExpression(
+                        declared.expression, app: app)
+                }
                 if case let .instance(instance) = root, instance.symbol.conformsToView {
                     return try .success(InterpreterRenderSession(
                         view: ViewRegistry.anyView(registry.makeRenderable(

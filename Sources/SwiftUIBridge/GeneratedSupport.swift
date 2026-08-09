@@ -24,6 +24,11 @@ enum ParamTag: Hashable {
     /// expressible on the value — both overloads receive the same `String` —
     /// so it is the declared parameter type that selects the reading.
     case localizationKey
+    /// A resource accessor synthesized from an asset catalog. Its transport
+    /// is the catalog name String used by DeveloperToolsSupport, while a
+    /// leading-dot source spelling carries the generated Swift symbol until
+    /// this final typed boundary.
+    case compilerAssetResourceName
     /// A homogeneous collection whose element adapter and contextual type are
     /// both derived from the parameter's interface type.
     indirect case array(ParamTag, String)
@@ -68,7 +73,7 @@ enum ParamTag: Hashable {
     /// closure result satisfies. Generated typed carriers consume this
     /// descriptor after overload selection.
     case resultBuilder(String, String)
-    case action, asyncAction
+    case action, asyncAction, asyncVoidClosure
     case syncVoidClosure
     /// A framework-owned synchronous callback whose declared result is a
     /// value rather than `Void`. The associated values are how many inputs
@@ -114,7 +119,7 @@ extension ParamTag {
     var bindsAnInterpretedClosure: Bool {
         switch self {
         case .builder, .resultBuilder,
-             .action, .asyncAction,
+             .action, .asyncAction, .asyncVoidClosure,
              .syncVoidClosure, .syncClosure,
              .equatableAction1, .equatableAction2:
             return true
@@ -303,7 +308,7 @@ struct ActionValue: @unchecked Sendable {
 /// Its implementation enters a fresh interpreter `.swiftUITask` session;
 /// native SwiftUI remains the owner of appearance and cancellation.
 struct AsyncActionValue: @unchecked Sendable {
-    let run: @MainActor @Sendable () async -> Void
+    let run: @MainActor @Sendable ([RuntimeValue]) async -> Void
 }
 
 /// One concrete specialization for an interface generic constrained only to
@@ -632,7 +637,8 @@ enum GeneratedDispatch {
         guard let payload = value.hostPayload else { return nil }
         let native = (payload as? GeneratedMemberCarrier)?
             .generatedMemberValue ?? payload
-        guard GeneratedMembers.keyTypeName(of: native) == typeName
+        guard String(reflecting: Swift.type(of: native)) == typeName
+                || GeneratedMembers.keyTypeName(of: native) == typeName
                 || GeneratedMembers.declarationPath(of: native) == typeName
                 || GeneratedPlatformBridge.directRuntimeTypeName(
                     of: native
@@ -702,6 +708,15 @@ enum GeneratedDispatch {
         case .string, .localizationKey:
             guard let s = value.stringValue else { throw RuntimeError(message: "expected a String") }
             return s
+        case .compilerAssetResourceName:
+            if let name = value.stringValue { return name }
+            if case .implicitMember(let name) = value { return name }
+            if case .host(let call as ImplicitMemberCall) = value,
+               call.arguments.isEmpty {
+                return call.name
+            }
+            throw RuntimeError(message:
+                "expected a compiler-generated asset resource symbol")
         case .array(let elementTag, let elementType):
             guard let elements = value.collectionElements else {
                 throw RuntimeError(message: "expected a collection")
@@ -831,9 +846,9 @@ enum GeneratedDispatch {
             }
             return binding
         case .shapeStyle:
-            return try Coerce.shapeStyle(value)
+            return try Coerce.shapeStyle(value, context: ctx)
         case .genericShapeStyle:
-            return try Coerce.genericShapeStyle(value)
+            return try Coerce.genericShapeStyle(value, context: ctx)
         case .anyView:
             return try ViewRegistry.anyView(value, resolving: ctx)
         case .nativeSwiftUIValue(let typeName):
@@ -847,7 +862,11 @@ enum GeneratedDispatch {
             throw RuntimeError(message:
                 "expected a native SwiftUI \(typeName) value")
         case .shape:
-            return try Coerce.shape(value)
+            if let generated = GeneratedSDKProtocolValueCoercions.coerceShape(
+                value, context: ctx) {
+                return generated
+            }
+            return try Coerce.shape(value, context: ctx)
         case .visibility:
             return try Coerce.visibility(value)
         case .axisSet:
@@ -881,7 +900,22 @@ enum GeneratedDispatch {
                 closure: closure,
                 context: ctx,
                 diagnosticContext: "generated SwiftUI async action")
-            return AsyncActionValue(run: { await callback.call() })
+            return AsyncActionValue(run: { arguments in
+                await callback.call(arguments: arguments)
+            })
+        case .asyncVoidClosure:
+            guard let closure = value.closureValue else {
+                throw RuntimeError(message:
+                    "expected an async closure with a framework input")
+            }
+            let callback = InterpretedSwiftUITaskCallback(
+                closure: closure,
+                context: ctx,
+                diagnosticContext:
+                    "generated SwiftUI async input closure")
+            return AsyncActionValue(run: { arguments in
+                await callback.call(arguments: arguments)
+            })
         case .syncVoidClosure, .syncClosure:
             guard let closure = value.closureValue else {
                 throw RuntimeError(message: "expected a synchronous closure")
@@ -2251,7 +2285,20 @@ func generatedAsyncAction(
     _ value: Any
 ) -> @MainActor @Sendable () async -> Void {
     let action = value as! AsyncActionValue
-    return { await action.run() }
+    return { await action.run([]) }
+}
+
+/// Reconstitute any one-input async-`Void` callback declared by a generated
+/// SwiftUI modifier. The framework manufactures the native input; the shared
+/// task adapter preserves it as a RuntimeValue and gives the interpreted
+/// closure SwiftUI-owned lifetime and cancellation semantics.
+func generatedAsyncVoidClosure<Input>(
+    _ value: Any
+) -> @MainActor @Sendable (Input) async -> Void {
+    let action = value as! AsyncActionValue
+    return { input in
+        await action.run([.host(input)])
+    }
 }
 
 /// Reconstitute callback shapes whose inputs share the declaration's

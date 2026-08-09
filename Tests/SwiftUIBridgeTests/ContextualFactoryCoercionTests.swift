@@ -111,6 +111,34 @@ import Testing
         #expect(coerced as? Date.RelativeFormatStyle.UnitsStyle == .wide)
     }
 
+    /// A source extension's computed property carries its declared imported
+    /// type as a marker until the generated SDK consumer opens it. This is
+    /// semantically the same payload-free value as a direct leading dot, but
+    /// its existing type context must be preserved and validated.
+    @MainActor
+    @Test func typedComputedSDKEnumValueReachesGeneratedConsumer() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: """
+        import SwiftUI
+        private extension LayoutDirection {
+            var opposite: LayoutDirection {
+                self == .leftToRight ? .rightToLeft : .leftToRight
+            }
+        }
+
+        let flipped: LayoutDirection =
+            LayoutDirection.leftToRight.opposite
+        Text("direction")
+            .environment(\\.layoutDirection, flipped)
+        """)
+        #expect(registry.isViewValue(result))
+        let flipped = try #require(
+            try interpreter.globalValue(named: "flipped")?.hostPayload
+                as? LayoutDirection)
+        #expect(flipped == .rightToLeft)
+    }
+
     /// Counter-direction: a name the interface does not declare is an error,
     /// not a silent nil. A factory arm that swallowed unknown spellings would
     /// turn a typo into a blank render — the very symptom being fixed.

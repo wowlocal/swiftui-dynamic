@@ -845,6 +845,34 @@ import SwiftInterpreter
         #expect(first == second, "runs must be deterministic: \(first) vs \(second)")
         #expect(first.contains("count 1"))
     }
+
+    @Test func fetchDescriptorFiltersMixedStoreByGenericType() async throws {
+        let source = """
+        struct Note {
+            var title = "note"
+        }
+        struct Tag {
+            var title = "tag"
+        }
+
+        struct ContentView: View {
+            @Environment(\\.modelContext) private var context
+            @State private var summary = "pending"
+
+            var body: some View {
+                Text(summary)
+                    .onAppear {
+                        context.insert(Tag())
+                        context.insert(Note())
+                        let notes = context.fetch(FetchDescriptor<Note>())
+                        summary = "notes \\(notes.count): " + notes[0].title
+                    }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("notes 1: note"), "generic descriptor must filter mixed rows: \(strings)")
+    }
 }
 
 /// The interaction rung × live store (M3): tapping Add inserts into the

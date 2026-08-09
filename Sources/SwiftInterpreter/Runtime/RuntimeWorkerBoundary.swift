@@ -22,6 +22,7 @@ nonisolated enum RuntimeWorkerHeapEdge: String, CaseIterable, Sendable {
     case globals
     case synthesizedEnvironmentModels
     case ambientEnvironmentModels
+    case ambientEnvironmentValues
     case viewStateCells
 }
 

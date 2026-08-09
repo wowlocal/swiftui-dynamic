@@ -5,6 +5,75 @@ import SwiftUI
 import SwiftInterpreter
 
 extension GeneratedEnvironmentValues {
+    /// Execute SwiftUI's own EnvironmentValues defaults. The interface
+    /// selects every readable key and the framework supplies its value; no
+    /// compiled framework constant is transcribed into the interpreter.
+    static func defaultValues() -> [String: RuntimeValue] {
+        let values = EnvironmentValues()
+        return [
+            "_accessibilityDifferentiateWithoutColor": .native(values.`_accessibilityDifferentiateWithoutColor`),
+            "_accessibilityInvertColors": .native(values.`_accessibilityInvertColors`),
+            "_accessibilityLargeContentViewerEnabled": .native(values.`_accessibilityLargeContentViewerEnabled`),
+            "_accessibilityQuickActionsEnabled": .native(values.`_accessibilityQuickActionsEnabled`),
+            "_accessibilityReduceMotion": .native(values.`_accessibilityReduceMotion`),
+            "_accessibilityReduceTransparency": .native(values.`_accessibilityReduceTransparency`),
+            "_accessibilityShowButtonShapes": .native(values.`_accessibilityShowButtonShapes`),
+            "_colorSchemeContrast": .native(values.`_colorSchemeContrast`),
+            "_lineHeightMultiple": .native(values.`_lineHeightMultiple`),
+            "accessibilityEnabled": .native(values.`accessibilityEnabled`),
+            "allowedDynamicRange": .native(values.`allowedDynamicRange`),
+            "allowsTightening": .native(values.`allowsTightening`),
+            "appearsActive": .native(values.`appearsActive`),
+            "autocorrectionDisabled": .native(values.`autocorrectionDisabled`),
+            "backgroundMaterial": .native(values.`backgroundMaterial`),
+            "backgroundProminence": .native(values.`backgroundProminence`),
+            "backgroundStyle": .native(values.`backgroundStyle`),
+            "badgeProminence": .native(values.`badgeProminence`),
+            "colorScheme": .native(values.`colorScheme`),
+            "contentTransition": .native(values.`contentTransition`),
+            "contentTransitionAddsDrawingGroup": .native(values.`contentTransitionAddsDrawingGroup`),
+            "controlSize": .native(values.`controlSize`),
+            "defaultMinListHeaderHeight": .native(values.`defaultMinListHeaderHeight`),
+            "defaultMinListRowHeight": .native(values.`defaultMinListRowHeight`),
+            "disableAutocorrection": .native(values.`disableAutocorrection`),
+            "displayScale": .native(values.`displayScale`),
+            "dynamicTypeSize": .native(values.`dynamicTypeSize`),
+            "font": .native(values.`font`),
+            "headerProminence": .native(values.`headerProminence`),
+            "horizontalScrollBounceBehavior": .native(values.`horizontalScrollBounceBehavior`),
+            "horizontalScrollIndicatorVisibility": .native(values.`horizontalScrollIndicatorVisibility`),
+            "horizontalSizeClass": .native(values.`horizontalSizeClass`),
+            "imageScale": .native(values.`imageScale`),
+            "isEnabled": .native(values.`isEnabled`),
+            "isFocusEffectEnabled": .native(values.`isFocusEffectEnabled`),
+            "isLuminanceReduced": .native(values.`isLuminanceReduced`),
+            "isScrollEnabled": .native(values.`isScrollEnabled`),
+            "labelsVisibility": .native(values.`labelsVisibility`),
+            "layoutDirection": .native(values.`layoutDirection`),
+            "legibilityWeight": .native(values.`legibilityWeight`),
+            "lineLimit": .native(values.`lineLimit`),
+            "lineSpacing": .native(values.`lineSpacing`),
+            "materialActiveAppearance": .native(values.`materialActiveAppearance`),
+            "menuIndicatorVisibility": .native(values.`menuIndicatorVisibility`),
+            "menuOrder": .native(values.`menuOrder`),
+            "minimumScaleFactor": .native(values.`minimumScaleFactor`),
+            "multilineTextAlignment": .native(values.`multilineTextAlignment`),
+            "redactionReasons": .native(values.`redactionReasons`),
+            "scenePhase": .native(values.`scenePhase`),
+            "scrollDismissesKeyboardMode": .native(values.`scrollDismissesKeyboardMode`),
+            "sidebarRowSize": .native(values.`sidebarRowSize`),
+            "sizeCategory": .native(values.`sizeCategory`),
+            "symbolRenderingMode": .native(values.`symbolRenderingMode`),
+            "symbolVariants": .native(values.`symbolVariants`),
+            "textCase": .native(values.`textCase`),
+            "textSelectionAffinity": .native(values.`textSelectionAffinity`),
+            "truncationMode": .native(values.`truncationMode`),
+            "verticalScrollBounceBehavior": .native(values.`verticalScrollBounceBehavior`),
+            "verticalScrollIndicatorVisibility": .native(values.`verticalScrollIndicatorVisibility`),
+            "verticalSizeClass": .native(values.`verticalSizeClass`),
+        ]
+    }
+
     static func build() -> [String: Descriptor] {
         [            "_accessibilityDifferentiateWithoutColor": .init(
                 declaration: "var EnvironmentValues._accessibilityDifferentiateWithoutColor: Bool { get set }",

@@ -3,6 +3,9 @@ import SwiftUI
 import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
+#if canImport(SwiftData)
+import SwiftData
+#endif
 
 /// Breadth probes for the GENERATED gateway table: every modifier here was
 /// never hand-written — it exists only because BridgeGen emitted it from the
@@ -31,6 +34,109 @@ import SwiftInterpreter
                     == [.nativeSwiftUIValue("CGPoint")]
         })
         #expect(ViewRegistry().modifiers["position"] == nil)
+    }
+
+#if canImport(SwiftData)
+    /// A cross-import overlay can consume an SDK reference object. Its own
+    /// framework interface proves the nominal is a public concrete class;
+    /// generated dispatch then unwraps any native carrier without a modifier
+    /// or type-name branch.
+    @MainActor
+    @Test func crossImportReferenceModifierUsesNativeCarrier() throws {
+        let overload = try #require(
+            GeneratedModifiers.table["modelContainer"]?.byArity[1]?.first {
+                $0.params.map(\.tag) == [
+                    .nativeSwiftUIValue("SwiftData.ModelContainer")
+                ]
+            })
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let box = ModelContainerBox()
+        let carrier = try #require(box as (any GeneratedMemberCarrier)?)
+        #expect(GeneratedMembers.keyTypeName(
+            of: carrier.generatedMemberValue) == "ModelContainer")
+        #expect(GeneratedMembers.declarationPath(
+            of: carrier.generatedMemberValue) == "ModelContainer")
+        #expect(String(reflecting: Swift.type(
+            of: carrier.generatedMemberValue)) == "SwiftData.ModelContainer")
+        let native = try GeneratedDispatch.coerce(
+            .nativeSwiftUIValue("SwiftData.ModelContainer"),
+            .native(box), interpreter,
+            contextualType: "SwiftData.ModelContainer")
+        #expect(native is SwiftData.ModelContainer)
+        _ = try overload.invoke(AnyView(Text("carrier-probe")), [native])
+        #expect(ViewRegistry().modifiers["modelContainer"] == nil)
+    }
+#endif
+
+    /// Contextual type is part of a generated overload's identity: asset
+    /// resources cannot collapse into the sibling String overload, and a
+    /// framework-input async callback is not the zero-input async action.
+    @Test func transportEquivalentOverloadsRetainDeclaredTypeAndClosureShape() {
+        let image = GeneratedConstructors.table["Image"]?.byArity[1] ?? []
+        #expect(image.contains {
+            $0.params.map(\.tag) == [.compilerAssetResourceName]
+                && $0.params.map(\.contextualType) == ["ImageResource"]
+        })
+
+        let subscription = GeneratedModifiers.table["subscriptionStatusTask"]?
+            .byArity[2] ?? []
+        #expect(subscription.contains {
+            $0.params.map(\.label) == ["for", "action"]
+                && $0.params.map(\.tag) == [.string, .asyncVoidClosure]
+        })
+    }
+
+    /// Shape is intentionally erased at the bridge boundary, but its
+    /// leading-dot factories still come from the protocol extensions in the
+    /// SDK interface. The generated protocol opener must run before erasure.
+    @MainActor
+    @Test func erasedShapeRetainsInterfaceContextualFactories() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let value = try GeneratedDispatch.coerce(
+            .shape, .implicitMember("containerRelative"), interpreter)
+        #expect(value is AnyShape)
+
+        let clipped = try interpreter.run(source: """
+        import SwiftUI
+        Text("container").clipShape(.containerRelative)
+        """)
+        #expect(registry.isViewValue(clipped))
+    }
+
+    /// ShapeStyle is generic rather than erased at most call sites. Its
+    /// protocol-extension statics and concrete conformers must both cross the
+    /// same interface-generated opener instead of a closed runtime name list.
+    @MainActor
+    @Test func genericShapeStyleUsesInterfaceContextAndConformance() throws {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let contextual = try GeneratedDispatch.coerce(
+            .genericShapeStyle, .implicitMember("separator"), interpreter)
+        #expect(contextual is any ShapeStyle)
+
+        let gradient = Gradient(colors: [.orange, .pink])
+        let concrete = try GeneratedDispatch.coerce(
+            .genericShapeStyle, .native(gradient), interpreter)
+        #expect(concrete is Gradient)
+
+        let erased = try interpreter.run(source: """
+        import SwiftUI
+        AnyShapeStyle(Gradient(colors: [.orange, .pink]))
+        """)
+        #expect(erased.hostPayload is AnyShapeStyle)
+    }
+
+    /// Static factories are generated consumers too. Their protocol-generic
+    /// arguments must admit a leading-dot root followed by same-type SDK
+    /// properties, all discovered from the interfaces.
+    @Test func staticFactoryCarriesProtocolContextualPropertyChains() throws {
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: """
+        import SwiftUI
+        Text("favorite")
+            .contentTransition(.symbolEffect(.replace.upUp))
+        """)
+        #expect(registry.isViewValue(result))
     }
 
     /// The interface relates `onChange`'s observed Equatable generic to the
@@ -959,6 +1065,10 @@ import SwiftInterpreter
         #expect(rowHeight.keyPathType
             == "WritableKeyPath<EnvironmentValues, CGFloat>")
         #expect(!rowHeight.isOptional)
+
+        let nativeDefaults = GeneratedEnvironmentValues.defaultValues()
+        #expect(nativeDefaults["layoutDirection"]?.hostPayload
+            as? LayoutDirection == .leftToRight)
 
         let lineLimit = try #require(
             GeneratedEnvironmentValues.descriptors["lineLimit"])

@@ -18,6 +18,12 @@ public final class RuntimeHeap {
     /// would otherwise never be told what the enclosing environment holds.
     var ambientEnvironmentModels: [String: Instance] = [:]
 
+    /// Key-path environment values visible while the host evaluates a view
+    /// body. Source-defined ViewModifiers and non-View builder conformers run
+    /// inside that body but have no native host node of their own, so they
+    /// inherit this scoped table from the enclosing view.
+    var ambientEnvironmentValues: [String: RuntimeValue] = [:]
+
     /// SwiftUI-style state storage retained by source view identity.
     var viewStateCells: [Interpreter.ViewStateKey: Box] = [:]
 

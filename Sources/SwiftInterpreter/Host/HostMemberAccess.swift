@@ -109,6 +109,32 @@ extension Interpreter {
         if let member = registry?.hostMember(name, on: value) {
             return member
         }
+        // A contextual generic application carries TWO useful identities:
+        // the complete type selects result-constrained generated overloads,
+        // while ordinary static members are declared on its nominal head.
+        // Give the precise marker the first turn above, then retry the same
+        // registry surface with `Container<Arguments...>` represented the
+        // way HostTypeMarker was designed: `name == "Container"` plus
+        // `genericArguments`. This is the runtime counterpart of generic
+        // member lookup in Swift and avoids teaching every bridge about
+        // textual generic spellings independently.
+        if let marker = value as? HostTypeMarker,
+           let application = HostSignature.genericApplication(marker.name) {
+            let nominal = HostTypeMarker(
+                name: application.name,
+                genericArguments: application.arguments)
+            if let property = registry?.hostProperty(named: name, on: nominal) {
+                let receiver = RuntimeValue.native(nominal)
+                if deferringAsyncProperty && property.canSuspend {
+                    return .native(PendingHostPropertyRead(
+                        property: property, receiver: receiver))
+                }
+                return try property.read(from: receiver, in: self)
+            }
+            if let member = registry?.hostMember(name, on: nominal) {
+                return member
+            }
+        }
         guard includingFallback else { return nil }
         return registry?.fallbackHostMember(name, on: value)
     }
@@ -146,10 +172,22 @@ extension Interpreter {
     /// Shape probe used while resolving lvalues. It intentionally avoids
     /// invoking a typed getter merely to discover writability.
     func hasHostMember(_ name: String, on value: Any) -> Bool {
-        hasRuntimeAsyncStreamMember(name, on: value)
+        if hasRuntimeAsyncStreamMember(name, on: value)
             || registry?.hostProperty(named: name, on: value) != nil
             || registry?.fallbackHostProperty(named: name, on: value) != nil
             || registry?.hostMember(name, on: value) != nil
-            || registry?.fallbackHostMember(name, on: value) != nil
+            || registry?.fallbackHostMember(name, on: value) != nil {
+            return true
+        }
+        guard let marker = value as? HostTypeMarker,
+              let application = HostSignature.genericApplication(marker.name)
+        else { return false }
+        let nominal = HostTypeMarker(
+            name: application.name,
+            genericArguments: application.arguments)
+        return registry?.hostProperty(named: name, on: nominal) != nil
+            || registry?.fallbackHostProperty(named: name, on: nominal) != nil
+            || registry?.hostMember(name, on: nominal) != nil
+            || registry?.fallbackHostMember(name, on: nominal) != nil
     }
 }

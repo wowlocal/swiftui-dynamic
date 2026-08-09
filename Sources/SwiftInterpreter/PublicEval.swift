@@ -42,6 +42,13 @@ extension Interpreter {
         try? staticMember(name, of: symbol)
     }
 
+    /// Enum-metatype companion to the bridge's source-static read. Semantic
+    /// adapters such as LayoutValueKey defaults operate on metatypes rather
+    /// than assuming the key's nominal declaration kind.
+    public func readStatic(_ name: String, of symbol: EnumSymbol) -> RuntimeValue? {
+        try? staticMember(name, of: symbol)
+    }
+
     /// Labeled method invocation for bridge shims (the Layout protocol's
     /// sizeThatFits(proposal:subviews:cache:) genre).
     public func callMethodLabeled(

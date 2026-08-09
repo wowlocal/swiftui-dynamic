@@ -15,18 +15,115 @@ private final class LayoutCarrier: @unchecked Sendable {
     }
 }
 
+/// Runtime counterpart of interpreted `LayoutValueKey` storage. Source key
+/// types cannot instantiate native generic arguments, so one native trait
+/// carries every source metatype identity and value. SwiftUI still owns
+/// propagation from the child View into its LayoutSubview.
+struct InterpretedLayoutValueStorage: @unchecked Sendable {
+    var values: [ObjectIdentifier: RuntimeValue] = [:]
+
+    func setting(
+        _ value: RuntimeValue, for keyID: ObjectIdentifier
+    ) -> InterpretedLayoutValueStorage {
+        var copy = self
+        copy.values[keyID] = value.copiedForValueSemantics()
+        return copy
+    }
+
+    func merging(
+        _ newer: InterpretedLayoutValueStorage
+    ) -> InterpretedLayoutValueStorage {
+        var copy = self
+        copy.values.merge(newer.values) { _, new in new }
+        return copy
+    }
+}
+
+private struct InterpretedLayoutValueStorageKey: LayoutValueKey {
+    static let defaultValue = InterpretedLayoutValueStorage()
+}
+
+/// Keeps source layout metadata alive across arbitrary modifier chains. Its
+/// materialized View carries the complete map in one native trait; retaining
+/// the runtime box lets another source `layoutValue` merge a different key.
+@MainActor
+final class InterpretedLayoutValueViewBox {
+    let view: AnyView
+    let storage: InterpretedLayoutValueStorage
+
+    init(view: AnyView, storage: InterpretedLayoutValueStorage) {
+        self.view = view
+        self.storage = storage
+    }
+
+    var materializedView: AnyView {
+        AnyView(view.layoutValue(
+            key: InterpretedLayoutValueStorageKey.self,
+            value: storage))
+    }
+
+    func replacingView(_ view: AnyView) -> InterpretedLayoutValueViewBox {
+        InterpretedLayoutValueViewBox(view: view, storage: storage)
+    }
+}
+
+@MainActor
+func applyingInterpretedLayoutValue(
+    _ receiver: RuntimeValue, key: RuntimeValue, value: RuntimeValue
+) throws -> RuntimeValue {
+    let keyID: ObjectIdentifier
+    switch key {
+    case .type(let symbol):
+        keyID = ObjectIdentifier(symbol)
+    case .enumType(let symbol):
+        keyID = ObjectIdentifier(symbol)
+    default:
+        throw RuntimeError(message:
+            "layoutValue(key:value:) needs a source LayoutValueKey metatype")
+    }
+    let existing = receiver.hostPayload as? InterpretedLayoutValueViewBox
+    let view = try existing?.view ?? ViewRegistry.anyView(receiver)
+    let storage = (existing?.storage ?? InterpretedLayoutValueStorage())
+        .setting(value, for: keyID)
+    return .native(InterpretedLayoutValueViewBox(
+        view: view, storage: storage))
+}
+
 /// `subviews[i]` face for interpreted placement code: place/sizeThatFits.
 final class LayoutSubviewBox {
     let place: (CGPoint, UnitPoint, ProposedViewSize) -> Void
     let sizeThatFits: (ProposedViewSize) -> CGSize
     let spacing: ViewSpacing
+    private let layoutValues: InterpretedLayoutValueStorage
+    private let interpreter: Interpreter
 
     init(place: @escaping (CGPoint, UnitPoint, ProposedViewSize) -> Void,
          sizeThatFits: @escaping (ProposedViewSize) -> CGSize,
-         spacing: ViewSpacing) {
+         spacing: ViewSpacing,
+         layoutValues: InterpretedLayoutValueStorage,
+         interpreter: Interpreter) {
         self.place = place
         self.sizeThatFits = sizeThatFits
         self.spacing = spacing
+        self.layoutValues = layoutValues
+        self.interpreter = interpreter
+    }
+
+    func value(for key: RuntimeValue) -> RuntimeValue? {
+        switch key {
+        case .type(let symbol):
+            if let value = layoutValues.values[ObjectIdentifier(symbol)] {
+                return value.copiedForValueSemantics()
+            }
+            return interpreter.readStatic("defaultValue", of: symbol)
+        case .enumType(let symbol):
+            if let value = layoutValues.values[ObjectIdentifier(symbol)] {
+                return value.copiedForValueSemantics()
+            }
+            return interpreter.readStatic("defaultValue", of: symbol)
+        default:
+            return nil
+        }
     }
 }
 
@@ -49,7 +146,10 @@ struct InterpretedLayout: Layout {
                     named: "sizeThatFits", on: carrier.instance,
                     arguments: [
                         (label: "proposal", value: .native(carried.0)),
-                        (label: "subviews", value: Self.subviewArray(carried.1, for: carrier.instance.symbol.name + ".sizeThatFits")),
+                        (label: "subviews", value: Self.subviewArray(
+                            carried.1,
+                            for: carrier.instance.symbol.name + ".sizeThatFits",
+                            interpreter: carrier.interpreter)),
                         (label: "cache", value: .void),
                     ])
                 if case .host(let any) = value, let size = any as? CGSize {
@@ -75,7 +175,10 @@ struct InterpretedLayout: Layout {
                     arguments: [
                         (label: "in", value: .native(carried.0)),
                         (label: "proposal", value: .native(carried.1)),
-                        (label: "subviews", value: Self.subviewArray(carried.2, for: carrier.instance.symbol.name + ".placeSubviews")),
+                        (label: "subviews", value: Self.subviewArray(
+                            carried.2,
+                            for: carrier.instance.symbol.name + ".placeSubviews",
+                            interpreter: carrier.interpreter)),
                         (label: "cache", value: .void),
                     ])
             } catch let error as RuntimeError {
@@ -86,7 +189,10 @@ struct InterpretedLayout: Layout {
     }
 
     @MainActor
-    private static func subviewArray(_ subviews: Subviews, for name: String) -> RuntimeValue {
+    private static func subviewArray(
+        _ subviews: Subviews, for name: String,
+        interpreter: Interpreter
+    ) -> RuntimeValue {
         if RenderDiagnostics.traceEnabled {
             FileHandle.standardError.write(Data("LAYOUT \(name) subviews=\(subviews.count)\n".utf8))
         }
@@ -106,7 +212,10 @@ struct InterpretedLayout: Layout {
                     }
                     return subview.sizeThatFits(proposal)
                 },
-                spacing: subview.spacing))
+                spacing: subview.spacing,
+                layoutValues:
+                    subview[InterpretedLayoutValueStorageKey.self],
+                interpreter: interpreter))
         }
         return .native(boxes)
     }
@@ -163,6 +272,15 @@ func layoutHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         case "spacing":
             return .native(box.spacing)
+        case "subscript":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let key = args.positional(0),
+                      let value = box.value(for: key) else {
+                    throw RuntimeError(message:
+                        "LayoutSubview subscript needs a LayoutValueKey metatype")
+                }
+                return value
+            })
         default:
             return nil
         }

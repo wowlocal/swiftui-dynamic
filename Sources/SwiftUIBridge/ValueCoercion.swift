@@ -336,8 +336,13 @@ enum Coerce {
     /// it; erasing here changes SwiftUI rendering even when the visual value
     /// appears equivalent.
     static func genericShapeStyle(
-        _ value: RuntimeValue
+        _ value: RuntimeValue, context: EvalContext? = nil
     ) throws -> any ShapeStyle {
+        if let context,
+           let generated = GeneratedSDKProtocolValueCoercions.coerceShapeStyle(
+            value, context: context) {
+            return generated
+        }
         if case .host(let any) = value {
             if let style = any as? AnyShapeStyle { return style }
             if let color = any as? Color { return color }
@@ -357,7 +362,8 @@ enum Coerce {
                     // FoodTruck card-tile fill; a flat-gray stand-in reads
                     // 12/255 darker than the compiled render).
                     return opacityShapeStyle(
-                        try genericShapeStyle(chained.base),
+                        try genericShapeStyle(
+                            chained.base, context: context),
                         amount: amount)
                 case "gradient":
                     guard let base = colorLike(chained.base) else {
@@ -370,7 +376,8 @@ enum Coerce {
                     // base style.
                     let style = try shadowStyle(chained.arguments.positional(0))
                     return shadowShapeStyle(
-                        try genericShapeStyle(chained.base),
+                        try genericShapeStyle(
+                            chained.base, context: context),
                         style: style)
                 default:
                     throw RuntimeError(message: "unsupported style '.\(chained.baseName ?? "…").\(chained.member)'")
@@ -381,7 +388,8 @@ enum Coerce {
             // A zero-argument marker CALL is the marker itself — chain bases
             // arrive in this carrier (`.indigo` under `.shadow(…)`).
             if call.arguments.arguments.isEmpty {
-                return try genericShapeStyle(.implicitMember(call.name))
+                return try genericShapeStyle(
+                    .implicitMember(call.name), context: context)
             }
             // `.linearGradient(colors:startPoint:endPoint:)` — the factory
             // spelling of the gradient styles (FoodTruck's forecast fill).
@@ -423,8 +431,10 @@ enum Coerce {
 
     /// Direct AnyShapeStyle parameters intentionally erase at their declared
     /// boundary; generic ShapeStyle parameters use `genericShapeStyle` above.
-    static func shapeStyle(_ value: RuntimeValue) throws -> AnyShapeStyle {
-        eraseShapeStyle(try genericShapeStyle(value))
+    static func shapeStyle(
+        _ value: RuntimeValue, context: EvalContext? = nil
+    ) throws -> AnyShapeStyle {
+        eraseShapeStyle(try genericShapeStyle(value, context: context))
     }
 
     // MARK: - Fonts
@@ -734,7 +744,14 @@ enum Coerce {
 
     // MARK: - Shapes & grids
 
-    static func shape(_ value: RuntimeValue) throws -> AnyShape {
+    static func shape(
+        _ value: RuntimeValue, context: EvalContext? = nil
+    ) throws -> AnyShape {
+        if let context,
+           let generated = GeneratedSDKProtocolValueCoercions.coerceShape(
+            value, context: context) {
+            return generated
+        }
         if case .host(let any) = value,
            let box = ShapeBox.opening(any) {
             return box.shape

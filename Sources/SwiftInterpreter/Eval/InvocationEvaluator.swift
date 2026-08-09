@@ -507,7 +507,12 @@ extension Interpreter {
                 let bracketed = activeInitializers.insert(chosen.id).inserted
                 defer { if bracketed { activeInitializers.remove(chosen.id) } }
                 let env = Environment(parent: globals)
-                env.define("self", .void)
+                // Keep the enum metatype as the uninitialized-self marker.
+                // Besides retaining the type context for `self = .case`, it
+                // lets member dispatch recognize `self.init(...)` as enum
+                // initializer delegation and commit the delegate's case back
+                // into this same initialization frame.
+                env.define("self", .enumType(symbol))
                 let closure = makeInitializerClosure(
                     chosen,
                     body: body,

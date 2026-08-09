@@ -272,6 +272,35 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "up/south")
     }
 
+    @Test func delegatingEnumInitializerCommitsFinalCase() throws {
+        let source = """
+        enum Phase {
+            case early
+            case late
+
+            init(offset: Int) {
+                self.init(hour: offset + 6)
+            }
+
+            init(hour: Int) {
+                switch hour {
+                case 0 ..< 12: self = .early
+                default: self = .late
+                }
+            }
+
+            var label: String {
+                switch self {
+                case .early: "early"
+                case .late: "late"
+                }
+            }
+        }
+        Phase(offset: 0).label + "/" + Phase(offset: 12).label
+        """
+        #expect(try eval(source).stringValue == "early/late")
+    }
+
     @Test func allCases() throws {
         let source = """
         enum Size: String, CaseIterable {
@@ -297,6 +326,26 @@ private func eval(_ source: String) throws -> RuntimeValue {
         Temperature(fahrenheit: 212).celsius
         """
         #expect(try eval(source).doubleValue == 100.0)
+    }
+
+    @Test func computedContextualInitializerMaterializesForMemberAccess()
+        throws
+    {
+        let source = """
+        struct Value {
+            let number: Int
+
+            static var twenty: Value {
+                .init(number: 20)
+            }
+
+            func adding(_ other: Value) -> Value {
+                .init(number: number + other.number)
+            }
+        }
+        Value.twenty.adding(.init(number: 22)).number
+        """
+        #expect(try eval(source).intValue == 42)
     }
 
     @Test func staticPropertiesAndMethods() throws {

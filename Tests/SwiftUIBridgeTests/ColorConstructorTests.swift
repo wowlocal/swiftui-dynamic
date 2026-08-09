@@ -38,6 +38,46 @@ import SwiftInterpreter
         #expect(color != nil)
     }
 
+    /// A framework value returned by a computed property on an interpreted
+    /// value must retain its concrete host payload when it becomes the next
+    /// generated call's argument. This is the ordinary palette-model shape,
+    /// independent of any particular modifier or application.
+    @Test func computedSourceColorFeedsGeneratedModifier() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: """
+        import SwiftUI
+        struct PaletteEntry {
+            let hue: Double
+            var color: Color {
+                Color(hue: hue, saturation: 0.5, brightness: 0.8)
+            }
+        }
+        struct Palette {
+            let foreground: PaletteEntry
+        }
+        enum Phase {
+            case day
+            init(daylight: Bool) {
+                self.init(index: daylight ? 0 : 1)
+            }
+            init(index: Int) {
+                self = .day
+            }
+            static let dayPalette = Palette(
+                foreground: PaletteEntry(hue: 0.3))
+            var palette: Palette {
+                switch self {
+                case .day: Self.dayPalette
+                }
+            }
+        }
+        Text("palette")
+            .colorMultiply(Phase(daylight: true).palette.foreground.color)
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func platformSystemColors() throws {
         #expect(try evalColor("Color(uiColor: .systemGroupedBackground)") != nil)
         #expect(try evalColor("Color(nsColor: .windowBackgroundColor)") != nil)

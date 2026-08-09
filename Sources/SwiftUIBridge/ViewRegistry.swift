@@ -108,6 +108,19 @@ public final class ViewRegistry: HostRegistry {
                observedType, matchesImportedType: typeName) {
             return true
         }
+        // Concrete SDK values constructed by the interface-generated tier
+        // participate in the interpreter's ordinary contextual type check.
+        // This is the inverse of GeneratedDispatch.nativeValue: the generated
+        // declaration path proves the host payload's type, regardless of
+        // which API later consumes it. In particular, collection element
+        // context can now turn `.init(...)` into any generated/native value
+        // before its enclosing array is coerced.
+        let generatedType = GeneratedMembers.keyTypeName(of: value)
+        let generatedPath = GeneratedMembers.declarationPath(of: value)
+        if HostSignature.equivalentTypeName(generatedType, typeName)
+            || HostSignature.equivalentTypeName(generatedPath, typeName) {
+            return true
+        }
         guard value is any GeneratedPlatformOpaqueReferenceCarrier else {
             return false
         }
@@ -243,34 +256,45 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func modifier(named name: String) -> HostModifier? {
+        let resolved: HostModifier
         if let handWritten = modifiers[name] {
-            return GeneratedDispatch.exposingInterfaceMetadata(
+            resolved = GeneratedDispatch.exposingInterfaceMetadata(
                 for: handWritten, named: name)
+        } else {
+            guard let overloads = GeneratedModifiers.table[name] else {
+                return nil
+            }
+            resolved = HostModifier(
+                name: name,
+                parameterTypeCandidates: { args, ctx in
+                    GeneratedDispatch.contextualParameterTypeCandidates(
+                        overloads: overloads, args: args, ctx: ctx)
+                },
+                argumentMatch: { args, ctx in
+                    GeneratedDispatch.contextualArgumentsMatch(
+                        overloads: overloads, args: args, ctx: ctx)
+                },
+                apply: { value, rawArgs, ctx in
+                    let view = try Self.anyView(value)
+                    return .native(try GeneratedDispatch.dispatch(
+                        name: name, overloads: overloads, view: view,
+                        args: GeneratedDispatch.readingLocalizationKeys(
+                            rawArgs, modifier: name, ctx: ctx),
+                        ctx: ctx
+                    ))
+                })
         }
-        guard let overloads = GeneratedModifiers.table[name] else { return nil }
-        return HostModifier(
-            name: name,
-            parameterTypeCandidates: { args, ctx in
-                GeneratedDispatch.contextualParameterTypeCandidates(
-                    overloads: overloads, args: args, ctx: ctx)
-            },
-            argumentMatch: { args, ctx in
-                GeneratedDispatch.contextualArgumentsMatch(
-                    overloads: overloads, args: args, ctx: ctx)
-            },
-            apply: { value, rawArgs, ctx in
-                let view = try Self.anyView(value)
-                return .native(try GeneratedDispatch.dispatch(
-                    name: name, overloads: overloads, view: view,
-                    args: GeneratedDispatch.readingLocalizationKeys(
-                        rawArgs, modifier: name, ctx: ctx),
-                    ctx: ctx
-                ))
+        return resolved.transporting(
+            prepare: { Self.preparingInterpretedLayoutValueModifier($0) },
+            result: {
+                try Self.preservingInterpretedLayoutValues(
+                    from: $0, in: $1)
             })
     }
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .host(let any) = value {
+            if any is InterpretedLayoutValueViewBox { return true }
             if Self.isHostViewValue(any) { return true }
         }
         return Coerce.colorLike(value) != nil // Color IS a View
@@ -356,8 +380,41 @@ public final class ViewRegistry: HostRegistry {
 
     // MARK: - Helpers shared by gateways
 
+    private static func preparingInterpretedLayoutValueModifier(
+        _ receiver: RuntimeValue
+    ) -> RuntimeValue {
+        guard let carrier =
+                receiver.hostPayload as? InterpretedLayoutValueViewBox else {
+            return receiver
+        }
+        // Do not materialize the universal native trait between source
+        // layoutValue modifiers: SwiftUI's inner value would shadow a later
+        // merged map. Ordinary modifiers transform the raw view while this
+        // carrier transports the metadata alongside it.
+        return .native(carrier.view)
+    }
+
+    private static func preservingInterpretedLayoutValues(
+        from receiver: RuntimeValue, in result: RuntimeValue
+    ) throws -> RuntimeValue {
+        guard let carrier =
+                receiver.hostPayload as? InterpretedLayoutValueViewBox else {
+            return result
+        }
+        if let newer =
+            result.hostPayload as? InterpretedLayoutValueViewBox {
+            return .native(InterpretedLayoutValueViewBox(
+                view: newer.view,
+                storage: carrier.storage.merging(newer.storage)))
+        }
+        return .native(carrier.replacingView(try anyView(result)))
+    }
+
     static func anyView(_ value: RuntimeValue) throws -> AnyView {
         if case .host(let any) = value {
+            if let carrier = any as? InterpretedLayoutValueViewBox {
+                return carrier.materializedView
+            }
             if let view = any as? AnyView { return view }
             if let fan = any as? ForEachFan { return AnyView(Self.indexed(fan.views)) }
             if any is UIKitStub || any is ImplicitMemberCall || any is ChainedImplicitCall {

@@ -210,14 +210,14 @@ extension ViewRegistry {
             .native(ShapeBox(insettable: ContainerRelativeShape()))
         }
 
-        constructors["AnyShapeStyle"] = HostFunction(name: "AnyShapeStyle") { args, _ in
+        constructors["AnyShapeStyle"] = HostFunction(name: "AnyShapeStyle") { args, ctx in
             guard let style = args.positional(0) else {
                 throw RuntimeError(message: "AnyShapeStyle needs a style")
             }
             // Keep the erased style as a real value. Wrapping it as a view or
             // an opaque constructor bag loses ShapeStyle conformance when it
             // later crosses a computed-property or collection boundary.
-            return .native(try Coerce.shapeStyle(style))
+            return .native(try Coerce.shapeStyle(style, context: ctx))
         }
 
         constructors["LinearGradient"] = HostFunction(name: "LinearGradient") { args, _ in
@@ -428,28 +428,6 @@ extension ViewRegistry {
             // header lands in header position exactly once, on every route.
             return .native(SectionSpec(
                 header: header, footer: try accessory("footer"), rows: content))
-        }
-
-        constructors["LazyVGrid"] = HostFunction(name: "LazyVGrid") { args, ctx in
-            guard let columns = args.labeled("columns") else {
-                throw RuntimeError(message: "LazyVGrid needs columns: [GridItem]")
-            }
-            let spacing = try args.labeled("spacing").map(Coerce.cgFloat)
-            let content = try Self.builderContent(args, ctx)
-            return .native(AnyView(
-                LazyVGrid(columns: try Coerce.gridItems(columns), spacing: spacing) { Self.indexed(content) }
-            ))
-        }
-
-        constructors["LazyHGrid"] = HostFunction(name: "LazyHGrid") { args, ctx in
-            guard let rows = args.labeled("rows") else {
-                throw RuntimeError(message: "LazyHGrid needs rows: [GridItem]")
-            }
-            let spacing = try args.labeled("spacing").map(Coerce.cgFloat)
-            let content = try Self.builderContent(args, ctx)
-            return .native(AnyView(
-                LazyHGrid(rows: try Coerce.gridItems(rows), spacing: spacing) { Self.indexed(content) }
-            ))
         }
 
         constructors["GridItem"] = HostFunction(name: "GridItem") { args, _ in

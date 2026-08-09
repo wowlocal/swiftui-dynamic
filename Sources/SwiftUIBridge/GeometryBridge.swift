@@ -1398,6 +1398,10 @@ func bridgeHostTypeName(of value: Any) -> String? {
     if GeneratedMembers.generatedReceiverTypeNames.contains(generatedTypeName) {
         return generatedTypeName
     }
+    if let contextualTypeName =
+        GeneratedSDKEnumCoercions.declaredTypeName(of: value) {
+        return contextualTypeName
+    }
     switch value {
     case is RuntimeTaskHandle: return "Task"
     case is ResultBox: return "Result"

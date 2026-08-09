@@ -61,14 +61,15 @@ extension ViewRegistry {
         // palette symbols need the secondary/tertiary layers). Only the
         // deprecated foregroundColor, absent from the swept interfaces,
         // stays handwritten.
-        register("foregroundColor") { view, args, _ in
+        register("foregroundColor") { view, args, ctx in
             guard let value = args.positional(0) else { throw RuntimeError(message: "missing style argument") }
             // The deprecated API takes a COLOR — Color.secondary here, not
             // the hierarchical style (that's foregroundStyle's domain).
             if let color = Coerce.colorLike(value) {
                 return AnyView(view.foregroundColor(color))
             }
-            return AnyView(view.foregroundStyle(try Coerce.shapeStyle(value)))
+            return AnyView(view.foregroundStyle(
+                try Coerce.shapeStyle(value, context: ctx)))
         }
 
         register("background") { [unowned self] view, args, ctx in
@@ -83,21 +84,23 @@ extension ViewRegistry {
             // `.background(in: shape)` — the style-less form fills with the
             // ambient background style (OrderRow's status icon plate).
             if args.positional(0) == nil, let shapeArg = args.labeled("in") {
-                return AnyView(view.background(in: try Coerce.shape(shapeArg)))
+                return AnyView(view.background(
+                    in: try Coerce.shape(shapeArg, context: ctx)))
             }
             guard let first = args.positional(0) else {
                 throw RuntimeError(message: ".background needs a style or view")
             }
-            if let style = try? Coerce.shapeStyle(first) {
+            if let style = try? Coerce.shapeStyle(first, context: ctx) {
                 if let shapeArg = args.labeled("in") {
-                    return AnyView(view.background(style, in: try Coerce.shape(shapeArg)))
+                    return AnyView(view.background(
+                        style, in: try Coerce.shape(shapeArg, context: ctx)))
                 }
                 return AnyView(view.background(style))
             }
             return AnyView(view.background(try self.anyViewResolving(first, ctx)))
         }
 
-        modifiers["shadow"] = HostModifier(name: "shadow") { value, args, _ in
+        modifiers["shadow"] = HostModifier(name: "shadow") { value, args, ctx in
             // `.indigo.shadow(.drop(…))` is ShapeStyle.shadow, NOT the view
             // modifier — a ShadowStyle marker argument only compiles against
             // the style overload, so a style-like receiver keeps its
@@ -106,7 +109,7 @@ extension ViewRegistry {
             if case .host(let any)? = args.positional(0),
                let call = any as? ImplicitMemberCall,
                call.name == "drop" || call.name == "inner",
-               let base = try? Coerce.shapeStyle(value) {
+               let base = try? Coerce.shapeStyle(value, context: ctx) {
                 let style = try Coerce.shadowStyle(args.positional(0))
                 return .native(AnyShapeStyle(base.shadow(style)))
             }
@@ -122,13 +125,14 @@ extension ViewRegistry {
             guard let value = args.positional(0) else { throw RuntimeError(message: ".cornerRadius needs a radius") }
             return AnyView(view.clipShape(RoundedRectangle(cornerRadius: try Coerce.cgFloat(value))))
         }
-        register("clipShape") { view, args, _ in
+        register("clipShape") { view, args, ctx in
             guard let value = args.positional(0) else { throw RuntimeError(message: ".clipShape needs a shape") }
             if case .host(let any) = value,
                let box = ShapeBox.opening(any) {
                 return box.clipApplier(view)
             }
-            return AnyView(view.clipShape(try Coerce.shape(value)))
+            return AnyView(view.clipShape(
+                try Coerce.shape(value, context: ctx)))
         }
         register("containerShape") { view, args, _ in
             guard let raw = args.positional(0) else {
@@ -147,10 +151,11 @@ extension ViewRegistry {
         }
         register("clipped") { view, _, _ in AnyView(view.clipped()) }
 
-        register("border") { view, args, _ in
+        register("border") { view, args, ctx in
             guard let style = args.positional(0) else { throw RuntimeError(message: ".border needs a style") }
             let width = try args.labeled("width").map(Coerce.cgFloat) ?? 1
-            return AnyView(view.border(try Coerce.shapeStyle(style), width: width))
+            return AnyView(view.border(
+                try Coerce.shapeStyle(style, context: ctx), width: width))
         }
 
         register("opacity") { view, args, _ in
@@ -201,30 +206,6 @@ extension ViewRegistry {
             // depends on changes, which is what retriggers the animation.
             let value = args.labeled("value")?.stringified ?? ""
             return AnyView(view.animation(animation, value: value))
-        }
-
-        register("contentTransition") { view, args, _ in
-            guard let value = args.positional(0) else {
-                throw RuntimeError(message: ".contentTransition needs a transition")
-            }
-            let transition: ContentTransition
-            switch value {
-            case .implicitMember("opacity"):
-                transition = .opacity
-            case .implicitMember("interpolate"):
-                transition = .interpolate
-            case .implicitMember("identity"):
-                transition = .identity
-            case .host(let any):
-                guard let call = any as? ImplicitMemberCall, call.name == "numericText" else {
-                    throw RuntimeError(message: "unsupported content transition")
-                }
-                let countsDown = call.arguments.labeled("countsDown")?.boolValue ?? false
-                transition = .numericText(countsDown: countsDown)
-            default:
-                throw RuntimeError(message: "expected .numericText(), .opacity, .interpolate, or .identity")
-            }
-            return AnyView(view.contentTransition(transition))
         }
 
         register("transition") { view, _, _ in view } // accepted, ignored in v1
@@ -682,20 +663,33 @@ extension ViewRegistry {
 
     /// Shape-typed modifiers that must see the raw box, not AnyView.
     private func registerTypedModifiers() {
+        modifiers["layoutValue"] = HostModifier(name: "layoutValue") {
+            value, args, _ in
+            guard let key = args.labeled("key"),
+                  let layoutValue = args.labeled("value") else {
+                throw RuntimeError(message:
+                    ".layoutValue needs key: and value: arguments")
+            }
+            return try applyingInterpretedLayoutValue(
+                value, key: key, value: layoutValue)
+        }
+
         func shapeOperations(_ value: RuntimeValue) -> ShapeBox? {
             guard case .host(let any) = value else { return nil }
             return ShapeBox.opening(any)
                 ?? (any as? PathDrawStub).map { ShapeBox($0.path) }
         }
 
-        modifiers["fill"] = HostModifier(name: "fill") { value, args, _ in
+        modifiers["fill"] = HostModifier(name: "fill") { value, args, ctx in
             guard let box = shapeOperations(value) else {
                 throw RuntimeError(message: ".fill applies to shapes like Circle()")
             }
-            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
+            let style = try Coerce.shapeStyle(
+                args.positional(0) ?? .implicitMember("primary"),
+                context: ctx)
             return .native(box.fillPainter(style))
         }
-        modifiers["stroke"] = HostModifier(name: "stroke") { value, args, _ in
+        modifiers["stroke"] = HostModifier(name: "stroke") { value, args, ctx in
             guard let box = shapeOperations(value) else {
                 throw RuntimeError(message: ".stroke applies to shapes like Circle()")
             }
@@ -704,10 +698,12 @@ extension ViewRegistry {
                 // Same environment-styled default as strokeBorder.
                 return .native(box.strokePlainPainter(lineWidth))
             }
-            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
+            let style = try Coerce.shapeStyle(
+                args.positional(0) ?? .implicitMember("primary"),
+                context: ctx)
             return .native(box.strokePainter(style, lineWidth))
         }
-        modifiers["strokeBorder"] = HostModifier(name: "strokeBorder") { value, args, _ in
+        modifiers["strokeBorder"] = HostModifier(name: "strokeBorder") { value, args, ctx in
             // Native and boxed InsettableShape values retain the real
             // inside-stroke. Only already-erased custom shapes fall back to
             // the centered stroke below.
@@ -724,7 +720,9 @@ extension ViewRegistry {
                 }
                 return .native(AnyView(box.shape.stroke(lineWidth: lineWidth)))
             }
-            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
+            let style = try Coerce.shapeStyle(
+                args.positional(0) ?? .implicitMember("primary"),
+                context: ctx)
             if let painter = box.strokeBorderPainter {
                 return .native(painter(style, lineWidth))
             }

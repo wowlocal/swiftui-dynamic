@@ -321,6 +321,16 @@ struct SDKProtocolContextualFactoryDecl {
     let function: FunctionDeclSyntax
 }
 
+/// A fluent property that preserves its concrete SDK receiver. Contextual
+/// protocol values can only spell the receiver through a leading dot, so a
+/// chain such as `.root.variant` must open that concrete value before reading
+/// the property. Both the receiver and result identity come from the
+/// interface declaration.
+struct SDKSameTypeInstanceProperty: Hashable {
+    let concreteType: String
+    let name: String
+}
+
 /// A same-type static FUNC declared on a NOMINAL: `Duration.seconds(_:)`.
 ///
 /// This is the call-shaped sibling of the static storage collected beside it.
@@ -362,6 +372,7 @@ var sdkProtocolRefinements: [String: Set<String>] = [:]
 var sdkNominalConformances: [String: Set<String>] = [:]
 var sdkProtocolContextualValues: Set<SDKProtocolContextualValue> = []
 var sdkProtocolContextualFactoryDecls: [SDKProtocolContextualFactoryDecl] = []
+var sdkSameTypeInstanceProperties: Set<SDKSameTypeInstanceProperty> = []
 var sdkProtocolConsumingMethods: Set<SDKProtocolConsumingMethod> = []
 
 /// Interface metadata for specializing public associated-type relationships.
@@ -622,6 +633,14 @@ func arrayElementType(_ normalized: String) -> String? {
 
 /// Public, non-generic native values declared by SwiftUI's interfaces.
 var concreteNativeSwiftUIValueTypes: Set<String> = []
+/// Public concrete reference types owned by frameworks that publish SwiftUI
+/// cross-import overlays. The overlay is the evidence that SwiftUI consumes
+/// the framework, while the triggering framework's swiftinterface proves the
+/// parameter is a real, public class/actor that a native carrier can supply.
+/// Populate this lazily by module: most SDK overlays do not expose reference
+/// values and parsing every triggering framework would buy no generated code.
+var crossImportNativeReferenceTypesByModule: [String: Set<String>] = [:]
+var scannedCrossImportNativeReferenceModules: Set<String> = []
 /// Generic SDK value structs, by declared arity. `SharePreview<Image, Icon>`
 /// is not a type; `SharePreview<InterpretedTransferableValue, Never>` is.
 var genericNativeSwiftUIValueTypeArity: [String: Int] = [:]
@@ -636,6 +655,103 @@ var newerOSNativeValueTypes: Set<String> = []
 /// conforming to the constraint — and it is readable from the interfaces
 /// already parsed, while the conformance itself lives in CoreTransferable.
 var sdkNominalNeverPositions: [String: Set<Int>] = [:]
+
+func collectConcreteSDKReferenceTypes(
+    in declaration: DeclSyntax,
+    module: String,
+    path: [String],
+    into found: inout Set<String>
+) {
+    func visit(
+        _ members: MemberBlockItemListSyntax,
+        path: [String]
+    ) {
+        for member in members {
+            collectConcreteSDKReferenceTypes(
+                in: member.decl, module: module, path: path, into: &found)
+        }
+    }
+
+    func isConcretePublicContainer(
+        modifiers: DeclModifierListSyntax,
+        attributes: AttributeListSyntax,
+        name: String,
+        generics: GenericParameterClauseSyntax?
+    ) -> Bool {
+        isPublicSDKDecl(modifiers)
+            && isUniversallyUsable(attributes)
+            && minimumTargetAvailabilities(attributes).isEmpty
+            && !name.hasPrefix("_")
+            && generics == nil
+    }
+
+    if let value = declaration.as(ClassDeclSyntax.self) {
+        guard isConcretePublicContainer(
+            modifiers: value.modifiers, attributes: value.attributes,
+            name: value.name.text, generics: value.genericParameterClause
+        ) else { return }
+        let nested = path + [value.name.text]
+        found.insert("\(module).\(nested.joined(separator: "."))")
+        visit(value.memberBlock.members, path: nested)
+        return
+    }
+    if let value = declaration.as(ActorDeclSyntax.self) {
+        guard isConcretePublicContainer(
+            modifiers: value.modifiers, attributes: value.attributes,
+            name: value.name.text, generics: value.genericParameterClause
+        ) else { return }
+        let nested = path + [value.name.text]
+        found.insert("\(module).\(nested.joined(separator: "."))")
+        visit(value.memberBlock.members, path: nested)
+        return
+    }
+    // Value nominals can be namespaces for a nested reference type. They do
+    // not join this reference set themselves; their existing mapping tier
+    // remains the authority for values.
+    if let value = declaration.as(StructDeclSyntax.self) {
+        guard isConcretePublicContainer(
+            modifiers: value.modifiers, attributes: value.attributes,
+            name: value.name.text, generics: value.genericParameterClause
+        ) else { return }
+        visit(value.memberBlock.members, path: path + [value.name.text])
+        return
+    }
+    if let value = declaration.as(EnumDeclSyntax.self) {
+        guard isConcretePublicContainer(
+            modifiers: value.modifiers, attributes: value.attributes,
+            name: value.name.text, generics: value.genericParameterClause
+        ) else { return }
+        visit(value.memberBlock.members, path: path + [value.name.text])
+    }
+}
+
+/// Return the triggering framework only when SDK metadata proves that the
+/// fully-qualified type is a concrete public reference nominal. This is a
+/// property query, not a list of framework or API identities.
+func crossImportNativeReferenceModule(for type: String) -> String? {
+    guard let module = type.split(separator: ".").first.map(String.init),
+          swiftUICrossImportFiles.contains(where: {
+              $0.triggeringModule == module
+          }) else { return nil }
+    if scannedCrossImportNativeReferenceModules.insert(module).inserted {
+        var found: Set<String> = []
+        if let path = interfacePath(framework: module),
+           let source = try? String(
+               contentsOfFile: path, encoding: .utf8) {
+            let interface = Parser.parse(source: source)
+            for statement in interface.statements {
+                guard case .decl(let declaration) = statement.item else {
+                    continue
+                }
+                collectConcreteSDKReferenceTypes(
+                    in: declaration, module: module, path: [], into: &found)
+            }
+        }
+        crossImportNativeReferenceTypesByModule[module] = found
+    }
+    return crossImportNativeReferenceTypesByModule[module]?.contains(type)
+        == true ? module : nil
+}
 
 /// A property wrapper whose PROJECTION the interface publishes as a parameter
 /// type but gives no way to build. Collected by shape further down; declared
@@ -749,7 +865,13 @@ func directMapping(for normalized: String) -> TypeMapping? {
             tag: "localizationKey",
             cast: "LocalizedStringResource(stringLiteral: %@ as! String)")
     case "ImageResource":
-        return .init(tag: "string", cast: "ImageResource(name: %@ as! String, bundle: .main)")
+        // Asset-symbol accessors are synthesized by the build system, not
+        // declared in a swiftinterface. Keep their textual payload distinct
+        // from an ordinary String so leading-dot symbols can cross the same
+        // generated initializer that a compiled target selects.
+        return .init(
+            tag: "compilerAssetResourceName",
+            cast: "ImageResource(name: %@ as! String, bundle: .main)")
     case "Text": return .init(tag: "text", cast: "%@ as! Text")
     case "Bool": return .init(tag: "bool", cast: "%@ as! Bool")
     case "Int": return .init(tag: "int", cast: "%@ as! Int")
@@ -822,6 +944,16 @@ func directMapping(for normalized: String) -> TypeMapping? {
                 cast: "%@ as! \(contextualType)",
                 requiredFramework: requirements.count == 1
                     ? requirements.first : nil)
+        }
+        // A cross-import overlay may consume a reference object declared by
+        // its triggering framework. The framework swiftinterface proves that
+        // nominal is public, concrete, and available on our deployment floor;
+        // a property-based native carrier supplies the runtime value.
+        if let framework = crossImportNativeReferenceModule(for: normalized) {
+            return .init(
+                tag: "nativeSwiftUIValue(\"\(normalized)\")",
+                cast: "%@ as! \(normalized)",
+                requiredFramework: framework)
         }
         // A binding over any value type this table maps. It precedes the
         // generic-value branch because `Binding<Color>` satisfies that branch's
@@ -1524,7 +1656,7 @@ func parameterSelections(_ analyzed: [AnalyzedParam]) -> [ParameterSelection] {
         let isFinalClosure = index == analyzed.count - 1
             && ([
                     "builder", "action", "asyncAction",
-                    "syncVoidClosure",
+                    "syncVoidClosure", "asyncVoidClosure",
                     "equatableAction1", "equatableAction2",
                 ].contains(closureTag)
                 || closureTag.hasPrefix("resultBuilder(")
@@ -1666,7 +1798,8 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             hasDefault: hasDefault, blocker: nil, usesGeneric: nil
         )
     }
-    if normalized == "() async -> Void" {
+    if normalized == "() async -> Void"
+        || normalized == "() async -> ()" {
         return .init(
             label: label,
             mapping: .init(
@@ -1705,19 +1838,25 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
        }) {
         let result = normalize(
             closure.returnClause.type.trimmedDescription)
+        let returnsVoid = result == "Void" || result == "()"
         // A Void result is the one genuinely distinct shape: there is nothing
         // to coerce back, so it needs no result adapter and no failed-call
         // value.
-        if result == "Void", closure.parameters.count == 1 {
+        if returnsVoid, closure.parameters.count == 1 {
+            let isAsync = closure.effectSpecifiers?.asyncSpecifier != nil
             return .init(
                 label: label,
                 mapping: .init(
-                    tag: "syncVoidClosure",
-                    cast: "generatedSyncVoidClosure(%@)"),
+                    tag: isAsync
+                        ? "asyncVoidClosure"
+                        : "syncVoidClosure",
+                    cast: isAsync
+                        ? "generatedAsyncVoidClosure(%@)"
+                        : "generatedSyncVoidClosure(%@)"),
                 hasDefault: hasDefault, blocker: nil, usesGeneric: nil,
                 contractType: normalized)
         }
-        if result != "Void",
+        if !returnsVoid,
            // Effects are only disqualifying once there is a value to hand
            // back: the result has to EXIST by the time the framework's call
            // returns, and an `async` callback cannot promise that. The `Void`
@@ -2726,6 +2865,42 @@ func collectSDKProtocolMetadata(
     }
 }
 
+func recordSDKSameTypeInstanceProperties(
+    in members: MemberBlockItemListSyntax,
+    concreteType: String,
+    module: String,
+    localTopLevelNames: Set<String>
+) {
+    for member in members {
+        guard let variable = member.decl.as(VariableDeclSyntax.self),
+              isPublicSDKDecl(variable.modifiers),
+              !hasModifier(variable.modifiers, "static"),
+              !hasModifier(variable.modifiers, "class"),
+              isUniversallyUsable(variable.attributes),
+              !needsAvailabilityGuard(variable.attributes) else {
+            continue
+        }
+        for binding in variable.bindings {
+            guard let identifier = binding.pattern.as(
+                    IdentifierPatternSyntax.self),
+                  let annotation = binding.typeAnnotation else {
+                continue
+            }
+            let declared = canonicalSDKType(
+                annotation.type.trimmedDescription,
+                module: module,
+                localTopLevelNames: localTopLevelNames)
+            guard declared == "Self" || declared == concreteType else {
+                continue
+            }
+            sdkSameTypeInstanceProperties.insert(.init(
+                concreteType: concreteType,
+                name: identifier.identifier.text.trimmingCharacters(
+                    in: CharacterSet(charactersIn: "`"))))
+        }
+    }
+}
+
 /// Second pass: collect nominal conformances and public same-type protocol
 /// factories. Every decision is a relationship present in the support
 /// swiftinterface; no modifier, protocol, concrete type, or member spelling is
@@ -2752,6 +2927,11 @@ func collectSDKProtocolMetadata(
         let childPath = path + [nominal.name]
         if !nominal.isProtocol {
             let type = "\(module).\(childPath.joined(separator: "."))"
+            recordSDKSameTypeInstanceProperties(
+                in: nominal.members,
+                concreteType: type,
+                module: module,
+                localTopLevelNames: localTopLevelNames)
             recordSDKNominalConformances(
                 type: type,
                 inheritanceClause: nominal.inheritance, module: module,
@@ -2781,6 +2961,11 @@ func collectSDKProtocolMetadata(
     let extended = canonicalSDKType(
         extensionDecl.extendedType.trimmedDescription,
         module: module, localTopLevelNames: localTopLevelNames)
+    recordSDKSameTypeInstanceProperties(
+        in: extensionDecl.memberBlock.members,
+        concreteType: extended,
+        module: module,
+        localTopLevelNames: localTopLevelNames)
     recordSDKNominalConformances(
         type: extended, inheritanceClause: extensionDecl.inheritanceClause,
         module: module, localTopLevelNames: localTopLevelNames)
@@ -3574,7 +3759,15 @@ struct Variant {
 
     var key: String {
         name + "|" + params.map {
-            "\($0.label ?? "_"):\($0.tag)\($0.isOptional ? "?" : "")"
+            // The runtime coercion tag is not the declared Swift type.
+            // ImageResource and String, for example, both cross the dynamic
+            // boundary as text but provide different leading-dot context and
+            // select different SDK overloads. Deduplicating on the tag alone
+            // silently drops one interface declaration. Keep the complete
+            // interface-derived contextual type in the overload identity.
+            let context = $0.contextualType.map { "<\($0)>" } ?? ""
+            return "\($0.label ?? "_"):\($0.tag)\(context)"
+                + ($0.isOptional ? "?" : "")
         }.joined(separator: ",")
     }
 
@@ -7241,13 +7434,45 @@ let sdkContextualMethodVariants: [SDKContextualMethodVariant] = {
 let sdkContextualMethodsByType = Dictionary(
     grouping: sdkContextualMethodVariants, by: \.type)
 
-let emittedSDKProtocolCompositions = Set(
+// Hand-erased semantic carriers still need the contextual values declared on
+// their SDK protocol. Derive those protocols by asking the existing constraint
+// mapping for its semantic tag; no protocol identity or static member is
+// repeated here. Generated helpers open the real protocol value before the
+// handwritten semantic boundary preserves or erases it.
+let erasedShapeProtocolCompositions = Set(sdkProtocols.filter {
+    constraintMapping(for: normalize($0))?.tag == "shape"
+})
+let erasedShapeStyleProtocolCompositions = Set(sdkProtocols.filter {
+    constraintMapping(for: normalize($0))?.tag == "genericShapeStyle"
+})
+let erasedSemanticProtocolCompositions =
+    erasedShapeProtocolCompositions.union(
+        erasedShapeStyleProtocolCompositions)
+// These protocols bypass `sdkProtocolMapping` at ordinary parameter-analysis
+// time because their semantic carrier has a stronger mapping above it. Prime
+// the same interface-derived contextual-value table explicitly now that the
+// erasure boundary has selected them.
+for protocolType in erasedSemanticProtocolCompositions {
+    _ = sdkProtocolMapping(for: [protocolType])
+}
+
+let emittedCallableProtocolCompositions: [String] =
     (emittedModifierVariants + emittedInitVariants)
         .flatMap(\.params)
         .compactMap { sdkProtocolComposition(from: $0.tag) }
-        + emittedOpaqueProtocolMemberVariants
-            .flatMap { $0.variant.params }
-            .compactMap { sdkProtocolComposition(from: $0.tag) })
+let emittedOpaqueProtocolCompositions: [String] =
+    emittedOpaqueProtocolMemberVariants
+        .flatMap { $0.variant.params }
+        .compactMap { sdkProtocolComposition(from: $0.tag) }
+let emittedStaticFactoryProtocolCompositions: [String] =
+    staticFactoryVariants
+        .flatMap { $0.variant.params }
+        .compactMap { sdkProtocolComposition(from: $0.tag) }
+var emittedSDKProtocolCompositions = Set(emittedCallableProtocolCompositions)
+emittedSDKProtocolCompositions.formUnion(emittedOpaqueProtocolCompositions)
+emittedSDKProtocolCompositions.formUnion(
+    emittedStaticFactoryProtocolCompositions)
+emittedSDKProtocolCompositions.formUnion(erasedSemanticProtocolCompositions)
 
 /// Resolve call-shaped protocol statics against the protocol composition that
 /// supplies their contextual type. The property is the full interface shape:
@@ -7518,6 +7743,8 @@ func generatedCall(_ callee: String, _ variant: Variant) -> String {
         "{ b\(trailingIndex) }"
     case "action": "{ a\(trailingIndex)() }"
     case "asyncAction": "{ await a\(trailingIndex)() }"
+    case "asyncVoidClosure":
+        "{ value in await generatedAsyncVoidClosure(v[\(trailingIndex)])(value) }"
     case "syncVoidClosure":
         "{ value in generatedSyncVoidClosure(v[\(trailingIndex)])(value) }"
     case let tag where syncClosureInputCount(from: tag) == 0:
@@ -7910,6 +8137,7 @@ let sortedEnvironmentValues = environmentValueVariants.values.sorted {
     $0.name < $1.name
 }
 var environmentWriters = ""
+var environmentDefaults = ""
 for variant in sortedEnvironmentValues {
     let coerced = "try GeneratedDispatch.coerce(.\(variant.mapping.tag), source, context, contextualType: \"\(variant.type)\")"
     let cast = variant.mapping.cast.replacingOccurrences(
@@ -7935,6 +8163,10 @@ for variant in sortedEnvironmentValues {
                 }),
 
 """
+    environmentDefaults += """
+            "\(variant.name)": .native(values.`\(variant.name)`),
+
+"""
 }
 var environmentValuesOutput = """
 // GENERATED by BridgeGen from writable EnvironmentValues in SDK interfaces.
@@ -7944,6 +8176,15 @@ import SwiftUI
 import SwiftInterpreter
 
 extension GeneratedEnvironmentValues {
+    /// Execute SwiftUI's own EnvironmentValues defaults. The interface
+    /// selects every readable key and the framework supplies its value; no
+    /// compiled framework constant is transcribed into the interpreter.
+    static func defaultValues() -> [String: RuntimeValue] {
+        let values = EnvironmentValues()
+        return [
+\(environmentDefaults)        ]
+    }
+
     static func build() -> [String: Descriptor] {
         [\(environmentWriters)        ]
     }
@@ -8527,6 +8768,14 @@ print(
 
 // MARK: - Emit contextual SDK value coercions
 
+let sdkRuntimeContextualValueTypes = emittedSDKEnumTypes.filter {
+    !(sdkEnumCases[$0] ?? []).isEmpty
+        || !(sdkContextualFactoriesByType[$0] ?? []).isEmpty
+}
+let sdkContextualValueTypeNamesLiteral = sdkRuntimeContextualValueTypes.sorted()
+    .map { "        \(String(reflecting: $0))," }
+    .joined(separator: "\n")
+
 var enumsOutput = """
 // GENERATED by BridgeGen from public SwiftUI SDK enum cases and same-type statics.
 // Do not edit. Regenerate: swift run BridgeGen --emit
@@ -8536,6 +8785,28 @@ import SwiftUI
 \(emittedSupportingImportBlock)import SwiftInterpreter
 
 enum GeneratedSDKEnumCoercions {
+    /// Recover the interface nominal of a contextual value after its native
+    /// payload has crossed back into the interpreter. This is the inverse of
+    /// coercion: source extensions need the nominal receiver, while runtime
+    /// reflection may add a framework module qualifier. Require a unique
+    /// interface-derived match so unrelated same-spelled leaf types never
+    /// become extension candidates.
+    private static let declaredTypeNames: [String] = [
+\(sdkContextualValueTypeNamesLiteral)
+    ]
+
+    static func declaredTypeName(of value: Any) -> String? {
+        let observed = String(reflecting: Swift.type(of: value))
+        let direct = declaredTypeNames.filter {
+            observed == $0 || observed.hasSuffix("." + $0)
+        }
+        if direct.count == 1 { return direct[0] }
+        let equivalent = declaredTypeNames.filter {
+            HostSignature.equivalentTypeName(observed, $0)
+        }
+        return equivalent.count == 1 ? equivalent[0] : nil
+    }
+
     static func coerce(
         _ typeName: String, _ value: RuntimeValue,
         context: EvalContext? = nil
@@ -8658,6 +8929,40 @@ func contextualMethodDispatchCode(
         }
     }
     output += "                throw RuntimeError(message: \"unknown \(type) contextual method '.\\(chain.member)'\")\n"
+    output += "            }\n"
+    return output
+}
+
+/// A protocol-contextual root can be followed by a concrete same-type
+/// property (`.root.variant`). Open the shorter chain through the protocol's
+/// own coercion, then let the receiver's dynamic concrete type select the
+/// interface-declared property. This is recursive, so any chain depth uses
+/// the same generated rule.
+func protocolContextualPropertyDispatchCode(
+    composition: String,
+    concreteTypes: Set<String>,
+    existential: String
+) -> String {
+    let properties = sdkSameTypeInstanceProperties.filter {
+        concreteTypes.contains($0.concreteType)
+    }.sorted {
+        ($0.name, $0.concreteType) < ($1.name, $1.concreteType)
+    }
+    guard !properties.isEmpty else { return "" }
+
+    var output = ""
+    output += "            if case .host(let any) = value,\n"
+    output += "               let chain = any as? ChainedImplicitCall,\n"
+    output += "               chain.arguments.isEmpty,\n"
+    output += "               let context {\n"
+    output += "                let base = try coerce(\n"
+    output += "                    \(String(reflecting: composition)), chain.base, context: context)\n"
+    for property in properties {
+        output += "                if chain.member == \(String(reflecting: property.name)),\n"
+        output += "                   let typed = base as? \(property.concreteType) {\n"
+        output += "                    return typed.`\(property.name)` as any \(existential)\n"
+        output += "                }\n"
+    }
     output += "            }\n"
     return output
 }
@@ -8961,6 +9266,55 @@ for (protocolType, descriptor) in
 protocolValuesOutput += """
     ]
 
+    /// Contextual SDK values for protocols that the bridge deliberately
+    /// erases to AnyShape. Both the protocol list and every factory below are
+    /// generated from interface conformance metadata; runtime code sees only
+    /// the semantic Shape result.
+    static func coerceShape(
+        _ value: RuntimeValue, context: EvalContext
+    ) -> AnyShape? {
+
+"""
+
+for composition in erasedShapeProtocolCompositions.sorted() {
+    protocolValuesOutput += """
+        if let candidate = try? coerce(
+            "\(composition)", value, context: context),
+           let shape = candidate as? any Shape {
+            return AnyShape(shape)
+        }
+
+"""
+}
+
+protocolValuesOutput += """
+        return nil
+    }
+
+    /// Contextual SDK values and already-concrete conformers for protocols
+    /// whose generic arguments must remain a ShapeStyle existential. The
+    /// interface owns both the protocol selection and every static factory.
+    static func coerceShapeStyle(
+        _ value: RuntimeValue, context: EvalContext
+    ) -> (any ShapeStyle)? {
+
+"""
+
+for composition in erasedShapeStyleProtocolCompositions.sorted() {
+    protocolValuesOutput += """
+        if let candidate = try? coerce(
+            "\(composition)", value, context: context),
+           let style = candidate as? any ShapeStyle {
+            return style
+        }
+
+"""
+}
+
+protocolValuesOutput += """
+        return nil
+    }
+
     static func frameworkConfigurationMember(
         _ name: String, on value: Any
     ) -> RuntimeValue? {
@@ -9051,6 +9405,9 @@ for composition in emittedSDKProtocolCompositions.sorted() {
     let structural = runtimeStructuralProtocolSpecializations(
         satisfying: requiredProtocols)
     let factories = emittedSDKProtocolFactories[composition] ?? []
+    let factoryRecords = emittedSDKProtocolFactoryRecords[composition] ?? []
+    let contextualConcreteTypes = Set(
+        values.map(\.concreteType) + factoryRecords.map(\.concreteType))
     guard !values.isEmpty || !structural.isEmpty || !factories.isEmpty else {
         continue
     }
@@ -9075,6 +9432,10 @@ for composition in emittedSDKProtocolCompositions.sorted() {
         }
         protocolValuesOutput += "            }\n"
     }
+    protocolValuesOutput += protocolContextualPropertyDispatchCode(
+        composition: composition,
+        concreteTypes: contextualConcreteTypes,
+        existential: existential)
     protocolValuesOutput += contextualFactoryDispatchCode(
         factories: factories, expectedType: composition,
         validationOnly: false, existential: existential)

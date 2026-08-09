@@ -30,6 +30,33 @@ import Testing
     """
 
     @MainActor
+    @Test func shorthandGridItemUsesArrayElementContext() throws {
+        RenderDiagnostics.reset()
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    LazyVGrid(columns: [.init(.adaptive(minimum: 60))]) {
+                        Text("contextual grid item")
+                    }
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(
+            source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed: \(rendered)")
+            return
+        }
+        _ = Self.bitmap(view, size: NSSize(width: 180, height: 100))
+        #expect(
+            RenderDiagnostics.errors.isEmpty,
+            "array element context must resolve .init as GridItem: \(RenderDiagnostics.errors)")
+    }
+
+    @MainActor
     @Test func gridCellCaptionGapMatchesNative() throws {
         let source = """
         struct D: Identifiable {

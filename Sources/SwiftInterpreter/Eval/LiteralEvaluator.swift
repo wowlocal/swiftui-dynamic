@@ -395,11 +395,16 @@ extension Interpreter {
         // EnvironmentValues getters: `self[Key.self]` reads the key type's
         // static defaultValue (pre-@Entry EnvironmentKey conformances).
         if case .host(let any) = base, any is EnvironmentValuesStub {
-            if case .type(let keySymbol) = index {
+            switch index {
+            case .type(let keySymbol):
                 return chained(
                     try staticMember("defaultValue", of: keySymbol) ?? .nilValue)
+            case .enumType(let keySymbol):
+                return chained(
+                    try staticMember("defaultValue", of: keySymbol) ?? .nilValue)
+            default:
+                return .nilValue
             }
-            return .nilValue
         }
         if call.arguments.first?.label?.text == "keyPath" {
             // `element[keyPath: kp]` — apply the stub's components.

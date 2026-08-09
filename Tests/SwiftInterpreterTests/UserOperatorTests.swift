@@ -93,4 +93,80 @@ import Testing
         let result = try Interpreter().run(source: source)
         #expect(result.intValue == 42)
     }
+
+    /// A leading-dot static value is inferred from either nominal operand,
+    /// including a source struct whose Equatable witness is synthesized.
+    /// Collection predicates exercise the same operator path as a direct
+    /// comparison and must receive that contextual type too.
+    @Test func sourceStructPeerContextsLeadingDotStaticEquality() throws {
+        let source = """
+        struct Kind: RawRepresentable, Hashable {
+            var rawValue: String
+            init(rawValue: String) { self.rawValue = rawValue }
+            static let common = Self(rawValue: "common")
+            static let rare = Self(rawValue: "rare")
+        }
+
+        struct Item {
+            let id: Int
+            let kind: Kind
+        }
+
+        let items = [
+            Item(id: 1, kind: .common),
+            Item(id: 2, kind: .rare),
+        ]
+
+        func classify(_ kind: Kind) -> Int {
+            switch kind {
+            case .common: 10
+            case .rare: 20
+            default: -1
+            }
+        }
+
+        (items.first(where: { $0.kind == .rare })!.id,
+         classify(items[1].kind))
+        """
+
+        let result = try Interpreter().run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 2)
+        #expect(tuple.values[1].intValue == 20)
+    }
+
+    /// An enum computed property may select a source static value and feed it
+    /// through a source static factory. Neither hop is an imported SDK chain.
+    @Test func enumComputedStaticValueSurvivesSourceFactoryChain() throws {
+        let source = """
+        struct Payload {
+            let number: Int
+            func adding(_ other: Payload) -> Payload {
+                Payload(number: number + other.number)
+            }
+        }
+        enum Phase {
+            case first, second
+            static let firstPayload = Payload(number: 20)
+            static let secondPayload = Payload(number: 22)
+            var payload: Payload {
+                switch self {
+                case .first: Self.firstPayload
+                case .second: Self.secondPayload
+                }
+            }
+        }
+        struct Palette {
+            static func make() -> Payload {
+                let current = Phase.first
+                let next = Phase.second
+                return current.payload.adding(next.payload)
+            }
+        }
+        Palette.make().number
+        """
+
+        let result = try Interpreter().run(source: source)
+        #expect(result.intValue == 42)
+    }
 }

@@ -57,7 +57,8 @@ public enum InterpretedEnvironment {
     ) -> [String: RuntimeValue] {
         let effectivePlatform = platformName
             ?? Interpreter.interpretsAsPlatform
-        var values: [String: RuntimeValue] = [
+        var values = GeneratedEnvironmentValues.defaultValues()
+        let semanticOverrides: [String: RuntimeValue] = [
             "colorScheme": .implicitMember("light"),
             "dismiss": .hostFunction(HostFunction(name: "dismiss") { _, _ in .void }),
             // SwiftData/CoreData contexts — fresh-in-memory-store stubs
@@ -80,6 +81,7 @@ public enum InterpretedEnvironment {
             "dynamicTypeSize": .implicitMember("large"),
             "scenePhase": .implicitMember("active"),
         ]
+        values.merge(semanticOverrides) { _, override in override }
         values["self"] = .native(EnvironmentValuesStub(values: values))
         return values
     }
@@ -261,7 +263,9 @@ public struct InterpretedView: View {
         LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
         store.adopt(into: instance)
         store.wireQuerySubscription(of: instance, interpreter: interpreter)
-        return interpretedBody
+        return interpreter.withAmbientEnvironmentValues(environmentValues) {
+            interpretedBody
+        }
     }
 
     private var interpretedBody: AnyView {

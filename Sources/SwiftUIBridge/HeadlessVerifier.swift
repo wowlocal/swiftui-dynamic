@@ -96,14 +96,16 @@ public enum HeadlessVerifier {
                 throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: [:])
+            let environmentValues = InterpretedEnvironment.defaults(
+                platformName: interpreter.buildConfiguration.platformName)
             interpreter.injectEnvironmentValues(
-                into: instance,
-                values: InterpretedEnvironment.defaults(
-                    platformName: interpreter.buildConfiguration.platformName))
+                into: instance, values: environmentValues)
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             renderTree = {
-                LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
-                return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                try interpreter.withAmbientEnvironmentValues(environmentValues) {
+                    LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+                    return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                }
             }
         }
         let renderRoot = renderTree!
@@ -181,14 +183,16 @@ public enum HeadlessVerifier {
         actions += node.actions.values
         if let instance = node.instance {
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
+            let environmentValues = InterpretedEnvironment.defaults(
+                platformName: interpreter.buildConfiguration.platformName)
             interpreter.injectEnvironmentValues(
-                into: instance,
-                values: InterpretedEnvironment.defaults(
-                    platformName: interpreter.buildConfiguration.platformName))
+                into: instance, values: environmentValues)
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             let body = try interpreter.withAmbientEnvironmentModels(environment) {
-                LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
-                return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                try interpreter.withAmbientEnvironmentValues(environmentValues) {
+                    LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+                    return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                }
             }
             count += try deepRender(interpreter, body, actions: &actions, environment: environment, depth: depth + 1)
         }

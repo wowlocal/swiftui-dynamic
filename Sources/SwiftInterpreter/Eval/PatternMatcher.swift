@@ -480,12 +480,29 @@ extension Interpreter {
             }
             return result
         }
-        // `case .leading:` against a HOST subject — the marker resolves
-        // against the subject's type first (the infix `==` path does the
-        // same adoption), so Equatable host families match natively
-        // instead of falling to `default:`.
-        let resolvedPattern = try adoptHostType(of: subject, for: pattern, allowCalls: true)
-        return try relocating(node) { try Builtins.areEqual(subject, resolvedPattern) }
+        // `case .leading:` takes the switched value's contextual type. Source
+        // nominals need the same treatment as host values: namespace-style
+        // structs commonly publish `static let` cases while relying on a
+        // synthesized Equatable witness rather than an enum case shape.
+        let resolvedPattern: RuntimeValue
+        switch subject {
+        case .instance(let instance):
+            resolvedPattern = try resolveAnnotated(
+                pattern, typeName: instance.symbol.name)
+        case .enumCase(let enumCase):
+            resolvedPattern = try resolveAnnotated(
+                pattern, typeName: enumCase.symbol.name)
+        default:
+            resolvedPattern = try adoptHostType(
+                of: subject, for: pattern, allowCalls: true)
+        }
+        if let equal = try equalsViaDeclaredOperator(
+            subject, resolvedPattern, node: Syntax(node)) {
+            return equal
+        }
+        return try relocating(node) {
+            try Builtins.areEqual(subject, resolvedPattern)
+        }
     }
 
     private func invokeCustomPatternOperator(

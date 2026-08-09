@@ -281,15 +281,17 @@ public enum LiveCheckSupport {
             if case .instance(let instance) = value {
                 lastRootSymbol = "app:" + instance.symbol.name
                 try interpreter.injectEnvironmentObjects(into: instance, models: [:])
+                let environmentValues = InterpretedEnvironment.defaults(
+                    platformName:
+                        interpreter.buildConfiguration.platformName)
                 interpreter.injectEnvironmentValues(
-                    into: instance,
-                    values: InterpretedEnvironment.defaults(
-                        platformName:
-                            interpreter.buildConfiguration.platformName))
+                    into: instance, values: environmentValues)
                 LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
                 renderRoot = {
-                    LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
-                    return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                    try interpreter.withAmbientEnvironmentValues(environmentValues) {
+                        LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+                        return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                    }
                 }
             } else if (try? TraceRegistry.node(value)) != nil {
                 lastRootSymbol = "expr:" + rootExpression.trimmedDescription.prefix(40)
@@ -318,14 +320,16 @@ public enum LiveCheckSupport {
                 throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: [:])
+            let environmentValues = InterpretedEnvironment.defaults(
+                platformName: interpreter.buildConfiguration.platformName)
             interpreter.injectEnvironmentValues(
-                into: instance,
-                values: InterpretedEnvironment.defaults(
-                    platformName: interpreter.buildConfiguration.platformName))
+                into: instance, values: environmentValues)
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             renderRoot = {
-                LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
-                return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                try interpreter.withAmbientEnvironmentValues(environmentValues) {
+                    LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+                    return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                }
             }
         }
         lastLifecycleFired = 0
@@ -721,13 +725,15 @@ public enum LiveCheckSupport {
                 print("   ⊙ view[\(depth)] \(instance.symbol.name)")
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
+            let environmentValues = InterpretedEnvironment.defaults(
+                platformName: interpreter.buildConfiguration.platformName)
             interpreter.injectEnvironmentValues(
-                into: instance,
-                values: InterpretedEnvironment.defaults(
-                    platformName: interpreter.buildConfiguration.platformName))
+                into: instance, values: environmentValues)
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             let body = try interpreter.withAmbientEnvironmentModels(environment) {
-                try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                try interpreter.withAmbientEnvironmentValues(environmentValues) {
+                    try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                }
             }
             try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,
                         offscreenLifecycle: &offscreenLifecycle,

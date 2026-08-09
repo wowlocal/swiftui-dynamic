@@ -89,6 +89,39 @@ import SwiftInterpreter
         #expect(strings.contains { $0.contains("greeting: hello-default") }, "\(strings)")
     }
 
+    @Test func enumEnvironmentKeyCarriesStructuredDefault() async throws {
+        // Empty enums are the conventional non-instantiable EnvironmentKey
+        // spelling. Their value follows the same type-driven default rule as
+        // a struct key, including structured (rather than literal) defaults.
+        let source = """
+        struct Identifiers {
+            let group: String
+        }
+        private enum IdentifiersKey: EnvironmentKey {
+            static let defaultValue = Identifiers(group: "group-default")
+        }
+        extension EnvironmentValues {
+            var identifiers: Identifiers {
+                get { self[IdentifiersKey.self] }
+                set { self[IdentifiersKey.self] = newValue }
+            }
+        }
+        struct Home: View {
+            @Environment(\\.identifiers) private var identifiers
+            var body: some View {
+                Text("group: " + identifiers.group)
+            }
+        }
+        @main struct DemoApp: App {
+            var body: some Scene {
+                WindowGroup { Home() }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains { $0.contains("group: group-default") }, "\(strings)")
+    }
+
     @Test func nilInBuilderRendersNothing() async throws {
         let source = """
         struct Home: View {

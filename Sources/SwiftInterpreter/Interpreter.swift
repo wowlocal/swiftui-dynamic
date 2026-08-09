@@ -279,6 +279,10 @@ public final class Interpreter {
         _read { yield runtimeHeap.ambientEnvironmentModels }
         _modify { yield &runtimeHeap.ambientEnvironmentModels }
     }
+    var ambientEnvironmentValues: [String: RuntimeValue] {
+        _read { yield runtimeHeap.ambientEnvironmentValues }
+        _modify { yield &runtimeHeap.ambientEnvironmentValues }
+    }
 
     /// Evaluate `body` with `models` as the ambient environment, restoring the
     /// enclosing set afterwards. Every host that fills a view's `@Environment`
@@ -292,6 +296,19 @@ public final class Interpreter {
         let enclosing = ambientEnvironmentModels
         ambientEnvironmentModels = models
         defer { ambientEnvironmentModels = enclosing }
+        return try body()
+    }
+
+    /// Scope key-path environment values around source execution that is
+    /// semantically nested inside a hosted View but does not get a separate
+    /// native SwiftUI environment injection point (notably ViewModifier.body).
+    public func withAmbientEnvironmentValues<T>(
+        _ values: [String: RuntimeValue],
+        _ body: () throws -> T
+    ) rethrows -> T {
+        let enclosing = ambientEnvironmentValues
+        ambientEnvironmentValues = values
+        defer { ambientEnvironmentValues = enclosing }
         return try body()
     }
     /// Interpreted `extension View { … }` / `extension String { … }` members,

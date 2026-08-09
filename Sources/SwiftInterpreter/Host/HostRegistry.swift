@@ -228,6 +228,30 @@ public struct HostModifier {
     ) -> Bool {
         ownsCallBody?(arguments, context) ?? true
     }
+
+    /// Compose receiver/result transport around this modifier without
+    /// reconstructing or weakening its interface-derived overload metadata.
+    public func transporting(
+        prepare: @escaping @MainActor (
+            RuntimeValue
+        ) throws -> RuntimeValue,
+        result transform: @escaping @MainActor (
+            RuntimeValue, RuntimeValue
+        ) throws -> RuntimeValue
+    ) -> HostModifier {
+        let originalApply = apply
+        return HostModifier(
+            name: name,
+            parameterTypeCandidates: parameterTypeCandidatesBody,
+            argumentMatch: argumentMatchBody,
+            ownsCall: ownsCallBody,
+            apply: { receiver, arguments, context in
+                let prepared = try prepare(receiver)
+                return try transform(
+                    receiver,
+                    try originalApply(prepared, arguments, context))
+            })
+    }
 }
 
 /// What gateways can ask of the interpreter mid-call: run an interpreted

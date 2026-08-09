@@ -335,7 +335,8 @@ extension Interpreter {
               functionMetadata(for: method).parameters.count == 1 else {
             return nil
         }
-        injectEnvironmentValues(into: modifier, values: [:])
+        injectEnvironmentValues(
+            into: modifier, values: ambientEnvironmentValues)
         return try applyViewModifier(modifier, to: content, node: node)
     }
 

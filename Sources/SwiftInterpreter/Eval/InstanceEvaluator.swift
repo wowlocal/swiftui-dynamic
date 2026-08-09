@@ -2001,6 +2001,16 @@ extension Interpreter {
         // `.now`-style statics served by the bridge.
         if case .host(let any) = value, let call = any as? ImplicitMemberCall {
             if call.name == "init" {
+                // Contextual `.init(...)` is the same constructor lookup as
+                // an explicit `ExpectedType(...)` call. Route it through the
+                // registry's complete constructor surface so generated SDK
+                // values, reusable adapters, and validated host objects all
+                // receive identical treatment. Source declarations and
+                // source extensions have already had lexical precedence
+                // above; this is the imported-type half of that rule.
+                if let ctor = registry?.constructor(named: importedTypeName) {
+                    return try ctor.invoke(call.arguments, self)
+                }
                 if let ctor = registry?.hostObjectConstructor(
                     named: importedTypeName
                 ) {

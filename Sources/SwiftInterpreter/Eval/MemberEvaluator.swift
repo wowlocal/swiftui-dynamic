@@ -420,6 +420,8 @@ extension Interpreter {
             switch selfValue {
             case .instance(let instance):
                 return globals.lookup(instance.symbol.name) ?? .type(instance.symbol)
+            case .enumCase(let value):
+                return globals.lookup(value.symbol.name) ?? .enumType(value.symbol)
             case .type, .enumType:
                 return selfValue
             default:
@@ -544,6 +546,30 @@ extension Interpreter {
     /// Implicit-self member resolution (works for struct instances, enum
     /// values, and native selves inside host-extension method bodies).
     private func selfMember(_ name: String, on selfValue: RuntimeValue) throws -> RuntimeValue? {
+        // `modifier(SourceModifier(...))` inside `extension View` is the
+        // implicit-self spelling of the same generic SwiftUI operation
+        // handled for `self.modifier(...)` at member call sites. The
+        // swiftinterface cannot instantiate an interpreted generic conformer,
+        // so run its source body through the shared ViewModifier semantic
+        // primitive. Test the receiver's renderable PROPERTY before splitting
+        // by RuntimeValue representation: a source View instance and an
+        // already-native View are the same generic receiver to Swift.
+        if name == "modifier",
+           let target = modifierTarget(for: selfValue) {
+            return .hostFunction(HostFunction(name: name) {
+                [weak self] args, _ in
+                guard let self else {
+                    throw RuntimeError(message: "interpreter gone")
+                }
+                guard let result = try self.applyCustomViewModifierArgument(
+                    args, to: target, node: nil
+                ) else {
+                    throw RuntimeError(
+                        message: "modifier requires a source ViewModifier")
+                }
+                return result
+            })
+        }
         switch selfValue {
         case .instance(let instance):
             return try instanceMember(name, on: instance, preferHostSuperclassProperty: true)
@@ -565,28 +591,6 @@ extension Interpreter {
                 // — the binding's own properties resolve bare.
                 if name == "wrappedValue" { return stub.box.value }
                 if name == "projectedValue" { return selfValue }
-            }
-            // `modifier(SourceModifier(...))` inside `extension View` is the
-            // implicit-self spelling of the same generic SwiftUI operation
-            // handled for `self.modifier(...)` at member call sites. The
-            // interface cannot bridge an interpreted generic conformer into
-            // native SwiftUI, so run its source body through the shared
-            // ViewModifier semantic primitive.
-            if name == "modifier",
-               let target = modifierTarget(for: selfValue) {
-                return .hostFunction(HostFunction(name: name) {
-                    [weak self] args, _ in
-                    guard let self else {
-                        throw RuntimeError(message: "interpreter gone")
-                    }
-                    guard let result = try self.applyCustomViewModifierArgument(
-                        args, to: target, node: nil
-                    ) else {
-                        throw RuntimeError(
-                            message: "modifier requires a source ViewModifier")
-                    }
-                    return result
-                })
             }
             if let value = try nativeMember(name, on: selfValue) { return value }
             if let value = try readHostMember(
@@ -2758,6 +2762,32 @@ extension Interpreter {
             throw error(node, "'\(value.symbol.name).\(value.name)' has no member '\(name)'")
 
         case .enumType(let symbol):
+            // Enum initialization has no storage instance to share across a
+            // delegated `self.init(...)`. Its writable self starts as the
+            // enum metatype marker; invoke the next non-active initializer
+            // through ordinary enum construction, then commit the resulting
+            // case into the caller's initialization box. This is the enum
+            // counterpart of the source-struct delegation path above.
+            if name == "init",
+               case .enumType(let initializing)? = env.lookup("self"),
+               initializing === symbol,
+               !activeInitializers.isEmpty {
+                return .hostFunction(HostFunction(name: "init") {
+                    [weak self] args, _ in
+                    guard let self else {
+                        throw RuntimeError(message: "interpreter gone")
+                    }
+                    let delegated = try self.invoke(
+                        .enumType(symbol), with: args, node: node)
+                    guard let initialized = delegated.unwrappedOptionalOrSelf
+                    else {
+                        throw RuntimeError(
+                            message: Interpreter.initFailedSentinel)
+                    }
+                    env.box(for: "self")?.value = initialized
+                    return .void
+                })
+            }
             if let caseInfo = symbol.caseInfo(named: name) {
                 if caseInfo.hasAssociatedValues {
                     return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
@@ -2994,6 +3024,28 @@ extension Interpreter {
             // hostExtensionStaticMethodDispatcher below for static METHODS
             // of extended host types.)
             let any = baseValue.hostPayload!
+            // A computed property may return a contextual constructor lazily
+            // (`static var unit: Value { .init(...) }`). Once an instance
+            // member is requested, its carried result annotation is the
+            // concrete receiver contract: materialize it before host-marker
+            // extension lookup or open-ended chain absorption. Imported
+            // values that cannot materialize remain the same typed marker and
+            // continue through the established host path below.
+            if let marker = any as? ImplicitMemberCall,
+               let typeName = marker.typeHint {
+                let resolved = try resolveAnnotated(
+                    baseValue, typeName: typeName)
+                if !(resolved.hostPayload is ImplicitMemberCall) {
+                    return try accessMember(
+                        name,
+                        on: resolved,
+                        node: node,
+                        env: env,
+                        deferringAsyncHostProperty:
+                            deferringAsyncHostProperty,
+                        declaredTypeName: typeName)
+                }
+            }
             if let member = runtimeContinuationMember(name, on: any) {
                 return member
             }

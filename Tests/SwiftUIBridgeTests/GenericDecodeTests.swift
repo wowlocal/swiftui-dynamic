@@ -648,6 +648,69 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
 }
 
 @Suite struct ViewModifierBodyTests {
+    @Test func implicitSelfModifierRunsForInterpretedViewReceiver() throws {
+        let source = """
+        struct Wrapper: ViewModifier {
+            func body(content: Content) -> some View {
+                ZStack { content }
+            }
+        }
+
+        extension View {
+            func wrapped() -> some View {
+                modifier(Wrapper())
+            }
+        }
+
+        struct PayloadView: View {
+            var body: some View { Text("payload") }
+        }
+
+        PayloadView().wrapped()
+        """
+        let registry = ViewRegistry()
+        let result = try Interpreter(registry: registry).run(source: source)
+        #expect(
+            registry.isViewValue(result),
+            "bare modifier(...) must apply to its interpreted self; got \(result.stringified)")
+    }
+
+    @Test func customModifierInheritsAmbientKeyPathEnvironment() async throws {
+        let source = """
+        import SwiftData
+
+        struct Note {
+            var title = "note"
+        }
+
+        struct ContextProbe: ViewModifier {
+            @Environment(\\.modelContext) private var context
+
+            func body(content: Content) -> some View {
+                let count = try! context.fetchCount(FetchDescriptor<Note>())
+                return VStack {
+                    content
+                    Text("modifier context \\(count)")
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text("payload").modifier(ContextProbe())
+            }
+        }
+
+        @main struct DemoApp: App {
+            var body: some Scene {
+                WindowGroup { ContentView() }
+            }
+        }
+        """
+        let strings = try await LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("modifier context 0"), "got \(strings)")
+    }
+
     @Test func customModifierRunsItsBody() async throws {
         let source = """
         struct TitleFont: ViewModifier {
